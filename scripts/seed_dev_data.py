@@ -9,6 +9,18 @@ Saves created IDs to .vscode/.dev_seed_ids.json for cleanup.
 
 Creates 3 guilds with multiple users, initiatives, projects, tasks, documents,
 tags, and comments to exercise all features of the app.
+
+Seeded logins (all password "changeme"):
+- admin1..admin4@example.com — dedicated guild admins (platform tier: member).
+- user1..user8@example.com — regular guild members only (never guild admins);
+  several are initiative PMs so PM full access is testable from a non-admin.
+- owner@/operator@/moderator@/support@/member@example.com — one user per
+  platform tier, plus seeded PAM access-grant rows (pending / live / denied /
+  expired / break-glass) to exercise the privileged-access flows.
+
+Sharing variety: resources cover every share status — private (owner-only),
+per-user read/write grants, initiative-role grants, and all-initiative-members
+"general access" rows at both Viewer (read) and Editor (write) levels.
 """
 
 from __future__ import annotations
@@ -54,6 +66,11 @@ from app.models.tenant.document import (  # noqa: E402
     Document,
     DocumentLink,
     ProjectDocument,
+)
+from app.models.platform.access_grant import (  # noqa: E402
+    AccessGrant,
+    AccessGrantStatus,
+    AccessLevel,
 )
 from app.models.platform.guild import Guild, GuildMembership, GuildRole  # noqa: E402
 from app.models.tenant.queue import (  # noqa: E402
@@ -249,6 +266,7 @@ class IDTracker:
             "guilds": [],
             "guild_memberships": [],
             "guild_settings": [],
+            "access_grants": [],
             "initiatives": [],
             "initiative_roles": [],
             "initiative_role_permissions": [],
@@ -488,8 +506,15 @@ async def _create_project(
     owner: User,
     write_users: list[User] | None = None,
     read_users: list[User] | None = None,
+    role_grants: list[tuple[InitiativeRoleModel, ResourceAccessLevel]] | None = None,
+    general_access: ResourceAccessLevel | None = None,
 ) -> Project:
-    """Create a project with permissions and default task statuses."""
+    """Create a project with permissions and default task statuses.
+
+    Share statuses covered: owner-only (pass no extra grants), per-user
+    read/write grants, initiative-role grants, and an all-initiative-members
+    general-access row (``general_access`` = read → Viewer, write → Editor).
+    """
     project = Project(
         guild_id=guild.id,
         name=name,
@@ -537,6 +562,30 @@ async def _create_project(
         )
         session.add(p)
         ids.add("project_permissions", {"project_id": project.id, "user_id": user.id})
+
+    for role, level in (role_grants or []):
+        p = ResourceGrant(
+            resource_type="project",
+            resource_id=project.id,
+            role_id=role.id,
+            guild_id=guild.id,
+            initiative_id=project.initiative_id,
+            level=level,
+        )
+        session.add(p)
+        ids.add("project_permissions", {"project_id": project.id, "role_id": role.id})
+
+    if general_access is not None:
+        p = ResourceGrant(
+            resource_type="project",
+            resource_id=project.id,
+            guild_id=guild.id,
+            initiative_id=project.initiative_id,
+            level=general_access,
+            all_initiative_members=True,
+        )
+        session.add(p)
+        ids.add("project_permissions", {"project_id": project.id, "general": True})
 
     await session.flush()
     return project
@@ -660,7 +709,14 @@ async def _create_documents(
     doc_defs: list[dict],
     all_users: dict[str, User],
 ) -> dict[str, Document]:
-    """Create documents with permissions."""
+    """Create documents with permissions.
+
+    Beyond the owner grant, each doc_def may carry ``writers``/``readers``
+    (user names), ``role_grants`` (list of ``(InitiativeRoleModel, level)``
+    tuples), and ``general_access`` (a ResourceAccessLevel for an
+    all-initiative-members grant). A doc_def with none of these stays
+    private to its creator.
+    """
     docs: dict[str, Document] = {}
     for dd in doc_defs:
         creator = all_users[dd["creator"]]
@@ -717,6 +773,30 @@ async def _create_documents(
                 )
                 session.add(dp)
                 ids.add("document_permissions", {"document_id": doc.id, "user_id": r.id})
+
+        for role, level in dd.get("role_grants", []):
+            dp = ResourceGrant(
+                resource_type="document",
+                resource_id=doc.id,
+                role_id=role.id,
+                guild_id=guild.id,
+                initiative_id=doc.initiative_id,
+                level=level,
+            )
+            session.add(dp)
+            ids.add("document_permissions", {"document_id": doc.id, "role_id": role.id})
+
+        if dd.get("general_access") is not None:
+            dp = ResourceGrant(
+                resource_type="document",
+                resource_id=doc.id,
+                guild_id=guild.id,
+                initiative_id=doc.initiative_id,
+                level=dd["general_access"],
+                all_initiative_members=True,
+            )
+            session.add(dp)
+            ids.add("document_permissions", {"document_id": doc.id, "general": True})
 
     await session.flush()
     return docs
@@ -931,6 +1011,9 @@ async def _create_queues(
         initiative_id, name, description, created_by (user name),
         is_active (bool), current_round (int),
         write_users (list of names for write permission),
+        read_users (list of names for read permission),
+        role_grants (list of (InitiativeRoleModel, ResourceAccessLevel)),
+        general_access (ResourceAccessLevel for an all-initiative-members grant),
         items: list of dicts with label, position, user (name or None),
             color, notes, is_visible, tags (list of tag names)
         active_item_label (str, optional) — label of the currently active item
@@ -981,6 +1064,51 @@ async def _create_queues(
                 ids.add("queue_permissions", {
                     "queue_id": queue.id, "user_id": user.id,
                 })
+
+        # Read permissions
+        for uname in qd.get("read_users", []):
+            user = all_users.get(uname)
+            if user and user.id != creator.id:
+                rp = ResourceGrant(
+                    resource_type="queue",
+                    resource_id=queue.id,
+                    user_id=user.id,
+                    guild_id=guild.id,
+                    initiative_id=queue.initiative_id,
+                    level=ResourceAccessLevel.read,
+                )
+                session.add(rp)
+                ids.add("queue_permissions", {
+                    "queue_id": queue.id, "user_id": user.id,
+                })
+
+        # Role grants
+        for role, level in qd.get("role_grants", []):
+            rg = ResourceGrant(
+                resource_type="queue",
+                resource_id=queue.id,
+                role_id=role.id,
+                guild_id=guild.id,
+                initiative_id=queue.initiative_id,
+                level=level,
+            )
+            session.add(rg)
+            ids.add("queue_permissions", {
+                "queue_id": queue.id, "role_id": role.id,
+            })
+
+        # General access (all initiative members)
+        if qd.get("general_access") is not None:
+            ga = ResourceGrant(
+                resource_type="queue",
+                resource_id=queue.id,
+                guild_id=guild.id,
+                initiative_id=queue.initiative_id,
+                level=qd["general_access"],
+                all_initiative_members=True,
+            )
+            session.add(ga)
+            ids.add("queue_permissions", {"queue_id": queue.id, "general": True})
         await session.flush()
 
         # Items
@@ -1075,6 +1203,7 @@ async def _create_counter_groups(
         initiative_id, name, description, created_by (user name),
         role_grants: list of {role_id, level},
         user_grants: list of {user (name), level},
+        general_access: ResourceAccessLevel for an all-initiative-members grant,
         counters: list of dicts with name, color, count, min, max, step,
             initial_count, view_mode, position.
     """
@@ -1137,6 +1266,21 @@ async def _create_counter_groups(
             ids.add("counter_group_role_permissions", {
                 "counter_group_id": group.id,
                 "initiative_role_id": grant["role_id"],
+            })
+
+        # General access (all initiative members)
+        if gd.get("general_access") is not None:
+            ga = ResourceGrant(
+                resource_type="counter_group",
+                resource_id=group.id,
+                guild_id=guild.id,
+                initiative_id=group.initiative_id,
+                level=gd["general_access"],
+                all_initiative_members=True,
+            )
+            session.add(ga)
+            ids.add("counter_group_permissions", {
+                "counter_group_id": group.id, "general": True,
             })
         await session.flush()
 
@@ -1347,6 +1491,54 @@ async def _attach_property_values(
 
 
 # ---------------------------------------------------------------------------
+# PAM access-grant seeder (platform-role testing paths)
+# ---------------------------------------------------------------------------
+
+async def _create_access_grants(
+    session: AsyncSession,
+    ids: IDTracker,
+    grant_defs: list[dict],
+) -> None:
+    """Seed ``public.access_grants`` rows (the PAM / break-glass flow).
+
+    Must run with the session reset to the bare admin engine (no guild
+    routing) — access_grants is a platform-scoped shared table.
+
+    Each grant_def has:
+        user (User) — the grantee,
+        guild_id — the target guild,
+        access_level (AccessLevel), status (AccessGrantStatus),
+        reason (str), requested_duration_minutes (int),
+        requested_by (User, defaults to the grantee),
+        approved_by (User, optional),
+        requested_delta / decided_delta / expires_delta — timedeltas
+        relative to NOW (omit for NULL).
+    """
+    for gd in grant_defs:
+        grantee: User = gd["user"]
+        grant = AccessGrant(
+            user_id=grantee.id,
+            guild_id=gd["guild_id"],
+            access_level=gd.get("access_level", AccessLevel.read).value,
+            status=gd["status"].value,
+            reason=gd["reason"],
+            requested_duration_minutes=gd.get("requested_duration_minutes", 60),
+            requested_by_id=gd.get("requested_by", grantee).id,
+            approved_by_id=gd["approved_by"].id if gd.get("approved_by") else None,
+            requested_at=NOW + gd.get("requested_delta", timedelta(0)),
+            decided_at=(
+                NOW + gd["decided_delta"] if gd.get("decided_delta") is not None else None
+            ),
+            expires_at=(
+                NOW + gd["expires_delta"] if gd.get("expires_delta") is not None else None
+            ),
+        )
+        session.add(grant)
+        await session.flush()
+        ids.add("access_grants", grant.id)
+
+
+# ---------------------------------------------------------------------------
 # Seed
 # ---------------------------------------------------------------------------
 
@@ -1388,6 +1580,18 @@ async def seed() -> None:
              "push_task_assignment": False, "push_overdue_tasks": False},
             {"email": "user8@example.com", "full_name": "Aurelia Brightshield",
              "timezone": "America/Denver", "color_theme": "strahd", "week_starts_on": 1},
+            # Dedicated guild admins — user1..8 above are ALWAYS regular guild
+            # members (several are initiative PMs), so these four carry every
+            # guild-admin membership instead. Platform tier stays `member`:
+            # guild admin is a guild role, orthogonal to the platform ladder.
+            {"email": "admin1@example.com", "full_name": "Guildmaster Aldric",
+             "timezone": "America/New_York", "color_theme": "kobold"},
+            {"email": "admin2@example.com", "full_name": "Overseer Nova",
+             "timezone": "America/Los_Angeles", "color_theme": "displacer"},
+            {"email": "admin3@example.com", "full_name": "Harbormaster Marisol",
+             "timezone": "Europe/Lisbon", "color_theme": "strahd", "week_starts_on": 1},
+            {"email": "admin4@example.com", "full_name": "Archivist Okoro",
+             "timezone": "Africa/Lagos", "color_theme": "kobold"},
             # Platform-role users — one per tier for exercising the privilege ladder.
             # (member@ rounds out the set; user1..8 above are also members.)
             {"email": "owner@example.com", "full_name": "Platform Owner",
@@ -1422,6 +1626,15 @@ async def seed() -> None:
         kael = new_users["Kael Windrunner"]
         aurelia = new_users["Aurelia Brightshield"]
 
+        # Guild admins: admin1 → guild 1, admin2 → guild 2, admin3 → guild 3,
+        # admin4 → second admin in guilds 1 and 3 (multi-guild admin path).
+        # None of them join initiatives — they exercise the guild-admin
+        # override (full guild visibility WITHOUT initiative membership).
+        admin1 = new_users["Guildmaster Aldric"]
+        admin2 = new_users["Overseer Nova"]
+        admin3 = new_users["Harbormaster Marisol"]
+        admin4 = new_users["Archivist Okoro"]
+
         # Platform-role users. Their platform tier is orthogonal to guild
         # membership, so spread them across a variety of guilds/initiatives
         # below to exercise the app as ordinary members from every tier.
@@ -1447,11 +1660,15 @@ async def seed() -> None:
             session, user_id=admin_user.id, guild_id=g1_id, guild_role="admin"
         )
 
-        # Add members to primary guild (incl. a couple of platform-role users)
+        # Add members to primary guild (incl. a couple of platform-role users).
+        # admin1/admin4 are the guild admins; dm stays a REGULAR member but is
+        # PM of two initiatives below (PM-full-access path without admin).
+        # kael joins the guild but no G1 initiative — his view of guild 1 must
+        # be empty (initiative RLS hides everything; content 404s, not 403s).
         await _add_guild_members(
             session, ids, g1,
-            [dm, thorn, elara, vex, sera, p_operator, p_support],
-            admin_users=[dm],
+            [admin1, admin4, dm, thorn, elara, vex, sera, kael, p_operator, p_support],
+            admin_users=[admin1, admin4],
         )
 
         # Look up the primary guild's "Default Initiative", creating it if it
@@ -1526,6 +1743,11 @@ async def seed() -> None:
         # -- Projects --
         print("  Creating Guild 1 projects...")
 
+        # Share-status variety across G1 projects:
+        #   Barovia Arc      — user grants + general access (Viewer)
+        #   Castle Ravenloft — user grant + initiative-role grant (member → read)
+        #   Homebrew Rules   — general access (Editor)
+        #   DM's Secret Vault — private: owner-only, no other grants
         g1_barovia = await _create_project(
             session, ids,
             guild=g1, initiative=g1_strahd,
@@ -1535,6 +1757,7 @@ async def seed() -> None:
             owner=dm,
             write_users=[thorn, elara],
             read_users=[vex, sera],
+            general_access=ResourceAccessLevel.read,
         )
 
         g1_ravenloft = await _create_project(
@@ -1545,6 +1768,7 @@ async def seed() -> None:
             description="The final dungeon — Strahd's fortress atop the Pillarstone",
             owner=dm,
             write_users=[thorn],
+            role_grants=[(g1_strahd_mem, ResourceAccessLevel.read)],
         )
 
         g1_phandalin = await _create_project(
@@ -1586,6 +1810,17 @@ async def seed() -> None:
             description="Custom house rules, variant options, and homebrew content",
             owner=dm,
             write_users=[admin_user, thorn],
+            general_access=ResourceAccessLevel.write,
+        )
+
+        g1_secret = await _create_project(
+            session, ids,
+            guild=g1, initiative=g1_strahd,
+            name="DM's Secret Vault",
+            icon="\U0001F512",
+            description="Unshared DM prep — plot twists the players must not see. "
+                        "Tests the private (owner-only) share status.",
+            owner=dm,
         )
 
         g1_mega_dungeon = await _create_project(
@@ -1602,7 +1837,7 @@ async def seed() -> None:
 
         # Task statuses
         print("  Creating Guild 1 task statuses...")
-        g1_projects = [g1_barovia, g1_ravenloft, g1_phandalin, g1_wave_echo, g1_session_zero, g1_homebrew, g1_mega_dungeon]
+        g1_projects = [g1_barovia, g1_ravenloft, g1_phandalin, g1_wave_echo, g1_session_zero, g1_homebrew, g1_secret, g1_mega_dungeon]
         g1_status_maps: dict[int, dict[str, TaskStatus]] = {}
         for proj in g1_projects:
             statuses = await ensure_default_statuses(session, proj.id)
@@ -1732,6 +1967,22 @@ async def seed() -> None:
              "description": "Current rules are too restrictive — allow crafting during short rests.",
              "priority": TaskPriority.medium, "category": TaskStatusCategory.done,
              "assignees": ["Admin User"]},
+            {"project_id": g1_homebrew.id, "title": "Retire the old initiative-tracker house rule",
+             "description": "Superseded by the queues feature. Kept for the archive view.",
+             "priority": TaskPriority.low, "category": TaskStatusCategory.done,
+             "archived": True},
+            # DM's Secret Vault (private project — owner-only)
+            {"project_id": g1_secret.id, "title": "Plan the Ireena/Tatyana reveal",
+             "description": "Session 15 twist. Absolutely no player visibility.",
+             "priority": TaskPriority.high, "category": TaskStatusCategory.in_progress,
+             "assignees": ["Dungeon Master"]},
+            {"project_id": g1_secret.id, "title": "Stat the secret final boss variant",
+             "description": "Strahd's heart-linked form if the party destroys the Heart of Sorrow first.",
+             "priority": TaskPriority.medium, "category": TaskStatusCategory.todo},
+            {"project_id": g1_secret.id, "title": "Scrapped subplot: the mongrelfolk uprising",
+             "description": "Cut for pacing. Archived so it stops cluttering the board.",
+             "priority": TaskPriority.low, "category": TaskStatusCategory.backlog,
+             "archived": True},
             # Mega Dungeon — 200 rooms generated programmatically
             *_generate_mega_dungeon_tasks(g1_mega_dungeon.id),
         ]
@@ -1799,6 +2050,7 @@ async def seed() -> None:
                 "creator": "Dungeon Master",
                 "writers": ["Admin User"],
                 "readers": ["Thorn Ironforge", "Elara Moonwhisper"],
+                "general_access": ResourceAccessLevel.read,
                 "paragraphs": [
                     "Barovia is a demiplane of dread, shrouded in perpetual mist. "
                     "The land is ruled by Count Strahd von Zarovich, a vampire lord "
@@ -1814,6 +2066,7 @@ async def seed() -> None:
                 "initiative_id": g1_strahd.id,
                 "title": "NPC Roster: Curse of Strahd",
                 "creator": "Dungeon Master",
+                "role_grants": [(g1_strahd_mem, ResourceAccessLevel.read)],
                 "paragraphs": [
                     "Strahd von Zarovich — The vampire lord of Barovia. Ancient, cunning, and tragically cursed.",
                     "Ireena Kolyana — Adopted daughter of the burgomaster. Strahd believes she is Tatyana reborn.",
@@ -1882,10 +2135,24 @@ async def seed() -> None:
                 ],
             },
             {
+                # Private document — owner-only, no shares at all.
+                "initiative_id": g1_strahd.id,
+                "title": "DM Notes: Strahd's True Motives",
+                "creator": "Dungeon Master",
+                "paragraphs": [
+                    "Strahd is not hunting the party — he is auditioning them. He wants a "
+                    "successor who can break the curse he no longer believes he deserves "
+                    "to escape.",
+                    "If the players read this document, the seed data's private share "
+                    "status is broken.",
+                ],
+            },
+            {
                 "initiative_id": g1_default_init.id,
                 "title": "House Rules v2",
                 "creator": "Dungeon Master",
                 "writers": ["Admin User"],
+                "general_access": ResourceAccessLevel.write,
                 "paragraphs": [
                     "1. Critical hits: Roll damage dice twice plus modifiers (no doubling modifiers).",
                     "2. Potions: Drinking a potion is a bonus action. Feeding one to another is an action.",
@@ -1949,6 +2216,9 @@ async def seed() -> None:
             (vex, g1_ravenloft),
             (sera, g1_barovia),
             (admin_user, g1_phandalin), (admin_user, g1_wave_echo),
+            # Guild admin favoriting a project they access purely via the
+            # guild-admin override (admin1 is in no G1 initiative).
+            (admin1, g1_barovia),
         ])
         await _create_recent_views(session, ids, g1, [
             (dm, g1_barovia), (dm, g1_ravenloft), (dm, g1_session_zero),
@@ -1982,6 +2252,7 @@ async def seed() -> None:
                 "is_active": True,
                 "current_round": 3,
                 "write_users": ["Thorn Ironforge", "Elara Moonwhisper"],
+                "read_users": ["Vex Shadowstep", "Seraphina Dawnlight"],
                 "active_item_label": "Thorn Ironforge",
                 "items": [
                     {"label": "Thorn Ironforge", "position": 22, "user": "Thorn Ironforge",
@@ -2014,6 +2285,7 @@ async def seed() -> None:
                 "is_active": False,
                 "current_round": 1,
                 "write_users": ["Thorn Ironforge"],
+                "role_grants": [(g1_strahd_mem, ResourceAccessLevel.read)],
                 "items": [
                     {"label": "Dire Wolf Alpha", "position": 20,
                      "color": "#6B7280", "notes": "Pack leader — AC 14, HP: 37",
@@ -2038,6 +2310,7 @@ async def seed() -> None:
                 "is_active": False,
                 "current_round": 5,
                 "write_users": ["Dungeon Master", "Thorn Ironforge", "Elara Moonwhisper"],
+                "general_access": ResourceAccessLevel.read,
                 "items": [
                     {"label": "Admin User (Ranger)", "position": 21, "user": "Admin User",
                      "color": "#059669", "notes": "Hunter's Mark on Klarg"},
@@ -2084,6 +2357,7 @@ async def seed() -> None:
                 ],
             },
             {
+                # Deliberately private: DM-only, no user/role/general grants.
                 "initiative_id": g1_strahd.id,
                 "name": "Castle Ravenloft Doom Clock",
                 "description": "Strahd's awareness of the party. At 8 he comes for them.",
@@ -2102,6 +2376,7 @@ async def seed() -> None:
                 "name": "Phandelver Reputation",
                 "description": "Faction standing for the Lost Mine of Phandelver party.",
                 "created_by": "Admin User",
+                "general_access": ResourceAccessLevel.read,
                 "counters": [
                     {"name": "Phandalin Reputation", "color": "#10B981", "count": 3, "min": -5, "max": 10,
                      "step": 1, "initial_count": 0, "view_mode": CounterViewMode.number, "position": 1},
@@ -2129,7 +2404,8 @@ async def seed() -> None:
                     {"user": "Thorn Ironforge", "rsvp_status": RSVPStatus.accepted},
                     {"user": "Elara Moonwhisper", "rsvp_status": RSVPStatus.accepted},
                     {"user": "Vex Shadowstep", "rsvp_status": RSVPStatus.tentative},
-                    {"user": "Seraphina Dawnlight", "rsvp_status": RSVPStatus.pending},
+                    {"user": "Seraphina Dawnlight", "rsvp_status": RSVPStatus.declined},
+                    {"user": "Platform Operator", "rsvp_status": RSVPStatus.pending},
                 ],
                 "tags": ["quest", "lore"],
                 "documents": ["NPC Roster: Curse of Strahd"],
@@ -2304,10 +2580,12 @@ async def seed() -> None:
             session, user_id=admin_user.id, guild_id=g2_id, guild_role="admin"
         )
 
+        # admin2 is the (only added) guild admin; finley is a regular member
+        # who is PM of the Side Missions initiative below.
         await _add_guild_members(
             session, ids, g2,
-            [finley, kael, aurelia, vex, elara, p_moderator, p_member],
-            admin_users=[finley],
+            [admin2, finley, kael, aurelia, vex, elara, p_moderator, p_member],
+            admin_users=[admin2],
         )
 
         # Default initiative for g2
@@ -2401,6 +2679,7 @@ async def seed() -> None:
             description="Establishing the first settlement on the candidate planet",
             owner=admin_user,
             write_users=[finley, aurelia],
+            role_grants=[(g2_main_mem, ResourceAccessLevel.read)],
         )
 
         g2_fringe = await _create_project(
@@ -2411,6 +2690,7 @@ async def seed() -> None:
             description="A one-shot heist adventure on a derelict space station",
             owner=finley,
             write_users=[kael, vex],
+            read_users=[aurelia],
         )
 
         g2_engineering = await _create_project(
@@ -2421,6 +2701,7 @@ async def seed() -> None:
             description="Ship upgrades, tech research, and equipment management",
             owner=kael,
             write_users=[admin_user, elara],
+            general_access=ResourceAccessLevel.write,
         )
 
         g2_planning = await _create_project(
@@ -2528,6 +2809,10 @@ async def seed() -> None:
              "description": "Need stats for 3 Krellix NPCs with unique abilities.",
              "priority": TaskPriority.low, "category": TaskStatusCategory.in_progress,
              "assignees": ["Admin User"]},
+            {"project_id": g2_planning.id, "title": "Session 3 scheduling poll",
+             "description": "Closed poll — session happened. Archived.",
+             "priority": TaskPriority.low, "category": TaskStatusCategory.done,
+             "archived": True},
         ]
 
         g2_tasks: dict[str, Task] = {}
@@ -2600,6 +2885,7 @@ async def seed() -> None:
                 "initiative_id": g2_main.id,
                 "title": "Faction Guide: Krellix Dominion",
                 "creator": "Admin User",
+                "general_access": ResourceAccessLevel.read,
                 "paragraphs": [
                     "The Krellix are a territorial insectoid species that controls a swathe of space "
                     "between the fleet and the target system. They are technologically advanced but "
@@ -2612,6 +2898,7 @@ async def seed() -> None:
                 "initiative_id": g2_side.id,
                 "title": "One-Shot: Smuggler's Run Briefing",
                 "creator": "Finley Goldtongue",
+                "role_grants": [(g2_side_mem, ResourceAccessLevel.write)],
                 "paragraphs": [
                     "Station Omega is a decommissioned military research station now operated by "
                     "the Crimson Syndicate. Inside the vault: a prototype cloaking device worth "
@@ -2703,6 +2990,8 @@ async def seed() -> None:
                 "is_active": True,
                 "current_round": 2,
                 "write_users": ["Finley Goldtongue", "Kael Windrunner"],
+                "read_users": ["Vex Shadowstep"],
+                "general_access": ResourceAccessLevel.read,
                 "active_item_label": "Krellix Shock Trooper #1",
                 "items": [
                     {"label": "Kael Windrunner", "position": 24, "user": "Kael Windrunner",
@@ -2752,6 +3041,7 @@ async def seed() -> None:
                 "name": "Krellix Diplomatic Tracker",
                 "description": "Relations with the Krellix Dominion.",
                 "created_by": "Admin User",
+                "general_access": ResourceAccessLevel.read,
                 "counters": [
                     {"name": "Treaty Progress", "color": "#0EA5E9", "count": 2, "min": 0, "max": 5,
                      "step": 1, "initial_count": 0, "view_mode": CounterViewMode.segmented_clock, "position": 1},
@@ -2791,6 +3081,8 @@ async def seed() -> None:
                     {"user": "Finley Goldtongue", "rsvp_status": RSVPStatus.accepted},
                     {"user": "Kael Windrunner", "rsvp_status": RSVPStatus.accepted},
                     {"user": "Aurelia Brightshield", "rsvp_status": RSVPStatus.tentative},
+                    {"user": "Vex Shadowstep", "rsvp_status": RSVPStatus.declined},
+                    {"user": "Elara Moonwhisper", "rsvp_status": RSVPStatus.pending},
                 ],
                 "tags": ["combat"] if "combat" in g2_tags else [],
                 "documents": ["Setting Bible: The Exodus Protocol"],
@@ -2924,11 +3216,14 @@ async def seed() -> None:
         # ==============================================================
         print("\n  --- Guild 3: Realm of Tides (Pirate Campaign) ---")
 
+        # admin3 creates (and therefore admins) this guild; finley is a regular
+        # member who is PM of the main initiative below. The platform owner
+        # superuser is deliberately a plain member here.
         g3 = await _create_guild(
             session, ids,
             name="Realm of Tides",
             description="A nautical fantasy campaign across the Shattered Seas",
-            creator=finley,
+            creator=admin3,
         )
         g3_id = g3.id
 
@@ -2937,17 +3232,17 @@ async def seed() -> None:
         _expunge_guild_scoped(session)  # clear guild 2's per-schema ids from the identity map
         await provision_guild(g3_id)
         await set_rls_context(
-            session, user_id=admin_user.id, guild_id=g3_id, guild_role="admin"
+            session, user_id=admin3.id, guild_id=g3_id, guild_role="admin"
         )
 
         await _add_guild_members(
             session, ids, g3,
-            [admin_user, dm, thorn, kael, aurelia, sera, p_owner, p_operator],
-            admin_users=[admin_user],
+            [admin4, admin_user, finley, dm, thorn, kael, aurelia, sera, p_owner, p_operator],
+            admin_users=[admin4],
         )
 
-        # Default initiative
-        g3_default_init = await ensure_default_initiative(session, finley, guild_id=g3_id)
+        # Default initiative (admin3, the guild creator, becomes its PM)
+        g3_default_init = await ensure_default_initiative(session, admin3, guild_id=g3_id)
         result = await session.exec(
             select(InitiativeRoleModel).where(
                 InitiativeRoleModel.initiative_id == g3_default_init.id,
@@ -2975,7 +3270,10 @@ async def seed() -> None:
             )
         )
         g3_def_member_role = result.one()
-        for user in [admin_user, dm]:
+        # finley must be a member here: he owns the Campaign Notes project in
+        # this initiative, and a DAC owner grant is useless without passing
+        # the initiative gate first.
+        for user in [admin_user, dm, finley]:
             m = InitiativeMember(
                 initiative_id=g3_default_init.id,
                 user_id=user.id,
@@ -3035,6 +3333,7 @@ async def seed() -> None:
             description="The legendary hoard guarded by the sea beast",
             owner=finley,
             write_users=[admin_user, dm],
+            general_access=ResourceAccessLevel.read,
         )
 
         g3_islands = await _create_project(
@@ -3056,6 +3355,7 @@ async def seed() -> None:
             description="Tracking the movements and strength of the Imperial Navy",
             owner=dm,
             write_users=[finley, thorn],
+            role_grants=[(g3_navy_mem, ResourceAccessLevel.write)],
         )
 
         g3_planning = await _create_project(
@@ -3231,6 +3531,7 @@ async def seed() -> None:
                 "creator": "Finley Goldtongue",
                 "writers": ["Dungeon Master"],
                 "readers": ["Admin User", "Thorn Ironforge"],
+                "general_access": ResourceAccessLevel.read,
                 "paragraphs": [
                     "The Shattered Seas are a vast archipelago formed when the old continent sank "
                     "a thousand years ago. Hundreds of islands dot the warm waters, from volcanic "
@@ -3259,6 +3560,7 @@ async def seed() -> None:
                 "title": "Intelligence Report: Admiral Blackwood",
                 "creator": "Dungeon Master",
                 "readers": ["Finley Goldtongue", "Thorn Ironforge"],
+                "role_grants": [(g3_navy_mem, ResourceAccessLevel.read)],
                 "paragraphs": [
                     "Admiral Helena Blackwood commands the 3rd Imperial Fleet from her flagship, "
                     "the HMS Vengeance (a 74-gun ship of the line). She is ruthless, brilliant, "
@@ -3411,6 +3713,7 @@ async def seed() -> None:
                 "is_active": False,
                 "current_round": 1,
                 "write_users": ["Finley Goldtongue"],
+                "general_access": ResourceAccessLevel.read,
                 "items": [
                     {"label": "Finley Goldtongue", "position": 19, "user": "Finley Goldtongue",
                      "color": "#F59E0B"},
@@ -3457,6 +3760,7 @@ async def seed() -> None:
                 "name": "Plunder Vault",
                 "description": "Treasure recovered toward the Leviathan's Heart.",
                 "created_by": "Finley Goldtongue",
+                "general_access": ResourceAccessLevel.write,
                 "counters": [
                     {"name": "Tidestones Recovered", "color": "#0EA5E9", "count": 1, "min": 0, "max": 3,
                      "step": 1, "initial_count": 0, "view_mode": CounterViewMode.progress_bar, "position": 1},
@@ -3497,8 +3801,26 @@ async def seed() -> None:
                     {"user": "Kael Windrunner", "rsvp_status": RSVPStatus.accepted},
                     {"user": "Aurelia Brightshield", "rsvp_status": RSVPStatus.accepted},
                     {"user": "Seraphina Dawnlight", "rsvp_status": RSVPStatus.tentative},
+                    {"user": "Platform Owner", "rsvp_status": RSVPStatus.declined},
                 ],
                 "documents": ["The Shattered Seas: World Guide"],
+            },
+            {
+                # Multi-day event — spans three calendar days.
+                "initiative_id": g3_main.id,
+                "title": "Voyage to the Abyssal Trench",
+                "description": "Three in-game days of open-sea travel, storms, and random encounters.",
+                "location": "The Crimson Maiden",
+                "start_at": NOW + timedelta(days=8),
+                "end_at": NOW + timedelta(days=10, hours=6),
+                "color": "#0EA5E9",
+                "created_by": "Finley Goldtongue",
+                "attendees": [
+                    {"user": "Finley Goldtongue", "rsvp_status": RSVPStatus.accepted},
+                    {"user": "Kael Windrunner", "rsvp_status": RSVPStatus.accepted},
+                    {"user": "Aurelia Brightshield", "rsvp_status": RSVPStatus.pending},
+                ],
+                "tags": ["exploration"],
             },
             {
                 "initiative_id": g3_main.id,
@@ -3626,6 +3948,77 @@ async def seed() -> None:
         # (its writes are routed into that guild's schema).
         await session.commit()
 
+        # ==============================================================
+        # PAM access grants (platform-role testing paths)
+        # ==============================================================
+        # Every grant targets a guild the grantee is NOT a member of — PAM
+        # is the only way a platform user reaches a foreign guild. Covers
+        # the full lifecycle: pending, live, self-approved break-glass,
+        # denied, and expired.
+        print("\n  Creating PAM access grants...")
+        await set_rls_context(session)  # shared/public table — leave guild routing
+        await _create_access_grants(session, ids, [
+            {
+                # Pending request awaiting an approver (shows in the admin queue).
+                "user": p_support, "guild_id": g2_id,
+                "access_level": AccessLevel.read,
+                "status": AccessGrantStatus.pending,
+                "reason": "Investigating a reported sync issue in Starforge Collective "
+                          "(ticket #4821).",
+                "requested_duration_minutes": 120,
+                "requested_delta": -timedelta(hours=2),
+            },
+            {
+                # Live read grant — moderator currently inside Realm of Tides.
+                "user": p_moderator, "guild_id": g3_id,
+                "access_level": AccessLevel.read,
+                "status": AccessGrantStatus.approved,
+                "reason": "Reviewing a content report against a queue in Realm of Tides.",
+                "requested_duration_minutes": 480,
+                "approved_by": admin_user,
+                "requested_delta": -timedelta(hours=2),
+                "decided_delta": -timedelta(hours=1),
+                "expires_delta": timedelta(hours=7),
+            },
+            {
+                # Live break-glass — operator self-issued and self-approved,
+                # read_write (acts as a full guild admin for the window).
+                "user": p_operator, "guild_id": g2_id,
+                "access_level": AccessLevel.read_write,
+                "status": AccessGrantStatus.approved,
+                "reason": "Break-glass: restoring a corrupted queue after a failed import.",
+                "requested_duration_minutes": 90,
+                "approved_by": p_operator,
+                "requested_delta": -timedelta(minutes=30),
+                "decided_delta": -timedelta(minutes=30),
+                "expires_delta": timedelta(hours=1),
+            },
+            {
+                # Denied request (audit-trail / history view).
+                "user": p_support, "guild_id": g3_id,
+                "access_level": AccessLevel.read_write,
+                "status": AccessGrantStatus.denied,
+                "reason": "Wanted to fix a typo in a user's document directly.",
+                "requested_duration_minutes": 60,
+                "approved_by": p_owner,
+                "requested_delta": -timedelta(days=2),
+                "decided_delta": -timedelta(days=2) + timedelta(hours=1),
+            },
+            {
+                # Expired grant (window long past).
+                "user": p_moderator, "guild_id": g1_id,
+                "access_level": AccessLevel.read,
+                "status": AccessGrantStatus.expired,
+                "reason": "Audited invite spam originating from the primary guild.",
+                "requested_duration_minutes": 240,
+                "approved_by": admin_user,
+                "requested_delta": -timedelta(days=3),
+                "decided_delta": -timedelta(days=3) + timedelta(minutes=10),
+                "expires_delta": -timedelta(days=3) + timedelta(hours=4),
+            },
+        ])
+        await session.commit()
+
     _save_state(ids.data)
 
     total_tasks = len(ids.data["tasks"])
@@ -3658,8 +4051,14 @@ async def seed() -> None:
     )
     print(f"  {len(ids.data['comments'])} comments")
     print(f"  {len(ids.data['project_favorites'])} favorites, {len(ids.data['document_links'])} doc links")
+    print(f"  {len(ids.data['access_grants'])} PAM access grants (pending/live/break-glass/denied/expired)")
     print(f"\n  Owner login: {settings.FIRST_OWNER_EMAIL} / {settings.FIRST_OWNER_PASSWORD}")
-    print("  All other users: user1@example.com .. user8@example.com / changeme")
+    print("  Guild admins (password: changeme):")
+    print("    admin1@example.com (guild 1), admin2@example.com (guild 2),")
+    print("    admin3@example.com (guild 3), admin4@example.com (guilds 1+3)")
+    print("  Regular members: user1@example.com .. user8@example.com / changeme")
+    print("    (never guild admins; user1 + user6 are initiative PMs,")
+    print("     user7 is in guild 1 with no initiative membership)")
     print("  Platform-role users (password: changeme):")
     print("    owner@example.com, operator@example.com, moderator@example.com,")
     print("    support@example.com, member@example.com")
