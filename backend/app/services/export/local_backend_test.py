@@ -321,17 +321,22 @@ async def test_renders_markdown_numbered_layout():
             columns=[
                 {"key": "order", "label": "#"},
                 {"key": "title", "label": "Item"},
+                {"key": "member", "label": "Member"},
                 {"key": "status", "label": "Status"},
             ],
             rows=[
+                # member=None must be skipped BEFORE stringifying — str(None)
+                # passes a truthiness guard, and its empty rendering would
+                # smuggle a spurious "( · Current)" into the detail trail.
                 {
                     "order": 1,
                     "title": "Alice | piped",
+                    "member": None,
                     "status": "Current",
                     "current": True,
                 },
-                {"order": 2, "title": "Bob", "status": ""},
-                {"order": 3, "title": "", "status": "Hidden"},
+                {"order": 2, "title": "Bob", "member": "", "status": ""},
+                {"order": 3, "title": "", "member": None, "status": "Hidden"},
             ],
         )
     )

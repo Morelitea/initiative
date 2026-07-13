@@ -96,6 +96,17 @@ def _md_table(item: RenderItem) -> list[str]:
     return lines
 
 
+def _md_details(row: dict, detail_keys: list[str]) -> str:
+    """The parenthesized detail trail shared by the list layouts. ``None``
+    must be skipped BEFORE stringifying — ``str(None)`` is truthy, and
+    ``_md_cell(None)`` returns ``""``, so a None value would otherwise smuggle
+    an empty segment (and its spurious ``·`` separator) into the join."""
+    values = (row.get(key) for key in detail_keys)
+    return " · ".join(
+        _md_cell(value) for value in values if value is not None and str(value).strip()
+    )
+
+
 def _md_checklist(item: RenderItem) -> list[str]:
     """GitHub-style task list: one checkbox item per row, checked when the
     row's ``done`` flag is set, with the non-title columns as a detail trail."""
@@ -105,9 +116,7 @@ def _md_checklist(item: RenderItem) -> list[str]:
     for row in item.data.get("rows") or []:
         box = "x" if row.get("done") else " "
         title = _md_cell(row.get("title", "")) or "(untitled)"
-        details = " · ".join(
-            _md_cell(row[key]) for key in detail_keys if str(row.get(key, "")).strip()
-        )
+        details = _md_details(row, detail_keys)
         lines.append(f"- [{box}] {title}" + (f" ({details})" if details else ""))
     return lines
 
@@ -123,9 +132,7 @@ def _md_numbered(item: RenderItem) -> list[str]:
         title = _md_cell(row.get("title", "")) or "(untitled)"
         if row.get("current"):
             title = f"**{title}**"
-        details = " · ".join(
-            _md_cell(row[key]) for key in detail_keys if str(row.get(key, "")).strip()
-        )
+        details = _md_details(row, detail_keys)
         lines.append(f"{order}. {title}" + (f" ({details})" if details else ""))
     return lines
 
