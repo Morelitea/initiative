@@ -21,10 +21,15 @@ from typing import Any, Protocol
 @dataclass(frozen=True)
 class RenderItem:
     """One artifact to render: ``key`` names it within the job (the download
-    filename stem for batch=1), ``data`` is the payload the template reads."""
+    filename stem for batch=1), ``data`` is the payload the template reads.
+
+    ``filename`` overrides the default ``{key}.{format}`` download name when
+    the adapter needs a specific extension (e.g. the ``.lexical`` files the
+    editor's import button accepts)."""
 
     key: str
     data: dict[str, Any]
+    filename: str | None = None
 
 
 @dataclass(frozen=True)

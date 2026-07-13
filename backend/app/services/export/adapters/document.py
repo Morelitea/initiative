@@ -4,8 +4,10 @@ A document's exportable formats depend on its type, so the static registry
 declares the union and this adapter enforces the per-type subset at count
 time (before a job is created, so a mismatch is an immediate 400):
 
-* ``native`` (Lexical)  -> ``json``  — the editor state wrapped in a small
-  importable envelope. (md/pdf/docx conversion is the next phase.)
+* ``native`` (Lexical)  -> ``json``  — a ``.lexical`` file in the exact
+  ``@lexical/file`` schema the editor's toolbar IMPORT button consumes
+  ({editorState, lastSaved, source, version}), so an engine export
+  round-trips through the existing import. (md/pdf/docx is the next phase.)
 * ``whiteboard``        -> ``json``  — the scene wrapped in the standard
   Excalidraw file shape, so the download opens in any Excalidraw. Pixel
   exports (PNG/SVG) are deliberately client-side: only Excalidraw's own JS
@@ -96,13 +98,23 @@ class DocumentAdapter:
                 "files": content.get("files") or {},
             }
         elif doc_type == DocumentType.native.value:
+            # The @lexical/file SerializedDocument shape — byte-compatible
+            # with the editor toolbar's import (which only accepts .lexical
+            # files, hence the explicit filename below).
+            from app.core.version import get_version
+
             data = {
-                "kind": "initiative-document",
-                "schema_version": 1,
-                "document_type": doc_type,
-                "title": document.title,
-                "content": document.content or {},
+                "editorState": document.content or {},
+                "lastSaved": int(document.updated_at.timestamp() * 1000),
+                "source": "Initiative",
+                "version": get_version(),
             }
+            return RenderRequest(
+                guild_id=guild_id,
+                template_id=self.template_id,
+                format=format,
+                batch=(RenderItem(key=stem, data=data, filename=f"{stem}.lexical"),),
+            )
         elif doc_type == DocumentType.spreadsheet.value:
             data = {"title": document.title, "grid": document.content or {}}
         elif doc_type == DocumentType.file.value:

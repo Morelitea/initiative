@@ -360,7 +360,8 @@ async def test_document_export_per_type_formats(
             params={"document_id": doc.id, "format": format},
         )
 
-    # native (Lexical) -> importable envelope
+    # native (Lexical) -> the @lexical/file schema, named .lexical so the
+    # editor toolbar's import button (which only accepts .lexical) takes it.
     native = await create_document(
         session,
         a.initiative,
@@ -370,10 +371,11 @@ async def test_document_export_per_type_formats(
     )
     resp = await export(native, "json")
     assert resp.status_code == 200
-    envelope = json.loads(resp.content)
-    assert envelope["kind"] == "initiative-document"
-    assert envelope["document_type"] == "native"
-    assert envelope["content"]["root"]["type"] == "root"
+    assert ".lexical" in resp.headers["content-disposition"]
+    serialized = json.loads(resp.content)
+    assert serialized["source"] == "Initiative"
+    assert serialized["editorState"]["root"]["type"] == "root"
+    assert isinstance(serialized["lastSaved"], int)
 
     # whiteboard -> standard Excalidraw file shape
     board = await create_document(

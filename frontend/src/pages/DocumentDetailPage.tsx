@@ -1453,7 +1453,6 @@ export const DocumentDetailPage = () => {
                   showToolbar={canEditDocument}
                   className={cn("max-h-[80vh]", isFullscreen && "h-full max-h-none min-h-0 flex-1")}
                   mentionableUsers={mentionableUsers}
-                  documentName={title}
                   collaborative={collaborationEnabled && collaboration.isReady}
                   providerFactory={collaboration.providerFactory}
                   // Always track changes so contentState stays updated for periodic saves

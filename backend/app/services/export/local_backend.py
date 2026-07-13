@@ -81,7 +81,7 @@ def _render_item(
 ) -> RenderedArtifact:
     format = req.format
     content_type = _CONTENT_TYPES[format]
-    filename: str | None = None
+    filename: str | None = item.filename
     if format == "file":
         content, content_type, filename = _read_passthrough(req.guild_id, item.data)
     elif format == "csv":

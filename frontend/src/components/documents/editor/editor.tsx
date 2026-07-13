@@ -80,7 +80,6 @@ export interface EditorProps {
   showToolbar?: boolean;
   className?: string;
   mentionableUsers?: UserPublic[];
-  documentName?: string;
   collaborative?: boolean;
   providerFactory?: ((id: string, yjsDocMap: Map<string, Y.Doc>) => CollaborationProvider) | null;
   trackChanges?: boolean;
@@ -99,7 +98,6 @@ export function Editor({
   showToolbar = true,
   className,
   mentionableUsers = [],
-  documentName,
   collaborative = false,
   providerFactory,
   trackChanges,
@@ -215,7 +213,6 @@ export function Editor({
             showToolbar={showToolbar}
             readOnly={readOnly}
             mentionableUsers={mentionableUsers}
-            documentName={documentName}
             collaborative={useCollaborativeMode}
             cursorsContainerRef={cursorsContainerRef}
             initiativeId={initiativeId}
