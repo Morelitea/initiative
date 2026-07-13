@@ -235,7 +235,40 @@ def _detail(task: Task, comments: list, locale: str) -> dict[str, Any]:
                 # (unlike an absent key, which takes the default) and abort the
                 # compile. Same `or ""` guard as description.
                 "content": c.content or "",
+                # Nesting level: a reply renders indented under its parent, so
+                # the thread reads like the on-screen discussion, not a flat
+                # chronological dump.
+                "depth": depth,
             }
-            for c in comments
+            for c, depth in _thread_comments(comments)
         ],
     }
+
+
+def _thread_comments(comments: list) -> list[tuple]:
+    """Order comments as a reply tree — each parent immediately followed by its
+    replies (indented one level deeper), preserving the incoming chronological
+    order within every level. Returns ``(comment, depth)`` pairs.
+
+    A comment whose parent isn't in the set (parent deleted, or a reply loaded
+    without its root) is treated as a root, so nothing is dropped."""
+    ids = {c.id for c in comments}
+    children: dict[int, list] = {}
+    roots: list = []
+    for comment in comments:
+        parent_id = comment.parent_comment_id
+        if parent_id is None or parent_id not in ids:
+            roots.append(comment)
+        else:
+            children.setdefault(parent_id, []).append(comment)
+
+    ordered: list[tuple] = []
+
+    def walk(comment, depth: int) -> None:
+        ordered.append((comment, depth))
+        for child in children.get(comment.id, []):
+            walk(child, depth + 1)
+
+    for root in roots:
+        walk(root, 0)
+    return ordered

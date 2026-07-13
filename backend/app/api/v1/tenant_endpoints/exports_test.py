@@ -1206,11 +1206,24 @@ async def test_task_detailed_pdf_is_one_page_per_task_with_full_detail(
     )
     await create_subtask(session, t1, content="Tune the HP", is_completed=True)
     await create_subtask(session, t1, content="Write the dialogue")
-    await create_comment(session, a.user, task=t1, content="Started already.")
+    root = await create_comment(session, a.user, task=t1, content="Started already.")
+    # A reply must render nested under its parent, not appended chronologically
+    # — even though it was created after the later root comment below.
+    await create_task(session, a.project, title="Loot table")
+    later_root = await create_comment(
+        session, a.user, task=t1, content="Separate thread here."
+    )
+    await create_comment(
+        session,
+        a.user,
+        task=t1,
+        content="Replying to the first.",
+        parent_comment_id=root.id,
+    )
     # An empty-content comment must not abort the compile (the payload guards
     # it to "" so the template's multiline() never sees null).
     await create_comment(session, a.user, task=t1, content="")
-    await create_task(session, a.project, title="Loot table")
+    assert later_root.id
 
     resp = await client.get(
         a.g("/exports/tasks"),
@@ -1227,6 +1240,13 @@ async def test_task_detailed_pdf_is_one_page_per_task_with_full_detail(
     assert "Check the second phase" in text  # description line break preserved
     assert "Tune the HP" in text and "Write the dialogue" in text  # subtasks
     assert "Started already" in text  # comment body
+    # Threaded order: a reply renders directly under its parent, before the
+    # later root comment — not in flat creation order.
+    assert (
+        text.index("Started already")
+        < text.index("Replying to the first")
+        < text.index("Separate thread here")
+    )
     # Localized section labels (en locale).
     for label in ("Description", "Subtasks", "Comments"):
         assert label in text

@@ -124,14 +124,18 @@
     ]
   }
 
-  // Comments (author · date, then body).
+  // Comments as a reply thread: each reply is indented one level under its
+  // parent (depth comes from the payload), so it reads like the on-screen
+  // discussion rather than a flat chronological list.
   let comments = task.at("comments", default: ())
   if comments.len() > 0 {
     section(labels.at("comments", default: "Comments"))
     for c in comments {
-      text(size: 9pt, fill: luma(110))[#strong(c.at("author", default: "")) · #c.at("date", default: "")]
-      linebreak()
-      multiline(c.at("content", default: ""))
+      pad(left: c.at("depth", default: 0) * 1.4em)[
+        #text(size: 9pt, fill: luma(110))[#strong(c.at("author", default: "")) · #c.at("date", default: "")]
+        #linebreak()
+        #multiline(c.at("content", default: ""))
+      ]
       v(5pt)
     }
   }
