@@ -216,9 +216,23 @@ class _Parser:
         prefix = f"/uploads/{self.guild_id}/"
         if src.startswith(prefix):
             key = src.removeprefix(prefix).split("?")[0]
-            name = safe_filename_component(key)
-            self.assets.setdefault(key, {"key": key, "name": name})
-            self.blocks.append({"type": "image", "asset": name, "alt": alt})
+            existing = self.assets.get(key)
+            if existing is None:
+                # Distinct keys can sanitize to the same name ("a img.png" /
+                # "a_img.png") — suffix until unique so one archive entry
+                # can't silently overwrite another.
+                name = safe_filename_component(key)
+                taken = {a["name"] for a in self.assets.values()}
+                if name in taken:
+                    stem, dot, ext = name.rpartition(".")
+                    base = stem if dot else name
+                    n = 2
+                    while name in taken:
+                        name = f"{base}-{n}{dot}{ext}" if dot else f"{base}-{n}"
+                        n += 1
+                existing = {"key": key, "name": name}
+                self.assets[key] = existing
+            self.blocks.append({"type": "image", "asset": existing["name"], "alt": alt})
         elif src:
             # External (or cross-guild) image: never fetched — link only.
             self.blocks.append({"type": "image", "asset": None, "url": src, "alt": alt})
@@ -327,7 +341,10 @@ def _md_table(block: dict) -> list[str]:
 
     def cells(row: list) -> str:
         padded = list(row) + [[]] * (width - len(row))
-        return "| " + " | ".join(_md_runs(c).replace("\n", " ") for c in padded) + " |"
+        # Escape pipes AFTER rendering (a raw | in cell text would split the
+        # column); _md_escape would also mangle the link syntax just emitted.
+        rendered = (_md_runs(c).replace("\n", " ").replace("|", "\\|") for c in padded)
+        return "| " + " | ".join(rendered) + " |"
 
     lines = [cells(rows[0]), "|" + "|".join(" --- " for _ in range(width)) + "|"]
     lines.extend(cells(row) for row in rows[1:])
@@ -369,7 +386,7 @@ def _md_runs(runs: list[dict]) -> str:
 
 def render_docx(data: dict, read_blob: ReadBlob) -> bytes:
     import docx
-    from docx.enum.text import WD_BREAK
+    from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
     from docx.shared import Inches, Pt
 
     document = docx.Document()
@@ -409,6 +426,7 @@ def render_docx(data: dict, read_blob: ReadBlob) -> bytes:
             for nested in item.get("children") or []:
                 add_list(nested, level + 1)
 
+    name_to_key = {a["name"]: a["key"] for a in (data.get("assets") or [])}
     for block in data.get("blocks") or []:
         btype = block.get("type")
         if btype == "heading":
@@ -426,7 +444,8 @@ def render_docx(data: dict, read_blob: ReadBlob) -> bytes:
             code_run.font.name = "Consolas"
             code_run.font.size = Pt(9)
         elif btype == "hr":
-            document.add_paragraph("· · ·").alignment = 1  # centered separator
+            separator = document.add_paragraph("· · ·")
+            separator.alignment = WD_ALIGN_PARAGRAPH.CENTER
         elif btype == "list":
             add_list(block)
         elif btype == "table":
@@ -441,7 +460,6 @@ def render_docx(data: dict, read_blob: ReadBlob) -> bytes:
                         add_runs(cell_paragraph, cell_runs)
         elif btype == "image":
             if block.get("asset"):
-                name_to_key = {a["name"]: a["key"] for a in (data.get("assets") or [])}
                 key = name_to_key.get(block["asset"])
                 if key:
                     try:

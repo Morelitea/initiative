@@ -170,7 +170,7 @@ async def start_export(
 
     job = ExportJob(
         guild_id=guild_id,
-        created_by_id=user.id,  # ty: ignore[invalid-argument-type]
+        created_by_id=user.id,
         source=source,
         template_id=adapter.template_id,
         format=format,

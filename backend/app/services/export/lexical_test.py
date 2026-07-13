@@ -141,6 +141,63 @@ def test_markdown_zips_when_assets_present():
     assert "still exported" in md
 
 
+def test_markdown_table_escapes_pipes():
+    state = _state(
+        [
+            {
+                "type": "table",
+                "children": [
+                    {
+                        "type": "tablerow",
+                        "children": [
+                            {
+                                "type": "tablecell",
+                                "children": [
+                                    {
+                                        "type": "paragraph",
+                                        "children": [_text("a | b")],
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+    )
+    blocks, assets = blocks_from_editor_state(state, guild_id=GUILD)
+    content, _, _ = render_markdown(
+        {"title": "", "blocks": blocks, "assets": assets}, lambda key: b""
+    )
+    md = content.decode("utf-8")
+    assert "| a \\| b |" in md  # a raw pipe would split the column
+
+
+def test_asset_names_deduped_on_sanitize_collision():
+    """Two distinct storage keys can sanitize to one archive name — each must
+    keep its own entry or one image silently replaces the other."""
+    state = _state(
+        [
+            {"type": "image", "src": f"/uploads/{GUILD}/a img.png", "altText": "one"},
+            {"type": "image", "src": f"/uploads/{GUILD}/a_img.png", "altText": "two"},
+        ]
+    )
+    blocks, assets = blocks_from_editor_state(state, guild_id=GUILD)
+    names = [a["name"] for a in assets]
+    assert len(assets) == 2
+    assert len(set(names)) == 2  # unique archive names
+    # Blocks reference their own (deduped) names.
+    assert {b["asset"] for b in blocks} == set(names)
+    content, content_type, _ = render_markdown(
+        {"title": "", "stem": "d", "blocks": blocks, "assets": assets},
+        lambda key: key.encode(),
+    )
+    archive = zipfile.ZipFile(io.BytesIO(content))
+    stored = {n: archive.read(n) for n in archive.namelist() if n.startswith("assets/")}
+    assert len(stored) == 2
+    assert set(stored.values()) == {b"a img.png", b"a_img.png"}  # both survive
+
+
 def test_markdown_plain_without_assets():
     state = _state([{"type": "paragraph", "children": [_text("hello")]}])
     blocks, assets = blocks_from_editor_state(state, guild_id=GUILD)
