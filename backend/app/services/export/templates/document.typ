@@ -35,23 +35,28 @@
     .join()
 }
 
-#let render_list(block, depth) = {
-  let items = block.at("items", default: ())
-  let checklist = block.at("checklist", default: false)
-  let ordered = block.at("ordered", default: false)
-  pad(left: depth * 1em)[
-    #if checklist {
-      for item in items [
-        #box(if item.at("checked", default: false) [☑] else [☐]) #render_runs(item.at("runs", default: ())) \
-      ]
-    } else if ordered {
-      enum(..items.map(i => render_runs(i.at("runs", default: ()))))
-    } else {
-      list(..items.map(i => render_runs(i.at("runs", default: ()))))
-    }
-  ]
-  // One nesting pass per item (deeper levels flatten to this one).
+#let render_list(lst, depth) = {
+  // Items render one at a time so each item's nested lists appear directly
+  // BENEATH it, not after all its siblings. Ordered lists keep their
+  // numbering across the single-item enum() calls via start:. Tighten block
+  // spacing so per-item calls read as one list.
+  set block(above: 3pt, below: 3pt)
+  let items = lst.at("items", default: ())
+  let checklist = lst.at("checklist", default: false)
+  let ordered = lst.at("ordered", default: false)
+  let index = 1
   for item in items {
+    let body = render_runs(item.at("runs", default: ()))
+    pad(left: depth * 1em)[
+      #if checklist [
+        #box(if item.at("checked", default: false) [☑] else [☐]) #body
+      ] else if ordered [
+        #enum(start: index, body)
+      ] else [
+        #list(body)
+      ]
+    ]
+    index += 1
     for nested in item.at("children", default: ()) {
       render_list(nested, depth + 1)
     }
