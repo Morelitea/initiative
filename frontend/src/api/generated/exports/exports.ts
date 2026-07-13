@@ -205,10 +205,11 @@ export function useExportTasksApiV1GGuildIdExportsTasksGet<
 }
 
 /**
- * Export a project as its self-contained backup envelope (the same JSON
- * ``POST /projects/import`` consumes). Requires write access on the project.
- * Small projects return the file inline; large ones return ``202`` with a
- * queued job to poll and download.
+ * Export a project: ``json`` is the self-contained backup envelope (the
+ * same JSON ``POST /projects/import`` consumes); ``pdf``/``csv``/``xlsx``
+ * render a project report (unarchived tasks). Requires write access on the
+ * project. Small projects return the file inline; large ones return ``202``
+ * with a queued job to poll and download.
  * @summary Export Project
  */
 export const exportProjectApiV1GGuildIdExportsProjectGet = (

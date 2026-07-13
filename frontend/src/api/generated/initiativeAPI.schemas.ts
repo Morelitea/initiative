@@ -3958,8 +3958,18 @@ export const ExportTasksApiV1GGuildIdExportsTasksGetLayout = {
 
 export type ExportProjectApiV1GGuildIdExportsProjectGetParams = {
   project_id: number;
-  format?: "json";
+  format?: ExportProjectApiV1GGuildIdExportsProjectGetFormat;
 };
+
+export type ExportProjectApiV1GGuildIdExportsProjectGetFormat =
+  (typeof ExportProjectApiV1GGuildIdExportsProjectGetFormat)[keyof typeof ExportProjectApiV1GGuildIdExportsProjectGetFormat];
+
+export const ExportProjectApiV1GGuildIdExportsProjectGetFormat = {
+  json: "json",
+  pdf: "pdf",
+  csv: "csv",
+  xlsx: "xlsx",
+} as const;
 
 export type ListQueuesApiV1GGuildIdQueuesGetParams = {
   initiative_id?: number | null;

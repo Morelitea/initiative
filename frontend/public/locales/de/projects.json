@@ -532,9 +532,9 @@
   },
   "export": {
     "title": "Projekt exportieren",
-    "description": "Lade eine JSON-Datei herunter, die dieses Projekt, seine Aufgaben, Status, Tags und benutzerdefinierten Eigenschaftswerte enthält.",
-    "detail": "Die Datei ist portabel: Sie kann auf dieser Instanz oder jeder anderen Initiative-Installation erneut importiert werden. Zeilenübergreifende Verweise verwenden Namen und E-Mail-Adressen, sodass keine IDs aus dieser Datenbank nach außen gelangen.",
-    "exportButton": "Als JSON exportieren",
+    "description": "Lade dieses Projekt als portable JSON-Sicherung oder als formatierten Bericht (PDF, CSV oder Excel) herunter.",
+    "detail": "Die JSON-Sicherung kann auf dieser oder jeder anderen Initiative-Installation wieder importiert werden — Verweise nutzen Namen und E-Mails, damit keine IDs aus dieser Datenbank durchsickern. Berichtsformate umfassen die nicht archivierten Aufgaben des Projekts.",
+    "exportButton": "Exportieren",
     "exporting": "Wird exportiert…",
     "noWriteAccess": "Du benötigst Schreibzugriff auf dieses Projekt, um es zu exportieren.",
     "success": "Projekt exportiert",

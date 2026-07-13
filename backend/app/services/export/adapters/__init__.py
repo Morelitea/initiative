@@ -2,11 +2,11 @@
 supports. Unsupported source×format combos are rejected centrally by
 ``engine.get_adapter``."""
 
-from app.services.export.adapters.project_json import ProjectJsonAdapter
+from app.services.export.adapters.project import ProjectAdapter
 from app.services.export.adapters.tasks_table import TasksTableAdapter
 
 ADAPTERS = {
-    adapter.source: adapter for adapter in (TasksTableAdapter(), ProjectJsonAdapter())
+    adapter.source: adapter for adapter in (TasksTableAdapter(), ProjectAdapter())
 }
 
 __all__ = ["ADAPTERS"]

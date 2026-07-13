@@ -252,6 +252,49 @@ async def test_inline_project_export_returns_envelope(
     assert {t["title"] for t in envelope["tasks"]} == {"Task 0", "Task 1"}
 
 
+async def test_project_export_report_formats(client: AsyncClient, acting_user, session):
+    """pdf/csv/xlsx render the project report (unarchived tasks) from the same
+    adapter that produces the json backup."""
+    a = await _actor_with_tasks(acting_user, session)
+    await create_task(session, a.project, title="Old news", is_archived=True)
+
+    pdf = await client.get(
+        a.g("/exports/project"),
+        headers=a.headers,
+        params={"project_id": a.project.id, "format": "pdf"},
+    )
+    assert pdf.status_code == 200
+    assert pdf.content.startswith(b"%PDF")
+    assert ".initiative-project" not in pdf.headers["content-disposition"]
+
+    csv_resp = await client.get(
+        a.g("/exports/project"),
+        headers=a.headers,
+        params={"project_id": a.project.id, "format": "csv"},
+    )
+    assert csv_resp.status_code == 200
+    body = csv_resp.content.decode("utf-8")
+    assert "Task,Status,Priority,Due,Assignees" in body
+    assert "Task 0" in body and "Task 1" in body
+    assert "Old news" not in body  # archived stays backup-only
+
+    xlsx = await client.get(
+        a.g("/exports/project"),
+        headers=a.headers,
+        params={"project_id": a.project.id, "format": "xlsx"},
+    )
+    assert xlsx.status_code == 200
+    assert xlsx.content.startswith(b"PK")
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    sheet = load_workbook(BytesIO(xlsx.content)).active
+    cells = {cell.value for row in sheet.iter_rows() for cell in row}
+    assert {"Task 0", "Task 1"} <= cells
+    assert "Old news" not in cells  # archived exclusion holds in XLSX too
+
+
 async def test_project_export_hidden_outside_initiative(
     client: AsyncClient, acting_user, session
 ):

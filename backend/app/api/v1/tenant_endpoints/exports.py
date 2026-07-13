@@ -117,12 +117,13 @@ async def export_project(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     project_id: int = Query(),
-    format: Literal["json"] = Query(default="json"),
+    format: Literal["json", "pdf", "csv", "xlsx"] = Query(default="json"),
 ) -> Union[Response, JSONResponse]:
-    """Export a project as its self-contained backup envelope (the same JSON
-    ``POST /projects/import`` consumes). Requires write access on the project.
-    Small projects return the file inline; large ones return ``202`` with a
-    queued job to poll and download."""
+    """Export a project: ``json`` is the self-contained backup envelope (the
+    same JSON ``POST /projects/import`` consumes); ``pdf``/``csv``/``xlsx``
+    render a project report (unarchived tasks). Requires write access on the
+    project. Small projects return the file inline; large ones return ``202``
+    with a queued job to poll and download."""
     try:
         result = await start_export(
             session,

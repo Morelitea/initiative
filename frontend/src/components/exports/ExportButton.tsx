@@ -25,6 +25,9 @@ export interface ExportFormatOption {
   labelKey: string;
   /** Extra query params for this entry (e.g. ``{ layout: "checklist" }``). */
   extraParams?: Record<string, string>;
+  /** Per-option filename stem override (e.g. the json backup's
+   * ``{name}-{date}.initiative-project`` convention). */
+  filenameStem?: string;
 }
 
 export interface ExportButtonProps {
@@ -127,7 +130,7 @@ export function ExportButton({
         validateStatus: (s) => s === 200 || s === 202,
       });
       if (res.status === 200) {
-        downloadBlob(res.data, `${filenameStem}.${option.format}`);
+        downloadBlob(res.data, `${option.filenameStem ?? filenameStem}.${option.format}`);
         toast.success(t("export.success"));
       } else {
         const queued = JSON.parse(await res.data.text()) as { id: number };
