@@ -434,7 +434,15 @@ async def test_document_export_spreadsheet_formats(
         content={
             "schema_version": 2,
             "dimensions": {"rows": 2, "cols": 2},
-            "cells": {"0:0": "Item", "0:1": "Cost", "1:0": "=EVIL()", "1:1": 42},
+            # "=SUM(...)" is the user's own formula (first-class content);
+            # "+not-a-formula" is a trigger-prefixed plain string (the CSV
+            # smuggling vector the app never produces as a formula).
+            "cells": {
+                "0:0": "Item",
+                "0:1": "=SUM(B2:B9)",
+                "1:0": "+not-a-formula",
+                "1:1": 42,
+            },
             "cellStyles": {"0:0": {"bold": True, "fill": "#ff0000"}},
             "columns": {"0": {"width": 140}},
             "rows": {},
@@ -449,8 +457,8 @@ async def test_document_export_spreadsheet_formats(
     )
     assert csv_resp.status_code == 200
     text = csv_resp.content.decode("utf-8")
-    assert "Item,Cost" in text
-    assert "'=EVIL()" in text  # neutralized
+    assert "Item,=SUM(B2:B9)" in text  # own formulas survive
+    assert "'+not-a-formula" in text  # non-formula triggers stay neutralized
 
     xlsx_resp = await client.get(
         a.g("/exports/document"),
@@ -462,9 +470,12 @@ async def test_document_export_spreadsheet_formats(
     assert sheet.title == "Budget Q3"  # forbidden ":" stripped
     assert sheet.cell(row=1, column=1).value == "Item"
     assert sheet.cell(row=1, column=1).font.bold is True
+    assert sheet.cell(row=1, column=2).value == "=SUM(B2:B9)"
+    assert sheet.cell(row=1, column=2).data_type == "f"  # a live formula
+    assert sheet.cell(row=2, column=1).value == "+not-a-formula"
+    assert sheet.cell(row=2, column=1).data_type == "s"  # a string, not inferred
     assert sheet.cell(row=2, column=2).value == 42
     assert sheet.cell(row=2, column=2).data_type == "n"  # numbers stay typed
-    assert sheet.cell(row=2, column=1).value == "'=EVIL()"  # neutralized
     assert sheet.freeze_panes == "A2"
 
 

@@ -2,12 +2,19 @@
 
 Input is the canonical v2 snapshot ``documents_spreadsheet`` persists:
 ``{dimensions, cells, columns, rows, cellStyles, frozen}`` with ``"r:c"``
-keys. CSV carries values only (with the platform exporter's BOM and
-formula-injection neutralization); XLSX additionally maps the formatting
-model — fonts, colors, alignment, borders, number formats, column widths,
-row heights, frozen panes. The app's spreadsheets store no formulas (out of
-scope in the snapshot schema), so there is nothing formula-shaped to carry
-over; string cells are neutralized exactly like the tabular exports.
+keys. CSV carries values (BOM-prefixed); XLSX additionally maps the
+formatting model — fonts, colors, alignment, borders, number formats, column
+widths, row heights, frozen panes.
+
+Formulas: the app's sheets store formulas as ``=``-prefixed cell strings
+(evaluated client-side; the snapshot keeps the raw text). Unlike the tabular
+exports — where a leading ``=`` is FOREIGN text smuggling a formula — a
+spreadsheet document's ``=`` cells are the user's own first-class content,
+so grid exports preserve them (Excel re-evaluates; the app's function set is
+an Excel subset). Mirrors the frontend's ``isFormula`` exactly: ``=`` prefix
+only. Other trigger prefixes (``+ - @``) are still neutralized in CSV (they
+are smuggling vectors, never app formulas); XLSX needs no guard for them
+(openpyxl only ever infers a formula from a ``=`` string).
 
 Style precedence mirrors the editor: column style, then row style, then the
 cell's own style, later layers winning per key.
@@ -58,13 +65,22 @@ def _grid_size(content: dict) -> tuple[int, int]:
     return rows, cols
 
 
+def _csv_cell(value: object) -> object:
+    """The user's own ``=`` formulas pass through (first-class content, and
+    Excel evaluates them from CSV too); everything else keeps the platform
+    exporter's trigger neutralization."""
+    if isinstance(value, str) and value.startswith("="):
+        return value
+    return neutralize_cell(value)
+
+
 def render_csv(content: dict) -> bytes:
     rows, cols = _grid_size(content)
     cells = content.get("cells") or {}
     buffer = io.StringIO()
     writer = csv.writer(buffer)
     for r in range(rows):
-        writer.writerow([neutralize_cell(cells.get(f"{r}:{c}")) for c in range(cols)])
+        writer.writerow([_csv_cell(cells.get(f"{r}:{c}")) for c in range(cols)])
     return ("﻿" + buffer.getvalue()).encode("utf-8")
 
 
@@ -81,9 +97,10 @@ def render_xlsx(content: dict, *, title: str) -> bytes:
 
     for r in range(rows):
         for c in range(cols):
+            # Raw values: a ``=`` string becomes a live formula (openpyxl
+            # data_type 'f'), everything else stays a typed value — see the
+            # module docstring for why the grid does NOT neutralize.
             value = cells.get(f"{r}:{c}")
-            if isinstance(value, str):
-                value = neutralize_cell(value)
             cell = sheet.cell(row=r + 1, column=c + 1)
             if value is not None:
                 cell.value = value

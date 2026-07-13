@@ -11,10 +11,7 @@ import {
   ArrowUpToLine,
   Baseline,
   Bold,
-  Download,
   Eraser,
-  File,
-  FileSpreadsheet,
   Grid2x2,
   Hash,
   Italic,
@@ -31,7 +28,6 @@ import {
   Type,
   Underline,
   Undo2,
-  Upload,
 } from "lucide-react";
 import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -93,9 +89,6 @@ interface SpreadsheetToolbarProps {
   selection: ToolbarSelection;
   formatting: SpreadsheetFormattingStore;
   readOnly: boolean;
-  onExportCsv: () => void;
-  onExportXlsx: () => void;
-  onImport: () => void;
   /** Insert a formula for the named function (e.g. "SUM") into the sheet. */
   onInsertFunction: (name: string) => void;
   onUndo: () => void;
@@ -160,9 +153,6 @@ export const SpreadsheetToolbar = ({
   selection,
   formatting,
   readOnly,
-  onExportCsv,
-  onExportXlsx,
-  onImport,
   onInsertFunction,
   onUndo,
   onRedo,
@@ -743,39 +733,6 @@ export const SpreadsheetToolbar = ({
     </Button>
   );
 
-  const fileMenu = (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="h-8 gap-1.5"
-          aria-label={t("documents:spreadsheet.fileMenu")}
-        >
-          <File className="h-4 w-4" />
-          <span className="hidden lg:inline">{t("documents:spreadsheet.fileMenu")}</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
-        <DropdownMenuItem onSelect={onExportCsv}>
-          <Download className="h-4 w-4" />
-          {t("documents:spreadsheet.exportCsv")}
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={onExportXlsx}>
-          <FileSpreadsheet className="h-4 w-4" />
-          {t("documents:spreadsheet.exportXlsx")}
-        </DropdownMenuItem>
-        {!readOnly && (
-          <DropdownMenuItem onSelect={onImport}>
-            <Upload className="h-4 w-4" />
-            {t("documents:spreadsheet.importFile")}
-          </DropdownMenuItem>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-
   // Literal t() keys (the typed t rejects template literals — see
   // ``presetLabel`` above). Grouped so aggregates sit apart from the
   // logic/math helpers in the menu.
@@ -879,7 +836,6 @@ export const SpreadsheetToolbar = ({
   if (isMobile) {
     return (
       <div className="flex w-full items-center gap-2">
-        {fileMenu}
         {historyControls}
         {functionMenu}
         <Popover>
@@ -907,7 +863,6 @@ export const SpreadsheetToolbar = ({
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      {fileMenu}
       {historyControls}
       <div className="mx-0.5 h-5 w-px bg-border" aria-hidden />
       <GroupPopover

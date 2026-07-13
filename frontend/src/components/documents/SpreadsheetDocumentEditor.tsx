@@ -1,7 +1,6 @@
 import type { ProviderAwareness } from "@lexical/yjs";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
-  type ChangeEvent,
   type ClipboardEvent,
   type CSSProperties,
   Fragment,
@@ -28,7 +27,6 @@ import { useSpreadsheetCells } from "@/components/documents/spreadsheet/useSprea
 import { useSpreadsheetFormatting } from "@/components/documents/spreadsheet/useSpreadsheetFormatting";
 import { useSpreadsheetHistory } from "@/components/documents/spreadsheet/useSpreadsheetHistory";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -41,7 +39,6 @@ import {
 } from "@/components/ui/context-menu";
 import { matchHistoryShortcut } from "@/hooks/useYjsHistory";
 import { toast } from "@/lib/chesterToast";
-import { downloadBlob } from "@/lib/csv";
 import {
   type CellValue,
   colIndexToLetter,
@@ -50,7 +47,6 @@ import {
   parseKey,
 } from "@/lib/spreadsheet/coords";
 import {
-  cellsToCsv,
   coerceScalar,
   csvToCells,
   detectClipboardDelimiter,
@@ -82,7 +78,6 @@ import {
   styleToCss,
 } from "@/lib/spreadsheet/styles";
 import { type LineAxis, type LineOp, transformSheet } from "@/lib/spreadsheet/transform";
-import { cellsToXlsx, xlsxToContent } from "@/lib/spreadsheet/xlsx";
 import { cn } from "@/lib/utils";
 
 export interface SpreadsheetContent {
@@ -130,13 +125,6 @@ const RESIZE_HANDLE = 5;
 // Functions that aggregate a range — picking one from the toolbar with a
 // multi-cell selection fills the range in automatically (AutoSum-style).
 const AGGREGATE_FUNCTIONS = new Set(["SUM", "AVERAGE", "MIN", "MAX", "COUNT", "COUNTA"]);
-
-const slugify = (s: string): string =>
-  s
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60) || "spreadsheet";
 
 const sanitizeContent = (raw: SpreadsheetContent | undefined): SpreadsheetContent => {
   const cells = (raw?.cells ?? {}) as Record<string, CellValue>;
@@ -251,12 +239,6 @@ export const SpreadsheetDocumentEditor = ({
   const fillSourceRef = useRef<Box | null>(null);
   const fillTargetRef = useRef<Box | null>(null);
   const [fillPreview, setFillPreview] = useState<Box | null>(null);
-  const [pendingImport, setPendingImport] = useState<{
-    cells: Record<string, CellValue>;
-    rows: number;
-    cols: number;
-    formatting?: SpreadsheetFormatting;
-  } | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const editingInputRef = useRef<HTMLInputElement>(null);
@@ -290,7 +272,6 @@ export const SpreadsheetDocumentEditor = ({
   // Caret offset to restore after a point-mode splice updates the draft (the
   // input is controlled, so the selection must be reapplied post-render).
   const pendingCaretRef = useRef<number | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const dragRef = useRef<DragState | null>(null);
   const resizeStartRef = useRef<{ pos: number; size: number }>({ pos: 0, size: 0 });
   // Owns the window listeners attached during a resize drag.  Held in a ref
@@ -1060,108 +1041,6 @@ export const SpreadsheetDocumentEditor = ({
     [editing, selectionToTsv]
   );
 
-  const handleExportCsv = useCallback(() => {
-    try {
-      const csv = cellsToCsv(cells, resolveExport);
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-      downloadBlob(blob, `${slugify(documentTitle)}.csv`);
-      toast.success(t("documents:spreadsheet.exportSuccess"));
-    } catch {
-      toast.error(t("documents:spreadsheet.exportError"));
-    }
-  }, [cells, resolveExport, documentTitle, t]);
-
-  const handleExportXlsx = useCallback(async () => {
-    try {
-      const blob = await cellsToXlsx(cells, formatting, documentTitle, resolveExport);
-      downloadBlob(blob, `${slugify(documentTitle)}.xlsx`);
-      toast.success(t("documents:spreadsheet.exportSuccess"));
-    } catch {
-      toast.error(t("documents:spreadsheet.exportError"));
-    }
-  }, [cells, formatting, documentTitle, resolveExport, t]);
-
-  const handleImportClick = useCallback(() => {
-    if (readOnly) return;
-    fileInputRef.current?.click();
-  }, [readOnly]);
-
-  const handleFileSelected = useCallback(
-    async (e: ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      e.target.value = "";
-      if (!file) return;
-      const MAX_BYTES = 50 * 1024 * 1024;
-      if (file.size > MAX_BYTES) {
-        toast.error(t("documents:spreadsheet.fileTooLarge"));
-        return;
-      }
-      const isXlsx =
-        file.name.toLowerCase().endsWith(".xlsx") ||
-        file.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-      try {
-        if (isXlsx) {
-          const buffer = await file.arrayBuffer();
-          const parsed = await xlsxToContent(buffer);
-          if (
-            Object.keys(parsed.cells).length === 0 &&
-            Object.keys(parsed.formatting.columns).length === 0 &&
-            Object.keys(parsed.formatting.rows).length === 0 &&
-            Object.keys(parsed.formatting.cellStyles).length === 0
-          ) {
-            toast.error(t("documents:spreadsheet.importEmpty"));
-            return;
-          }
-          if (parsed.sheetCount > 1) {
-            toast.info(t("documents:spreadsheet.multiSheetWarning"));
-          }
-          setPendingImport({
-            cells: parsed.cells,
-            rows: parsed.dimensions.rows,
-            cols: parsed.dimensions.cols,
-            formatting: parsed.formatting,
-          });
-          return;
-        }
-        const text = await file.text();
-        const parsed = csvToCells(text);
-        if (Object.keys(parsed.cells).length === 0) {
-          toast.error(t("documents:spreadsheet.importEmpty"));
-          return;
-        }
-        setPendingImport(parsed);
-      } catch {
-        toast.error(t("documents:spreadsheet.importParseError"));
-      }
-    },
-    [t]
-  );
-
-  const confirmImport = useCallback(() => {
-    if (!pendingImport) return;
-    const dims = {
-      rows: Math.min(Math.max(pendingImport.rows, DEFAULT_ROWS), MAX_ROWS),
-      cols: Math.min(Math.max(pendingImport.cols, DEFAULT_COLS), MAX_COLS),
-    };
-    const fmt = pendingImport.formatting;
-    if (fmt) {
-      // xlsx: replace cells AND formatting in one transaction so peers
-      // never observe a torn state (new cells, old formatting) and the
-      // whole import is a single undo step. Yjs flattens the nested
-      // transacts in each replaceAll into this outer one.
-      docForData.transact(() => {
-        replaceAll(pendingImport.cells, dims);
-        formatting.replaceAll(fmt);
-      }, "spreadsheet-import");
-    } else {
-      // csv: cells only — formatting is intentionally left untouched so
-      // the CSV path stays byte-for-byte the pre-formatting behavior.
-      replaceAll(pendingImport.cells, dims);
-    }
-    setPendingImport(null);
-    toast.success(t("documents:spreadsheet.importSuccess"));
-  }, [pendingImport, replaceAll, formatting, docForData, t]);
-
   // Sort the whole sheet by a column (right-click a column header). Rows
   // are reordered as records, keeping every other column aligned; cell
   // values, per-cell styles, and per-row formatting all travel with the
@@ -1642,21 +1521,11 @@ export const SpreadsheetDocumentEditor = ({
           }
           formatting={formatting}
           readOnly={readOnly}
-          onExportCsv={handleExportCsv}
-          onExportXlsx={handleExportXlsx}
-          onImport={handleImportClick}
           onInsertFunction={insertFunction}
           onUndo={history.undo}
           onRedo={history.redo}
           canUndo={history.canUndo}
           canRedo={history.canRedo}
-        />
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-          className="hidden"
-          onChange={handleFileSelected}
         />
       </div>
 
@@ -1950,18 +1819,6 @@ export const SpreadsheetDocumentEditor = ({
           )}
         </div>
       </div>
-
-      <ConfirmDialog
-        open={pendingImport !== null}
-        onOpenChange={(open) => {
-          if (!open) setPendingImport(null);
-        }}
-        title={t("documents:spreadsheet.importConfirmTitle")}
-        description={t("documents:spreadsheet.importConfirmDescription")}
-        confirmLabel={t("documents:spreadsheet.importConfirmAction")}
-        onConfirm={confirmImport}
-        destructive
-      />
     </div>
   );
 };
