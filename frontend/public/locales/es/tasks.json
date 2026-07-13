@@ -258,13 +258,18 @@
     "queued": "Exportación iniciada: la descarga comenzará cuando esté lista.",
     "success": "Exportación descargada.",
     "failed": "La exportación falló. Inténtalo de nuevo o reduce el filtro.",
-    "error": "No se pudieron exportar las tareas.",
+    "error": "No se pudo exportar. Inténtalo de nuevo.",
     "selected": "Exportar selección",
     "formatPdf": "Documento PDF",
     "formatCsv": "CSV",
     "formatXlsx": "Excel (XLSX)",
     "formatMd": "Tabla Markdown",
     "formatMdChecklist": "Lista de tareas Markdown",
-    "formatJson": "JSON"
+    "formatJson": "JSON",
+    "formatExcalidraw": "Archivo de Excalidraw (JSON)",
+    "formatOriginal": "Archivo original",
+    "formatMarkdown": "Markdown",
+    "formatPng": "Imagen PNG",
+    "formatSvg": "Imagen SVG"
   }
 }

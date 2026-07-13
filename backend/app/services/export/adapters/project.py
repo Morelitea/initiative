@@ -41,7 +41,13 @@ class ProjectAdapter:
     formats = frozenset({"json", "pdf", "csv", "xlsx"})
 
     async def count(
-        self, session: AsyncSession, *, user: User, guild_id: int, params: dict
+        self,
+        session: AsyncSession,
+        *,
+        user: User,
+        guild_id: int,
+        params: dict,
+        format: str,
     ) -> int:
         from app.api.v1.tenant_endpoints.projects import count_project_export_rows
 

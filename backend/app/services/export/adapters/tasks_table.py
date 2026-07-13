@@ -41,7 +41,13 @@ class TasksTableAdapter:
     formats = frozenset({"pdf", "csv", "xlsx", "md"})
 
     async def count(
-        self, session: AsyncSession, *, user: User, guild_id: int, params: dict
+        self,
+        session: AsyncSession,
+        *,
+        user: User,
+        guild_id: int,
+        params: dict,
+        format: str,
     ) -> int:
         from app.api.v1.tenant_endpoints.tasks import count_tasks_for_export
 

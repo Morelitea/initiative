@@ -26,13 +26,29 @@ from app.models.platform.user import User
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
 from app.schemas.tenant.export_job import ExportJobRead
 from app.services.export.engine import ExportError, InlineExport, start_export
-from app.services.storage import build_upload_response, get_guild_storage
+from app.services.storage import (
+    build_upload_response,
+    content_disposition_attachment,
+    get_guild_storage,
+)
 
 router = APIRouter()
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 _LIST_LIMIT = 50
+
+
+def _inline_response(result: InlineExport) -> Response:
+    # The filename can carry user text (document titles, original upload
+    # names) — the helper escapes it (RFC 5987) so it can't break the header.
+    return Response(
+        content=result.content,
+        media_type=result.content_type,
+        headers={
+            "Content-Disposition": content_disposition_attachment(result.filename)
+        },
+    )
 
 
 def _allow_job(guild_context: GuildContext) -> bool:
@@ -101,13 +117,7 @@ async def export_tasks(
         raise HTTPException(status_code=exc.status_code, detail=exc.code)
 
     if isinstance(result, InlineExport):
-        return Response(
-            content=result.content,
-            media_type=result.content_type,
-            headers={
-                "Content-Disposition": f'attachment; filename="{result.filename}"'
-            },
-        )
+        return _inline_response(result)
     return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
 
 
@@ -138,13 +148,39 @@ async def export_project(
         raise HTTPException(status_code=exc.status_code, detail=exc.code)
 
     if isinstance(result, InlineExport):
-        return Response(
-            content=result.content,
-            media_type=result.content_type,
-            headers={
-                "Content-Disposition": f'attachment; filename="{result.filename}"'
-            },
+        return _inline_response(result)
+    return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
+
+
+@router.get("/document", response_model=None)
+async def export_document(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    document_id: int = Query(),
+    format: Literal["json", "md", "csv", "xlsx", "file"] = Query(),
+) -> Union[Response, JSONResponse]:
+    """Export a document. Valid formats depend on the document type:
+    ``json`` for Lexical (importable envelope) and whiteboards (standard
+    Excalidraw file), ``csv``/``xlsx`` for spreadsheets, ``file`` for uploaded
+    files (unconverted, original name), ``md`` for smart links. Read access
+    suffices. Small documents return the file inline; large ones return
+    ``202`` with a queued job to poll and download."""
+    try:
+        result = await start_export(
+            session,
+            user=current_user,
+            guild_id=guild_context.guild_id,
+            source="document",
+            format=format,
+            params={"document_id": document_id},
+            allow_job=_allow_job(guild_context),
         )
+    except ExportError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+
+    if isinstance(result, InlineExport):
+        return _inline_response(result)
     return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
 
 
@@ -205,8 +241,12 @@ async def download_export_artifact(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=ExportMessages.EXPORT_JOB_NOT_FOUND,
         )
-    filename = f"{job.source}-{job.id}.{job.format}"
-    return build_upload_response(
-        blob,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
+    # A nested artifact key carries an explicit filename (passthrough exports
+    # keep the original upload's name); flat keys use the generic pattern.
+    # build_upload_response escapes the name (RFC 5987) — original filenames
+    # are user text and must not break out of the header.
+    if "/" in job.artifact_ref.removeprefix("exports/"):
+        filename = job.artifact_ref.rsplit("/", 1)[-1]
+    else:
+        filename = f"{job.source}-{job.id}.{job.format}"
+    return build_upload_response(blob, filename=filename)

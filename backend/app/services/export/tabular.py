@@ -58,7 +58,13 @@ def _md_cell(value: Any) -> str:
 
 def render_md(item: RenderItem) -> bytes:
     lines = _md_header(item)
-    if item.data.get("layout") == "checklist":
+    layout = item.data.get("layout")
+    if layout == "link":
+        # Smart-link documents: the document IS a URL. The autolink form
+        # (<url>) needs no bracket/paren escaping and renders clickable
+        # everywhere.
+        lines.append(f"<{item.data.get('url', '')}>")
+    elif layout == "checklist":
         lines.extend(_md_checklist(item))
     else:
         lines.extend(_md_table(item))

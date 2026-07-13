@@ -34,6 +34,7 @@ import { notifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost } from "@/ap
 import { CommentSection } from "@/components/comments/CommentSection";
 import { CreateWikilinkDocumentDialog } from "@/components/documents/CreateWikilinkDocumentDialog";
 import { DocumentBacklinks } from "@/components/documents/DocumentBacklinks";
+import { DocumentExportMenu } from "@/components/documents/DocumentExportMenu";
 import { DocumentSidePanel, useDocumentSidePanel } from "@/components/documents/DocumentSidePanel";
 import { DocumentSummary } from "@/components/documents/DocumentSummary";
 import { CollaborationStatusBadge } from "@/components/documents/editor/CollaborationStatusBadge";
@@ -1075,6 +1076,16 @@ export const DocumentDetailPage = () => {
           </BreadcrumbList>
         </Breadcrumb>
         <div className="flex items-center gap-2">
+          <DocumentExportMenu
+            documentId={document.id}
+            documentType={document.document_type}
+            title={document.title}
+            whiteboardScene={
+              document.document_type === "whiteboard" && whiteboardSceneReady
+                ? whiteboardScene
+                : undefined
+            }
+          />
           {canEditDocument && (
             <Button asChild variant="outline" size="sm">
               <Link

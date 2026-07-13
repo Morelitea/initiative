@@ -3971,6 +3971,22 @@ export const ExportProjectApiV1GGuildIdExportsProjectGetFormat = {
   xlsx: "xlsx",
 } as const;
 
+export type ExportDocumentApiV1GGuildIdExportsDocumentGetParams = {
+  document_id: number;
+  format: ExportDocumentApiV1GGuildIdExportsDocumentGetFormat;
+};
+
+export type ExportDocumentApiV1GGuildIdExportsDocumentGetFormat =
+  (typeof ExportDocumentApiV1GGuildIdExportsDocumentGetFormat)[keyof typeof ExportDocumentApiV1GGuildIdExportsDocumentGetFormat];
+
+export const ExportDocumentApiV1GGuildIdExportsDocumentGetFormat = {
+  json: "json",
+  md: "md",
+  csv: "csv",
+  xlsx: "xlsx",
+  file: "file",
+} as const;
+
 export type ListQueuesApiV1GGuildIdQueuesGetParams = {
   initiative_id?: number | null;
   /**

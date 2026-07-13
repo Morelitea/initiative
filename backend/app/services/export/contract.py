@@ -42,11 +42,16 @@ class RenderRequest:
 class RenderedArtifact:
     """The produced bytes for one batch item. The backend renders; the engine
     decides where the bytes go (inline response vs the guild storage backend),
-    so filesystem/object-store access stays confined to the engine layer."""
+    so filesystem/object-store access stays confined to the engine layer.
+
+    ``filename`` overrides the default ``{key}.{format}`` download name —
+    passthrough artifacts (an uploaded file exported unconverted) keep their
+    original name and extension this way."""
 
     key: str
     content_type: str
     content: bytes
+    filename: str | None = None
 
 
 class RenderBackend(Protocol):

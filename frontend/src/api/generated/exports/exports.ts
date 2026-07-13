@@ -18,6 +18,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  ExportDocumentApiV1GGuildIdExportsDocumentGetParams,
   ExportJobRead,
   ExportProjectApiV1GGuildIdExportsProjectGetParams,
   ExportTasksApiV1GGuildIdExportsTasksGetParams,
@@ -369,6 +370,185 @@ export function useExportProjectApiV1GGuildIdExportsProjectGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getExportProjectApiV1GGuildIdExportsProjectGetQueryOptions(
+    guildId,
+    params,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Export a document. Valid formats depend on the document type:
+ * ``json`` for Lexical (importable envelope) and whiteboards (standard
+ * Excalidraw file), ``csv``/``xlsx`` for spreadsheets, ``file`` for uploaded
+ * files (unconverted, original name), ``md`` for smart links. Read access
+ * suffices. Small documents return the file inline; large ones return
+ * ``202`` with a queued job to poll and download.
+ * @summary Export Document
+ */
+export const exportDocumentApiV1GGuildIdExportsDocumentGet = (
+  guildId: number,
+  params: ExportDocumentApiV1GGuildIdExportsDocumentGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<unknown>(
+    { url: `/api/v1/g/${guildId}/exports/document`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getExportDocumentApiV1GGuildIdExportsDocumentGetQueryKey = (
+  guildId: number,
+  params?: ExportDocumentApiV1GGuildIdExportsDocumentGetParams
+) => {
+  return [`/api/v1/g/${guildId}/exports/document`, ...(params ? [params] : [])] as const;
+};
+
+export const getExportDocumentApiV1GGuildIdExportsDocumentGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportDocumentApiV1GGuildIdExportsDocumentGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: ExportDocumentApiV1GGuildIdExportsDocumentGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportDocumentApiV1GGuildIdExportsDocumentGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getExportDocumentApiV1GGuildIdExportsDocumentGetQueryKey(guildId, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof exportDocumentApiV1GGuildIdExportsDocumentGet>>
+  > = ({ signal }) =>
+    exportDocumentApiV1GGuildIdExportsDocumentGet(guildId, params, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof exportDocumentApiV1GGuildIdExportsDocumentGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ExportDocumentApiV1GGuildIdExportsDocumentGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof exportDocumentApiV1GGuildIdExportsDocumentGet>>
+>;
+export type ExportDocumentApiV1GGuildIdExportsDocumentGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useExportDocumentApiV1GGuildIdExportsDocumentGet<
+  TData = Awaited<ReturnType<typeof exportDocumentApiV1GGuildIdExportsDocumentGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: ExportDocumentApiV1GGuildIdExportsDocumentGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportDocumentApiV1GGuildIdExportsDocumentGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof exportDocumentApiV1GGuildIdExportsDocumentGet>>,
+          TError,
+          Awaited<ReturnType<typeof exportDocumentApiV1GGuildIdExportsDocumentGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useExportDocumentApiV1GGuildIdExportsDocumentGet<
+  TData = Awaited<ReturnType<typeof exportDocumentApiV1GGuildIdExportsDocumentGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: ExportDocumentApiV1GGuildIdExportsDocumentGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportDocumentApiV1GGuildIdExportsDocumentGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof exportDocumentApiV1GGuildIdExportsDocumentGet>>,
+          TError,
+          Awaited<ReturnType<typeof exportDocumentApiV1GGuildIdExportsDocumentGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useExportDocumentApiV1GGuildIdExportsDocumentGet<
+  TData = Awaited<ReturnType<typeof exportDocumentApiV1GGuildIdExportsDocumentGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: ExportDocumentApiV1GGuildIdExportsDocumentGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportDocumentApiV1GGuildIdExportsDocumentGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Export Document
+ */
+
+export function useExportDocumentApiV1GGuildIdExportsDocumentGet<
+  TData = Awaited<ReturnType<typeof exportDocumentApiV1GGuildIdExportsDocumentGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: ExportDocumentApiV1GGuildIdExportsDocumentGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportDocumentApiV1GGuildIdExportsDocumentGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getExportDocumentApiV1GGuildIdExportsDocumentGetQueryOptions(
     guildId,
     params,
     options
