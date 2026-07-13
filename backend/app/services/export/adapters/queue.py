@@ -29,16 +29,26 @@ from app.models.platform.user import User
 from app.models.tenant.queue import Queue, QueueItem
 from app.services.export.contract import RenderItem, RenderRequest
 from app.services.export.engine import ExportError
+from app.services.export.i18n import et, export_locale
 from app.services.platform.csv_export import safe_filename_component
 
+# (row key, ``exports`` label key, Typst width hint) — labels resolve to the
+# creator's locale at build time.
 _COLUMNS = (
-    {"key": "order", "label": "#"},
-    {"key": "title", "label": "Item", "width": "2fr"},
-    {"key": "member", "label": "Member", "width": "1fr"},
-    {"key": "tags", "label": "Tags", "width": "1fr"},
-    {"key": "notes", "label": "Notes", "width": "2fr"},
-    {"key": "status", "label": "Status"},
+    ("order", "columns.order", "auto"),
+    ("title", "columns.item", "2fr"),
+    ("member", "columns.member", "1fr"),
+    ("tags", "columns.tags", "1fr"),
+    ("notes", "columns.notes", "2fr"),
+    ("status", "columns.status", "auto"),
 )
+
+
+def _columns(locale: str) -> list[dict]:
+    return [
+        {"key": key, "label": et(label_key, locale), "width": width}
+        for key, label_key, width in _COLUMNS
+    ]
 
 
 class QueueAdapter:
@@ -75,6 +85,8 @@ class QueueAdapter:
         date = now.strftime("%Y-%m-%d")
         stem = safe_filename_component(queue.name).lower()
         if format == "json":
+            # The envelope is importable machine data — stays canonical, never
+            # localized (translating field keys / enum values breaks import).
             item = RenderItem(
                 key=f"{stem}-{date}.initiative-queue",
                 data=_envelope(queue, items),
@@ -145,35 +157,39 @@ def _envelope(queue: Queue, items: list[QueueItem]) -> dict[str, Any]:
 def _report_payload(
     queue: Queue, items: list[QueueItem], user: User, now: datetime
 ) -> dict[str, Any]:
+    loc = export_locale(user)
     generated_at = now.strftime("%Y-%m-%d %H:%M UTC")
     # Both attribution fields can be absent (some OAuth-provisioned accounts
     # carry neither) — never render the literal "None".
-    author = user.full_name or user.email or "unknown"
-    round_part = f" · round {queue.current_round}" if queue.is_active else ""
+    author = user.full_name or user.email or et("fallback.unknownAuthor", loc)
+    parts = [et("summary.items", loc, count=len(items))]
+    if queue.is_active:
+        parts.append(et("round", loc, round=queue.current_round))
+    parts.append(et("generatedBy", loc, date=generated_at, author=author))
     return {
+        # The queue name is user data — never translated.
         "title": queue.name,
-        "subtitle": (
-            f"{len(items)} item{'s' if len(items) != 1 else ''}{round_part}"
-            f" · generated {generated_at} by {author}"
-        ),
-        "footer": f"{queue.name} — queue export",
+        "subtitle": " · ".join(parts),
+        "footer": et("footer.queue", loc, name=queue.name),
         "description": queue.description or "",
         # Markdown renders the rotation as a numbered turn-order list; the
         # other formats consume the columns/rows table.
         "layout": "numbered",
-        "columns": [dict(c) for c in _COLUMNS],
-        "rows": [_row(queue, item, order) for order, item in enumerate(items, 1)],
+        "columns": _columns(loc),
+        "empty_message": et("empty.generic", loc),
+        "untitled": et("fallback.untitled", loc),
+        "rows": [_row(queue, item, order, loc) for order, item in enumerate(items, 1)],
     }
 
 
-def _row(queue: Queue, item: QueueItem, order: int) -> dict[str, Any]:
+def _row(queue: Queue, item: QueueItem, order: int, locale: str) -> dict[str, Any]:
     flags = []
     if item.id == queue.current_item_id:
-        flags.append("Current")
+        flags.append(et("status.current", locale))
     if item.held_at_round is not None:
-        flags.append("Held")
+        flags.append(et("status.held", locale))
     if not item.is_visible:
-        flags.append("Hidden")
+        flags.append(et("status.hidden", locale))
     return {
         "order": order,
         "title": item.label,

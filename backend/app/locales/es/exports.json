@@ -1,0 +1,60 @@
+{
+  "columns": {
+    "task": "Tarea",
+    "project": "Proyecto",
+    "status": "Estado",
+    "priority": "Prioridad",
+    "due": "Vence",
+    "assignees": "Asignados",
+    "counter": "Contador",
+    "count": "Valor",
+    "min": "Mín",
+    "max": "Máx",
+    "step": "Paso",
+    "order": "N.º",
+    "item": "Elemento",
+    "member": "Miembro",
+    "tags": "Etiquetas",
+    "notes": "Notas"
+  },
+  "title": {
+    "tasks": "Tareas"
+  },
+  "footer": {
+    "tasks": "Exportación de tareas",
+    "project": "{{name}} — informe del proyecto",
+    "queue": "{{name}} — exportación de la cola",
+    "counters": "{{name}} — exportación de contadores"
+  },
+  "summary": {
+    "tasks_one": "{{count}} tarea",
+    "tasks_other": "{{count}} tareas",
+    "items_one": "{{count}} elemento",
+    "items_other": "{{count}} elementos",
+    "counters_one": "{{count}} contador",
+    "counters_other": "{{count}} contadores"
+  },
+  "generatedBy": "generado el {{date}} por {{author}}",
+  "exported": "exportado el {{date}}",
+  "round": "ronda {{round}}",
+  "status": {
+    "current": "Actual",
+    "held": "En espera",
+    "hidden": "Oculto"
+  },
+  "priority": {
+    "low": "Baja",
+    "medium": "Media",
+    "high": "Alta",
+    "urgent": "Urgente"
+  },
+  "empty": {
+    "tasks": "Ninguna tarea coincide con este filtro.",
+    "project": "Este proyecto no tiene tareas.",
+    "generic": "Nada que exportar."
+  },
+  "fallback": {
+    "unknownAuthor": "desconocido",
+    "untitled": "(sin título)"
+  }
+}

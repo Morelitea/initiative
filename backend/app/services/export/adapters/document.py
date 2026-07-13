@@ -90,14 +90,16 @@ class DocumentAdapter:
         stem = f"{safe_filename_component(document.title).lower()}-{date}"
 
         if doc_type == DocumentType.native.value and format != "json":
+            from app.services.export.i18n import et, export_locale
             from app.services.export.lexical import blocks_from_editor_state
 
             blocks, assets = blocks_from_editor_state(
                 document.content or {}, guild_id=guild_id
             )
             data = {
+                # Title/footer are the document's own name (user data).
                 "title": document.title,
-                "subtitle": f"exported {date}",
+                "subtitle": et("exported", export_locale(user), date=date),
                 "footer": document.title,
                 "stem": stem,
                 "blocks": blocks,

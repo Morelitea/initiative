@@ -107,15 +107,22 @@ def _md_details(row: dict, detail_keys: list[str]) -> str:
     )
 
 
+def _untitled(item: RenderItem) -> str:
+    """The empty-title fallback, localized by the adapter via the payload
+    (``fallback.untitled``); the ASCII default is a last resort."""
+    return item.data.get("untitled") or "(untitled)"
+
+
 def _md_checklist(item: RenderItem) -> list[str]:
     """GitHub-style task list: one checkbox item per row, checked when the
     row's ``done`` flag is set, with the non-title columns as a detail trail."""
     columns = item.data.get("columns") or []
     detail_keys = [c["key"] for c in columns if c["key"] != "title"]
+    untitled = _untitled(item)
     lines: list[str] = []
     for row in item.data.get("rows") or []:
         box = "x" if row.get("done") else " "
-        title = _md_cell(row.get("title", "")) or "(untitled)"
+        title = _md_cell(row.get("title", "")) or untitled
         details = _md_details(row, detail_keys)
         lines.append(f"- [{box}] {title}" + (f" ({details})" if details else ""))
     return lines
@@ -127,9 +134,10 @@ def _md_numbered(item: RenderItem) -> list[str]:
     (``current`` flag) renders bold."""
     columns = item.data.get("columns") or []
     detail_keys = [c["key"] for c in columns if c["key"] not in ("title", "order")]
+    untitled = _untitled(item)
     lines: list[str] = []
     for order, row in enumerate(item.data.get("rows") or [], start=1):
-        title = _md_cell(row.get("title", "")) or "(untitled)"
+        title = _md_cell(row.get("title", "")) or untitled
         if row.get("current"):
             title = f"**{title}**"
         details = _md_details(row, detail_keys)

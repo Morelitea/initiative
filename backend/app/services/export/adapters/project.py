@@ -24,15 +24,25 @@ from app.models.platform.user import User
 from app.schemas.tenant.project_export import ProjectExportEnvelope
 from app.services.export.contract import RenderItem, RenderRequest
 from app.services.export.engine import ExportError
+from app.services.export.i18n import et, export_locale
 from app.services.platform.csv_export import safe_filename_component
 
+# (row key, ``exports`` label key, Typst width hint) — labels resolve to the
+# creator's locale at build time.
 _COLUMNS = (
-    {"key": "title", "label": "Task"},
-    {"key": "status", "label": "Status"},
-    {"key": "priority", "label": "Priority"},
-    {"key": "due", "label": "Due"},
-    {"key": "assignees", "label": "Assignees"},
+    ("title", "columns.task", "2fr"),
+    ("status", "columns.status", "auto"),
+    ("priority", "columns.priority", "auto"),
+    ("due", "columns.due", "auto"),
+    ("assignees", "columns.assignees", "1fr"),
 )
+
+
+def _columns(locale: str) -> list[dict]:
+    return [
+        {"key": key, "label": et(label_key, locale), "width": width}
+        for key, label_key, width in _COLUMNS
+    ]
 
 
 class ProjectAdapter:
@@ -95,24 +105,31 @@ class ProjectAdapter:
 
 def _report_payload(envelope: ProjectExportEnvelope, user: User, now: datetime) -> dict:
     tasks = [t for t in envelope.tasks if not t.is_archived]
+    loc = export_locale(user)
     generated_at = now.strftime("%Y-%m-%d %H:%M UTC")
     # Both attribution fields can be absent (some OAuth-provisioned accounts
     # carry neither) — never render the literal "None".
-    author = user.full_name or user.email or "unknown"
+    author = user.full_name or user.email or et("fallback.unknownAuthor", loc)
     return {
+        # The project name is user data — never translated.
         "title": envelope.project.name,
-        "subtitle": (
-            f"{len(tasks)} task{'s' if len(tasks) != 1 else ''}"
-            f" · generated {generated_at} by {author}"
+        "subtitle": " · ".join(
+            [
+                et("summary.tasks", loc, count=len(tasks)),
+                et("generatedBy", loc, date=generated_at, author=author),
+            ]
         ),
-        "footer": f"{envelope.project.name} — project report",
+        "footer": et("footer.project", loc, name=envelope.project.name),
         "description": envelope.project.description or "",
-        "columns": [dict(c) for c in _COLUMNS],
+        "columns": _columns(loc),
+        "empty_message": et("empty.project", loc),
         "rows": [
             {
                 "title": t.title,
                 "status": t.status_name,
-                "priority": t.priority.value if t.priority else "",
+                "priority": et(f"priority.{t.priority.value}", loc)
+                if t.priority
+                else "",
                 "due": t.due_date.strftime("%Y-%m-%d") if t.due_date else "",
                 "assignees": ", ".join(t.assignee_emails),
             }

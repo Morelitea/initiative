@@ -21,18 +21,27 @@ from app.core.config import settings
 from app.models.platform.user import User
 from app.models.tenant.task import Task, TaskStatusCategory
 from app.services.export.contract import RenderItem, RenderRequest
+from app.services.export.i18n import et, export_locale
 
-
-# Column spec shared by every format: the PDF template reads the row keys it
-# knows; the tabular renderers project rows through this list in order.
+# Column spec: (row key, ``exports`` label key, Typst width hint). The PDF
+# template reads the label + width from the payload; the tabular renderers
+# project rows through the keys in order. Labels resolve to the creator's
+# locale at build time.
 _COLUMNS = (
-    {"key": "title", "label": "Task"},
-    {"key": "project", "label": "Project"},
-    {"key": "status", "label": "Status"},
-    {"key": "priority", "label": "Priority"},
-    {"key": "due", "label": "Due"},
-    {"key": "assignees", "label": "Assignees"},
+    ("title", "columns.task", "2fr"),
+    ("project", "columns.project", "1fr"),
+    ("status", "columns.status", "auto"),
+    ("priority", "columns.priority", "auto"),
+    ("due", "columns.due", "auto"),
+    ("assignees", "columns.assignees", "1fr"),
 )
+
+
+def _columns(locale: str) -> list[dict]:
+    return [
+        {"key": key, "label": et(label_key, locale), "width": width}
+        for key, label_key, width in _COLUMNS
+    ]
 
 
 class TasksTableAdapter:
@@ -73,19 +82,25 @@ class TasksTableAdapter:
             **_selector(params),
             max_rows=settings.EXPORT_MAX_ROWS,
         )
+        loc = export_locale(user)
         generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
         # Both attribution fields can be absent (some OAuth-provisioned
         # accounts carry neither) — never render the literal "None".
-        author = user.full_name or user.email or "unknown"
+        author = user.full_name or user.email or et("fallback.unknownAuthor", loc)
+        subtitle = " · ".join(
+            [
+                et("summary.tasks", loc, count=len(tasks)),
+                et("generatedBy", loc, date=generated_at, author=author),
+            ]
+        )
         data = {
-            "title": "Tasks",
-            "subtitle": (
-                f"{len(tasks)} task{'s' if len(tasks) != 1 else ''}"
-                f" · generated {generated_at} by {author}"
-            ),
-            "footer": "Tasks export",
-            "columns": [dict(c) for c in _COLUMNS],
-            "rows": [_row(t) for t in tasks],
+            "title": et("title.tasks", loc),
+            "subtitle": subtitle,
+            "footer": et("footer.tasks", loc),
+            "columns": _columns(loc),
+            "rows": [_row(t, loc) for t in tasks],
+            "empty_message": et("empty.tasks", loc),
+            "untitled": et("fallback.untitled", loc),
         }
         # Layout variant within a format (markdown table vs checklist) — part
         # of the selector, so a queued job renders the same shape on replay.
@@ -110,12 +125,16 @@ def _selector(params: dict) -> dict[str, Any]:
     }
 
 
-def _row(task: Task) -> dict[str, Any]:
+def _row(task: Task, locale: str) -> dict[str, Any]:
     return {
         "title": task.title,
         "project": task.project.name if task.project else "",
+        # Status names are user-created (not translatable); priority is an app
+        # enum, so it localizes.
         "status": task.task_status.name if task.task_status else "",
-        "priority": task.priority.value if task.priority else "",
+        "priority": et(f"priority.{task.priority.value}", locale)
+        if task.priority
+        else "",
         "due": task.due_date.strftime("%Y-%m-%d") if task.due_date else "",
         "assignees": ", ".join(a.full_name or a.email for a in (task.assignees or [])),
         # Not a projected column (absent from _COLUMNS): drives the checklist
