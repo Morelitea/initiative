@@ -1,4 +1,4 @@
-import { Link, useParams } from "@tanstack/react-router";
+import { Link, useParams, useSearch } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -20,7 +20,7 @@ import { useGuildPath } from "@/lib/guildUrl";
  *
  *   1. Page is only reachable when the runtime config exposes an
  *      `advanced_tool` block (otherwise the route renders an empty state).
- *   2. Backend handoff already verifies: AUTOMATIONS_URL configured,
+ *   2. Backend handoff already verifies: ADVANCED_TOOL_URL configured,
  *      initiative exists in active guild, user is guild admin or initiative
  *      member, advanced_tools_enabled=true.
  *   3. The handoff token is delivered to the iframe via postMessage *only*
@@ -36,6 +36,14 @@ export const AdvancedToolPage = () => {
   };
   const parsedInitiativeId = Number(initiativeIdParam);
   const initiativeId = Number.isFinite(parsedInitiativeId) ? parsedInitiativeId : null;
+
+  // Set by the sidebar "+" / list-view "New Advanced Tool" button. Creation is
+  // fully owned by the external service (our advanced_tools table only stores
+  // what that service builds), so "create" here is a hand-off: we forward the
+  // intent to the embed so it opens its new-creation screen instead of its
+  // list. No row is created on our side.
+  const { create } = useSearch({ strict: false }) as { create?: string };
+  const createIntent = create === "true";
 
   const { t, i18n } = useTranslation(["initiatives", "common"]);
   const gp = useGuildPath();
@@ -285,15 +293,18 @@ export const AdvancedToolPage = () => {
   // 3rem sticky header on top and the 20rem sidebar on desktop. On mobile
   // the sidebar is offcanvas, so the wrapper extends edge-to-edge.
   //
-  // The iframe URL has NO secrets in it — only the initiative id. The
-  // handoff token is delivered via postMessage after the iframe sends
-  // its `ready` signal, so it never lands in browser history, proxy
+  // The iframe URL has NO secrets in it — only the initiative id and, when
+  // the user clicked "create", an `intent=create` routing hint (mirrors the
+  // guild page's `?scope=guild`). The embed MUST still trust the signed
+  // handoff token, not this param — it only tells the service which screen to
+  // render. The handoff token is delivered via postMessage after the iframe
+  // sends its `ready` signal, so it never lands in browser history, proxy
   // logs, or referrer headers.
   return (
     <div className="fixed inset-x-0 top-12 bottom-0 md:left-[var(--sidebar-width,20rem)]">
       <iframe
         ref={iframeRef}
-        src={`${advancedTool.url}/embed/${initiative.id}`}
+        src={`${advancedTool.url}/embed/${initiative.id}${createIntent ? "?intent=create" : ""}`}
         title={advancedTool.name}
         className="block h-full w-full border-0 bg-background"
         // Minimum capabilities for an embedded SPA. Notably absent:

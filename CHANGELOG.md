@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The advanced tool's Create button now works. The sidebar "+" and the "New Advanced Tool" button (in the tool tab) were previously a disabled placeholder; they now open the connected tool's embedded page on its new-item screen, where the tool is built. Nothing is created on our side until it's saved there.
 - Guild admins can now load the member roster of initiatives they haven't joined. The roster API returned 403 for them — every other initiative read already honored the guild-admin override — which left the linked-member and assignee pickers empty when an admin viewed another member's initiative.
 
 ## [0.55.0] - 2026-07-12
