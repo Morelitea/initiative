@@ -19,6 +19,7 @@ import type {
 
 import type {
   ExportJobRead,
+  ExportProjectApiV1GGuildIdExportsProjectGetParams,
   ExportTasksApiV1GGuildIdExportsTasksGetParams,
   HTTPValidationError,
 } from "../initiativeAPI.schemas";
@@ -191,6 +192,182 @@ export function useExportTasksApiV1GGuildIdExportsTasksGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getExportTasksApiV1GGuildIdExportsTasksGetQueryOptions(
+    guildId,
+    params,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Export a project as its self-contained backup envelope (the same JSON
+ * ``POST /projects/import`` consumes). Requires write access on the project.
+ * Small projects return the file inline; large ones return ``202`` with a
+ * queued job to poll and download.
+ * @summary Export Project
+ */
+export const exportProjectApiV1GGuildIdExportsProjectGet = (
+  guildId: number,
+  params: ExportProjectApiV1GGuildIdExportsProjectGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<unknown>(
+    { url: `/api/v1/g/${guildId}/exports/project`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getExportProjectApiV1GGuildIdExportsProjectGetQueryKey = (
+  guildId: number,
+  params?: ExportProjectApiV1GGuildIdExportsProjectGetParams
+) => {
+  return [`/api/v1/g/${guildId}/exports/project`, ...(params ? [params] : [])] as const;
+};
+
+export const getExportProjectApiV1GGuildIdExportsProjectGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportProjectApiV1GGuildIdExportsProjectGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: ExportProjectApiV1GGuildIdExportsProjectGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportProjectApiV1GGuildIdExportsProjectGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getExportProjectApiV1GGuildIdExportsProjectGetQueryKey(guildId, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof exportProjectApiV1GGuildIdExportsProjectGet>>
+  > = ({ signal }) =>
+    exportProjectApiV1GGuildIdExportsProjectGet(guildId, params, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof exportProjectApiV1GGuildIdExportsProjectGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ExportProjectApiV1GGuildIdExportsProjectGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof exportProjectApiV1GGuildIdExportsProjectGet>>
+>;
+export type ExportProjectApiV1GGuildIdExportsProjectGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useExportProjectApiV1GGuildIdExportsProjectGet<
+  TData = Awaited<ReturnType<typeof exportProjectApiV1GGuildIdExportsProjectGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: ExportProjectApiV1GGuildIdExportsProjectGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportProjectApiV1GGuildIdExportsProjectGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof exportProjectApiV1GGuildIdExportsProjectGet>>,
+          TError,
+          Awaited<ReturnType<typeof exportProjectApiV1GGuildIdExportsProjectGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useExportProjectApiV1GGuildIdExportsProjectGet<
+  TData = Awaited<ReturnType<typeof exportProjectApiV1GGuildIdExportsProjectGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: ExportProjectApiV1GGuildIdExportsProjectGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportProjectApiV1GGuildIdExportsProjectGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof exportProjectApiV1GGuildIdExportsProjectGet>>,
+          TError,
+          Awaited<ReturnType<typeof exportProjectApiV1GGuildIdExportsProjectGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useExportProjectApiV1GGuildIdExportsProjectGet<
+  TData = Awaited<ReturnType<typeof exportProjectApiV1GGuildIdExportsProjectGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: ExportProjectApiV1GGuildIdExportsProjectGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportProjectApiV1GGuildIdExportsProjectGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Export Project
+ */
+
+export function useExportProjectApiV1GGuildIdExportsProjectGet<
+  TData = Awaited<ReturnType<typeof exportProjectApiV1GGuildIdExportsProjectGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: ExportProjectApiV1GGuildIdExportsProjectGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportProjectApiV1GGuildIdExportsProjectGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getExportProjectApiV1GGuildIdExportsProjectGetQueryOptions(
     guildId,
     params,
     options

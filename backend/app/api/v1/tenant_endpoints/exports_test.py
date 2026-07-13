@@ -230,6 +230,74 @@ async def test_worker_renders_job_and_download_succeeds(
     assert export_notes[0].data["guild_id"] == a.guild.id
 
 
+async def test_inline_project_export_returns_envelope(
+    client: AsyncClient, acting_user, session
+):
+    """The engine-delivered project backup: same envelope the import endpoint
+    consumes, same filename convention as the retired route."""
+    import json
+
+    a = await _actor_with_tasks(acting_user, session)
+    resp = await client.get(
+        a.g("/exports/project"),
+        headers=a.headers,
+        params={"project_id": a.project.id},
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
+    assert ".initiative-project.json" in resp.headers["content-disposition"]
+    envelope = json.loads(resp.content)
+    assert envelope["schema_version"] >= 1
+    assert envelope["project"]["name"] == a.project.name
+    assert {t["title"] for t in envelope["tasks"]} == {"Task 0", "Task 1"}
+
+
+async def test_project_export_hidden_outside_initiative(
+    client: AsyncClient, acting_user, session
+):
+    """A guild member outside the initiative gets 404 (RLS hides the project),
+    exactly like the rest of the initiative boundary."""
+    a = await _actor_with_tasks(acting_user, session)
+    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    resp = await client.get(
+        a.g("/exports/project"),
+        headers=outsider.headers,
+        params={"project_id": a.project.id},
+    )
+    assert resp.status_code == 404
+
+
+async def test_project_export_job_path_renders_json(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    import json
+
+    monkeypatch.setattr(settings, "EXPORT_INLINE_MAX_ROWS", 0)
+    a = await _actor_with_tasks(acting_user, session)
+    resp = await client.get(
+        a.g("/exports/project"),
+        headers=a.headers,
+        params={"project_id": a.project.id},
+    )
+    assert resp.status_code == 202
+    job_id = resp.json()["id"]
+    assert resp.json()["source"] == "project"
+
+    user_session = await role_session("app_user")
+    monkeypatch.setattr(export_worker, "_open_user_session", lambda: user_session)
+    await export_worker.process_export_jobs()
+
+    dl = await client.get(a.g(f"/exports/{job_id}/download"), headers=a.headers)
+    assert dl.status_code == 200, (
+        (await client.get(a.g(f"/exports/{job_id}"), headers=a.headers))
+        .json()
+        .get("error")
+    )
+    assert dl.headers["content-type"].startswith("application/json")
+    envelope = json.loads(dl.content)
+    assert envelope["project"]["name"] == a.project.name
+
+
 async def test_gc_expires_artifacts(acting_user, session):
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     storage = get_guild_storage(a.guild.id)

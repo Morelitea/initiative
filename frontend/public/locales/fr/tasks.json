@@ -264,6 +264,7 @@
     "formatCsv": "CSV",
     "formatXlsx": "Excel (XLSX)",
     "formatMd": "Tableau Markdown",
-    "formatMdChecklist": "Liste de tâches Markdown"
+    "formatMdChecklist": "Liste de tâches Markdown",
+    "formatJson": "JSON"
   }
 }

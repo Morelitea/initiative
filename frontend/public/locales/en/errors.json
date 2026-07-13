@@ -267,6 +267,7 @@
   "PROJECT_EXPORT_NO_TASK_STATUSES": "The project export has no task statuses, which is required for import.",
   "EXPORT_UNKNOWN_SOURCE": "This data can't be exported.",
   "EXPORT_INVALID_FORMAT": "This export format isn't supported for this data.",
+  "EXPORT_INVALID_PARAMS": "The export request was invalid.",
   "EXPORT_TOO_LARGE": "This export is too large. Narrow the filter and try again.",
   "EXPORT_JOB_LIMIT_REACHED": "You have too many exports in progress. Wait for one to finish and try again.",
   "EXPORT_WRITE_REQUIRED": "This export is too large to generate with read-only access.",

@@ -35,6 +35,7 @@ _CONTENT_TYPES = {
     "csv": "text/csv; charset=utf-8",
     "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "md": "text/markdown; charset=utf-8",
+    "json": "application/json",
 }
 
 
@@ -86,6 +87,10 @@ def _render_item(template: Path | None, format: str, item: RenderItem) -> bytes:
         return tabular.render_xlsx(item)
     if format == "md":
         return tabular.render_md(item)
+    if format == "json":
+        # The payload IS the artifact (e.g. a project export envelope);
+        # indent for a human-inspectable backup file.
+        return json.dumps(item.data, ensure_ascii=False, indent=2).encode("utf-8")
     assert template is not None  # resolve_template ran for the pdf path
     return _compile(template, format, item)
 
