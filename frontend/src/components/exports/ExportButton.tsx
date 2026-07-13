@@ -134,7 +134,14 @@ export function ExportButton({
       // shared axios instance directly so auth interceptors and the
       // conditions/sorting paramsSerializer still apply.
       const res = await apiClient.get<Blob>(`/g/${guildId}${endpoint}`, {
-        params: { ...params, format: option.format, ...option.extraParams },
+        // tz: report timestamps ("generated at …") render in the browser's
+        // zone, not UTC. First so an explicit caller tz in params wins.
+        params: {
+          tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          ...params,
+          format: option.format,
+          ...option.extraParams,
+        },
         responseType: "blob",
         validateStatus: (s) => s === 200 || s === 202,
       });

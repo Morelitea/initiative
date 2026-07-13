@@ -91,3 +91,17 @@ def test_export_locale_defaults_to_english():
         locale = "fr"
 
     assert export_locale(_WithLocale()) == "fr"
+
+
+def test_localize_now_shifts_and_falls_back():
+    from datetime import datetime, timezone
+
+    from app.services.export.i18n import localize_now
+
+    utc_now = datetime(2026, 7, 13, 20, 30, tzinfo=timezone.utc)
+    berlin = localize_now(utc_now, "Europe/Berlin")
+    assert berlin.strftime("%H:%M %Z") == "22:30 CEST"  # DST offset +2
+    # Absent or garbage zones keep UTC — a report never fails over a timestamp.
+    assert localize_now(utc_now, None) is utc_now
+    assert localize_now(utc_now, "Not/AZone") is utc_now
+    assert localize_now(utc_now, "../../etc/passwd") is utc_now

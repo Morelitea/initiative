@@ -29,7 +29,7 @@ from app.models.platform.user import User
 from app.models.tenant.counter import Counter, CounterGroup
 from app.services.export.contract import RenderItem, RenderRequest
 from app.services.export.engine import ExportError
-from app.services.export.i18n import et, export_locale
+from app.services.export.i18n import et, export_locale, localize_now
 from app.services.platform.csv_export import safe_filename_component
 
 # (row key, ``exports`` label key, Typst width hint) — labels resolve to the
@@ -79,7 +79,7 @@ class CounterGroupAdapter:
         group = await self._group(session, user, guild_id, params)
         # One clock read: the filename date and the subtitle timestamp must
         # not straddle midnight into disagreeing dates.
-        now = datetime.now(timezone.utc)
+        now = localize_now(datetime.now(timezone.utc), params.get("tz"))
         date = now.strftime("%Y-%m-%d")
         stem = safe_filename_component(group.name).lower()
         if format == "json":
@@ -136,7 +136,7 @@ def _envelope(group: CounterGroup) -> dict[str, Any]:
 def _report_payload(group: CounterGroup, user: User, now: datetime) -> dict[str, Any]:
     counters = group.counters
     loc = export_locale(user)
-    generated_at = now.strftime("%Y-%m-%d %H:%M UTC")
+    generated_at = now.strftime("%Y-%m-%d %H:%M %Z")
     # Both attribution fields can be absent (some OAuth-provisioned accounts
     # carry neither) — never render the literal "None".
     author = user.full_name or user.email or et("fallback.unknownAuthor", loc)
@@ -150,6 +150,7 @@ def _report_payload(group: CounterGroup, user: User, now: datetime) -> dict[str,
             ]
         ),
         "footer": et("footer.counters", loc, name=group.name),
+        "page_of": et("pageOf", loc),
         "description": group.description or "",
         "columns": _columns(loc),
         "empty_message": et("empty.generic", loc),

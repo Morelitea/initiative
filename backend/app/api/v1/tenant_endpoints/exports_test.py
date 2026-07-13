@@ -1211,7 +1211,9 @@ async def test_task_detailed_pdf_is_one_page_per_task_with_full_detail(
         session,
         a.project,
         title="Boss fight",
-        description="Balance the encounter.\nCheck the second phase.",
+        # Markdown, as the app treats descriptions: formatting must RENDER
+        # (no literal ** in the PDF), paragraphs stay separate.
+        description="Balance the **encounter**.\n\n- Check the second phase",
     )
     await create_subtask(session, t1, content="Tune the HP", is_completed=True)
     await create_subtask(session, t1, content="Write the dialogue")
@@ -1245,8 +1247,10 @@ async def test_task_detailed_pdf_is_one_page_per_task_with_full_detail(
     assert len(reader.pages) == 2  # one page per task
     text = "\n".join(p.extract_text() for p in reader.pages)
     assert _pdf_has(text, "Boss fight", "Loot table")
-    assert _pdf_has(text, "Balance the encounter")  # description
-    assert _pdf_has(text, "Check the second phase")  # line break preserved
+    # Markdown description RENDERS: the words appear, the syntax doesn't.
+    assert _pdf_has(text, "Balance the encounter")
+    assert _pdf_has(text, "Check the second phase")  # the list item
+    assert "**" not in text  # bold markers consumed, not printed
     assert _pdf_has(text, "Tune the HP", "Write the dialogue")  # subtasks
     assert _pdf_has(text, "Started already")  # comment body
     # Threaded order: a reply renders directly under its parent, before the
@@ -1319,3 +1323,59 @@ async def test_pdf_export_carries_guild_brand_header(
     assert resp.content.startswith(b"%PDF")
     text = PdfReader(io.BytesIO(resp.content)).pages[0].extract_text()
     assert _pdf_has(text, "Ravenloft Chronicle")  # brand header (icon staged)
+
+
+async def test_export_timestamp_uses_requested_timezone(
+    client: AsyncClient, acting_user, session
+):
+    """The "generated at" line renders in the tz the browser sends, not UTC —
+    and an unknown zone falls back to UTC instead of failing the export."""
+    from datetime import datetime, timezone as dt_timezone
+    from zoneinfo import ZoneInfo
+
+    a = await _actor_with_tasks(acting_user, session, count=1)
+
+    resp = await client.get(
+        a.g("/exports/tasks"),
+        headers=a.headers,
+        params={"format": "md", "tz": "Europe/Berlin"},
+    )
+    assert resp.status_code == 200
+    body = resp.content.decode("utf-8")
+    now_berlin = datetime.now(dt_timezone.utc).astimezone(ZoneInfo("Europe/Berlin"))
+    assert f"generated {now_berlin.strftime('%Y-%m-%d %H:%M')}" in body
+    assert now_berlin.strftime("%Z") in body  # CET/CEST, not UTC
+    assert " UTC " not in body
+
+    fallback = await client.get(
+        a.g("/exports/tasks"),
+        headers=a.headers,
+        params={"format": "md", "tz": "Not/AZone"},
+    )
+    assert fallback.status_code == 200
+    assert "UTC" in fallback.content.decode("utf-8")
+
+
+async def test_detailed_pdf_page_count_is_localized(
+    client: AsyncClient, acting_user, session
+):
+    """A multi-page report's footer page count follows the creator's locale —
+    "1 von 2" for a German user, not "1 of 2"."""
+    import io
+
+    from pypdf import PdfReader
+
+    a = await _actor_with_tasks(acting_user, session, count=2)
+    await _set_locale(session, a.user, "de")
+
+    resp = await client.get(
+        a.g("/exports/tasks"),
+        headers=a.headers,
+        params={"format": "pdf", "layout": "detailed"},
+    )
+    assert resp.status_code == 200
+    reader = PdfReader(io.BytesIO(resp.content))
+    assert len(reader.pages) == 2
+    packed = "".join(p.extract_text() for p in reader.pages).replace(" ", "")
+    assert "1von2" in packed and "2von2" in packed
+    assert "1of2" not in packed

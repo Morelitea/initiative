@@ -46,3 +46,14 @@ def test_thread_comments_handles_a_very_deep_chain_without_recursion():
     assert ordered[0] == (chain[0], 0)
     assert ordered[-1][0].id == 3000
     assert ordered[-1][1] == 2999  # depth grows with the chain
+
+
+def test_flatten_mentions_keeps_display_text():
+    from app.services.export.adapters.tasks_table import _flatten_mentions
+
+    assert _flatten_mentions("ping @[Ada L](7), see #task[Fix boss](12)") == (
+        "ping @Ada L, see Fix boss"
+    )
+    assert _flatten_mentions("#doc[Map](3) and #project[Arc](4)") == "Map and Arc"
+    # Plain markdown links are NOT mentions — untouched.
+    assert _flatten_mentions("[text](5)") == "[text](5)"

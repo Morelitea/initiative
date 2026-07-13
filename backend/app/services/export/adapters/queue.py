@@ -29,7 +29,7 @@ from app.models.platform.user import User
 from app.models.tenant.queue import Queue, QueueItem
 from app.services.export.contract import RenderItem, RenderRequest
 from app.services.export.engine import ExportError
-from app.services.export.i18n import et, export_locale
+from app.services.export.i18n import et, export_locale, localize_now
 from app.services.platform.csv_export import safe_filename_component
 
 # (row key, ``exports`` label key, Typst width hint) — labels resolve to the
@@ -81,7 +81,7 @@ class QueueAdapter:
         items = _rotation_order(queue.items)
         # One clock read: the filename date and the subtitle timestamp must
         # not straddle midnight into disagreeing dates.
-        now = datetime.now(timezone.utc)
+        now = localize_now(datetime.now(timezone.utc), params.get("tz"))
         date = now.strftime("%Y-%m-%d")
         stem = safe_filename_component(queue.name).lower()
         if format == "json":
@@ -158,7 +158,7 @@ def _report_payload(
     queue: Queue, items: list[QueueItem], user: User, now: datetime
 ) -> dict[str, Any]:
     loc = export_locale(user)
-    generated_at = now.strftime("%Y-%m-%d %H:%M UTC")
+    generated_at = now.strftime("%Y-%m-%d %H:%M %Z")
     # Both attribution fields can be absent (some OAuth-provisioned accounts
     # carry neither) — never render the literal "None".
     author = user.full_name or user.email or et("fallback.unknownAuthor", loc)
@@ -171,6 +171,7 @@ def _report_payload(
         "title": queue.name,
         "subtitle": " · ".join(parts),
         "footer": et("footer.queue", loc, name=queue.name),
+        "page_of": et("pageOf", loc),
         "description": queue.description or "",
         # Markdown renders the rotation as a numbered turn-order list; the
         # other formats consume the columns/rows table.

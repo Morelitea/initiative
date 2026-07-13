@@ -39,6 +39,7 @@ dependencies = [
     "typst>=0.15.0",
     "openpyxl>=3.1.5",
     "python-docx>=1.2.0",
+    "markdown-it-py>=4.2.0",
 ]
 
 [dependency-groups]
