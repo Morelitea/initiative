@@ -106,7 +106,7 @@
     "i18next": "^26.3.0",
     "i18next-http-backend": "^4.0.0",
     "lexical": "^0.45.0",
-    "lucide-react": "^1.17.0",
+    "lucide-react": "^1.23.0",
     "papaparse": "^5.5.3",
     "pdfjs-dist": "5.4.296",
     "react": "^19.2.6",
