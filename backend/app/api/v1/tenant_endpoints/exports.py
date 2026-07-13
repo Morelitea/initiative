@@ -184,6 +184,69 @@ async def export_document(
     return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
 
 
+@router.get("/queue", response_model=None)
+async def export_queue(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    queue_id: int = Query(),
+    format: Literal["json", "pdf", "csv", "xlsx", "md"] = Query(default="json"),
+) -> Union[Response, JSONResponse]:
+    """Export a queue: ``json`` is an importable envelope (items, rotation
+    state, tags by name — member assignments and linked documents/tasks ride
+    along as display text); ``pdf``/``csv``/``xlsx`` render the turn order as
+    a table and ``md`` as a numbered list. Read access suffices.
+    Small queues return the file inline; large ones return ``202`` with a
+    queued job to poll and download."""
+    try:
+        result = await start_export(
+            session,
+            user=current_user,
+            guild_id=guild_context.guild_id,
+            source="queue",
+            format=format,
+            params={"queue_id": queue_id},
+            allow_job=_allow_job(guild_context),
+        )
+    except ExportError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+
+    if isinstance(result, InlineExport):
+        return _inline_response(result)
+    return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
+
+
+@router.get("/counter-group", response_model=None)
+async def export_counter_group(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    counter_group_id: int = Query(),
+    format: Literal["json", "pdf", "csv", "xlsx", "md"] = Query(default="json"),
+) -> Union[Response, JSONResponse]:
+    """Export a counter group: ``json`` is an importable envelope (every
+    counter's configuration and current value); ``pdf``/``csv``/``xlsx``/
+    ``md`` render the counters as a table. Read access suffices. Small groups
+    return the file inline; large ones return ``202`` with a queued job to
+    poll and download."""
+    try:
+        result = await start_export(
+            session,
+            user=current_user,
+            guild_id=guild_context.guild_id,
+            source="counter-group",
+            format=format,
+            params={"counter_group_id": counter_group_id},
+            allow_job=_allow_job(guild_context),
+        )
+    except ExportError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+
+    if isinstance(result, InlineExport):
+        return _inline_response(result)
+    return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
+
+
 @router.get("/", response_model=list[ExportJobRead])
 async def list_export_jobs(
     session: RLSSessionDep,

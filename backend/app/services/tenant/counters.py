@@ -52,6 +52,7 @@ def require_counter_group_access(
     *,
     access: str = "read",
     require_owner: bool = False,
+    guild_role: str | None = None,
 ) -> None:
     require_access(
         DAC_RESOURCES["counter_group"],
@@ -59,6 +60,7 @@ def require_counter_group_access(
         user,
         access=access,
         require_owner=require_owner,
+        guild_role=guild_role,
     )
 
 
@@ -86,6 +88,46 @@ async def get_counter_group(
         stmt = stmt.execution_options(populate_existing=True)
     result = await session.exec(stmt)
     return result.one_or_none()
+
+
+async def get_counter_group_for_export(
+    session: AsyncSession,
+    current_user: User,
+    guild_id: int,
+    *,
+    group_id: int,
+) -> CounterGroup:
+    """The counter-export adapter's seam: fetch + authorize in one place so
+    the rule holds on the worker's render-time replay too. READ access
+    suffices — exporting is a formatted read. The guild role is resolved here
+    rather than taken from a request context, so the seam works
+    transport-free."""
+    from fastapi import HTTPException, status as http_status
+
+    from app.core.messages import CounterMessages
+    from app.services.platform import guilds as guilds_service
+
+    group = await get_counter_group(session, group_id)
+    if group is None:
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail=CounterMessages.GROUP_NOT_FOUND,
+        )
+    if group.initiative is not None and not group.initiative.counter_groups_enabled:
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail=CounterMessages.FEATURE_DISABLED,
+        )
+    membership = await guilds_service.get_membership(
+        session, guild_id=guild_id, user_id=current_user.id
+    )
+    require_counter_group_access(
+        group,
+        current_user,
+        access="read",
+        guild_role=membership.role if membership else None,
+    )
+    return group
 
 
 async def get_counter(

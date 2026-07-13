@@ -66,6 +66,8 @@ def render_md(item: RenderItem) -> bytes:
         lines.append(f"<{item.data.get('url', '')}>")
     elif layout == "checklist":
         lines.extend(_md_checklist(item))
+    elif layout == "numbered":
+        lines.extend(_md_numbered(item))
     else:
         lines.extend(_md_table(item))
     lines.append("")
@@ -107,6 +109,24 @@ def _md_checklist(item: RenderItem) -> list[str]:
             _md_cell(row[key]) for key in detail_keys if str(row.get(key, "")).strip()
         )
         lines.append(f"- [{box}] {title}" + (f" ({details})" if details else ""))
+    return lines
+
+
+def _md_numbered(item: RenderItem) -> list[str]:
+    """Ordered list: one numbered entry per row (a queue's turn order), with
+    the non-title columns as a detail trail. The row driving the rotation
+    (``current`` flag) renders bold."""
+    columns = item.data.get("columns") or []
+    detail_keys = [c["key"] for c in columns if c["key"] not in ("title", "order")]
+    lines: list[str] = []
+    for order, row in enumerate(item.data.get("rows") or [], start=1):
+        title = _md_cell(row.get("title", "")) or "(untitled)"
+        if row.get("current"):
+            title = f"**{title}**"
+        details = " · ".join(
+            _md_cell(row[key]) for key in detail_keys if str(row.get(key, "")).strip()
+        )
+        lines.append(f"{order}. {title}" + (f" ({details})" if details else ""))
     return lines
 
 

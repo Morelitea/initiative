@@ -6,6 +6,7 @@ import type { WhiteboardScene } from "@/components/documents/WhiteboardDocumentE
 import { ExportButton, type ExportFormatOption } from "@/components/exports/ExportButton";
 import { toast } from "@/lib/chesterToast";
 import { downloadBlob } from "@/lib/csv";
+import { exportFilenameStem } from "@/lib/exportDownload";
 
 interface DocumentExportMenuProps {
   documentId: number;
@@ -16,13 +17,6 @@ interface DocumentExportMenuProps {
    * produced in the browser while the engine handles the importable JSON. */
   whiteboardScene?: WhiteboardScene;
 }
-
-const safeFilename = (name: string): string =>
-  name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60) || "document";
 
 // Engine formats per document type — mirrors the backend adapter's rules.
 const TYPE_FORMATS: Record<DocumentReadDocumentType, ExportFormatOption[]> = {
@@ -50,8 +44,7 @@ export function DocumentExportMenu({
   whiteboardScene,
 }: DocumentExportMenuProps) {
   const { t } = useTranslation("tasks");
-  const date = new Date().toISOString().slice(0, 10);
-  const stem = `${safeFilename(title)}-${date}`;
+  const stem = exportFilenameStem(title, "document");
   // Engine entries are debounced by ExportButton's busy state; the
   // client-side renders need their own in-flight guard.
   const sceneExporting = useRef(false);

@@ -308,3 +308,109 @@ async def test_tabular_formats_skip_template_resolution():
     )
     artifacts = await LocalRenderBackend().render(req)
     assert artifacts[0].content_type.startswith("text/csv")
+
+
+async def test_renders_markdown_numbered_layout():
+    """layout=numbered renders an ordered turn-order list — details from the
+    non-title columns, the ``current`` row bolded, ``order`` never doubled
+    into the detail trail."""
+    artifacts = await LocalRenderBackend().render(
+        _request(
+            format="md",
+            layout="numbered",
+            columns=[
+                {"key": "order", "label": "#"},
+                {"key": "title", "label": "Item"},
+                {"key": "status", "label": "Status"},
+            ],
+            rows=[
+                {
+                    "order": 1,
+                    "title": "Alice | piped",
+                    "status": "Current",
+                    "current": True,
+                },
+                {"order": 2, "title": "Bob", "status": ""},
+                {"order": 3, "title": "", "status": "Hidden"},
+            ],
+        )
+    )
+    text = artifacts[0].content.decode("utf-8")
+    lines = text.splitlines()
+    assert "1. **Alice \\| piped** (Current)" in lines
+    assert "2. Bob" in lines
+    assert "3. (untitled) (Hidden)" in lines
+    assert not any("---" in line for line in lines)  # no table separator
+
+
+async def test_data_table_template_renders_payload_columns():
+    """The generic template's whole point: the column set (labels, order,
+    numeric cells) comes from the payload, no bespoke .typ per source."""
+    import io
+
+    from pypdf import PdfReader
+
+    request = RenderRequest(
+        guild_id=1,
+        template_id="data-table",
+        format="pdf",
+        batch=(
+            RenderItem(
+                key="counters",
+                data={
+                    "title": "Party Resources",
+                    "subtitle": "unit test",
+                    "footer": "counters export",
+                    "description": "Session 12 snapshot",
+                    "columns": [
+                        {"key": "title", "label": "Counter", "width": "2fr"},
+                        {"key": "count", "label": "Count"},
+                        {"key": "max", "label": "Max"},
+                    ],
+                    "rows": [
+                        {"title": "Torches", "count": 5, "max": 10},
+                        {"title": "Rations", "count": 2.5, "max": ""},
+                    ],
+                },
+            ),
+        ),
+    )
+    artifacts = await LocalRenderBackend().render(request)
+    assert artifacts[0].content.startswith(b"%PDF")
+    text = PdfReader(io.BytesIO(artifacts[0].content)).pages[0].extract_text()
+    assert "Party Resources" in text
+    assert "Session 12 snapshot" in text
+    assert "Counter" in text and "Torches" in text
+    assert "2.5" in text  # numeric cells render as text
+
+
+async def test_data_table_template_survives_hostile_text_and_empty_rows():
+    """sys.inputs guard holds for the generic template too: Typst markup in
+    user strings stays data, and zero rows still compile."""
+    hostile = RenderRequest(
+        guild_id=1,
+        template_id="data-table",
+        format="pdf",
+        batch=(
+            RenderItem(
+                key="q",
+                data={
+                    "title": '#import "x.typ"; *bold* [',
+                    "description": "#eval(1+1) ]] $ broken math",
+                    "columns": [{"key": "title", "label": "*"}],
+                    "rows": [{"title": "#sys.inputs ["}],
+                },
+            ),
+        ),
+    )
+    artifacts = await LocalRenderBackend().render(hostile)
+    assert artifacts[0].content.startswith(b"%PDF")
+
+    empty = RenderRequest(
+        guild_id=1,
+        template_id="data-table",
+        format="pdf",
+        batch=(RenderItem(key="q", data={"title": "T", "columns": [], "rows": []}),),
+    )
+    artifacts = await LocalRenderBackend().render(empty)
+    assert artifacts[0].content.startswith(b"%PDF")
