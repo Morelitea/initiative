@@ -63,7 +63,10 @@ class ProjectAdapter:
         envelope = await build_project_export_for_user(
             session, user, guild_id, project_id=_project_id(params)
         )
-        date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        # One clock read: the filename date and the subtitle timestamp must
+        # not straddle midnight into disagreeing dates.
+        now = datetime.now(timezone.utc)
+        date = now.strftime("%Y-%m-%d")
         stem = safe_filename_component(envelope.project.name).lower()
         if format == "json":
             # Preserve the historical backup convention:
@@ -74,7 +77,7 @@ class ProjectAdapter:
             )
         else:
             item = RenderItem(
-                key=f"{stem}-{date}", data=_report_payload(envelope, user)
+                key=f"{stem}-{date}", data=_report_payload(envelope, user, now)
             )
         return RenderRequest(
             guild_id=guild_id,
@@ -84,10 +87,12 @@ class ProjectAdapter:
         )
 
 
-def _report_payload(envelope: ProjectExportEnvelope, user: User) -> dict:
+def _report_payload(envelope: ProjectExportEnvelope, user: User, now: datetime) -> dict:
     tasks = [t for t in envelope.tasks if not t.is_archived]
-    generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    author = user.full_name or user.email
+    generated_at = now.strftime("%Y-%m-%d %H:%M UTC")
+    # Both attribution fields can be absent (some OAuth-provisioned accounts
+    # carry neither) — never render the literal "None".
+    author = user.full_name or user.email or "unknown"
     return {
         "title": envelope.project.name,
         "subtitle": (

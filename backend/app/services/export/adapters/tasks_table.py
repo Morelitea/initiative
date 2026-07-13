@@ -68,7 +68,9 @@ class TasksTableAdapter:
             max_rows=settings.EXPORT_MAX_ROWS,
         )
         generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-        author = user.full_name or user.email
+        # Both attribution fields can be absent (some OAuth-provisioned
+        # accounts carry neither) — never render the literal "None".
+        author = user.full_name or user.email or "unknown"
         data = {
             "title": "Tasks",
             "subtitle": (

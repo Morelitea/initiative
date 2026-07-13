@@ -285,6 +285,14 @@ async def test_project_export_report_formats(client: AsyncClient, acting_user, s
     )
     assert xlsx.status_code == 200
     assert xlsx.content.startswith(b"PK")
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    sheet = load_workbook(BytesIO(xlsx.content)).active
+    cells = {cell.value for row in sheet.iter_rows() for cell in row}
+    assert {"Task 0", "Task 1"} <= cells
+    assert "Old news" not in cells  # archived exclusion holds in XLSX too
 
 
 async def test_project_export_hidden_outside_initiative(
