@@ -61,7 +61,9 @@ export const AdvancedToolsView = ({ fixedInitiativeId, canCreate }: AdvancedTool
 
   return (
     <div className="space-y-6">
-      {canCreate && (
+      {/* Header note + button only when tools exist; the empty state below
+          carries its own note + button, so exactly one shows in every case. */}
+      {canCreate && tools.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="flex items-center gap-2 text-muted-foreground text-sm">
             <ExternalLink className="h-4 w-4" />

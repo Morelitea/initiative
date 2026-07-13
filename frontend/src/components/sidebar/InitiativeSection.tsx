@@ -243,6 +243,7 @@ export const InitiativeSection = memo(
                 const def = TOOL_REGISTRY[tool];
                 const Icon = def.icon;
                 const link = toolLink(tool);
+                const createTarget = createLink(tool);
                 return (
                   <SidebarMenuItem key={tool}>
                     <div className="group/tool flex w-full min-w-0 items-center gap-1">
@@ -273,7 +274,7 @@ export const InitiativeSection = memo(
                               {/* Regular tools open a create dialog at their list
                                   route; the advanced tool hands off to its embedded
                                   external page with a "new" intent. */}
-                              <Link to={createLink(tool).to} search={createLink(tool).search}>
+                              <Link to={createTarget.to} search={createTarget.search}>
                                 <Plus className="h-3 w-3" />
                               </Link>
                             </Button>
