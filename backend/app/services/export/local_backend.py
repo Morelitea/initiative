@@ -6,6 +6,12 @@ source), inside ``run_in_executor`` — the PyO3 binding releases the GIL, so a
 heavy render doesn't stall the event loop. ``ignore_system_fonts=True`` pins
 rendering to the fonts embedded in the typst wheel, so output is
 deterministic across images with no font bundling step.
+
+Non-PDF formats dispatch to lightweight renderers: the tabular module
+(csv/xlsx/md over columns/rows payloads, or a spreadsheet document's sparse
+grid), verbatim JSON, and the ``file`` passthrough (an uploaded blob exported
+unconverted — the one format whose content type and filename come from the
+stored object, not a static map).
 """
 
 from __future__ import annotations
@@ -14,10 +20,11 @@ import asyncio
 import json
 import re
 from pathlib import Path
+from typing import Any
 
 import typst
 
-from app.services.export import tabular
+from app.services.export import spreadsheet, tabular
 from app.services.export.contract import (
     RenderedArtifact,
     RenderItem,
@@ -36,6 +43,7 @@ _CONTENT_TYPES = {
     "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "md": "text/markdown; charset=utf-8",
     "json": "application/json",
+    "file": "application/octet-stream",  # per-item override from the blob
 }
 
 
@@ -58,41 +66,74 @@ class LocalRenderBackend:
         # payload's columns/rows directly. Resolve (and thereby validate) the
         # template up front so a bad id fails before the executor hop.
         template = resolve_template(req.template_id) if req.format == "pdf" else None
-        content_type = _CONTENT_TYPES[req.format]
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(
-            None, self._render_sync, template, content_type, req
-        )
+        return await loop.run_in_executor(None, self._render_sync, template, req)
 
     @staticmethod
     def _render_sync(
-        template: Path | None, content_type: str, req: RenderRequest
+        template: Path | None, req: RenderRequest
     ) -> list[RenderedArtifact]:
-        out: list[RenderedArtifact] = []
-        for item in req.batch:
-            out.append(
-                RenderedArtifact(
-                    key=item.key,
-                    content_type=content_type,
-                    content=_render_item(template, req.format, item),
-                )
+        return [_render_item(template, req, item) for item in req.batch]
+
+
+def _render_item(
+    template: Path | None, req: RenderRequest, item: RenderItem
+) -> RenderedArtifact:
+    format = req.format
+    content_type = _CONTENT_TYPES[format]
+    filename: str | None = item.filename
+    if format == "file":
+        content, content_type, filename = _read_passthrough(req.guild_id, item.data)
+    elif format == "csv":
+        content = (
+            spreadsheet.render_csv(item.data["grid"])
+            if "grid" in item.data
+            else tabular.render_csv(item)
+        )
+    elif format == "xlsx":
+        content = (
+            spreadsheet.render_xlsx(
+                item.data["grid"], title=str(item.data.get("title", item.key))
             )
-        return out
+            if "grid" in item.data
+            else tabular.render_xlsx(item)
+        )
+    elif format == "md":
+        content = tabular.render_md(item)
+    elif format == "json":
+        # The payload IS the artifact (e.g. a backup envelope); indent for a
+        # human-inspectable file.
+        content = json.dumps(item.data, ensure_ascii=False, indent=2).encode("utf-8")
+    else:
+        assert template is not None  # resolve_template ran for the pdf path
+        content = _compile(template, format, item)
+    return RenderedArtifact(
+        key=item.key, content_type=content_type, content=content, filename=filename
+    )
 
 
-def _render_item(template: Path | None, format: str, item: RenderItem) -> bytes:
-    if format == "csv":
-        return tabular.render_csv(item)
-    if format == "xlsx":
-        return tabular.render_xlsx(item)
-    if format == "md":
-        return tabular.render_md(item)
-    if format == "json":
-        # The payload IS the artifact (e.g. a project export envelope);
-        # indent for a human-inspectable backup file.
-        return json.dumps(item.data, ensure_ascii=False, indent=2).encode("utf-8")
-    assert template is not None  # resolve_template ran for the pdf path
-    return _compile(template, format, item)
+def _read_passthrough(
+    guild_id: int, data: dict[str, Any]
+) -> tuple[bytes, str, str | None]:
+    """Read a stored upload blob for unconverted export. The storage key was
+    derived by the adapter from the document row under the caller's RLS
+    session — never from raw user input."""
+    from app.services.storage import get_guild_storage
+
+    blob = get_guild_storage(guild_id).open_readable(str(data["storage_key"]))
+    if blob is None:
+        raise FileNotFoundError(data["storage_key"])
+    if blob.path is not None:
+        content = Path(blob.path).read_bytes()
+    else:
+        content = blob.stream.read()  # type: ignore[union-attr]
+    content_type = (
+        str(data.get("content_type") or "")
+        or blob.content_type
+        or "application/octet-stream"
+    )
+    filename = str(data.get("filename") or "") or None
+    return content, content_type, filename
 
 
 def _compile(template: Path, format: str, item: RenderItem) -> bytes:

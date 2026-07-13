@@ -44,7 +44,13 @@ class SourceAdapter(Protocol):
     formats: frozenset[str]
 
     async def count(
-        self, session: AsyncSession, *, user: User, guild_id: int, params: dict
+        self,
+        session: AsyncSession,
+        *,
+        user: User,
+        guild_id: int,
+        params: dict,
+        format: str,
     ) -> int: ...
 
     async def build(
@@ -123,7 +129,7 @@ async def start_export(
     adapter = get_adapter(source, format)
 
     row_count = await adapter.count(
-        session, user=user, guild_id=guild_id, params=params
+        session, user=user, guild_id=guild_id, params=params, format=format
     )
     if row_count > settings.EXPORT_MAX_ROWS:
         raise ExportError(ExportMessages.EXPORT_TOO_LARGE)
@@ -135,7 +141,7 @@ async def start_export(
         artifacts = await get_backend().render(request)
         artifact = _single(artifacts)
         return InlineExport(
-            filename=f"{artifact.key}.{format}",
+            filename=artifact.filename or f"{artifact.key}.{format}",
             content_type=artifact.content_type,
             content=artifact.content,
         )
@@ -182,7 +188,16 @@ async def render_to_storage(request: RenderRequest, *, job_id: int) -> str:
     storage key. Idempotent by job id — a re-render overwrites the same key."""
     artifacts = await get_backend().render(request)
     artifact = _single(artifacts)
-    key = f"exports/{job_id}.{request.format}"
+    # The job id must live in the storage BASENAME, not a directory: both
+    # backends flatten a key to Path(key).name (a path-traversal guard), so a
+    # nested `exports/{job}/name` would drop the job id and two same-named
+    # passthroughs (two members' "report.pdf") would collide. Prefix the id
+    # into the name instead; the download endpoint strips `{job_id}-` back off
+    # to recover the original filename for Content-Disposition.
+    if artifact.filename:
+        key = f"exports/{job_id}-{artifact.filename}"
+    else:
+        key = f"exports/{job_id}.{request.format}"
     get_guild_storage(request.guild_id).write(
         key, artifact.content, content_type=artifact.content_type
     )

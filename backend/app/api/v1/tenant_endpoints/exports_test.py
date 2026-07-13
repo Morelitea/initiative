@@ -341,6 +341,336 @@ async def test_project_export_job_path_renders_json(
     assert envelope["project"]["name"] == a.project.name
 
 
+async def test_document_export_per_type_formats(
+    client: AsyncClient, acting_user, session
+):
+    """Each document type exports only its own formats, with type-appropriate
+    payloads; a mismatched combo is an immediate 400."""
+    import json
+
+    from app.models.tenant.document import DocumentType
+    from app.testing.factories import create_document
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+
+    async def export(doc, format):
+        return await client.get(
+            a.g("/exports/document"),
+            headers=a.headers,
+            params={"document_id": doc.id, "format": format},
+        )
+
+    # native (Lexical) -> the @lexical/file schema, named .lexical so the
+    # editor toolbar's import button (which only accepts .lexical) takes it.
+    native = await create_document(
+        session,
+        a.initiative,
+        a.user,
+        title="Notes",
+        content={"root": {"children": [], "type": "root"}},
+    )
+    resp = await export(native, "json")
+    assert resp.status_code == 200
+    assert ".lexical" in resp.headers["content-disposition"]
+    serialized = json.loads(resp.content)
+    assert serialized["source"] == "Initiative"
+    assert serialized["editorState"]["root"]["type"] == "root"
+    assert isinstance(serialized["lastSaved"], int)
+
+    # whiteboard -> standard Excalidraw file shape
+    board = await create_document(
+        session,
+        a.initiative,
+        a.user,
+        title="Board",
+        document_type=DocumentType.whiteboard,
+        content={"elements": [{"type": "rectangle"}], "appState": {}, "files": {}},
+    )
+    resp = await export(board, "json")
+    assert resp.status_code == 200
+    scene = json.loads(resp.content)
+    assert scene["type"] == "excalidraw"
+    assert scene["elements"] == [{"type": "rectangle"}]
+
+    # smart link -> markdown with the URL
+    link = await create_document(
+        session,
+        a.initiative,
+        a.user,
+        title="Design doc",
+        document_type=DocumentType.smart_link,
+        content={"url": "https://example.com/spec"},
+    )
+    resp = await export(link, "md")
+    assert resp.status_code == 200
+    body = resp.content.decode("utf-8")
+    assert "# Design doc" in body
+    assert "<https://example.com/spec>" in body
+
+    # mismatched combos: an immediate 400, no job side effects
+    for doc, bad in ((native, "csv"), (board, "md"), (link, "json")):
+        resp = await export(doc, bad)
+        assert resp.status_code == 400, (doc.title, bad)
+        assert resp.json()["detail"] == "EXPORT_INVALID_FORMAT"
+
+
+async def test_document_export_spreadsheet_formats(
+    client: AsyncClient, acting_user, session
+):
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    from app.models.tenant.document import DocumentType
+    from app.testing.factories import create_document
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    sheet_doc = await create_document(
+        session,
+        a.initiative,
+        a.user,
+        title="Budget: Q3",
+        document_type=DocumentType.spreadsheet,
+        content={
+            "schema_version": 2,
+            "dimensions": {"rows": 2, "cols": 2},
+            # "=SUM(...)" is the user's own formula (first-class content);
+            # "+not-a-formula" is a trigger-prefixed plain string (the CSV
+            # smuggling vector the app never produces as a formula).
+            "cells": {
+                "0:0": "Item",
+                "0:1": "=SUM(B2:B9)",
+                "1:0": "+not-a-formula",
+                "1:1": 42,
+            },
+            "cellStyles": {"0:0": {"bold": True, "fill": "#ff0000"}},
+            "columns": {"0": {"width": 140}},
+            "rows": {},
+            "frozen": {"rows": 1, "cols": 0},
+        },
+    )
+
+    csv_resp = await client.get(
+        a.g("/exports/document"),
+        headers=a.headers,
+        params={"document_id": sheet_doc.id, "format": "csv"},
+    )
+    assert csv_resp.status_code == 200
+    text = csv_resp.content.decode("utf-8")
+    assert "Item,=SUM(B2:B9)" in text  # own formulas survive
+    assert "'+not-a-formula" in text  # non-formula triggers stay neutralized
+
+    xlsx_resp = await client.get(
+        a.g("/exports/document"),
+        headers=a.headers,
+        params={"document_id": sheet_doc.id, "format": "xlsx"},
+    )
+    assert xlsx_resp.status_code == 200
+    sheet = load_workbook(BytesIO(xlsx_resp.content)).active
+    assert sheet.title == "Budget Q3"  # forbidden ":" stripped
+    assert sheet.cell(row=1, column=1).value == "Item"
+    assert sheet.cell(row=1, column=1).font.bold is True
+    assert sheet.cell(row=1, column=2).value == "=SUM(B2:B9)"
+    assert sheet.cell(row=1, column=2).data_type == "f"  # a live formula
+    assert sheet.cell(row=2, column=1).value == "+not-a-formula"
+    assert sheet.cell(row=2, column=1).data_type == "s"  # a string, not inferred
+    assert sheet.cell(row=2, column=2).value == 42
+    assert sheet.cell(row=2, column=2).data_type == "n"  # numbers stay typed
+    assert sheet.freeze_panes == "A2"
+
+    # json: the canonical snapshot in the importable envelope — content
+    # round-trips verbatim (cells, styles, frozen panes, schema_version).
+    import json
+
+    json_resp = await client.get(
+        a.g("/exports/document"),
+        headers=a.headers,
+        params={"document_id": sheet_doc.id, "format": "json"},
+    )
+    assert json_resp.status_code == 200
+    envelope = json.loads(json_resp.content)
+    assert envelope["kind"] == "initiative-document"
+    assert envelope["document_type"] == "spreadsheet"
+    assert envelope["title"] == "Budget: Q3"
+    assert envelope["content"] == sheet_doc.content
+
+
+async def test_document_export_spreadsheet_survives_corrupt_snapshot(
+    client: AsyncClient, acting_user, session
+):
+    """A renderer must not 500 over one bad snapshot entry: malformed cell
+    keys are skipped, and 3-char / garbage hex colors are expanded / dropped
+    instead of crashing openpyxl."""
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    from app.models.tenant.document import DocumentType
+    from app.testing.factories import create_document
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    doc = await create_document(
+        session,
+        a.initiative,
+        a.user,
+        title="Odd",
+        document_type=DocumentType.spreadsheet,
+        content={
+            "schema_version": 2,
+            "dimensions": {"rows": 1, "cols": 1},
+            "cells": {"0:0": "ok", "corrupt": "x", "1:2:3": "y", ":": "z"},
+            "cellStyles": {
+                "0:0": {"fill": "#fff", "color": "not-a-color"},
+            },
+        },
+    )
+    resp = await client.get(
+        a.g("/exports/document"),
+        headers=a.headers,
+        params={"document_id": doc.id, "format": "xlsx"},
+    )
+    assert resp.status_code == 200
+    sheet = load_workbook(BytesIO(resp.content)).active
+    assert sheet.cell(row=1, column=1).value == "ok"
+    # #fff shorthand expanded to a valid ARGB white fill.
+    assert sheet.cell(row=1, column=1).fill.start_color.rgb == "FFFFFFFF"
+
+
+async def test_document_export_file_passthrough(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """File documents export the stored blob unconverted under the original
+    name — inline and through the job path (job-id-prefixed artifact key)."""
+    from app.models.tenant.document import DocumentType
+    from app.testing.factories import create_document
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    payload = b"%PDF-original-bytes"
+    get_guild_storage(a.guild.id).write(
+        "stored-abc123.pdf", payload, content_type="application/pdf"
+    )
+    file_doc = await create_document(
+        session,
+        a.initiative,
+        a.user,
+        title="Uploaded report",
+        document_type=DocumentType.file,
+        file_url=f"/uploads/{a.guild.id}/stored-abc123.pdf",
+        original_filename="Q3 Report Final.pdf",
+        file_content_type="application/pdf",
+        file_size=len(payload),
+    )
+
+    resp = await client.get(
+        a.g("/exports/document"),
+        headers=a.headers,
+        params={"document_id": file_doc.id, "format": "file"},
+    )
+    assert resp.status_code == 200
+    assert resp.content == payload
+    assert resp.headers["content-type"] == "application/pdf"
+    # Spaces force the RFC 5987 form — the original name survives, escaped.
+    assert "Q3%20Report%20Final.pdf" in resp.headers["content-disposition"]
+
+    # Job path: the original filename survives via the job-id-prefixed key.
+    monkeypatch.setattr(settings, "EXPORT_INLINE_MAX_ROWS", -1)
+    queued = await client.get(
+        a.g("/exports/document"),
+        headers=a.headers,
+        params={"document_id": file_doc.id, "format": "file"},
+    )
+    assert queued.status_code == 202
+    job_id = queued.json()["id"]
+
+    user_session = await role_session("app_user")
+    monkeypatch.setattr(export_worker, "_open_user_session", lambda: user_session)
+    await export_worker.process_export_jobs()
+
+    dl = await client.get(a.g(f"/exports/{job_id}/download"), headers=a.headers)
+    assert dl.status_code == 200, (
+        (await client.get(a.g(f"/exports/{job_id}"), headers=a.headers))
+        .json()
+        .get("error")
+    )
+    assert dl.content == payload
+    assert "Q3%20Report%20Final.pdf" in dl.headers["content-disposition"]
+    # The stored object carries the job id in its basename, so it can't
+    # collide with another job exporting a same-named file (both backends
+    # flatten a key to its basename, dropping any directory).
+    from app.models.tenant.export_job import ExportJob
+
+    job = await session.get(ExportJob, job_id)
+    assert job.artifact_ref == f"exports/{job_id}-Q3 Report Final.pdf"
+
+
+async def test_passthrough_exports_do_not_collide_by_filename(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """Two members exporting a same-named file must not overwrite each other:
+    the job id is in the storage basename (the directory a nested key would
+    add is stripped by both backends), so each artifact is distinct."""
+    from app.models.tenant.document import DocumentType
+    from app.models.tenant.export_job import ExportJob
+    from app.testing.factories import create_document
+
+    monkeypatch.setattr(settings, "EXPORT_INLINE_MAX_ROWS", -1)
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    storage = get_guild_storage(a.guild.id)
+
+    async def queue_export(blob_key, blob_bytes):
+        storage.write(blob_key, blob_bytes, content_type="application/pdf")
+        doc = await create_document(
+            session,
+            a.initiative,
+            a.user,
+            title="report",
+            document_type=DocumentType.file,
+            file_url=f"/uploads/{a.guild.id}/{blob_key}",
+            original_filename="report.pdf",  # SAME name for both
+            file_content_type="application/pdf",
+            file_size=len(blob_bytes),
+        )
+        resp = await client.get(
+            a.g("/exports/document"),
+            headers=a.headers,
+            params={"document_id": doc.id, "format": "file"},
+        )
+        assert resp.status_code == 202
+        return resp.json()["id"]
+
+    job_a = await queue_export("src-a.pdf", b"AAAA-first-member")
+    job_b = await queue_export("src-b.pdf", b"BBBB-second-member")
+
+    user_session = await role_session("app_user")
+    monkeypatch.setattr(export_worker, "_open_user_session", lambda: user_session)
+    await export_worker.process_export_jobs()
+
+    row_a = await session.get(ExportJob, job_a)
+    row_b = await session.get(ExportJob, job_b)
+    assert row_a.artifact_ref != row_b.artifact_ref
+
+    dl_a = await client.get(a.g(f"/exports/{job_a}/download"), headers=a.headers)
+    dl_b = await client.get(a.g(f"/exports/{job_b}/download"), headers=a.headers)
+    assert dl_a.content == b"AAAA-first-member"  # not overwritten by job_b
+    assert dl_b.content == b"BBBB-second-member"
+
+
+async def test_document_export_hidden_outside_initiative(
+    client: AsyncClient, acting_user, session
+):
+    from app.testing.factories import create_document
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    doc = await create_document(session, a.initiative, a.user, title="Secret")
+    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    resp = await client.get(
+        a.g("/exports/document"),
+        headers=outsider.headers,
+        params={"document_id": doc.id, "format": "json"},
+    )
+    assert resp.status_code == 404
+
+
 async def test_gc_expires_artifacts(acting_user, session):
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     storage = get_guild_storage(a.guild.id)

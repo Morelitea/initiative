@@ -15,7 +15,11 @@ import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { toast } from "@/lib/chesterToast";
 import { downloadBlob } from "@/lib/csv";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { downloadExportArtifact, normalizeBlobError } from "@/lib/exportDownload";
+import {
+  downloadExportArtifact,
+  filenameFromDisposition,
+  normalizeBlobError,
+} from "@/lib/exportDownload";
 import { getItem, removeItem, setItem } from "@/lib/storage";
 
 export interface ExportFormatOption {
@@ -48,6 +52,10 @@ export interface ExportButtonProps {
    * anywhere is resumed by the adopting instance on the next mount. */
   resumePending?: boolean;
   variant?: "outline" | "default";
+  /** Client-side entries appended to the menu (e.g. whiteboard PNG/SVG,
+   * which only Excalidraw's own renderer can produce — the server never
+   * renders scenes). Forces the menu even with a single engine format. */
+  extraActions?: { labelKey: string; onSelect: () => void }[];
 }
 
 const POLL_MS = 2000;
@@ -66,6 +74,7 @@ export function ExportButton({
   label,
   resumePending,
   variant = "outline",
+  extraActions = [],
 }: ExportButtonProps) {
   const { t } = useTranslation("tasks");
   const guildId = useActiveGuildId();
@@ -130,7 +139,14 @@ export function ExportButton({
         validateStatus: (s) => s === 200 || s === 202,
       });
       if (res.status === 200) {
-        downloadBlob(res.data, `${option.filenameStem ?? filenameStem}.${option.format}`);
+        // Prefer the server-chosen name (Content-Disposition): a Lexical
+        // export is ".lexical" for the editor's import picker, and a file
+        // passthrough keeps an extension the client can't know.
+        const serverName = filenameFromDisposition(res.headers["content-disposition"]);
+        downloadBlob(
+          res.data,
+          serverName ?? `${option.filenameStem ?? filenameStem}.${option.format}`
+        );
         toast.success(t("export.success"));
       } else {
         const queued = JSON.parse(await res.data.text()) as { id: number };
@@ -146,6 +162,10 @@ export function ExportButton({
   };
 
   const idleLabel = label ?? t("export.button");
+  // A single engine format with no extras needs no menu — the button IS the
+  // action. In menu mode the trigger must NOT carry an onClick, or opening
+  // the menu would also fire an export.
+  const menuMode = formats.length > 1 || extraActions.length > 0;
   const trigger = (withChevron: boolean) => (
     <Button
       variant={variant}
@@ -153,7 +173,7 @@ export function ExportButton({
       disabled={busy}
       aria-label={idleLabel}
       title={idleLabel}
-      onClick={formats.length === 1 ? () => void handleExport(formats[0]) : undefined}
+      onClick={menuMode ? undefined : () => void handleExport(formats[0])}
     >
       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
       <span className="hidden sm:ml-2 sm:inline">{busy ? t("export.preparing") : idleLabel}</span>
@@ -161,8 +181,7 @@ export function ExportButton({
     </Button>
   );
 
-  // A single format needs no menu — the button IS the action.
-  if (formats.length === 1) {
+  if (!menuMode) {
     return trigger(false);
   }
   return (
@@ -172,6 +191,11 @@ export function ExportButton({
         {formats.map((option) => (
           <DropdownMenuItem key={option.labelKey} onSelect={() => void handleExport(option)}>
             {t(option.labelKey as never)}
+          </DropdownMenuItem>
+        ))}
+        {extraActions.map((action) => (
+          <DropdownMenuItem key={action.labelKey} onSelect={action.onSelect}>
+            {t(action.labelKey as never)}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

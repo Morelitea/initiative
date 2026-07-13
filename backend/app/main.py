@@ -312,6 +312,10 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Export downloads name the file server-side (Content-Disposition); the
+    # SPA reads it to name the blob it saves — expose it for the native
+    # (cross-origin) app, web is same-origin and sees it regardless.
+    expose_headers=["Content-Disposition"],
 )
 
 

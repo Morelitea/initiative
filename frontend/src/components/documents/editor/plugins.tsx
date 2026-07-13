@@ -81,7 +81,6 @@ export function Plugins({
   showToolbar = true,
   readOnly = false,
   mentionableUsers = [],
-  documentName,
   collaborative = false,
   cursorsContainerRef,
   initiativeId = null,
@@ -91,7 +90,6 @@ export function Plugins({
   showToolbar?: boolean;
   readOnly?: boolean;
   mentionableUsers?: UserPublic[];
-  documentName?: string;
   collaborative?: boolean;
   cursorsContainerRef?: RefObject<HTMLDivElement>;
   initiativeId?: number | null;
@@ -272,7 +270,7 @@ export function Plugins({
             </div>
             <div className="flex flex-1 justify-end">
               <SpeechToTextPlugin />
-              <ImportExportPlugin documentName={documentName} />
+              <ImportExportPlugin />
               <MarkdownTogglePlugin transformers={MARKDOWN_TRANSFORMERS} />
               <EditModeTogglePlugin forceReadOnly={readOnly} />
               <ClearEditorActionPlugin />

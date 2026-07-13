@@ -258,13 +258,18 @@
     "queued": "Export gestartet — der Download beginnt, sobald er bereit ist.",
     "success": "Export heruntergeladen.",
     "failed": "Der Export ist fehlgeschlagen. Versuche es erneut oder grenze den Filter ein.",
-    "error": "Aufgaben konnten nicht exportiert werden.",
+    "error": "Export fehlgeschlagen. Versuche es erneut.",
     "selected": "Auswahl exportieren",
     "formatPdf": "PDF-Dokument",
     "formatCsv": "CSV",
     "formatXlsx": "Excel (XLSX)",
     "formatMd": "Markdown-Tabelle",
     "formatMdChecklist": "Markdown-Aufgabenliste",
-    "formatJson": "JSON"
+    "formatJson": "JSON",
+    "formatExcalidraw": "Excalidraw-Datei (JSON)",
+    "formatOriginal": "Originaldatei",
+    "formatMarkdown": "Markdown",
+    "formatPng": "PNG-Bild",
+    "formatSvg": "SVG-Bild"
   }
 }
