@@ -1,0 +1,60 @@
+{
+  "columns": {
+    "task": "Aufgabe",
+    "project": "Projekt",
+    "status": "Status",
+    "priority": "Priorität",
+    "due": "Fällig",
+    "assignees": "Zuständige",
+    "counter": "Zähler",
+    "count": "Stand",
+    "min": "Min",
+    "max": "Max",
+    "step": "Schritt",
+    "order": "#",
+    "item": "Eintrag",
+    "member": "Mitglied",
+    "tags": "Tags",
+    "notes": "Notizen"
+  },
+  "title": {
+    "tasks": "Aufgaben"
+  },
+  "footer": {
+    "tasks": "Aufgaben-Export",
+    "project": "{{name}} — Projektbericht",
+    "queue": "{{name}} — Ablauf-Export",
+    "counters": "{{name}} — Zähler-Export"
+  },
+  "summary": {
+    "tasks_one": "{{count}} Aufgabe",
+    "tasks_other": "{{count}} Aufgaben",
+    "items_one": "{{count}} Eintrag",
+    "items_other": "{{count}} Einträge",
+    "counters_one": "{{count}} Zähler",
+    "counters_other": "{{count}} Zähler"
+  },
+  "generatedBy": "erstellt am {{date}} von {{author}}",
+  "exported": "exportiert am {{date}}",
+  "round": "Runde {{round}}",
+  "status": {
+    "current": "Aktuell",
+    "held": "Gehalten",
+    "hidden": "Ausgeblendet"
+  },
+  "priority": {
+    "low": "Niedrig",
+    "medium": "Mittel",
+    "high": "Hoch",
+    "urgent": "Dringend"
+  },
+  "empty": {
+    "tasks": "Keine Aufgaben entsprechen diesem Filter.",
+    "project": "Dieses Projekt hat keine Aufgaben.",
+    "generic": "Nichts zu exportieren."
+  },
+  "fallback": {
+    "unknownAuthor": "unbekannt",
+    "untitled": "(ohne Titel)"
+  }
+}

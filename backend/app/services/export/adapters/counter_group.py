@@ -29,15 +29,25 @@ from app.models.platform.user import User
 from app.models.tenant.counter import Counter, CounterGroup
 from app.services.export.contract import RenderItem, RenderRequest
 from app.services.export.engine import ExportError
+from app.services.export.i18n import et, export_locale
 from app.services.platform.csv_export import safe_filename_component
 
+# (row key, ``exports`` label key, Typst width hint) — labels resolve to the
+# creator's locale at build time.
 _COLUMNS = (
-    {"key": "title", "label": "Counter", "width": "2fr"},
-    {"key": "count", "label": "Count"},
-    {"key": "min", "label": "Min"},
-    {"key": "max", "label": "Max"},
-    {"key": "step", "label": "Step"},
+    ("title", "columns.counter", "2fr"),
+    ("count", "columns.count", "auto"),
+    ("min", "columns.min", "auto"),
+    ("max", "columns.max", "auto"),
+    ("step", "columns.step", "auto"),
 )
+
+
+def _columns(locale: str) -> list[dict]:
+    return [
+        {"key": key, "label": et(label_key, locale), "width": width}
+        for key, label_key, width in _COLUMNS
+    ]
 
 
 class CounterGroupAdapter:
@@ -73,6 +83,8 @@ class CounterGroupAdapter:
         date = now.strftime("%Y-%m-%d")
         stem = safe_filename_component(group.name).lower()
         if format == "json":
+            # The envelope is importable machine data — stays canonical, never
+            # localized (translating field keys / enum values breaks import).
             item = RenderItem(
                 key=f"{stem}-{date}.initiative-counter-group",
                 data=_envelope(group),
@@ -123,19 +135,24 @@ def _envelope(group: CounterGroup) -> dict[str, Any]:
 
 def _report_payload(group: CounterGroup, user: User, now: datetime) -> dict[str, Any]:
     counters = group.counters
+    loc = export_locale(user)
     generated_at = now.strftime("%Y-%m-%d %H:%M UTC")
     # Both attribution fields can be absent (some OAuth-provisioned accounts
     # carry neither) — never render the literal "None".
-    author = user.full_name or user.email or "unknown"
+    author = user.full_name or user.email or et("fallback.unknownAuthor", loc)
     return {
+        # The group name is user data — never translated.
         "title": group.name,
-        "subtitle": (
-            f"{len(counters)} counter{'s' if len(counters) != 1 else ''}"
-            f" · generated {generated_at} by {author}"
+        "subtitle": " · ".join(
+            [
+                et("summary.counters", loc, count=len(counters)),
+                et("generatedBy", loc, date=generated_at, author=author),
+            ]
         ),
-        "footer": f"{group.name} — counters export",
+        "footer": et("footer.counters", loc, name=group.name),
         "description": group.description or "",
-        "columns": [dict(c) for c in _COLUMNS],
+        "columns": _columns(loc),
+        "empty_message": et("empty.generic", loc),
         "rows": [_row(counter) for counter in counters],
     }
 

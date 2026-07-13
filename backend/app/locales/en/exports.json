@@ -1,0 +1,60 @@
+{
+  "columns": {
+    "task": "Task",
+    "project": "Project",
+    "status": "Status",
+    "priority": "Priority",
+    "due": "Due",
+    "assignees": "Assignees",
+    "counter": "Counter",
+    "count": "Count",
+    "min": "Min",
+    "max": "Max",
+    "step": "Step",
+    "order": "#",
+    "item": "Item",
+    "member": "Member",
+    "tags": "Tags",
+    "notes": "Notes"
+  },
+  "title": {
+    "tasks": "Tasks"
+  },
+  "footer": {
+    "tasks": "Tasks export",
+    "project": "{{name}} — project report",
+    "queue": "{{name}} — queue export",
+    "counters": "{{name}} — counters export"
+  },
+  "summary": {
+    "tasks_one": "{{count}} task",
+    "tasks_other": "{{count}} tasks",
+    "items_one": "{{count}} item",
+    "items_other": "{{count}} items",
+    "counters_one": "{{count}} counter",
+    "counters_other": "{{count}} counters"
+  },
+  "generatedBy": "generated {{date}} by {{author}}",
+  "exported": "exported {{date}}",
+  "round": "round {{round}}",
+  "status": {
+    "current": "Current",
+    "held": "Held",
+    "hidden": "Hidden"
+  },
+  "priority": {
+    "low": "Low",
+    "medium": "Medium",
+    "high": "High",
+    "urgent": "Urgent"
+  },
+  "empty": {
+    "tasks": "No tasks matched this filter.",
+    "project": "This project has no tasks.",
+    "generic": "Nothing to export."
+  },
+  "fallback": {
+    "unknownAuthor": "unknown",
+    "untitled": "(untitled)"
+  }
+}

@@ -1119,3 +1119,68 @@ async def test_tool_exports_hidden_outside_initiative(
         params={"counter_group_id": group.id, "format": "json"},
     )
     assert resp.status_code == 404
+
+
+async def _set_locale(session, user, locale):
+    """Persist a locale on the creator so the request (and the worker replay)
+    re-load it — the export content localizes to the creator, not the
+    request's Accept-Language."""
+    db_user = await session.get(type(user), user.id)
+    db_user.locale = locale
+    session.add(db_user)
+    await session.commit()
+
+
+async def test_task_export_localizes_report_content(
+    client: AsyncClient, acting_user, session
+):
+    """The generated report chrome (column headers, title, summary line)
+    localizes to the creator's locale — not just the surrounding UI."""
+    a = await _actor_with_tasks(acting_user, session, count=1)
+    await _set_locale(session, a.user, "es")
+
+    csv_resp = await client.get(
+        a.g("/exports/tasks"), headers=a.headers, params={"format": "csv"}
+    )
+    assert csv_resp.status_code == 200
+    body = csv_resp.content.decode("utf-8")
+    # Spanish headers, not "Task,Project,Status,...".
+    assert "Tarea,Proyecto,Estado,Prioridad,Vence,Asignados" in body
+
+    md_resp = await client.get(
+        a.g("/exports/tasks"), headers=a.headers, params={"format": "md"}
+    )
+    md = md_resp.content.decode("utf-8")
+    assert "# Tareas" in md  # localized title
+    assert "1 tarea · generado el" in md  # localized, singular plural form
+
+
+async def test_queue_export_localizes_status_flags_and_headers(
+    client: AsyncClient, acting_user, session
+):
+    """Queue report status flags (Current/Held/Hidden) and headers localize —
+    the JSON envelope stays canonical (importable machine data)."""
+    import json
+
+    a, queue = await _queue_with_items(acting_user, session)
+    await _set_locale(session, a.user, "fr")
+
+    csv_resp = await client.get(
+        a.g("/exports/queue"),
+        headers=a.headers,
+        params={"queue_id": queue.id, "format": "csv"},
+    )
+    body = csv_resp.content.decode("utf-8")
+    assert "N°,Élément,Membre,Étiquettes,Notes,Statut" in body  # French headers
+    assert "Actuel" in body and "En attente" in body and "Masqué" in body  # flags
+
+    # The importable envelope must NOT be localized — kind and field keys stay
+    # canonical so a French user's backup still imports.
+    json_resp = await client.get(
+        a.g("/exports/queue"),
+        headers=a.headers,
+        params={"queue_id": queue.id, "format": "json"},
+    )
+    envelope = json.loads(json_resp.content)
+    assert envelope["kind"] == "initiative-queue"
+    assert "items" in envelope and "is_current" in envelope["items"][0]

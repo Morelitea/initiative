@@ -45,7 +45,7 @@
 #let cell(v) = if v == none { "" } else { str(v) }
 
 #if rows.len() == 0 [
-  _Nothing to export._
+  #emph(payload.at("empty_message", default: ""))
 ] else [
   #table(
     columns: cols.map(c => track(c.at("width", default: "auto"))),

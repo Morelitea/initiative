@@ -1,6 +1,10 @@
 // Task-table export template. All data arrives as ONE json string via
 // sys.inputs (never interpolated into this source) — user text stays data.
+// The template holds NO natural-language content: column headers and the
+// empty-state message arrive already localized in the payload (the adapter
+// translates to the export creator's locale), so this file is pure layout.
 #let payload = json(bytes(sys.inputs.at("data", default: "{}")))
+#let cols = payload.at("columns", default: ())
 #let rows = payload.at("rows", default: ())
 
 #set page(
@@ -17,31 +21,27 @@
 )
 #set text(size: 9pt)
 
-#text(size: 16pt, weight: "bold", payload.at("title", default: "Export"))
+// Width hints are a closed vocabulary (payload-controlled, no arbitrary track
+// expressions); unknown values fall back to auto.
+#let track(w) = if w == "2fr" { 2fr } else if w == "1fr" { 1fr } else { auto }
+#let cell(v) = if v == none { "" } else { str(v) }
+
+#text(size: 16pt, weight: "bold", payload.at("title", default: ""))
 #v(2pt)
 #text(size: 9pt, fill: luma(100), payload.at("subtitle", default: ""))
 #v(8pt)
 
 #if rows.len() == 0 [
-  _No tasks matched this filter._
+  #emph(payload.at("empty_message", default: ""))
 ] else [
   #table(
-    columns: (2fr, 1fr, auto, auto, auto, 1fr),
+    columns: cols.map(c => track(c.at("width", default: "auto"))),
     inset: (x: 6pt, y: 5pt),
     stroke: none,
     fill: (_, y) => if y == 0 { luma(230) } else if calc.odd(y) { luma(247) } else { white },
-    table.header(
-      [*Task*], [*Project*], [*Status*], [*Priority*], [*Due*], [*Assignees*],
-    ),
+    table.header(..cols.map(c => strong(cell(c.at("label", default: ""))))),
     ..rows
-      .map(r => (
-        r.at("title", default: ""),
-        r.at("project", default: ""),
-        r.at("status", default: ""),
-        r.at("priority", default: ""),
-        r.at("due", default: ""),
-        r.at("assignees", default: ""),
-      ))
+      .map(r => cols.map(c => cell(r.at(c.at("key", default: ""), default: ""))))
       .flatten()
   )
 ]

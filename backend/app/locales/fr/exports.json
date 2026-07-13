@@ -1,0 +1,60 @@
+{
+  "columns": {
+    "task": "Tâche",
+    "project": "Projet",
+    "status": "Statut",
+    "priority": "Priorité",
+    "due": "Échéance",
+    "assignees": "Assignés",
+    "counter": "Compteur",
+    "count": "Valeur",
+    "min": "Min",
+    "max": "Max",
+    "step": "Pas",
+    "order": "N°",
+    "item": "Élément",
+    "member": "Membre",
+    "tags": "Étiquettes",
+    "notes": "Notes"
+  },
+  "title": {
+    "tasks": "Tâches"
+  },
+  "footer": {
+    "tasks": "Export des tâches",
+    "project": "{{name}} — rapport de projet",
+    "queue": "{{name}} — export de la file",
+    "counters": "{{name}} — export des compteurs"
+  },
+  "summary": {
+    "tasks_one": "{{count}} tâche",
+    "tasks_other": "{{count}} tâches",
+    "items_one": "{{count}} élément",
+    "items_other": "{{count}} éléments",
+    "counters_one": "{{count}} compteur",
+    "counters_other": "{{count}} compteurs"
+  },
+  "generatedBy": "généré le {{date}} par {{author}}",
+  "exported": "exporté le {{date}}",
+  "round": "tour {{round}}",
+  "status": {
+    "current": "Actuel",
+    "held": "En attente",
+    "hidden": "Masqué"
+  },
+  "priority": {
+    "low": "Faible",
+    "medium": "Moyenne",
+    "high": "Haute",
+    "urgent": "Urgente"
+  },
+  "empty": {
+    "tasks": "Aucune tâche ne correspond à ce filtre.",
+    "project": "Ce projet n'a aucune tâche.",
+    "generic": "Rien à exporter."
+  },
+  "fallback": {
+    "unknownAuthor": "inconnu",
+    "untitled": "(sans titre)"
+  }
+}
