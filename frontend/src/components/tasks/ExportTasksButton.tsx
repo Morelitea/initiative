@@ -48,11 +48,12 @@ interface ExportTasksButtonProps {
 const POLL_MS = 2000;
 const TERMINAL = new Set(["done", "failed", "expired"]);
 
-const FORMATS: { value: ExportFormat; labelKey: string }[] = [
+const FORMATS: { value: ExportFormat; labelKey: string; layout?: "checklist" }[] = [
   { value: "pdf", labelKey: "export.formatPdf" },
   { value: "csv", labelKey: "export.formatCsv" },
   { value: "xlsx", labelKey: "export.formatXlsx" },
   { value: "md", labelKey: "export.formatMd" },
+  { value: "md", labelKey: "export.formatMdChecklist", layout: "checklist" },
 ];
 
 // A pending job id survives the component unmounting (navigation) so a
@@ -108,7 +109,7 @@ export function ExportTasksButton({ params, label, resumePending }: ExportTasksB
 
   const busy = requesting || jobId != null;
 
-  const handleExport = async (format: ExportFormat) => {
+  const handleExport = async (format: ExportFormat, layout?: "checklist") => {
     if (busy || !guildId) {
       return;
     }
@@ -119,7 +120,7 @@ export function ExportTasksButton({ params, label, resumePending }: ExportTasksB
       // shared axios instance directly so auth/guild interceptors and the
       // conditions/sorting paramsSerializer still apply.
       const res = await apiClient.get<Blob>(`/g/${guildId}/exports/tasks`, {
-        params: { ...params, format },
+        params: { ...params, format, ...(layout && { layout }) },
         responseType: "blob",
         validateStatus: (s) => s === 200 || s === 202,
       });
@@ -158,8 +159,8 @@ export function ExportTasksButton({ params, label, resumePending }: ExportTasksB
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {FORMATS.map(({ value, labelKey }) => (
-          <DropdownMenuItem key={value} onSelect={() => void handleExport(value)}>
+        {FORMATS.map(({ value, labelKey, layout }) => (
+          <DropdownMenuItem key={labelKey} onSelect={() => void handleExport(value, layout)}>
             {t(labelKey as never)}
           </DropdownMenuItem>
         ))}

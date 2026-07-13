@@ -140,6 +140,28 @@ async def test_renders_markdown_table_with_escaped_cells():
     assert "| a \\| b multiline | To Do |" in lines
 
 
+async def test_renders_markdown_checklist_layout():
+    """layout=checklist renders GitHub-style task items — checked from the
+    row's done flag, details from the non-title columns, empties skipped."""
+    artifacts = await LocalRenderBackend().render(
+        _request(
+            format="md",
+            layout="checklist",
+            rows=[
+                {"title": "Open item", "status": "To Do", "done": False},
+                {"title": "Shipped | piped", "status": "Done", "done": True},
+                {"title": "", "status": "", "done": False},
+            ],
+        )
+    )
+    text = artifacts[0].content.decode("utf-8")
+    lines = text.splitlines()
+    assert "- [ ] Open item (To Do)" in lines
+    assert "- [x] Shipped \\| piped (Done)" in lines
+    assert "- [ ] (untitled)" in lines
+    assert not any("---" in line for line in lines)  # no table separator
+
+
 async def test_xlsx_sanitizes_sheet_title():
     """openpyxl raises InvalidSheetTitle on []:*?/\\ — a title carrying user
     text (e.g. a guild named "My App: Dev") must render, not crash."""

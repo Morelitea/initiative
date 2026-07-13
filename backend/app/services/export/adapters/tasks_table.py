@@ -19,7 +19,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.models.platform.user import User
-from app.models.tenant.task import Task
+from app.models.tenant.task import Task, TaskStatusCategory
 from app.services.export.contract import RenderItem, RenderRequest
 
 
@@ -79,6 +79,10 @@ class TasksTableAdapter:
             "columns": [dict(c) for c in _COLUMNS],
             "rows": [_row(t) for t in tasks],
         }
+        # Layout variant within a format (markdown table vs checklist) — part
+        # of the selector, so a queued job renders the same shape on replay.
+        if params.get("layout") == "checklist":
+            data["layout"] = "checklist"
         return RenderRequest(
             guild_id=guild_id,
             template_id=self.template_id,
@@ -98,7 +102,7 @@ def _selector(params: dict) -> dict[str, Any]:
     }
 
 
-def _row(task: Task) -> dict[str, str]:
+def _row(task: Task) -> dict[str, Any]:
     return {
         "title": task.title,
         "project": task.project.name if task.project else "",
@@ -106,4 +110,9 @@ def _row(task: Task) -> dict[str, str]:
         "priority": task.priority.value if task.priority else "",
         "due": task.due_date.strftime("%Y-%m-%d") if task.due_date else "",
         "assignees": ", ".join(a.full_name or a.email for a in (task.assignees or [])),
+        # Not a projected column (absent from _COLUMNS): drives the checklist
+        # layout's checkbox state.
+        "done": bool(
+            task.task_status and task.task_status.category == TaskStatusCategory.done
+        ),
     }

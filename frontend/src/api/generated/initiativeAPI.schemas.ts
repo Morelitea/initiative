@@ -4040,6 +4040,10 @@ export type ExportTasksApiV1GGuildIdExportsTasksGetParams = {
    */
   tz?: string | null;
   include_archived?: boolean;
+  /**
+   * Markdown layout: a table, or a GitHub-style task list
+   */
+  layout?: ExportTasksApiV1GGuildIdExportsTasksGetLayout;
 };
 
 export type ExportTasksApiV1GGuildIdExportsTasksGetFormat =
@@ -4050,6 +4054,14 @@ export const ExportTasksApiV1GGuildIdExportsTasksGetFormat = {
   csv: "csv",
   xlsx: "xlsx",
   md: "md",
+} as const;
+
+export type ExportTasksApiV1GGuildIdExportsTasksGetLayout =
+  (typeof ExportTasksApiV1GGuildIdExportsTasksGetLayout)[keyof typeof ExportTasksApiV1GGuildIdExportsTasksGetLayout];
+
+export const ExportTasksApiV1GGuildIdExportsTasksGetLayout = {
+  table: "table",
+  checklist: "checklist",
 } as const;
 
 export type ListQueuesApiV1GGuildIdQueuesGetParams = {

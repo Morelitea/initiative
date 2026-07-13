@@ -263,6 +263,7 @@
     "formatPdf": "PDF document",
     "formatCsv": "CSV",
     "formatXlsx": "Excel (XLSX)",
-    "formatMd": "Markdown"
+    "formatMd": "Markdown table",
+    "formatMdChecklist": "Markdown task list"
   }
 }

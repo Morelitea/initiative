@@ -57,7 +57,16 @@ def _md_cell(value: Any) -> str:
 
 
 def render_md(item: RenderItem) -> bytes:
-    headers, rows = _table(item)
+    lines = _md_header(item)
+    if item.data.get("layout") == "checklist":
+        lines.extend(_md_checklist(item))
+    else:
+        lines.extend(_md_table(item))
+    lines.append("")
+    return "\n".join(lines).encode("utf-8")
+
+
+def _md_header(item: RenderItem) -> list[str]:
     lines: list[str] = []
     title = str(item.data.get("title", "")).strip()
     subtitle = str(item.data.get("subtitle", "")).strip()
@@ -67,12 +76,32 @@ def render_md(item: RenderItem) -> bytes:
     if subtitle:
         lines.append(_md_cell(subtitle))
         lines.append("")
-    lines.append("| " + " | ".join(_md_cell(h) for h in headers) + " |")
+    return lines
+
+
+def _md_table(item: RenderItem) -> list[str]:
+    headers, rows = _table(item)
+    lines = ["| " + " | ".join(_md_cell(h) for h in headers) + " |"]
     lines.append("|" + "|".join(" --- " for _ in headers) + "|")
     for row in rows:
         lines.append("| " + " | ".join(_md_cell(value) for value in row) + " |")
-    lines.append("")
-    return "\n".join(lines).encode("utf-8")
+    return lines
+
+
+def _md_checklist(item: RenderItem) -> list[str]:
+    """GitHub-style task list: one checkbox item per row, checked when the
+    row's ``done`` flag is set, with the non-title columns as a detail trail."""
+    columns = item.data.get("columns") or []
+    detail_keys = [c["key"] for c in columns if c["key"] != "title"]
+    lines: list[str] = []
+    for row in item.data.get("rows") or []:
+        box = "x" if row.get("done") else " "
+        title = _md_cell(row.get("title", "")) or "(untitled)"
+        details = " · ".join(
+            _md_cell(row[key]) for key in detail_keys if str(row.get(key, "")).strip()
+        )
+        lines.append(f"- [{box}] {title}" + (f" ({details})" if details else ""))
+    return lines
 
 
 def _xlsx_cell(value: Any) -> Any:

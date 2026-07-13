@@ -118,6 +118,28 @@ describe("ExportTasksButton", () => {
     expect(vi.mocked(downloadBlob).mock.calls[0][1]).toBe("tasks.csv");
   });
 
+  it("sends layout=checklist for the Markdown task list entry", async () => {
+    let sent: { format: string | null; layout: string | null } | null = null;
+    server.use(
+      guildHttp.get("/exports/tasks", ({ request }) => {
+        const url = new URL(request.url);
+        sent = {
+          format: url.searchParams.get("format"),
+          layout: url.searchParams.get("layout"),
+        };
+        return pdfResponse();
+      })
+    );
+    renderWithProviders(<ExportTasksButton params={{ conditions: [] }} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /export/i }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /task list/i }));
+
+    await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(1));
+    expect(sent).toEqual({ format: "md", layout: "checklist" });
+    expect(vi.mocked(downloadBlob).mock.calls[0][1]).toBe("tasks.md");
+  });
+
   it("resumes a pending job from storage on mount and downloads it", async () => {
     setItem("exports:pending:1", "9");
     server.use(

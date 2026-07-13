@@ -72,6 +72,10 @@ async def export_tasks(
     ),
     tz: Optional[str] = Query(default=None, description="IANA timezone name"),
     include_archived: bool = Query(default=False),
+    layout: Literal["table", "checklist"] = Query(
+        default="table",
+        description="Markdown layout: a table, or a GitHub-style task list",
+    ),
 ) -> Union[Response, JSONResponse]:
     """Export the task list (the same visibility and filters as ``GET
     /tasks/``) as a formatted document. Small results render inline and return
@@ -89,6 +93,7 @@ async def export_tasks(
                 "sorting": sorting,
                 "tz": tz,
                 "include_archived": include_archived,
+                "layout": layout,
             },
             allow_job=_allow_job(guild_context),
         )

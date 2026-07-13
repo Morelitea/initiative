@@ -72,6 +72,16 @@ async def test_inline_export_csv_and_xlsx(client: AsyncClient, acting_user, sess
     assert "| Task | Project | Status | Priority | Due | Assignees |" in md_body
     assert 'filename="tasks.md"' in md_resp.headers["content-disposition"]
 
+    checklist = await client.get(
+        a.g("/exports/tasks"),
+        headers=a.headers,
+        params={"format": "md", "layout": "checklist"},
+    )
+    assert checklist.status_code == 200
+    body = checklist.content.decode("utf-8")
+    assert "- [ ] Task 0" in body and "- [ ] Task 1" in body
+    assert "| Task |" not in body  # checklist, not a table
+
     unknown = await client.get(
         a.g("/exports/tasks"), headers=a.headers, params={"format": "docx"}
     )

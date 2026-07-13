@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Task exports: an Export menu on the project tasks view downloads the current view — or just the selected tasks, via the new action in the selection bar — as PDF, CSV, Excel (XLSX), or Markdown, with the same filters and visibility as on screen. Small exports download instantly; large ones run as a background job and download automatically when ready, and if you navigate away meanwhile, an inbox notification downloads the finished export when clicked. Exports are private to their creator (guild admins can see a guild's exports), artifacts expire automatically after 7 days, and the spreadsheet formats carry injection protection.
+- Task exports: an Export menu on the project tasks view downloads the current view — or just the selected tasks, via the new action in the selection bar — as PDF, CSV, Excel (XLSX), or Markdown (a table or a checkable task list), with the same filters and visibility as on screen. Small exports download instantly; large ones run as a background job and download automatically when ready, and if you navigate away meanwhile, an inbox notification downloads the finished export when clicked. Exports are private to their creator (guild admins can see a guild's exports), artifacts expire automatically after 7 days, and the spreadsheet formats carry injection protection.
 
 ## [0.55.0] - 2026-07-12
 
