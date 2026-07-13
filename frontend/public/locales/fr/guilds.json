@@ -226,8 +226,8 @@
       "dismiss": "Ignorer",
       "enable": "Activer"
     },
-    "exportReady": "Votre export de tâches est prêt — cliquez pour le télécharger.",
-    "exportFailed": "Votre export de tâches a échoué. Réessayez."
+    "exportReady": "Votre export est prêt — cliquez pour le télécharger.",
+    "exportFailed": "Votre export a échoué. Réessayez."
   },
   "version": {
     "newVersionAvailable": "Nouvelle version disponible",

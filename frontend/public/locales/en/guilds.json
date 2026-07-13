@@ -226,8 +226,8 @@
       "dismiss": "Dismiss",
       "enable": "Enable"
     },
-    "exportReady": "Your task export is ready — click to download.",
-    "exportFailed": "Your task export failed. Try exporting again."
+    "exportReady": "Your export is ready — click to download.",
+    "exportFailed": "Your export failed. Try exporting again."
   },
   "version": {
     "newVersionAvailable": "New Version Available",

@@ -226,8 +226,8 @@
       "dismiss": "Descartar",
       "enable": "Activar"
     },
-    "exportReady": "Tu exportación de tareas está lista: haz clic para descargarla.",
-    "exportFailed": "Tu exportación de tareas falló. Intenta exportar de nuevo."
+    "exportReady": "Tu exportación está lista: haz clic para descargarla.",
+    "exportFailed": "Tu exportación falló. Intenta exportar de nuevo."
   },
   "version": {
     "newVersionAvailable": "Nueva versión disponible",

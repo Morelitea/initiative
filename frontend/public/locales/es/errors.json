@@ -253,6 +253,7 @@
   "PROJECT_EXPORT_NO_TASK_STATUSES": "La exportación del proyecto no tiene estados de tarea, que son obligatorios para importar.",
   "EXPORT_UNKNOWN_SOURCE": "Estos datos no se pueden exportar.",
   "EXPORT_INVALID_FORMAT": "Este formato de exportación no es compatible con estos datos.",
+  "EXPORT_INVALID_PARAMS": "La solicitud de exportación no era válida.",
   "EXPORT_TOO_LARGE": "Esta exportación es demasiado grande. Reduce el filtro e inténtalo de nuevo.",
   "EXPORT_JOB_LIMIT_REACHED": "Tienes demasiadas exportaciones en curso. Espera a que termine una e inténtalo de nuevo.",
   "EXPORT_WRITE_REQUIRED": "Esta exportación es demasiado grande para generarla con acceso de solo lectura.",

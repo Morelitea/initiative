@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Task exports: an Export menu on the project tasks view downloads the current view — or just the selected tasks, via the new action in the selection bar — as PDF, CSV, Excel (XLSX), or Markdown (a table or a checkable task list), with the same filters and visibility as on screen. Small exports download instantly; large ones run as a background job and download automatically when ready, and if you navigate away meanwhile, an inbox notification downloads the finished export when clicked. Exports are private to their creator (guild admins can see a guild's exports), artifacts expire automatically after 7 days, and the spreadsheet formats carry injection protection.
 
+### Changed
+
+- Project backup (JSON) export now runs through the export engine: large projects export as a background job with the inbox-notification pickup instead of one long request, and artifacts follow the same private-to-creator delivery and 7-day expiry. The downloaded file and the import flow are unchanged. (API: `GET /projects/{id}/export` was replaced by `GET /exports/project?project_id=…`.)
+
 ## [0.55.0] - 2026-07-12
 
 ### Added

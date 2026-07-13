@@ -111,6 +111,42 @@ async def export_tasks(
     return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
 
 
+@router.get("/project", response_model=None)
+async def export_project(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    project_id: int = Query(),
+    format: Literal["json"] = Query(default="json"),
+) -> Union[Response, JSONResponse]:
+    """Export a project as its self-contained backup envelope (the same JSON
+    ``POST /projects/import`` consumes). Requires write access on the project.
+    Small projects return the file inline; large ones return ``202`` with a
+    queued job to poll and download."""
+    try:
+        result = await start_export(
+            session,
+            user=current_user,
+            guild_id=guild_context.guild_id,
+            source="project",
+            format=format,
+            params={"project_id": project_id},
+            allow_job=_allow_job(guild_context),
+        )
+    except ExportError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+
+    if isinstance(result, InlineExport):
+        return Response(
+            content=result.content,
+            media_type=result.content_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{result.filename}"'
+            },
+        )
+    return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
+
+
 @router.get("/", response_model=list[ExportJobRead])
 async def list_export_jobs(
     session: RLSSessionDep,
