@@ -513,7 +513,7 @@ async def test_document_export_file_passthrough(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
 ):
     """File documents export the stored blob unconverted under the original
-    name — inline and through the job path (nested artifact key)."""
+    name — inline and through the job path (job-id-prefixed artifact key)."""
     from app.models.tenant.document import DocumentType
     from app.testing.factories import create_document
 
@@ -545,7 +545,7 @@ async def test_document_export_file_passthrough(
     # Spaces force the RFC 5987 form — the original name survives, escaped.
     assert "Q3%20Report%20Final.pdf" in resp.headers["content-disposition"]
 
-    # Job path: the original filename survives via the nested artifact key.
+    # Job path: the original filename survives via the job-id-prefixed key.
     monkeypatch.setattr(settings, "EXPORT_INLINE_MAX_ROWS", -1)
     queued = await client.get(
         a.g("/exports/document"),
@@ -567,6 +567,65 @@ async def test_document_export_file_passthrough(
     )
     assert dl.content == payload
     assert "Q3%20Report%20Final.pdf" in dl.headers["content-disposition"]
+    # The stored object carries the job id in its basename, so it can't
+    # collide with another job exporting a same-named file (both backends
+    # flatten a key to its basename, dropping any directory).
+    from app.models.tenant.export_job import ExportJob
+
+    job = await session.get(ExportJob, job_id)
+    assert job.artifact_ref == f"exports/{job_id}-Q3 Report Final.pdf"
+
+
+async def test_passthrough_exports_do_not_collide_by_filename(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """Two members exporting a same-named file must not overwrite each other:
+    the job id is in the storage basename (the directory a nested key would
+    add is stripped by both backends), so each artifact is distinct."""
+    from app.models.tenant.document import DocumentType
+    from app.models.tenant.export_job import ExportJob
+    from app.testing.factories import create_document
+
+    monkeypatch.setattr(settings, "EXPORT_INLINE_MAX_ROWS", -1)
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    storage = get_guild_storage(a.guild.id)
+
+    async def queue_export(blob_key, blob_bytes):
+        storage.write(blob_key, blob_bytes, content_type="application/pdf")
+        doc = await create_document(
+            session,
+            a.initiative,
+            a.user,
+            title="report",
+            document_type=DocumentType.file,
+            file_url=f"/uploads/{a.guild.id}/{blob_key}",
+            original_filename="report.pdf",  # SAME name for both
+            file_content_type="application/pdf",
+            file_size=len(blob_bytes),
+        )
+        resp = await client.get(
+            a.g("/exports/document"),
+            headers=a.headers,
+            params={"document_id": doc.id, "format": "file"},
+        )
+        assert resp.status_code == 202
+        return resp.json()["id"]
+
+    job_a = await queue_export("src-a.pdf", b"AAAA-first-member")
+    job_b = await queue_export("src-b.pdf", b"BBBB-second-member")
+
+    user_session = await role_session("app_user")
+    monkeypatch.setattr(export_worker, "_open_user_session", lambda: user_session)
+    await export_worker.process_export_jobs()
+
+    row_a = await session.get(ExportJob, job_a)
+    row_b = await session.get(ExportJob, job_b)
+    assert row_a.artifact_ref != row_b.artifact_ref
+
+    dl_a = await client.get(a.g(f"/exports/{job_a}/download"), headers=a.headers)
+    dl_b = await client.get(a.g(f"/exports/{job_b}/download"), headers=a.headers)
+    assert dl_a.content == b"AAAA-first-member"  # not overwritten by job_b
+    assert dl_b.content == b"BBBB-second-member"
 
 
 async def test_document_export_hidden_outside_initiative(

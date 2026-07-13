@@ -188,11 +188,14 @@ async def render_to_storage(request: RenderRequest, *, job_id: int) -> str:
     storage key. Idempotent by job id — a re-render overwrites the same key."""
     artifacts = await get_backend().render(request)
     artifact = _single(artifacts)
-    # An explicit artifact filename (passthrough exports keep the original
-    # upload's name) rides inside the storage key, so the download endpoint
-    # can recover it without a schema change: basename(artifact_ref).
+    # The job id must live in the storage BASENAME, not a directory: both
+    # backends flatten a key to Path(key).name (a path-traversal guard), so a
+    # nested `exports/{job}/name` would drop the job id and two same-named
+    # passthroughs (two members' "report.pdf") would collide. Prefix the id
+    # into the name instead; the download endpoint strips `{job_id}-` back off
+    # to recover the original filename for Content-Disposition.
     if artifact.filename:
-        key = f"exports/{job_id}/{artifact.filename}"
+        key = f"exports/{job_id}-{artifact.filename}"
     else:
         key = f"exports/{job_id}.{request.format}"
     get_guild_storage(request.guild_id).write(

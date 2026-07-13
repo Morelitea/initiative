@@ -241,12 +241,16 @@ async def download_export_artifact(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=ExportMessages.EXPORT_JOB_NOT_FOUND,
         )
-    # A nested artifact key carries an explicit filename (passthrough exports
-    # keep the original upload's name); flat keys use the generic pattern.
+    # Recover the download name from the artifact key. A named artifact
+    # (passthrough / .lexical) is stored as `exports/{job_id}-{filename}`;
+    # strip the `{job_id}-` prefix back off. A generic artifact is
+    # `exports/{job_id}.{format}` — no such prefix, so use the generic name.
     # build_upload_response escapes the name (RFC 5987) — original filenames
     # are user text and must not break out of the header.
-    if "/" in job.artifact_ref.removeprefix("exports/"):
-        filename = job.artifact_ref.rsplit("/", 1)[-1]
+    basename = job.artifact_ref.rsplit("/", 1)[-1]
+    named_prefix = f"{job.id}-"
+    if basename.startswith(named_prefix):
+        filename = basename[len(named_prefix) :]
     else:
         filename = f"{job.source}-{job.id}.{job.format}"
     return build_upload_response(blob, filename=filename)
