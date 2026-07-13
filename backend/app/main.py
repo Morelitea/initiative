@@ -69,6 +69,7 @@ async def lifespan(app: FastAPI):
     # guilds stamped with the current artifact version are skipped entirely.
     from app.db.schema_provisioning import (
         backfill_guild_schemas,
+        ensure_shared_table_grants,
         ensure_system_engine_bypassrls,
         warn_if_privileged_database_url,
     )
@@ -77,6 +78,11 @@ async def lifespan(app: FastAPI):
     # (restored database, hand-created role) reads shared tables as empty and
     # the seeding below would die with an opaque RLS violation (issue #835).
     await ensure_system_engine_bypassrls()
+    # One gate deeper: a restored/recreated role can bypass RLS yet be missing
+    # the per-table GRANTs (cluster state a stamped DB never re-applies), so
+    # seeding dies on "permission denied for table guilds" instead. Re-assert
+    # the audited shared-table grants from the registry (issue #835 follow-up).
+    await ensure_shared_table_grants()
     await warn_if_privileged_database_url()
     backfill = await backfill_guild_schemas()
     if backfill.failed:

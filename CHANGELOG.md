@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Guild admins can now load the member roster of initiatives they haven't joined. The roster API returned 403 for them — every other initiative read already honored the guild-admin override — which left the linked-member and assignee pickers empty when an admin viewed another member's initiative.
+- Boot now heals missing shared-table grants for the system engine. Startup now re-asserts the audited `system_grants` registry for `app_admin`/`app_user` (tables and their row-id sequences), idempotently and additively — completing the issue #835 fix.
 
 ## [0.55.0] - 2026-07-12
 

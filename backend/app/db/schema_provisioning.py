@@ -636,3 +636,145 @@ async def ensure_system_engine_bypassrls() -> None:
     raise SystemExit(
         _bypassrls_exit_message(admin_login, heal_attempted=bool(can_heal))
     )
+
+
+# --- shared-table grant healing (issue #835, deeper than the BYPASSRLS heal) --
+#
+# BYPASSRLS (above) lets the system engine skip RLS *policies*; it does NOT skip
+# table-level privilege checks. A restored/recreated cluster can bring app_admin
+# back with LOGIN + BYPASSRLS but WITHOUT the per-table GRANTs the migrations
+# applied — roles are cluster state, and an already-stamped database never
+# re-runs the grant-issuing migrations. The system engine then fails one gate
+# deeper than #835's first report: "permission denied for table guilds" while
+# seeding the primary guild it can read (BYPASSRLS) but not INSERT (no grant).
+# `backfill_guild_schemas` re-asserts GUILD-schema grants on every boot; nothing
+# did the same for the shared `public` tables. This does, sourced from the
+# audited `system_grants` registry (the single truth for those grants),
+# additively and idempotently.
+#
+# The bare login role (`app_user`, the pre-routing surface) is healed the same
+# way from its own registry — a restore loses its grants too.
+
+# A directly-connecting role that may INSERT needs privilege on the row-id
+# sequence as well; match what the baseline grants each role.
+_SEQUENCE_GRANT_BY_ROLE: dict[str, str] = {
+    "app_admin": "ALL",
+    "app_user": "SELECT, USAGE",
+}
+
+
+def _expected_shared_table_grants() -> list[tuple[str, str, frozenset[str]]]:
+    """`(role, table, verbs)` the two directly-connecting roles must hold on the
+    shared `public` tables, from the audited registries. Tables mapped to
+    ``None`` (no access) are omitted."""
+    from app.db import system_grants
+
+    expected: list[tuple[str, str, frozenset[str]]] = []
+    for role, matrix in (
+        ("app_admin", system_grants.SHARED_TABLE_SYSTEM_GRANTS),
+        ("app_user", system_grants.SHARED_TABLE_APP_USER_GRANTS),
+    ):
+        for table, verbs in matrix.items():
+            if verbs:
+                expected.append((role, table, verbs))
+    return expected
+
+
+async def _shared_grants_intact(
+    conn: AsyncConnection, expected: list[tuple[str, str, frozenset[str]]]
+) -> bool:
+    """True when every expected `(role, table, verb)` privilege is already held.
+
+    A single round-trip via ``has_table_privilege`` (authoritative — it respects
+    role membership and the live ACL, and any login may query another role's
+    privilege). Probes table grants only: a role recreation loses a role's table
+    AND sequence grants together, so a missing table grant reliably signals the
+    restore damage this heals; the heal then re-asserts both.
+    """
+    # Registry table names are trusted constants (not user input); inline them.
+    values = ", ".join(
+        f"('{role}', 'public.{table}', '{verb}')"
+        for role, table, verbs in expected
+        for verb in verbs
+    )
+    intact = (
+        await conn.execute(
+            text(
+                "SELECT bool_and(has_table_privilege(role, tbl, priv)) "
+                f"FROM (VALUES {values}) AS t(role, tbl, priv)"
+            )
+        )
+    ).scalar()
+    return bool(intact)
+
+
+async def _reassert_shared_grants(
+    conn: AsyncConnection, expected: list[tuple[str, str, frozenset[str]]]
+) -> int:
+    """Re-GRANT the audited table verbs (and, for insertable tables, the owned
+    row-id sequence) to each role. Additive and idempotent — never REVOKEs, so
+    it can only restore missing grants, never contradict a migration that
+    intentionally reduced them. Returns the number of table grants asserted."""
+    from app.db import system_grants
+
+    for role, table, verbs in expected:
+        verb_list = system_grants.grant_sql(verbs)
+        await conn.execute(
+            text(f'GRANT {verb_list} ON TABLE public."{table}" TO "{role}"')
+        )
+        if "INSERT" not in verbs:
+            continue
+        # INSERT needs privilege on the row-id sequence too. Discover sequences
+        # OWNED BY the table (robust to a serial column not named `id`) instead
+        # of assuming a name.
+        seqs = (
+            await conn.execute(
+                text(
+                    "SELECT quote_ident(n.nspname) || '.' || quote_ident(s.relname) "
+                    "FROM pg_class s "
+                    "JOIN pg_depend d ON d.objid = s.oid "
+                    "  AND d.classid = 'pg_class'::regclass "
+                    "  AND d.refclassid = 'pg_class'::regclass AND d.deptype = 'a' "
+                    "JOIN pg_class t ON t.oid = d.refobjid "
+                    "JOIN pg_namespace n ON n.oid = s.relnamespace "
+                    "WHERE s.relkind = 'S' AND n.nspname = 'public' "
+                    "  AND t.relname = :table"
+                ),
+                {"table": table},
+            )
+        ).scalars()
+        seq_grant = _SEQUENCE_GRANT_BY_ROLE[role]
+        for seq in seqs:
+            await conn.execute(text(f'GRANT {seq_grant} ON SEQUENCE {seq} TO "{role}"'))
+    return len(expected)
+
+
+async def ensure_shared_table_grants() -> None:
+    """Heal missing table/sequence GRANTs on the shared ``public`` tables for the
+    app's directly-connecting roles (``app_admin`` system engine, ``app_user``
+    bare login).
+
+    Companion to :func:`ensure_system_engine_bypassrls`: that repairs the RLS
+    *attribute*, this repairs the table *grants* one gate deeper. Both close the
+    same class of drift — a ``pg_dump``-based restore or a hand-recreated role
+    loses cluster state that an already-stamped database never re-applies
+    (issue #835). Runs right after the BYPASSRLS check on every boot; a healthy
+    posture is a single-SELECT no-op.
+    """
+    expected = _expected_shared_table_grants()
+    if not expected:
+        return
+    async with db_session.provisioning_engine.connect() as conn:
+        if await _shared_grants_intact(conn, expected):
+            return
+    # Something is missing — re-assert the full audited set via the object owner
+    # (the provisioning engine, which the grant-issuing migrations also use).
+    async with db_session.provisioning_engine.begin() as conn:
+        asserted = await _reassert_shared_grants(conn, expected)
+    logger.warning(
+        "Shared-table grants were incomplete for the app's directly-connecting "
+        "roles (app_admin/app_user) — re-asserted %d audited table grant(s) "
+        "from the system_grants registry. Restored databases lose role grants "
+        "(issue #835); no action needed.",
+        asserted,
+    )
