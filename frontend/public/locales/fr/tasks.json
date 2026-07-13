@@ -262,6 +262,7 @@
     "selected": "Exporter la sélection",
     "formatPdf": "Document PDF",
     "formatCsv": "CSV",
-    "formatXlsx": "Excel (XLSX)"
+    "formatXlsx": "Excel (XLSX)",
+    "formatMd": "Markdown"
   }
 }

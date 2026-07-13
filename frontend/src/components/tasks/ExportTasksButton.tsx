@@ -52,6 +52,7 @@ const FORMATS: { value: ExportFormat; labelKey: string }[] = [
   { value: "pdf", labelKey: "export.formatPdf" },
   { value: "csv", labelKey: "export.formatCsv" },
   { value: "xlsx", labelKey: "export.formatXlsx" },
+  { value: "md", labelKey: "export.formatMd" },
 ];
 
 // A pending job id survives the component unmounting (navigation) so a

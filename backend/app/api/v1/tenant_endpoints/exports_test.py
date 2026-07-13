@@ -63,6 +63,15 @@ async def test_inline_export_csv_and_xlsx(client: AsyncClient, acting_user, sess
     assert xlsx_resp.headers["content-type"].endswith("spreadsheetml.sheet")
     assert 'filename="tasks.xlsx"' in xlsx_resp.headers["content-disposition"]
 
+    md_resp = await client.get(
+        a.g("/exports/tasks"), headers=a.headers, params={"format": "md"}
+    )
+    assert md_resp.status_code == 200
+    assert md_resp.headers["content-type"].startswith("text/markdown")
+    md_body = md_resp.content.decode("utf-8")
+    assert "| Task | Project | Status | Priority | Due | Assignees |" in md_body
+    assert 'filename="tasks.md"' in md_resp.headers["content-disposition"]
+
     unknown = await client.get(
         a.g("/exports/tasks"), headers=a.headers, params={"format": "docx"}
     )

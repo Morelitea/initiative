@@ -38,7 +38,7 @@ _COLUMNS = (
 class TasksTableAdapter:
     source = "tasks"
     template_id = "task-table"
-    formats = frozenset({"pdf", "csv", "xlsx"})
+    formats = frozenset({"pdf", "csv", "xlsx", "md"})
 
     async def count(
         self, session: AsyncSession, *, user: User, guild_id: int, params: dict

@@ -34,6 +34,7 @@ _CONTENT_TYPES = {
     "pdf": "application/pdf",
     "csv": "text/csv; charset=utf-8",
     "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "md": "text/markdown; charset=utf-8",
 }
 
 
@@ -83,6 +84,8 @@ def _render_item(template: Path | None, format: str, item: RenderItem) -> bytes:
         return tabular.render_csv(item)
     if format == "xlsx":
         return tabular.render_xlsx(item)
+    if format == "md":
+        return tabular.render_md(item)
     assert template is not None  # resolve_template ran for the pdf path
     return _compile(template, format, item)
 

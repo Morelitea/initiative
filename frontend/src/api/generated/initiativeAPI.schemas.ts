@@ -4049,6 +4049,7 @@ export const ExportTasksApiV1GGuildIdExportsTasksGetFormat = {
   pdf: "pdf",
   csv: "csv",
   xlsx: "xlsx",
+  md: "md",
 } as const;
 
 export type ListQueuesApiV1GGuildIdQueuesGetParams = {

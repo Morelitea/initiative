@@ -48,6 +48,33 @@ def render_csv(item: RenderItem) -> bytes:
     return build_csv(headers, rows)
 
 
+def _md_cell(value: Any) -> str:
+    """A cell must not break the GFM table structure: escape pipes and
+    collapse newlines. Markdown has no execution surface, so this is layout
+    integrity, not injection defense."""
+    text = "" if value is None else str(value)
+    return text.replace("|", "\\|").replace("\r\n", " ").replace("\n", " ")
+
+
+def render_md(item: RenderItem) -> bytes:
+    headers, rows = _table(item)
+    lines: list[str] = []
+    title = str(item.data.get("title", "")).strip()
+    subtitle = str(item.data.get("subtitle", "")).strip()
+    if title:
+        lines.append(f"# {_md_cell(title)}")
+        lines.append("")
+    if subtitle:
+        lines.append(_md_cell(subtitle))
+        lines.append("")
+    lines.append("| " + " | ".join(_md_cell(h) for h in headers) + " |")
+    lines.append("|" + "|".join(" --- " for _ in headers) + "|")
+    for row in rows:
+        lines.append("| " + " | ".join(_md_cell(value) for value in row) + " |")
+    lines.append("")
+    return "\n".join(lines).encode("utf-8")
+
+
 def _xlsx_cell(value: Any) -> Any:
     """Neutralize only STRING cells for XLSX. Unlike CSV (where every value
     becomes text anyway), XLSX cells are typed: a number must stay a number

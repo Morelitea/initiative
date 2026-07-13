@@ -122,6 +122,24 @@ async def test_renders_xlsx_with_formula_neutralization():
     assert sheet.cell(row=2, column=1).data_type == "s"
 
 
+async def test_renders_markdown_table_with_escaped_cells():
+    """Pipes and newlines in user text must not break the GFM table."""
+    artifacts = await LocalRenderBackend().render(
+        _request(
+            format="md",
+            rows=[{"title": "a | b\nmultiline", "status": "To Do"}],
+        )
+    )
+    artifact = artifacts[0]
+    assert artifact.content_type.startswith("text/markdown")
+    text = artifact.content.decode("utf-8")
+    lines = text.splitlines()
+    assert lines[0] == "# Tasks"
+    assert "| Task | Status |" in lines
+    assert "| --- | --- |" in lines
+    assert "| a \\| b multiline | To Do |" in lines
+
+
 async def test_xlsx_sanitizes_sheet_title():
     """openpyxl raises InvalidSheetTitle on []:*?/\\ — a title carrying user
     text (e.g. a guild named "My App: Dev") must render, not crash."""
