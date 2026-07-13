@@ -468,6 +468,47 @@ async def test_document_export_spreadsheet_formats(
     assert sheet.freeze_panes == "A2"
 
 
+async def test_document_export_spreadsheet_survives_corrupt_snapshot(
+    client: AsyncClient, acting_user, session
+):
+    """A renderer must not 500 over one bad snapshot entry: malformed cell
+    keys are skipped, and 3-char / garbage hex colors are expanded / dropped
+    instead of crashing openpyxl."""
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    from app.models.tenant.document import DocumentType
+    from app.testing.factories import create_document
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    doc = await create_document(
+        session,
+        a.initiative,
+        a.user,
+        title="Odd",
+        document_type=DocumentType.spreadsheet,
+        content={
+            "schema_version": 2,
+            "dimensions": {"rows": 1, "cols": 1},
+            "cells": {"0:0": "ok", "corrupt": "x", "1:2:3": "y", ":": "z"},
+            "cellStyles": {
+                "0:0": {"fill": "#fff", "color": "not-a-color"},
+            },
+        },
+    )
+    resp = await client.get(
+        a.g("/exports/document"),
+        headers=a.headers,
+        params={"document_id": doc.id, "format": "xlsx"},
+    )
+    assert resp.status_code == 200
+    sheet = load_workbook(BytesIO(resp.content)).active
+    assert sheet.cell(row=1, column=1).value == "ok"
+    # #fff shorthand expanded to a valid ARGB white fill.
+    assert sheet.cell(row=1, column=1).fill.start_color.rgb == "FFFFFFFF"
+
+
 async def test_document_export_file_passthrough(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
 ):

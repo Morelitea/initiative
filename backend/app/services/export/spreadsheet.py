@@ -35,14 +35,26 @@ _VALIGN_MAP = {"top": "top", "middle": "center", "bottom": "bottom"}
 _DATE_FORMATS = {"iso": "yyyy-mm-dd", "us": "mm/dd/yyyy", "eu": "dd/mm/yyyy"}
 
 
+def _cell_coords(key: str) -> tuple[int, int] | None:
+    """Parse an ``"r:c"`` cell key; None for anything malformed. The
+    normalizer enforces the shape on write, but a renderer must not 500 on a
+    corrupted snapshot — bad keys are simply skipped."""
+    parts = key.split(":") if isinstance(key, str) else []
+    if len(parts) != 2 or not parts[0].isdigit() or not parts[1].isdigit():
+        return None
+    return int(parts[0]), int(parts[1])
+
+
 def _grid_size(content: dict) -> tuple[int, int]:
     dimensions = content.get("dimensions") or {}
     rows = int(dimensions.get("rows") or 0)
     cols = int(dimensions.get("cols") or 0)
     for key in content.get("cells") or {}:
-        r, c = key.split(":")
-        rows = max(rows, int(r) + 1)
-        cols = max(cols, int(c) + 1)
+        coords = _cell_coords(key)
+        if coords is None:
+            continue
+        rows = max(rows, coords[0] + 1)
+        cols = max(cols, coords[1] + 1)
     return rows, cols
 
 
@@ -130,19 +142,18 @@ def _apply_style(cell, style: dict[str, Any]) -> None:
         font_kwargs["underline"] = "single"
     if style.get("strike"):
         font_kwargs["strike"] = True
-    color = style.get("color")
-    if isinstance(color, str) and color.startswith("#"):
-        font_kwargs["color"] = f"FF{color[1:].upper()}"
+    color = _argb(style.get("color"))
+    if color:
+        font_kwargs["color"] = color
     font_size = style.get("fontSize")
     if isinstance(font_size, (int, float)):
         font_kwargs["size"] = round(font_size * _PX_TO_POINTS, 1)
     if font_kwargs:
         cell.font = Font(**font_kwargs)
 
-    fill = style.get("fill")
-    if isinstance(fill, str) and fill.startswith("#"):
-        rgb = f"FF{fill[1:].upper()}"
-        cell.fill = PatternFill(start_color=rgb, end_color=rgb, fill_type="solid")
+    fill = _argb(style.get("fill"))
+    if fill:
+        cell.fill = PatternFill(start_color=fill, end_color=fill, fill_type="solid")
 
     align = style.get("align")
     valign = _VALIGN_MAP.get(style.get("valign") or "")
@@ -155,9 +166,9 @@ def _apply_style(cell, style: dict[str, Any]) -> None:
         for edge in ("top", "right", "bottom", "left"):
             spec = border.get(edge)
             if isinstance(spec, dict):
-                edge_color = str(spec.get("color", "#000000"))[1:].upper()
                 sides[edge] = Side(
-                    style=spec.get("style", "thin"), color=f"FF{edge_color}"
+                    style=spec.get("style", "thin"),
+                    color=_argb(spec.get("color")) or "FF000000",
                 )
         if sides:
             cell.border = Border(**sides)
@@ -167,6 +178,20 @@ def _apply_style(cell, style: dict[str, Any]) -> None:
         number_format = _number_format(fmt)
         if number_format:
             cell.number_format = number_format
+
+
+def _argb(value: Any) -> str | None:
+    """``#rrggbb`` (or ``#rgb`` shorthand) -> openpyxl's 8-char ARGB, else
+    None. openpyxl raises on any other length, and a renderer must not 500
+    over one bad formatting entry — invalid colors are simply dropped."""
+    if not isinstance(value, str) or not value.startswith("#"):
+        return None
+    hex_part = value[1:]
+    if len(hex_part) == 3:
+        hex_part = "".join(ch * 2 for ch in hex_part)
+    if len(hex_part) != 6 or any(c not in "0123456789abcdefABCDEF" for c in hex_part):
+        return None
+    return f"FF{hex_part.upper()}"
 
 
 def _number_format(fmt: dict[str, Any]) -> str | None:
