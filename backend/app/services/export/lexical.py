@@ -294,7 +294,14 @@ def render_markdown(data: dict, read_blob: ReadBlob) -> tuple[bytes, str, str | 
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr(f"{stem}.md", md)
         for asset in assets:
-            archive.writestr(f"assets/{asset['name']}", read_blob(asset["key"]))
+            try:
+                content = read_blob(asset["key"])
+            except Exception:
+                # A referenced image that's gone from storage must not fail
+                # the whole export — the .md keeps its (dangling) ref, same
+                # as the document itself would show a broken image.
+                continue
+            archive.writestr(f"assets/{asset['name']}", content)
     return buffer.getvalue(), "application/zip", f"{stem}.zip"
 
 
@@ -380,7 +387,8 @@ def _md_runs(runs: list[dict]) -> str:
             parts.append("  \n")
             continue
         if run.get("code"):
-            text = f"`{text}`"
+            # A backtick inside code needs the double-backtick spaced form.
+            text = f"`` {text} ``" if "`" in text else f"`{text}`"
         else:
             if run.get("bold") and run.get("italic"):
                 text = f"***{text}***"

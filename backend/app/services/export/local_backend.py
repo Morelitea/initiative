@@ -190,13 +190,30 @@ def _compile_with_assets(
         shutil.copyfile(template, main)
         assets_dir = root / "assets"
         assets_dir.mkdir()
+        staged: set[str] = set()
         for asset in item.data.get("assets") or []:
+            try:
+                content = read(asset["key"])
+            except Exception:
+                # Gone from storage: skip — the block degrades below rather
+                # than the whole export failing.
+                continue
             # Names come from safe_filename_component — no traversal.
-            (assets_dir / asset["name"]).write_bytes(read(asset["key"]))
+            (assets_dir / asset["name"]).write_bytes(content)
+            staged.add(asset["name"])
+        # Typst FAILS the compile on a missing image file, so any image block
+        # whose asset didn't stage degrades to its alt text.
+        data = dict(item.data)
+        data["blocks"] = [
+            {"type": "paragraph", "runs": [{"text": b.get("alt") or "[image]"}]}
+            if b.get("type") == "image" and b.get("asset") and b["asset"] not in staged
+            else b
+            for b in data.get("blocks") or []
+        ]
         return typst.compile(
             str(main),
             root=str(root),
             format=format,
-            sys_inputs={"data": json.dumps(item.data, ensure_ascii=False)},
+            sys_inputs={"data": json.dumps(data, ensure_ascii=False)},
             ignore_system_fonts=True,
         )

@@ -198,6 +198,48 @@ def test_asset_names_deduped_on_sanitize_collision():
     assert set(stored.values()) == {b"a img.png", b"a_img.png"}  # both survive
 
 
+def test_markdown_zip_survives_missing_asset():
+    """An image gone from storage skips its archive entry; the export (and
+    the other assets) still ship."""
+    state = _state(
+        [
+            {"type": "image", "src": f"/uploads/{GUILD}/gone.png", "altText": "gone"},
+            {"type": "image", "src": f"/uploads/{GUILD}/here.png", "altText": "here"},
+        ]
+    )
+    blocks, assets = blocks_from_editor_state(state, guild_id=GUILD)
+
+    def read(key: str) -> bytes:
+        if key == "gone.png":
+            raise FileNotFoundError(key)
+        return b"bytes"
+
+    content, content_type, _ = render_markdown(
+        {"title": "", "stem": "d", "blocks": blocks, "assets": assets}, read
+    )
+    assert content_type == "application/zip"
+    archive = zipfile.ZipFile(io.BytesIO(content))
+    assert "assets/here.png" in archive.namelist()
+    assert "assets/gone.png" not in archive.namelist()
+
+
+def test_markdown_inline_code_with_backticks():
+    state = _state(
+        [
+            {
+                "type": "paragraph",
+                "children": [_text("use `backticks` here", 16)],  # code format
+            }
+        ]
+    )
+    blocks, assets = blocks_from_editor_state(state, guild_id=GUILD)
+    content, _, _ = render_markdown(
+        {"title": "", "blocks": blocks, "assets": assets}, lambda key: b""
+    )
+    # Double-backtick spaced form keeps the inner backticks literal.
+    assert "`` use `backticks` here ``" in content.decode("utf-8")
+
+
 def test_markdown_plain_without_assets():
     state = _state([{"type": "paragraph", "children": [_text("hello")]}])
     blocks, assets = blocks_from_editor_state(state, guild_id=GUILD)
