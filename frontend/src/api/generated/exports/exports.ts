@@ -565,9 +565,9 @@ export function useExportDocumentApiV1GGuildIdExportsDocumentGet<
 
 /**
  * Export a queue: ``json`` is an importable envelope (items, rotation
- * state, tags by name — member assignments are informational and linked
- * documents/tasks are omitted); ``pdf``/``csv``/``xlsx`` render the turn
- * order as a table and ``md`` as a numbered list. Read access suffices.
+ * state, tags by name — member assignments and linked documents/tasks ride
+ * along as display text); ``pdf``/``csv``/``xlsx`` render the turn order as
+ * a table and ``md`` as a numbered list. Read access suffices.
  * Small queues return the file inline; large ones return ``202`` with a
  * queued job to poll and download.
  * @summary Export Queue
