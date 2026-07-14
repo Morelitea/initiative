@@ -28,3 +28,17 @@ describe("documentSelectionFormats", () => {
     ]);
   });
 });
+
+describe("smart link formats", () => {
+  it("smart links offer markdown and the importable json envelope", () => {
+    const formats = documentSelectionFormats(["smart_link"]);
+    expect(formats.map((f) => f.format)).toEqual(["md", "json"]);
+  });
+
+  it("smart links now intersect with text documents on md and json", () => {
+    expect(documentSelectionFormats(["native", "smart_link"]).map((f) => f.format)).toEqual([
+      "md",
+      "json",
+    ]);
+  });
+});
