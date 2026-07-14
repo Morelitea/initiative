@@ -9,16 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Data export: every tool — documents, projects, tasks, queues, and counter groups — can be exported straight from its page in type-appropriate formats.
+- Data export: every tool — documents, projects, tasks, queues, counter groups, and calendar events — can be exported straight from its page in type-appropriate formats.
   - Report formats: PDF (set in the app's typeface, with the guild's name and icon in a running header), CSV, Excel (XLSX), Markdown, and Word (DOCX) for text documents. Report content is localized (English, German, Spanish, French) and timestamps use your time zone.
   - Importable backups: `.lexical` files for editor documents, standard Excalidraw files for whiteboards, the original file for uploads, and JSON envelopes for spreadsheets, projects, queues, and counter groups. Whiteboards additionally export PNG/SVG images, rendered in the browser.
   - Tasks export the current view — same filters and visibility as on screen, or just the selected tasks — as a table, a checkable Markdown task list, or a detailed one-task-per-page PDF carrying the full record: description (rendered as Markdown), subtasks, threaded comments, assignees, tags, and dates. Queues export their turn order with current/held/hidden entries marked; counter groups export their values and bounds.
-  - Bulk selection: select multiple documents, projects, queues, or counter groups and export them all as a single zip. The documents grid and tag views gained the same card selection (and full bulk toolbar) as the other lists.
+  - Bulk selection: select multiple documents, projects, queues, counter groups, or calendar events and export them all at once. The documents grid and tag views gained the same card selection (and full bulk toolbar) as the other lists.
+  - Calendar events export as a standard iCalendar (.ics) file (recurrence rules and attendee RSVPs preserved) or an importable JSON envelope — for a selection, one initiative, or every event you can see. Unlike the old .ics download, per-event sharing now applies: events not shared with you stay out of your export.
   - Delivery: small exports download instantly; large ones run as a background job, and an inbox notification delivers the file if you navigate away. Artifacts are private to their creator (guild admins can see their guild's), expire after 7 days, and spreadsheet formats carry injection protection. Read access suffices everywhere except project backups, which require write.
 
 ### Changed
 
 - Project backup (JSON) export now runs through the export engine: large projects export as a background job with the inbox-notification pickup instead of one long request, and artifacts follow the same private-to-creator delivery and 7-day expiry. The downloaded file and the import flow are unchanged. (API: `GET /projects/{id}/export` was replaced by `GET /exports/project?project_id=…`.)
+- The calendar's ICS export moved onto the export engine (API: `GET /calendar-events/export.ics` was replaced by `GET /exports/calendar-event?format=ics`); the cross-guild `/me/calendar-events/export.ics` feed is unchanged.
 - The queue page header now matches the other tool pages: a labeled Settings button sized like its neighbors, with queue deletion living in the settings page (where it already had a confirm dialog) instead of a header trash icon.
 
 ### Fixed
