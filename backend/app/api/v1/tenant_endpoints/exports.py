@@ -131,7 +131,10 @@ async def export_project(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-    project_id: int = Query(),
+    project_id: Optional[int] = Query(default=None),
+    project_ids: Optional[list[int]] = Query(
+        default=None, description="Bulk selection: one artifact per project, zipped"
+    ),
     format: Literal["json", "pdf", "csv", "xlsx"] = Query(default="json"),
     tz: Optional[str] = Query(
         default=None, max_length=64, description="IANA timezone for report timestamps"
@@ -149,7 +152,11 @@ async def export_project(
             guild_id=guild_context.guild_id,
             source="project",
             format=format,
-            params={"project_id": project_id, "tz": tz},
+            params={
+                "project_id": project_id,
+                "project_ids": project_ids,
+                "tz": tz,
+            },
             allow_job=_allow_job(guild_context),
         )
     except ExportError as exc:

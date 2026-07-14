@@ -71,3 +71,14 @@ export const COUNTER_EXPORT_FORMATS: ExportFormatOption[] = [
   { format: "md", labelKey: "export.formatMd" },
   { format: "json", labelKey: "export.formatJson" },
 ];
+
+// Mirrors the backend project adapter: the importable JSON backup plus the
+// task-table report formats. Used by the projects list's bulk-selection
+// export (the per-project settings card keeps its own entry with the
+// backup-convention filename stem).
+export const PROJECT_EXPORT_FORMATS: ExportFormatOption[] = [
+  { format: "json", labelKey: "export.formatJson" },
+  { format: "pdf", labelKey: "export.formatPdf" },
+  { format: "csv", labelKey: "export.formatCsv" },
+  { format: "xlsx", labelKey: "export.formatXlsx" },
+];

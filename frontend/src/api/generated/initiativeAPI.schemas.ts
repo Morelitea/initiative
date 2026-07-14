@@ -3958,7 +3958,11 @@ export const ExportTasksApiV1GGuildIdExportsTasksGetLayout = {
 } as const;
 
 export type ExportProjectApiV1GGuildIdExportsProjectGetParams = {
-  project_id: number;
+  project_id?: number | null;
+  /**
+   * Bulk selection: one artifact per project, zipped
+   */
+  project_ids?: number[] | null;
   format?: ExportProjectApiV1GGuildIdExportsProjectGetFormat;
   /**
    * IANA timezone for report timestamps

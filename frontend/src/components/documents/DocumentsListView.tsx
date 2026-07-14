@@ -1,16 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import type { ColumnDef, PaginationState, SortingState } from "@tanstack/react-table";
 import { formatDistanceToNow } from "date-fns";
-import {
-  Copy,
-  FileSpreadsheet,
-  FileText,
-  Loader2,
-  Presentation,
-  Shield,
-  Tags,
-  Trash2,
-} from "lucide-react";
+import { FileSpreadsheet, FileText, Presentation } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 

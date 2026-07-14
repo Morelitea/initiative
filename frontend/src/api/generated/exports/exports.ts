@@ -217,7 +217,7 @@ export function useExportTasksApiV1GGuildIdExportsTasksGet<
  */
 export const exportProjectApiV1GGuildIdExportsProjectGet = (
   guildId: number,
-  params: ExportProjectApiV1GGuildIdExportsProjectGetParams,
+  params?: ExportProjectApiV1GGuildIdExportsProjectGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -239,7 +239,7 @@ export const getExportProjectApiV1GGuildIdExportsProjectGetQueryOptions = <
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: ExportProjectApiV1GGuildIdExportsProjectGetParams,
+  params?: ExportProjectApiV1GGuildIdExportsProjectGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -284,7 +284,7 @@ export function useExportProjectApiV1GGuildIdExportsProjectGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: ExportProjectApiV1GGuildIdExportsProjectGetParams,
+  params: undefined | ExportProjectApiV1GGuildIdExportsProjectGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -310,7 +310,7 @@ export function useExportProjectApiV1GGuildIdExportsProjectGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: ExportProjectApiV1GGuildIdExportsProjectGetParams,
+  params?: ExportProjectApiV1GGuildIdExportsProjectGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -336,7 +336,7 @@ export function useExportProjectApiV1GGuildIdExportsProjectGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: ExportProjectApiV1GGuildIdExportsProjectGetParams,
+  params?: ExportProjectApiV1GGuildIdExportsProjectGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -358,7 +358,7 @@ export function useExportProjectApiV1GGuildIdExportsProjectGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: ExportProjectApiV1GGuildIdExportsProjectGetParams,
+  params?: ExportProjectApiV1GGuildIdExportsProjectGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<

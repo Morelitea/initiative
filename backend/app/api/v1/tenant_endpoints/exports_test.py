@@ -1554,3 +1554,49 @@ async def test_bulk_selection_size_is_bounded(
     )
     assert resp.status_code == 400
     assert resp.json()["detail"] == "EXPORT_INVALID_PARAMS"
+
+
+async def test_bulk_project_selection_exports_backup_zip(
+    client: AsyncClient, acting_user, session
+):
+    """Selecting N projects exports one backup envelope per project in a zip
+    — and the per-project WRITE rule holds: a read-only project anywhere in
+    the selection fails the whole export instead of leaving a silent gap."""
+    import io
+    import json
+    import zipfile
+
+    from app.testing.factories import create_project
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    second = await create_project(session, a.initiative, a.user, name="Second Arc")
+
+    resp = await client.get(
+        a.g("/exports/project"),
+        headers=a.headers,
+        params={"project_ids": [a.project.id, second.id], "format": "json"},
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/zip"
+    archive = zipfile.ZipFile(io.BytesIO(resp.content))
+    names = sorted(archive.namelist())
+    assert len(names) == 2
+    assert all(n.endswith(".initiative-project.json") for n in names)
+    envelopes = [json.loads(archive.read(n)) for n in names]
+    assert {e["project"]["name"] for e in envelopes} == {a.project.name, "Second Arc"}
+
+    # A write-less project in the selection: the owner grant belongs to the
+    # other member, so the whole selection is refused (403), not a partial zip.
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    theirs = await create_project(session, a.initiative, b.user, name="Not Yours")
+    denied = await client.get(
+        a.g("/exports/project"),
+        headers=a.headers,
+        params={"project_ids": [a.project.id, theirs.id], "format": "json"},
+    )
+    assert denied.status_code == 403
