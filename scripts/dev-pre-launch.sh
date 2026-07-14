@@ -9,7 +9,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR/.."
 
-docker-compose up db -d --wait
+docker compose up db -d --wait
 bash scripts/dev-migrate.sh
 bash scripts/dev-seed.sh
 
