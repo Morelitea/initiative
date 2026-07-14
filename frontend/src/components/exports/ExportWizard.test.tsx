@@ -167,6 +167,53 @@ describe("ExportWizard", () => {
     expect(params.get("include_uploads")).toBeNull();
   });
 
+  it("resumes the running job's progress view on re-open instead of offering a new flow", async () => {
+    stubEstimate();
+    server.use(
+      guildHttp.get("/exports/guild", () =>
+        HttpResponse.json({ id: 88, status: "queued" }, { status: 202 })
+      ),
+      // The job never finishes during this test — it stays queued.
+      guildHttp.get("/exports/:jobId", ({ params }) => {
+        if (Number.isNaN(Number(params.jobId))) {
+          return undefined;
+        }
+        return HttpResponse.json({
+          id: 88,
+          guild_id: 1,
+          created_by_id: 1,
+          source: "guild",
+          template_id: "data-table",
+          format: "zip",
+          params: {},
+          status: "queued",
+          error: null,
+          expires_at: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+      })
+    );
+
+    const { rerender } = renderWithProviders(
+      <ExportWizard scope="guild" open onOpenChange={() => {}} />
+    );
+    await userEvent.click(screen.getByRole("button", { name: /importable backup/i }));
+    await screen.findByText("3 items");
+    await userEvent.click(screen.getByRole("button", { name: /next/i }));
+    await userEvent.click(screen.getByRole("button", { name: /start export/i }));
+    await screen.findByText(/preparing your export/i);
+
+    // Close while the job still renders, then re-open: the wizard must land
+    // on the progress view for the running job, not the mode step — a second
+    // walk-through couldn't start a new job and would silently track this one.
+    rerender(<ExportWizard scope="guild" open={false} onOpenChange={() => {}} />);
+    rerender(<ExportWizard scope="guild" open onOpenChange={() => {}} />);
+
+    expect(await screen.findByText(/preparing your export/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /importable backup/i })).not.toBeInTheDocument();
+  });
+
   it("blocks advancing when every tool is deselected", async () => {
     stubJobLifecycle(() => {});
 

@@ -55,8 +55,11 @@ export function ExportWizard({ scope, initiativeId, open, onOpenChange }: Export
   const [documentFormats, setDocumentFormats] = useState(DEFAULT_DOCUMENT_FORMATS);
 
   // Reset to a fresh flow when the dialog closes (state only — a job already
-  // started keeps polling in the hook and delivers regardless).
-  // biome-ignore lint/correctness/useExhaustiveDependencies: reset runs only on close; exportJob.reset is stable-enough and adding it would re-fire on every poll tick
+  // started keeps polling in the hook and delivers regardless). Re-opening
+  // while that job still renders resumes its progress view: the hook can't
+  // start a second job, so offering the option steps again would end in a
+  // "Start export" that silently tracked the OLD job.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs only on open/close; job state is read at that moment, and reacting to every poll tick would re-fire the reset
   useEffect(() => {
     if (!open) {
       setStep("mode");
@@ -66,6 +69,8 @@ export function ExportWizard({ scope, initiativeId, open, onOpenChange }: Export
       setFormats({});
       setDocumentFormats(DEFAULT_DOCUMENT_FORMATS);
       exportJob.reset();
+    } else if (exportJob.busy) {
+      setStep("progress");
     }
   }, [open]);
 
@@ -97,6 +102,9 @@ export function ExportWizard({ scope, initiativeId, open, onOpenChange }: Export
   const anyIncluded = visibleTools.some(effectiveIncluded);
 
   const startExport = () => {
+    if (exportJob.busy) {
+      return;
+    }
     const includeParam: Record<string, boolean> = {};
     for (const tool of visibleTools) {
       includeParam[tool] = effectiveIncluded(tool);
@@ -377,7 +385,10 @@ export function ExportWizard({ scope, initiativeId, open, onOpenChange }: Export
               )}
             </div>
             <p className="text-muted-foreground text-xs">{t("wizard.confirm.note")}</p>
-            <Button className="w-full" onClick={startExport}>
+            {/* busy guard: the hook can only track one job — starting while a
+                previous job still polls would show its progress as this
+                export's and deliver the wrong download. */}
+            <Button className="w-full" disabled={exportJob.busy} onClick={startExport}>
               {t("wizard.start")}
             </Button>
           </div>
