@@ -9,6 +9,7 @@ export is a per-user snapshot and may contain initiative-isolated content the
 rest of the guild must not reach.
 """
 
+import json
 from typing import Annotated, Literal, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -346,8 +347,6 @@ def _parse_json_param(raw: Optional[str]) -> Optional[dict]:
     the adapter at count time; here we only reject non-JSON/non-object."""
     if raw is None:
         return None
-    import json
-
     try:
         value = json.loads(raw)
     except ValueError:

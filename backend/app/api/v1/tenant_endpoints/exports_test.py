@@ -2126,13 +2126,14 @@ async def test_guild_backup_spans_initiatives_and_refreshes_access(
 async def test_backup_uploads_toggle_and_asset_bundling(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
 ):
-    """include_uploads=true bundles the file document's blob under assets/
-    (manifest entry points at it); =false records it under ``skipped`` with
-    reason uploads_excluded instead of silently dropping it."""
+    """include_uploads=true bundles the file document's blob AND native docs'
+    embedded images under assets/ (embedded ones at their real stored size,
+    from their uploads row); =false records the file doc under ``skipped``
+    with reason uploads_excluded instead of silently dropping it."""
     import json
 
     from app.models.tenant.document import DocumentType
-    from app.testing.factories import create_document
+    from app.testing.factories import create_document, create_upload
 
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     payload = b"%PDF-handout-bytes"
@@ -2150,6 +2151,36 @@ async def test_backup_uploads_toggle_and_asset_bundling(
         file_content_type="application/pdf",
         file_size=len(payload),
     )
+    image_bytes = b"embedded-image-bytes"
+    get_guild_storage(a.guild.id).write(
+        "inline-img.png", image_bytes, content_type="image/png"
+    )
+    await create_upload(
+        session,
+        a.guild,
+        a.user,
+        filename="inline-img.png",
+        size_bytes=len(image_bytes),
+        content_type="image/png",
+    )
+    await create_document(
+        session,
+        a.initiative,
+        a.user,
+        title="Illustrated Notes",
+        content={
+            "root": {
+                "type": "root",
+                "children": [
+                    {
+                        "type": "image",
+                        "src": f"/uploads/{a.guild.id}/inline-img.png",
+                        "altText": "pic",
+                    }
+                ],
+            }
+        },
+    )
 
     with_uploads = await client.get(
         a.g("/exports/initiative"),
@@ -2158,13 +2189,22 @@ async def test_backup_uploads_toggle_and_asset_bundling(
     )
     archive = await _rendered_zip(client, a, monkeypatch, role_session, with_uploads)
     assert archive.read("assets/handout-xyz.pdf") == payload
+    assert archive.read("assets/inline-img.png") == image_bytes
     manifest = json.loads(archive.read("manifest.json"))
     assert manifest["include_uploads"] is True
-    (asset,) = manifest["assets"]
-    assert asset["path"] == "assets/handout-xyz.pdf"
-    assert asset["storage_key"] == "handout-xyz.pdf"
-    assert asset["original_filename"] == "Player Handout.pdf"
-    assert asset["size_bytes"] == len(payload)
+    assets = {rec["storage_key"]: rec for rec in manifest["assets"]}
+    handout = assets["handout-xyz.pdf"]
+    assert handout["path"] == "assets/handout-xyz.pdf"
+    assert handout["original_filename"] == "Player Handout.pdf"
+    assert handout["size_bytes"] == len(payload)
+    inline = assets["inline-img.png"]
+    assert inline["size_bytes"] == len(image_bytes)  # real size, not 0
+    assert inline["content_type"] == "image/png"
+    assert inline["referenced_by"] == [
+        next(
+            e["path"] for e in manifest["entries"] if e["title"] == "Illustrated Notes"
+        )
+    ]
     (entry,) = [e for e in manifest["entries"] if e["kind"] == "file"]
     assert entry["entity_id"] == file_doc.id
     assert entry["asset"] == "assets/handout-xyz.pdf"
@@ -2221,6 +2261,55 @@ async def test_backup_upload_byte_cap(
         params={"initiative_id": a.initiative.id, "include_uploads": False},
     )
     assert ok.status_code == 202
+
+
+async def test_backup_embedded_image_bytes_hit_cap_at_build(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """Embedded document images aren't visible to the pre-flight count (it
+    only sizes file documents), so the cap must catch them at build time:
+    the job fails closed instead of assembling an over-cap archive."""
+    from app.testing.factories import create_document, create_upload
+
+    monkeypatch.setattr(settings, "EXPORT_MAX_BACKUP_UPLOAD_BYTES", 4)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await create_upload(
+        session, a.guild, a.user, filename="huge.png", size_bytes=1_000_000
+    )
+    await create_document(
+        session,
+        a.initiative,
+        a.user,
+        title="Illustrated",
+        content={
+            "root": {
+                "type": "root",
+                "children": [
+                    {
+                        "type": "image",
+                        "src": f"/uploads/{a.guild.id}/huge.png",
+                        "altText": "huge",
+                    }
+                ],
+            }
+        },
+    )
+
+    resp = await client.get(
+        a.g("/exports/initiative"),
+        headers=a.headers,
+        params={"initiative_id": a.initiative.id},
+    )
+    assert resp.status_code == 202  # pre-flight can't see embedded bytes
+    job_id = resp.json()["id"]
+
+    user_session = await role_session("app_user")
+    monkeypatch.setattr(export_worker, "_open_user_session", lambda: user_session)
+    await export_worker.process_export_jobs()
+
+    body = (await client.get(a.g(f"/exports/{job_id}"), headers=a.headers)).json()
+    assert body["status"] == ExportJobStatus.failed.value
+    assert body["error"] == "EXPORT_TOO_LARGE"
 
 
 async def test_report_mode_mixed_formats_zip(
@@ -2304,6 +2393,15 @@ async def test_aggregate_export_rejects_invalid_selectors(
     )
     assert unknown_tool.status_code == 400
     assert unknown_tool.json()["detail"] == "EXPORT_INVALID_PARAMS"
+
+    # Truthy-but-not-boolean values would be silently misread — reject them.
+    non_bool = await client.get(
+        a.g("/exports/initiative"),
+        headers=a.headers,
+        params={**base, "include": '{"project": "yes"}'},
+    )
+    assert non_bool.status_code == 400
+    assert non_bool.json()["detail"] == "EXPORT_INVALID_PARAMS"
 
     # An initiative the caller can't reach is indistinguishable from absent.
     outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)

@@ -167,7 +167,11 @@ def _validate_params(params: dict, *, kind: str) -> None:
         raise ExportError(ExportMessages.EXPORT_INVALID_PARAMS)
     include = params.get("include")
     if include is not None:
-        if not isinstance(include, dict) or not set(include) <= set(_TOOLS):
+        if (
+            not isinstance(include, dict)
+            or not set(include) <= set(_TOOLS)
+            or not all(isinstance(v, bool) for v in include.values())
+        ):
             raise ExportError(ExportMessages.EXPORT_INVALID_PARAMS)
     if mode == "report":
         for tool, fmt in (params.get("formats") or {}).items():
@@ -530,7 +534,7 @@ class _ScopeBuilder:
             )
             if fmt == "json":
                 path = f"{path_stem}.json"
-                self._collect_embedded_assets(document, doc_type, path)
+                await self._collect_embedded_assets(document, doc_type, path)
                 self._append_backup(
                     item,
                     path=path,
@@ -735,11 +739,14 @@ class _ScopeBuilder:
             )
         )
 
-    def _collect_embedded_assets(
+    async def _collect_embedded_assets(
         self, document, doc_type: str, entry_path: str
     ) -> None:
         """Native documents can embed same-guild images; when uploads ride,
-        those blobs join the archive too."""
+        those blobs join the archive too — at their REAL stored size, so they
+        count against the byte cap exactly like file-document blobs (the
+        pre-flight count only sees file documents, so build is where embedded
+        bytes get bounded; an over-cap build fails the job closed)."""
         if doc_type != "native" or not _include_uploads(self.params):
             return
         from app.services.export.lexical import blocks_from_editor_state
@@ -747,14 +754,39 @@ class _ScopeBuilder:
         _, assets = blocks_from_editor_state(
             document.content or {}, guild_id=self.guild_id
         )
+        if not assets:
+            return
+        uploads = await self._upload_rows(
+            [a["key"] for a in assets if a["key"] not in self._asset_index]
+        )
         for asset in assets:
+            size_bytes, content_type = uploads.get(asset["key"], (0, None))
             self._register_asset(
                 asset["key"],
                 original_filename=asset.get("name"),
-                content_type=None,
-                size_bytes=0,  # resolved from the uploads table post-walk
+                content_type=content_type,
+                size_bytes=size_bytes,
                 referenced_by=entry_path,
             )
+
+    async def _upload_rows(self, storage_keys: list) -> dict:
+        """Stored size + content type per storage key (``uploads.filename`` IS
+        the storage key). Legacy blobs without an uploads row contribute 0."""
+        if not storage_keys:
+            return {}
+        from sqlmodel import select
+
+        from app.models.tenant.upload import Upload
+
+        rows = await self.session.exec(
+            select(Upload.filename, Upload.size_bytes, Upload.content_type).where(
+                Upload.filename.in_(storage_keys)
+            )
+        )
+        return {
+            filename: (int(size or 0), content_type)
+            for filename, size, content_type in rows
+        }
 
     def _register_asset(
         self,
