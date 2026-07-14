@@ -27,7 +27,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { CounterRead } from "@/api/generated/initiativeAPI.schemas";
-import { ExportButton, type ExportFormatOption } from "@/components/exports/ExportButton";
+import { ExportButton } from "@/components/exports/ExportButton";
+import { COUNTER_EXPORT_FORMATS } from "@/components/exports/formats";
 import { CounterFormDialog } from "@/components/initiativeTools/counters/CounterFormDialog";
 import { type CounterLayout, CounterRow } from "@/components/initiativeTools/counters/CounterRow";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
@@ -54,16 +55,6 @@ import { useRecordRecentView } from "@/hooks/useRecents";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { exportFilenameStem } from "@/lib/exportDownload";
 import { useGuildPath } from "@/lib/guildUrl";
-
-// Mirrors the backend counter-group adapter: table reports plus the
-// importable JSON envelope.
-const COUNTER_EXPORT_FORMATS: ExportFormatOption[] = [
-  { format: "pdf", labelKey: "export.formatPdf" },
-  { format: "csv", labelKey: "export.formatCsv" },
-  { format: "xlsx", labelKey: "export.formatXlsx" },
-  { format: "md", labelKey: "export.formatMd" },
-  { format: "json", labelKey: "export.formatJson" },
-];
 
 const layoutStorageKey = (groupId: number) => `counter-group-${groupId}-layout`;
 

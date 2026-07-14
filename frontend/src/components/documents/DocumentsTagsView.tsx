@@ -2,6 +2,7 @@ import { ChevronDown, Tags } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import type { DocumentSummary, TagSummary } from "@/api/generated/initiativeAPI.schemas";
+import { SelectableGridItem } from "@/components/access/SelectableGridItem";
 import { DocumentCard } from "@/components/documents/DocumentCard";
 import { PaginationBar } from "@/components/documents/PaginationBar";
 import { TagTreeView } from "@/components/tags/TagTreeView";
@@ -22,6 +23,11 @@ export interface DocumentsTagsViewProps {
   onPageChange: (updater: number | ((prev: number) => number)) => void;
   onPageSizeChange: (size: number) => void;
   onPrefetchPage: (page: number) => void;
+  /** Bulk-selection mode (owned by the page, shared with the other views):
+   * cards become checkboxes while active. */
+  selectionActive?: boolean;
+  selectedDocumentIds?: Set<number>;
+  onToggleDocument?: (document: DocumentSummary) => void;
 }
 
 export const DocumentsTagsView = ({
@@ -38,6 +44,9 @@ export const DocumentsTagsView = ({
   onPageChange,
   onPageSizeChange,
   onPrefetchPage,
+  selectionActive = false,
+  selectedDocumentIds,
+  onToggleDocument,
 }: DocumentsTagsViewProps) => {
   const { t } = useTranslation("documents");
 
@@ -89,7 +98,15 @@ export const DocumentsTagsView = ({
           <>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
               {documents.map((document) => (
-                <DocumentCard key={document.id} document={document} hideInitiative />
+                <SelectableGridItem
+                  key={document.id}
+                  active={selectionActive}
+                  selected={selectedDocumentIds?.has(document.id) ?? false}
+                  onToggle={() => onToggleDocument?.(document)}
+                  label={document.title}
+                >
+                  <DocumentCard document={document} hideInitiative />
+                </SelectableGridItem>
               ))}
             </div>
             {totalCount > 0 && (

@@ -3977,7 +3977,11 @@ export const ExportProjectApiV1GGuildIdExportsProjectGetFormat = {
 } as const;
 
 export type ExportDocumentApiV1GGuildIdExportsDocumentGetParams = {
-  document_id: number;
+  document_id?: number | null;
+  /**
+   * Bulk selection: one artifact per document, zipped. The format must be valid for every selected document's type.
+   */
+  document_ids?: number[] | null;
   format: ExportDocumentApiV1GGuildIdExportsDocumentGetFormat;
   /**
    * IANA timezone for report timestamps
@@ -3999,7 +4003,11 @@ export const ExportDocumentApiV1GGuildIdExportsDocumentGetFormat = {
 } as const;
 
 export type ExportQueueApiV1GGuildIdExportsQueueGetParams = {
-  queue_id: number;
+  queue_id?: number | null;
+  /**
+   * Bulk selection: one artifact per queue, zipped
+   */
+  queue_ids?: number[] | null;
   format?: ExportQueueApiV1GGuildIdExportsQueueGetFormat;
   /**
    * IANA timezone for report timestamps
@@ -4019,7 +4027,11 @@ export const ExportQueueApiV1GGuildIdExportsQueueGetFormat = {
 } as const;
 
 export type ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetParams = {
-  counter_group_id: number;
+  counter_group_id?: number | null;
+  /**
+   * Bulk selection: one artifact per group, zipped
+   */
+  counter_group_ids?: number[] | null;
   format?: ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetFormat;
   /**
    * IANA timezone for report timestamps

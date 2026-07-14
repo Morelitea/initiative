@@ -8,6 +8,8 @@ import { invalidateAllCounterGroups } from "@/api/query-keys";
 import { BulkAccessBar, canManageSharing } from "@/components/access/BulkAccessBar";
 import { BulkEditAccessDialog } from "@/components/access/BulkEditAccessDialog";
 import { SelectableGridItem } from "@/components/access/SelectableGridItem";
+import { ExportButton } from "@/components/exports/ExportButton";
+import { COUNTER_EXPORT_FORMATS } from "@/components/exports/formats";
 import { CounterGroupCard } from "@/components/initiativeTools/counters/CounterGroupCard";
 import { CountersFilterBar } from "@/components/initiativeTools/counters/CountersFilterBar";
 import { CreateCounterGroupDialog } from "@/components/initiativeTools/counters/CreateCounterGroupDialog";
@@ -20,6 +22,7 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { canCreateTool, useMyInitiativePermissions } from "@/hooks/useInitiativeRoles";
 import { useInitiatives } from "@/hooks/useInitiatives";
+import { exportFilenameStem } from "@/lib/exportDownload";
 import { useGuildPath } from "@/lib/guildUrl";
 
 const INITIATIVE_FILTER_ALL = "all";
@@ -222,7 +225,18 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
               canManage={canManageSharing(selection.selectedItems)}
               onEditAccess={() => setBulkAccessOpen(true)}
               onExit={selection.exit}
-            />
+            >
+              {selection.selectedItems.length > 0 && (
+                <ExportButton
+                  endpoint="/exports/counter-group"
+                  params={{
+                    counter_group_ids: selection.selectedItems.map((g) => g.id),
+                  }}
+                  formats={COUNTER_EXPORT_FORMATS}
+                  filenameStem={exportFilenameStem(t("title"), "counters")}
+                />
+              )}
+            </BulkAccessBar>
           ) : (
             <div className="flex justify-end">
               <Button variant="outline" size="sm" onClick={selection.enter}>
