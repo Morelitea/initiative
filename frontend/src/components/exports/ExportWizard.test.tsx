@@ -117,6 +117,8 @@ describe("ExportWizard", () => {
       project: true,
       document: true,
       counter_group: false,
+      // Disabled tools submit as excluded — matching their locked-off switch.
+      queue: false,
     });
     expect(params.get("formats")).toBeNull();
 
@@ -156,6 +158,26 @@ describe("ExportWizard", () => {
     expect(formats.document).toEqual({ native: "pdf", spreadsheet: "xlsx" });
     expect(formats.calendar_event).toBe("ics");
     expect(params.get("include_uploads")).toBeNull();
+  });
+
+  it("blocks advancing when every tool is deselected", async () => {
+    stubJobLifecycle(() => {});
+
+    renderWithProviders(
+      <ExportWizard scope="initiative" initiativeId={5} open onOpenChange={() => {}} />
+    );
+    await userEvent.click(screen.getByRole("button", { name: /report à la carte/i }));
+
+    for (const switchEl of screen.getAllByRole("switch")) {
+      if (switchEl.getAttribute("aria-checked") === "true") {
+        await userEvent.click(switchEl);
+      }
+    }
+    expect(screen.getByRole("button", { name: /next/i })).toBeDisabled();
+
+    // Re-including one tool unblocks the step.
+    await userEvent.click(screen.getAllByRole("switch")[0]);
+    expect(screen.getByRole("button", { name: /next/i })).not.toBeDisabled();
   });
 
   it("blocks the backup step when the estimate exceeds a ceiling", async () => {

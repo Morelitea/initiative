@@ -88,4 +88,13 @@ describe("ExportJobsTable", () => {
     renderWithProviders(<ExportJobsTable />);
     expect(await screen.findByText(/no exports yet/i)).toBeInTheDocument();
   });
+
+  it("shows an error state when the list fails to load", async () => {
+    server.use(
+      guildHttp.get("/exports/", () => HttpResponse.json({ detail: "boom" }, { status: 500 }))
+    );
+    renderWithProviders(<ExportJobsTable />);
+    expect(await screen.findByText(/couldn't load exports/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no exports yet/i)).not.toBeInTheDocument();
+  });
 });

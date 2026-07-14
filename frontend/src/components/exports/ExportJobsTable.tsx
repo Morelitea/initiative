@@ -15,6 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useDateLocale } from "@/hooks/useDateLocale";
 import { downloadExportArtifact } from "@/lib/exportDownload";
 
 const ACTIVE = new Set(["queued", "running"]);
@@ -39,6 +40,7 @@ function sourceKey(source: string): string {
 export function ExportJobsTable() {
   const { t } = useTranslation("exports");
   const guildId = useActiveGuildId();
+  const dateLocale = useDateLocale();
 
   const jobsQuery = useListExportJobsApiV1GGuildIdExportsGet(guildId, {
     query: {
@@ -54,6 +56,9 @@ export function ExportJobsTable() {
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
       </div>
     );
+  }
+  if (jobsQuery.isError) {
+    return <p className="py-4 text-destructive text-sm">{t("table.loadFailed")}</p>;
   }
   if (jobs.length === 0) {
     return <p className="py-4 text-muted-foreground text-sm">{t("table.empty")}</p>;
@@ -95,11 +100,17 @@ export function ExportJobsTable() {
                 </Badge>
               </TableCell>
               <TableCell className="hidden text-muted-foreground text-sm sm:table-cell">
-                {formatDistanceToNow(new Date(job.created_at), { addSuffix: true })}
+                {formatDistanceToNow(new Date(job.created_at), {
+                  addSuffix: true,
+                  locale: dateLocale,
+                })}
               </TableCell>
               <TableCell className="hidden text-muted-foreground text-sm sm:table-cell">
                 {job.status === "done" && job.expires_at
-                  ? formatDistanceToNow(new Date(job.expires_at), { addSuffix: true })
+                  ? formatDistanceToNow(new Date(job.expires_at), {
+                      addSuffix: true,
+                      locale: dateLocale,
+                    })
                   : "—"}
               </TableCell>
               <TableCell className="text-right">

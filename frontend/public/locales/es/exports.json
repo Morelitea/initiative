@@ -86,6 +86,7 @@
       "guild": "Gremio"
     },
     "download": "Descargar",
-    "empty": "Aún no hay exportaciones."
+    "empty": "Aún no hay exportaciones.",
+    "loadFailed": "No se pudieron cargar las exportaciones. Actualiza para volver a intentarlo."
   }
 }

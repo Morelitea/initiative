@@ -90,10 +90,16 @@ export function ExportWizard({ scope, initiativeId, open, onOpenChange }: Export
     includeUploads &&
     (estimate.uploads_bytes ?? 0) > (estimate.max_upload_bytes ?? Infinity);
 
+  // A disabled tool's switch is locked showing "off" — the payload must say
+  // the same (the backend would skip it anyway, but the manifest's
+  // included/excluded/disabled inventory should match what the user saw).
+  const effectiveIncluded = (tool: Tool) => !toolDisabled(tool) && included(tool);
+  const anyIncluded = visibleTools.some(effectiveIncluded);
+
   const startExport = () => {
     const includeParam: Record<string, boolean> = {};
     for (const tool of visibleTools) {
-      includeParam[tool] = included(tool);
+      includeParam[tool] = effectiveIncluded(tool);
     }
     const params: Record<string, unknown> = {
       mode,
@@ -257,7 +263,7 @@ export function ExportWizard({ scope, initiativeId, open, onOpenChange }: Export
             )}
             <Button
               className="w-full"
-              disabled={overRowLimit || overUploadLimit}
+              disabled={!anyIncluded || overRowLimit || overUploadLimit}
               onClick={() => setStep("confirm")}
             >
               {t("wizard.next")}
@@ -340,7 +346,7 @@ export function ExportWizard({ scope, initiativeId, open, onOpenChange }: Export
                 );
               })}
             </div>
-            <Button className="w-full" onClick={() => setStep("confirm")}>
+            <Button className="w-full" disabled={!anyIncluded} onClick={() => setStep("confirm")}>
               {t("wizard.next")}
             </Button>
           </div>

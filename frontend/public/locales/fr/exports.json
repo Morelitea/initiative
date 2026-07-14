@@ -86,6 +86,7 @@
       "guild": "Guilde"
     },
     "download": "Télécharger",
-    "empty": "Aucun export pour l’instant."
+    "empty": "Aucun export pour l’instant.",
+    "loadFailed": "Impossible de charger les exports. Actualisez pour réessayer."
   }
 }
