@@ -19,11 +19,9 @@ from datetime import datetime, timezone
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.messages import ExportMessages
 from app.models.platform.user import User
 from app.schemas.tenant.project_export import ProjectExportEnvelope
 from app.services.export.contract import RenderItem, RenderRequest
-from app.services.export.engine import ExportError
 from app.services.export.i18n import et, export_locale, localize_now
 from app.services.platform.csv_export import safe_filename_component
 
@@ -61,9 +59,12 @@ class ProjectAdapter:
     ) -> int:
         from app.api.v1.tenant_endpoints.projects import count_project_export_rows
 
-        return await count_project_export_rows(
-            session, user, guild_id, project_id=_project_id(params)
-        )
+        total = 0
+        for project_id in _project_ids(params):
+            total += await count_project_export_rows(
+                session, user, guild_id, project_id=project_id
+            )
+        return total
 
     async def build(
         self,
@@ -76,31 +77,38 @@ class ProjectAdapter:
     ) -> RenderRequest:
         from app.api.v1.tenant_endpoints.projects import build_project_export_for_user
 
-        envelope = await build_project_export_for_user(
-            session, user, guild_id, project_id=_project_id(params)
-        )
         # One clock read: the filename date and the subtitle timestamp must
         # not straddle midnight into disagreeing dates.
         now = localize_now(datetime.now(timezone.utc), params.get("tz"))
-        date = now.strftime("%Y-%m-%d")
-        stem = safe_filename_component(envelope.project.name).lower()
-        if format == "json":
-            # Preserve the historical backup convention:
-            # <project-name>-<date>.initiative-project.json
-            item = RenderItem(
-                key=f"{stem}-{date}.initiative-project",
-                data=envelope.model_dump(mode="json"),
+        items = []
+        for project_id in _project_ids(params):
+            # The seam enforces WRITE per project — one read-only project in
+            # the selection fails the whole export, never a silent gap.
+            envelope = await build_project_export_for_user(
+                session, user, guild_id, project_id=project_id
             )
-        else:
-            item = RenderItem(
-                key=f"{stem}-{date}", data=_report_payload(envelope, user, now)
-            )
+            items.append(_project_item(envelope, format, user, now))
         return RenderRequest(
             guild_id=guild_id,
             template_id=self.template_id,
             format=format,
-            batch=(item,),
+            batch=tuple(items),
         )
+
+
+def _project_item(
+    envelope: ProjectExportEnvelope, format: str, user: User, now: datetime
+) -> RenderItem:
+    date = now.strftime("%Y-%m-%d")
+    stem = safe_filename_component(envelope.project.name).lower()
+    if format == "json":
+        # Preserve the historical backup convention:
+        # <project-name>-<date>.initiative-project.json
+        return RenderItem(
+            key=f"{stem}-{date}.initiative-project",
+            data=envelope.model_dump(mode="json"),
+        )
+    return RenderItem(key=f"{stem}-{date}", data=_report_payload(envelope, user, now))
 
 
 def _report_payload(envelope: ProjectExportEnvelope, user: User, now: datetime) -> dict:
@@ -139,9 +147,7 @@ def _report_payload(envelope: ProjectExportEnvelope, user: User, now: datetime) 
     }
 
 
-def _project_id(params: dict) -> int:
-    """The job row's params round-trip through JSON — validate, don't trust."""
-    try:
-        return int(params["project_id"])
-    except (KeyError, TypeError, ValueError):
-        raise ExportError(ExportMessages.EXPORT_INVALID_PARAMS)
+def _project_ids(params: dict) -> list[int]:
+    from app.services.export.adapters._common import selection_ids
+
+    return selection_ids(params, single_key="project_id", multi_key="project_ids")

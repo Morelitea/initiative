@@ -131,7 +131,10 @@ async def export_project(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-    project_id: int = Query(),
+    project_id: Optional[int] = Query(default=None),
+    project_ids: Optional[list[int]] = Query(
+        default=None, description="Bulk selection: one artifact per project, zipped"
+    ),
     format: Literal["json", "pdf", "csv", "xlsx"] = Query(default="json"),
     tz: Optional[str] = Query(
         default=None, max_length=64, description="IANA timezone for report timestamps"
@@ -149,7 +152,11 @@ async def export_project(
             guild_id=guild_context.guild_id,
             source="project",
             format=format,
-            params={"project_id": project_id, "tz": tz},
+            params={
+                "project_id": project_id,
+                "project_ids": project_ids,
+                "tz": tz,
+            },
             allow_job=_allow_job(guild_context),
         )
     except ExportError as exc:
@@ -165,7 +172,14 @@ async def export_document(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-    document_id: int = Query(),
+    document_id: Optional[int] = Query(default=None),
+    document_ids: Optional[list[int]] = Query(
+        default=None,
+        description=(
+            "Bulk selection: one artifact per document, zipped. The format "
+            "must be valid for every selected document's type."
+        ),
+    ),
     format: Literal["json", "md", "csv", "xlsx", "file", "pdf", "docx"] = Query(),
     tz: Optional[str] = Query(
         default=None, max_length=64, description="IANA timezone for report timestamps"
@@ -184,7 +198,11 @@ async def export_document(
             guild_id=guild_context.guild_id,
             source="document",
             format=format,
-            params={"document_id": document_id, "tz": tz},
+            params={
+                "document_id": document_id,
+                "document_ids": document_ids,
+                "tz": tz,
+            },
             allow_job=_allow_job(guild_context),
         )
     except ExportError as exc:
@@ -200,7 +218,10 @@ async def export_queue(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-    queue_id: int = Query(),
+    queue_id: Optional[int] = Query(default=None),
+    queue_ids: Optional[list[int]] = Query(
+        default=None, description="Bulk selection: one artifact per queue, zipped"
+    ),
     format: Literal["json", "pdf", "csv", "xlsx", "md"] = Query(default="json"),
     tz: Optional[str] = Query(
         default=None, max_length=64, description="IANA timezone for report timestamps"
@@ -219,7 +240,7 @@ async def export_queue(
             guild_id=guild_context.guild_id,
             source="queue",
             format=format,
-            params={"queue_id": queue_id, "tz": tz},
+            params={"queue_id": queue_id, "queue_ids": queue_ids, "tz": tz},
             allow_job=_allow_job(guild_context),
         )
     except ExportError as exc:
@@ -235,7 +256,10 @@ async def export_counter_group(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-    counter_group_id: int = Query(),
+    counter_group_id: Optional[int] = Query(default=None),
+    counter_group_ids: Optional[list[int]] = Query(
+        default=None, description="Bulk selection: one artifact per group, zipped"
+    ),
     format: Literal["json", "pdf", "csv", "xlsx", "md"] = Query(default="json"),
     tz: Optional[str] = Query(
         default=None, max_length=64, description="IANA timezone for report timestamps"
@@ -253,7 +277,11 @@ async def export_counter_group(
             guild_id=guild_context.guild_id,
             source="counter-group",
             format=format,
-            params={"counter_group_id": counter_group_id, "tz": tz},
+            params={
+                "counter_group_id": counter_group_id,
+                "counter_group_ids": counter_group_ids,
+                "tz": tz,
+            },
             allow_job=_allow_job(guild_context),
         )
     except ExportError as exc:

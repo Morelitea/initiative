@@ -1,4 +1,5 @@
 import { Shield } from "lucide-react";
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,8 @@ interface BulkAccessBarProps {
   canManage: boolean;
   onEditAccess: () => void;
   onExit: () => void;
+  /** Extra per-page actions rendered before "Edit access" (e.g. Export). */
+  children?: ReactNode;
 }
 
 /**
@@ -16,13 +19,20 @@ interface BulkAccessBarProps {
  * "Edit access" action. Mirrors the documents bulk toolbar so every list feels
  * the same.
  */
-export function BulkAccessBar({ count, canManage, onEditAccess, onExit }: BulkAccessBarProps) {
+export function BulkAccessBar({
+  count,
+  canManage,
+  onEditAccess,
+  onExit,
+  children,
+}: BulkAccessBarProps) {
   const { t } = useTranslation(["access", "common"]);
 
   return (
-    <div className="flex items-center justify-between rounded-md border border-primary bg-primary/5 p-4">
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary bg-primary/5 p-4">
       <div className="font-medium text-sm">{t("bulkBar.selected", { count })}</div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {children}
         <Button
           variant="outline"
           size="sm"

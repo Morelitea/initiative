@@ -217,7 +217,7 @@ export function useExportTasksApiV1GGuildIdExportsTasksGet<
  */
 export const exportProjectApiV1GGuildIdExportsProjectGet = (
   guildId: number,
-  params: ExportProjectApiV1GGuildIdExportsProjectGetParams,
+  params?: ExportProjectApiV1GGuildIdExportsProjectGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -239,7 +239,7 @@ export const getExportProjectApiV1GGuildIdExportsProjectGetQueryOptions = <
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: ExportProjectApiV1GGuildIdExportsProjectGetParams,
+  params?: ExportProjectApiV1GGuildIdExportsProjectGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -284,7 +284,7 @@ export function useExportProjectApiV1GGuildIdExportsProjectGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: ExportProjectApiV1GGuildIdExportsProjectGetParams,
+  params: undefined | ExportProjectApiV1GGuildIdExportsProjectGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -310,7 +310,7 @@ export function useExportProjectApiV1GGuildIdExportsProjectGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: ExportProjectApiV1GGuildIdExportsProjectGetParams,
+  params?: ExportProjectApiV1GGuildIdExportsProjectGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -336,7 +336,7 @@ export function useExportProjectApiV1GGuildIdExportsProjectGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: ExportProjectApiV1GGuildIdExportsProjectGetParams,
+  params?: ExportProjectApiV1GGuildIdExportsProjectGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -358,7 +358,7 @@ export function useExportProjectApiV1GGuildIdExportsProjectGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: ExportProjectApiV1GGuildIdExportsProjectGetParams,
+  params?: ExportProjectApiV1GGuildIdExportsProjectGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -574,7 +574,7 @@ export function useExportDocumentApiV1GGuildIdExportsDocumentGet<
  */
 export const exportQueueApiV1GGuildIdExportsQueueGet = (
   guildId: number,
-  params: ExportQueueApiV1GGuildIdExportsQueueGetParams,
+  params?: ExportQueueApiV1GGuildIdExportsQueueGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -596,7 +596,7 @@ export const getExportQueueApiV1GGuildIdExportsQueueGetQueryOptions = <
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: ExportQueueApiV1GGuildIdExportsQueueGetParams,
+  params?: ExportQueueApiV1GGuildIdExportsQueueGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -640,7 +640,7 @@ export function useExportQueueApiV1GGuildIdExportsQueueGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: ExportQueueApiV1GGuildIdExportsQueueGetParams,
+  params: undefined | ExportQueueApiV1GGuildIdExportsQueueGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -666,7 +666,7 @@ export function useExportQueueApiV1GGuildIdExportsQueueGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: ExportQueueApiV1GGuildIdExportsQueueGetParams,
+  params?: ExportQueueApiV1GGuildIdExportsQueueGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -692,7 +692,7 @@ export function useExportQueueApiV1GGuildIdExportsQueueGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: ExportQueueApiV1GGuildIdExportsQueueGetParams,
+  params?: ExportQueueApiV1GGuildIdExportsQueueGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -714,7 +714,7 @@ export function useExportQueueApiV1GGuildIdExportsQueueGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: ExportQueueApiV1GGuildIdExportsQueueGetParams,
+  params?: ExportQueueApiV1GGuildIdExportsQueueGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -750,7 +750,7 @@ export function useExportQueueApiV1GGuildIdExportsQueueGet<
  */
 export const exportCounterGroupApiV1GGuildIdExportsCounterGroupGet = (
   guildId: number,
-  params: ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetParams,
+  params?: ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -772,7 +772,7 @@ export const getExportCounterGroupApiV1GGuildIdExportsCounterGroupGetQueryOption
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetParams,
+  params?: ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -818,7 +818,7 @@ export function useExportCounterGroupApiV1GGuildIdExportsCounterGroupGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetParams,
+  params: undefined | ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -844,7 +844,7 @@ export function useExportCounterGroupApiV1GGuildIdExportsCounterGroupGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetParams,
+  params?: ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -870,7 +870,7 @@ export function useExportCounterGroupApiV1GGuildIdExportsCounterGroupGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetParams,
+  params?: ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -892,7 +892,7 @@ export function useExportCounterGroupApiV1GGuildIdExportsCounterGroupGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetParams,
+  params?: ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<

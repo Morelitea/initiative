@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ExportButton } from "@/components/exports/ExportButton";
 import {
   Card,
@@ -9,6 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { toolExportEndpoint } from "@/lib/tools";
 
 interface ProjectExportCardProps {
   projectId: number;
@@ -47,7 +49,7 @@ export const ProjectExportCard = ({
           // backup keeps its historical importable-file naming; the report
           // formats (pdf/csv/xlsx) share the plain stem.
           <ExportButton
-            endpoint="/exports/project"
+            endpoint={toolExportEndpoint(Tool.project)}
             params={{ project_id: projectId }}
             formats={[
               {

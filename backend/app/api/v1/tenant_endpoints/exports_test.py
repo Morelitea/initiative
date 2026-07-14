@@ -1383,3 +1383,220 @@ async def test_detailed_pdf_page_count_is_localized(
     packed = "".join(p.extract_text() for p in reader.pages).replace(" ", "")
     assert "1von2" in packed and "2von2" in packed
     assert "1of2" not in packed
+
+
+async def test_bulk_document_selection_exports_as_zip(
+    client: AsyncClient, acting_user, session
+):
+    """Selecting N documents exports one artifact per document in the
+    requested format, packaged as a single zip download — each entry under
+    its own name (colliding titles deduped, not overwritten)."""
+    import io
+    import json
+    import zipfile
+
+    from app.models.tenant.document import DocumentType
+    from app.testing.factories import create_document
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    native = await create_document(session, a.initiative, a.user, title="Session Notes")
+    sheet = await create_document(
+        session,
+        a.initiative,
+        a.user,
+        title="Budget",
+        document_type=DocumentType.spreadsheet,
+        content={"schema_version": 2, "cells": {"0:0": "x"}},
+    )
+    twin = await create_document(session, a.initiative, a.user, title="Session Notes")
+
+    resp = await client.get(
+        a.g("/exports/document"),
+        headers=a.headers,
+        params={"document_ids": [native.id, sheet.id, twin.id], "format": "json"},
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/zip"
+    assert 'filename="document-' in resp.headers["content-disposition"]
+    assert resp.headers["content-disposition"].endswith('.zip"')
+
+    archive = zipfile.ZipFile(io.BytesIO(resp.content))
+    names = sorted(archive.namelist())
+    assert len(names) == 3
+    # Native docs keep their .lexical filename; the twin title deduped.
+    lexicals = [n for n in names if n.endswith(".lexical")]
+    assert len(lexicals) == 2 and len(set(lexicals)) == 2
+    (envelope_name,) = [n for n in names if n.endswith(".json")]
+    envelope = json.loads(archive.read(envelope_name))
+    assert envelope["kind"] == "initiative-document"
+    assert envelope["title"] == "Budget"
+
+
+async def test_bulk_document_selection_rejects_format_not_shared_by_all(
+    client: AsyncClient, acting_user, session
+):
+    """The requested format must be valid for EVERY selected document's type
+    (a whiteboard can't render pdf), and per-item authorization still holds
+    (an out-of-initiative document 404s the whole selection)."""
+    from app.models.tenant.document import DocumentType
+    from app.testing.factories import create_document
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    native = await create_document(session, a.initiative, a.user, title="Notes")
+    board = await create_document(
+        session,
+        a.initiative,
+        a.user,
+        title="Map",
+        document_type=DocumentType.whiteboard,
+        content={"elements": []},
+    )
+    resp = await client.get(
+        a.g("/exports/document"),
+        headers=a.headers,
+        params={"document_ids": [native.id, board.id], "format": "pdf"},
+    )
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "EXPORT_INVALID_FORMAT"
+
+    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    denied = await client.get(
+        a.g("/exports/document"),
+        headers=outsider.headers,
+        params={"document_ids": [native.id, board.id], "format": "json"},
+    )
+    assert denied.status_code == 404
+
+
+async def test_bulk_queue_selection_exports_envelope_zip(
+    client: AsyncClient, acting_user, session
+):
+    import io
+    import json
+    import zipfile
+
+    from app.testing.factories import create_queue
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    q1 = await create_queue(session, a.initiative, a.user, name="Alpha Rotation")
+    q2 = await create_queue(session, a.initiative, a.user, name="Beta Rotation")
+
+    resp = await client.get(
+        a.g("/exports/queue"),
+        headers=a.headers,
+        params={"queue_ids": [q1.id, q2.id], "format": "json"},
+    )
+    assert resp.status_code == 200
+    archive = zipfile.ZipFile(io.BytesIO(resp.content))
+    names = sorted(archive.namelist())
+    assert len(names) == 2
+    assert all(n.endswith(".initiative-queue.json") for n in names)
+    kinds = {json.loads(archive.read(n))["name"] for n in names}
+    assert kinds == {"Alpha Rotation", "Beta Rotation"}
+
+    # Single-id selection stays a plain (unzipped) file.
+    single = await client.get(
+        a.g("/exports/queue"),
+        headers=a.headers,
+        params={"queue_ids": [q1.id], "format": "json"},
+    )
+    assert single.status_code == 200
+    assert single.headers["content-type"] == "application/json"
+
+
+async def test_bulk_counter_group_pdf_zip_through_job_path(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """A bulk selection over the inline threshold becomes a job; the worker
+    renders and stores the ZIP, and the download carries the bundle name."""
+    import io
+    import zipfile
+
+    from app.testing.factories import create_counter, create_counter_group
+
+    monkeypatch.setattr(settings, "EXPORT_INLINE_MAX_ROWS", 0)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    g1 = await create_counter_group(session, a.initiative, a.user, name="Party")
+    g2 = await create_counter_group(session, a.initiative, a.user, name="Villains")
+    await create_counter(session, g1, name="HP")
+    await create_counter(session, g2, name="Minions")
+
+    queued = await client.get(
+        a.g("/exports/counter-group"),
+        headers=a.headers,
+        params={"counter_group_ids": [g1.id, g2.id], "format": "pdf"},
+    )
+    assert queued.status_code == 202
+    job_id = queued.json()["id"]
+
+    user_session = await role_session("app_user")
+    monkeypatch.setattr(export_worker, "_open_user_session", lambda: user_session)
+    await export_worker.process_export_jobs()
+
+    dl = await client.get(a.g(f"/exports/{job_id}/download"), headers=a.headers)
+    assert dl.status_code == 200
+    assert dl.headers["content-type"] == "application/zip"
+    assert "counter-group-" in dl.headers["content-disposition"]
+    archive = zipfile.ZipFile(io.BytesIO(dl.content))
+    assert len(archive.namelist()) == 2
+    for name in archive.namelist():
+        assert archive.read(name).startswith(b"%PDF")
+
+
+async def test_bulk_selection_size_is_bounded(
+    client: AsyncClient, acting_user, session
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    resp = await client.get(
+        a.g("/exports/document"),
+        headers=a.headers,
+        params={"document_ids": list(range(1, 103)), "format": "json"},
+    )
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "EXPORT_INVALID_PARAMS"
+
+
+async def test_bulk_project_selection_exports_backup_zip(
+    client: AsyncClient, acting_user, session
+):
+    """Selecting N projects exports one backup envelope per project in a zip
+    — and the per-project WRITE rule holds: a read-only project anywhere in
+    the selection fails the whole export instead of leaving a silent gap."""
+    import io
+    import json
+    import zipfile
+
+    from app.testing.factories import create_project
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    second = await create_project(session, a.initiative, a.user, name="Second Arc")
+
+    resp = await client.get(
+        a.g("/exports/project"),
+        headers=a.headers,
+        params={"project_ids": [a.project.id, second.id], "format": "json"},
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/zip"
+    archive = zipfile.ZipFile(io.BytesIO(resp.content))
+    names = sorted(archive.namelist())
+    assert len(names) == 2
+    assert all(n.endswith(".initiative-project.json") for n in names)
+    envelopes = [json.loads(archive.read(n)) for n in names]
+    assert {e["project"]["name"] for e in envelopes} == {a.project.name, "Second Arc"}
+
+    # A write-less project in the selection: the owner grant belongs to the
+    # other member, so the whole selection is refused (403), not a partial zip.
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    theirs = await create_project(session, a.initiative, b.user, name="Not Yours")
+    denied = await client.get(
+        a.g("/exports/project"),
+        headers=a.headers,
+        params={"project_ids": [a.project.id, theirs.id], "format": "json"},
+    )
+    assert denied.status_code == 403

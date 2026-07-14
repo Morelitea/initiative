@@ -11,6 +11,7 @@ adapter queried, and the download endpoint re-gates on the ExportJob row.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any, Protocol
 
 from sqlalchemy import func, text
@@ -142,7 +143,9 @@ async def start_export(
         )
         request = await apply_brand(request, session)
         artifacts = await get_backend().render(request)
-        artifact = _single(artifacts)
+        artifact = _bundle(
+            artifacts, format=format, stem=_bundle_stem(source, params.get("tz"))
+        )
         return InlineExport(
             filename=artifact.filename or f"{artifact.key}.{format}",
             content_type=artifact.content_type,
@@ -185,12 +188,14 @@ async def start_export(
     return job
 
 
-async def render_to_storage(request: RenderRequest, *, job_id: int) -> str:
+async def render_to_storage(
+    request: RenderRequest, *, job_id: int, source: str, tz: str | None = None
+) -> str:
     """Render a job's request and persist the artifact behind the guild's
     storage backend (local FS or S3 transparently). Returns the artifact_ref
     storage key. Idempotent by job id — a re-render overwrites the same key."""
     artifacts = await get_backend().render(request)
-    artifact = _single(artifacts)
+    artifact = _bundle(artifacts, format=request.format, stem=_bundle_stem(source, tz))
     # The job id must live in the storage BASENAME, not a directory: both
     # backends flatten a key to Path(key).name (a path-traversal guard), so a
     # nested `exports/{job}/name` would drop the job id and two same-named
@@ -207,9 +212,57 @@ async def render_to_storage(request: RenderRequest, *, job_id: int) -> str:
     return key
 
 
-def _single(artifacts: list[RenderedArtifact]) -> RenderedArtifact:
-    # Bulk (batch=N) artifact packaging is not built yet; every current
-    # source emits a single-item batch.
-    if len(artifacts) != 1:
-        raise NotImplementedError("batch-of-N artifact packaging is not built yet")
-    return artifacts[0]
+def _bundle_stem(source: str, tz: str | None) -> str:
+    """The zip's name shares the caller's timezone with the entry names the
+    adapters produce — near-midnight exports must not disagree on the date."""
+    from app.services.export.i18n import localize_now
+
+    date = localize_now(datetime.now(timezone.utc), tz).strftime("%Y-%m-%d")
+    return f"{source}-{date}"
+
+
+def _bundle(
+    artifacts: list[RenderedArtifact], *, format: str, stem: str
+) -> RenderedArtifact:
+    """One artifact passes through untouched; a batch of N packages into a
+    single zip (the selection-export delivery: N entities, one download).
+    Entry names come from each artifact's own filename (or ``{key}.{format}``)
+    and collide only when two entities share a title — deduped with a numeric
+    suffix so both survive."""
+    if len(artifacts) == 1:
+        return artifacts[0]
+    if not artifacts:  # a selector that matched nothing — nothing to package
+        from app.core.messages import ExportMessages
+
+        raise ExportError(ExportMessages.EXPORT_INVALID_PARAMS)
+    import io
+    import zipfile
+
+    buffer = io.BytesIO()
+    taken: set[str] = set()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for artifact in artifacts:
+            name = artifact.filename or f"{artifact.key}.{format}"
+            name = _dedupe_name(name, taken)
+            taken.add(name)
+            archive.writestr(name, artifact.content)
+    return RenderedArtifact(
+        key=stem,
+        content_type="application/zip",
+        content=buffer.getvalue(),
+        filename=f"{stem}.zip",
+    )
+
+
+def _dedupe_name(name: str, taken: set[str]) -> str:
+    if name not in taken:
+        return name
+    if "." in name:
+        base, ext = name.rsplit(".", 1)
+        pattern = f"{base} ({{n}}).{ext}"
+    else:
+        pattern = f"{name} ({{n}})"
+    n = 2
+    while pattern.format(n=n) in taken:
+        n += 1
+    return pattern.format(n=n)

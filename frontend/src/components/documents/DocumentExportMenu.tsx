@@ -2,11 +2,14 @@ import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { DocumentReadDocumentType } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import type { WhiteboardScene } from "@/components/documents/WhiteboardDocumentEditor";
-import { ExportButton, type ExportFormatOption } from "@/components/exports/ExportButton";
+import { ExportButton } from "@/components/exports/ExportButton";
+import { DOCUMENT_TYPE_FORMATS } from "@/components/exports/formats";
 import { toast } from "@/lib/chesterToast";
 import { downloadBlob } from "@/lib/csv";
 import { exportFilenameStem } from "@/lib/exportDownload";
+import { toolExportEndpoint } from "@/lib/tools";
 
 interface DocumentExportMenuProps {
   documentId: number;
@@ -17,25 +20,6 @@ interface DocumentExportMenuProps {
    * produced in the browser while the engine handles the importable JSON. */
   whiteboardScene?: WhiteboardScene;
 }
-
-// Engine formats per document type — mirrors the backend adapter's rules.
-const TYPE_FORMATS: Record<DocumentReadDocumentType, ExportFormatOption[]> = {
-  native: [
-    { format: "pdf", labelKey: "export.formatPdf" },
-    { format: "md", labelKey: "export.formatMarkdown" },
-    { format: "docx", labelKey: "export.formatDocx" },
-    // The lossless one: round-trips through the editor toolbar's import.
-    { format: "json", labelKey: "export.formatLexical" },
-  ],
-  whiteboard: [{ format: "json", labelKey: "export.formatExcalidraw" }],
-  spreadsheet: [
-    { format: "csv", labelKey: "export.formatCsv" },
-    { format: "xlsx", labelKey: "export.formatXlsx" },
-    { format: "json", labelKey: "export.formatJson" },
-  ],
-  file: [{ format: "file", labelKey: "export.formatOriginal" }],
-  smart_link: [{ format: "md", labelKey: "export.formatMarkdown" }],
-};
 
 export function DocumentExportMenu({
   documentId,
@@ -93,9 +77,9 @@ export function DocumentExportMenu({
 
   return (
     <ExportButton
-      endpoint="/exports/document"
+      endpoint={toolExportEndpoint(Tool.document)}
       params={{ document_id: documentId }}
-      formats={TYPE_FORMATS[documentType] ?? []}
+      formats={DOCUMENT_TYPE_FORMATS[documentType] ?? []}
       filenameStem={stem}
       extraActions={extraActions}
     />
