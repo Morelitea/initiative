@@ -1,9 +1,12 @@
-import { Link, useNavigate, useParams } from "@tanstack/react-router";
-import { Loader2, Plus, SearchX, Settings, ShieldAlert, Trash2 } from "lucide-react";
+import { Link, useParams } from "@tanstack/react-router";
+import { Loader2, Plus, SearchX, Settings, ShieldAlert } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { QueueItemRead } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { ExportButton } from "@/components/exports/ExportButton";
+import { TOOL_EXPORT_FORMATS } from "@/components/exports/formats";
 import { ActHeldButton } from "@/components/initiativeTools/queues/ActHeldButton";
 import { AddQueueItemDialog } from "@/components/initiativeTools/queues/AddQueueItemDialog";
 import { EditQueueItemDialog } from "@/components/initiativeTools/queues/EditQueueItemDialog";
@@ -24,13 +27,11 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useQueueRealtime } from "@/hooks/useQueueRealtime";
 import {
   useAdvanceTurn,
-  useDeleteQueue,
   useHoldCurrent,
   usePreviousTurn,
   useQueue,
@@ -45,13 +46,14 @@ import { useQueueView } from "@/hooks/useQueueView";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { toast } from "@/lib/chesterToast";
 import { getHttpStatus } from "@/lib/errorMessage";
+import { exportFilenameStem } from "@/lib/exportDownload";
 import { useGuildPath } from "@/lib/guildUrl";
+import { toolExportEndpoint } from "@/lib/tools";
 
 export function QueueDetailPage() {
   const { t } = useTranslation(["queues", "common"]);
   const { guildId, queueId } = useParams({ strict: false }) as { guildId: string; queueId: string };
   const parsedId = Number(queueId);
-  const navigate = useNavigate();
   const gp = useGuildPath();
 
   const queueQuery = useQueue(Number.isFinite(parsedId) ? parsedId : null);
@@ -105,15 +107,6 @@ export function QueueDetailPage() {
     }
     updateQueue.mutate({ name: trimmed });
   };
-
-  // Delete queue
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const deleteQueue = useDeleteQueue({
-    onSuccess: () => {
-      toast.success(t("queueDeleted"));
-      void navigate({ to: gp("/queues") });
-    },
-  });
 
   // Turn controls
   const startQueue = useStartQueue(parsedId, {
@@ -236,21 +229,21 @@ export function QueueDetailPage() {
           <Badge variant={queue.is_active ? "default" : "secondary"}>
             {queue.is_active ? t("active") : t("inactive")}
           </Badge>
+          <ExportButton
+            endpoint={toolExportEndpoint(Tool.queue)}
+            params={{ queue_id: queue.id }}
+            formats={TOOL_EXPORT_FORMATS[Tool.queue] ?? []}
+            filenameStem={exportFilenameStem(queue.name, "queue")}
+          />
           {canEdit && (
-            <Button variant="ghost" size="sm" asChild>
-              <Link to={gp(`/queues/${queue.id}/settings`)}>
+            <Button variant="outline" size="sm" asChild>
+              <Link
+                to={gp(`/queues/${queue.id}/settings`)}
+                className="inline-flex items-center gap-2"
+              >
                 <Settings className="h-4 w-4" />
+                {t("settings")}
               </Link>
-            </Button>
-          )}
-          {canEdit && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-destructive hover:text-destructive"
-              onClick={() => setDeleteConfirmOpen(true)}
-            >
-              <Trash2 className="h-4 w-4" />
             </Button>
           )}
         </div>
@@ -404,19 +397,6 @@ export function QueueDetailPage() {
           readOnly={!canEdit}
         />
       )}
-
-      {/* Delete Queue Confirmation */}
-      <ConfirmDialog
-        open={deleteConfirmOpen}
-        onOpenChange={setDeleteConfirmOpen}
-        title={t("deleteQueue")}
-        description={t("deleteQueueConfirm")}
-        confirmLabel={t("deleteQueue")}
-        cancelLabel={t("common:cancel")}
-        onConfirm={() => deleteQueue.mutate(parsedId)}
-        isLoading={deleteQueue.isPending}
-        destructive
-      />
     </div>
   );
 }

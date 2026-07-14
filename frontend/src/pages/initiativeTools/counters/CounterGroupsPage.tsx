@@ -8,6 +8,7 @@ import { invalidateAllCounterGroups } from "@/api/query-keys";
 import { BulkAccessBar, canManageSharing } from "@/components/access/BulkAccessBar";
 import { BulkEditAccessDialog } from "@/components/access/BulkEditAccessDialog";
 import { SelectableGridItem } from "@/components/access/SelectableGridItem";
+import { BulkExportButton } from "@/components/exports/BulkExportButton";
 import { CounterGroupCard } from "@/components/initiativeTools/counters/CounterGroupCard";
 import { CountersFilterBar } from "@/components/initiativeTools/counters/CountersFilterBar";
 import { CreateCounterGroupDialog } from "@/components/initiativeTools/counters/CreateCounterGroupDialog";
@@ -222,7 +223,12 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
               canManage={canManageSharing(selection.selectedItems)}
               onEditAccess={() => setBulkAccessOpen(true)}
               onExit={selection.exit}
-            />
+            >
+              <BulkExportButton
+                tool={Tool.counter_group}
+                ids={selection.selectedItems.map((g) => g.id)}
+              />
+            </BulkAccessBar>
           ) : (
             <div className="flex justify-end">
               <Button variant="outline" size="sm" onClick={selection.enter}>

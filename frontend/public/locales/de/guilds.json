@@ -225,7 +225,9 @@
       "enableDescription": "Lass dich über neue Aufgaben, Erwähnungen und mehr benachrichtigen",
       "dismiss": "Verwerfen",
       "enable": "Aktivieren"
-    }
+    },
+    "exportReady": "Dein Export ist bereit — klicke zum Herunterladen.",
+    "exportFailed": "Dein Export ist fehlgeschlagen. Versuche es erneut."
   },
   "version": {
     "newVersionAvailable": "Neue Version verfügbar",

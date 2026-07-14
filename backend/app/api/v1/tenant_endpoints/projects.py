@@ -1865,22 +1865,44 @@ async def set_project_grants(
 # ── Export / Import ──────────────────────────────────────────────
 
 
-@router.get("/{project_id}/export", response_model=ProjectExportEnvelope)
-async def export_project(
+async def count_project_export_rows(
+    session,
+    current_user: User,
+    guild_id: int,
+    *,
     project_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> ProjectExportEnvelope:
-    """Serialize a project to a self-contained JSON envelope.
+    access: str = "write",
+) -> int:
+    """The project-export adapter's pre-render signal: enforce the export
+    access rule (write on the project — read-only members can't take
+    standalone backups; the initiative/guild aggregate export passes
+    ``access="read"``, its deliberate relaxation), then return the task count
+    as the size proxy for inline-vs-job selection."""
+    project = await _get_project_or_404(project_id, session, guild_id)
+    await _require_project_membership(project, current_user, session, access=access)
+    return (
+        await session.exec(
+            select(func.count()).select_from(Task).where(Task.project_id == project.id)
+        )
+    ).one()
 
-    Cross-row references (tags, statuses, properties, assignees) are
-    encoded by string keys (name / email) so the file imports cleanly on
-    a different Initiative instance. Requires write access on the
-    project — read-only members can't take backups.
-    """
-    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
-    await _require_project_membership(project, current_user, session, access="write")
+
+async def build_project_export_for_user(
+    session,
+    current_user: User,
+    guild_id: int,
+    *,
+    project_id: int,
+    access: str = "write",
+) -> ProjectExportEnvelope:
+    """The project-export adapter's build seam: the same access rule and
+    envelope as the retired ``GET /{project_id}/export`` route. Cross-row
+    references (tags, statuses, properties, assignees) are encoded by string
+    keys (name / email) so the file imports cleanly on another instance.
+    The initiative/guild aggregate export passes ``access="read"`` — its
+    deliberate relaxation; standalone exports keep write."""
+    project = await _get_project_or_404(project_id, session, guild_id)
+    await _require_project_membership(project, current_user, session, access=access)
     return await project_export_service.build_project_export(
         session,
         project_id=project.id,

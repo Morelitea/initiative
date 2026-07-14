@@ -22,7 +22,7 @@ const ratioPct = (used: number, max: number | null): number | null =>
  * (`/config` → `billing.url`); with it unset none of that UI exists.
  */
 export const GuildUsagePanel = () => {
-  const { t } = useTranslation(["guilds", "common"]);
+  const { t, i18n } = useTranslation(["guilds", "common"]);
   const { activeGuild } = useGuilds();
   const { billing } = useAppConfig();
 
@@ -45,11 +45,17 @@ export const GuildUsagePanel = () => {
   // unset, the neutral app-owned label is "Self-hosted".
   const tierLabel = activeGuild.tier_name ?? t("usagePanel.selfHosted");
 
-  const upgradeUrl = billing ? `${billing.url}/upgrade?guild=${activeGuild.id}` : null;
+  // The portal renders its own UI in the user's language when told which one;
+  // resolvedLanguage is the base tag i18next actually loaded (e.g. "fr", not
+  // "fr-CA"), matching the portal's supported set.
+  const lang = i18n.resolvedLanguage ?? i18n.language;
+  const upgradeUrl = billing
+    ? `${billing.url}/upgrade?guild=${activeGuild.id}&lang=${encodeURIComponent(lang)}`
+    : null;
   const manageUrl = billing
     ? `${billing.url}/checkout?guild=${activeGuild.id}${
         activeGuild.tier_name ? `&plan=${encodeURIComponent(activeGuild.tier_name)}` : ""
-      }`
+      }&lang=${encodeURIComponent(lang)}`
     : null;
 
   return (

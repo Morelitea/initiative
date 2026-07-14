@@ -120,3 +120,28 @@ def test_recent_entity_types_agree_across_surfaces():
     assert set(RECENT_ENTITY_TABLES) == derived
     assert {e.value for e in RecentEntityType} == derived
     assert derived <= {t.value for t in Tool}
+
+
+def test_export_adapters_cover_exactly_the_bulk_export_tools():
+    """The export-engine adapter registry and the tool registry must agree:
+    every BULK_EXPORT_TOOLS member has an adapter keyed by its kebab-singular
+    source name, and the only non-tool source is the tasks sub-resource. A
+    new exportable tool (or a renamed source) fails here instead of shipping
+    a bulk-export flag with no engine behind it."""
+    from app.core.tools import BULK_EXPORT_TOOLS, Tool, tool_export_source
+    from app.services.export.adapters import ADAPTERS
+
+    derived = {tool_export_source(tool) for tool in BULK_EXPORT_TOOLS}
+    extra = set(ADAPTERS) - derived
+    assert derived <= set(ADAPTERS), f"missing adapters for {derived - set(ADAPTERS)}"
+    # "tasks" is a project sub-resource (the filterable task list), not a
+    # Tool; "initiative"/"guild" are the aggregate backup/report scopes.
+    allowed = {"tasks", "initiative", "guild"}
+    assert extra == allowed, f"unregistered export sources: {extra - allowed}"
+    # Tools without the flag must not silently grow an adapter either.
+    unflagged = {
+        tool_export_source(t) for t in Tool if t not in BULK_EXPORT_TOOLS
+    } & set(ADAPTERS)
+    assert not unflagged, (
+        f"adapter exists but tool not in BULK_EXPORT_TOOLS: {unflagged}"
+    )

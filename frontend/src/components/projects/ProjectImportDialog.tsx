@@ -2,7 +2,7 @@ import { useRouter } from "@tanstack/react-router";
 import { type ChangeEvent, type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { InitiativeRead, ProjectExportEnvelope } from "@/api/generated/initiativeAPI.schemas";
+import type { InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
 import { useImportProjectApiV1GGuildIdProjectsImportPost } from "@/api/generated/projects/projects";
 import { invalidateAllProjects } from "@/api/query-keys";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,15 @@ import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
+
+/** The subset of the export envelope the preview reads. The file is
+ * user-supplied input, so a narrow structural type is more honest than the
+ * full schema — the backend re-validates the whole envelope on import. */
+type ProjectExportEnvelope = {
+  schema_version: number;
+  project: { name: string };
+  tasks: unknown[];
+};
 
 interface ProjectImportDialogProps {
   open: boolean;

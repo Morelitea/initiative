@@ -178,6 +178,75 @@ async def get_document(
     return document
 
 
+async def get_document_for_export(
+    session: AsyncSession,
+    current_user,
+    guild_id: int,
+    *,
+    document_id: int,
+) -> Document:
+    """The document-export adapter's seam: fetch + authorize in one place so
+    the rule holds on the worker's render-time replay too. READ access
+    suffices — exporting is a formatted read, unlike the project backup
+    (which requires write). The guild role is resolved here rather than taken
+    from a request context, so the seam works transport-free."""
+    from fastapi import HTTPException, status as http_status
+
+    from app.services import permissions as permissions_service
+    from app.services.platform import guilds as guilds_service
+
+    document = await get_document(session, document_id=document_id, guild_id=guild_id)
+    if document is None:
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail=DocumentMessages.NOT_FOUND,
+        )
+    membership = await guilds_service.get_membership(
+        session, guild_id=guild_id, user_id=current_user.id
+    )
+    permissions_service.require_document_access(
+        document,
+        current_user,
+        access="read",
+        guild_role=membership.role if membership else None,
+    )
+    return document
+
+
+async def list_document_ids_for_export(
+    session: AsyncSession,
+    current_user,
+    guild_id: int,
+    *,
+    initiative_ids: list[int],
+) -> list[int]:
+    """Ids of every document the user may export in the given initiatives —
+    DAC-visible to the user (guild admins see all via the membership role).
+    Deterministic order for stable backup output."""
+    from sqlmodel import select
+
+    from app.services import permissions as permissions_service
+    from app.services.platform import guilds as guilds_service
+    from app.services.rls import is_guild_admin
+
+    if not initiative_ids:
+        return []
+    conditions = [Document.initiative_id.in_(initiative_ids)]
+    membership = await guilds_service.get_membership(
+        session, guild_id=guild_id, user_id=current_user.id
+    )
+    if membership is None or not is_guild_admin(membership.role):
+        conditions.append(
+            Document.id.in_(
+                permissions_service.visible_resource_ids_subquery(
+                    "document", current_user.id
+                )
+            )
+        )
+    statement = select(Document.id).where(*conditions).order_by(Document.id.asc())
+    return list(await session.exec(statement))
+
+
 async def get_document_for_grants(
     session: AsyncSession, document_id: int
 ) -> Document | None:

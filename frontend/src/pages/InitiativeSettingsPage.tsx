@@ -12,6 +12,7 @@ import type {
 import { InitiativeSettingsDangerTab } from "@/components/initiatives/settings/InitiativeSettingsDangerTab";
 import { InitiativeSettingsDetailsTab } from "@/components/initiatives/settings/InitiativeSettingsDetailsTab";
 import { InitiativeSettingsDialogs } from "@/components/initiatives/settings/InitiativeSettingsDialogs";
+import { InitiativeSettingsExportTab } from "@/components/initiatives/settings/InitiativeSettingsExportTab";
 import { InitiativeSettingsMembersTab } from "@/components/initiatives/settings/InitiativeSettingsMembersTab";
 import { InitiativeSettingsPropertiesTab } from "@/components/initiatives/settings/InitiativeSettingsPropertiesTab";
 import { InitiativeSettingsRolesTab } from "@/components/initiatives/settings/InitiativeSettingsRolesTab";
@@ -241,6 +242,7 @@ export const InitiativeSettingsPage = () => {
           <TabsTrigger value="members">{t("settings.membersTab")}</TabsTrigger>
           <TabsTrigger value="roles">{t("settings.rolesTab")}</TabsTrigger>
           <TabsTrigger value="properties">{t("properties:manager.title")}</TabsTrigger>
+          {canManageMembers && <TabsTrigger value="export">{t("settings.exportTab")}</TabsTrigger>}
           <TabsTrigger value="danger">{t("settings.dangerTab")}</TabsTrigger>
         </TabsList>
         <InitiativeSettingsDetailsTab
@@ -287,6 +289,10 @@ export const InitiativeSettingsPage = () => {
         />
 
         <InitiativeSettingsPropertiesTab initiativeId={initiativeId} />
+
+        {/* Aggregate export is managers+ (the guild-wide variant lives in
+            guild settings, admin-gated). */}
+        {canManageMembers && <InitiativeSettingsExportTab initiativeId={initiativeId} />}
 
         <InitiativeSettingsDangerTab
           isDefault={initiative.is_default}

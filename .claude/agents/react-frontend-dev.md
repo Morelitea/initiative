@@ -72,6 +72,10 @@ cd frontend && pnpm test     # Run Vitest tests
 
 ## Code Quality Standards
 
+### Security-sensitive comments
+
+- **Never write comments that reference direct security issues** — specific vulnerabilities, exploit/bypass mechanisms, or "without this an attacker could…" narratives. This source is public; such comments are an attack-targeting surface. Use only simple functional explanations of what the code does, not how a protection works or could be defeated.
+
 ### TypeScript Best Practices
 
 - Use strict mode, avoid `any` - prefer `unknown` when type is truly unknown

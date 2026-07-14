@@ -42,6 +42,12 @@ def start_background_tasks() -> list[asyncio.Task]:
         process_jti_blocklist_purges,
         JTI_PURGE_POLL_SECONDS,
     )
+    from app.services.export.worker import (
+        process_export_jobs,
+        process_export_gc,
+        EXPORT_POLL_SECONDS,
+        EXPORT_GC_POLL_SECONDS,
+    )
 
     return [
         asyncio.create_task(
@@ -76,5 +82,11 @@ def start_background_tasks() -> list[asyncio.Task]:
             _loop_worker(
                 process_jti_blocklist_purges, JTI_PURGE_POLL_SECONDS, "jti-purge"
             )
+        ),
+        asyncio.create_task(
+            _loop_worker(process_export_jobs, EXPORT_POLL_SECONDS, "export-jobs")
+        ),
+        asyncio.create_task(
+            _loop_worker(process_export_gc, EXPORT_GC_POLL_SECONDS, "export-gc")
         ),
     ]

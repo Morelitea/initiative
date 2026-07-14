@@ -14,6 +14,7 @@ import {
   useMarkNotificationRead,
   useNotifications,
 } from "@/hooks/useNotifications";
+import { downloadExportArtifact } from "@/lib/exportDownload";
 import { guildPath } from "@/lib/guildUrl";
 
 // Build guild-scoped URL directly
@@ -223,16 +224,44 @@ const notificationText = (
       return t("notifications.eventReminder", {
         eventTitle: data.event_title ?? "an event",
       });
+    case "export_ready":
+      return t("notifications.exportReady");
+    case "export_failed":
+      return t("notifications.exportFailed");
     default:
       return t("notifications.defaultNotification");
   }
+};
+
+/** Export artifacts are fetched, not navigated to — pull the ids the download
+ * call needs, or null when the payload is malformed. */
+const exportDownloadTarget = (
+  notification: NotificationRead
+): { guildId: number; jobId: number; source: string; format: string } | null => {
+  if (notification.type !== "export_ready") {
+    return null;
+  }
+  const data = notification.data || {};
+  const guildId = Number(data.guild_id);
+  const jobId = Number(data.export_job_id);
+  if (!Number.isFinite(guildId) || !Number.isFinite(jobId)) {
+    return null;
+  }
+  return {
+    guildId,
+    jobId,
+    source: typeof data.source === "string" ? data.source : "tasks",
+    format: typeof data.format === "string" ? data.format : "pdf",
+  };
 };
 
 export const NotificationBell = () => {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const { user } = useAuth();
-  const { t } = useTranslation("guilds");
+  // "tasks" is loaded alongside so the export download's cross-namespace
+  // toast keys (tasks:export.*) are available when clicked from the bell.
+  const { t } = useTranslation(["guilds", "tasks"]);
   const isEnabled = Boolean(user);
 
   const notificationsQuery = useNotifications({
@@ -259,6 +288,20 @@ export const NotificationBell = () => {
       } catch {
         // ignore errors
       }
+    }
+    // A finished export is fetched, not navigated to: the artifact lives
+    // behind the job-gated download endpoint, so the click IS the download.
+    const exportTarget = exportDownloadTarget(notification);
+    if (exportTarget) {
+      setOpen(false);
+      await downloadExportArtifact(
+        exportTarget.guildId,
+        exportTarget.jobId,
+        t as (key: string, options?: Record<string, unknown>) => string,
+        exportTarget.source,
+        exportTarget.format
+      );
+      return;
     }
     const target = notificationLink(notification);
     if (target) {

@@ -52,7 +52,7 @@ _STREAM_CHUNK = 64 * 1024
 _S3_MISSING_CODES = {"404", "NoSuchKey", "NoSuchBucket", "NotFound"}
 
 
-def _content_disposition_attachment(filename: str) -> str:
+def content_disposition_attachment(filename: str) -> str:
     """Build a safe ``attachment`` Content-Disposition value.
 
     Mirrors Starlette's ``FileResponse`` so a user-supplied filename containing a
@@ -379,7 +379,7 @@ class S3Storage:
     ) -> str | None:
         params: dict[str, str] = {"Bucket": self._bucket, "Key": self._object_key(key)}
         if filename:
-            params["ResponseContentDisposition"] = _content_disposition_attachment(
+            params["ResponseContentDisposition"] = content_disposition_attachment(
                 filename
             )
         return self._client.generate_presigned_url(
@@ -490,7 +490,7 @@ def build_upload_response(
     if blob.content_length is not None and "Content-Length" not in headers:
         headers["Content-Length"] = str(blob.content_length)
     if filename is not None and "Content-Disposition" not in headers:
-        headers["Content-Disposition"] = _content_disposition_attachment(filename)
+        headers["Content-Disposition"] = content_disposition_attachment(filename)
     return StreamingResponse(blob.stream or iter(()), media_type=media, headers=headers)
 
 

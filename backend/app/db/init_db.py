@@ -11,6 +11,7 @@ from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.security import get_password_hash
 from app.db.schema_provisioning import (
     deprovision_guild,
+    ensure_shared_table_grants,
     ensure_system_engine_bypassrls,
 )
 from app.db.session import AdminSessionLocal, run_migrations, set_rls_context
@@ -168,6 +169,11 @@ async def init() -> None:
     # primary guild and die on the guilds RLS policy (issue #835). Verify —
     # and, when DATABASE_URL lawfully can, repair — before touching data.
     await ensure_system_engine_bypassrls()
+    # And, one gate deeper, the shared-table GRANTs the system engine needs to
+    # actually write (BYPASSRLS skips policies, not privilege checks) — a
+    # restored role can be missing them, failing with "permission denied for
+    # table guilds" (issue #835 follow-up).
+    await ensure_shared_table_grants()
     await init_owner()
     async with AdminSessionLocal() as session:
         # guild_settings is guild-scoped; route into the primary guild's schema so

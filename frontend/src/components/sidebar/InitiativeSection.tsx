@@ -89,6 +89,22 @@ export const InitiativeSection = memo(
         ? advancedTool.name
         : t(toolNavLabelKey(tool));
 
+    /** Whether to surface a create affordance for a tool. Mirrors showTool's
+     * deployment-config gate for the advanced tool (no integration → no create). */
+    const canCreateTool = (tool: Tool): boolean =>
+      access[tool].create && (tool !== Tool.advanced_tool || Boolean(advancedTool));
+
+    /** Create target for a tool. Regular tools open a create dialog at their
+     * list route; the advanced tool hands off to its embedded external page
+     * with a "new" intent (authoring happens fully in that service, not here). */
+    const createLink = (tool: Tool) =>
+      tool === Tool.advanced_tool
+        ? { to: gp(`/initiatives/${initiative.id}/advanced-tool`), search: { create: "true" } }
+        : {
+            to: gp(toolListRoute(tool)),
+            search: { create: "true", initiativeId: String(initiative.id) },
+          };
+
     // Load initial state from storage, default to true if not found
     const [isOpen, setIsOpen] = useState(() => {
       try {
@@ -196,19 +212,17 @@ export const InitiativeSection = memo(
                       {t("initiativeSettings")}
                     </Link>
                   </DropdownMenuItem>
-                  {SIDEBAR_TOOLS.filter(
-                    (tool) => TOOL_REGISTRY[tool].inAppCreate && access[tool].create
-                  ).map((tool) => (
-                    <DropdownMenuItem key={tool} asChild>
-                      <Link
-                        to={gp(toolListRoute(tool))}
-                        search={{ create: "true", initiativeId: String(initiative.id) }}
-                      >
-                        <Plus className="mr-2 h-4 w-4" />
-                        {t(toolCreateLabelKey(tool))}
-                      </Link>
-                    </DropdownMenuItem>
-                  ))}
+                  {SIDEBAR_TOOLS.filter(canCreateTool).map((tool) => {
+                    const link = createLink(tool);
+                    return (
+                      <DropdownMenuItem key={tool} asChild>
+                        <Link to={link.to} search={link.search}>
+                          <Plus className="mr-2 h-4 w-4" />
+                          {t(toolCreateLabelKey(tool))}
+                        </Link>
+                      </DropdownMenuItem>
+                    );
+                  })}
                 </DropdownMenuContent>
               </DropdownMenu>
             </>
@@ -229,6 +243,7 @@ export const InitiativeSection = memo(
                 const def = TOOL_REGISTRY[tool];
                 const Icon = def.icon;
                 const link = toolLink(tool);
+                const createTarget = createLink(tool);
                 return (
                   <SidebarMenuItem key={tool}>
                     <div className="group/tool flex w-full min-w-0 items-center gap-1">
@@ -247,51 +262,28 @@ export const InitiativeSection = memo(
                           )}
                         </Link>
                       </SidebarMenuButton>
-                      {access[tool].create &&
-                        (def.inAppCreate ? (
-                          <Tooltip delayDuration={300}>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/tool:opacity-100 lg:flex"
-                                asChild
-                              >
-                                <Link
-                                  to={gp(toolListRoute(tool))}
-                                  search={{ create: "true", initiativeId: String(initiative.id) }}
-                                >
-                                  <Plus className="h-3 w-3" />
-                                </Link>
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="top">
-                              <p>{t(toolCreateLabelKey(tool))}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        ) : (
-                          /* Clearly-marked placeholder: this tool's content is
-                             authored in the external service, so the + explains
-                             where instead of opening a dialog. */
-                          <Tooltip delayDuration={300}>
-                            <TooltipTrigger asChild>
-                              <span className="hidden shrink-0 opacity-0 transition-opacity group-hover/tool:opacity-100 lg:flex">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  disabled
-                                  aria-label={t("createExternally", { name: toolLabel(tool) })}
-                                  className="h-6 w-6"
-                                >
-                                  <Plus className="h-3 w-3" />
-                                </Button>
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent side="top">
-                              <p>{t("createExternally", { name: toolLabel(tool) })}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        ))}
+                      {canCreateTool(tool) && (
+                        <Tooltip delayDuration={300}>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/tool:opacity-100 lg:flex"
+                              asChild
+                            >
+                              {/* Regular tools open a create dialog at their list
+                                  route; the advanced tool hands off to its embedded
+                                  external page with a "new" intent. */}
+                              <Link to={createTarget.to} search={createTarget.search}>
+                                <Plus className="h-3 w-3" />
+                              </Link>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <p>{t(toolCreateLabelKey(tool))}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
                     </div>
                   </SidebarMenuItem>
                 );

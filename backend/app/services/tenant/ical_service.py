@@ -13,6 +13,7 @@ import icalendar
 from app.models.tenant.calendar_event import CalendarEvent
 from app.schemas.tenant.calendar_event import EventRecurrence
 from app.schemas.tenant.ical import ICalEventPreview, ICalParseResult
+from app.services.export.property_values import property_export_dict
 
 logger = logging.getLogger(__name__)
 
@@ -40,13 +41,13 @@ _RSVP_TO_PARTSTAT = {
 # ---------------------------------------------------------------------------
 
 
-def _recurrence_to_rrule(recurrence_json: Optional[str]) -> Optional[dict]:
-    """Convert stored recurrence JSON to RRULE dict for icalendar."""
-    if not recurrence_json:
+def _recurrence_to_rrule(recurrence: Optional[dict]) -> Optional[dict]:
+    """Convert a parsed recurrence dict (EventRecurrence shape) to an RRULE
+    dict for icalendar."""
+    if not recurrence:
         return None
     try:
-        data = json.loads(recurrence_json)
-        rec = EventRecurrence(**data)
+        rec = EventRecurrence(**recurrence)
     except Exception:
         return None
 
@@ -91,8 +92,70 @@ def _recurrence_to_rrule(recurrence_json: Optional[str]) -> Optional[dict]:
     return rule
 
 
-def events_to_ical(events: List[CalendarEvent]) -> bytes:
-    """Serialize a list of CalendarEvent models to iCal bytes."""
+def event_export_dict(event: CalendarEvent) -> dict:
+    """One event's JSON-safe export record — the single intermediate both the
+    ics renderer and the json envelope consume. Must stay JSON-serializable:
+    ``RenderItem.data`` crosses the export engine's job boundary (persisted
+    selectors are replayed by the worker), so no models or datetimes here.
+
+    Attendees ride as display name + email + RSVP (informational — user ids
+    are guild-local, an import can't rebind them); tags by name; linked
+    documents by title."""
+    recurrence: Optional[dict] = None
+    if event.recurrence:
+        try:
+            recurrence = EventRecurrence(**json.loads(event.recurrence)).model_dump(
+                mode="json"
+            )
+        except Exception:
+            recurrence = None
+    return {
+        "id": event.id,
+        "title": event.title,
+        "description": event.description,
+        "location": event.location,
+        "start_at": event.start_at.isoformat(),
+        "end_at": event.end_at.isoformat(),
+        "all_day": bool(event.all_day),
+        "color": event.color,
+        "recurrence": recurrence,
+        "created_at": event.created_at.isoformat(),
+        "updated_at": event.updated_at.isoformat(),
+        "attendees": [
+            {
+                "name": attendee.user.full_name or None,
+                "email": attendee.user.email or None,
+                "rsvp": attendee.rsvp_status.value
+                if hasattr(attendee.rsvp_status, "value")
+                else str(attendee.rsvp_status),
+            }
+            for attendee in event.attendees or []
+            if attendee.user is not None
+        ],
+        "tags": sorted(
+            link.tag.name for link in event.tag_links or [] if link.tag is not None
+        ),
+        "documents": sorted(
+            link.document.title
+            for link in event.document_links or []
+            if link.document is not None
+        ),
+        "properties": [
+            property_export_dict(pv)
+            for pv in event.property_values or []
+            if pv.property_definition is not None
+        ],
+    }
+
+
+def _dt(value: str) -> datetime:
+    return datetime.fromisoformat(value)
+
+
+def ical_from_export_dicts(events: List[dict]) -> bytes:
+    """Serialize event export dicts (``event_export_dict`` shape) to iCal
+    bytes — the render half of the split, callable from the export engine's
+    worker replay where only JSON survives."""
     cal = icalendar.Calendar()
     cal.add("prodid", "-//Initiative//EN")
     cal.add("version", "2.0")
@@ -100,46 +163,54 @@ def events_to_ical(events: List[CalendarEvent]) -> bytes:
 
     for event in events:
         vevent = icalendar.Event()
-        vevent.add("uid", f"event-{event.id}@initiative")
-        vevent.add("summary", event.title)
+        vevent.add("uid", f"event-{event.get('id')}@initiative")
+        vevent.add("summary", event.get("title") or "")
 
-        if event.all_day:
-            vevent.add("dtstart", event.start_at.date())
-            vevent.add("dtend", event.end_at.date())
+        start_at = _dt(event["start_at"])
+        end_at = _dt(event["end_at"])
+        if event.get("all_day"):
+            vevent.add("dtstart", start_at.date())
+            vevent.add("dtend", end_at.date())
         else:
-            vevent.add("dtstart", event.start_at.astimezone(timezone.utc))
-            vevent.add("dtend", event.end_at.astimezone(timezone.utc))
+            vevent.add("dtstart", start_at.astimezone(timezone.utc))
+            vevent.add("dtend", end_at.astimezone(timezone.utc))
 
-        if event.description:
-            vevent.add("description", event.description)
-        if event.location:
-            vevent.add("location", event.location)
+        if event.get("description"):
+            vevent.add("description", event["description"])
+        if event.get("location"):
+            vevent.add("location", event["location"])
 
-        vevent.add("created", event.created_at.astimezone(timezone.utc))
-        vevent.add("last-modified", event.updated_at.astimezone(timezone.utc))
+        if event.get("created_at"):
+            vevent.add("created", _dt(event["created_at"]).astimezone(timezone.utc))
+        if event.get("updated_at"):
+            vevent.add(
+                "last-modified", _dt(event["updated_at"]).astimezone(timezone.utc)
+            )
 
-        rrule = _recurrence_to_rrule(event.recurrence)
+        rrule = _recurrence_to_rrule(event.get("recurrence"))
         if rrule:
             vevent.add("rrule", rrule)
 
-        for attendee in event.attendees or []:
-            user = attendee.user
-            if user and user.email:
-                att = icalendar.vCalAddress(f"mailto:{user.email}")
-                if user.full_name:
-                    att.params["CN"] = icalendar.vText(user.full_name)
-                partstat = _RSVP_TO_PARTSTAT.get(
-                    attendee.rsvp_status.value
-                    if hasattr(attendee.rsvp_status, "value")
-                    else attendee.rsvp_status,
-                    "NEEDS-ACTION",
-                )
-                att.params["PARTSTAT"] = icalendar.vText(partstat)
-                vevent.add("attendee", att, encode=0)
+        for attendee in event.get("attendees") or []:
+            email = attendee.get("email")
+            if not email:
+                continue
+            att = icalendar.vCalAddress(f"mailto:{email}")
+            if attendee.get("name"):
+                att.params["CN"] = icalendar.vText(attendee["name"])
+            att.params["PARTSTAT"] = icalendar.vText(
+                _RSVP_TO_PARTSTAT.get(attendee.get("rsvp"), "NEEDS-ACTION")
+            )
+            vevent.add("attendee", att, encode=0)
 
         cal.add_component(vevent)
 
     return cal.to_ical()
+
+
+def events_to_ical(events: List[CalendarEvent]) -> bytes:
+    """Serialize a list of CalendarEvent models to iCal bytes."""
+    return ical_from_export_dicts([event_export_dict(event) for event in events])
 
 
 # ---------------------------------------------------------------------------

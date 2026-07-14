@@ -236,6 +236,10 @@ All `HTTPException` detail strings must use constants from `backend/app/core/mes
 
 Python uses 4-space indentation, full type hints, `snake_case` modules/functions, and `PascalCase` SQLModel or schema classes; keep routing thin and push validation to `schemas` and `services`. React components are `PascalCase` files, hooks follow the `useThing` convention, and shared helpers live in `frontend/src/lib` or `api`. Ruff and ESLint must pass before opening a PR.
 
+### Security-sensitive comments
+
+**Do not write code comments that reference direct security issues** — specific vulnerabilities, exploit or bypass mechanisms, "without this an attacker could…" narratives, or step-by-step descriptions of how a control could be defeated. This source is public, so such comments are an attack-targeting surface: they hand an attacker a roadmap. Keep comments to **simple functional explanations** of what the code does and why, not how a protection works internally or how it could fail. Put exploit-level detail in the private issue tracker or a security doc, not inline.
+
 ## Testing Guidelines
 
 Tests are co-located next to their source files using a `_test.py` suffix (e.g., `app/services/guilds_test.py` tests `app/services/guilds.py`). Shared test factories live in `app/testing/factories.py` and are re-exported from `app/testing/__init__.py`. The root `backend/conftest.py` provides session, client, and auth fixtures. Run all tests with `cd backend && pytest` (testpaths is set to `app` in `pytest.ini`). For new UI logic, add Vitest + Testing Library specs under the relevant feature folder (or `frontend/src/__tests__`); prioritize coverage for auth, project CRUD, and optimistic updates.

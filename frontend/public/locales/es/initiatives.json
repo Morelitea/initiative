@@ -89,6 +89,7 @@
     "membersTab": "Miembros",
     "rolesTab": "Roles",
     "dangerTab": "Zona de peligro",
+    "exportTab": "Exportar",
     "detailsTitle": "Detalles de la iniciativa",
     "detailsDescription": "Renombra, describe o cambia el color de esta iniciativa.",
     "nameLabel": "Nombre",

@@ -19,6 +19,7 @@ from app.api.v1.tenant_endpoints import (
     counters,
     documents,
     events,
+    exports,
     imports,
     initiatives,
     me_trash,
@@ -112,6 +113,7 @@ guild_router.include_router(documents.router, prefix="/documents", tags=["docume
 guild_router.include_router(
     attachments.router, prefix="/attachments", tags=["attachments"]
 )
+guild_router.include_router(exports.router, prefix="/exports", tags=["exports"])
 guild_router.include_router(imports.router, prefix="/imports", tags=["imports"])
 guild_router.include_router(queues.router, prefix="/queues", tags=["queues"])
 guild_router.include_router(

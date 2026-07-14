@@ -36,7 +36,7 @@ from app.db.initiative_rls import (
     PathBuilder,
 )
 from app.db.soft_delete_filter import SOFT_DELETE_TABLES
-from app.db.tenancy import GUILD_SCOPED_TABLES
+from app.db.tenancy import GUILD_SCOPED_TABLES, OWN_ROW_TABLES
 
 
 # Hard delete = purge, and only a guild admin may purge (the interactive endpoint
@@ -115,6 +115,27 @@ _GUILD_LEVEL_SECTION = """\
 -- allow-all — it adds no row gate, it just lets the RESTRICTIVE delete policy bind.
 -- ==========================================================================="""
 
+# Header for the own-row section (export_jobs, …).
+_OWN_ROW_SECTION = """\
+-- ===========================================================================
+-- Own-row guild-level tables (app.db.tenancy.OWN_ROW_TABLES): rows belong to
+-- ONE user. Unlike guild_level_open, this IS a row gate — a member must not
+-- see another member's rows (an export_jobs row leaks the selector and gates
+-- the artifact download). Owner OR routed guild admin; the admin leg matches
+-- initiative_access / the purge guard exactly, so a break-glass full-admin
+-- (routed as a synthetic guild admin) is covered. A read-only PAM grantee is
+-- routed to guild_<id>_ro with neither leg set: no rows, by design.
+-- ==========================================================================="""
+
+# Own-row predicate: the owner column is compared against the request GUC.
+# NULLIF-guard the cast — an unset context leaves the value empty, and a bare
+# ''::int raises and faults the whole query for every PERMISSIVE policy on the
+# table (same rule as the public shared-table policies; see CLAUDE.md §5).
+_OWN_ROW_PREDICATE = (
+    "({col} = NULLIF(current_setting('app.current_user_id'::text, true), '')::int"
+    " OR current_setting('app.current_guild_role'::text, true) = 'admin'::text)"
+)
+
 _COMMANDS = (
     ("select", "SELECT", "USING", False),
     ("insert", "INSERT", "WITH CHECK", True),
@@ -151,6 +172,28 @@ def _table_block(table: str, build: PathBuilder) -> str:
     return "\n".join(lines)
 
 
+def _own_row_block(table: str, owner_col: str) -> str:
+    """RLS for an own-row guild-level table: per-command policies admitting the
+    row's owner or the routed guild admin. INSERT/UPDATE WITH CHECK use the same
+    predicate, so a member can't author rows owned by someone else either."""
+    pred = _OWN_ROW_PREDICATE.format(col=owner_col)
+    lines = [
+        f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;",
+        f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY;",
+    ]
+    for suffix, command, clause, _write in _COMMANDS:
+        name = f"own_row_{suffix}"
+        lines.append(f"DROP POLICY IF EXISTS {name} ON {table};")
+        lines.append(f"CREATE POLICY {name} ON {table} AS PERMISSIVE FOR {command}")
+        if clause == "USING-CHECK":
+            lines.append(f"  USING ({pred}) WITH CHECK ({pred});")
+        elif clause == "WITH CHECK":
+            lines.append(f"  WITH CHECK ({pred});")
+        else:  # USING
+            lines.append(f"  USING ({pred});")
+    return "\n".join(lines)
+
+
 def _guild_level_guard_block(table: str) -> str:
     """RLS for a guild-level soft-delete table (initiatives, tags): a permissive
     allow-all (isolation is the schema boundary, not RLS) plus the RESTRICTIVE
@@ -175,6 +218,9 @@ def render_guild_rls_ddl() -> str:
     guards = [_guild_level_guard_block(t) for t in sorted(_GUILD_LEVEL_PURGE_TABLES)]
     if guards:
         out += "\n\n" + _GUILD_LEVEL_SECTION + "\n\n" + "\n\n".join(guards)
+    own_rows = [_own_row_block(t, c) for t, c in sorted(OWN_ROW_TABLES.items())]
+    if own_rows:
+        out += "\n\n" + _OWN_ROW_SECTION + "\n\n" + "\n\n".join(own_rows)
     return out + "\n"
 
 

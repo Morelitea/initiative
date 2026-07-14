@@ -1,8 +1,7 @@
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { exportProjectApiV1GGuildIdProjectsProjectIdExportGet } from "@/api/generated/projects/projects";
-import { Button } from "@/components/ui/button";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { ExportButton } from "@/components/exports/ExportButton";
 import {
   Card,
   CardContent,
@@ -11,10 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { toast } from "@/lib/chesterToast";
-import { downloadBlob } from "@/lib/csv";
-import { getErrorMessage } from "@/lib/errorMessage";
+import { toolExportEndpoint } from "@/lib/tools";
 
 interface ProjectExportCardProps {
   projectId: number;
@@ -35,28 +31,7 @@ export const ProjectExportCard = ({
   canWriteProject,
 }: ProjectExportCardProps) => {
   const { t } = useTranslation("projects");
-  const guildId = useActiveGuildId();
-  const [isExporting, setIsExporting] = useState(false);
-
-  const handleExport = async () => {
-    setIsExporting(true);
-    try {
-      const envelope = await exportProjectApiV1GGuildIdProjectsProjectIdExportGet(
-        guildId,
-        projectId
-      );
-      const blob = new Blob([JSON.stringify(envelope, null, 2)], {
-        type: "application/json",
-      });
-      const date = new Date().toISOString().slice(0, 10);
-      downloadBlob(blob, `${safeFilename(projectName)}-${date}.initiative-project.json`);
-      toast.success(t("export.success"));
-    } catch (err) {
-      toast.error(getErrorMessage(err, "projects:export.error"));
-    } finally {
-      setIsExporting(false);
-    }
-  };
+  const date = new Date().toISOString().slice(0, 10);
 
   return (
     <Card className="shadow-sm">
@@ -69,9 +44,27 @@ export const ProjectExportCard = ({
       </CardContent>
       <CardFooter>
         {canWriteProject ? (
-          <Button type="button" onClick={handleExport} disabled={isExporting}>
-            {isExporting ? t("export.exporting") : t("export.exportButton")}
-          </Button>
+          // Engine-delivered: small projects download inline; large ones run
+          // as a background job with the inbox-notification pickup. The json
+          // backup keeps its historical importable-file naming; the report
+          // formats (pdf/csv/xlsx) share the plain stem.
+          <ExportButton
+            endpoint={toolExportEndpoint(Tool.project)}
+            params={{ project_id: projectId }}
+            formats={[
+              {
+                format: "json",
+                labelKey: "export.formatJson",
+                filenameStem: `${safeFilename(projectName)}-${date}.initiative-project`,
+              },
+              { format: "pdf", labelKey: "export.formatPdf" },
+              { format: "csv", labelKey: "export.formatCsv" },
+              { format: "xlsx", labelKey: "export.formatXlsx" },
+            ]}
+            filenameStem={`${safeFilename(projectName)}-${date}`}
+            label={t("export.exportButton")}
+            variant="default"
+          />
         ) : (
           <p className="text-muted-foreground text-sm">{t("export.noWriteAccess")}</p>
         )}

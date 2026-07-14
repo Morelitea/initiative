@@ -79,12 +79,12 @@ describe("GuildUsagePanel", () => {
     expect(screen.getByText("gold")).toBeInTheDocument();
 
     const upgrade = screen.getByText("Upgrade").closest("a");
-    expect(upgrade).toHaveAttribute("href", "https://billing.example.com/upgrade?guild=42");
+    expect(upgrade).toHaveAttribute("href", "https://billing.example.com/upgrade?guild=42&lang=en");
 
     const manage = screen.getByText("Manage billing").closest("a");
     expect(manage).toHaveAttribute(
       "href",
-      "https://billing.example.com/checkout?guild=42&plan=gold"
+      "https://billing.example.com/checkout?guild=42&plan=gold&lang=en"
     );
   });
 });

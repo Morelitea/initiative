@@ -60,6 +60,7 @@ Initiative is a project management application with a FastAPI backend. The codeb
 - `PascalCase` for SQLModel and Pydantic classes
 - Async/await for all database operations
 - Ruff must pass: `cd backend && ruff check app`
+- **No security-issue detail in comments**: never write comments that reference direct security issues — specific vulnerabilities, exploit/bypass mechanisms, or "without this an attacker could…" narratives. This source is public; such comments are an attack-targeting surface. Use only simple functional explanations of what the code does, not how a control could be defeated.
 
 ## Testing Requirements
 

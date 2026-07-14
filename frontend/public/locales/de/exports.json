@@ -1,0 +1,92 @@
+{
+  "wizard": {
+    "titleInitiative": "Initiative exportieren",
+    "titleGuild": "Gilde exportieren",
+    "back": "Zurück",
+    "next": "Weiter",
+    "start": "Export starten",
+    "close": "Schließen",
+    "mode": {
+      "prompt": "Welche Art von Export?",
+      "backupTitle": "Importierbares Backup",
+      "backupDescription": "Alles als importierbares JSON in einer ZIP-Datei, mit Manifest — zum späteren Wiederherstellen oder Migrieren.",
+      "reportTitle": "Bericht nach Wahl",
+      "reportDescription": "Wähle für jedes Werkzeug ein Format — PDF, Tabelle, Markdown oder Kalender — gebündelt in einer ZIP-Datei."
+    },
+    "backup": {
+      "prompt": "Wähle, was enthalten sein soll",
+      "includeUploads": "Hochgeladene Dateien einschließen",
+      "uploadsSize": "≈ {{size}} an hochgeladenen Dateien",
+      "toolCount_one": "{{count}} Eintrag",
+      "toolCount_other": "{{count}} Einträge",
+      "disabled": "Nicht aktiviert",
+      "estimateFailed": "Die Größenschätzung konnte nicht geladen werden.",
+      "overRowLimit": "Dieser Export überschreitet das Größenlimit — schließe einige Werkzeuge aus, um fortzufahren.",
+      "overUploadLimit": "Hochgeladene Dateien überschreiten das Limit von {{limit}} — schließe Uploads aus, um fortzufahren."
+    },
+    "report": {
+      "include": "Einschließen",
+      "documentNative": "Textdokumente",
+      "documentSpreadsheet": "Tabellen",
+      "documentOthersNote": "Whiteboards und Links werden als JSON exportiert; hochgeladene Dateien bleiben unverändert."
+    },
+    "confirm": {
+      "prompt": "Bereit zum Export",
+      "modeBackup": "Importierbares Backup",
+      "modeReport": "Bericht",
+      "uploadsIncluded": "Hochgeladene Dateien enthalten",
+      "uploadsExcluded": "Hochgeladene Dateien ausgeschlossen",
+      "note": "Der Export läuft im Hintergrund — du kannst weiterarbeiten, wir benachrichtigen dich, sobald er fertig ist."
+    },
+    "progress": {
+      "title": "Dein Export wird vorbereitet…",
+      "note": "Das kann eine Weile dauern. Du kannst diesen Dialog schließen — der Download kommt als Benachrichtigung, und fertige Exporte lassen sich in den Gilden-Einstellungen erneut herunterladen."
+    },
+    "done": {
+      "title": "Export bereit",
+      "note": "Dein Download hat begonnen. Bis zum Ablauf kannst du ihn in den Gilden-Einstellungen erneut herunterladen."
+    },
+    "failed": {
+      "title": "Export fehlgeschlagen",
+      "note": "Es wurde nichts exportiert. Versuche es erneut oder schränke den Inhalt ein."
+    }
+  },
+  "entry": {
+    "guildTitle": "Diese Gilde exportieren",
+    "guildDescription": "Lade die Daten jeder Initiative als importierbares Backup oder als Bericht nach Wahl herunter. Freigaberegeln gelten: Der Export enthält, was du sehen kannst.",
+    "initiativeTitle": "Diese Initiative exportieren",
+    "initiativeDescription": "Lade die Daten dieser Initiative als importierbares Backup oder als Bericht nach Wahl herunter. Freigaberegeln gelten: Der Export enthält, was du sehen kannst.",
+    "open": "Exportieren…"
+  },
+  "table": {
+    "title": "Letzte Exporte",
+    "description": "Fertige Exporte können bis zum Ablauf (7 Tage) erneut heruntergeladen werden. Gilden-Administratoren sehen die Exporte aller Mitglieder.",
+    "columns": {
+      "export": "Export",
+      "status": "Status",
+      "created": "Erstellt",
+      "expires": "Läuft ab",
+      "actions": "Aktionen"
+    },
+    "status": {
+      "queued": "In Warteschlange",
+      "running": "Läuft",
+      "done": "Bereit",
+      "failed": "Fehlgeschlagen",
+      "expired": "Abgelaufen"
+    },
+    "source": {
+      "tasks": "Aufgaben",
+      "project": "Projekt",
+      "document": "Dokument",
+      "queue": "Warteschlange",
+      "counter-group": "Zählergruppe",
+      "calendar-event": "Kalender",
+      "initiative": "Initiative",
+      "guild": "Gilde"
+    },
+    "download": "Herunterladen",
+    "empty": "Noch keine Exporte.",
+    "loadFailed": "Exporte konnten nicht geladen werden. Aktualisiere, um es erneut zu versuchen."
+  }
+}

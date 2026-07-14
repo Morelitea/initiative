@@ -100,8 +100,8 @@ def test_build_csv_treats_none_as_empty() -> None:
 
 
 @pytest.mark.unit
-def test_neutralize_cell_only_targets_leading_trigger() -> None:
+def testneutralize_cell_only_targets_leading_trigger() -> None:
     """A trigger character in the middle of a value is not escaped."""
-    assert csv_export._neutralize_cell("Foo=Bar") == "Foo=Bar"
-    assert csv_export._neutralize_cell("a-b-c") == "a-b-c"
-    assert csv_export._neutralize_cell("=danger") == "'=danger"
+    assert csv_export.neutralize_cell("Foo=Bar") == "Foo=Bar"
+    assert csv_export.neutralize_cell("a-b-c") == "a-b-c"
+    assert csv_export.neutralize_cell("=danger") == "'=danger"

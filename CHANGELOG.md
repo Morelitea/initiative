@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.56.0] - 2026-07-14
+
+### Added
+
+- Data export: every tool — documents, projects, tasks, queues, counter groups, and calendar events — can be exported straight from its page in type-appropriate formats.
+  - Report formats: PDF (set in the app's typeface, with the guild's name and icon in a running header), CSV, Excel (XLSX), Markdown, and Word (DOCX) for text documents. Report content is localized (English, German, Spanish, French) and timestamps use your time zone.
+  - Importable backups: JSON envelopes for text documents, whiteboards, spreadsheets, smart links, projects, queues, and counter groups (each carrying the entity's tags and custom properties where it has them), and the original file for uploads. A whiteboard envelope's content is a standard Excalidraw file, so unwrapping it opens anywhere Excalidraw runs. The editor toolbar's import accepts both the envelope and legacy `.lexical` files. Whiteboards additionally export PNG/SVG images, rendered in the browser.
+  - Tasks export the current view — same filters and visibility as on screen, or just the selected tasks — as a table, a checkable Markdown task list, or a detailed one-task-per-page PDF carrying the full record: description (rendered as Markdown), subtasks, threaded comments, assignees, tags, and dates. Queues export their turn order with current/held/hidden entries marked; counter groups export their values and bounds.
+  - Bulk selection: select multiple documents, projects, queues, counter groups, or calendar events and export them all at once. The documents grid and tag views gained the same card selection (and full bulk toolbar) as the other lists.
+  - Calendar events export as a standard iCalendar (.ics) file (recurrence rules and attendee RSVPs preserved) or an importable JSON envelope — for a selection, one initiative, or every event you can see. Event sharing rules apply throughout: an export only ever contains events shared with you.
+  - Delivery: small exports download instantly; large ones run as a background job, and an inbox notification delivers the file if you navigate away. Artifacts are private to their creator (guild admins can see their guild's), expire after 7 days, and spreadsheet formats carry injection protection. Read access suffices everywhere except project backups, which require write.
+  - Whole-initiative and whole-guild exports: one zip containing either an importable backup — every tool's JSON envelope in per-initiative folders, indexed by a manifest, optionally bundling the file uploads your documents reference — or an à-la-carte report with a per-tool format choice (a project PDF beside a queue CSV beside a calendar ICS). Guild-wide export is guild-admin only (re-checked when the job renders); sharing rules apply within each initiative, projects you can only read are included in backups, and a pre-flight estimate reports per-tool counts and the uploads payload size.
+  - Export wizard: an Export tab in initiative settings (managers and up) and a new Export tab in guild settings (admins) walk through those exports — pick backup or report, toggle tools with live item counts, see the uploads footprint before committing, and choose report formats per tool (documents split by text/spreadsheet type). Exports run in the background; closing the dialog doesn't cancel them.
+  - The guild settings Export tab also lists recent exports (guild admins see every member's), so finished artifacts can be re-downloaded until they expire — no more losing a download to a closed tab.
+
+### Changed
+
+- Project backup (JSON) export now runs through the export engine: large projects export as a background job with the inbox-notification pickup instead of one long request, and artifacts follow the same private-to-creator delivery and 7-day expiry. The downloaded file and the import flow are unchanged. (API: `GET /projects/{id}/export` was replaced by `GET /exports/project?project_id=…`.)
+- The calendar's ICS export moved onto the export engine (API: `GET /calendar-events/export.ics` was replaced by `GET /exports/calendar-event?format=ics`); the cross-guild `/me/calendar-events/export.ics` feed is unchanged.
+- The queue page header now matches the other tool pages: a labeled Settings button sized like its neighbors, with queue deletion living in the settings page (where it already had a confirm dialog) instead of a header trash icon.
+
+### Fixed
+
+- The advanced tool's Create button now works. The sidebar "+" and the "New Advanced Tool" button (in the tool tab) were previously a disabled placeholder; they now open the connected tool's embedded page on its new-item screen, where the tool is built. Nothing is created on our side until it's saved there.
+- Guild admins can now load the member roster of initiatives they haven't joined. The roster API returned 403 for them — every other initiative read already honored the guild-admin override — which left the linked-member and assignee pickers empty when an admin viewed another member's initiative.
+- Boot now heals missing shared-table grants for the system engine. Startup now re-asserts the audited `system_grants` registry for `app_admin`/`app_user` (tables and their row-id sequences), idempotently and additively — completing the issue #835 fix.
+
 ## [0.55.0] - 2026-07-12
 
 ### Added

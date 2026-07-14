@@ -16,7 +16,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
-from sqlalchemy.exc import DBAPIError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_upload_user
@@ -52,7 +52,7 @@ async def lifespan(app: FastAPI):
     lifespan is combined with this one via ``combine_lifespans`` in the mount
     block after ``include_router`` — so the MCP server boots alongside the API.
     """
-    from app.db.init_db import check_pre_baseline_db
+    from app.db.init_db import check_pre_baseline_db, init_owner
     from app.db.soft_delete_filter import install_soft_delete_filter
 
     # Surface the effective CORS allowlist so a misconfigured split-origin
@@ -69,6 +69,7 @@ async def lifespan(app: FastAPI):
     # guilds stamped with the current artifact version are skipped entirely.
     from app.db.schema_provisioning import (
         backfill_guild_schemas,
+        ensure_shared_table_grants,
         ensure_system_engine_bypassrls,
         warn_if_privileged_database_url,
     )
@@ -77,6 +78,11 @@ async def lifespan(app: FastAPI):
     # (restored database, hand-created role) reads shared tables as empty and
     # the seeding below would die with an opaque RLS violation (issue #835).
     await ensure_system_engine_bypassrls()
+    # One gate deeper: a restored/recreated role can bypass RLS yet be missing
+    # the per-table GRANTs (cluster state a stamped DB never re-applies), so
+    # seeding dies on "permission denied for table guilds" instead. Re-assert
+    # the audited shared-table grants from the registry (issue #835 follow-up).
+    await ensure_shared_table_grants()
     await warn_if_privileged_database_url()
     backfill = await backfill_guild_schemas()
     if backfill.failed:
@@ -109,6 +115,18 @@ async def lifespan(app: FastAPI):
     from app.db.secret_key_rotation import maybe_rotate_at_startup
 
     await maybe_rotate_at_startup()
+    # First-owner bootstrap (FIRST_OWNER_EMAIL / FIRST_OWNER_PASSWORD): create
+    # the owner and their guild on first boot so a self-hosted instance is
+    # usable straight from `docker run` with two env vars.
+    # No-op when the env vars are unset (the /auth/bootstrap first-user
+    # flow still applies) or the owner already exists.)
+    try:
+        await init_owner()
+    except IntegrityError:
+        # Unique violation on the owner's email_hash: a concurrent replica won
+        # the first-boot race and created the owner between our existence check
+        # and commit.
+        logger.info("first-owner bootstrap: created by a concurrent replica")
     async with AdminSessionLocal() as session:
         await app_settings_service.ensure_defaults(session)
         # Prime the process-wide storage config snapshot from the DB so the
@@ -300,6 +318,10 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Export downloads name the file server-side (Content-Disposition); the
+    # SPA reads it to name the blob it saves — expose it for the native
+    # (cross-origin) app, web is same-origin and sees it regardless.
+    expose_headers=["Content-Disposition"],
 )
 
 

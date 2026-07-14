@@ -18,7 +18,11 @@ from app.db.schema_provisioning import (
     provision_guild_schema,
 )
 from app.db.soft_delete_filter import SOFT_DELETE_TABLES
-from app.db.tenancy import GUILD_LEVEL_TABLES, INITIATIVE_SCOPED_TABLES
+from app.db.tenancy import (
+    GUILD_LEVEL_TABLES,
+    INITIATIVE_SCOPED_TABLES,
+    OWN_ROW_TABLES,
+)
 
 _EXPECTED_POLICIES = {
     "initiative_member_select",
@@ -27,8 +31,16 @@ _EXPECTED_POLICIES = {
     "initiative_member_delete",
 }
 
+_OWN_ROW_POLICIES = {
+    "own_row_select",
+    "own_row_insert",
+    "own_row_update",
+    "own_row_delete",
+}
+
 _GID_POLICIES = 990_201
 _GID_PURGE = 990_202
+_GID_OWN_ROW = 990_203
 
 # EVERY soft-delete table carries the RESTRICTIVE admin-only purge guard. They split
 # by how RLS reaches the table: initiative-scoped ones already have RLS (for the
@@ -115,6 +127,60 @@ async def test_every_initiative_scoped_table_has_policies(engine):
     finally:
         async with engine.begin() as conn:
             await drop_guild_schema(conn, _GID_POLICIES)
+
+
+@pytest.mark.database
+async def test_own_row_tables_have_policies(engine):
+    """Every ``OWN_ROW_TABLES`` table gets FORCE RLS + the four ``own_row_*``
+    policies in a freshly provisioned schema — the row gate that keeps one
+    member's rows (e.g. an export job's selector + artifact download) hidden
+    from other members — and no ``initiative_member_*`` policies (own-row
+    tables are guild-level, not membership-gated)."""
+    schema = guild_schema_name(_GID_OWN_ROW)
+    try:
+        async with engine.begin() as conn:
+            await provision_guild_schema(conn, _GID_OWN_ROW)
+        async with engine.connect() as conn:
+            pol_rows = await conn.execute(
+                text(
+                    "SELECT tablename, policyname FROM pg_policies "
+                    "WHERE schemaname = :s"
+                ),
+                {"s": schema},
+            )
+            policies: dict[str, set[str]] = {}
+            for tbl, pol in pol_rows:
+                policies.setdefault(tbl, set()).add(pol)
+
+            rls_rows = await conn.execute(
+                text(
+                    "SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity "
+                    "FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+                    "WHERE n.nspname = :s AND c.relkind = 'r'"
+                ),
+                {"s": schema},
+            )
+            rls = {row[0]: (row[1], row[2]) for row in rls_rows}
+
+        for tbl in sorted(OWN_ROW_TABLES):
+            enabled, forced = rls.get(tbl, (False, False))
+            assert enabled and forced, (
+                f"{tbl} is own-row but RLS is not ENABLED+FORCED "
+                f"(enabled={enabled}, forced={forced})."
+            )
+            missing = _OWN_ROW_POLICIES - policies.get(tbl, set())
+            assert not missing, (
+                f"{tbl} is in OWN_ROW_TABLES but missing policies "
+                f"{sorted(missing)} — check guild_ddl._own_row_block."
+            )
+            leaked = _EXPECTED_POLICIES & policies.get(tbl, set())
+            assert not leaked, (
+                f"{tbl} is own-row (guild-level) but carries initiative_member "
+                f"policies {sorted(leaked)} — it must not be membership-gated."
+            )
+    finally:
+        async with engine.begin() as conn:
+            await drop_guild_schema(conn, _GID_OWN_ROW)
 
 
 @pytest.mark.database

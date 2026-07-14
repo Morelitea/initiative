@@ -59,6 +59,7 @@ import {
 } from "@/components/projects/taskOrdering";
 import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
 import { BulkEditTaskTagsDialog } from "@/components/tasks/BulkEditTaskTagsDialog";
+import { ExportTasksButton } from "@/components/tasks/ExportTasksButton";
 import { TaskBulkEditDialog } from "@/components/tasks/TaskBulkEditDialog";
 import { TaskBulkEditPanel } from "@/components/tasks/TaskBulkEditPanel";
 import { Button } from "@/components/ui/button";
@@ -912,8 +913,8 @@ export const ProjectTasksSection = ({
               </TooltipProvider>
             )}
           </div>
-          <div className="w-full sm:flex sm:w-auto sm:items-center sm:justify-end sm:gap-3">
-            <div className="w-full sm:hidden">
+          <div className="flex w-full items-center gap-2 sm:w-auto sm:justify-end sm:gap-3">
+            <div className="min-w-0 flex-1 sm:hidden">
               <Select value={viewMode} onValueChange={handleViewModeChange}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder={t("tasks.selectView")} />
@@ -928,6 +929,12 @@ export const ProjectTasksSection = ({
                 </SelectContent>
               </Select>
             </div>
+            {/* resumePending: this is the view's single adopter of a stored
+                in-flight job (the selection button must not double-handle it). */}
+            <ExportTasksButton
+              params={{ conditions, include_archived: showArchived }}
+              resumePending
+            />
             <div className="hidden sm:block">
               <TabsList>
                 {TASK_VIEW_OPTIONS.map(({ value, labelKey, icon: Icon }) => (
@@ -1009,6 +1016,12 @@ export const ProjectTasksSection = ({
           {selectedTasks.length > 0 && canEditTaskDetails && (
             <TaskBulkEditPanel
               selectedTasks={selectedTasks}
+              exportParams={{
+                conditions: [{ field: "id", op: "in_", value: selectedTasks.map((t) => t.id) }],
+                // Selection came from the visible list, which may include
+                // archived rows when the toggle is on.
+                include_archived: showArchived,
+              }}
               onEdit={() => setIsBulkEditDialogOpen(true)}
               onEditTags={() => setIsBulkEditTagsDialogOpen(true)}
               onArchive={() => bulkArchiveTasks.mutate(selectedTasks.map((t) => t.id))}

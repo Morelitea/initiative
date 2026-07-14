@@ -101,7 +101,6 @@
     "dompurify": "^3.4.11",
     "embla-carousel-react": "^8.6.0",
     "emoji-picker-react": "^4.19.1",
-    "exceljs": "^4.4.0",
     "fast-formula-parser": "^1.0.19",
     "fuse.js": "^7.4.1",
     "i18next": "^26.3.0",

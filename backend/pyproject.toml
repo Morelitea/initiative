@@ -36,10 +36,15 @@ dependencies = [
     "premailer>=3.10.0",
     "fastmcp>=3.4.2",
     "boto3>=1.35,<2",                    # S3 / S3-compatible (MinIO) object storage; only imported when STORAGE_BACKEND=s3
+    "typst>=0.15.0",
+    "openpyxl>=3.1.5",
+    "python-docx>=1.2.0",
+    "markdown-it-py>=4.2.0",
 ]
 
 [dependency-groups]
 dev = [
+    "pypdf>=6.14.2",
     "pytest>=9.0.3,<10",
     "pytest-asyncio>=1.3.0,<2",
     "pytest-cov>=7.1.0,<8",

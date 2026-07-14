@@ -190,6 +190,42 @@ async def build_project_export(
     )
 
 
+async def list_project_ids_for_export(
+    session,
+    current_user,
+    guild_id: int,
+    *,
+    initiative_ids: list[int],
+) -> list[int]:
+    """Ids of every project the user may include in an aggregate export —
+    DAC-visible (guild admins see all via the membership role). The aggregate
+    export includes read-accessible projects by design; the per-project seams
+    still enforce their own access level per entity."""
+    from sqlmodel import select
+
+    from app.models.tenant.project import Project
+    from app.services import permissions as permissions_service
+    from app.services.platform import guilds as guilds_service
+    from app.services.rls import is_guild_admin
+
+    if not initiative_ids:
+        return []
+    conditions = [Project.initiative_id.in_(initiative_ids)]
+    membership = await guilds_service.get_membership(
+        session, guild_id=guild_id, user_id=current_user.id
+    )
+    if membership is None or not is_guild_admin(membership.role):
+        conditions.append(
+            Project.id.in_(
+                permissions_service.visible_resource_ids_subquery(
+                    "project", current_user.id
+                )
+            )
+        )
+    statement = select(Project.id).where(*conditions).order_by(Project.id.asc())
+    return list(await session.exec(statement))
+
+
 def _fallback_status_name(statuses_sorted: list[TaskStatus]) -> str:
     """Pick a status name to associate with a task whose status row is
     missing (defensive — shouldn't happen in normal operation)."""

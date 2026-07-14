@@ -225,7 +225,9 @@
       "enableDescription": "Get notified about new tasks, mentions, and more",
       "dismiss": "Dismiss",
       "enable": "Enable"
-    }
+    },
+    "exportReady": "Your export is ready — click to download.",
+    "exportFailed": "Your export failed. Try exporting again."
   },
   "version": {
     "newVersionAvailable": "New Version Available",

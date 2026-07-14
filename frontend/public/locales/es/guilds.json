@@ -225,7 +225,9 @@
       "enableDescription": "Recibe notificaciones sobre nuevas tareas, menciones y más",
       "dismiss": "Descartar",
       "enable": "Activar"
-    }
+    },
+    "exportReady": "Tu exportación está lista: haz clic para descargarla.",
+    "exportFailed": "Tu exportación falló. Intenta exportar de nuevo."
   },
   "version": {
     "newVersionAvailable": "Nueva versión disponible",

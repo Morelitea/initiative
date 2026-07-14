@@ -828,3 +828,144 @@ def test_bypassrls_exit_message_distinguishes_attempted_repair():
     assert "already ran" not in plain
     assert "already ran" in attempted
     assert "current_user" in attempted  # the which-role-am-I diagnostic query
+
+
+# --- ensure_shared_table_grants (issue #835 follow-up) -----------------------
+#
+# BYPASSRLS skips RLS *policies*, not table GRANTs. A restored/recreated role
+# can bypass RLS yet be missing the per-table grants, failing one gate deeper
+# with "permission denied for table ...". The boot heal must leave a healthy
+# posture untouched and otherwise re-assert the audited grants (table + owned
+# sequence). These tests point the registry at a throwaway public table so they
+# never mutate the real app_admin/app_user grants (cluster-global roles shared
+# across xdist workers); the per-worker test DB keeps the throwaway isolated.
+
+_PROBE_TABLE = "grant_heal_probe"
+
+
+async def _make_probe_table(engine, *, admin_grants, user_grants):
+    async with engine.begin() as conn:
+        await conn.execute(text(f"DROP TABLE IF EXISTS public.{_PROBE_TABLE}"))
+        await conn.execute(
+            text(f"CREATE TABLE public.{_PROBE_TABLE} (id serial PRIMARY KEY)")
+        )
+        # Fresh table created by the (superuser) test engine gives app_admin /
+        # app_user nothing (default privileges were revoked for them); the
+        # explicit REVOKE is belt-and-suspenders for the "restored role" state.
+        await conn.execute(
+            text(f"REVOKE ALL ON public.{_PROBE_TABLE} FROM app_admin, app_user")
+        )
+        if admin_grants:
+            await conn.execute(
+                text(f"GRANT {admin_grants} ON public.{_PROBE_TABLE} TO app_admin")
+            )
+        if user_grants:
+            await conn.execute(
+                text(f"GRANT {user_grants} ON public.{_PROBE_TABLE} TO app_user")
+            )
+
+
+async def _drop_probe_table(engine):
+    async with engine.begin() as conn:
+        await conn.execute(text(f"DROP TABLE IF EXISTS public.{_PROBE_TABLE}"))
+
+
+def _point_registry_at_probe(monkeypatch, *, sys_verbs, user_verbs):
+    from app.db import system_grants
+
+    monkeypatch.setattr(
+        system_grants,
+        "SHARED_TABLE_SYSTEM_GRANTS",
+        {_PROBE_TABLE: frozenset(sys_verbs) if sys_verbs else None},
+    )
+    monkeypatch.setattr(
+        system_grants,
+        "SHARED_TABLE_APP_USER_GRANTS",
+        {_PROBE_TABLE: frozenset(user_verbs) if user_verbs else None},
+    )
+
+
+async def test_shared_grants_heal_restores_missing_table_and_sequence(
+    engine, monkeypatch
+):
+    # A restored role: the table exists but app_admin/app_user hold no grants —
+    # exactly issue #835's second report ("permission denied for table guilds").
+    await _make_probe_table(engine, admin_grants=None, user_grants=None)
+    _point_registry_at_probe(
+        monkeypatch, sys_verbs={"SELECT", "INSERT"}, user_verbs={"SELECT"}
+    )
+    try:
+        await schema_provisioning.ensure_shared_table_grants()
+        async with engine.connect() as conn:
+            admin_insert, user_select, admin_seq, user_seq = (
+                await conn.execute(
+                    text(
+                        "SELECT has_table_privilege('app_admin', :t, 'INSERT'), "
+                        "has_table_privilege('app_user', :t, 'SELECT'), "
+                        "has_sequence_privilege('app_admin', :s, 'USAGE'), "
+                        "has_sequence_privilege('app_user', :s, 'USAGE')"
+                    ),
+                    {
+                        "t": f"public.{_PROBE_TABLE}",
+                        "s": f"public.{_PROBE_TABLE}_id_seq",
+                    },
+                )
+            ).one()
+        assert admin_insert, "system engine INSERT grant must be restored"
+        assert user_select, "bare login SELECT grant must be restored"
+        assert admin_seq, "INSERT needs the row-id sequence — must be restored too"
+        # app_user is SELECT-only on this table, so it needs NO sequence grant:
+        # the heal grants a sequence only where the role actually holds INSERT
+        # (least privilege), matching each role's real per-table need.
+        assert not user_seq, "a SELECT-only role must not receive a sequence grant"
+    finally:
+        await _drop_probe_table(engine)
+
+
+async def test_shared_grants_heal_is_noop_when_intact(engine, monkeypatch):
+    # Already fully granted (table + sequence) — the heal must not re-assert.
+    await _make_probe_table(engine, admin_grants="SELECT, INSERT", user_grants="SELECT")
+    async with engine.begin() as conn:
+        await conn.execute(
+            text(f"GRANT ALL ON SEQUENCE public.{_PROBE_TABLE}_id_seq TO app_admin")
+        )
+        await conn.execute(
+            text(
+                f"GRANT SELECT, USAGE ON SEQUENCE public.{_PROBE_TABLE}_id_seq "
+                "TO app_user"
+            )
+        )
+    _point_registry_at_probe(
+        monkeypatch, sys_verbs={"SELECT", "INSERT"}, user_verbs={"SELECT"}
+    )
+    reasserted = False
+
+    async def _spy(*args, **kwargs):
+        nonlocal reasserted
+        reasserted = True
+        return 0
+
+    monkeypatch.setattr(schema_provisioning, "_reassert_shared_grants", _spy)
+    try:
+        await schema_provisioning.ensure_shared_table_grants()
+        assert not reasserted, "a healthy grant posture must be a single-probe no-op"
+    finally:
+        await _drop_probe_table(engine)
+
+
+async def test_shared_grants_probe_detects_partial_grant(engine, monkeypatch):
+    import app.db.session as db_session
+
+    # SELECT present but INSERT missing → the probe must report NOT intact, so a
+    # partially-restored role still triggers the heal.
+    await _make_probe_table(engine, admin_grants="SELECT", user_grants="SELECT")
+    _point_registry_at_probe(
+        monkeypatch, sys_verbs={"SELECT", "INSERT"}, user_verbs={"SELECT"}
+    )
+    try:
+        expected = schema_provisioning._expected_shared_table_grants()
+        async with db_session.provisioning_engine.connect() as conn:
+            intact = await schema_provisioning._shared_grants_intact(conn, expected)
+        assert intact is False
+    finally:
+        await _drop_probe_table(engine)

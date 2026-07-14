@@ -532,9 +532,9 @@
   },
   "export": {
     "title": "Exporter le projet",
-    "description": "Téléchargez un fichier JSON contenant ce projet, ses tâches, statuts, étiquettes et valeurs de propriétés personnalisées.",
-    "detail": "Le fichier est portable : il peut être réimporté sur cette instance ou sur toute autre installation Initiative. Les références entre lignes utilisent des noms et des adresses e-mail pour que les ID de cette base ne fuient pas.",
-    "exportButton": "Exporter en JSON",
+    "description": "Téléchargez ce projet sous forme de sauvegarde JSON portable ou de rapport mis en forme (PDF, CSV ou Excel).",
+    "detail": "La sauvegarde JSON peut être réimportée sur cette instance ou toute autre installation d'Initiative — les références utilisent des noms et des e-mails afin qu'aucun ID de cette base ne fuite. Les formats de rapport couvrent les tâches non archivées du projet.",
+    "exportButton": "Exporter",
     "exporting": "Exportation…",
     "noWriteAccess": "Vous devez avoir un accès en écriture sur ce projet pour l'exporter.",
     "success": "Projet exporté",

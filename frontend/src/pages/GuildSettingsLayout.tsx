@@ -65,6 +65,11 @@ export const GuildSettingsLayout = () => {
         label: t("guildLayout.tabs.trash"),
         path: urlGuildId ? guildPath(urlGuildId, "/settings/trash") : "/settings/trash",
       },
+      {
+        value: "export",
+        label: t("guildLayout.tabs.export"),
+        path: urlGuildId ? guildPath(urlGuildId, "/settings/export") : "/settings/export",
+      },
     ];
     if (advancedTool) {
       tabs.push({
@@ -121,6 +126,7 @@ export const GuildSettingsLayout = () => {
     { value: "users", subPath: "/settings/users" },
     { value: "initiatives", subPath: "/settings/initiatives" },
     { value: "trash", subPath: "/settings/trash" },
+    { value: "export", subPath: "/settings/export" },
     { value: "advanced-tool", subPath: "/settings/advanced-tool" },
     { value: "danger-zone", subPath: "/settings/danger-zone" },
   ];
