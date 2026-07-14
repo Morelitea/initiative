@@ -33,6 +33,21 @@ function sourceKey(source: string): string {
   return `table.source.${source}`;
 }
 
+/** Effective status at render time: polling stops once every job is
+ * terminal, so a tab left open can hold a stale "done" row whose artifact
+ * has since expired (the GC hasn't been re-fetched). Clamp it client-side —
+ * the badge, Expires column, and Download button must all agree. */
+function displayStatus(job: ExportJobRead): string {
+  if (
+    job.status === "done" &&
+    job.expires_at != null &&
+    new Date(job.expires_at).getTime() <= Date.now()
+  ) {
+    return "expired";
+  }
+  return job.status;
+}
+
 /** The guild's export jobs (RLS scopes rows: members see their own, guild
  * admins see everyone's), newest first, with re-download for finished,
  * unexpired artifacts. Polls while any job is still rendering so a wizard
@@ -88,46 +103,49 @@ export function ExportJobsTable() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {jobs.map((job) => (
-            <TableRow key={job.id}>
-              <TableCell className="font-medium">
-                {t(sourceKey(job.source) as never, { defaultValue: job.source })}
-                <span className="ml-1 text-muted-foreground text-xs uppercase">{job.format}</span>
-              </TableCell>
-              <TableCell>
-                <Badge variant={STATUS_VARIANT[job.status] ?? "secondary"}>
-                  {t(`table.status.${job.status}` as never, { defaultValue: job.status })}
-                </Badge>
-              </TableCell>
-              <TableCell className="hidden text-muted-foreground text-sm sm:table-cell">
-                {formatDistanceToNow(new Date(job.created_at), {
-                  addSuffix: true,
-                  locale: dateLocale,
-                })}
-              </TableCell>
-              <TableCell className="hidden text-muted-foreground text-sm sm:table-cell">
-                {job.status === "done" && job.expires_at
-                  ? formatDistanceToNow(new Date(job.expires_at), {
-                      addSuffix: true,
-                      locale: dateLocale,
-                    })
-                  : "—"}
-              </TableCell>
-              <TableCell className="text-right">
-                {job.status === "done" && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    aria-label={t("table.download")}
-                    onClick={() => void handleDownload(job)}
-                  >
-                    <Download className="h-4 w-4" />
-                    <span className="hidden sm:inline">{t("table.download")}</span>
-                  </Button>
-                )}
-              </TableCell>
-            </TableRow>
-          ))}
+          {jobs.map((job) => {
+            const status = displayStatus(job);
+            return (
+              <TableRow key={job.id}>
+                <TableCell className="font-medium">
+                  {t(sourceKey(job.source) as never, { defaultValue: job.source })}
+                  <span className="ml-1 text-muted-foreground text-xs uppercase">{job.format}</span>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={STATUS_VARIANT[status] ?? "secondary"}>
+                    {t(`table.status.${status}` as never, { defaultValue: status })}
+                  </Badge>
+                </TableCell>
+                <TableCell className="hidden text-muted-foreground text-sm sm:table-cell">
+                  {formatDistanceToNow(new Date(job.created_at), {
+                    addSuffix: true,
+                    locale: dateLocale,
+                  })}
+                </TableCell>
+                <TableCell className="hidden text-muted-foreground text-sm sm:table-cell">
+                  {status === "done" && job.expires_at
+                    ? formatDistanceToNow(new Date(job.expires_at), {
+                        addSuffix: true,
+                        locale: dateLocale,
+                      })
+                    : "—"}
+                </TableCell>
+                <TableCell className="text-right">
+                  {status === "done" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      aria-label={t("table.download")}
+                      onClick={() => void handleDownload(job)}
+                    >
+                      <Download className="h-4 w-4" />
+                      <span className="hidden sm:inline">{t("table.download")}</span>
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     </div>

@@ -89,6 +89,25 @@ describe("ExportJobsTable", () => {
     expect(await screen.findByText(/no exports yet/i)).toBeInTheDocument();
   });
 
+  it("clamps a stale done row whose artifact has expired client-side", async () => {
+    // Polling stops once every job is terminal, so a tab left open past the
+    // expiry can hold a cached "done" row — it must render as Expired with
+    // no Download button, matching what the server would now say.
+    server.use(
+      guildHttp.get("/exports/", () =>
+        HttpResponse.json([
+          job({ id: 4, status: "done", expires_at: new Date(Date.now() - 60_000).toISOString() }),
+        ])
+      )
+    );
+
+    renderWithProviders(<ExportJobsTable />);
+
+    expect(await screen.findByText("Expired")).toBeInTheDocument();
+    expect(screen.queryByText("Ready")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /download/i })).not.toBeInTheDocument();
+  });
+
   it("shows an error state when the list fails to load", async () => {
     server.use(
       guildHttp.get("/exports/", () => HttpResponse.json({ detail: "boom" }, { status: 500 }))
