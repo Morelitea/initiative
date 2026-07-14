@@ -1,0 +1,91 @@
+{
+  "wizard": {
+    "titleInitiative": "Exporter l’initiative",
+    "titleGuild": "Exporter la guilde",
+    "back": "Retour",
+    "next": "Suivant",
+    "start": "Lancer l’export",
+    "close": "Fermer",
+    "mode": {
+      "prompt": "Quel type d’export ?",
+      "backupTitle": "Sauvegarde importable",
+      "backupDescription": "Tout en JSON importable dans un zip, indexé par un manifeste — pour restaurer ou migrer plus tard.",
+      "reportTitle": "Rapport à la carte",
+      "reportDescription": "Choisissez un format pour chaque outil — PDF, tableur, Markdown ou calendrier — regroupé dans un zip."
+    },
+    "backup": {
+      "prompt": "Choisissez le contenu",
+      "includeUploads": "Inclure les fichiers téléversés",
+      "uploadsSize": "≈ {{size}} de fichiers téléversés",
+      "toolCount_one": "{{count}} élément",
+      "toolCount_other": "{{count}} éléments",
+      "disabled": "Non activé",
+      "estimateFailed": "Impossible de charger l’estimation de taille.",
+      "overRowLimit": "Cet export dépasse la limite de taille — excluez certains outils pour continuer.",
+      "overUploadLimit": "Les fichiers téléversés dépassent la limite de {{limit}} — excluez-les pour continuer."
+    },
+    "report": {
+      "include": "Inclure",
+      "documentNative": "Documents texte",
+      "documentSpreadsheet": "Tableurs",
+      "documentOthersNote": "Les tableaux blancs et les liens s’exportent en JSON ; les fichiers téléversés restent inchangés."
+    },
+    "confirm": {
+      "prompt": "Prêt à exporter",
+      "modeBackup": "Sauvegarde importable",
+      "modeReport": "Rapport",
+      "uploadsIncluded": "Fichiers téléversés inclus",
+      "uploadsExcluded": "Fichiers téléversés exclus",
+      "note": "L’export s’exécute en arrière-plan — vous pouvez continuer à travailler, nous vous préviendrons quand il sera prêt."
+    },
+    "progress": {
+      "title": "Préparation de votre export…",
+      "note": "Cela peut prendre un moment. Vous pouvez fermer cette fenêtre — le téléchargement arrivera en notification, et les exports terminés peuvent être retéléchargés depuis les paramètres de la guilde."
+    },
+    "done": {
+      "title": "Export prêt",
+      "note": "Votre téléchargement a commencé. Vous pouvez le retélécharger depuis les paramètres de la guilde jusqu’à son expiration."
+    },
+    "failed": {
+      "title": "Échec de l’export",
+      "note": "Rien n’a été exporté. Réessayez ou réduisez le contenu."
+    }
+  },
+  "entry": {
+    "guildTitle": "Exporter cette guilde",
+    "guildDescription": "Téléchargez les données de chaque initiative en sauvegarde importable ou en rapport à la carte. Les règles de partage s’appliquent : l’export contient ce que vous pouvez voir.",
+    "initiativeTitle": "Exporter cette initiative",
+    "initiativeDescription": "Téléchargez les données de cette initiative en sauvegarde importable ou en rapport à la carte. Les règles de partage s’appliquent : l’export contient ce que vous pouvez voir.",
+    "open": "Exporter…"
+  },
+  "table": {
+    "title": "Exports récents",
+    "description": "Les exports terminés peuvent être retéléchargés jusqu’à leur expiration (7 jours). Les administrateurs de guilde voient les exports de tous les membres.",
+    "columns": {
+      "export": "Export",
+      "status": "Statut",
+      "created": "Créé",
+      "expires": "Expire",
+      "actions": "Actions"
+    },
+    "status": {
+      "queued": "En attente",
+      "running": "En cours",
+      "done": "Prêt",
+      "failed": "Échoué",
+      "expired": "Expiré"
+    },
+    "source": {
+      "tasks": "Tâches",
+      "project": "Projet",
+      "document": "Document",
+      "queue": "File",
+      "counter-group": "Groupe de compteurs",
+      "calendar-event": "Calendrier",
+      "initiative": "Initiative",
+      "guild": "Guilde"
+    },
+    "download": "Télécharger",
+    "empty": "Aucun export pour l’instant."
+  }
+}

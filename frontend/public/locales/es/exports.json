@@ -1,0 +1,91 @@
+{
+  "wizard": {
+    "titleInitiative": "Exportar iniciativa",
+    "titleGuild": "Exportar gremio",
+    "back": "Atrás",
+    "next": "Siguiente",
+    "start": "Iniciar exportación",
+    "close": "Cerrar",
+    "mode": {
+      "prompt": "¿Qué tipo de exportación?",
+      "backupTitle": "Copia de seguridad importable",
+      "backupDescription": "Todo como JSON importable en un zip, indexado por un manifiesto — para restaurar o migrar más adelante.",
+      "reportTitle": "Informe a la carta",
+      "reportDescription": "Elige un formato para cada herramienta — PDF, hoja de cálculo, Markdown o calendario — agrupado en un zip."
+    },
+    "backup": {
+      "prompt": "Elige qué incluir",
+      "includeUploads": "Incluir archivos subidos",
+      "uploadsSize": "≈ {{size}} de archivos subidos",
+      "toolCount_one": "{{count}} elemento",
+      "toolCount_other": "{{count}} elementos",
+      "disabled": "No habilitado",
+      "estimateFailed": "No se pudo cargar la estimación de tamaño.",
+      "overRowLimit": "Esta exportación supera el límite de tamaño — excluye algunas herramientas para continuar.",
+      "overUploadLimit": "Los archivos subidos superan el límite de {{limit}} — excluye los archivos para continuar."
+    },
+    "report": {
+      "include": "Incluir",
+      "documentNative": "Documentos de texto",
+      "documentSpreadsheet": "Hojas de cálculo",
+      "documentOthersNote": "Las pizarras y los enlaces se exportan como JSON; los archivos subidos van sin cambios."
+    },
+    "confirm": {
+      "prompt": "Listo para exportar",
+      "modeBackup": "Copia de seguridad importable",
+      "modeReport": "Informe",
+      "uploadsIncluded": "Archivos subidos incluidos",
+      "uploadsExcluded": "Archivos subidos excluidos",
+      "note": "La exportación se ejecuta en segundo plano — puedes seguir trabajando y te avisaremos cuando esté lista."
+    },
+    "progress": {
+      "title": "Preparando tu exportación…",
+      "note": "Esto puede tardar un poco. Puedes cerrar este diálogo — la descarga llegará como notificación, y las exportaciones terminadas se pueden volver a descargar desde la configuración del gremio."
+    },
+    "done": {
+      "title": "Exportación lista",
+      "note": "Tu descarga ha comenzado. Puedes volver a descargarla desde la configuración del gremio hasta que caduque."
+    },
+    "failed": {
+      "title": "La exportación falló",
+      "note": "No se exportó nada. Inténtalo de nuevo o reduce lo incluido."
+    }
+  },
+  "entry": {
+    "guildTitle": "Exportar este gremio",
+    "guildDescription": "Descarga los datos de cada iniciativa como copia de seguridad importable o como informe a la carta. Se aplican las reglas de acceso: la exportación contiene lo que puedes ver.",
+    "initiativeTitle": "Exportar esta iniciativa",
+    "initiativeDescription": "Descarga los datos de esta iniciativa como copia de seguridad importable o como informe a la carta. Se aplican las reglas de acceso: la exportación contiene lo que puedes ver.",
+    "open": "Exportar…"
+  },
+  "table": {
+    "title": "Exportaciones recientes",
+    "description": "Las exportaciones terminadas se pueden volver a descargar hasta que caduquen (7 días). Los administradores del gremio ven las exportaciones de todos los miembros.",
+    "columns": {
+      "export": "Exportación",
+      "status": "Estado",
+      "created": "Creada",
+      "expires": "Caduca",
+      "actions": "Acciones"
+    },
+    "status": {
+      "queued": "En cola",
+      "running": "En curso",
+      "done": "Lista",
+      "failed": "Fallida",
+      "expired": "Caducada"
+    },
+    "source": {
+      "tasks": "Tareas",
+      "project": "Proyecto",
+      "document": "Documento",
+      "queue": "Cola",
+      "counter-group": "Grupo de contadores",
+      "calendar-event": "Calendario",
+      "initiative": "Iniciativa",
+      "guild": "Gremio"
+    },
+    "download": "Descargar",
+    "empty": "Aún no hay exportaciones."
+  }
+}
