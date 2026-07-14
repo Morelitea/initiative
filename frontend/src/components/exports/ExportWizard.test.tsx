@@ -107,6 +107,13 @@ describe("ExportWizard", () => {
     await userEvent.click(screen.getByRole("switch", { name: /counters/i }));
     await userEvent.click(screen.getByRole("button", { name: /next/i }));
 
+    // The confirm summary matches the payload: the deselected tool AND the
+    // disabled tool (Queues) are absent from the "will export" list.
+    const summary = screen.getByText(/documents/i, { selector: "p" });
+    expect(summary.textContent).not.toMatch(/queues/i);
+    expect(summary.textContent).not.toMatch(/counters/i);
+    expect(summary.textContent).toMatch(/projects/i);
+
     await userEvent.click(screen.getByRole("button", { name: /start export/i }));
 
     await waitFor(() => expect(sent).not.toBeNull());

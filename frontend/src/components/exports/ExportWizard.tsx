@@ -361,8 +361,10 @@ export function ExportWizard({ scope, initiativeId, open, onOpenChange }: Export
                   : t("wizard.confirm.modeReport")}
               </p>
               <p className="text-muted-foreground text-xs">
+                {/* Same predicate as the submitted payload — a disabled
+                    tool's locked-off switch must not reappear here. */}
                 {visibleTools
-                  .filter((tool) => included(tool))
+                  .filter(effectiveIncluded)
                   .map((tool) => t(`nav:${toolNavLabelKey(tool)}` as never))
                   .join(" · ")}
               </p>
