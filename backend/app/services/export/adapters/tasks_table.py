@@ -17,11 +17,31 @@ from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+import re
+
 from app.core.config import settings
 from app.models.platform.user import User
 from app.models.tenant.task import Task, TaskStatusCategory
 from app.services.export.contract import RenderItem, RenderRequest
-from app.services.export.i18n import et, export_locale
+from app.services.export.i18n import et, export_locale, localize_now
+from app.services.export.markdown import blocks_from_markdown
+
+# Comment mentions are stored as ``@[Display Name](id)`` / ``#type[Text](id)``;
+# a printed report shows ``@Display Name`` / the display text, not the
+# reference markup. The type list mirrors CommentContent.tsx's patterns
+# EXACTLY (user/task/doc/project — mention_parser.py parses a subset): an
+# unrecognized type renders as literal text in the app, so the PDF matching
+# that is correct. A new mention type must be added in both places.
+_MENTION_RE = re.compile(
+    r"@\[([^\]]+)\]\(\d+\)|#(?:task|doc|project)\[([^\]]+)\]\(\d+\)"
+)
+
+
+def _flatten_mentions(content: str) -> str:
+    return _MENTION_RE.sub(
+        lambda m: f"@{m.group(1)}" if m.group(1) else m.group(2), content
+    )
+
 
 # Column spec: (row key, ``exports`` label key, Typst width hint). The PDF
 # template reads the label + width from the payload; the tabular renderers
@@ -91,7 +111,8 @@ class TasksTableAdapter:
             max_rows=settings.EXPORT_MAX_ROWS,
         )
         loc = export_locale(user)
-        generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        local_now = localize_now(datetime.now(timezone.utc), params.get("tz"))
+        generated_at = local_now.strftime("%Y-%m-%d %H:%M %Z")
         # Both attribution fields can be absent (some OAuth-provisioned
         # accounts carry neither) — never render the literal "None".
         author = user.full_name or user.email or et("fallback.unknownAuthor", loc)
@@ -105,6 +126,7 @@ class TasksTableAdapter:
             "title": et("title.tasks", loc),
             "subtitle": subtitle,
             "footer": et("footer.tasks", loc),
+            "page_of": et("pageOf", loc),
             "columns": _columns(loc),
             "rows": [_row(t, loc) for t in tasks],
             "empty_message": et("empty.tasks", loc),
@@ -136,7 +158,8 @@ class TasksTableAdapter:
             max_rows=settings.EXPORT_MAX_ROWS,
         )
         loc = export_locale(user)
-        generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        local_now = localize_now(datetime.now(timezone.utc), params.get("tz"))
+        generated_at = local_now.strftime("%Y-%m-%d %H:%M %Z")
         author = user.full_name or user.email or et("fallback.unknownAuthor", loc)
         data = {
             "title": et("title.tasks", loc),
@@ -147,6 +170,7 @@ class TasksTableAdapter:
                 ]
             ),
             "footer": et("footer.tasks", loc),
+            "page_of": et("pageOf", loc),
             "empty_message": et("empty.tasks", loc),
             # The template is content-free: every field label arrives already
             # localized (columns.* reuses the table headers; detail.* adds the
@@ -207,7 +231,8 @@ def _row(task: Task, locale: str) -> dict[str, Any]:
 def _detail(task: Task, comments: list, locale: str) -> dict[str, Any]:
     """One task's full record for the detailed report. Free-text fields
     (title, description, subtask content, comment bodies, names) are user data
-    and stay verbatim; only the priority enum localizes."""
+    and stay verbatim (the description is *parsed* as the Markdown it is, but
+    its text is untouched); only the priority enum localizes."""
     return {
         "title": task.title,
         "project": task.project.name if task.project else "",
@@ -221,7 +246,9 @@ def _detail(task: Task, comments: list, locale: str) -> dict[str, Any]:
         "tags": sorted(
             link.tag.name for link in task.tag_links if link.tag is not None
         ),
-        "description": task.description or "",
+        # Descriptions are Markdown (the app renders them with react-markdown)
+        # — parse into blocks so **bold** renders bold, not literally.
+        "description_blocks": blocks_from_markdown(task.description),
         "subtasks": [
             {"content": s.content, "done": bool(s.is_completed)}
             for s in sorted(task.subtasks or [], key=lambda s: s.position)
@@ -233,8 +260,8 @@ def _detail(task: Task, comments: list, locale: str) -> dict[str, Any]:
                 # ``content`` is NOT NULL today, but guard anyway: a present-but
                 # -null value would reach the template's multiline() as `none`
                 # (unlike an absent key, which takes the default) and abort the
-                # compile. Same `or ""` guard as description.
-                "content": c.content or "",
+                # compile. Mention markup flattens to its display text.
+                "content": _flatten_mentions(c.content or ""),
                 # Nesting level: a reply renders indented under its parent, so
                 # the thread reads like the on-screen discussion, not a flat
                 # chronological dump.

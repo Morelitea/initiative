@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Project export: now also offers a formatted report as PDF, CSV, or Excel (XLSX) alongside the JSON backup — the report covers the project's unarchived tasks; the backup file is unchanged and still imports.
   - Queue and counter exports: an Export button on every queue and counter group downloads a report as PDF, CSV, Excel (XLSX), or Markdown — queues render as a numbered turn order with the current, held, and hidden entries marked; counter groups as a table of values and bounds — plus an importable JSON envelope carrying the tool's full configuration (queue envelopes keep tags by name and rotation state; member assignments and linked documents/tasks are guild-local, so they ship as names and titles rather than ids). Read access suffices.
   - Exported report content is now localized to the exporter's language (English, German, Spanish, French): column headers, titles, the summary line, queue status labels (Current/Held/Hidden), task priorities, and empty-state messages all follow the creator's locale. Importable JSON envelopes stay in their canonical form so they round-trip on import regardless of language.
+  - Report timestamps ("generated at …") now show your local time zone instead of UTC, and multi-page footers localize the page count ("1 von 3", not "1 of 3").
+  - Task descriptions render as formatted Markdown in the detailed PDF — bold/italic, headings, nested lists, quotes, code blocks and tables — matching how the app displays them, and comment mentions print as names instead of raw reference markup.
 
 ### Changed
 

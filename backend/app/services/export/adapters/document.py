@@ -84,23 +84,28 @@ class DocumentAdapter:
         params: dict,
         format: str,
     ) -> RenderRequest:
+        from app.services.export.i18n import et, export_locale, localize_now
+
         document = await self._document(session, user, guild_id, params, format)
         doc_type = _doc_type(document)
-        date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        date = localize_now(datetime.now(timezone.utc), params.get("tz")).strftime(
+            "%Y-%m-%d"
+        )
         stem = f"{safe_filename_component(document.title).lower()}-{date}"
 
         if doc_type == DocumentType.native.value and format != "json":
-            from app.services.export.i18n import et, export_locale
             from app.services.export.lexical import blocks_from_editor_state
 
             blocks, assets = blocks_from_editor_state(
                 document.content or {}, guild_id=guild_id
             )
+            loc = export_locale(user)
             data = {
                 # Title/footer are the document's own name (user data).
                 "title": document.title,
-                "subtitle": et("exported", export_locale(user), date=date),
+                "subtitle": et("exported", loc, date=date),
                 "footer": document.title,
+                "page_of": et("pageOf", loc),
                 "stem": stem,
                 "blocks": blocks,
                 "assets": assets,

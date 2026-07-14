@@ -133,6 +133,9 @@ async def export_project(
     guild_context: GuildContextDep,
     project_id: int = Query(),
     format: Literal["json", "pdf", "csv", "xlsx"] = Query(default="json"),
+    tz: Optional[str] = Query(
+        default=None, max_length=64, description="IANA timezone for report timestamps"
+    ),
 ) -> Union[Response, JSONResponse]:
     """Export a project: ``json`` is the self-contained backup envelope (the
     same JSON ``POST /projects/import`` consumes); ``pdf``/``csv``/``xlsx``
@@ -146,7 +149,7 @@ async def export_project(
             guild_id=guild_context.guild_id,
             source="project",
             format=format,
-            params={"project_id": project_id},
+            params={"project_id": project_id, "tz": tz},
             allow_job=_allow_job(guild_context),
         )
     except ExportError as exc:
@@ -164,6 +167,9 @@ async def export_document(
     guild_context: GuildContextDep,
     document_id: int = Query(),
     format: Literal["json", "md", "csv", "xlsx", "file", "pdf", "docx"] = Query(),
+    tz: Optional[str] = Query(
+        default=None, max_length=64, description="IANA timezone for report timestamps"
+    ),
 ) -> Union[Response, JSONResponse]:
     """Export a document. Valid formats depend on the document type:
     ``json`` for Lexical (importable envelope) and whiteboards (standard
@@ -178,7 +184,7 @@ async def export_document(
             guild_id=guild_context.guild_id,
             source="document",
             format=format,
-            params={"document_id": document_id},
+            params={"document_id": document_id, "tz": tz},
             allow_job=_allow_job(guild_context),
         )
     except ExportError as exc:
@@ -196,6 +202,9 @@ async def export_queue(
     guild_context: GuildContextDep,
     queue_id: int = Query(),
     format: Literal["json", "pdf", "csv", "xlsx", "md"] = Query(default="json"),
+    tz: Optional[str] = Query(
+        default=None, max_length=64, description="IANA timezone for report timestamps"
+    ),
 ) -> Union[Response, JSONResponse]:
     """Export a queue: ``json`` is an importable envelope (items, rotation
     state, tags by name — member assignments and linked documents/tasks ride
@@ -210,7 +219,7 @@ async def export_queue(
             guild_id=guild_context.guild_id,
             source="queue",
             format=format,
-            params={"queue_id": queue_id},
+            params={"queue_id": queue_id, "tz": tz},
             allow_job=_allow_job(guild_context),
         )
     except ExportError as exc:
@@ -228,6 +237,9 @@ async def export_counter_group(
     guild_context: GuildContextDep,
     counter_group_id: int = Query(),
     format: Literal["json", "pdf", "csv", "xlsx", "md"] = Query(default="json"),
+    tz: Optional[str] = Query(
+        default=None, max_length=64, description="IANA timezone for report timestamps"
+    ),
 ) -> Union[Response, JSONResponse]:
     """Export a counter group: ``json`` is an importable envelope (every
     counter's configuration and current value); ``pdf``/``csv``/``xlsx``/
@@ -241,7 +253,7 @@ async def export_counter_group(
             guild_id=guild_context.guild_id,
             source="counter-group",
             format=format,
-            params={"counter_group_id": counter_group_id},
+            params={"counter_group_id": counter_group_id, "tz": tz},
             allow_job=_allow_job(guild_context),
         )
     except ExportError as exc:

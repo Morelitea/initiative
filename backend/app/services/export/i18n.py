@@ -16,6 +16,9 @@ data (titles, names, tags, status names) is never touched.
 
 from __future__ import annotations
 
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 from app.core.email_i18n import translate
 from app.models.platform.user import User
 
@@ -32,3 +35,17 @@ def et(key: str, locale: str, **kwargs: str | int) -> str:
     """Translate an ``exports``-namespace key. ``count`` selects the
     ``_one``/``_other`` plural; ``{{var}}`` kwargs interpolate."""
     return translate(key, locale, namespace=_NAMESPACE, **kwargs)
+
+
+def localize_now(now: datetime, tz: str | None) -> datetime:
+    """Shift a UTC "now" into the caller's IANA timezone for display (the
+    frontend sends the browser zone; a job replays the one persisted in its
+    selector). Fail-safe: an absent/unknown/garbage zone keeps UTC — a report
+    must never fail over a timestamp. Format with ``%Z`` so the zone
+    abbreviation stays visible either way."""
+    if not tz:
+        return now
+    try:
+        return now.astimezone(ZoneInfo(tz))
+    except (KeyError, ValueError, OSError):
+        return now

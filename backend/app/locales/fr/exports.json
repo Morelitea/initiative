@@ -37,6 +37,7 @@
   "generatedBy": "généré le {{date}} par {{author}}",
   "exported": "exporté le {{date}}",
   "round": "tour {{round}}",
+  "pageOf": "sur",
   "status": {
     "current": "Actuel",
     "held": "En attente",

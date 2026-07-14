@@ -3960,6 +3960,10 @@ export const ExportTasksApiV1GGuildIdExportsTasksGetLayout = {
 export type ExportProjectApiV1GGuildIdExportsProjectGetParams = {
   project_id: number;
   format?: ExportProjectApiV1GGuildIdExportsProjectGetFormat;
+  /**
+   * IANA timezone for report timestamps
+   */
+  tz?: string | null;
 };
 
 export type ExportProjectApiV1GGuildIdExportsProjectGetFormat =
@@ -3975,6 +3979,10 @@ export const ExportProjectApiV1GGuildIdExportsProjectGetFormat = {
 export type ExportDocumentApiV1GGuildIdExportsDocumentGetParams = {
   document_id: number;
   format: ExportDocumentApiV1GGuildIdExportsDocumentGetFormat;
+  /**
+   * IANA timezone for report timestamps
+   */
+  tz?: string | null;
 };
 
 export type ExportDocumentApiV1GGuildIdExportsDocumentGetFormat =
@@ -3993,6 +4001,10 @@ export const ExportDocumentApiV1GGuildIdExportsDocumentGetFormat = {
 export type ExportQueueApiV1GGuildIdExportsQueueGetParams = {
   queue_id: number;
   format?: ExportQueueApiV1GGuildIdExportsQueueGetFormat;
+  /**
+   * IANA timezone for report timestamps
+   */
+  tz?: string | null;
 };
 
 export type ExportQueueApiV1GGuildIdExportsQueueGetFormat =
@@ -4009,6 +4021,10 @@ export const ExportQueueApiV1GGuildIdExportsQueueGetFormat = {
 export type ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetParams = {
   counter_group_id: number;
   format?: ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetFormat;
+  /**
+   * IANA timezone for report timestamps
+   */
+  tz?: string | null;
 };
 
 export type ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetFormat =
