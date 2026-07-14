@@ -178,7 +178,7 @@ async def _execute(session: AsyncSession, job: ExportJob, *, guild_id: int) -> s
         request = await apply_brand(request, user_session)
 
     return await export_engine.render_to_storage(
-        request, job_id=job.id, source=job.source
+        request, job_id=job.id, source=job.source, tz=(job.params or {}).get("tz")
     )
 
 

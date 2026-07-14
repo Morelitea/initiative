@@ -89,7 +89,7 @@ class QueueAdapter:
     async def _queues(
         self, session: AsyncSession, user: User, guild_id: int, params: dict
     ) -> list[Queue]:
-        from app.services.export.adapters.document import selection_ids
+        from app.services.export.adapters._common import selection_ids
         from app.services.tenant.queues import get_queue_for_export
 
         return [

@@ -88,7 +88,7 @@ class CounterGroupAdapter:
     async def _groups(
         self, session: AsyncSession, user: User, guild_id: int, params: dict
     ) -> list[CounterGroup]:
-        from app.services.export.adapters.document import selection_ids
+        from app.services.export.adapters._common import selection_ids
         from app.services.tenant.counters import get_counter_group_for_export
 
         return [

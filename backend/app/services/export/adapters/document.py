@@ -36,6 +36,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.messages import ExportMessages
 from app.models.platform.user import User
 from app.models.tenant.document import Document, DocumentType
+from app.services.export.adapters._common import selection_ids
 from app.services.export.contract import RenderItem, RenderRequest
 from app.services.export.engine import ExportError
 from app.services.platform.csv_export import safe_filename_component
@@ -216,27 +217,6 @@ def _item(
 def _doc_type(document: Document) -> str:
     doc_type = document.document_type
     return doc_type.value if hasattr(doc_type, "value") else str(doc_type)
-
-
-# Bound on a single selection: page-size multiples, not initiative dumps —
-# each id costs a fetch+authorize round trip at count AND build time.
-_MAX_SELECTION = 100
-
-
-def selection_ids(params: dict, *, single_key: str, multi_key: str) -> list[int]:
-    """Normalize a selection selector to a validated id list. Accepts either
-    the legacy single-id key or the multi-id key (job params round-trip
-    through JSON — validate, don't trust). Order-preserving dedupe."""
-    raw = params.get(multi_key)
-    if raw is None and params.get(single_key) is not None:
-        raw = [params[single_key]]
-    if not isinstance(raw, list) or not raw or len(raw) > _MAX_SELECTION:
-        raise ExportError(ExportMessages.EXPORT_INVALID_PARAMS)
-    try:
-        ids = [int(value) for value in raw]
-    except (TypeError, ValueError):
-        raise ExportError(ExportMessages.EXPORT_INVALID_PARAMS)
-    return list(dict.fromkeys(ids))
 
 
 def _document_ids(params: dict) -> list[int]:

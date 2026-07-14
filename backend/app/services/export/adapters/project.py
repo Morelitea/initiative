@@ -148,6 +148,6 @@ def _report_payload(envelope: ProjectExportEnvelope, user: User, now: datetime) 
 
 
 def _project_ids(params: dict) -> list[int]:
-    from app.services.export.adapters.document import selection_ids
+    from app.services.export.adapters._common import selection_ids
 
     return selection_ids(params, single_key="project_id", multi_key="project_ids")

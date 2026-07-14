@@ -143,7 +143,9 @@ async def start_export(
         )
         request = await apply_brand(request, session)
         artifacts = await get_backend().render(request)
-        artifact = _bundle(artifacts, format=format, stem=_bundle_stem(source))
+        artifact = _bundle(
+            artifacts, format=format, stem=_bundle_stem(source, params.get("tz"))
+        )
         return InlineExport(
             filename=artifact.filename or f"{artifact.key}.{format}",
             content_type=artifact.content_type,
@@ -186,12 +188,14 @@ async def start_export(
     return job
 
 
-async def render_to_storage(request: RenderRequest, *, job_id: int, source: str) -> str:
+async def render_to_storage(
+    request: RenderRequest, *, job_id: int, source: str, tz: str | None = None
+) -> str:
     """Render a job's request and persist the artifact behind the guild's
     storage backend (local FS or S3 transparently). Returns the artifact_ref
     storage key. Idempotent by job id — a re-render overwrites the same key."""
     artifacts = await get_backend().render(request)
-    artifact = _bundle(artifacts, format=request.format, stem=_bundle_stem(source))
+    artifact = _bundle(artifacts, format=request.format, stem=_bundle_stem(source, tz))
     # The job id must live in the storage BASENAME, not a directory: both
     # backends flatten a key to Path(key).name (a path-traversal guard), so a
     # nested `exports/{job}/name` would drop the job id and two same-named
@@ -208,8 +212,12 @@ async def render_to_storage(request: RenderRequest, *, job_id: int, source: str)
     return key
 
 
-def _bundle_stem(source: str) -> str:
-    date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+def _bundle_stem(source: str, tz: str | None) -> str:
+    """The zip's name shares the caller's timezone with the entry names the
+    adapters produce — near-midnight exports must not disagree on the date."""
+    from app.services.export.i18n import localize_now
+
+    date = localize_now(datetime.now(timezone.utc), tz).strftime("%Y-%m-%d")
     return f"{source}-{date}"
 
 
