@@ -2,6 +2,10 @@
 supports. Unsupported source×format combos are rejected centrally by
 ``engine.get_adapter``."""
 
+from app.services.export.adapters.backup import (
+    GuildExportAdapter,
+    InitiativeExportAdapter,
+)
 from app.services.export.adapters.calendar_event import CalendarEventAdapter
 from app.services.export.adapters.counter_group import CounterGroupAdapter
 from app.services.export.adapters.document import DocumentAdapter
@@ -18,6 +22,8 @@ ADAPTERS = {
         QueueAdapter(),
         CounterGroupAdapter(),
         CalendarEventAdapter(),
+        InitiativeExportAdapter(),
+        GuildExportAdapter(),
     )
 }
 

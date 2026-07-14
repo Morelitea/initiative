@@ -58,7 +58,7 @@ describe("DocumentExportMenu", () => {
     expect(String(vi.mocked(downloadBlob).mock.calls[0][1])).toMatch(/^budget-.*\.csv$/);
   });
 
-  it("names the download from the server's Content-Disposition (.lexical)", async () => {
+  it("names the download from the server's Content-Disposition", async () => {
     server.use(
       guildHttp.get(
         "/exports/document",
@@ -67,7 +67,7 @@ describe("DocumentExportMenu", () => {
             status: 200,
             headers: {
               "Content-Type": "application/json",
-              "Content-Disposition": 'attachment; filename="notes-2026-07-13.lexical"',
+              "Content-Disposition": 'attachment; filename="notes-2026-07-13.json"',
             },
           })
       )
@@ -75,12 +75,11 @@ describe("DocumentExportMenu", () => {
     renderWithProviders(<DocumentExportMenu documentId={5} documentType="native" title="Notes" />);
 
     await userEvent.click(screen.getByRole("button", { name: /export/i }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: /lexical/i }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /json/i }));
 
     await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(1));
-    // The server name wins over the client's {stem}.{format} fallback —
-    // .lexical is what the editor's import picker accepts, not .json.
-    expect(vi.mocked(downloadBlob).mock.calls[0][1]).toBe("notes-2026-07-13.lexical");
+    // The server name wins over the client's {stem}.{format} fallback.
+    expect(vi.mocked(downloadBlob).mock.calls[0][1]).toBe("notes-2026-07-13.json");
   });
 
   it("renders whiteboard PNG client-side without touching the engine", async () => {

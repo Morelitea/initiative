@@ -31,12 +31,20 @@ class RenderItem:
     Typst compile root's ``assets/`` folder — for images that aren't in guild
     storage (the guild icon in the report header, decoded from the guild row).
     Kept off ``data`` because ``data`` is JSON-serialized into ``sys.inputs``;
-    bytes ride alongside."""
+    bytes ride alongside.
+
+    ``format`` / ``template_id`` override the request's values for THIS item —
+    the aggregate sources mix formats in one batch (a backup zips envelopes
+    beside file blobs; an à-la-carte report zips a project PDF beside a queue
+    CSV). ``None`` inherits the request value, so single-format sources are
+    untouched."""
 
     key: str
     data: dict[str, Any]
     filename: str | None = None
     assets_inline: dict[str, bytes] = field(default_factory=dict)
+    format: str | None = None
+    template_id: str | None = None
 
 
 @dataclass(frozen=True)

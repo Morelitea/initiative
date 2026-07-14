@@ -4,16 +4,18 @@ A document's exportable formats depend on its type, so the static registry
 declares the union and this adapter enforces the per-type subset at count
 time (before a job is created, so a mismatch is an immediate 400):
 
-* ``native`` (Lexical)  -> ``json`` (a ``.lexical`` file in the exact
-  ``@lexical/file`` schema the editor's toolbar IMPORT button consumes, so
-  an engine export round-trips through the existing import), plus ``md``
-  (zipped with an ``assets/`` folder when images are referenced), ``pdf``
-  and ``docx`` (both embedding referenced same-guild images) via the
-  ``lexical`` converter module.
-* ``whiteboard``        -> ``json``  — the scene wrapped in the standard
-  Excalidraw file shape, so the download opens in any Excalidraw. Pixel
-  exports (PNG/SVG) are deliberately client-side: only Excalidraw's own JS
-  renders scenes faithfully, and the design forbids a JS runtime here.
+* ``native`` (Lexical)  -> ``json`` (the generic document envelope with the
+  raw editor state as ``content`` — the editor toolbar's import unwraps it,
+  so an engine export still round-trips), plus ``md`` (zipped with an
+  ``assets/`` folder when images are referenced), ``pdf`` and ``docx`` (both
+  embedding referenced same-guild images) via the ``lexical`` converter
+  module.
+* ``whiteboard``        -> ``json``  — the generic document envelope with
+  the scene (as the standard Excalidraw file shape) under ``content``, so a
+  backup keeps tags/properties and unwrapping still yields a file any
+  Excalidraw opens. Pixel exports (PNG/SVG) are deliberately client-side:
+  only Excalidraw's own JS renders scenes faithfully, and the design forbids
+  a JS runtime here.
 * ``spreadsheet``       -> ``csv`` / ``xlsx`` — the sparse grid, with the
   formatting model mapped for xlsx — and ``json``, the canonical snapshot in
   an importable envelope (the snapshot is already the versioned format the
@@ -22,6 +24,10 @@ time (before a job is created, so a mismatch is an immediate 400):
   its original name.
 * ``smart_link``        -> ``md``  — the title and URL — and ``json``, the
   generic document envelope (importable backup, like spreadsheets).
+
+Every ``initiative-document`` envelope carries the document's ``tags`` (by
+name) and custom ``properties`` (flat, by name — the shared encoding in
+``export/property_values.py``), so backups don't shed metadata.
 
 Access: READ suffices (exporting is a formatted read), enforced by the
 ``get_document_for_export`` seam at both count and build time under the
@@ -93,7 +99,9 @@ class DocumentAdapter:
             template_id=self.template_id,
             format=format,
             batch=tuple(
-                _item(document, format, guild_id=guild_id, date=date, loc=loc)
+                build_document_item(
+                    document, format, guild_id=guild_id, date=date, loc=loc
+                )
                 for document in documents
             ),
         )
@@ -132,7 +140,7 @@ def _document_count(document: Document) -> int:
     return 1
 
 
-def _item(
+def build_document_item(
     document: Document, format: str, *, guild_id: int, date: str, loc: str
 ) -> RenderItem:
     """One document's render item — a selection export is just a batch of
@@ -160,42 +168,33 @@ def _item(
         }
         return RenderItem(key=stem, data=data)
     if doc_type == DocumentType.whiteboard.value:
-        # The standard Excalidraw file shape — importable by any Excalidraw
-        # (app or excalidraw.com), not just this instance.
+        # Importable backup: the scene wrapped as the standard Excalidraw
+        # file shape INSIDE the generic envelope — a future import
+        # discriminates by kind like every other document type, and
+        # unwrapping `content` still yields a file any Excalidraw opens.
         content = document.content or {}
-        data = {
-            "type": "excalidraw",
-            "version": 2,
-            "source": "initiative",
-            "elements": content.get("elements") or [],
-            "appState": content.get("appState") or {},
-            "files": content.get("files") or {},
-        }
+        data = _envelope(
+            document,
+            content={
+                "type": "excalidraw",
+                "version": 2,
+                "source": "initiative",
+                "elements": content.get("elements") or [],
+                "appState": content.get("appState") or {},
+                "files": content.get("files") or {},
+            },
+        )
     elif doc_type == DocumentType.native.value:
-        # The @lexical/file SerializedDocument shape — byte-compatible with
-        # the editor toolbar's import (which only accepts .lexical files,
-        # hence the explicit filename below).
-        from app.core.version import get_version
-
-        data = {
-            "editorState": document.content or {},
-            "lastSaved": int(document.updated_at.timestamp() * 1000),
-            "source": "Initiative",
-            "version": get_version(),
-        }
-        return RenderItem(key=stem, data=data, filename=f"{stem}.lexical")
+        # Importable backup: the raw editor state inside the generic
+        # document envelope. The editor toolbar's import unwraps the
+        # envelope, so round-trip through the editor survives.
+        data = _envelope(document, content=document.content or {})
     elif doc_type == DocumentType.spreadsheet.value:
         if format == "json":
             # Importable backup: the canonical (already-versioned) snapshot
             # in the generic document envelope, so a future import can
             # discriminate file kinds uniformly.
-            data = {
-                "kind": "initiative-document",
-                "schema_version": 1,
-                "document_type": doc_type,
-                "title": document.title,
-                "content": document.content or {},
-            }
+            data = _envelope(document, content=document.content or {})
         else:
             data = {"title": document.title, "grid": document.content or {}}
     elif doc_type == DocumentType.file.value:
@@ -207,15 +206,10 @@ def _item(
         }
     else:  # smart_link
         if format == "json":
-            # Importable backup: same generic document envelope as
-            # spreadsheets, so a future import discriminates kinds uniformly.
-            data = {
-                "kind": "initiative-document",
-                "schema_version": 1,
-                "document_type": doc_type,
-                "title": document.title,
-                "content": {"url": (document.content or {}).get("url", "")},
-            }
+            data = _envelope(
+                document,
+                content={"url": (document.content or {}).get("url", "")},
+            )
         else:
             data = {
                 "layout": "link",
@@ -224,6 +218,30 @@ def _item(
             }
 
     return RenderItem(key=stem, data=data)
+
+
+def _envelope(document: Document, *, content: dict) -> dict:
+    """The generic ``initiative-document`` envelope: kind + schema_version
+    discriminate the file for a future import; tags (by name) and custom
+    properties (flat, by name) ride along so a backup keeps the document's
+    metadata."""
+    from app.services.export.property_values import property_export_dict
+
+    return {
+        "kind": "initiative-document",
+        "schema_version": 1,
+        "document_type": _doc_type(document),
+        "title": document.title,
+        "content": content,
+        "tags": sorted(
+            link.tag.name for link in document.tag_links or [] if link.tag is not None
+        ),
+        "properties": [
+            property_export_dict(pv)
+            for pv in document.property_values or []
+            if pv.property_definition is not None
+        ],
+    }
 
 
 def _doc_type(document: Document) -> str:

@@ -132,10 +132,17 @@ async def start_export(
     row_count = await adapter.count(
         session, user=user, guild_id=guild_id, params=params, format=format
     )
-    if row_count > settings.EXPORT_MAX_ROWS:
+    # Aggregate sources (whole-initiative/guild) declare their own ceiling —
+    # a guild dump legitimately exceeds the per-report bound.
+    max_rows = getattr(adapter, "max_rows", None) or settings.EXPORT_MAX_ROWS
+    if row_count > max_rows:
         raise ExportError(ExportMessages.EXPORT_TOO_LARGE)
 
-    if row_count <= settings.EXPORT_INLINE_MAX_ROWS:
+    # Aggregate sources always run as a job: their build spans many entities
+    # (and possibly upload blobs), and the worker's fresh creator-routed
+    # session is where the mid-build access refresh is safe.
+    always_job = getattr(adapter, "always_job", False)
+    if not always_job and row_count <= settings.EXPORT_INLINE_MAX_ROWS:
         from app.services.export.branding import apply_brand
 
         request = await adapter.build(
@@ -144,7 +151,10 @@ async def start_export(
         request = await apply_brand(request, session)
         artifacts = await get_backend().render(request)
         artifact = _bundle(
-            artifacts, format=format, stem=_bundle_stem(source, params.get("tz"))
+            artifacts,
+            format=format,
+            stem=_bundle_stem(source, params.get("tz")),
+            force_zip=getattr(adapter, "force_zip", False),
         )
         return InlineExport(
             filename=artifact.filename or f"{artifact.key}.{format}",
@@ -194,8 +204,15 @@ async def render_to_storage(
     """Render a job's request and persist the artifact behind the guild's
     storage backend (local FS or S3 transparently). Returns the artifact_ref
     storage key. Idempotent by job id — a re-render overwrites the same key."""
+    from app.services.export.adapters import ADAPTERS
+
     artifacts = await get_backend().render(request)
-    artifact = _bundle(artifacts, format=request.format, stem=_bundle_stem(source, tz))
+    artifact = _bundle(
+        artifacts,
+        format=request.format,
+        stem=_bundle_stem(source, tz),
+        force_zip=getattr(ADAPTERS.get(source), "force_zip", False),
+    )
     # The job id must live in the storage BASENAME, not a directory: both
     # backends flatten a key to Path(key).name (a path-traversal guard), so a
     # nested `exports/{job}/name` would drop the job id and two same-named
@@ -222,14 +239,20 @@ def _bundle_stem(source: str, tz: str | None) -> str:
 
 
 def _bundle(
-    artifacts: list[RenderedArtifact], *, format: str, stem: str
+    artifacts: list[RenderedArtifact],
+    *,
+    format: str,
+    stem: str,
+    force_zip: bool = False,
 ) -> RenderedArtifact:
     """One artifact passes through untouched; a batch of N packages into a
     single zip (the selection-export delivery: N entities, one download).
     Entry names come from each artifact's own filename (or ``{key}.{format}``)
     and collide only when two entities share a title — deduped with a numeric
-    suffix so both survive."""
-    if len(artifacts) == 1:
+    suffix so both survive. ``force_zip`` wraps even a single artifact — a
+    backup is a zip by contract (an empty initiative's backup is just its
+    manifest and must still download as an importable archive)."""
+    if len(artifacts) == 1 and not force_zip:
         return artifacts[0]
     if not artifacts:  # a selector that matched nothing — nothing to package
         from app.core.messages import ExportMessages
