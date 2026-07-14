@@ -2,12 +2,14 @@ import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { DocumentReadDocumentType } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import type { WhiteboardScene } from "@/components/documents/WhiteboardDocumentEditor";
 import { ExportButton } from "@/components/exports/ExportButton";
 import { DOCUMENT_TYPE_FORMATS } from "@/components/exports/formats";
 import { toast } from "@/lib/chesterToast";
 import { downloadBlob } from "@/lib/csv";
 import { exportFilenameStem } from "@/lib/exportDownload";
+import { toolExportEndpoint } from "@/lib/tools";
 
 interface DocumentExportMenuProps {
   documentId: number;
@@ -75,7 +77,7 @@ export function DocumentExportMenu({
 
   return (
     <ExportButton
-      endpoint="/exports/document"
+      endpoint={toolExportEndpoint(Tool.document)}
       params={{ document_id: documentId }}
       formats={DOCUMENT_TYPE_FORMATS[documentType] ?? []}
       filenameStem={stem}

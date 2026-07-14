@@ -201,3 +201,48 @@ describe("tool surfaces", () => {
     }
   });
 });
+
+describe("tool exports", () => {
+  it("every bulk-export tool has a format source, and only those", async () => {
+    const { DOCUMENT_TYPE_FORMATS, TOOL_EXPORT_FORMATS } = await import(
+      "@/components/exports/formats"
+    );
+    const { DocumentReadDocumentType } = await import("@/api/generated/initiativeAPI.schemas");
+    const { BULK_EXPORT_TOOLS } = await import("@/lib/tools");
+
+    for (const tool of BULK_EXPORT_TOOLS) {
+      // Documents are per-type (their format set depends on the selection);
+      // every document type must offer at least one engine format.
+      if (tool === Tool.document) continue;
+      expect(
+        TOOL_EXPORT_FORMATS[tool]?.length,
+        `missing TOOL_EXPORT_FORMATS[${tool}]`
+      ).toBeGreaterThan(0);
+    }
+    for (const type of Object.values(DocumentReadDocumentType)) {
+      expect(
+        DOCUMENT_TYPE_FORMATS[type]?.length,
+        `missing DOCUMENT_TYPE_FORMATS.${type}`
+      ).toBeGreaterThan(0);
+    }
+    // Exact coverage: a formats entry for a non-export tool is drift too.
+    for (const tool of TOOLS) {
+      if (!TOOL_REGISTRY[tool].bulkExport && tool !== Tool.document) {
+        expect(
+          TOOL_EXPORT_FORMATS[tool],
+          `${tool} declares formats but bulkExport is false`
+        ).toBeUndefined();
+      }
+    }
+  });
+
+  it("derives the engine endpoint and selector params from the enum", async () => {
+    const { toolExportEndpoint, toolExportIdParam, toolExportIdsParam } = await import(
+      "@/lib/tools"
+    );
+    expect(toolExportEndpoint(Tool.counter_group)).toBe("/exports/counter-group");
+    expect(toolExportEndpoint(Tool.document)).toBe("/exports/document");
+    expect(toolExportIdParam(Tool.queue)).toBe("queue_id");
+    expect(toolExportIdsParam(Tool.counter_group)).toBe("counter_group_ids");
+  });
+});

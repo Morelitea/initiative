@@ -3,10 +3,12 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { DocumentSummary } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ExportButton } from "@/components/exports/ExportButton";
 import { documentSelectionFormats } from "@/components/exports/formats";
 import { Button } from "@/components/ui/button";
 import { exportFilenameStem } from "@/lib/exportDownload";
+import { toolExportEndpoint, toolExportIdsParam } from "@/lib/tools";
 
 interface DocumentsBulkBarProps {
   selectedDocuments: DocumentSummary[];
@@ -56,15 +58,17 @@ export function DocumentsBulkBar({
         {count > 0 &&
           (exportFormats.length > 0 ? (
             <ExportButton
-              endpoint="/exports/document"
-              params={{ document_ids: selectedDocuments.map((d) => d.id) }}
+              endpoint={toolExportEndpoint(Tool.document)}
+              params={{
+                [toolExportIdsParam(Tool.document)]: selectedDocuments.map((d) => d.id),
+              }}
               formats={exportFormats}
               filenameStem={exportFilenameStem("documents", "documents")}
             />
           ) : (
             <Button variant="outline" size="sm" disabled title={t("documents:bulk.noCommonFormat")}>
               <FileDown className="h-4 w-4" />
-              <span className="hidden sm:ml-2 sm:inline">{t("documents:bulk.export")}</span>
+              <span className="hidden sm:inline">{t("documents:bulk.export")}</span>
             </Button>
           ))}
         <Button

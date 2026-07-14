@@ -8,8 +8,7 @@ import { invalidateAllQueues } from "@/api/query-keys";
 import { BulkAccessBar, canManageSharing } from "@/components/access/BulkAccessBar";
 import { BulkEditAccessDialog } from "@/components/access/BulkEditAccessDialog";
 import { SelectableGridItem } from "@/components/access/SelectableGridItem";
-import { ExportButton } from "@/components/exports/ExportButton";
-import { QUEUE_EXPORT_FORMATS } from "@/components/exports/formats";
+import { BulkExportButton } from "@/components/exports/BulkExportButton";
 import { CreateQueueDialog } from "@/components/initiativeTools/queues/CreateQueueDialog";
 import { QueueCard } from "@/components/initiativeTools/queues/QueueCard";
 import {
@@ -26,7 +25,6 @@ import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { canCreateTool, useMyInitiativePermissions } from "@/hooks/useInitiativeRoles";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useQueuesList } from "@/hooks/useQueues";
-import { exportFilenameStem } from "@/lib/exportDownload";
 import { useGuildPath } from "@/lib/guildUrl";
 
 const INITIATIVE_FILTER_ALL = "all";
@@ -296,14 +294,7 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
               onEditAccess={() => setBulkAccessOpen(true)}
               onExit={selection.exit}
             >
-              {selection.selectedItems.length > 0 && (
-                <ExportButton
-                  endpoint="/exports/queue"
-                  params={{ queue_ids: selection.selectedItems.map((q) => q.id) }}
-                  formats={QUEUE_EXPORT_FORMATS}
-                  filenameStem={exportFilenameStem(t("title"), "queues")}
-                />
-              )}
+              <BulkExportButton tool={Tool.queue} ids={selection.selectedItems.map((q) => q.id)} />
             </BulkAccessBar>
           ) : (
             <div className="flex justify-end">

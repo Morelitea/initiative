@@ -1,4 +1,5 @@
 import type { DocumentReadDocumentType } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import type { ExportFormatOption } from "@/components/exports/ExportButton";
 
 // Engine formats per document type — mirrors the backend adapter's rules.
@@ -51,34 +52,33 @@ export function documentSelectionFormats(types: DocumentReadDocumentType[]): Exp
   }));
 }
 
-// Mirrors the backend queue adapter: reports as pdf/csv/xlsx, Markdown as a
-// numbered turn-order list, and the importable JSON envelope. Shared by the
-// queue detail page and the queues list's bulk-selection export.
-export const QUEUE_EXPORT_FORMATS: ExportFormatOption[] = [
-  { format: "pdf", labelKey: "export.formatPdf" },
-  { format: "csv", labelKey: "export.formatCsv" },
-  { format: "xlsx", labelKey: "export.formatXlsx" },
-  { format: "md", labelKey: "export.formatMarkdown" },
-  { format: "json", labelKey: "export.formatJson" },
-];
-
-// Mirrors the backend counter-group adapter: table reports plus the
-// importable JSON envelope.
-export const COUNTER_EXPORT_FORMATS: ExportFormatOption[] = [
-  { format: "pdf", labelKey: "export.formatPdf" },
-  { format: "csv", labelKey: "export.formatCsv" },
-  { format: "xlsx", labelKey: "export.formatXlsx" },
-  { format: "md", labelKey: "export.formatMd" },
-  { format: "json", labelKey: "export.formatJson" },
-];
-
-// Mirrors the backend project adapter: the importable JSON backup plus the
-// task-table report formats. Used by the projects list's bulk-selection
-// export (the per-project settings card keeps its own entry with the
-// backup-convention filename stem).
-export const PROJECT_EXPORT_FORMATS: ExportFormatOption[] = [
-  { format: "json", labelKey: "export.formatJson" },
-  { format: "pdf", labelKey: "export.formatPdf" },
-  { format: "csv", labelKey: "export.formatCsv" },
-  { format: "xlsx", labelKey: "export.formatXlsx" },
-];
+// Per-tool export formats, keyed by the canonical Tool enum — each mirrors
+// its backend adapter's format set. Documents are deliberately ABSENT: their
+// formats depend on the selected documents' types (documentSelectionFormats
+// above / DOCUMENT_TYPE_FORMATS). The registry drift test holds this table to
+// TOOL_REGISTRY's bulkExport flags.
+export const TOOL_EXPORT_FORMATS: Partial<Record<Tool, ExportFormatOption[]>> = {
+  [Tool.project]: [
+    // The importable JSON backup, then the task-table report formats.
+    { format: "json", labelKey: "export.formatJson" },
+    { format: "pdf", labelKey: "export.formatPdf" },
+    { format: "csv", labelKey: "export.formatCsv" },
+    { format: "xlsx", labelKey: "export.formatXlsx" },
+  ],
+  [Tool.queue]: [
+    // Reports (Markdown renders a numbered turn order), then the envelope.
+    { format: "pdf", labelKey: "export.formatPdf" },
+    { format: "csv", labelKey: "export.formatCsv" },
+    { format: "xlsx", labelKey: "export.formatXlsx" },
+    { format: "md", labelKey: "export.formatMarkdown" },
+    { format: "json", labelKey: "export.formatJson" },
+  ],
+  [Tool.counter_group]: [
+    // Table reports, then the importable envelope.
+    { format: "pdf", labelKey: "export.formatPdf" },
+    { format: "csv", labelKey: "export.formatCsv" },
+    { format: "xlsx", labelKey: "export.formatXlsx" },
+    { format: "md", labelKey: "export.formatMd" },
+    { format: "json", labelKey: "export.formatJson" },
+  ],
+};

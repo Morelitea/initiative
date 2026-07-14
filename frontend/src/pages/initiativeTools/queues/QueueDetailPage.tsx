@@ -4,8 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { QueueItemRead } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ExportButton } from "@/components/exports/ExportButton";
-import { QUEUE_EXPORT_FORMATS } from "@/components/exports/formats";
+import { TOOL_EXPORT_FORMATS } from "@/components/exports/formats";
 import { ActHeldButton } from "@/components/initiativeTools/queues/ActHeldButton";
 import { AddQueueItemDialog } from "@/components/initiativeTools/queues/AddQueueItemDialog";
 import { EditQueueItemDialog } from "@/components/initiativeTools/queues/EditQueueItemDialog";
@@ -47,6 +48,7 @@ import { toast } from "@/lib/chesterToast";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { exportFilenameStem } from "@/lib/exportDownload";
 import { useGuildPath } from "@/lib/guildUrl";
+import { toolExportEndpoint } from "@/lib/tools";
 
 export function QueueDetailPage() {
   const { t } = useTranslation(["queues", "common"]);
@@ -228,9 +230,9 @@ export function QueueDetailPage() {
             {queue.is_active ? t("active") : t("inactive")}
           </Badge>
           <ExportButton
-            endpoint="/exports/queue"
+            endpoint={toolExportEndpoint(Tool.queue)}
             params={{ queue_id: queue.id }}
-            formats={QUEUE_EXPORT_FORMATS}
+            formats={TOOL_EXPORT_FORMATS[Tool.queue] ?? []}
             filenameStem={exportFilenameStem(queue.name, "queue")}
           />
           {canEdit && (

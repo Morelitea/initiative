@@ -27,8 +27,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { CounterRead } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ExportButton } from "@/components/exports/ExportButton";
-import { COUNTER_EXPORT_FORMATS } from "@/components/exports/formats";
+import { TOOL_EXPORT_FORMATS } from "@/components/exports/formats";
 import { CounterFormDialog } from "@/components/initiativeTools/counters/CounterFormDialog";
 import { type CounterLayout, CounterRow } from "@/components/initiativeTools/counters/CounterRow";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
@@ -55,6 +56,7 @@ import { useRecordRecentView } from "@/hooks/useRecents";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { exportFilenameStem } from "@/lib/exportDownload";
 import { useGuildPath } from "@/lib/guildUrl";
+import { toolExportEndpoint } from "@/lib/tools";
 
 const layoutStorageKey = (groupId: number) => `counter-group-${groupId}-layout`;
 
@@ -204,9 +206,9 @@ export function CounterGroupDetailPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ExportButton
-            endpoint="/exports/counter-group"
+            endpoint={toolExportEndpoint(Tool.counter_group)}
             params={{ counter_group_id: group.id }}
-            formats={COUNTER_EXPORT_FORMATS}
+            formats={TOOL_EXPORT_FORMATS[Tool.counter_group] ?? []}
             filenameStem={exportFilenameStem(group.name, "counters")}
           />
           <Button

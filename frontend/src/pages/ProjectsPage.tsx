@@ -33,8 +33,7 @@ import { invalidateAllProjects } from "@/api/query-keys";
 import { BulkAccessBar, canManageSharing } from "@/components/access/BulkAccessBar";
 import { BulkEditAccessDialog } from "@/components/access/BulkEditAccessDialog";
 import { SelectableGridItem } from "@/components/access/SelectableGridItem";
-import { ExportButton } from "@/components/exports/ExportButton";
-import { PROJECT_EXPORT_FORMATS } from "@/components/exports/formats";
+import { BulkExportButton } from "@/components/exports/BulkExportButton";
 import { Markdown } from "@/components/Markdown";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { PullToRefresh } from "@/components/PullToRefresh";
@@ -68,7 +67,6 @@ import {
 } from "@/hooks/useProjects";
 import { useTags } from "@/hooks/useTags";
 import { useViewPreference } from "@/hooks/useViewPreference";
-import { exportFilenameStem } from "@/lib/exportDownload";
 import { useGuildPath } from "@/lib/guildUrl";
 
 const INITIATIVE_FILTER_ALL = "all";
@@ -767,13 +765,9 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                       // Project backups require WRITE on every selected
                       // project (the backend refuses mixed selections).
                       (canManageSharing(selection.selectedItems) ? (
-                        <ExportButton
-                          endpoint="/exports/project"
-                          params={{
-                            project_ids: selection.selectedItems.map((p) => p.id),
-                          }}
-                          formats={PROJECT_EXPORT_FORMATS}
-                          filenameStem={exportFilenameStem("projects", "projects")}
+                        <BulkExportButton
+                          tool={Tool.project}
+                          ids={selection.selectedItems.map((p) => p.id)}
                         />
                       ) : (
                         <Button
