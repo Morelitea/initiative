@@ -66,6 +66,86 @@ async def get_event(
     return result.one_or_none()
 
 
+async def get_event_for_export(
+    session: AsyncSession,
+    current_user,
+    guild_id: int,
+    *,
+    event_id: int,
+) -> CalendarEvent:
+    """The event-export adapter's seam: fetch + authorize in one place so the
+    rule holds on the worker's render-time replay too. READ access suffices —
+    exporting is a formatted read. The guild role is resolved here rather than
+    taken from a request context, so the seam works transport-free."""
+    from app.services import permissions as permissions_service
+    from app.services.platform import guilds as guilds_service
+
+    event = await get_event(session, event_id)
+    if event is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=CalendarEventMessages.NOT_FOUND,
+        )
+    if event.initiative is not None and not event.initiative.calendar_events_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=CalendarEventMessages.FEATURE_DISABLED,
+        )
+    membership = await guilds_service.get_membership(
+        session, guild_id=guild_id, user_id=current_user.id
+    )
+    permissions_service.require_access(
+        permissions_service.DAC_RESOURCES["calendar_event"],
+        event,
+        current_user,
+        access="read",
+        guild_role=membership.role if membership else None,
+    )
+    return event
+
+
+async def list_event_ids_for_export(
+    session: AsyncSession,
+    current_user,
+    guild_id: int,
+    *,
+    initiative_id: int | None = None,
+) -> list[int]:
+    """Ids of every event the user may export — the enumeration behind
+    "export my calendar": events in calendar-enabled initiatives, DAC-visible
+    to the user (guild admins see all via the membership role), optionally
+    narrowed to one initiative. Deterministic order for stable output."""
+    from app.services import permissions as permissions_service
+    from app.services.platform import guilds as guilds_service
+    from app.services.rls import is_guild_admin
+
+    conditions = [Initiative.calendar_events_enabled == True]  # noqa: E712
+    if initiative_id is not None:
+        conditions.append(CalendarEvent.initiative_id == initiative_id)
+
+    membership = await guilds_service.get_membership(
+        session, guild_id=guild_id, user_id=current_user.id
+    )
+    if membership is None or not is_guild_admin(membership.role):
+        # Non-admins: only events shared with them (the same visible-ids
+        # subquery the list endpoint applies).
+        conditions.append(
+            CalendarEvent.id.in_(
+                permissions_service.visible_resource_ids_subquery(
+                    "calendar_event", current_user.id
+                )
+            )
+        )
+
+    statement = (
+        select(CalendarEvent.id)
+        .join(Initiative, Initiative.id == CalendarEvent.initiative_id)
+        .where(*conditions)
+        .order_by(CalendarEvent.start_at.asc(), CalendarEvent.id.asc())
+    )
+    return list(await session.exec(statement))
+
+
 # ---------------------------------------------------------------------------
 # Attendee helpers
 # ---------------------------------------------------------------------------

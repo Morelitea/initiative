@@ -292,6 +292,53 @@ async def export_counter_group(
     return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
 
 
+@router.get("/calendar-event", response_model=None)
+async def export_calendar_events(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    calendar_event_id: Optional[int] = Query(default=None),
+    calendar_event_ids: Optional[list[int]] = Query(
+        default=None, description="Bulk selection of events"
+    ),
+    initiative_id: Optional[int] = Query(
+        default=None,
+        description="All exportable events in this initiative (ignored when ids given)",
+    ),
+    format: Literal["ics", "json"] = Query(default="ics"),
+    tz: Optional[str] = Query(
+        default=None, max_length=64, description="IANA timezone for report timestamps"
+    ),
+) -> Union[Response, JSONResponse]:
+    """Export calendar events: ``ics`` is one iCalendar file (RRULE and
+    attendee RSVPs preserved); ``json`` is one importable envelope holding
+    every event. With no ids and no initiative, every event visible to the
+    caller in the guild exports — per-event sharing applies throughout. Read
+    access suffices. Small exports return the file inline; large ones return
+    ``202`` with a queued job to poll and download."""
+    try:
+        result = await start_export(
+            session,
+            user=current_user,
+            guild_id=guild_context.guild_id,
+            source="calendar-event",
+            format=format,
+            params={
+                "calendar_event_id": calendar_event_id,
+                "calendar_event_ids": calendar_event_ids,
+                "initiative_id": initiative_id,
+                "tz": tz,
+            },
+            allow_job=_allow_job(guild_context),
+        )
+    except ExportError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+
+    if isinstance(result, InlineExport):
+        return _inline_response(result)
+    return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
+
+
 @router.get("/", response_model=list[ExportJobRead])
 async def list_export_jobs(
     session: RLSSessionDep,

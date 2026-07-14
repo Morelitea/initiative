@@ -84,4 +84,10 @@ export const TOOL_EXPORT_FORMATS: Partial<Record<Tool, ExportFormatOption[]>> = 
     { format: "md", labelKey: "export.formatMd" },
     { format: "json", labelKey: "export.formatJson" },
   ],
+  [Tool.calendar_event]: [
+    // One combined calendar per export: standard iCalendar, or the
+    // importable envelope.
+    { format: "ics", labelKey: "export.formatIcs" },
+    { format: "json", labelKey: "export.formatJson" },
+  ],
 };

@@ -83,9 +83,9 @@ export interface ToolDef {
   inAppCreate: boolean;
   /**
    * Has an export-engine source: single-entity export plus bulk selection
-   * export (`{tool}_ids` → one artifact per entity, zipped). Intentional gaps:
-   * calendar events (no export surface yet) and the advanced tool (its
-   * content lives in the external service).
+   * export (`{tool}_ids` selectors; calendar events export as one combined
+   * calendar rather than per-entity files). Intentional gap: the advanced
+   * tool (its content lives in the external service).
    */
   bulkExport: boolean;
 }
@@ -144,7 +144,7 @@ export const TOOL_REGISTRY: Record<Tool, ToolDef> = {
     notifications: true,
     personalRoute: "/my-calendar-events",
     inAppCreate: true,
-    bulkExport: false,
+    bulkExport: true,
   },
   [Tool.advanced_tool]: {
     icon: Sparkles,

@@ -25,6 +25,7 @@ from app.db.session import get_admin_session
 from app.models.tenant.calendar_event import (
     CalendarEvent,
     CalendarEventAttendee,
+    CalendarEventDocument,
     CalendarEventTag,
     RSVPStatus,
 )
@@ -279,51 +280,6 @@ async def list_my_calendar_events(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/export.ics")
-async def export_calendar_events_ics(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-    initiative_id: Optional[int] = Query(default=None),
-    start_after: Optional[datetime] = Query(default=None),
-    start_before: Optional[datetime] = Query(default=None),
-) -> Response:
-    """Export guild-scoped calendar events as an .ics file."""
-    conditions = [CalendarEvent.guild_id == guild_context.guild_id]
-    if initiative_id is not None:
-        conditions.append(CalendarEvent.initiative_id == initiative_id)
-    else:
-        conditions.append(
-            CalendarEvent.initiative_id.in_(
-                select(Initiative.id).where(Initiative.calendar_events_enabled == True)  # noqa: E712
-            )
-        )
-    if start_after is not None:
-        conditions.append(CalendarEvent.start_at >= start_after)
-    if start_before is not None:
-        conditions.append(CalendarEvent.start_at <= start_before)
-
-    stmt = (
-        select(CalendarEvent)
-        .where(*conditions)
-        .options(
-            selectinload(CalendarEvent.attendees).selectinload(
-                CalendarEventAttendee.user
-            ),
-        )
-        .order_by(CalendarEvent.start_at.asc())
-    )
-    result = await session.exec(stmt)
-    events = result.unique().all()
-
-    ics_bytes = ical_service.events_to_ical(list(events))
-    return Response(
-        content=ics_bytes,
-        media_type="text/calendar",
-        headers={"Content-Disposition": "attachment; filename=events.ics"},
-    )
-
-
 @me_router.get("/calendar-events/export.ics")
 async def export_my_calendar_events_ics(
     session: AdminSessionDep,
@@ -356,6 +312,21 @@ async def export_my_calendar_events_ics(
             .options(
                 selectinload(CalendarEvent.attendees).selectinload(
                     CalendarEventAttendee.user
+                ),
+                # event_export_dict reads tags, linked-document titles, and
+                # custom properties too — async lazy loads would raise, so
+                # load them here.
+                selectinload(CalendarEvent.tag_links).selectinload(
+                    CalendarEventTag.tag
+                ),
+                selectinload(CalendarEvent.document_links).selectinload(
+                    CalendarEventDocument.document
+                ),
+                selectinload(CalendarEvent.property_values).selectinload(
+                    CalendarEventPropertyValue.property_definition
+                ),
+                selectinload(CalendarEvent.property_values).selectinload(
+                    CalendarEventPropertyValue.value_user
                 ),
             )
         )
