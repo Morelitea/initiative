@@ -19,7 +19,7 @@ import {
 } from "@/hooks/useInitiativeRoles";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
-import { toolCamelPlural } from "@/lib/tools";
+import { toolAvailable, toolCamelPlural } from "@/lib/tools";
 
 import { DocumentsView } from "./DocumentsPage";
 import { AdvancedToolsView } from "./initiativeTools/advancedTools/AdvancedToolsView";
@@ -81,11 +81,9 @@ export const InitiativeDetailPage = () => {
   // additionally gated by the deployment-level runtime config.
   const availableTabs = useMemo<Tool[]>(
     () =>
-      TOOL_TABS.map(([tool]) => tool).filter((tool) => {
-        if (!isToolVisible(permissions, tool)) return false;
-        if (tool === Tool.advanced_tool) return Boolean(advancedTool);
-        return true;
-      }),
+      TOOL_TABS.map(([tool]) => tool).filter(
+        (tool) => isToolVisible(permissions, tool) && toolAvailable(tool, advancedTool)
+      ),
     [permissions, advancedTool]
   );
 

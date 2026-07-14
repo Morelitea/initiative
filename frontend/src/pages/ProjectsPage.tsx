@@ -14,7 +14,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Link, useRouter, useSearch } from "@tanstack/react-router";
+import { Link, useSearch } from "@tanstack/react-router";
 import { Archive, LayoutGrid, List, Pin as PinIcon, Plus, ScrollText } from "lucide-react";
 import { type HTMLAttributes, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
+import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
@@ -88,33 +89,22 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   const { filterVisible, permissionsFor, isGuildAdmin, isGrantGuild } = useInitiativeAccess();
   const gp = useGuildPath();
   const searchParams = useSearch({ strict: false }) as { create?: string; initiativeId?: string };
-  const router = useRouter();
   const lockedInitiativeId = typeof fixedInitiativeId === "number" ? fixedInitiativeId : null;
 
   const handleRefresh = useCallback(async () => {
     await invalidateAllProjects();
   }, []);
   const [initiativeId, setInitiativeId] = useState<string | null>(null);
-  const [isComposerOpen, setIsComposerOpen] = useState(false);
+  const {
+    open: isComposerOpen,
+    setOpen: setIsComposerOpen,
+    onOpenChange: handleComposerOpenChange,
+  } = useCreateFromSearchParam({
+    onOpenFromUrl: (urlInitiativeId) => {
+      if (urlInitiativeId) setInitiativeId(urlInitiativeId);
+    },
+  });
   const [isImportOpen, setIsImportOpen] = useState(false);
-  const isClosingComposer = useRef(false);
-
-  // Open create dialog when ?create=true is in URL
-  useEffect(() => {
-    const shouldCreate = searchParams.create === "true";
-    const urlInitiativeId = searchParams.initiativeId;
-
-    if (shouldCreate && !isComposerOpen && !isClosingComposer.current) {
-      setIsComposerOpen(true);
-      if (urlInitiativeId) {
-        setInitiativeId(urlInitiativeId);
-      }
-    }
-    // Reset the closing flag once URL no longer has create=true
-    if (!shouldCreate) {
-      isClosingComposer.current = false;
-    }
-  }, [searchParams, isComposerOpen]);
   const [searchQuery, setSearchQuery] = useViewPreference<string>(PROJECT_SEARCH_KEY, "");
   type ProjectSortMode = "custom" | "updated" | "created" | "alphabetical" | "recently_viewed";
   const [persistedSortMode, setPersistedSortMode] = useViewPreference<ProjectSortMode>(
@@ -333,7 +323,14 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     if (creatableInitiatives.length > 0) {
       setInitiativeId(String(creatableInitiatives[0].id));
     }
-  }, [canCreateProjects, initiativeId, creatableInitiatives, searchParams, lockedInitiativeId]);
+  }, [
+    canCreateProjects,
+    initiativeId,
+    creatableInitiatives,
+    searchParams,
+    lockedInitiativeId,
+    setIsComposerOpen,
+  ]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -372,20 +369,6 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
       return projectIds;
     });
   }, [projectsQuery.data]);
-
-  const handleComposerOpenChange = (open: boolean) => {
-    setIsComposerOpen(open);
-    if (!open) {
-      if (searchParams.create) {
-        isClosingComposer.current = true;
-        router.navigate({
-          to: "/projects",
-          search: { initiativeId: searchParams.initiativeId },
-          replace: true,
-        });
-      }
-    }
-  };
 
   const projects = useMemo(() => projectsQuery.data?.items ?? [], [projectsQuery.data]);
 

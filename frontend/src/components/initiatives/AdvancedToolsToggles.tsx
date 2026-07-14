@@ -1,11 +1,17 @@
 import { useTranslation } from "react-i18next";
 
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import type { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useAppConfig } from "@/hooks/useAppConfig";
-import { TOGGLEABLE_TOOLS, toolCamelPlural, toolRouteSegment } from "@/lib/tools";
+import {
+  TOGGLEABLE_TOOLS,
+  toolAvailable,
+  toolCamelPlural,
+  toolDisplayName,
+  toolRouteSegment,
+} from "@/lib/tools";
 
 export interface AdvancedToolsSectionProps {
   /** Current master-switch value per toggleable tool. */
@@ -67,12 +73,9 @@ export const AdvancedToolsSection = ({
   const rows = (
     <div className="space-y-3">
       {TOGGLEABLE_TOOLS.map((tool) => {
-        if (tool === Tool.advanced_tool && !advancedTool) return null;
+        if (!toolAvailable(tool, advancedTool)) return null;
         const camel = toolCamelPlural(tool);
-        const title =
-          tool === Tool.advanced_tool && advancedTool?.name
-            ? advancedTool.name
-            : t(`${camel}Feature` as never);
+        const title = toolDisplayName(tool, t(`${camel}Feature` as never), advancedTool);
         return (
           <AdvancedToolToggle
             key={tool}
