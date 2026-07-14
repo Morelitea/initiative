@@ -1,6 +1,7 @@
 import type { DocumentReadDocumentType } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import type { ExportFormatOption } from "@/components/exports/ExportButton";
+import { SIDEBAR_TOOLS, TOOL_REGISTRY } from "@/lib/tools";
 
 // Engine formats per document type — mirrors the backend adapter's rules.
 export const DOCUMENT_TYPE_FORMATS: Record<DocumentReadDocumentType, ExportFormatOption[]> = {
@@ -90,5 +91,58 @@ export const TOOL_EXPORT_FORMATS: Partial<Record<Tool, ExportFormatOption[]>> = 
     // importable envelope.
     { format: "ics", labelKey: "export.formatIcs" },
     { format: "json", labelKey: "export.formatJson" },
+  ],
+};
+
+// ---------------------------------------------------------------------------
+// Aggregate (initiative / guild) export wizard
+// ---------------------------------------------------------------------------
+
+/** Wizard tool order: the sidebar's order, filtered to engine-exportable
+ * tools — registry-driven, so a new bulk-exportable tool appears here
+ * without a hand-wired list. */
+export const AGGREGATE_EXPORT_TOOLS: Tool[] = SIDEBAR_TOOLS.filter(
+  (tool) => TOOL_REGISTRY[tool].bulkExport
+);
+
+/** Report-mode format choices per tool — mirrors the backend aggregate
+ * adapter's ``_REPORT_FORMATS`` (adapters/backup.py). Documents are absent:
+ * they choose per document type (REPORT_DOCUMENT_FORMATS). */
+export const REPORT_TOOL_FORMATS: Partial<Record<Tool, ExportFormatOption[]>> = {
+  [Tool.project]: [
+    { format: "pdf", labelKey: "export.formatPdf" },
+    { format: "csv", labelKey: "export.formatCsv" },
+    { format: "xlsx", labelKey: "export.formatXlsx" },
+  ],
+  [Tool.queue]: [
+    { format: "pdf", labelKey: "export.formatPdf" },
+    { format: "csv", labelKey: "export.formatCsv" },
+    { format: "xlsx", labelKey: "export.formatXlsx" },
+    { format: "md", labelKey: "export.formatMarkdown" },
+  ],
+  [Tool.counter_group]: [
+    { format: "pdf", labelKey: "export.formatPdf" },
+    { format: "csv", labelKey: "export.formatCsv" },
+    { format: "xlsx", labelKey: "export.formatXlsx" },
+    { format: "md", labelKey: "export.formatMarkdown" },
+  ],
+  [Tool.calendar_event]: [
+    { format: "ics", labelKey: "export.formatIcs" },
+    { format: "json", labelKey: "export.formatJson" },
+  ],
+};
+
+/** Report-mode per-type document formats — mirrors the backend's
+ * ``_DOCUMENT_REPORT_FORMATS``. Whiteboards/links/uploads ride in their
+ * canonical format and offer no choice. */
+export const REPORT_DOCUMENT_FORMATS: Record<"native" | "spreadsheet", ExportFormatOption[]> = {
+  native: [
+    { format: "pdf", labelKey: "export.formatPdf" },
+    { format: "md", labelKey: "export.formatMarkdown" },
+    { format: "docx", labelKey: "export.formatDocx" },
+  ],
+  spreadsheet: [
+    { format: "csv", labelKey: "export.formatCsv" },
+    { format: "xlsx", labelKey: "export.formatXlsx" },
   ],
 };

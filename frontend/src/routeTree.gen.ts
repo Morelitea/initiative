@@ -56,6 +56,7 @@ import { Route as ServerRequiredAuthenticatedSettingsPlatformAuthRouteImport } f
 import { Route as ServerRequiredAuthenticatedSettingsPlatformAiRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/ai'
 import { Route as ServerRequiredAuthenticatedSettingsGuildUsersRouteImport } from './routes/_serverRequired/_authenticated/settings/guild/users'
 import { Route as ServerRequiredAuthenticatedSettingsGuildTrashRouteImport } from './routes/_serverRequired/_authenticated/settings/guild/trash'
+import { Route as ServerRequiredAuthenticatedSettingsGuildExportRouteImport } from './routes/_serverRequired/_authenticated/settings/guild/export'
 import { Route as ServerRequiredAuthenticatedSettingsGuildAiRouteImport } from './routes/_serverRequired/_authenticated/settings/guild/ai'
 import { Route as ServerRequiredAuthenticatedSettingsAdminUsersRouteImport } from './routes/_serverRequired/_authenticated/settings/admin/users'
 import { Route as ServerRequiredAuthenticatedSettingsAdminGuildsRouteImport } from './routes/_serverRequired/_authenticated/settings/admin/guilds'
@@ -73,6 +74,7 @@ import { Route as ServerRequiredAuthenticatedGGuildIdTagsTagIdRouteImport } from
 import { Route as ServerRequiredAuthenticatedGGuildIdSettingsUsersRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/settings/users'
 import { Route as ServerRequiredAuthenticatedGGuildIdSettingsTrashRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/settings/trash'
 import { Route as ServerRequiredAuthenticatedGGuildIdSettingsInitiativesRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/settings/initiatives'
+import { Route as ServerRequiredAuthenticatedGGuildIdSettingsExportRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/settings/export'
 import { Route as ServerRequiredAuthenticatedGGuildIdSettingsDangerZoneRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/settings/danger-zone'
 import { Route as ServerRequiredAuthenticatedGGuildIdSettingsAuthRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/settings/auth'
 import { Route as ServerRequiredAuthenticatedGGuildIdSettingsAiRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/settings/ai'
@@ -367,6 +369,12 @@ const ServerRequiredAuthenticatedSettingsGuildTrashRoute =
     path: '/trash',
     getParentRoute: () => ServerRequiredAuthenticatedSettingsGuildRoute,
   } as any)
+const ServerRequiredAuthenticatedSettingsGuildExportRoute =
+  ServerRequiredAuthenticatedSettingsGuildExportRouteImport.update({
+    id: '/export',
+    path: '/export',
+    getParentRoute: () => ServerRequiredAuthenticatedSettingsGuildRoute,
+  } as any)
 const ServerRequiredAuthenticatedSettingsGuildAiRoute =
   ServerRequiredAuthenticatedSettingsGuildAiRouteImport.update({
     id: '/ai',
@@ -467,6 +475,12 @@ const ServerRequiredAuthenticatedGGuildIdSettingsInitiativesRoute =
   ServerRequiredAuthenticatedGGuildIdSettingsInitiativesRouteImport.update({
     id: '/initiatives',
     path: '/initiatives',
+    getParentRoute: () => ServerRequiredAuthenticatedGGuildIdSettingsRoute,
+  } as any)
+const ServerRequiredAuthenticatedGGuildIdSettingsExportRoute =
+  ServerRequiredAuthenticatedGGuildIdSettingsExportRouteImport.update({
+    id: '/export',
+    path: '/export',
     getParentRoute: () => ServerRequiredAuthenticatedGGuildIdSettingsRoute,
   } as any)
 const ServerRequiredAuthenticatedGGuildIdSettingsDangerZoneRoute =
@@ -638,6 +652,7 @@ export interface FileRoutesByFullPath {
   '/settings/admin/guilds': typeof ServerRequiredAuthenticatedSettingsAdminGuildsRoute
   '/settings/admin/users': typeof ServerRequiredAuthenticatedSettingsAdminUsersRoute
   '/settings/guild/ai': typeof ServerRequiredAuthenticatedSettingsGuildAiRoute
+  '/settings/guild/export': typeof ServerRequiredAuthenticatedSettingsGuildExportRoute
   '/settings/guild/trash': typeof ServerRequiredAuthenticatedSettingsGuildTrashRoute
   '/settings/guild/users': typeof ServerRequiredAuthenticatedSettingsGuildUsersRoute
   '/settings/platform/ai': typeof ServerRequiredAuthenticatedSettingsPlatformAiRoute
@@ -659,6 +674,7 @@ export interface FileRoutesByFullPath {
   '/g/$guildId/settings/ai': typeof ServerRequiredAuthenticatedGGuildIdSettingsAiRoute
   '/g/$guildId/settings/auth': typeof ServerRequiredAuthenticatedGGuildIdSettingsAuthRoute
   '/g/$guildId/settings/danger-zone': typeof ServerRequiredAuthenticatedGGuildIdSettingsDangerZoneRoute
+  '/g/$guildId/settings/export': typeof ServerRequiredAuthenticatedGGuildIdSettingsExportRoute
   '/g/$guildId/settings/initiatives': typeof ServerRequiredAuthenticatedGGuildIdSettingsInitiativesRoute
   '/g/$guildId/settings/trash': typeof ServerRequiredAuthenticatedGGuildIdSettingsTrashRoute
   '/g/$guildId/settings/users': typeof ServerRequiredAuthenticatedGGuildIdSettingsUsersRoute
@@ -714,6 +730,7 @@ export interface FileRoutesByTo {
   '/settings/admin/guilds': typeof ServerRequiredAuthenticatedSettingsAdminGuildsRoute
   '/settings/admin/users': typeof ServerRequiredAuthenticatedSettingsAdminUsersRoute
   '/settings/guild/ai': typeof ServerRequiredAuthenticatedSettingsGuildAiRoute
+  '/settings/guild/export': typeof ServerRequiredAuthenticatedSettingsGuildExportRoute
   '/settings/guild/trash': typeof ServerRequiredAuthenticatedSettingsGuildTrashRoute
   '/settings/guild/users': typeof ServerRequiredAuthenticatedSettingsGuildUsersRoute
   '/settings/platform/ai': typeof ServerRequiredAuthenticatedSettingsPlatformAiRoute
@@ -735,6 +752,7 @@ export interface FileRoutesByTo {
   '/g/$guildId/settings/ai': typeof ServerRequiredAuthenticatedGGuildIdSettingsAiRoute
   '/g/$guildId/settings/auth': typeof ServerRequiredAuthenticatedGGuildIdSettingsAuthRoute
   '/g/$guildId/settings/danger-zone': typeof ServerRequiredAuthenticatedGGuildIdSettingsDangerZoneRoute
+  '/g/$guildId/settings/export': typeof ServerRequiredAuthenticatedGGuildIdSettingsExportRoute
   '/g/$guildId/settings/initiatives': typeof ServerRequiredAuthenticatedGGuildIdSettingsInitiativesRoute
   '/g/$guildId/settings/trash': typeof ServerRequiredAuthenticatedGGuildIdSettingsTrashRoute
   '/g/$guildId/settings/users': typeof ServerRequiredAuthenticatedGGuildIdSettingsUsersRoute
@@ -799,6 +817,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/settings/admin/guilds': typeof ServerRequiredAuthenticatedSettingsAdminGuildsRoute
   '/_serverRequired/_authenticated/settings/admin/users': typeof ServerRequiredAuthenticatedSettingsAdminUsersRoute
   '/_serverRequired/_authenticated/settings/guild/ai': typeof ServerRequiredAuthenticatedSettingsGuildAiRoute
+  '/_serverRequired/_authenticated/settings/guild/export': typeof ServerRequiredAuthenticatedSettingsGuildExportRoute
   '/_serverRequired/_authenticated/settings/guild/trash': typeof ServerRequiredAuthenticatedSettingsGuildTrashRoute
   '/_serverRequired/_authenticated/settings/guild/users': typeof ServerRequiredAuthenticatedSettingsGuildUsersRoute
   '/_serverRequired/_authenticated/settings/platform/ai': typeof ServerRequiredAuthenticatedSettingsPlatformAiRoute
@@ -820,6 +839,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/g/$guildId/settings/ai': typeof ServerRequiredAuthenticatedGGuildIdSettingsAiRoute
   '/_serverRequired/_authenticated/g/$guildId/settings/auth': typeof ServerRequiredAuthenticatedGGuildIdSettingsAuthRoute
   '/_serverRequired/_authenticated/g/$guildId/settings/danger-zone': typeof ServerRequiredAuthenticatedGGuildIdSettingsDangerZoneRoute
+  '/_serverRequired/_authenticated/g/$guildId/settings/export': typeof ServerRequiredAuthenticatedGGuildIdSettingsExportRoute
   '/_serverRequired/_authenticated/g/$guildId/settings/initiatives': typeof ServerRequiredAuthenticatedGGuildIdSettingsInitiativesRoute
   '/_serverRequired/_authenticated/g/$guildId/settings/trash': typeof ServerRequiredAuthenticatedGGuildIdSettingsTrashRoute
   '/_serverRequired/_authenticated/g/$guildId/settings/users': typeof ServerRequiredAuthenticatedGGuildIdSettingsUsersRoute
@@ -883,6 +903,7 @@ export interface FileRouteTypes {
     | '/settings/admin/guilds'
     | '/settings/admin/users'
     | '/settings/guild/ai'
+    | '/settings/guild/export'
     | '/settings/guild/trash'
     | '/settings/guild/users'
     | '/settings/platform/ai'
@@ -904,6 +925,7 @@ export interface FileRouteTypes {
     | '/g/$guildId/settings/ai'
     | '/g/$guildId/settings/auth'
     | '/g/$guildId/settings/danger-zone'
+    | '/g/$guildId/settings/export'
     | '/g/$guildId/settings/initiatives'
     | '/g/$guildId/settings/trash'
     | '/g/$guildId/settings/users'
@@ -959,6 +981,7 @@ export interface FileRouteTypes {
     | '/settings/admin/guilds'
     | '/settings/admin/users'
     | '/settings/guild/ai'
+    | '/settings/guild/export'
     | '/settings/guild/trash'
     | '/settings/guild/users'
     | '/settings/platform/ai'
@@ -980,6 +1003,7 @@ export interface FileRouteTypes {
     | '/g/$guildId/settings/ai'
     | '/g/$guildId/settings/auth'
     | '/g/$guildId/settings/danger-zone'
+    | '/g/$guildId/settings/export'
     | '/g/$guildId/settings/initiatives'
     | '/g/$guildId/settings/trash'
     | '/g/$guildId/settings/users'
@@ -1043,6 +1067,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/settings/admin/guilds'
     | '/_serverRequired/_authenticated/settings/admin/users'
     | '/_serverRequired/_authenticated/settings/guild/ai'
+    | '/_serverRequired/_authenticated/settings/guild/export'
     | '/_serverRequired/_authenticated/settings/guild/trash'
     | '/_serverRequired/_authenticated/settings/guild/users'
     | '/_serverRequired/_authenticated/settings/platform/ai'
@@ -1064,6 +1089,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/g/$guildId/settings/ai'
     | '/_serverRequired/_authenticated/g/$guildId/settings/auth'
     | '/_serverRequired/_authenticated/g/$guildId/settings/danger-zone'
+    | '/_serverRequired/_authenticated/g/$guildId/settings/export'
     | '/_serverRequired/_authenticated/g/$guildId/settings/initiatives'
     | '/_serverRequired/_authenticated/g/$guildId/settings/trash'
     | '/_serverRequired/_authenticated/g/$guildId/settings/users'
@@ -1416,6 +1442,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsGuildTrashRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedSettingsGuildRoute
     }
+    '/_serverRequired/_authenticated/settings/guild/export': {
+      id: '/_serverRequired/_authenticated/settings/guild/export'
+      path: '/export'
+      fullPath: '/settings/guild/export'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsGuildExportRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedSettingsGuildRoute
+    }
     '/_serverRequired/_authenticated/settings/guild/ai': {
       id: '/_serverRequired/_authenticated/settings/guild/ai'
       path: '/ai'
@@ -1533,6 +1566,13 @@ declare module '@tanstack/react-router' {
       path: '/initiatives'
       fullPath: '/g/$guildId/settings/initiatives'
       preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsInitiativesRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsRoute
+    }
+    '/_serverRequired/_authenticated/g/$guildId/settings/export': {
+      id: '/_serverRequired/_authenticated/g/$guildId/settings/export'
+      path: '/export'
+      fullPath: '/g/$guildId/settings/export'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsExportRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsRoute
     }
     '/_serverRequired/_authenticated/g/$guildId/settings/danger-zone': {
@@ -1726,6 +1766,7 @@ const ServerRequiredAuthenticatedSettingsAdminRouteWithChildren =
 
 interface ServerRequiredAuthenticatedSettingsGuildRouteChildren {
   ServerRequiredAuthenticatedSettingsGuildAiRoute: typeof ServerRequiredAuthenticatedSettingsGuildAiRoute
+  ServerRequiredAuthenticatedSettingsGuildExportRoute: typeof ServerRequiredAuthenticatedSettingsGuildExportRoute
   ServerRequiredAuthenticatedSettingsGuildTrashRoute: typeof ServerRequiredAuthenticatedSettingsGuildTrashRoute
   ServerRequiredAuthenticatedSettingsGuildUsersRoute: typeof ServerRequiredAuthenticatedSettingsGuildUsersRoute
   ServerRequiredAuthenticatedSettingsGuildIndexRoute: typeof ServerRequiredAuthenticatedSettingsGuildIndexRoute
@@ -1735,6 +1776,8 @@ const ServerRequiredAuthenticatedSettingsGuildRouteChildren: ServerRequiredAuthe
   {
     ServerRequiredAuthenticatedSettingsGuildAiRoute:
       ServerRequiredAuthenticatedSettingsGuildAiRoute,
+    ServerRequiredAuthenticatedSettingsGuildExportRoute:
+      ServerRequiredAuthenticatedSettingsGuildExportRoute,
     ServerRequiredAuthenticatedSettingsGuildTrashRoute:
       ServerRequiredAuthenticatedSettingsGuildTrashRoute,
     ServerRequiredAuthenticatedSettingsGuildUsersRoute:
@@ -1804,6 +1847,7 @@ interface ServerRequiredAuthenticatedGGuildIdSettingsRouteChildren {
   ServerRequiredAuthenticatedGGuildIdSettingsAiRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsAiRoute
   ServerRequiredAuthenticatedGGuildIdSettingsAuthRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsAuthRoute
   ServerRequiredAuthenticatedGGuildIdSettingsDangerZoneRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsDangerZoneRoute
+  ServerRequiredAuthenticatedGGuildIdSettingsExportRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsExportRoute
   ServerRequiredAuthenticatedGGuildIdSettingsInitiativesRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsInitiativesRoute
   ServerRequiredAuthenticatedGGuildIdSettingsTrashRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsTrashRoute
   ServerRequiredAuthenticatedGGuildIdSettingsUsersRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsUsersRoute
@@ -1820,6 +1864,8 @@ const ServerRequiredAuthenticatedGGuildIdSettingsRouteChildren: ServerRequiredAu
       ServerRequiredAuthenticatedGGuildIdSettingsAuthRoute,
     ServerRequiredAuthenticatedGGuildIdSettingsDangerZoneRoute:
       ServerRequiredAuthenticatedGGuildIdSettingsDangerZoneRoute,
+    ServerRequiredAuthenticatedGGuildIdSettingsExportRoute:
+      ServerRequiredAuthenticatedGGuildIdSettingsExportRoute,
     ServerRequiredAuthenticatedGGuildIdSettingsInitiativesRoute:
       ServerRequiredAuthenticatedGGuildIdSettingsInitiativesRoute,
     ServerRequiredAuthenticatedGGuildIdSettingsTrashRoute:

@@ -1,0 +1,92 @@
+{
+  "wizard": {
+    "titleInitiative": "Export initiative",
+    "titleGuild": "Export guild",
+    "back": "Back",
+    "next": "Next",
+    "start": "Start export",
+    "close": "Close",
+    "mode": {
+      "prompt": "What kind of export?",
+      "backupTitle": "Importable backup",
+      "backupDescription": "Everything as importable JSON in one zip, indexed by a manifest — for restoring or migrating later.",
+      "reportTitle": "Report à la carte",
+      "reportDescription": "Pick a format for each tool — PDF, spreadsheet, Markdown, or calendar — bundled in one zip."
+    },
+    "backup": {
+      "prompt": "Choose what to include",
+      "includeUploads": "Include uploaded files",
+      "uploadsSize": "≈ {{size}} of uploaded files",
+      "toolCount_one": "{{count}} item",
+      "toolCount_other": "{{count}} items",
+      "disabled": "Not enabled",
+      "estimateFailed": "Couldn't load the size estimate.",
+      "overRowLimit": "This export exceeds the size limit — exclude some tools to continue.",
+      "overUploadLimit": "Uploaded files exceed the {{limit}} limit — exclude uploads to continue."
+    },
+    "report": {
+      "include": "Include",
+      "documentNative": "Text documents",
+      "documentSpreadsheet": "Spreadsheets",
+      "documentOthersNote": "Whiteboards and links export as JSON; uploaded files ride along unchanged."
+    },
+    "confirm": {
+      "prompt": "Ready to export",
+      "modeBackup": "Importable backup",
+      "modeReport": "Report",
+      "uploadsIncluded": "Uploaded files included",
+      "uploadsExcluded": "Uploaded files excluded",
+      "note": "The export runs in the background — you can keep working and we'll notify you when it's ready."
+    },
+    "progress": {
+      "title": "Preparing your export…",
+      "note": "This can take a while. You can close this dialog — the download arrives as a notification, and finished exports can be re-downloaded from guild settings."
+    },
+    "done": {
+      "title": "Export ready",
+      "note": "Your download has started. You can re-download it from guild settings until it expires."
+    },
+    "failed": {
+      "title": "Export failed",
+      "note": "Nothing was exported. Try again, or narrow what's included."
+    }
+  },
+  "entry": {
+    "guildTitle": "Export this guild",
+    "guildDescription": "Download every initiative's data as an importable backup or an à-la-carte report. Sharing rules apply: the export contains what you can see.",
+    "initiativeTitle": "Export this initiative",
+    "initiativeDescription": "Download this initiative's data as an importable backup or an à-la-carte report. Sharing rules apply: the export contains what you can see.",
+    "open": "Export…"
+  },
+  "table": {
+    "title": "Recent exports",
+    "description": "Finished exports can be re-downloaded until they expire (7 days). Guild admins see every member's exports.",
+    "columns": {
+      "export": "Export",
+      "status": "Status",
+      "created": "Created",
+      "expires": "Expires",
+      "actions": "Actions"
+    },
+    "status": {
+      "queued": "Queued",
+      "running": "Running",
+      "done": "Ready",
+      "failed": "Failed",
+      "expired": "Expired"
+    },
+    "source": {
+      "tasks": "Tasks",
+      "project": "Project",
+      "document": "Document",
+      "queue": "Queue",
+      "counter-group": "Counter group",
+      "calendar-event": "Calendar",
+      "initiative": "Initiative",
+      "guild": "Guild"
+    },
+    "download": "Download",
+    "empty": "No exports yet.",
+    "loadFailed": "Couldn't load exports. Refresh to try again."
+  }
+}
