@@ -49,6 +49,7 @@ _CONTENT_TYPES = {
     "md": "text/markdown; charset=utf-8",
     "json": "application/json",
     "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "ics": "text/calendar; charset=utf-8",
     "file": "application/octet-stream",  # per-item override from the blob
 }
 
@@ -114,6 +115,10 @@ def _render_item(
             content = tabular.render_md(item)
     elif format == "docx":
         content = lexical.render_docx(item.data, _blob_reader(req.guild_id))
+    elif format == "ics":
+        from app.services.tenant.ical_service import ical_from_export_dicts
+
+        content = ical_from_export_dicts(item.data.get("events") or [])
     elif format == "json":
         # The payload IS the artifact (e.g. a backup envelope); indent for a
         # human-inspectable file.

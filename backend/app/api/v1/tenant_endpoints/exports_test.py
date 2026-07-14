@@ -1600,3 +1600,151 @@ async def test_bulk_project_selection_exports_backup_zip(
         params={"project_ids": [a.project.id, theirs.id], "format": "json"},
     )
     assert denied.status_code == 403
+
+
+async def _events_enabled(session, initiative):
+    """Calendar events are a toggleable tool (off by default) — flip the
+    initiative's master switch so the enumeration includes it."""
+    initiative.calendar_events_enabled = True
+    session.add(initiative)
+    await session.commit()
+
+
+async def test_calendar_event_export_ics_and_json(
+    client: AsyncClient, acting_user, session
+):
+    """Events export as one multi-event iCalendar file (RRULE + attendee
+    RSVPs preserved) or one importable envelope — both through the engine."""
+    import json
+
+    from app.testing.factories import create_calendar_event
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await _events_enabled(session, a.initiative)
+    await create_calendar_event(
+        session,
+        a.initiative,
+        a.user,
+        title="Session 13",
+        description="Return to the castle",
+        location="Roll20",
+        recurrence='{"frequency": "weekly", "interval": 1, "ends": "never"}',
+    )
+    await create_calendar_event(session, a.initiative, a.user, title="One-shot night")
+
+    ics = await client.get(
+        a.g("/exports/calendar-event"),
+        headers=a.headers,
+        params={"format": "ics"},
+    )
+    assert ics.status_code == 200
+    assert ics.headers["content-type"].startswith("text/calendar")
+    assert 'filename="calendar-events-' in ics.headers["content-disposition"]
+    body = ics.content.decode("utf-8")
+    assert body.startswith("BEGIN:VCALENDAR")
+    assert body.count("BEGIN:VEVENT") == 2
+    assert "SUMMARY:Session 13" in body
+    assert "RRULE:FREQ=WEEKLY" in body
+    assert "LOCATION:Roll20" in body
+
+    js = await client.get(
+        a.g("/exports/calendar-event"),
+        headers=a.headers,
+        params={"format": "json"},
+    )
+    assert js.status_code == 200
+    envelope = json.loads(js.content)
+    assert envelope["kind"] == "initiative-calendar-events"
+    assert envelope["schema_version"] == 1
+    titles = {e["title"] for e in envelope["events"]}
+    assert titles == {"Session 13", "One-shot night"}
+    recurring = next(e for e in envelope["events"] if e["title"] == "Session 13")
+    assert recurring["recurrence"]["frequency"] == "weekly"
+    assert recurring["description"] == "Return to the castle"
+
+
+async def test_calendar_event_export_applies_per_event_sharing(
+    client: AsyncClient, acting_user, session
+):
+    """The engine route fixes the legacy .ics endpoint's gap: an event not
+    shared with the exporter stays OUT of their export-all — while a guild
+    admin still sees everything."""
+    from sqlalchemy import delete as sa_delete
+
+    from app.models.tenant.resource_grant import ResourceGrant
+    from app.testing.factories import create_calendar_event
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await _events_enabled(session, a.initiative)
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    shared = await create_calendar_event(session, a.initiative, a.user, title="Open")
+    secret = await create_calendar_event(session, a.initiative, a.user, title="Secret")
+    # Strip every grant except the creator's own — b can no longer see it.
+    # (is_distinct_from: role grants carry a NULL user_id, which a plain
+    # ``!=`` would silently skip.)
+    await session.exec(
+        sa_delete(ResourceGrant).where(
+            ResourceGrant.resource_type == "calendar_event",
+            ResourceGrant.resource_id == secret.id,
+            ResourceGrant.user_id.is_distinct_from(a.user.id),
+        )
+    )
+    await session.commit()
+    assert shared.id
+
+    import json
+
+    resp = await client.get(
+        a.g("/exports/calendar-event"),
+        headers=b.headers,
+        params={"format": "json"},
+    )
+    assert resp.status_code == 200
+    titles = {e["title"] for e in json.loads(resp.content)["events"]}
+    assert titles == {"Open"}  # Secret excluded — the DAC gap fix
+
+    # Explicitly requesting the hidden id is refused outright.
+    denied = await client.get(
+        a.g("/exports/calendar-event"),
+        headers=b.headers,
+        params={"format": "ics", "calendar_event_ids": [secret.id]},
+    )
+    assert denied.status_code == 403
+
+    admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
+    admin_resp = await client.get(
+        a.g("/exports/calendar-event"),
+        headers=admin.headers,
+        params={"format": "json"},
+    )
+    admin_titles = {e["title"] for e in json.loads(admin_resp.content)["events"]}
+    assert admin_titles == {"Open", "Secret"}
+
+
+async def test_calendar_event_export_initiative_filter(
+    client: AsyncClient, acting_user, session
+):
+    import json
+
+    from app.testing.factories import create_calendar_event, create_initiative
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    await _events_enabled(session, a.initiative)
+    other = await create_initiative(
+        session, a.guild, a.user, name="Side quests", calendar_events_enabled=True
+    )
+    await create_calendar_event(session, a.initiative, a.user, title="Main event")
+    await create_calendar_event(session, other, a.user, title="Side event")
+
+    resp = await client.get(
+        a.g("/exports/calendar-event"),
+        headers=a.headers,
+        params={"format": "json", "initiative_id": a.initiative.id},
+    )
+    titles = {e["title"] for e in json.loads(resp.content)["events"]}
+    assert titles == {"Main event"}

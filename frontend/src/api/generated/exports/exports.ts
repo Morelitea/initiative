@@ -18,6 +18,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetParams,
   ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetParams,
   ExportDocumentApiV1GGuildIdExportsDocumentGetParams,
   ExportJobRead,
@@ -906,6 +907,191 @@ export function useExportCounterGroupApiV1GGuildIdExportsCounterGroupGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getExportCounterGroupApiV1GGuildIdExportsCounterGroupGetQueryOptions(
+    guildId,
+    params,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Export calendar events: ``ics`` is one iCalendar file (RRULE and
+ * attendee RSVPs preserved); ``json`` is one importable envelope holding
+ * every event. With no ids and no initiative, every event visible to the
+ * caller in the guild exports — per-event sharing applies, unlike the
+ * removed ``/calendar-events/export.ics`` endpoint. Read access suffices.
+ * Small exports return the file inline; large ones return ``202`` with a
+ * queued job to poll and download.
+ * @summary Export Calendar Events
+ */
+export const exportCalendarEventsApiV1GGuildIdExportsCalendarEventGet = (
+  guildId: number,
+  params?: ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<unknown>(
+    { url: `/api/v1/g/${guildId}/exports/calendar-event`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetQueryKey = (
+  guildId: number,
+  params?: ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetParams
+) => {
+  return [`/api/v1/g/${guildId}/exports/calendar-event`, ...(params ? [params] : [])] as const;
+};
+
+export const getExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportCalendarEventsApiV1GGuildIdExportsCalendarEventGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportCalendarEventsApiV1GGuildIdExportsCalendarEventGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetQueryKey(guildId, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof exportCalendarEventsApiV1GGuildIdExportsCalendarEventGet>>
+  > = ({ signal }) =>
+    exportCalendarEventsApiV1GGuildIdExportsCalendarEventGet(
+      guildId,
+      params,
+      requestOptions,
+      signal
+    );
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof exportCalendarEventsApiV1GGuildIdExportsCalendarEventGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof exportCalendarEventsApiV1GGuildIdExportsCalendarEventGet>>
+>;
+export type ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useExportCalendarEventsApiV1GGuildIdExportsCalendarEventGet<
+  TData = Awaited<ReturnType<typeof exportCalendarEventsApiV1GGuildIdExportsCalendarEventGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: undefined | ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportCalendarEventsApiV1GGuildIdExportsCalendarEventGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof exportCalendarEventsApiV1GGuildIdExportsCalendarEventGet>>,
+          TError,
+          Awaited<ReturnType<typeof exportCalendarEventsApiV1GGuildIdExportsCalendarEventGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useExportCalendarEventsApiV1GGuildIdExportsCalendarEventGet<
+  TData = Awaited<ReturnType<typeof exportCalendarEventsApiV1GGuildIdExportsCalendarEventGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportCalendarEventsApiV1GGuildIdExportsCalendarEventGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof exportCalendarEventsApiV1GGuildIdExportsCalendarEventGet>>,
+          TError,
+          Awaited<ReturnType<typeof exportCalendarEventsApiV1GGuildIdExportsCalendarEventGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useExportCalendarEventsApiV1GGuildIdExportsCalendarEventGet<
+  TData = Awaited<ReturnType<typeof exportCalendarEventsApiV1GGuildIdExportsCalendarEventGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportCalendarEventsApiV1GGuildIdExportsCalendarEventGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Export Calendar Events
+ */
+
+export function useExportCalendarEventsApiV1GGuildIdExportsCalendarEventGet<
+  TData = Awaited<ReturnType<typeof exportCalendarEventsApiV1GGuildIdExportsCalendarEventGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportCalendarEventsApiV1GGuildIdExportsCalendarEventGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetQueryOptions(
     guildId,
     params,
     options

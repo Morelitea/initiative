@@ -4054,6 +4054,31 @@ export const ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetFormat = {
   md: "md",
 } as const;
 
+export type ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetParams = {
+  calendar_event_id?: number | null;
+  /**
+   * Bulk selection of events
+   */
+  calendar_event_ids?: number[] | null;
+  /**
+   * All exportable events in this initiative (ignored when ids given)
+   */
+  initiative_id?: number | null;
+  format?: ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetFormat;
+  /**
+   * IANA timezone for report timestamps
+   */
+  tz?: string | null;
+};
+
+export type ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetFormat =
+  (typeof ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetFormat)[keyof typeof ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetFormat];
+
+export const ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetFormat = {
+  ics: "ics",
+  json: "json",
+} as const;
+
 export type ListQueuesApiV1GGuildIdQueuesGetParams = {
   initiative_id?: number | null;
   /**
@@ -4078,12 +4103,6 @@ export type ListCounterGroupsApiV1GGuildIdCounterGroupsGetParams = {
    * @maximum 100
    */
   page_size?: number;
-};
-
-export type ExportCalendarEventsIcsApiV1GGuildIdCalendarEventsExportIcsGetParams = {
-  initiative_id?: number | null;
-  start_after?: string | null;
-  start_before?: string | null;
 };
 
 export type ListCalendarEventsApiV1GGuildIdCalendarEventsGetParams = {

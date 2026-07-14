@@ -61,10 +61,16 @@ RECENTABLE_TOOLS = tuple(t for t in Tool if t is not Tool.advanced_tool)
 # Tools with an export-engine source (single-entity + bulk selection export).
 # The engine's source name / endpoint segment is the KEBAB SINGULAR of the
 # tool ("counter_group" -> "counter-group"); the bulk selector param is
-# ``{tool}_ids``. Intentional gaps: calendar events (no export surface yet)
-# and the advanced tool (its content lives in the external service). The
-# frontend mirrors this as TOOL_REGISTRY's ``bulkExport`` flag.
-BULK_EXPORT_TOOLS = (Tool.project, Tool.document, Tool.queue, Tool.counter_group)
+# ``{tool}_ids``. Intentional gap: the advanced tool (its content lives in
+# the external service). The frontend mirrors this as TOOL_REGISTRY's
+# ``bulkExport`` flag.
+BULK_EXPORT_TOOLS = (
+    Tool.project,
+    Tool.document,
+    Tool.queue,
+    Tool.counter_group,
+    Tool.calendar_event,
+)
 
 
 def tool_export_source(tool: Tool) -> str:
