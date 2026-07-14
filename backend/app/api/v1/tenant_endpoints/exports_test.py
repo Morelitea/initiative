@@ -387,7 +387,8 @@ async def test_document_export_per_type_formats(
     assert serialized["content"]["root"]["type"] == "root"
     assert serialized["tags"] == [] and serialized["properties"] == []
 
-    # whiteboard -> standard Excalidraw file shape
+    # whiteboard -> envelope wrapping the standard Excalidraw file shape
+    # (unwrapping `content` yields a file any Excalidraw opens)
     board = await create_document(
         session,
         a.initiative,
@@ -398,7 +399,10 @@ async def test_document_export_per_type_formats(
     )
     resp = await export(board, "json")
     assert resp.status_code == 200
-    scene = json.loads(resp.content)
+    envelope = json.loads(resp.content)
+    assert envelope["kind"] == "initiative-document"
+    assert envelope["document_type"] == "whiteboard"
+    scene = envelope["content"]
     assert scene["type"] == "excalidraw"
     assert scene["elements"] == [{"type": "rectangle"}]
 

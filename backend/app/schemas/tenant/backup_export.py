@@ -28,13 +28,13 @@ class ManifestEntry(SanitizedBaseModel):
 
     path: str
     tool: str  # "project" | "document" | "queue" | "counter_group" | "calendar_event"
-    kind: str  # envelope kind, "excalidraw", or "file"
+    kind: str  # envelope kind, or "file"
     schema_version: Optional[int] = None  # None for foreign formats
     entity_id: int
     title: str
     initiative_id: int
     # Metadata for entries whose file format can't carry it itself
-    # (whiteboards are standard Excalidraw files; file entries are raw blobs).
+    # (file entries are raw blobs; envelopes carry their own tags/properties).
     tags: list[str] = []
     properties: list[dict] = []
     # ``assets/{storage_key}`` for file documents (the blob IS the document).

@@ -17,7 +17,7 @@ with one ``initiatives/`` entry, so ONE import path serves both)::
 
     manifest.json                                   (backup mode)
     initiatives/{id}-{slug}/projects/{id}-{slug}.initiative-project.json
-    initiatives/{id}-{slug}/documents/{id}-{slug}.json | .excalidraw.json
+    initiatives/{id}-{slug}/documents/{id}-{slug}.json
     initiatives/{id}-{slug}/queues/{id}-{slug}.initiative-queue.json
     initiatives/{id}-{slug}/counter-groups/{id}-{slug}.initiative-counter-group.json
     initiatives/{id}-{slug}/calendar-events.json
@@ -499,7 +499,6 @@ class _ScopeBuilder:
                 else str(document.document_type)
             )
             path_stem = f"{folder}/documents/{_slug(document.id, document.title)}"
-            metadata = _document_metadata(document)
 
             if doc_type == DocumentType.file.value:
                 if not _include_uploads(self.params):
@@ -513,39 +512,34 @@ class _ScopeBuilder:
                         )
                     )
                     continue
-                self._add_file_document(document, initiative, path_stem, metadata)
+                self._add_file_document(
+                    document, initiative, path_stem, _document_metadata(document)
+                )
                 continue
 
+            # Report mode offers per-type choices for native/spreadsheet;
+            # everything else (whiteboards, smart links) rides as its
+            # canonical json envelope in both modes.
             fmt = (
                 "json"
                 if self.mode == "backup" or doc_type not in doc_formats
                 else doc_formats[doc_type]
             )
-            # Whiteboards always ride as standard Excalidraw files.
-            if doc_type == DocumentType.whiteboard.value:
-                fmt = "json"
             item = build_document_item(
                 document, fmt, guild_id=self.guild_id, date=date, loc=loc
             )
             if fmt == "json":
-                if doc_type == DocumentType.whiteboard.value:
-                    path = f"{path_stem}.excalidraw.json"
-                    kind, version = "excalidraw", None
-                else:
-                    path = f"{path_stem}.json"
-                    kind, version = "initiative-document", 1
+                path = f"{path_stem}.json"
                 self._collect_embedded_assets(document, doc_type, path)
                 self._append_backup(
                     item,
                     path=path,
                     tool="document",
-                    kind=kind,
-                    schema_version=version,
+                    kind="initiative-document",
+                    schema_version=1,
                     entity_id=document.id,
                     title=document.title,
                     initiative_id=initiative.id,
-                    tags=metadata["tags"] if kind == "excalidraw" else [],
-                    properties=metadata["properties"] if kind == "excalidraw" else [],
                 )
             else:
                 self._append_report(item, f"{path_stem}.{fmt}", fmt, "document")

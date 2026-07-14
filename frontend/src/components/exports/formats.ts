@@ -12,7 +12,7 @@ export const DOCUMENT_TYPE_FORMATS: Record<DocumentReadDocumentType, ExportForma
     // editor toolbar's import.
     { format: "json", labelKey: "export.formatJson" },
   ],
-  whiteboard: [{ format: "json", labelKey: "export.formatExcalidraw" }],
+  whiteboard: [{ format: "json", labelKey: "export.formatJson" }],
   spreadsheet: [
     { format: "csv", labelKey: "export.formatCsv" },
     { format: "xlsx", labelKey: "export.formatXlsx" },

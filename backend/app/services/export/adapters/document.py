@@ -10,10 +10,12 @@ time (before a job is created, so a mismatch is an immediate 400):
   ``assets/`` folder when images are referenced), ``pdf`` and ``docx`` (both
   embedding referenced same-guild images) via the ``lexical`` converter
   module.
-* ``whiteboard``        -> ``json``  — the scene wrapped in the standard
-  Excalidraw file shape, so the download opens in any Excalidraw. Pixel
-  exports (PNG/SVG) are deliberately client-side: only Excalidraw's own JS
-  renders scenes faithfully, and the design forbids a JS runtime here.
+* ``whiteboard``        -> ``json``  — the generic document envelope with
+  the scene (as the standard Excalidraw file shape) under ``content``, so a
+  backup keeps tags/properties and unwrapping still yields a file any
+  Excalidraw opens. Pixel exports (PNG/SVG) are deliberately client-side:
+  only Excalidraw's own JS renders scenes faithfully, and the design forbids
+  a JS runtime here.
 * ``spreadsheet``       -> ``csv`` / ``xlsx`` — the sparse grid, with the
   formatting model mapped for xlsx — and ``json``, the canonical snapshot in
   an importable envelope (the snapshot is already the versioned format the
@@ -166,19 +168,22 @@ def build_document_item(
         }
         return RenderItem(key=stem, data=data)
     if doc_type == DocumentType.whiteboard.value:
-        # The standard Excalidraw file shape — importable by any Excalidraw
-        # (app or excalidraw.com), not just this instance. Deliberately NOT
-        # our envelope: wrapping it would break direct Excalidraw import, so
-        # whiteboard tags/properties ride in the backup manifest instead.
+        # Importable backup: the scene wrapped as the standard Excalidraw
+        # file shape INSIDE the generic envelope — a future import
+        # discriminates by kind like every other document type, and
+        # unwrapping `content` still yields a file any Excalidraw opens.
         content = document.content or {}
-        data = {
-            "type": "excalidraw",
-            "version": 2,
-            "source": "initiative",
-            "elements": content.get("elements") or [],
-            "appState": content.get("appState") or {},
-            "files": content.get("files") or {},
-        }
+        data = _envelope(
+            document,
+            content={
+                "type": "excalidraw",
+                "version": 2,
+                "source": "initiative",
+                "elements": content.get("elements") or [],
+                "appState": content.get("appState") or {},
+                "files": content.get("files") or {},
+            },
+        )
     elif doc_type == DocumentType.native.value:
         # Importable backup: the raw editor state inside the generic
         # document envelope. The editor toolbar's import unwraps the
