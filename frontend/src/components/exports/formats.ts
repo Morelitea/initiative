@@ -8,8 +8,9 @@ export const DOCUMENT_TYPE_FORMATS: Record<DocumentReadDocumentType, ExportForma
     { format: "pdf", labelKey: "export.formatPdf" },
     { format: "md", labelKey: "export.formatMarkdown" },
     { format: "docx", labelKey: "export.formatDocx" },
-    // The lossless one: round-trips through the editor toolbar's import.
-    { format: "json", labelKey: "export.formatLexical" },
+    // The lossless one: the document envelope, round-trippable through the
+    // editor toolbar's import.
+    { format: "json", labelKey: "export.formatJson" },
   ],
   whiteboard: [{ format: "json", labelKey: "export.formatExcalidraw" }],
   spreadsheet: [

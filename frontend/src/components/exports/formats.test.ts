@@ -6,8 +6,7 @@ describe("documentSelectionFormats", () => {
   it("keeps the type's own labels for a single-type selection", () => {
     const formats = documentSelectionFormats(["native", "native"]);
     expect(formats.map((f) => f.format)).toEqual(["pdf", "md", "docx", "json"]);
-    // The precise label survives — .lexical, not generic JSON.
-    expect(formats.find((f) => f.format === "json")?.labelKey).toBe("export.formatLexical");
+    expect(formats.find((f) => f.format === "json")?.labelKey).toBe("export.formatJson");
   });
 
   it("intersects formats across a mixed selection with generic labels", () => {

@@ -273,7 +273,6 @@
     "formatPng": "Image PNG",
     "formatSvg": "Image SVG",
     "formatDocx": "Word (DOCX)",
-    "formatLexical": "Fichier Lexical (.lexical)",
     "formatIcs": "iCalendar (.ics)"
   }
 }

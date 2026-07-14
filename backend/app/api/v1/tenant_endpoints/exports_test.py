@@ -369,8 +369,8 @@ async def test_document_export_per_type_formats(
             params={"document_id": doc.id, "format": format},
         )
 
-    # native (Lexical) -> the @lexical/file schema, named .lexical so the
-    # editor toolbar's import button (which only accepts .lexical) takes it.
+    # native (Lexical) -> the generic document envelope with the raw editor
+    # state as content (the editor toolbar's import unwraps it).
     native = await create_document(
         session,
         a.initiative,
@@ -380,11 +380,12 @@ async def test_document_export_per_type_formats(
     )
     resp = await export(native, "json")
     assert resp.status_code == 200
-    assert ".lexical" in resp.headers["content-disposition"]
+    assert ".json" in resp.headers["content-disposition"]
     serialized = json.loads(resp.content)
-    assert serialized["source"] == "Initiative"
-    assert serialized["editorState"]["root"]["type"] == "root"
-    assert isinstance(serialized["lastSaved"], int)
+    assert serialized["kind"] == "initiative-document"
+    assert serialized["document_type"] == "native"
+    assert serialized["content"]["root"]["type"] == "root"
+    assert serialized["tags"] == [] and serialized["properties"] == []
 
     # whiteboard -> standard Excalidraw file shape
     board = await create_document(
@@ -1423,13 +1424,12 @@ async def test_bulk_document_selection_exports_as_zip(
     archive = zipfile.ZipFile(io.BytesIO(resp.content))
     names = sorted(archive.namelist())
     assert len(names) == 3
-    # Native docs keep their .lexical filename; the twin title deduped.
-    lexicals = [n for n in names if n.endswith(".lexical")]
-    assert len(lexicals) == 2 and len(set(lexicals)) == 2
-    (envelope_name,) = [n for n in names if n.endswith(".json")]
-    envelope = json.loads(archive.read(envelope_name))
-    assert envelope["kind"] == "initiative-document"
-    assert envelope["title"] == "Budget"
+    assert all(n.endswith(".json") for n in names)
+    assert len(set(names)) == 3  # the twin "Session Notes" title deduped
+    envelopes = [json.loads(archive.read(n)) for n in names]
+    assert all(e["kind"] == "initiative-document" for e in envelopes)
+    assert {e["document_type"] for e in envelopes} == {"native", "spreadsheet"}
+    assert {e["title"] for e in envelopes} == {"Session Notes", "Budget"}
 
 
 async def test_bulk_document_selection_rejects_format_not_shared_by_all(
@@ -1797,6 +1797,8 @@ async def test_smart_link_exports_importable_json_envelope(
         "document_type": "smart_link",
         "title": "Session zero notes",
         "content": {"url": "https://example.com/notes"},
+        "tags": [],
+        "properties": [],
     }
 
     # md remains available; unsupported formats still 400.
@@ -1814,3 +1816,45 @@ async def test_smart_link_exports_importable_json_envelope(
     )
     assert pdf.status_code == 400
     assert pdf.json()["detail"] == "EXPORT_INVALID_FORMAT"
+
+
+async def test_document_envelope_carries_tags_and_properties(
+    client: AsyncClient, acting_user, session
+):
+    """Backups must not shed metadata: the document envelope includes tags by
+    name and custom properties in the shared flat encoding."""
+    import json
+
+    from app.models.tenant.tag import DocumentTag
+    from app.testing.factories import (
+        create_document,
+        create_document_property_value,
+        create_property_definition,
+        create_tag,
+    )
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    doc = await create_document(
+        session,
+        a.initiative,
+        a.user,
+        title="Lore",
+        content={"root": {"children": [], "type": "root"}},
+    )
+    tag = await create_tag(session, a.guild, name="worldbuilding")
+    session.add(DocumentTag(document_id=doc.id, tag_id=tag.id))
+    await session.commit()
+    definition = await create_property_definition(session, a.initiative, name="Status")
+    await create_document_property_value(session, doc, definition, value_text="Draft")
+
+    resp = await client.get(
+        a.g("/exports/document"),
+        headers=a.headers,
+        params={"document_id": doc.id, "format": "json"},
+    )
+    assert resp.status_code == 200
+    envelope = json.loads(resp.content)
+    assert envelope["tags"] == ["worldbuilding"]
+    assert envelope["properties"] == [
+        {"property_name": "Status", "property_type": "text", "value_text": "Draft"}
+    ]

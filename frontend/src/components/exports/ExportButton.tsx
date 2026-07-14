@@ -146,9 +146,9 @@ export function ExportButton({
         validateStatus: (s) => s === 200 || s === 202,
       });
       if (res.status === 200) {
-        // Prefer the server-chosen name (Content-Disposition): a Lexical
-        // export is ".lexical" for the editor's import picker, and a file
-        // passthrough keeps an extension the client can't know.
+        // Prefer the server-chosen name (Content-Disposition): a file
+        // passthrough keeps an extension the client can't know, and bundles
+        // arrive as .zip regardless of the chosen format.
         const serverName = filenameFromDisposition(res.headers["content-disposition"]);
         downloadBlob(
           res.data,

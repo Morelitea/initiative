@@ -58,7 +58,7 @@ describe("DocumentsBulkBar export", () => {
     renderWithProviders(<DocumentsBulkBar {...barProps} selectedDocuments={docs} />);
 
     await userEvent.click(screen.getByRole("button", { name: /export/i }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: /lexical/i }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /json/i }));
 
     await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(1));
     expect(sent).toEqual(["11", "12"]);
