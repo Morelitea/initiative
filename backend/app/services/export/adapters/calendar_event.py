@@ -9,9 +9,9 @@ and ATTENDEE/PARTSTAT preserved — the same serialization the old
 
 Selector: an explicit ``calendar_event_ids`` selection, or ``initiative_id``
 (all exportable events in that initiative), or neither — every event visible
-to the creator across the guild. Unlike the legacy ``.ics`` endpoint this
-enumeration applies per-event sharing (the DAC visible-ids subquery), so an
-event never leaves the guild with someone it wasn't shared with.
+to the creator across the guild. Enumeration applies per-event sharing (the
+DAC visible-ids subquery), so an export only ever contains events shared
+with its creator.
 
 Access rule: READ per event (exporting is a formatted read), enforced by the
 ``get_event_for_export`` / ``list_event_ids_for_export`` seams at both count
@@ -47,7 +47,23 @@ class CalendarEventAdapter:
         params: dict,
         format: str,
     ) -> int:
-        return len(await self._events(session, user, guild_id, params))
+        # The enumerated path counts with ONE id query (the enumeration is
+        # already DAC-filtered, so nothing needs a per-event fetch). An
+        # explicit id selection keeps the per-event fetch+authorize — the
+        # engine's contract is that count() rejects an unauthorized selection
+        # BEFORE a job row exists, and the selection cap bounds it.
+        if params.get("calendar_event_ids") or params.get("calendar_event_id"):
+            return len(await self._events(session, user, guild_id, params))
+        from app.services.tenant.calendar_events import list_event_ids_for_export
+
+        return len(
+            await list_event_ids_for_export(
+                session,
+                user,
+                guild_id,
+                initiative_id=_optional_int(params, "initiative_id"),
+            )
+        )
 
     async def build(
         self,

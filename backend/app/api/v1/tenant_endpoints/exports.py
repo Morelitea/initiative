@@ -313,10 +313,9 @@ async def export_calendar_events(
     """Export calendar events: ``ics`` is one iCalendar file (RRULE and
     attendee RSVPs preserved); ``json`` is one importable envelope holding
     every event. With no ids and no initiative, every event visible to the
-    caller in the guild exports — per-event sharing applies, unlike the
-    removed ``/calendar-events/export.ics`` endpoint. Read access suffices.
-    Small exports return the file inline; large ones return ``202`` with a
-    queued job to poll and download."""
+    caller in the guild exports — per-event sharing applies throughout. Read
+    access suffices. Small exports return the file inline; large ones return
+    ``202`` with a queued job to poll and download."""
     try:
         result = await start_export(
             session,

@@ -1679,9 +1679,9 @@ async def test_calendar_event_export_ics_and_json(
 async def test_calendar_event_export_applies_per_event_sharing(
     client: AsyncClient, acting_user, session
 ):
-    """The engine route fixes the legacy .ics endpoint's gap: an event not
-    shared with the exporter stays OUT of their export-all — while a guild
-    admin still sees everything."""
+    """Per-event sharing holds for exports: an event not shared with the
+    exporter stays OUT of their export-all — while a guild admin still sees
+    everything."""
     from sqlalchemy import delete as sa_delete
 
     from app.models.tenant.resource_grant import ResourceGrant
