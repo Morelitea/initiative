@@ -1619,9 +1619,14 @@ async def test_calendar_event_export_ics_and_json(
 
     from app.testing.factories import create_calendar_event
 
+    from app.testing.factories import (
+        create_calendar_event_property_value,
+        create_property_definition,
+    )
+
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     await _events_enabled(session, a.initiative)
-    await create_calendar_event(
+    recurring_event = await create_calendar_event(
         session,
         a.initiative,
         a.user,
@@ -1629,6 +1634,10 @@ async def test_calendar_event_export_ics_and_json(
         description="Return to the castle",
         location="Roll20",
         recurrence='{"frequency": "weekly", "interval": 1, "ends": "never"}',
+    )
+    definition = await create_property_definition(session, a.initiative, name="Table")
+    await create_calendar_event_property_value(
+        session, recurring_event, definition, value_text="Table 3"
     )
     await create_calendar_event(session, a.initiative, a.user, title="One-shot night")
 
@@ -1661,6 +1670,10 @@ async def test_calendar_event_export_ics_and_json(
     recurring = next(e for e in envelope["events"] if e["title"] == "Session 13")
     assert recurring["recurrence"]["frequency"] == "weekly"
     assert recurring["description"] == "Return to the castle"
+    # Custom properties ride flat and by NAME (project-envelope encoding).
+    assert recurring["properties"] == [
+        {"property_name": "Table", "property_type": "text", "value_text": "Table 3"}
+    ]
 
 
 async def test_calendar_event_export_applies_per_event_sharing(

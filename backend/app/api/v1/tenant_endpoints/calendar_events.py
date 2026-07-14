@@ -313,13 +313,20 @@ async def export_my_calendar_events_ics(
                 selectinload(CalendarEvent.attendees).selectinload(
                     CalendarEventAttendee.user
                 ),
-                # event_export_dict reads tags and linked-document titles too —
-                # async lazy loads would raise, so load them here.
+                # event_export_dict reads tags, linked-document titles, and
+                # custom properties too — async lazy loads would raise, so
+                # load them here.
                 selectinload(CalendarEvent.tag_links).selectinload(
                     CalendarEventTag.tag
                 ),
                 selectinload(CalendarEvent.document_links).selectinload(
                     CalendarEventDocument.document
+                ),
+                selectinload(CalendarEvent.property_values).selectinload(
+                    CalendarEventPropertyValue.property_definition
+                ),
+                selectinload(CalendarEvent.property_values).selectinload(
+                    CalendarEventPropertyValue.value_user
                 ),
             )
         )

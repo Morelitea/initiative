@@ -139,7 +139,43 @@ def event_export_dict(event: CalendarEvent) -> dict:
             for link in event.document_links or []
             if link.document is not None
         ),
+        "properties": [
+            _property_export_dict(pv)
+            for pv in event.property_values or []
+            if pv.property_definition is not None
+        ],
     }
+
+
+def _property_export_dict(pv) -> dict:
+    """A custom property value, flat and by NAME (never id) — the same
+    type→field encoding the project envelope uses (see
+    ``project_export._serialize_property_value``), so a future import reads
+    both with one rule set: text/url/select → value_text; number →
+    value_number; checkbox → value_boolean; date/datetime → value_text (ISO
+    8601); multi_select → value_json; user_reference → value_email."""
+    prop = pv.property_definition
+    prop_type = prop.type.value if hasattr(prop.type, "value") else str(prop.type)
+    record: dict = {"property_name": prop.name, "property_type": prop_type}
+    if prop_type in ("text", "url", "select"):
+        record["value_text"] = pv.value_text
+    elif prop_type == "number":
+        record["value_number"] = (
+            float(pv.value_number) if pv.value_number is not None else None
+        )
+    elif prop_type == "checkbox":
+        record["value_boolean"] = pv.value_boolean
+    elif prop_type == "date":
+        record["value_text"] = pv.value_date.isoformat() if pv.value_date else None
+    elif prop_type == "datetime":
+        record["value_text"] = (
+            pv.value_datetime.isoformat() if pv.value_datetime else None
+        )
+    elif prop_type == "multi_select":
+        record["value_json"] = pv.value_json
+    elif prop_type == "user_reference":
+        record["value_email"] = pv.value_user.email if pv.value_user else None
+    return record
 
 
 def _dt(value: str) -> datetime:
