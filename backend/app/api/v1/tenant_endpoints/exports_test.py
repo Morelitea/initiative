@@ -417,7 +417,7 @@ async def test_document_export_per_type_formats(
     assert "<https://example.com/spec>" in body
 
     # mismatched combos: an immediate 400, no job side effects
-    for doc, bad in ((native, "csv"), (board, "md"), (link, "json")):
+    for doc, bad in ((native, "csv"), (board, "md"), (link, "xlsx")):
         resp = await export(doc, bad)
         assert resp.status_code == 400, (doc.title, bad)
         assert resp.json()["detail"] == "EXPORT_INVALID_FORMAT"
@@ -1761,3 +1761,56 @@ async def test_calendar_event_export_initiative_filter(
     )
     titles = {e["title"] for e in json.loads(resp.content)["events"]}
     assert titles == {"Main event"}
+
+
+async def test_smart_link_exports_importable_json_envelope(
+    client: AsyncClient, acting_user, session
+):
+    """Smart links export the generic document envelope (like spreadsheets),
+    so an initiative/guild backup can carry them importably — md stays for
+    the human-readable form."""
+    import json
+
+    from app.models.tenant.document import DocumentType
+    from app.testing.factories import create_document
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    link = await create_document(
+        session,
+        a.initiative,
+        a.user,
+        title="Session zero notes",
+        document_type=DocumentType.smart_link,
+        content={"url": "https://example.com/notes"},
+    )
+
+    resp = await client.get(
+        a.g("/exports/document"),
+        headers=a.headers,
+        params={"document_id": link.id, "format": "json"},
+    )
+    assert resp.status_code == 200
+    envelope = json.loads(resp.content)
+    assert envelope == {
+        "kind": "initiative-document",
+        "schema_version": 1,
+        "document_type": "smart_link",
+        "title": "Session zero notes",
+        "content": {"url": "https://example.com/notes"},
+    }
+
+    # md remains available; unsupported formats still 400.
+    md = await client.get(
+        a.g("/exports/document"),
+        headers=a.headers,
+        params={"document_id": link.id, "format": "md"},
+    )
+    assert md.status_code == 200
+    assert "<https://example.com/notes>" in md.content.decode("utf-8")
+    pdf = await client.get(
+        a.g("/exports/document"),
+        headers=a.headers,
+        params={"document_id": link.id, "format": "pdf"},
+    )
+    assert pdf.status_code == 400
+    assert pdf.json()["detail"] == "EXPORT_INVALID_FORMAT"

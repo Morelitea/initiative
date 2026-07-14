@@ -20,7 +20,8 @@ time (before a job is created, so a mismatch is an immediate 400):
   write-path normalizer validates, so a future import consumes it directly).
 * ``file``              -> ``file`` — the stored upload, unconverted, under
   its original name.
-* ``smart_link``        -> ``md``  — the title and URL.
+* ``smart_link``        -> ``md``  — the title and URL — and ``json``, the
+  generic document envelope (importable backup, like spreadsheets).
 
 Access: READ suffices (exporting is a formatted read), enforced by the
 ``get_document_for_export`` seam at both count and build time under the
@@ -46,7 +47,7 @@ _TYPE_FORMATS: dict[str, frozenset[str]] = {
     DocumentType.whiteboard.value: frozenset({"json"}),
     DocumentType.spreadsheet.value: frozenset({"csv", "xlsx", "json"}),
     DocumentType.file.value: frozenset({"file"}),
-    DocumentType.smart_link.value: frozenset({"md"}),
+    DocumentType.smart_link.value: frozenset({"md", "json"}),
 }
 
 # The size proxy divisor for file passthroughs: one "row" per MiB, so the
@@ -205,11 +206,22 @@ def _item(
             "content_type": document.file_content_type,
         }
     else:  # smart_link
-        data = {
-            "layout": "link",
-            "title": document.title,
-            "url": (document.content or {}).get("url", ""),
-        }
+        if format == "json":
+            # Importable backup: same generic document envelope as
+            # spreadsheets, so a future import discriminates kinds uniformly.
+            data = {
+                "kind": "initiative-document",
+                "schema_version": 1,
+                "document_type": doc_type,
+                "title": document.title,
+                "content": {"url": (document.content or {}).get("url", "")},
+            }
+        else:
+            data = {
+                "layout": "link",
+                "title": document.title,
+                "url": (document.content or {}).get("url", ""),
+            }
 
     return RenderItem(key=stem, data=data)
 

@@ -18,7 +18,10 @@ export const DOCUMENT_TYPE_FORMATS: Record<DocumentReadDocumentType, ExportForma
     { format: "json", labelKey: "export.formatJson" },
   ],
   file: [{ format: "file", labelKey: "export.formatOriginal" }],
-  smart_link: [{ format: "md", labelKey: "export.formatMarkdown" }],
+  smart_link: [
+    { format: "md", labelKey: "export.formatMarkdown" },
+    { format: "json", labelKey: "export.formatJson" },
+  ],
 };
 
 // Type-neutral labels for mixed-type selections, where a per-type label
