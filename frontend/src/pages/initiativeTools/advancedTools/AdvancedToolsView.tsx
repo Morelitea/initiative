@@ -1,4 +1,5 @@
-import { ExternalLink, Loader2, Sparkles } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { ExternalLink, Loader2, Plus, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -12,26 +13,41 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useAdvancedToolsList } from "@/hooks/useAdvancedTools";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useGridSelection } from "@/hooks/useGridSelection";
+import { useGuildPath } from "@/lib/guildUrl";
 
 type AdvancedToolsViewProps = {
   /** Initiative whose advanced tools to list (this view is initiative-scoped;
    * guild-wide tools are managed from guild settings instead). */
   fixedInitiativeId: number;
-  /** Whether the user may author new tools — surfaces the external-authoring
-   * note, since creation happens in the connected automation service. */
+  /** Whether the user may author new tools — surfaces the "New" button, which
+   * hands off to the connected service where creation happens. */
   canCreate?: boolean;
 };
 
 /**
  * Lists an initiative's advanced tools with the standard Select → Edit access
- * bulk-sharing flow. There is deliberately no create dialog: tool content is
- * authored in the external automation service (rows sync into the
- * advanced_tools table), so the create affordance is an explanatory note.
+ * bulk-sharing flow. Create is a hand-off, not an in-app dialog: tool content
+ * is authored in the external service (rows sync back into the advanced_tools
+ * table), so the "New" button opens the embedded page with a "new" intent
+ * instead of POSTing a row here.
  */
 export const AdvancedToolsView = ({ fixedInitiativeId, canCreate }: AdvancedToolsViewProps) => {
-  const { t } = useTranslation(["advancedTools", "access"]);
+  const { t } = useTranslation(["advancedTools", "access", "nav"]);
   const { advancedTool } = useAppConfig();
+  const gp = useGuildPath();
   const serviceName = advancedTool?.name ?? t("title");
+
+  // "Create" is a hand-off: authoring happens fully in the external service,
+  // so the button opens the embedded page with a "new" intent rather than
+  // POSTing a row here (our table only stores what that service builds).
+  const createButton = (
+    <Button asChild size="sm">
+      <Link to={gp(`/initiatives/${fixedInitiativeId}/advanced-tool`)} search={{ create: "true" }}>
+        <Plus className="mr-2 h-4 w-4" />
+        {t("nav:createAdvancedTool")}
+      </Link>
+    </Button>
+  );
 
   const toolsQuery = useAdvancedToolsList({
     initiative_id: fixedInitiativeId,
@@ -45,11 +61,16 @@ export const AdvancedToolsView = ({ fixedInitiativeId, canCreate }: AdvancedTool
 
   return (
     <div className="space-y-6">
-      {canCreate && (
-        <p className="flex items-center gap-2 text-muted-foreground text-sm">
-          <ExternalLink className="h-4 w-4" />
-          {t("createdExternally", { name: serviceName })}
-        </p>
+      {/* Header note + button only when tools exist; the empty state below
+          carries its own note + button, so exactly one shows in every case. */}
+      {canCreate && tools.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="flex items-center gap-2 text-muted-foreground text-sm">
+            <ExternalLink className="h-4 w-4" />
+            {t("createdExternally", { name: serviceName })}
+          </p>
+          {createButton}
+        </div>
       )}
 
       {toolsQuery.isLoading ? (
@@ -107,10 +128,11 @@ export const AdvancedToolsView = ({ fixedInitiativeId, canCreate }: AdvancedTool
             <CardTitle>{t("noTools")}</CardTitle>
             <CardDescription>{t("noToolsDescription", { name: serviceName })}</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <p className="text-muted-foreground text-sm">
               {t("createdExternally", { name: serviceName })}
             </p>
+            {canCreate && createButton}
           </CardContent>
         </Card>
       )}

@@ -74,9 +74,11 @@ export interface ToolDef {
   /** Personal cross-guild page under the top-level router, if any. */
   personalRoute: string | null;
   /**
-   * The tool's rows are created inside the app. The advanced tool's content
-   * is authored in the external service (name comes from runtime
-   * config), so its create affordance is a hand-off, not a dialog.
+   * The tool's rows are created inside the app (a create dialog at the list
+   * route). The advanced tool's content is authored in the external service
+   * (name comes from runtime config), so its create affordance is a live
+   * hand-off to the embedded page — which signals a "new" intent to that
+   * service — rather than an in-app dialog.
    */
   inAppCreate: boolean;
 }
