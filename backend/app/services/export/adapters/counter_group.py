@@ -82,7 +82,9 @@ class CounterGroupAdapter:
             guild_id=guild_id,
             template_id=self.template_id,
             format=format,
-            batch=tuple(_group_item(group, format, user, now) for group in groups),
+            batch=tuple(
+                build_counter_group_item(group, format, user, now) for group in groups
+            ),
         )
 
     async def _groups(
@@ -99,7 +101,7 @@ class CounterGroupAdapter:
         ]
 
 
-def _group_item(
+def build_counter_group_item(
     group: CounterGroup, format: str, user: User, now: datetime
 ) -> RenderItem:
     date = now.strftime("%Y-%m-%d")

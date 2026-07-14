@@ -149,6 +149,46 @@ async def get_queue_for_export(
     return queue
 
 
+async def list_queue_ids_for_export(
+    session: AsyncSession,
+    current_user,
+    guild_id: int,
+    *,
+    initiative_ids: list[int],
+) -> list[int]:
+    """Ids of every queue the user may export in the given initiatives —
+    DAC-visible to the user (guild admins see all via the membership role),
+    feature-flag respected. Deterministic order for stable backup output."""
+    from app.services import permissions as permissions_service
+    from app.services.platform import guilds as guilds_service
+    from app.services.rls import is_guild_admin
+
+    if not initiative_ids:
+        return []
+    conditions = [
+        Queue.initiative_id.in_(initiative_ids),
+        Initiative.queues_enabled == True,  # noqa: E712
+    ]
+    membership = await guilds_service.get_membership(
+        session, guild_id=guild_id, user_id=current_user.id
+    )
+    if membership is None or not is_guild_admin(membership.role):
+        conditions.append(
+            Queue.id.in_(
+                permissions_service.visible_resource_ids_subquery(
+                    "queue", current_user.id
+                )
+            )
+        )
+    statement = (
+        select(Queue.id)
+        .join(Initiative, Initiative.id == Queue.initiative_id)
+        .where(*conditions)
+        .order_by(Queue.id.asc())
+    )
+    return list(await session.exec(statement))
+
+
 async def get_queue_item(
     session: AsyncSession,
     item_id: int,

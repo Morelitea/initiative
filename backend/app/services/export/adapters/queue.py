@@ -83,7 +83,7 @@ class QueueAdapter:
             guild_id=guild_id,
             template_id=self.template_id,
             format=format,
-            batch=tuple(_queue_item(queue, format, user, now) for queue in queues),
+            batch=tuple(build_queue_item(queue, format, user, now) for queue in queues),
         )
 
     async def _queues(
@@ -100,7 +100,9 @@ class QueueAdapter:
         ]
 
 
-def _queue_item(queue: Queue, format: str, user: User, now: datetime) -> RenderItem:
+def build_queue_item(
+    queue: Queue, format: str, user: User, now: datetime
+) -> RenderItem:
     items = _rotation_order(queue.items)
     date = now.strftime("%Y-%m-%d")
     stem = safe_filename_component(queue.name).lower()

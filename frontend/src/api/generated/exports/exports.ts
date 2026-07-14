@@ -18,9 +18,13 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  BackupEstimate,
+  EstimateAggregateExportApiV1GGuildIdExportsEstimateGetParams,
   ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetParams,
   ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetParams,
   ExportDocumentApiV1GGuildIdExportsDocumentGetParams,
+  ExportGuildApiV1GGuildIdExportsGuildGetParams,
+  ExportInitiativeApiV1GGuildIdExportsInitiativeGetParams,
   ExportJobRead,
   ExportProjectApiV1GGuildIdExportsProjectGetParams,
   ExportQueueApiV1GGuildIdExportsQueueGetParams,
@@ -1091,6 +1095,538 @@ export function useExportCalendarEventsApiV1GGuildIdExportsCalendarEventGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetQueryOptions(
+    guildId,
+    params,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Pre-flight numbers for the export wizard: per-tool entity counts and
+ * the uploads footprint (approximate — embedded document images resolve at
+ * build time), plus the row/byte ceilings so the client can warn before
+ * submitting. Guild scope requires guild admin.
+ * @summary Estimate Aggregate Export
+ */
+export const estimateAggregateExportApiV1GGuildIdExportsEstimateGet = (
+  guildId: number,
+  params: EstimateAggregateExportApiV1GGuildIdExportsEstimateGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<BackupEstimate>(
+    { url: `/api/v1/g/${guildId}/exports/estimate`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getEstimateAggregateExportApiV1GGuildIdExportsEstimateGetQueryKey = (
+  guildId: number,
+  params?: EstimateAggregateExportApiV1GGuildIdExportsEstimateGetParams
+) => {
+  return [`/api/v1/g/${guildId}/exports/estimate`, ...(params ? [params] : [])] as const;
+};
+
+export const getEstimateAggregateExportApiV1GGuildIdExportsEstimateGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof estimateAggregateExportApiV1GGuildIdExportsEstimateGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: EstimateAggregateExportApiV1GGuildIdExportsEstimateGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof estimateAggregateExportApiV1GGuildIdExportsEstimateGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getEstimateAggregateExportApiV1GGuildIdExportsEstimateGetQueryKey(guildId, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof estimateAggregateExportApiV1GGuildIdExportsEstimateGet>>
+  > = ({ signal }) =>
+    estimateAggregateExportApiV1GGuildIdExportsEstimateGet(guildId, params, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof estimateAggregateExportApiV1GGuildIdExportsEstimateGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type EstimateAggregateExportApiV1GGuildIdExportsEstimateGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof estimateAggregateExportApiV1GGuildIdExportsEstimateGet>>
+>;
+export type EstimateAggregateExportApiV1GGuildIdExportsEstimateGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useEstimateAggregateExportApiV1GGuildIdExportsEstimateGet<
+  TData = Awaited<ReturnType<typeof estimateAggregateExportApiV1GGuildIdExportsEstimateGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: EstimateAggregateExportApiV1GGuildIdExportsEstimateGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof estimateAggregateExportApiV1GGuildIdExportsEstimateGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof estimateAggregateExportApiV1GGuildIdExportsEstimateGet>>,
+          TError,
+          Awaited<ReturnType<typeof estimateAggregateExportApiV1GGuildIdExportsEstimateGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useEstimateAggregateExportApiV1GGuildIdExportsEstimateGet<
+  TData = Awaited<ReturnType<typeof estimateAggregateExportApiV1GGuildIdExportsEstimateGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: EstimateAggregateExportApiV1GGuildIdExportsEstimateGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof estimateAggregateExportApiV1GGuildIdExportsEstimateGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof estimateAggregateExportApiV1GGuildIdExportsEstimateGet>>,
+          TError,
+          Awaited<ReturnType<typeof estimateAggregateExportApiV1GGuildIdExportsEstimateGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useEstimateAggregateExportApiV1GGuildIdExportsEstimateGet<
+  TData = Awaited<ReturnType<typeof estimateAggregateExportApiV1GGuildIdExportsEstimateGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: EstimateAggregateExportApiV1GGuildIdExportsEstimateGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof estimateAggregateExportApiV1GGuildIdExportsEstimateGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Estimate Aggregate Export
+ */
+
+export function useEstimateAggregateExportApiV1GGuildIdExportsEstimateGet<
+  TData = Awaited<ReturnType<typeof estimateAggregateExportApiV1GGuildIdExportsEstimateGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: EstimateAggregateExportApiV1GGuildIdExportsEstimateGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof estimateAggregateExportApiV1GGuildIdExportsEstimateGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getEstimateAggregateExportApiV1GGuildIdExportsEstimateGetQueryOptions(
+    guildId,
+    params,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Export a whole initiative as one zip: ``backup`` bundles every included
+ * tool's importable JSON envelope plus a ``manifest.json`` (optionally with
+ * the upload blobs the documents reference); ``report`` renders each tool in
+ * the caller's chosen format. Requires reaching the initiative; per-entity
+ * sharing applies throughout, and projects are included with read access.
+ * Always returns ``202`` with a queued job to poll and download.
+ * @summary Export Initiative
+ */
+export const exportInitiativeApiV1GGuildIdExportsInitiativeGet = (
+  guildId: number,
+  params: ExportInitiativeApiV1GGuildIdExportsInitiativeGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<unknown>(
+    { url: `/api/v1/g/${guildId}/exports/initiative`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getExportInitiativeApiV1GGuildIdExportsInitiativeGetQueryKey = (
+  guildId: number,
+  params?: ExportInitiativeApiV1GGuildIdExportsInitiativeGetParams
+) => {
+  return [`/api/v1/g/${guildId}/exports/initiative`, ...(params ? [params] : [])] as const;
+};
+
+export const getExportInitiativeApiV1GGuildIdExportsInitiativeGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportInitiativeApiV1GGuildIdExportsInitiativeGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: ExportInitiativeApiV1GGuildIdExportsInitiativeGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportInitiativeApiV1GGuildIdExportsInitiativeGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getExportInitiativeApiV1GGuildIdExportsInitiativeGetQueryKey(guildId, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof exportInitiativeApiV1GGuildIdExportsInitiativeGet>>
+  > = ({ signal }) =>
+    exportInitiativeApiV1GGuildIdExportsInitiativeGet(guildId, params, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof exportInitiativeApiV1GGuildIdExportsInitiativeGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ExportInitiativeApiV1GGuildIdExportsInitiativeGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof exportInitiativeApiV1GGuildIdExportsInitiativeGet>>
+>;
+export type ExportInitiativeApiV1GGuildIdExportsInitiativeGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useExportInitiativeApiV1GGuildIdExportsInitiativeGet<
+  TData = Awaited<ReturnType<typeof exportInitiativeApiV1GGuildIdExportsInitiativeGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: ExportInitiativeApiV1GGuildIdExportsInitiativeGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportInitiativeApiV1GGuildIdExportsInitiativeGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof exportInitiativeApiV1GGuildIdExportsInitiativeGet>>,
+          TError,
+          Awaited<ReturnType<typeof exportInitiativeApiV1GGuildIdExportsInitiativeGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useExportInitiativeApiV1GGuildIdExportsInitiativeGet<
+  TData = Awaited<ReturnType<typeof exportInitiativeApiV1GGuildIdExportsInitiativeGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: ExportInitiativeApiV1GGuildIdExportsInitiativeGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportInitiativeApiV1GGuildIdExportsInitiativeGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof exportInitiativeApiV1GGuildIdExportsInitiativeGet>>,
+          TError,
+          Awaited<ReturnType<typeof exportInitiativeApiV1GGuildIdExportsInitiativeGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useExportInitiativeApiV1GGuildIdExportsInitiativeGet<
+  TData = Awaited<ReturnType<typeof exportInitiativeApiV1GGuildIdExportsInitiativeGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: ExportInitiativeApiV1GGuildIdExportsInitiativeGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportInitiativeApiV1GGuildIdExportsInitiativeGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Export Initiative
+ */
+
+export function useExportInitiativeApiV1GGuildIdExportsInitiativeGet<
+  TData = Awaited<ReturnType<typeof exportInitiativeApiV1GGuildIdExportsInitiativeGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: ExportInitiativeApiV1GGuildIdExportsInitiativeGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportInitiativeApiV1GGuildIdExportsInitiativeGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getExportInitiativeApiV1GGuildIdExportsInitiativeGetQueryOptions(
+    guildId,
+    params,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Export the whole guild — every initiative the same way
+ * ``/exports/initiative`` exports one, in a single zip. Guild admins only
+ * (real membership; the adapter re-checks at render time so revoked
+ * adminship fails the job closed). Always returns ``202`` with a queued job
+ * to poll and download.
+ * @summary Export Guild
+ */
+export const exportGuildApiV1GGuildIdExportsGuildGet = (
+  guildId: number,
+  params?: ExportGuildApiV1GGuildIdExportsGuildGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<unknown>(
+    { url: `/api/v1/g/${guildId}/exports/guild`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getExportGuildApiV1GGuildIdExportsGuildGetQueryKey = (
+  guildId: number,
+  params?: ExportGuildApiV1GGuildIdExportsGuildGetParams
+) => {
+  return [`/api/v1/g/${guildId}/exports/guild`, ...(params ? [params] : [])] as const;
+};
+
+export const getExportGuildApiV1GGuildIdExportsGuildGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportGuildApiV1GGuildIdExportsGuildGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: ExportGuildApiV1GGuildIdExportsGuildGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportGuildApiV1GGuildIdExportsGuildGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getExportGuildApiV1GGuildIdExportsGuildGetQueryKey(guildId, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof exportGuildApiV1GGuildIdExportsGuildGet>>
+  > = ({ signal }) =>
+    exportGuildApiV1GGuildIdExportsGuildGet(guildId, params, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof exportGuildApiV1GGuildIdExportsGuildGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ExportGuildApiV1GGuildIdExportsGuildGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof exportGuildApiV1GGuildIdExportsGuildGet>>
+>;
+export type ExportGuildApiV1GGuildIdExportsGuildGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useExportGuildApiV1GGuildIdExportsGuildGet<
+  TData = Awaited<ReturnType<typeof exportGuildApiV1GGuildIdExportsGuildGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: undefined | ExportGuildApiV1GGuildIdExportsGuildGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportGuildApiV1GGuildIdExportsGuildGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof exportGuildApiV1GGuildIdExportsGuildGet>>,
+          TError,
+          Awaited<ReturnType<typeof exportGuildApiV1GGuildIdExportsGuildGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useExportGuildApiV1GGuildIdExportsGuildGet<
+  TData = Awaited<ReturnType<typeof exportGuildApiV1GGuildIdExportsGuildGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: ExportGuildApiV1GGuildIdExportsGuildGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportGuildApiV1GGuildIdExportsGuildGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof exportGuildApiV1GGuildIdExportsGuildGet>>,
+          TError,
+          Awaited<ReturnType<typeof exportGuildApiV1GGuildIdExportsGuildGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useExportGuildApiV1GGuildIdExportsGuildGet<
+  TData = Awaited<ReturnType<typeof exportGuildApiV1GGuildIdExportsGuildGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: ExportGuildApiV1GGuildIdExportsGuildGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportGuildApiV1GGuildIdExportsGuildGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Export Guild
+ */
+
+export function useExportGuildApiV1GGuildIdExportsGuildGet<
+  TData = Awaited<ReturnType<typeof exportGuildApiV1GGuildIdExportsGuildGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: ExportGuildApiV1GGuildIdExportsGuildGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportGuildApiV1GGuildIdExportsGuildGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getExportGuildApiV1GGuildIdExportsGuildGetQueryOptions(
     guildId,
     params,
     options

@@ -87,7 +87,7 @@ class ProjectAdapter:
             envelope = await build_project_export_for_user(
                 session, user, guild_id, project_id=project_id
             )
-            items.append(_project_item(envelope, format, user, now))
+            items.append(build_project_item(envelope, format, user, now))
         return RenderRequest(
             guild_id=guild_id,
             template_id=self.template_id,
@@ -96,7 +96,7 @@ class ProjectAdapter:
         )
 
 
-def _project_item(
+def build_project_item(
     envelope: ProjectExportEnvelope, format: str, user: User, now: datetime
 ) -> RenderItem:
     date = now.strftime("%Y-%m-%d")

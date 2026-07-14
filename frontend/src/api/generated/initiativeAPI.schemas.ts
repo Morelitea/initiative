@@ -512,6 +512,28 @@ export interface AuthScopeUpdate {
   scope: AuthScope;
 }
 
+export interface BackupToolEstimate {
+  count?: number;
+  disabled?: boolean;
+}
+
+export type BackupEstimateTools = { [key: string]: BackupToolEstimate };
+
+/**
+ * The wizard's pre-flight numbers: per-tool entity counts, the uploads
+ * footprint (approximate — embedded document images resolve at build time),
+ * and the row/byte ceilings so the client can warn before submitting.
+ */
+export interface BackupEstimate {
+  tools: BackupEstimateTools;
+  uploads_count?: number;
+  uploads_bytes?: number;
+  uploads_approximate?: boolean;
+  estimated_rows?: number;
+  max_rows?: number;
+  max_upload_bytes?: number;
+}
+
 export interface BodyLoginAccessTokenApiV1AuthTokenPost {
   grant_type?: string | null;
   username: string;
@@ -4077,6 +4099,80 @@ export type ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetFormat =
 export const ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetFormat = {
   ics: "ics",
   json: "json",
+} as const;
+
+export type EstimateAggregateExportApiV1GGuildIdExportsEstimateGetParams = {
+  scope: EstimateAggregateExportApiV1GGuildIdExportsEstimateGetScope;
+  /**
+   * Required when scope=initiative
+   */
+  initiative_id?: number | null;
+  include_uploads?: boolean;
+};
+
+export type EstimateAggregateExportApiV1GGuildIdExportsEstimateGetScope =
+  (typeof EstimateAggregateExportApiV1GGuildIdExportsEstimateGetScope)[keyof typeof EstimateAggregateExportApiV1GGuildIdExportsEstimateGetScope];
+
+export const EstimateAggregateExportApiV1GGuildIdExportsEstimateGetScope = {
+  initiative: "initiative",
+  guild: "guild",
+} as const;
+
+export type ExportInitiativeApiV1GGuildIdExportsInitiativeGetParams = {
+  initiative_id: number;
+  mode?: ExportInitiativeApiV1GGuildIdExportsInitiativeGetMode;
+  /**
+   * JSON object of tool→bool, e.g. {"project": true, "queue": false}. Omitted = every tool.
+   */
+  include?: string | null;
+  /**
+   * Report mode: JSON object of tool→format; the document entry is a nested map, e.g. {"project": "pdf", "document": {"native": "md", "spreadsheet": "xlsx"}}. Unlisted tools use their backup format.
+   */
+  formats?: string | null;
+  /**
+   * Backup mode: bundle referenced upload blobs
+   */
+  include_uploads?: boolean;
+  /**
+   * IANA timezone for report timestamps
+   */
+  tz?: string | null;
+};
+
+export type ExportInitiativeApiV1GGuildIdExportsInitiativeGetMode =
+  (typeof ExportInitiativeApiV1GGuildIdExportsInitiativeGetMode)[keyof typeof ExportInitiativeApiV1GGuildIdExportsInitiativeGetMode];
+
+export const ExportInitiativeApiV1GGuildIdExportsInitiativeGetMode = {
+  backup: "backup",
+  report: "report",
+} as const;
+
+export type ExportGuildApiV1GGuildIdExportsGuildGetParams = {
+  mode?: ExportGuildApiV1GGuildIdExportsGuildGetMode;
+  /**
+   * JSON object of tool→bool; omitted = every tool
+   */
+  include?: string | null;
+  /**
+   * Report mode: JSON object of tool→format (see /exports/initiative)
+   */
+  formats?: string | null;
+  /**
+   * Backup mode: bundle referenced upload blobs
+   */
+  include_uploads?: boolean;
+  /**
+   * IANA timezone for report timestamps
+   */
+  tz?: string | null;
+};
+
+export type ExportGuildApiV1GGuildIdExportsGuildGetMode =
+  (typeof ExportGuildApiV1GGuildIdExportsGuildGetMode)[keyof typeof ExportGuildApiV1GGuildIdExportsGuildGetMode];
+
+export const ExportGuildApiV1GGuildIdExportsGuildGetMode = {
+  backup: "backup",
+  report: "report",
 } as const;
 
 export type ListQueuesApiV1GGuildIdQueuesGetParams = {

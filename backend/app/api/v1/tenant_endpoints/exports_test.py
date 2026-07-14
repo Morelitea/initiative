@@ -1858,3 +1858,569 @@ async def test_document_envelope_carries_tags_and_properties(
     assert envelope["properties"] == [
         {"property_name": "Status", "property_type": "text", "value_text": "Draft"}
     ]
+
+
+# ---------------------------------------------------------------------------
+# Aggregate exports: initiative & guild backup/report (the wizard backend)
+# ---------------------------------------------------------------------------
+
+
+async def _all_tools_enabled(session, initiative):
+    """Queues/counter groups/events are toggleable (off by default) — flip the
+    initiative's master switches so the aggregate enumeration includes them."""
+    initiative.queues_enabled = True
+    initiative.counter_groups_enabled = True
+    initiative.calendar_events_enabled = True
+    session.add(initiative)
+    await session.commit()
+
+
+async def _populate_initiative(session, a, initiative):
+    """One entity per tool inside the given initiative."""
+    from app.testing.factories import (
+        create_calendar_event,
+        create_counter_group,
+        create_document,
+        create_project,
+        create_queue,
+    )
+
+    await _all_tools_enabled(session, initiative)
+    project = await create_project(session, initiative, a.user, name="Main Arc")
+    await create_task(session, project, title="Fell the tower")
+    await create_document(session, initiative, a.user, title="Campaign Notes")
+    await create_queue(session, initiative, a.user, name="Turn Order")
+    await create_counter_group(session, initiative, a.user, name="Party Gold")
+    await create_calendar_event(session, initiative, a.user, title="Session Zero")
+
+
+async def _rendered_zip(client, a, monkeypatch, role_session, resp):
+    """202 -> worker render -> download; returns the opened zip."""
+    import io
+    import zipfile
+
+    assert resp.status_code == 202, resp.text
+    job_id = resp.json()["id"]
+    user_session = await role_session("app_user")
+    monkeypatch.setattr(export_worker, "_open_user_session", lambda: user_session)
+    await export_worker.process_export_jobs()
+
+    status_resp = await client.get(a.g(f"/exports/{job_id}"), headers=a.headers)
+    body = status_resp.json()
+    assert body["status"] == ExportJobStatus.done.value, body.get("error")
+    dl = await client.get(a.g(f"/exports/{job_id}/download"), headers=a.headers)
+    assert dl.status_code == 200
+    assert dl.headers["content-type"] == "application/zip"
+    return zipfile.ZipFile(io.BytesIO(dl.content))
+
+
+async def test_initiative_backup_zip_layout_and_manifest(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """A backup is one importable zip: per-tool JSON envelopes in per-tool
+    folders under the initiative's own directory, indexed by a manifest whose
+    entries match the archive exactly. Aggregate exports are always a job."""
+    import json
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await _populate_initiative(session, a, a.initiative)
+
+    resp = await client.get(
+        a.g("/exports/initiative"),
+        headers=a.headers,
+        params={"initiative_id": a.initiative.id},
+    )
+    archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
+    names = set(archive.namelist())
+    assert "manifest.json" in names
+
+    manifest = json.loads(archive.read("manifest.json"))
+    assert manifest["kind"] == "initiative-backup"
+    assert manifest["schema_version"] == 1
+    assert manifest["guild"]["id"] == a.guild.id
+    assert [i["id"] for i in manifest["initiatives"]] == [a.initiative.id]
+    assert manifest["initiatives"][0]["tools"] == {
+        "project": "included",
+        "document": "included",
+        "queue": "included",
+        "counter_group": "included",
+        "calendar_event": "included",
+    }
+
+    # Every manifest entry is in the archive, and vice versa (minus manifest).
+    entry_paths = {e["path"] for e in manifest["entries"]}
+    assert entry_paths == names - {"manifest.json"}
+    assert manifest["assets"] == [] and manifest["skipped"] == []
+
+    folder = next(n for n in names if n != "manifest.json").split("/")[1]
+    assert folder.startswith(f"{a.initiative.id}-")
+    by_kind = {e["kind"]: e for e in manifest["entries"]}
+    assert set(by_kind) == {
+        "initiative-project",
+        "initiative-document",
+        "initiative-queue",
+        "initiative-counter-group",
+        "initiative-calendar-events",
+    }
+
+    # Spot-check envelopes round-trip through the archive paths.
+    project_env = json.loads(archive.read(by_kind["initiative-project"]["path"]))
+    assert project_env["project"]["name"] == "Main Arc"
+    assert [t["title"] for t in project_env["tasks"]] == ["Fell the tower"]
+    doc_env = json.loads(archive.read(by_kind["initiative-document"]["path"]))
+    assert doc_env["kind"] == "initiative-document"
+    assert doc_env["title"] == "Campaign Notes"
+    events_env = json.loads(archive.read(by_kind["initiative-calendar-events"]["path"]))
+    assert [e["title"] for e in events_env["events"]] == ["Session Zero"]
+    assert by_kind["initiative-calendar-events"]["path"].endswith(
+        "/calendar-events.json"
+    )
+
+
+async def test_initiative_backup_includes_read_only_projects(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """The aggregate-export relaxation: a project the exporter can only READ
+    is still in their backup (standalone per-project export would 403)."""
+    import json
+
+    from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+    from app.testing.factories import create_project
+
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    exporter = await acting_user(
+        guild_role=GuildRole.member,
+        guild=owner.guild,
+        initiative=owner.initiative,
+        initiative_role="member",
+    )
+    theirs = await create_project(session, owner.initiative, owner.user, name="Theirs")
+    session.add(
+        ResourceGrant(
+            resource_type="project",
+            resource_id=theirs.id,
+            user_id=exporter.user.id,
+            level=ResourceAccessLevel.read,
+            guild_id=theirs.guild_id,
+            initiative_id=theirs.initiative_id,
+        )
+    )
+    await session.commit()
+
+    # Standalone export of the same project: still write-gated.
+    denied = await client.get(
+        exporter.g("/exports/project"),
+        headers=exporter.headers,
+        params={"project_id": theirs.id, "format": "json"},
+    )
+    assert denied.status_code == 403
+
+    resp = await client.get(
+        exporter.g("/exports/initiative"),
+        headers=exporter.headers,
+        params={"initiative_id": owner.initiative.id},
+    )
+    archive = await _rendered_zip(client, exporter, monkeypatch, role_session, resp)
+    manifest = json.loads(archive.read("manifest.json"))
+    project_entries = [e for e in manifest["entries"] if e["tool"] == "project"]
+    assert {e["title"] for e in project_entries} == {"Theirs"}
+
+
+async def test_aggregate_export_hides_dac_invisible_rows(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """Rows not shared with the exporter are simply ABSENT from the backup —
+    not listed under ``skipped`` (that would leak their existence)."""
+    import json
+
+    from app.testing.factories import create_document, create_queue
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await _all_tools_enabled(session, a.initiative)
+    other = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    await create_document(session, a.initiative, other.user, title="Their Secret")
+    await create_queue(session, a.initiative, other.user, name="Their Queue")
+    await create_document(session, a.initiative, a.user, title="My Notes")
+
+    resp = await client.get(
+        a.g("/exports/initiative"),
+        headers=a.headers,
+        params={"initiative_id": a.initiative.id},
+    )
+    archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
+    manifest = json.loads(archive.read("manifest.json"))
+    titles = {e["title"] for e in manifest["entries"]}
+    assert "My Notes" in titles and a.project.name in titles
+    assert "Their Secret" not in titles and "Their Queue" not in titles
+    assert manifest["skipped"] == []  # invisible != skipped
+    dumped = json.dumps(manifest)
+    assert "Their Secret" not in dumped and "Their Queue" not in dumped
+
+
+async def test_guild_export_requires_admin(client: AsyncClient, acting_user, session):
+    member = await acting_user(
+        guild_role=GuildRole.member, initiative=True, project=True
+    )
+    for path, params in (
+        ("/exports/guild", {}),
+        ("/exports/estimate", {"scope": "guild"}),
+    ):
+        resp = await client.get(member.g(path), headers=member.headers, params=params)
+        assert resp.status_code == 403, path
+        assert resp.json()["detail"] == "EXPORT_ADMIN_REQUIRED"
+
+
+async def test_guild_backup_spans_initiatives_and_refreshes_access(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """A guild backup is the initiative backup repeated per initiative, in one
+    zip — and the builder re-validates the creator's access per chunk (the
+    staleness rule for long builds)."""
+    import json
+
+    from app.api import deps as api_deps
+    from app.testing.factories import create_initiative
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    await _populate_initiative(session, a, a.initiative)
+    second = await create_initiative(session, a.guild, a.user, name="Second Front")
+    await _populate_initiative(session, a, second)
+
+    real_establish = api_deps.establish_guild_access
+    calls = {"n": 0}
+
+    async def counting_establish(*args, **kwargs):
+        calls["n"] += 1
+        return await real_establish(*args, **kwargs)
+
+    monkeypatch.setattr(api_deps, "establish_guild_access", counting_establish)
+
+    resp = await client.get(a.g("/exports/guild"), headers=a.headers)
+    archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
+    manifest = json.loads(archive.read("manifest.json"))
+    assert manifest["kind"] == "guild-backup"
+    assert {i["name"] for i in manifest["initiatives"]} >= {
+        a.initiative.name,
+        "Second Front",
+    }
+
+    folders = {
+        n.split("/")[1] for n in archive.namelist() if n.startswith("initiatives/")
+    }
+    assert any(f.startswith(f"{a.initiative.id}-") for f in folders)
+    assert any(f.startswith(f"{second.id}-") for f in folders)
+
+    # Worker routing (1) + one forced refresh per initiative in the build.
+    assert calls["n"] >= 1 + len(manifest["initiatives"])
+
+
+async def test_backup_uploads_toggle_and_asset_bundling(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """include_uploads=true bundles the file document's blob under assets/
+    (manifest entry points at it); =false records it under ``skipped`` with
+    reason uploads_excluded instead of silently dropping it."""
+    import json
+
+    from app.models.tenant.document import DocumentType
+    from app.testing.factories import create_document
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    payload = b"%PDF-handout-bytes"
+    get_guild_storage(a.guild.id).write(
+        "handout-xyz.pdf", payload, content_type="application/pdf"
+    )
+    file_doc = await create_document(
+        session,
+        a.initiative,
+        a.user,
+        title="Player Handout",
+        document_type=DocumentType.file,
+        file_url=f"/uploads/{a.guild.id}/handout-xyz.pdf",
+        original_filename="Player Handout.pdf",
+        file_content_type="application/pdf",
+        file_size=len(payload),
+    )
+
+    with_uploads = await client.get(
+        a.g("/exports/initiative"),
+        headers=a.headers,
+        params={"initiative_id": a.initiative.id, "include_uploads": True},
+    )
+    archive = await _rendered_zip(client, a, monkeypatch, role_session, with_uploads)
+    assert archive.read("assets/handout-xyz.pdf") == payload
+    manifest = json.loads(archive.read("manifest.json"))
+    assert manifest["include_uploads"] is True
+    (asset,) = manifest["assets"]
+    assert asset["path"] == "assets/handout-xyz.pdf"
+    assert asset["storage_key"] == "handout-xyz.pdf"
+    assert asset["original_filename"] == "Player Handout.pdf"
+    assert asset["size_bytes"] == len(payload)
+    (entry,) = [e for e in manifest["entries"] if e["kind"] == "file"]
+    assert entry["entity_id"] == file_doc.id
+    assert entry["asset"] == "assets/handout-xyz.pdf"
+
+    without = await client.get(
+        a.g("/exports/initiative"),
+        headers=a.headers,
+        params={"initiative_id": a.initiative.id, "include_uploads": False},
+    )
+    archive2 = await _rendered_zip(client, a, monkeypatch, role_session, without)
+    names = set(archive2.namelist())
+    assert not any(n.startswith("assets/") for n in names)
+    manifest2 = json.loads(archive2.read("manifest.json"))
+    assert manifest2["include_uploads"] is False
+    assert manifest2["assets"] == []
+    (skip,) = manifest2["skipped"]
+    assert skip["entity_id"] == file_doc.id
+    assert skip["reason"] == "uploads_excluded"
+    assert not any(e["kind"] == "file" for e in manifest2["entries"])
+
+
+async def test_backup_upload_byte_cap(
+    client: AsyncClient, acting_user, session, monkeypatch
+):
+    """The uploads byte cap rejects an oversized backup at request time,
+    before a job row exists."""
+    from app.models.tenant.document import DocumentType
+    from app.testing.factories import create_document
+
+    monkeypatch.setattr(settings, "EXPORT_MAX_BACKUP_UPLOAD_BYTES", 4)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await create_document(
+        session,
+        a.initiative,
+        a.user,
+        title="Big Map",
+        document_type=DocumentType.file,
+        file_url=f"/uploads/{a.guild.id}/big-map.png",
+        original_filename="big-map.png",
+        file_size=1_000_000,
+    )
+    resp = await client.get(
+        a.g("/exports/initiative"),
+        headers=a.headers,
+        params={"initiative_id": a.initiative.id},
+    )
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "EXPORT_TOO_LARGE"
+
+    # Excluding uploads lifts the cap: the doc is skipped, not shipped.
+    ok = await client.get(
+        a.g("/exports/initiative"),
+        headers=a.headers,
+        params={"initiative_id": a.initiative.id, "include_uploads": False},
+    )
+    assert ok.status_code == 202
+
+
+async def test_report_mode_mixed_formats_zip(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """À-la-carte report: one job, one zip, each tool in its chosen format —
+    a PDF beside a CSV beside an ICS — and no manifest/assets."""
+    import json
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await _populate_initiative(session, a, a.initiative)
+
+    resp = await client.get(
+        a.g("/exports/initiative"),
+        headers=a.headers,
+        params={
+            "initiative_id": a.initiative.id,
+            "mode": "report",
+            "formats": json.dumps(
+                {
+                    "project": "pdf",
+                    "queue": "csv",
+                    "counter_group": "xlsx",
+                    "calendar_event": "ics",
+                    "document": {"native": "md"},
+                }
+            ),
+        },
+    )
+    archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
+    names = archive.namelist()
+    assert "manifest.json" not in names
+    by_ext = {n.rsplit(".", 1)[-1] for n in names}
+    assert by_ext == {"pdf", "csv", "xlsx", "ics", "md"}
+    pdf_name = next(n for n in names if n.endswith(".pdf"))
+    assert archive.read(pdf_name).startswith(b"%PDF")
+    ics_name = next(n for n in names if n.endswith(".ics"))
+    assert archive.read(ics_name).startswith(b"BEGIN:VCALENDAR")
+    md_name = next(n for n in names if n.endswith(".md"))
+    assert "Campaign Notes" in archive.read(md_name).decode("utf-8")
+
+
+async def test_aggregate_export_rejects_invalid_selectors(
+    client: AsyncClient, acting_user, session
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    base = {"initiative_id": a.initiative.id}
+
+    not_json = await client.get(
+        a.g("/exports/initiative"),
+        headers=a.headers,
+        params={**base, "include": "not json"},
+    )
+    assert not_json.status_code == 400
+    assert not_json.json()["detail"] == "EXPORT_INVALID_PARAMS"
+
+    bad_format = await client.get(
+        a.g("/exports/initiative"),
+        headers=a.headers,
+        params={**base, "mode": "report", "formats": '{"queue": "wav"}'},
+    )
+    assert bad_format.status_code == 400
+    assert bad_format.json()["detail"] == "EXPORT_INVALID_FORMAT"
+
+    bad_doc_format = await client.get(
+        a.g("/exports/initiative"),
+        headers=a.headers,
+        params={
+            **base,
+            "mode": "report",
+            "formats": '{"document": {"native": "xlsx"}}',
+        },
+    )
+    assert bad_doc_format.status_code == 400
+    assert bad_doc_format.json()["detail"] == "EXPORT_INVALID_FORMAT"
+
+    unknown_tool = await client.get(
+        a.g("/exports/initiative"),
+        headers=a.headers,
+        params={**base, "include": '{"wands": true}'},
+    )
+    assert unknown_tool.status_code == 400
+    assert unknown_tool.json()["detail"] == "EXPORT_INVALID_PARAMS"
+
+    # An initiative the caller can't reach is indistinguishable from absent.
+    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    hidden = await client.get(
+        a.g("/exports/initiative"),
+        headers=outsider.headers,
+        params={"initiative_id": a.initiative.id},
+    )
+    assert hidden.status_code == 404
+
+
+async def test_estimate_reports_counts_uploads_and_ceilings(
+    client: AsyncClient, acting_user, session
+):
+    """The wizard's pre-flight numbers — and the route stays reachable (a
+    parametric /{job_id} route declared first would 422 on 'estimate')."""
+    from app.models.tenant.document import DocumentType
+    from app.testing.factories import create_document
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await _populate_initiative(session, a, a.initiative)
+    payload = b"12345678"
+    get_guild_storage(a.guild.id).write(
+        "est-blob.bin", payload, content_type="application/octet-stream"
+    )
+    await create_document(
+        session,
+        a.initiative,
+        a.user,
+        title="Attached file",
+        document_type=DocumentType.file,
+        file_url=f"/uploads/{a.guild.id}/est-blob.bin",
+        original_filename="est-blob.bin",
+        file_size=len(payload),
+    )
+
+    resp = await client.get(
+        a.g("/exports/estimate"),
+        headers=a.headers,
+        params={"scope": "initiative", "initiative_id": a.initiative.id},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    counts = {tool: t["count"] for tool, t in body["tools"].items()}
+    assert counts == {
+        "project": 2,  # the actor fixture's project + Main Arc
+        "document": 2,  # Campaign Notes + the file doc
+        "queue": 1,
+        "counter_group": 1,
+        "calendar_event": 1,
+    }
+    assert not any(t["disabled"] for t in body["tools"].values())
+    assert body["uploads_count"] == 1
+    assert body["uploads_bytes"] == len(payload)
+    assert body["uploads_approximate"] is True
+    # entities (7) + tasks (1) + uploads MiB (0)
+    assert body["estimated_rows"] == 8
+    assert body["max_rows"] == settings.EXPORT_MAX_BACKUP_ROWS
+    assert body["max_upload_bytes"] == settings.EXPORT_MAX_BACKUP_UPLOAD_BYTES
+
+    without_uploads = await client.get(
+        a.g("/exports/estimate"),
+        headers=a.headers,
+        params={
+            "scope": "initiative",
+            "initiative_id": a.initiative.id,
+            "include_uploads": False,
+        },
+    )
+    assert without_uploads.json()["uploads_bytes"] == 0
+
+
+async def test_empty_initiative_backup_is_manifest_only_zip(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """Zero entities still yields an importable zip (manifest only), with
+    never-enabled tools marked disabled in the inventory."""
+    import json
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    # The factory pre-enables queues/counter groups; turn queues off so the
+    # inventory shows a deliberately disabled tool.
+    a.initiative.queues_enabled = False
+    session.add(a.initiative)
+    await session.commit()
+    resp = await client.get(
+        a.g("/exports/initiative"),
+        headers=a.headers,
+        params={"initiative_id": a.initiative.id},
+    )
+    archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
+    assert archive.namelist() == ["manifest.json"]
+    manifest = json.loads(archive.read("manifest.json"))
+    assert manifest["entries"] == []
+    tools = manifest["initiatives"][0]["tools"]
+    assert tools["project"] == "included"  # core tools have no off switch
+    assert tools["queue"] == "disabled"
+    assert tools["calendar_event"] == "disabled"
+
+
+async def test_guild_export_admin_revoked_fails_closed(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """Adminship revoked between request and render: the worker's re-check
+    fails the job instead of shipping a guild dump to a former admin."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    resp = await client.get(a.g("/exports/guild"), headers=a.headers)
+    assert resp.status_code == 202
+    job_id = resp.json()["id"]
+
+    a.membership.role = GuildRole.member
+    session.add(a.membership)
+    await session.commit()
+
+    user_session = await role_session("app_user")
+    monkeypatch.setattr(export_worker, "_open_user_session", lambda: user_session)
+    await export_worker.process_export_jobs()
+
+    status_resp = await client.get(a.g(f"/exports/{job_id}"), headers=a.headers)
+    body = status_resp.json()
+    assert body["status"] == ExportJobStatus.failed.value
+    assert body["error"] == "EXPORT_ADMIN_REQUIRED"
+    dl = await client.get(a.g(f"/exports/{job_id}/download"), headers=a.headers)
+    assert dl.status_code == 409

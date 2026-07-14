@@ -1871,12 +1871,15 @@ async def count_project_export_rows(
     guild_id: int,
     *,
     project_id: int,
+    access: str = "write",
 ) -> int:
     """The project-export adapter's pre-render signal: enforce the export
-    access rule (write on the project — read-only members can't take backups),
-    then return the task count as the size proxy for inline-vs-job selection."""
+    access rule (write on the project — read-only members can't take
+    standalone backups; the initiative/guild aggregate export passes
+    ``access="read"``, its deliberate relaxation), then return the task count
+    as the size proxy for inline-vs-job selection."""
     project = await _get_project_or_404(project_id, session, guild_id)
-    await _require_project_membership(project, current_user, session, access="write")
+    await _require_project_membership(project, current_user, session, access=access)
     return (
         await session.exec(
             select(func.count()).select_from(Task).where(Task.project_id == project.id)
@@ -1890,13 +1893,16 @@ async def build_project_export_for_user(
     guild_id: int,
     *,
     project_id: int,
+    access: str = "write",
 ) -> ProjectExportEnvelope:
     """The project-export adapter's build seam: the same access rule and
     envelope as the retired ``GET /{project_id}/export`` route. Cross-row
     references (tags, statuses, properties, assignees) are encoded by string
-    keys (name / email) so the file imports cleanly on another instance."""
+    keys (name / email) so the file imports cleanly on another instance.
+    The initiative/guild aggregate export passes ``access="read"`` — its
+    deliberate relaxation; standalone exports keep write."""
     project = await _get_project_or_404(project_id, session, guild_id)
-    await _require_project_membership(project, current_user, session, access="write")
+    await _require_project_membership(project, current_user, session, access=access)
     return await project_export_service.build_project_export(
         session,
         project_id=project.id,

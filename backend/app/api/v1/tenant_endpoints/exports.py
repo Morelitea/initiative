@@ -24,6 +24,7 @@ from app.api.deps import (
 from app.core.messages import ExportMessages
 from app.models.platform.user import User
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
+from app.schemas.tenant.backup_export import BackupEstimate
 from app.schemas.tenant.export_job import ExportJobRead
 from app.services.export.engine import ExportError, InlineExport, start_export
 from app.services.storage import (
@@ -335,6 +336,186 @@ async def export_calendar_events(
         raise HTTPException(status_code=exc.status_code, detail=exc.code)
 
     if isinstance(result, InlineExport):
+        return _inline_response(result)
+    return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
+
+
+def _parse_json_param(raw: Optional[str]) -> Optional[dict]:
+    """`include`/`formats` arrive as JSON-string query params (the same
+    convention as the task list's `conditions`). Shape validation happens in
+    the adapter at count time; here we only reject non-JSON/non-object."""
+    if raw is None:
+        return None
+    import json
+
+    try:
+        value = json.loads(raw)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ExportMessages.EXPORT_INVALID_PARAMS,
+        )
+    if not isinstance(value, dict):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ExportMessages.EXPORT_INVALID_PARAMS,
+        )
+    return value
+
+
+def _require_guild_admin(guild_context: GuildContext) -> None:
+    """Guild-scope exports are for guild admins — real membership, not a
+    break-glass stand-in (the adapter re-checks actual membership, so a
+    synthesized admin role would only fail later; reject it up front)."""
+    from app.models.platform.guild import GuildRole
+
+    if guild_context.grant is not None or guild_context.role != GuildRole.admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ExportMessages.EXPORT_ADMIN_REQUIRED,
+        )
+
+
+# NOTE: literal paths below must stay declared before the parametric
+# ``/{job_id}`` routes, or "estimate" would be parsed as a job id.
+@router.get("/estimate", response_model=BackupEstimate)
+async def estimate_aggregate_export(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    scope: Literal["initiative", "guild"] = Query(),
+    initiative_id: Optional[int] = Query(
+        default=None, description="Required when scope=initiative"
+    ),
+    include_uploads: bool = Query(default=True),
+) -> BackupEstimate:
+    """Pre-flight numbers for the export wizard: per-tool entity counts and
+    the uploads footprint (approximate — embedded document images resolve at
+    build time), plus the row/byte ceilings so the client can warn before
+    submitting. Guild scope requires guild admin."""
+    from app.services.export.adapters.backup import estimate_backup
+
+    if scope == "guild":
+        _require_guild_admin(guild_context)
+    try:
+        return await estimate_backup(
+            session,
+            current_user,
+            guild_context.guild_id,
+            scope=scope,
+            initiative_id=initiative_id,
+            include_uploads=include_uploads,
+        )
+    except ExportError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+
+
+@router.get("/initiative", response_model=None)
+async def export_initiative(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    initiative_id: int = Query(),
+    mode: Literal["backup", "report"] = Query(default="backup"),
+    include: Optional[str] = Query(
+        default=None,
+        description=(
+            'JSON object of tool→bool, e.g. {"project": true, "queue": false}. '
+            "Omitted = every tool."
+        ),
+    ),
+    formats: Optional[str] = Query(
+        default=None,
+        description=(
+            "Report mode: JSON object of tool→format; the document entry is a "
+            'nested map, e.g. {"project": "pdf", "document": {"native": "md", '
+            '"spreadsheet": "xlsx"}}. Unlisted tools use their backup format.'
+        ),
+    ),
+    include_uploads: bool = Query(
+        default=True, description="Backup mode: bundle referenced upload blobs"
+    ),
+    tz: Optional[str] = Query(
+        default=None, max_length=64, description="IANA timezone for report timestamps"
+    ),
+) -> Union[Response, JSONResponse]:
+    """Export a whole initiative as one zip: ``backup`` bundles every included
+    tool's importable JSON envelope plus a ``manifest.json`` (optionally with
+    the upload blobs the documents reference); ``report`` renders each tool in
+    the caller's chosen format. Requires reaching the initiative; per-entity
+    sharing applies throughout, and projects are included with read access.
+    Always returns ``202`` with a queued job to poll and download."""
+    try:
+        result = await start_export(
+            session,
+            user=current_user,
+            guild_id=guild_context.guild_id,
+            source="initiative",
+            format="zip",
+            params={
+                "initiative_id": initiative_id,
+                "mode": mode,
+                "include": _parse_json_param(include),
+                "formats": _parse_json_param(formats),
+                "include_uploads": include_uploads,
+                "tz": tz,
+            },
+            allow_job=_allow_job(guild_context),
+        )
+    except ExportError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+
+    if isinstance(result, InlineExport):  # unreachable: aggregate is always a job
+        return _inline_response(result)
+    return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
+
+
+@router.get("/guild", response_model=None)
+async def export_guild(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    mode: Literal["backup", "report"] = Query(default="backup"),
+    include: Optional[str] = Query(
+        default=None, description="JSON object of tool→bool; omitted = every tool"
+    ),
+    formats: Optional[str] = Query(
+        default=None,
+        description="Report mode: JSON object of tool→format (see /exports/initiative)",
+    ),
+    include_uploads: bool = Query(
+        default=True, description="Backup mode: bundle referenced upload blobs"
+    ),
+    tz: Optional[str] = Query(
+        default=None, max_length=64, description="IANA timezone for report timestamps"
+    ),
+) -> Union[Response, JSONResponse]:
+    """Export the whole guild — every initiative the same way
+    ``/exports/initiative`` exports one, in a single zip. Guild admins only
+    (real membership; the adapter re-checks at render time so revoked
+    adminship fails the job closed). Always returns ``202`` with a queued job
+    to poll and download."""
+    _require_guild_admin(guild_context)
+    try:
+        result = await start_export(
+            session,
+            user=current_user,
+            guild_id=guild_context.guild_id,
+            source="guild",
+            format="zip",
+            params={
+                "mode": mode,
+                "include": _parse_json_param(include),
+                "formats": _parse_json_param(formats),
+                "include_uploads": include_uploads,
+                "tz": tz,
+            },
+            allow_job=_allow_job(guild_context),
+        )
+    except ExportError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+
+    if isinstance(result, InlineExport):  # unreachable: aggregate is always a job
         return _inline_response(result)
     return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
 

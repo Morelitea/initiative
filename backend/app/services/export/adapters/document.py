@@ -97,7 +97,9 @@ class DocumentAdapter:
             template_id=self.template_id,
             format=format,
             batch=tuple(
-                _item(document, format, guild_id=guild_id, date=date, loc=loc)
+                build_document_item(
+                    document, format, guild_id=guild_id, date=date, loc=loc
+                )
                 for document in documents
             ),
         )
@@ -136,7 +138,7 @@ def _document_count(document: Document) -> int:
     return 1
 
 
-def _item(
+def build_document_item(
     document: Document, format: str, *, guild_id: int, date: str, loc: str
 ) -> RenderItem:
     """One document's render item — a selection export is just a batch of

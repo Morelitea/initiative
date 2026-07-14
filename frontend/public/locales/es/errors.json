@@ -259,6 +259,7 @@
   "EXPORT_WRITE_REQUIRED": "Esta exportación es demasiado grande para generarla con acceso de solo lectura.",
   "EXPORT_JOB_NOT_FOUND": "Exportación no encontrada.",
   "EXPORT_NOT_READY": "Esta exportación aún no está lista para descargar.",
+  "EXPORT_ADMIN_REQUIRED": "Solo los administradores del gremio pueden exportar todo el gremio.",
   "ADVANCED_TOOL_NOT_CONFIGURED": "La herramienta avanzada no está configurada en esta instalación.",
   "ADVANCED_TOOL_NOT_ENABLED": "La herramienta avanzada no está activada para esta iniciativa.",
   "ADVANCED_TOOL_NOT_FOUND": "Herramienta avanzada no encontrada",
