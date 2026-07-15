@@ -82,6 +82,34 @@ describe("silent session renewal", () => {
     }
   });
 
+  it("emits one signed-out event when concurrent 401s share a failed renewal", async () => {
+    let refreshCalls = 0;
+    const rejected = () => new HttpResponse(null, { status: 401 });
+    server.use(
+      http.get("/api/v1/users/me", rejected),
+      http.get("/api/v1/notifications", rejected),
+      http.post("/api/v1/auth/refresh", () => {
+        refreshCalls += 1;
+        return rejected();
+      })
+    );
+    setHasActiveSession(true);
+    const onUnauthorized = vi.fn();
+    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
+
+    try {
+      const results = await Promise.allSettled([
+        apiClient.get("/users/me"),
+        apiClient.get("/notifications"),
+      ]);
+      expect(results.map((r) => r.status)).toEqual(["rejected", "rejected"]);
+      expect(refreshCalls).toBe(1);
+      expect(onUnauthorized).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
+    }
+  });
+
   it("does not renew for auth lifecycle endpoints", async () => {
     let refreshCalls = 0;
     server.use(

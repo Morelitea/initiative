@@ -160,7 +160,15 @@ const attemptSessionRefresh = (): Promise<boolean> => {
         }
         return true;
       })
-      .catch(() => false)
+      .catch(() => {
+        // Surfacing the signed-out state lives HERE, not with the callers:
+        // however many concurrent 401s share this renewal, the event fires
+        // exactly once per failed attempt.
+        if (hasActiveSession) {
+          emitUnauthorized();
+        }
+        return false;
+      })
       .finally(() => {
         refreshInFlight = null;
       });
@@ -194,10 +202,13 @@ apiClient.interceptors.response.use(undefined, async (error) => {
       config._sessionRefreshRetried = true;
       return apiClient(config);
     }
+    // The failed renewal already surfaced the signed-out state (once, from
+    // the shared attempt) — just hand the original rejection back.
+    return Promise.reject(error);
   }
-  // Lifecycle 401s never mean "your session just died": a failed renewal is
-  // surfaced by the request that triggered it, and a login/logout 401 is the
-  // caller's to handle — emitting here would double-fire the signed-out toast.
+  // 401s that never entered renewal: a retried request that 401'd again, and
+  // native. Lifecycle 401s stay silent — a login/logout 401 is the caller's
+  // to handle, not a session expiry.
   if (error.response?.status === 401 && hasActiveSession && !isAuthLifecyclePath(config?.url)) {
     emitUnauthorized();
   }
