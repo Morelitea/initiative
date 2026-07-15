@@ -944,6 +944,34 @@ async def oidc_callback(
         max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         path="/",
     )
+
+    # Additively establish the server-side session + rotating refresh cookie,
+    # mirroring the password login path (history/auth-detailed-design.md §3).
+    # The session records which provider satisfied this login (amr/sat) — the
+    # inputs the per-guild auth-policy gate and step-up read later.
+    #
+    # Best-effort: this is additive and not yet load-bearing, so a transient DB
+    # error here must not turn a successful SSO login into a failure — the
+    # legacy session cookie above already authenticates the user.
+    #
+    # ``user`` is attached to ``admin_session``, so the rollback below expires
+    # its attributes; the plain ints are captured up front so the failure path
+    # never touches the ORM object again.
+    user_id, provider_id, provider_slug = user.id, provider_row.id, provider_row.slug
+    try:
+        issued = await session_service.create_session(
+            admin_session,
+            user_id=user_id,
+            amr=[f"oidc:{provider_slug}"],
+            satisfied_providers=[provider_id],
+            user_agent=request.headers.get("user-agent"),
+            ip=_client_ip(request),
+        )
+        await admin_session.commit()
+        _set_refresh_cookie(oidc_response, issued.refresh_token)
+    except Exception:
+        await admin_session.rollback()
+        logger.exception("Failed to establish refresh session for user %s", user_id)
     return oidc_response
 
 
