@@ -1211,3 +1211,62 @@ async def test_backup_quota_uses_zip_sizes_not_manifest_claims(
     assert job["error"] == "IMPORT_QUOTA_EXCEEDED"
     # Nothing was written despite the understated claim.
     assert get_guild_storage(a.guild.id).open_readable("liar.bin") is None
+
+
+async def test_backup_asset_restore_guards_actual_bytes_not_declarations(
+    acting_user, session
+):
+    """Central-directory sizes are declarations too: if a zip's real
+    decompressed output exceeds what the quota pass approved (interpreter
+    truncation is behavior, not a contract), the restore fails before
+    writing past the approved bound."""
+    import zipfile as zipfile_mod
+
+    from app.schemas.tenant.backup_export import BackupManifest, ManifestAsset
+    from app.schemas.tenant.import_job import BackupImportResult
+    from app.services.import_engine.backup import _restore_assets
+    from app.services.import_engine.contract import ImportEngineError
+    from app.testing import route_session_to_guild
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    await route_session_to_guild(session, a.guild.id)
+
+    class LyingArchive:
+        """Declares 10 bytes in the central directory, emits 100_000."""
+
+        def getinfo(self, name):
+            info = zipfile_mod.ZipInfo(name)
+            info.file_size = 10
+            return info
+
+        def read(self, name):
+            return b"x" * 100_000
+
+    manifest = BackupManifest(
+        type="initiative-backup",
+        schema_version=1,
+        app_version="0.0.0-test",
+        exported_at="2026-07-15T00:00:00+00:00",
+        guild={"id": 1, "name": "g"},
+        include_uploads=True,
+        initiatives=[],
+        entries=[],
+        assets=[
+            ManifestAsset(
+                path="assets/liar.bin",
+                storage_key="unit-liar.bin",
+                original_filename="liar.bin",
+                content_type="application/octet-stream",
+                size_bytes=10,
+                referenced_by=[],
+            )
+        ],
+        skipped=[],
+    )
+    result = BackupImportResult()
+    with pytest.raises(ImportEngineError) as exc_info:
+        await _restore_assets(
+            session, LyingArchive(), manifest, a.guild.id, a.user, result
+        )
+    assert exc_info.value.code == "IMPORT_QUOTA_EXCEEDED"
+    assert get_guild_storage(a.guild.id).open_readable("unit-liar.bin") is None

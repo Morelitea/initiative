@@ -471,9 +471,6 @@ async def _restore_assets(
         # Quota accumulates from the zip's OWN central-directory size, never
         # the manifest's declared size_bytes: the manifest is caller-supplied
         # text and could understate to slip past the guild's storage cap.
-        # zipfile guarantees .read() returns at most info.file_size (a
-        # mismatching stream fails the CRC check), so this is the true upper
-        # bound of what gets written.
         try:
             info = archive.getinfo(asset.path)
         except KeyError:
@@ -489,12 +486,24 @@ async def _restore_assets(
             ImportEngineMessages.IMPORT_QUOTA_EXCEEDED, status_code=400
         ) from exc
 
+    # The central-directory sizes are themselves declarations. CPython's
+    # zipfile truncates a member's output at its declared size, but that is
+    # interpreter behavior, not a contract — so the quota-checked bound is
+    # ALSO enforced against the bytes actually decompressed, before anything
+    # is written. A zip whose real output exceeds what was quota-checked
+    # fails the job rather than exceeding the guild's storage cap.
+    written = 0
     for asset in to_restore:
         try:
             data = archive.read(asset.path)
         except Exception:
             result.warnings.append(f"asset_missing:{asset.storage_key}")
             continue
+        written += len(data)
+        if written > incoming:
+            raise ImportEngineError(
+                ImportEngineMessages.IMPORT_QUOTA_EXCEEDED, status_code=400
+            )
         storage.write(
             asset.storage_key,
             data,
