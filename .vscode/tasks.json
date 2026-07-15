@@ -4,7 +4,7 @@
     {
       "label": "dev:db-start",
       "type": "shell",
-      "command": "docker-compose up db -d --wait",
+      "command": "docker compose up db -d --wait",
       "options": { "cwd": "${workspaceFolder}" },
       "presentation": { "reveal": "silent", "panel": "shared" }
     },
@@ -48,7 +48,7 @@
       "label": "dev:frontend",
       "type": "process",
       "command": "bash",
-      "args": ["scripts/dev-frontend.sh"],
+      "args": ["scripts/dev-frontend.sh", "--open"],
       "options": { "cwd": "${workspaceFolder}" },
       "isBackground": true,
       "presentation": { "reveal": "silent", "panel": "dedicated" },
@@ -63,18 +63,8 @@
       "dependsOn": ["dev:seed"]
     },
     {
-      "label": "dev:open-browser",
-      "type": "process",
-      "command": "bash",
-      "args": ["scripts/dev-open-browser.sh"],
-      "options": { "cwd": "${workspaceFolder}" },
-      "presentation": { "reveal": "silent", "panel": "shared" },
-      "dependsOn": ["dev:backend", "dev:frontend"]
-    },
-    {
       "label": "dev:setup",
-      "dependsOn": ["dev:open-browser"],
-      "dependsOrder": "sequence",
+      "dependsOn": ["dev:backend", "dev:frontend"],
       "presentation": { "reveal": "silent" },
       "problemMatcher": []
     },
@@ -89,7 +79,7 @@
     {
       "label": "generate:api",
       "type": "shell",
-      "command": "docker-compose up db -d --wait && bash scripts/dev-migrate.sh && ( nohup bash scripts/dev-backend.sh > /tmp/initiative-gen-backend.log 2>&1 & ) && for i in $(seq 1 60); do curl -sf http://localhost:8000/api/v1/openapi.json -o /dev/null && break; sleep 1; done && ( cd frontend && pnpm generate:api ); lsof -ti:8000 | xargs -r kill 2>/dev/null || true",
+      "command": "docker compose up db -d --wait && bash scripts/dev-migrate.sh && ( nohup bash scripts/dev-backend.sh > /tmp/initiative-gen-backend.log 2>&1 & ) && for i in $(seq 1 60); do curl -sf http://localhost:8000/api/v1/openapi.json -o /dev/null && break; sleep 1; done && ( cd frontend && pnpm generate:api ); lsof -ti:8000 | xargs -r kill 2>/dev/null || true",
       "options": { "cwd": "${workspaceFolder}" },
       "presentation": { "reveal": "always", "panel": "shared" },
       "problemMatcher": []

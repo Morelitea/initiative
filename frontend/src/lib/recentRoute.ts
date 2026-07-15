@@ -24,21 +24,34 @@ export function recentRoute(item: RecentItemRead): string {
   return guildPath(item.guild_id, `/${segment}/${item.entity_id}`);
 }
 
+/** Parse a decimal id from a path segment ("42" → 42, anything else → null). */
+function parseId(segment: string | undefined): number | null {
+  if (!segment || !/^\d+$/.test(segment)) {
+    return null;
+  }
+  const id = Number.parseInt(segment, 10);
+  return Number.isSafeInteger(id) && id >= 0 ? id : null;
+}
+
 /**
  * Parse the current location pathname into a ``RecentKey`` so the tabs bar
  * can highlight the active tab. Returns null when no entity detail page is
- * open. One pattern per recentable tool, derived from its route segment.
+ * open. Expects ``/g/{guildId}/{toolSegment}/{entityId}/…`` and matches the
+ * tool segment against each recentable tool's registry route segment.
  */
 export function getActiveRecentKey(pathname: string): RecentKey | null {
+  const [, prefix, guildSegment, toolSegment, entitySegment] = pathname.split("/");
+  if (prefix !== "g") {
+    return null;
+  }
+  const guildId = parseId(guildSegment);
+  const entityId = parseId(entitySegment);
+  if (guildId == null || entityId == null) {
+    return null;
+  }
   for (const tool of RECENTABLE_TOOLS) {
-    const re = new RegExp(`^/g/(\\d+)/${toolRouteSegment(tool)}/(\\d+)`);
-    const m = pathname.match(re);
-    if (m) {
-      return {
-        entityType: tool as RecentKey["entityType"],
-        entityId: Number(m[2]),
-        guildId: Number(m[1]),
-      };
+    if (toolRouteSegment(tool) === toolSegment) {
+      return { entityType: tool as RecentKey["entityType"], entityId, guildId };
     }
   }
   return null;

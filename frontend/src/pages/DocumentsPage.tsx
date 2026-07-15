@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
+import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import {
   useCopyDocument,
   useDeleteDocument,
@@ -100,7 +101,6 @@ export const DocumentsView = ({
   searchParamsRef.current = searchParams;
   const lastConsumedParams = useRef<string>("");
   const prevGuildIdRef = useRef<number | null>(activeGuildId);
-  const isClosingCreateDialog = useRef(false);
 
   // Sync the initiative filter to the URL's ?initiativeId. A specific id filters
   // to it; clearing the param — e.g. clicking "All Documents" from an
@@ -391,10 +391,19 @@ export const DocumentsView = ({
     );
   }, [initiativesQuery.data, user, filterVisible, permissionsFor]);
 
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [createDialogInitiativeId, setCreateDialogInitiativeId] = useState<number | undefined>(
     lockedInitiativeId ?? undefined
   );
+  const {
+    open: createDialogOpen,
+    setOpen: setCreateDialogOpen,
+    onOpenChange: handleCreateDialogOpenChange,
+  } = useCreateFromSearchParam({
+    onOpenFromUrl: (urlInitiativeId) => {
+      if (urlInitiativeId && !lockedInitiativeId)
+        setCreateDialogInitiativeId(Number(urlInitiativeId));
+    },
+  });
   const [selectedDocuments, setSelectedDocuments] = useState<DocumentSummary[]>([]);
 
   // Grid/tags selection mode (the table view has its own row checkboxes and
@@ -506,23 +515,6 @@ export const DocumentsView = ({
       : null
   );
 
-  // Open create dialog when ?create=true is in URL
-  useEffect(() => {
-    const shouldCreate = searchParams.create === "true";
-    const urlInitiativeId = searchParams.initiativeId;
-
-    if (shouldCreate && !createDialogOpen && !isClosingCreateDialog.current) {
-      setCreateDialogOpen(true);
-      if (urlInitiativeId && !lockedInitiativeId) {
-        setCreateDialogInitiativeId(Number(urlInitiativeId));
-      }
-    }
-    // Reset the closing flag once URL no longer has create=true
-    if (!shouldCreate) {
-      isClosingCreateDialog.current = false;
-    }
-  }, [searchParams, lockedInitiativeId, createDialogOpen]);
-
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
@@ -544,19 +536,6 @@ export const DocumentsView = ({
     router.navigate({
       to: gp(`/documents/${document.id}`),
     });
-  };
-
-  const handleCreateDialogOpenChange = (open: boolean) => {
-    setCreateDialogOpen(open);
-    // Clear ?create from URL when dialog closes
-    if (!open && searchParams.create) {
-      isClosingCreateDialog.current = true;
-      router.navigate({
-        to: gp("/documents"),
-        search: { initiativeId: searchParams.initiativeId },
-        replace: true,
-      });
-    }
   };
 
   const deleteDocuments = useDeleteDocument({

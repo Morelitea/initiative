@@ -382,7 +382,7 @@ async def test_document_export_per_type_formats(
     assert resp.status_code == 200
     assert ".json" in resp.headers["content-disposition"]
     serialized = json.loads(resp.content)
-    assert serialized["kind"] == "initiative-document"
+    assert serialized["type"] == "initiative-document"
     assert serialized["document_type"] == "native"
     assert serialized["content"]["root"]["type"] == "root"
     assert serialized["tags"] == [] and serialized["properties"] == []
@@ -400,7 +400,7 @@ async def test_document_export_per_type_formats(
     resp = await export(board, "json")
     assert resp.status_code == 200
     envelope = json.loads(resp.content)
-    assert envelope["kind"] == "initiative-document"
+    assert envelope["type"] == "initiative-document"
     assert envelope["document_type"] == "whiteboard"
     scene = envelope["content"]
     assert scene["type"] == "excalidraw"
@@ -628,7 +628,7 @@ async def test_document_export_spreadsheet_formats(
     )
     assert json_resp.status_code == 200
     envelope = json.loads(json_resp.content)
-    assert envelope["kind"] == "initiative-document"
+    assert envelope["type"] == "initiative-document"
     assert envelope["document_type"] == "spreadsheet"
     assert envelope["title"] == "Budget: Q3"
     assert envelope["content"] == sheet_doc.content
@@ -938,7 +938,7 @@ async def test_queue_export_json_envelope(client: AsyncClient, acting_user, sess
     assert resp.status_code == 200
     assert ".initiative-queue.json" in resp.headers["content-disposition"]
     envelope = json.loads(resp.content)
-    assert envelope["kind"] == "initiative-queue"
+    assert envelope["type"] == "initiative-queue"
     assert envelope["schema_version"] == 1
     assert envelope["name"] == "Battle Order"
     assert envelope["is_active"] is True
@@ -1046,7 +1046,7 @@ async def test_counter_group_export_json_envelope(
     assert resp.status_code == 200
     assert ".initiative-counter-group.json" in resp.headers["content-disposition"]
     envelope = json.loads(resp.content)
-    assert envelope["kind"] == "initiative-counter-group"
+    assert envelope["type"] == "initiative-counter-group"
     assert envelope["schema_version"] == 1
     assert envelope["name"] == "Party Resources"
 
@@ -1196,7 +1196,7 @@ async def test_queue_export_localizes_status_flags_and_headers(
         params={"queue_id": queue.id, "format": "json"},
     )
     envelope = json.loads(json_resp.content)
-    assert envelope["kind"] == "initiative-queue"
+    assert envelope["type"] == "initiative-queue"
     assert "items" in envelope and "is_current" in envelope["items"][0]
 
 
@@ -1431,7 +1431,7 @@ async def test_bulk_document_selection_exports_as_zip(
     assert all(n.endswith(".json") for n in names)
     assert len(set(names)) == 3  # the twin "Session Notes" title deduped
     envelopes = [json.loads(archive.read(n)) for n in names]
-    assert all(e["kind"] == "initiative-document" for e in envelopes)
+    assert all(e["type"] == "initiative-document" for e in envelopes)
     assert {e["document_type"] for e in envelopes} == {"native", "spreadsheet"}
     assert {e["title"] for e in envelopes} == {"Session Notes", "Budget"}
 
@@ -1667,7 +1667,7 @@ async def test_calendar_event_export_ics_and_json(
     )
     assert js.status_code == 200
     envelope = json.loads(js.content)
-    assert envelope["kind"] == "initiative-calendar-events"
+    assert envelope["type"] == "initiative-calendar-events"
     assert envelope["schema_version"] == 1
     titles = {e["title"] for e in envelope["events"]}
     assert titles == {"Session 13", "One-shot night"}
@@ -1796,7 +1796,7 @@ async def test_smart_link_exports_importable_json_envelope(
     assert resp.status_code == 200
     envelope = json.loads(resp.content)
     assert envelope == {
-        "kind": "initiative-document",
+        "type": "initiative-document",
         "schema_version": 1,
         "document_type": "smart_link",
         "title": "Session zero notes",
@@ -1939,7 +1939,7 @@ async def test_initiative_backup_zip_layout_and_manifest(
     assert "manifest.json" in names
 
     manifest = json.loads(archive.read("manifest.json"))
-    assert manifest["kind"] == "initiative-backup"
+    assert manifest["type"] == "initiative-backup"
     assert manifest["schema_version"] == 1
     assert manifest["guild"]["id"] == a.guild.id
     assert [i["id"] for i in manifest["initiatives"]] == [a.initiative.id]
@@ -1958,8 +1958,8 @@ async def test_initiative_backup_zip_layout_and_manifest(
 
     folder = next(n for n in names if n != "manifest.json").split("/")[1]
     assert folder.startswith(f"{a.initiative.id}-")
-    by_kind = {e["kind"]: e for e in manifest["entries"]}
-    assert set(by_kind) == {
+    by_type = {e["type"]: e for e in manifest["entries"]}
+    assert set(by_type) == {
         "initiative-project",
         "initiative-document",
         "initiative-queue",
@@ -1968,15 +1968,16 @@ async def test_initiative_backup_zip_layout_and_manifest(
     }
 
     # Spot-check envelopes round-trip through the archive paths.
-    project_env = json.loads(archive.read(by_kind["initiative-project"]["path"]))
+    project_env = json.loads(archive.read(by_type["initiative-project"]["path"]))
+    assert project_env["type"] == "initiative-project"
     assert project_env["project"]["name"] == "Main Arc"
     assert [t["title"] for t in project_env["tasks"]] == ["Fell the tower"]
-    doc_env = json.loads(archive.read(by_kind["initiative-document"]["path"]))
-    assert doc_env["kind"] == "initiative-document"
+    doc_env = json.loads(archive.read(by_type["initiative-document"]["path"]))
+    assert doc_env["type"] == "initiative-document"
     assert doc_env["title"] == "Campaign Notes"
-    events_env = json.loads(archive.read(by_kind["initiative-calendar-events"]["path"]))
+    events_env = json.loads(archive.read(by_type["initiative-calendar-events"]["path"]))
     assert [e["title"] for e in events_env["events"]] == ["Session Zero"]
-    assert by_kind["initiative-calendar-events"]["path"].endswith(
+    assert by_type["initiative-calendar-events"]["path"].endswith(
         "/calendar-events.json"
     )
 
@@ -2107,7 +2108,7 @@ async def test_guild_backup_spans_initiatives_and_refreshes_access(
     resp = await client.get(a.g("/exports/guild"), headers=a.headers)
     archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
     manifest = json.loads(archive.read("manifest.json"))
-    assert manifest["kind"] == "guild-backup"
+    assert manifest["type"] == "guild-backup"
     assert {i["name"] for i in manifest["initiatives"]} >= {
         a.initiative.name,
         "Second Front",
@@ -2205,7 +2206,7 @@ async def test_backup_uploads_toggle_and_asset_bundling(
             e["path"] for e in manifest["entries"] if e["title"] == "Illustrated Notes"
         )
     ]
-    (entry,) = [e for e in manifest["entries"] if e["kind"] == "file"]
+    (entry,) = [e for e in manifest["entries"] if e["type"] == "file"]
     assert entry["entity_id"] == file_doc.id
     assert entry["asset"] == "assets/handout-xyz.pdf"
 
@@ -2223,7 +2224,7 @@ async def test_backup_uploads_toggle_and_asset_bundling(
     (skip,) = manifest2["skipped"]
     assert skip["entity_id"] == file_doc.id
     assert skip["reason"] == "uploads_excluded"
-    assert not any(e["kind"] == "file" for e in manifest2["entries"])
+    assert not any(e["type"] == "file" for e in manifest2["entries"])
 
 
 async def test_backup_upload_byte_cap(

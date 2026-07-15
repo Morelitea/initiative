@@ -134,7 +134,8 @@ async def get_status(session: AsyncSession) -> dict:
     if row is None:
         await _ensure_row(session)
         row = await _fetch(session)
-    assert row is not None
+    if row is None:
+        raise RuntimeError("storage backfill state row missing after creation")
     return row
 
 
@@ -222,7 +223,8 @@ async def _finalize(
             finished=True,
         )
     else:
-        assert summary is not None
+        if summary is None:
+            raise RuntimeError("finalize requires a summary when no error is given")
         await _persist(
             session,
             status="failed" if summary.failed else "complete",
@@ -254,5 +256,6 @@ async def start_backfill(session: AsyncSession) -> dict:
         raise BackfillAlreadyRunning()
     asyncio.create_task(_run())
     row = await _fetch(session)
-    assert row is not None
+    if row is None:
+        raise RuntimeError("storage backfill state row missing after claim")
     return row

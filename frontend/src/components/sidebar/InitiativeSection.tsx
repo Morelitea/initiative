@@ -1,10 +1,11 @@
 import { Link } from "@tanstack/react-router";
-import { CircleChevronRight, MoreVertical, Plus, Settings } from "lucide-react";
+import { CircleChevronRight, MoreVertical, Settings } from "lucide-react";
 import { memo, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { InitiativeRead, ProjectRead } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { ToolCreateButton } from "@/components/tools/ToolCreateButton";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
@@ -22,9 +23,10 @@ import { getItem, setItem } from "@/lib/storage";
 import {
   SIDEBAR_TOOLS,
   TOOL_REGISTRY,
-  toolCreateLabelKey,
-  toolListRoute,
+  toolAvailable,
+  toolDisplayName,
   toolNavLabelKey,
+  toolRowTarget,
 } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
@@ -66,44 +68,14 @@ export const InitiativeSection = memo(
       return level === "owner" || level === "write";
     };
 
-    /** Whether a tool's row renders at all. `access[tool].view` already folds
-     * in the initiative's master switch and the member's role permission; the
-     * advanced tool is additionally gated by the deployment-level runtime
-     * config (no integration configured → no row anywhere). */
-    const showTool = (tool: Tool): boolean => {
-      if (!access[tool].view) return false;
-      if (tool === Tool.advanced_tool) return Boolean(advancedTool);
-      return true;
-    };
+    /** Whether a tool's row renders at all — the member can view it AND (for
+     * config-gated tools) the deployment has the integration configured. */
+    const showTool = (tool: Tool): boolean =>
+      access[tool].view && toolAvailable(tool, advancedTool);
 
-    /** Row target: every tool lists at its own route except the advanced
-     * tool, which is one embedded page per initiative. */
-    const toolLink = (tool: Tool) =>
-      tool === Tool.advanced_tool
-        ? { to: gp(`/initiatives/${initiative.id}/advanced-tool`), search: undefined }
-        : { to: gp(toolListRoute(tool)), search: { initiativeId: String(initiative.id) } };
-
-    /** The advanced tool renders under the deployment's own name for it. */
-    const toolLabel = (tool: Tool): string =>
-      tool === Tool.advanced_tool && advancedTool?.name
-        ? advancedTool.name
-        : t(toolNavLabelKey(tool));
-
-    /** Whether to surface a create affordance for a tool. Mirrors showTool's
-     * deployment-config gate for the advanced tool (no integration → no create). */
+    /** Whether to surface a create affordance for a tool (same config gate). */
     const canCreateTool = (tool: Tool): boolean =>
-      access[tool].create && (tool !== Tool.advanced_tool || Boolean(advancedTool));
-
-    /** Create target for a tool. Regular tools open a create dialog at their
-     * list route; the advanced tool hands off to its embedded external page
-     * with a "new" intent (authoring happens fully in that service, not here). */
-    const createLink = (tool: Tool) =>
-      tool === Tool.advanced_tool
-        ? { to: gp(`/initiatives/${initiative.id}/advanced-tool`), search: { create: "true" } }
-        : {
-            to: gp(toolListRoute(tool)),
-            search: { create: "true", initiativeId: String(initiative.id) },
-          };
+      access[tool].create && toolAvailable(tool, advancedTool);
 
     // Load initial state from storage, default to true if not found
     const [isOpen, setIsOpen] = useState(() => {
@@ -212,17 +184,14 @@ export const InitiativeSection = memo(
                       {t("initiativeSettings")}
                     </Link>
                   </DropdownMenuItem>
-                  {SIDEBAR_TOOLS.filter(canCreateTool).map((tool) => {
-                    const link = createLink(tool);
-                    return (
-                      <DropdownMenuItem key={tool} asChild>
-                        <Link to={link.to} search={link.search}>
-                          <Plus className="mr-2 h-4 w-4" />
-                          {t(toolCreateLabelKey(tool))}
-                        </Link>
-                      </DropdownMenuItem>
-                    );
-                  })}
+                  {SIDEBAR_TOOLS.filter(canCreateTool).map((tool) => (
+                    <ToolCreateButton
+                      key={tool}
+                      tool={tool}
+                      initiativeId={initiative.id}
+                      variant="menu-item"
+                    />
+                  ))}
                 </DropdownMenuContent>
               </DropdownMenu>
             </>
@@ -242,19 +211,20 @@ export const InitiativeSection = memo(
               {SIDEBAR_TOOLS.filter(showTool).map((tool) => {
                 const def = TOOL_REGISTRY[tool];
                 const Icon = def.icon;
-                const link = toolLink(tool);
-                const createTarget = createLink(tool);
+                const row = toolRowTarget(tool, initiative.id);
                 return (
                   <SidebarMenuItem key={tool}>
                     <div className="group/tool flex w-full min-w-0 items-center gap-1">
                       <SidebarMenuButton asChild size="sm" className="min-w-0 flex-1">
                         <Link
-                          to={link.to}
-                          search={link.search}
+                          to={gp(row.to)}
+                          search={row.search}
                           className="flex min-w-0 items-center gap-2"
                         >
                           <Icon className="h-4 w-4" />
-                          <span className="min-w-0 flex-1 truncate">{toolLabel(tool)}</span>
+                          <span className="min-w-0 flex-1 truncate">
+                            {toolDisplayName(tool, t(toolNavLabelKey(tool)), advancedTool)}
+                          </span>
                           {def.sidebarCount && (
                             <span className="text-muted-foreground text-xs">
                               {counts[tool] ?? 0}
@@ -263,26 +233,7 @@ export const InitiativeSection = memo(
                         </Link>
                       </SidebarMenuButton>
                       {canCreateTool(tool) && (
-                        <Tooltip delayDuration={300}>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/tool:opacity-100 lg:flex"
-                              asChild
-                            >
-                              {/* Regular tools open a create dialog at their list
-                                  route; the advanced tool hands off to its embedded
-                                  external page with a "new" intent. */}
-                              <Link to={createTarget.to} search={createTarget.search}>
-                                <Plus className="h-3 w-3" />
-                              </Link>
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent side="top">
-                            <p>{t(toolCreateLabelKey(tool))}</p>
-                          </TooltipContent>
-                        </Tooltip>
+                        <ToolCreateButton tool={tool} initiativeId={initiative.id} variant="icon" />
                       )}
                     </div>
                   </SidebarMenuItem>

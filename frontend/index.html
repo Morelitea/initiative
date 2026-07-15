@@ -9,12 +9,8 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="description" content="Initiative is a collaborative project management app for guilds, teams, and organizations." />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap" as="style" />
-    <!-- Loaded as a plain stylesheet (no inline onload) so a strict CSP
-         `script-src 'self'` doesn't block the async-swap handler. -->
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap" rel="stylesheet" />
+    <!-- The Outfit font is self-hosted (bundled via @fontsource-variable/outfit
+         in main.tsx), so no third-party font hosts are contacted. -->
     <title>Initiative</title>
   </head>
   <body>
