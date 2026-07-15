@@ -253,3 +253,55 @@ export const toolMemberCreateFlag = (tool: Tool): keyof InitiativeMemberRead =>
 export const isToolEnabled = (tool: Tool, initiative: InitiativeRead): boolean =>
   TOOL_REGISTRY[tool].core ||
   Boolean(initiative[`${toolPlural(tool)}_enabled` as keyof InitiativeRead]);
+
+// ---------------------------------------------------------------------------
+// Runtime-config gating & hand-off routing — the ONE place a tool's "I'm
+// different" traits live, so every surface (sidebar, tabs, palette, create
+// button, settings toggles) derives them instead of re-checking
+// `tool === Tool.advanced_tool`. Adding a tool to the registry wires it here.
+// ---------------------------------------------------------------------------
+
+/** Tools whose availability depends on deployment runtime config (an external
+ *  integration must be configured). Today only the advanced tool. */
+const RUNTIME_CONFIGURED_TOOLS = new Set<Tool>([Tool.advanced_tool]);
+
+/** The runtime config a config-gated tool depends on (structural subset of the
+ *  advanced-tool config — the only runtime-configured integration today). */
+export type RuntimeToolConfig = { name?: string | null } | null | undefined;
+
+/** Whether a tool is usable given the deployment config: config-gated tools
+ *  need their integration configured; every other tool is always available. */
+export const toolAvailable = (tool: Tool, config: RuntimeToolConfig): boolean =>
+  !RUNTIME_CONFIGURED_TOOLS.has(tool) || Boolean(config);
+
+/** Display name for a tool: a config-gated tool uses its deployment-provided
+ *  name when set; otherwise (and for every other tool) the caller's `fallback`. */
+export const toolDisplayName = (tool: Tool, fallback: string, config: RuntimeToolConfig): string =>
+  RUNTIME_CONFIGURED_TOOLS.has(tool) && config?.name ? config.name : fallback;
+
+/** Kebab singular of a tool ("advanced_tool" → "advanced-tool") — the embedded
+ *  per-initiative page segment for hand-off tools. */
+export const toolEmbedSegment = (tool: Tool): string => tool.replaceAll("_", "-");
+
+/** Guild-relative sidebar/nav row target for a tool inside an initiative.
+ *  Hand-off tools (`inAppCreate: false`) open one embedded page per initiative;
+ *  in-app tools open their shared list filtered to the initiative. Callers
+ *  prepend the guild prefix (`useGuildPath`). */
+export const toolRowTarget = (
+  tool: Tool,
+  initiativeId: number
+): { to: string; search: { initiativeId: string } | undefined } =>
+  TOOL_REGISTRY[tool].inAppCreate
+    ? { to: toolListRoute(tool), search: { initiativeId: String(initiativeId) } }
+    : { to: `/initiatives/${initiativeId}/${toolEmbedSegment(tool)}`, search: undefined };
+
+/** Guild-relative create target for a tool inside an initiative. In-app tools
+ *  open their list route's create dialog (`?create=true`); hand-off tools open
+ *  their embedded page with a create intent. Callers prepend the guild prefix. */
+export const toolCreateTarget = (
+  tool: Tool,
+  initiativeId: number
+): { to: string; search: Record<string, string> } =>
+  TOOL_REGISTRY[tool].inAppCreate
+    ? { to: toolListRoute(tool), search: { create: "true", initiativeId: String(initiativeId) } }
+    : { to: `/initiatives/${initiativeId}/${toolEmbedSegment(tool)}`, search: { create: "true" } };

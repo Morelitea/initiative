@@ -41,6 +41,7 @@ import { MultiSelect } from "@/components/ui/multi-select";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAuth } from "@/hooks/useAuth";
 import { useCalendarEventsList, useRescheduleCalendarEvent } from "@/hooks/useCalendarEvents";
+import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { canCreateTool, useMyInitiativePermissions } from "@/hooks/useInitiativeRoles";
 import { useTasks, useUpdateTask } from "@/hooks/useTasks";
@@ -128,7 +129,6 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
 
   const searchParamsRef = useRef(searchParams);
   searchParamsRef.current = searchParams;
-  const isClosingCreateDialog = useRef(false);
 
   // Calendar state — view mode persists per-user across all calendars.
   const [viewMode, setViewMode] = useViewPreference<CalendarViewMode>(
@@ -350,7 +350,13 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
   }, [viewMode, selectionModeActive, exitSelection]);
 
   // Create dialog state
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const {
+    open: createDialogOpen,
+    setOpen: setCreateDialogOpen,
+    onOpenChange: handleCreateDialogOpenChange,
+  } = useCreateFromSearchParam({
+    onClose: () => setCreateDefaultDate(null),
+  });
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [createDefaultDate, setCreateDefaultDate] = useState<Date | null>(null);
 
@@ -366,31 +372,6 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
         }
       : null
   );
-
-  useEffect(() => {
-    const shouldCreate = searchParams.create === "true";
-    if (shouldCreate && !createDialogOpen && !isClosingCreateDialog.current) {
-      setCreateDialogOpen(true);
-    }
-    if (!shouldCreate) {
-      isClosingCreateDialog.current = false;
-    }
-  }, [searchParams, createDialogOpen]);
-
-  const handleCreateDialogOpenChange = (open: boolean) => {
-    setCreateDialogOpen(open);
-    if (!open) {
-      setCreateDefaultDate(null);
-      if (searchParams.create) {
-        isClosingCreateDialog.current = true;
-        void router.navigate({
-          to: gp("/calendar-events"),
-          search: { initiativeId: searchParams.initiativeId },
-          replace: true,
-        });
-      }
-    }
-  };
 
   const handleEventCreated = (event: { id: number }) => {
     void router.navigate({ to: gp(`/calendar-events/${event.id}`) });

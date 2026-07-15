@@ -1,5 +1,4 @@
-import { Link } from "@tanstack/react-router";
-import { ExternalLink, Loader2, Plus, Sparkles } from "lucide-react";
+import { ExternalLink, Loader2, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -8,12 +7,12 @@ import { invalidateAllAdvancedTools } from "@/api/query-keys";
 import { BulkAccessBar, canManageSharing } from "@/components/access/BulkAccessBar";
 import { BulkEditAccessDialog } from "@/components/access/BulkEditAccessDialog";
 import { SelectableGridItem } from "@/components/access/SelectableGridItem";
+import { ToolCreateButton } from "@/components/tools/ToolCreateButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAdvancedToolsList } from "@/hooks/useAdvancedTools";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useGridSelection } from "@/hooks/useGridSelection";
-import { useGuildPath } from "@/lib/guildUrl";
 
 type AdvancedToolsViewProps = {
   /** Initiative whose advanced tools to list (this view is initiative-scoped;
@@ -32,21 +31,15 @@ type AdvancedToolsViewProps = {
  * instead of POSTing a row here.
  */
 export const AdvancedToolsView = ({ fixedInitiativeId, canCreate }: AdvancedToolsViewProps) => {
-  const { t } = useTranslation(["advancedTools", "access", "nav"]);
+  const { t } = useTranslation(["advancedTools", "access"]);
   const { advancedTool } = useAppConfig();
-  const gp = useGuildPath();
   const serviceName = advancedTool?.name ?? t("title");
 
-  // "Create" is a hand-off: authoring happens fully in the external service,
-  // so the button opens the embedded page with a "new" intent rather than
+  // "Create" is a hand-off: authoring happens fully in the external service, so
+  // the shared button opens the embedded page with a create intent rather than
   // POSTing a row here (our table only stores what that service builds).
   const createButton = (
-    <Button asChild size="sm">
-      <Link to={gp(`/initiatives/${fixedInitiativeId}/advanced-tool`)} search={{ create: "true" }}>
-        <Plus className="mr-2 h-4 w-4" />
-        {t("nav:createAdvancedTool")}
-      </Link>
-    </Button>
+    <ToolCreateButton tool={Tool.advanced_tool} initiativeId={fixedInitiativeId} variant="button" />
   );
 
   const toolsQuery = useAdvancedToolsList({

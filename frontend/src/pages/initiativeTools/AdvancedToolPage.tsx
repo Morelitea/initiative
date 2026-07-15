@@ -37,13 +37,14 @@ export const AdvancedToolPage = () => {
   const parsedInitiativeId = Number(initiativeIdParam);
   const initiativeId = Number.isFinite(parsedInitiativeId) ? parsedInitiativeId : null;
 
-  // Set by the sidebar "+" / list-view "New Advanced Tool" button. Creation is
-  // fully owned by the external service (our advanced_tools table only stores
-  // what that service builds), so "create" here is a hand-off: we forward the
-  // intent to the embed so it opens its new-creation screen instead of its
-  // list. No row is created on our side.
+  // `create` is set (to a fresh token) by the Create buttons. Creation is fully
+  // owned by the external service (our advanced_tools table only stores what
+  // that service builds), so "create" is a hand-off, not an insert. Two paths:
+  //   COLD (opened via a Create button from elsewhere) — baked into the frozen
+  //     iframe src below as ?intent=create, once per initiative.
+  //   WARM (clicked while already viewing the embed) — a live postMessage, so
+  //     the src never changes and the iframe never reloads.
   const { create } = useSearch({ strict: false }) as { create?: string };
-  const createIntent = create === "true";
 
   const { t, i18n } = useTranslation(["initiatives", "common"]);
   const gp = useGuildPath();
@@ -83,6 +84,13 @@ export const AdvancedToolPage = () => {
   );
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  // The iframe src is frozen PER INITIATIVE (see the render block): the cold
+  // ?intent=create is baked in once per initiative, so warm clicks — which only
+  // change the `create` route token — never alter the src and never reload the
+  // iframe. Keyed by initiative id because the router keeps this component
+  // mounted when navigating between two initiatives' embeds; a lifetime freeze
+  // would keep showing the first initiative's iframe.
+  const iframeSrcRef = useRef<{ initiativeId: number; src: string } | null>(null);
   const handoffRef = useRef<AdvancedToolHandoffResponse | null>(null);
   // Tracks whether the cached handoff token has already been forwarded
   // to the iframe. The first ``advanced-tool:ready`` uses the cached
@@ -218,6 +226,35 @@ export const AdvancedToolPage = () => {
     target.postMessage({ type: "advanced-tool:locale", locale: i18n.language }, iframeOrigin);
   }, [iframeOrigin, isReady, i18n.language]);
 
+  // WARM create hand-off: a Create button clicked while this page is already
+  // mounted only changes the `create` route token (the frozen src never
+  // reloads the iframe), so we deliver the intent as a live message — mirroring
+  // advanced-tool:locale — and the embed opens its create screen in place. The
+  // signed handoff stays the trust boundary; this is a hint.
+  //
+  // Value-driven, not run-driven: this effect also re-fires when iframeOrigin
+  // or isReady resolve asynchronously, so we post only when the token CHANGES
+  // from the last one delivered. Tokens delivered cold (baked into the frozen
+  // src) are pre-consumed where the src is frozen, so they never double-fire
+  // here. A token is consumed only on a successful post — a warm click landing
+  // before the iframe renders is delivered when isReady flips, not dropped.
+  // (A loading iframe DOES have a contentWindow; the target + isReady guard
+  // mirrors the locale bridge above.)
+  const lastCreateTokenRef = useRef(create);
+  useEffect(() => {
+    if (create === lastCreateTokenRef.current) return;
+    if (create == null) {
+      // Token cleared (e.g. navigating to a plain embed link) — forget it.
+      lastCreateTokenRef.current = create;
+      return;
+    }
+    if (!iframeOrigin) return;
+    const target = iframeRef.current?.contentWindow;
+    if (!target || !isReady) return;
+    lastCreateTokenRef.current = create;
+    target.postMessage({ type: "advanced-tool:intent", intent: "create" }, iframeOrigin);
+  }, [create, iframeOrigin, isReady]);
+
   if (configLoading || initiativesQuery.isLoading) {
     return (
       <div className="flex items-center gap-2 text-muted-foreground text-sm">
@@ -293,18 +330,34 @@ export const AdvancedToolPage = () => {
   // 3rem sticky header on top and the 20rem sidebar on desktop. On mobile
   // the sidebar is offcanvas, so the wrapper extends edge-to-edge.
   //
-  // The iframe URL has NO secrets in it — only the initiative id and, when
-  // the user clicked "create", an `intent=create` routing hint (mirrors the
-  // guild page's `?scope=guild`). The embed MUST still trust the signed
-  // handoff token, not this param — it only tells the service which screen to
-  // render. The handoff token is delivered via postMessage after the iframe
-  // sends its `ready` signal, so it never lands in browser history, proxy
-  // logs, or referrer headers.
+  // Freeze the iframe src per initiative: the COLD create intent (page opened
+  // via a Create button) is baked into the URL once as ?intent=create — a
+  // routing hint mirroring the guild page's ?scope=guild. Warm re-clicks only
+  // change the `create` route token and must NOT reload the iframe, so the src
+  // stays frozen and warm intents ride the postMessage above instead. A cold
+  // token is consumed here (write-once-per-key during render, same idiom as
+  // the freeze itself) so the warm effect never re-posts what the URL already
+  // delivered. Navigating to ANOTHER initiative's embed re-freezes for it —
+  // the iframe reload is correct there (different content).
+  if (iframeSrcRef.current?.initiativeId !== initiative.id) {
+    iframeSrcRef.current = {
+      initiativeId: initiative.id,
+      src: `${advancedTool.url}/embed/${initiative.id}${create != null ? "?intent=create" : ""}`,
+    };
+    lastCreateTokenRef.current = create;
+  }
+
+  // The iframe URL has NO secrets in it — only the initiative id (and the cold
+  // ?intent=create hint). The embed MUST still trust the signed handoff token,
+  // not this param — it only tells the service which screen to render. The
+  // handoff token is delivered via postMessage after the iframe sends its
+  // `ready` signal, so it never lands in browser history, proxy logs, or
+  // referrer headers.
   return (
     <div className="fixed inset-x-0 top-12 bottom-0 md:left-[var(--sidebar-width,20rem)]">
       <iframe
         ref={iframeRef}
-        src={`${advancedTool.url}/embed/${initiative.id}${createIntent ? "?intent=create" : ""}`}
+        src={iframeSrcRef.current.src}
         title={advancedTool.name}
         className="block h-full w-full border-0 bg-background"
         // Minimum capabilities for an embedded SPA. Notably absent:

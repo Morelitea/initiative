@@ -19,6 +19,7 @@ import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateAc
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
+import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
@@ -64,7 +65,6 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
   searchParamsRef.current = searchParams;
   const lastConsumedParams = useRef<string>("");
   const prevGuildIdRef = useRef<number | null>(activeGuildId);
-  const isClosingCreateDialog = useRef(false);
 
   // Consume ?initiativeId from URL once
   useEffect(() => {
@@ -168,7 +168,11 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
     creatableInitiatives,
   ]);
 
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const {
+    open: createDialogOpen,
+    setOpen: setCreateDialogOpen,
+    onOpenChange: handleCreateDialogOpenChange,
+  } = useCreateFromSearchParam();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const getDefaultFiltersVisibility = () =>
@@ -179,29 +183,6 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
   useRegisterPrimaryCreateAction(
     canCreateQueues ? { run: () => setCreateDialogOpen(true), label: t("createQueue") } : null
   );
-
-  // Open create dialog when ?create=true is in URL
-  useEffect(() => {
-    const shouldCreate = searchParams.create === "true";
-    if (shouldCreate && !createDialogOpen && !isClosingCreateDialog.current) {
-      setCreateDialogOpen(true);
-    }
-    if (!shouldCreate) {
-      isClosingCreateDialog.current = false;
-    }
-  }, [searchParams, createDialogOpen]);
-
-  const handleCreateDialogOpenChange = (open: boolean) => {
-    setCreateDialogOpen(open);
-    if (!open && searchParams.create) {
-      isClosingCreateDialog.current = true;
-      void router.navigate({
-        to: gp("/queues"),
-        search: { initiativeId: searchParams.initiativeId },
-        replace: true,
-      });
-    }
-  };
 
   const handleQueueCreated = (queue: { id: number }) => {
     void router.navigate({

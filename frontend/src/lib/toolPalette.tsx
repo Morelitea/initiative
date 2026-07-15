@@ -22,7 +22,13 @@ import { useInitiatives } from "@/hooks/useInitiatives";
 import { useProjects } from "@/hooks/useProjects";
 import { useQueuesList } from "@/hooks/useQueues";
 import { getDocumentIcon, getDocumentIconColor } from "@/lib/fileUtils";
-import { TOOL_REGISTRY, toolCamelPlural, toolListRoute } from "@/lib/tools";
+import {
+  TOOL_REGISTRY,
+  toolAvailable,
+  toolCamelPlural,
+  toolDisplayName,
+  toolListRoute,
+} from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 export interface PaletteItem {
@@ -146,8 +152,8 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
     useHeading: () => {
       const { advancedTool } = useAppConfig();
       const fallback = useGroupHeading(Tool.advanced_tool);
-      if (!advancedTool) return null;
-      return advancedTool.name || fallback;
+      if (!toolAvailable(Tool.advanced_tool, advancedTool)) return null;
+      return toolDisplayName(Tool.advanced_tool, fallback, advancedTool);
     },
     // One navigation entry per initiative with the tool enabled (a single
     // embedded page per initiative, not a searchable collection).
