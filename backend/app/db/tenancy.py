@@ -74,6 +74,7 @@ SHARED_TABLES: frozenset[str] = frozenset(
         "auth_providers",  # login provider registry (operator-global or guild-scoped)
         "auth_provider_secrets",  # provider client secret; app_admin-only companion
         "federated_identities",  # (provider, subject) -> user links
+        "federated_identity_secrets",  # IdP refresh token; app_admin-only companion
         "auth_sessions",  # session/refresh store (JWT sid = row id); app_admin-only
         # Platform-wide
         "app_settings",  # OIDC / SMTP / branding config
