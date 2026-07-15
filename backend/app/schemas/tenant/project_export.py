@@ -154,25 +154,6 @@ class ProjectExportEnvelope(SanitizedBaseModel):
     tasks: List[ProjectExportTask]
 
 
-class ProjectImportRequest(SanitizedBaseModel):
-    """Body for ``POST /api/v1/projects/import``.
-
-    The envelope is included inline rather than as multipart so the API
-    stays JSON-only. The frontend reads the user's selected file and
-    posts the parsed JSON back here.
-
-    ``envelope`` is typed as a free-form dict (rather than
-    :class:`ProjectExportEnvelope`) deliberately: when the same model is
-    used in a request body and a response, FastAPI / pydantic emit two
-    OpenAPI schemas (``-Input`` / ``-Output``) that produce duplicate
-    Orval types. Validation still happens — the import service calls
-    ``ProjectExportEnvelope.model_validate(envelope)``.
-    """
-
-    initiative_id: int
-    envelope: dict
-
-
 class ProjectImportResult(SanitizedBaseModel):
     """Summary of what happened during an import. Surfaced in the UI so
     the user can see how many references were dropped or remapped."""

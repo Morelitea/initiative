@@ -60,6 +60,7 @@ from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.advanced_tool import AdvancedTool
 from app.models.tenant.export_job import ExportJob
+from app.models.tenant.import_job import ImportJob
 
 __all__ = [
     "User",
@@ -72,6 +73,7 @@ __all__ = [
     "ResourceGrant",
     "AdvancedTool",
     "ExportJob",
+    "ImportJob",
     "Project",
     "Task",
     "TaskAssignee",

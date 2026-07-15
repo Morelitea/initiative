@@ -4,16 +4,26 @@
  * Initiative API
  * OpenAPI spec version: 0.56.1
  */
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  DataTag,
+  DefinedInitialDataOptions,
+  DefinedUseQueryResult,
   MutationFunction,
   QueryClient,
+  QueryFunction,
+  QueryKey,
+  UndefinedInitialDataOptions,
   UseMutationOptions,
   UseMutationResult,
+  UseQueryOptions,
+  UseQueryResult,
 } from "@tanstack/react-query";
 
 import type {
+  EnvelopeImportRequest,
   HTTPValidationError,
+  ImportJobRead,
   ImportResult,
   TickTickImportRequest,
   TickTickParseResult,
@@ -601,6 +611,524 @@ export const useImportFromTicktickApiV1GGuildIdImportsTicktickPost = <
 > => {
   return useMutation(
     getImportFromTicktickApiV1GGuildIdImportsTicktickPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Import a previously-exported JSON envelope (any tool — the envelope's
+ * ``type`` field selects the importer) into the chosen initiative. Requires
+ * the tool's create permission there. Small envelopes apply immediately and
+ * return ``201`` with the result; large ones return ``202`` with a queued
+ * job to poll.
+ * @summary Import Envelope
+ */
+export const importEnvelopeApiV1GGuildIdImportsEnvelopePost = (
+  guildId: number,
+  envelopeImportRequest: BodyType<EnvelopeImportRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<unknown>(
+    {
+      url: `/api/v1/g/${guildId}/imports/envelope`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: envelopeImportRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getImportEnvelopeApiV1GGuildIdImportsEnvelopePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof importEnvelopeApiV1GGuildIdImportsEnvelopePost>>,
+    TError,
+    { guildId: number; data: BodyType<EnvelopeImportRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof importEnvelopeApiV1GGuildIdImportsEnvelopePost>>,
+  TError,
+  { guildId: number; data: BodyType<EnvelopeImportRequest> },
+  TContext
+> => {
+  const mutationKey = ["importEnvelopeApiV1GGuildIdImportsEnvelopePost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof importEnvelopeApiV1GGuildIdImportsEnvelopePost>>,
+    { guildId: number; data: BodyType<EnvelopeImportRequest> }
+  > = (props) => {
+    const { guildId, data } = props ?? {};
+
+    return importEnvelopeApiV1GGuildIdImportsEnvelopePost(guildId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ImportEnvelopeApiV1GGuildIdImportsEnvelopePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof importEnvelopeApiV1GGuildIdImportsEnvelopePost>>
+>;
+export type ImportEnvelopeApiV1GGuildIdImportsEnvelopePostMutationBody =
+  BodyType<EnvelopeImportRequest>;
+export type ImportEnvelopeApiV1GGuildIdImportsEnvelopePostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Import Envelope
+ */
+export const useImportEnvelopeApiV1GGuildIdImportsEnvelopePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof importEnvelopeApiV1GGuildIdImportsEnvelopePost>>,
+      TError,
+      { guildId: number; data: BodyType<EnvelopeImportRequest> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof importEnvelopeApiV1GGuildIdImportsEnvelopePost>>,
+  TError,
+  { guildId: number; data: BodyType<EnvelopeImportRequest> },
+  TContext
+> => {
+  return useMutation(
+    getImportEnvelopeApiV1GGuildIdImportsEnvelopePostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * The caller's import jobs, newest first (RLS scopes the rows: own rows,
+ * or the whole guild for a guild admin).
+ * @summary List Import Jobs
+ */
+export const listImportJobsApiV1GGuildIdImportsJobsGet = (
+  guildId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ImportJobRead[]>(
+    { url: `/api/v1/g/${guildId}/imports/jobs`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListImportJobsApiV1GGuildIdImportsJobsGetQueryKey = (guildId: number) => {
+  return [`/api/v1/g/${guildId}/imports/jobs`] as const;
+};
+
+export const getListImportJobsApiV1GGuildIdImportsJobsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListImportJobsApiV1GGuildIdImportsJobsGetQueryKey(guildId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>
+  > = ({ signal }) => listImportJobsApiV1GGuildIdImportsJobsGet(guildId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListImportJobsApiV1GGuildIdImportsJobsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>
+>;
+export type ListImportJobsApiV1GGuildIdImportsJobsGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useListImportJobsApiV1GGuildIdImportsJobsGet<
+  TData = Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListImportJobsApiV1GGuildIdImportsJobsGet<
+  TData = Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListImportJobsApiV1GGuildIdImportsJobsGet<
+  TData = Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Import Jobs
+ */
+
+export function useListImportJobsApiV1GGuildIdImportsJobsGet<
+  TData = Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listImportJobsApiV1GGuildIdImportsJobsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListImportJobsApiV1GGuildIdImportsJobsGetQueryOptions(guildId, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get Import Job
+ */
+export const getImportJobApiV1GGuildIdImportsJobsJobIdGet = (
+  guildId: number,
+  jobId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ImportJobRead>(
+    { url: `/api/v1/g/${guildId}/imports/jobs/${jobId}`, method: "GET", signal },
+    options
+  );
+};
+
+export const getGetImportJobApiV1GGuildIdImportsJobsJobIdGetQueryKey = (
+  guildId: number,
+  jobId: number
+) => {
+  return [`/api/v1/g/${guildId}/imports/jobs/${jobId}`] as const;
+};
+
+export const getGetImportJobApiV1GGuildIdImportsJobsJobIdGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  jobId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetImportJobApiV1GGuildIdImportsJobsJobIdGetQueryKey(guildId, jobId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>
+  > = ({ signal }) =>
+    getImportJobApiV1GGuildIdImportsJobsJobIdGet(guildId, jobId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined && jobId !== null && jobId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetImportJobApiV1GGuildIdImportsJobsJobIdGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>
+>;
+export type GetImportJobApiV1GGuildIdImportsJobsJobIdGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useGetImportJobApiV1GGuildIdImportsJobsJobIdGet<
+  TData = Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  jobId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>,
+          TError,
+          Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetImportJobApiV1GGuildIdImportsJobsJobIdGet<
+  TData = Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  jobId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>,
+          TError,
+          Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetImportJobApiV1GGuildIdImportsJobsJobIdGet<
+  TData = Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  jobId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Import Job
+ */
+
+export function useGetImportJobApiV1GGuildIdImportsJobsJobIdGet<
+  TData = Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  jobId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getImportJobApiV1GGuildIdImportsJobsJobIdGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetImportJobApiV1GGuildIdImportsJobsJobIdGetQueryOptions(
+    guildId,
+    jobId,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Cancel a job that hasn't started applying (staged or queued); its
+ * staged payload is deleted. A running/terminal job is not cancellable —
+ * 409 (an interrupted apply would leave half-committed content).
+ * @summary Cancel Import Job
+ */
+export const cancelImportJobApiV1GGuildIdImportsJobsJobIdDelete = (
+  guildId: number,
+  jobId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ImportJobRead>(
+    { url: `/api/v1/g/${guildId}/imports/jobs/${jobId}`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getCancelImportJobApiV1GGuildIdImportsJobsJobIdDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof cancelImportJobApiV1GGuildIdImportsJobsJobIdDelete>>,
+    TError,
+    { guildId: number; jobId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof cancelImportJobApiV1GGuildIdImportsJobsJobIdDelete>>,
+  TError,
+  { guildId: number; jobId: number },
+  TContext
+> => {
+  const mutationKey = ["cancelImportJobApiV1GGuildIdImportsJobsJobIdDelete"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof cancelImportJobApiV1GGuildIdImportsJobsJobIdDelete>>,
+    { guildId: number; jobId: number }
+  > = (props) => {
+    const { guildId, jobId } = props ?? {};
+
+    return cancelImportJobApiV1GGuildIdImportsJobsJobIdDelete(guildId, jobId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CancelImportJobApiV1GGuildIdImportsJobsJobIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof cancelImportJobApiV1GGuildIdImportsJobsJobIdDelete>>
+>;
+
+export type CancelImportJobApiV1GGuildIdImportsJobsJobIdDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Cancel Import Job
+ */
+export const useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof cancelImportJobApiV1GGuildIdImportsJobsJobIdDelete>>,
+      TError,
+      { guildId: number; jobId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof cancelImportJobApiV1GGuildIdImportsJobsJobIdDelete>>,
+  TError,
+  { guildId: number; jobId: number },
+  TContext
+> => {
+  return useMutation(
+    getCancelImportJobApiV1GGuildIdImportsJobsJobIdDeleteMutationOptions(options),
     queryClient
   );
 };

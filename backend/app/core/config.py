@@ -413,6 +413,20 @@ class Settings(BaseSettings):
     # deletes the artifact and marks the job expired.
     EXPORT_ARTIFACT_TTL_HOURS: int = 168  # 7 days
 
+    # --- Import engine (mirrors the export knobs; imports are writes) ------
+    # Inline-vs-job auto-select: at or under this many rows the envelope
+    # applies in-request; above it the payload is staged and a job queued.
+    IMPORT_INLINE_MAX_ROWS: int = 200
+    # Hard ceiling on rows in one envelope import.
+    IMPORT_MAX_ROWS: int = 10_000
+    # Per-user cap on jobs that are staged, queued, or running at once.
+    IMPORT_MAX_ACTIVE_JOBS_PER_USER: int = 5
+    # Byte bound on a single envelope request body (rows bound the content,
+    # but a pathological single-field envelope must be bounded in bytes too).
+    IMPORT_MAX_ENVELOPE_BYTES: int = 20_971_520  # 20 MiB
+    # Staged payloads awaiting confirm/apply expire after this.
+    IMPORT_STAGED_TTL_HOURS: int = 24
+
     # First/bootstrap user — becomes the platform `owner` tier (there is no
     # superuser concept). The legacy FIRST_SUPERUSER_* env names are accepted
     # as aliases so existing deployments keep working.

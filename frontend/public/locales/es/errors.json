@@ -307,5 +307,20 @@
   "SETTINGS_STORAGE_S3_INCOMPLETE": "La configuración de almacenamiento S3 está incompleta.",
   "SETTINGS_STORAGE_TEST_FAILED": "No se pudo conectar con el backend de almacenamiento.",
   "SETTINGS_STORAGE_BACKFILL_RUNNING": "Ya hay una migración en curso.",
-  "SETTINGS_STORAGE_BACKFILL_NOT_CONFIGURED": "Configura un bucket de S3 antes de ejecutar la migración."
+  "SETTINGS_STORAGE_BACKFILL_NOT_CONFIGURED": "Configura un bucket de S3 antes de ejecutar la migración.",
+  "IMPORT_UNKNOWN_TYPE": "Este archivo no es una exportación reconocida de Initiative.",
+  "IMPORT_INVALID_ENVELOPE": "El archivo de importación es inválido o está dañado.",
+  "IMPORT_SCHEMA_VERSION_UNSUPPORTED": "Este archivo fue exportado por una versión más nueva de Initiative y no se puede importar aquí.",
+  "IMPORT_INVALID_PARAMS": "La solicitud de importación no era válida.",
+  "IMPORT_TOO_LARGE": "Esta importación es demasiado grande.",
+  "IMPORT_JOB_LIMIT_REACHED": "Tienes demasiadas importaciones en curso. Espera a que termine una e inténtalo de nuevo.",
+  "IMPORT_WRITE_REQUIRED": "Importar requiere acceso de escritura, que este gremio no permite actualmente.",
+  "IMPORT_JOB_NOT_FOUND": "Importación no encontrada.",
+  "IMPORT_NOT_CANCELLABLE": "Esta importación ya no se puede cancelar.",
+  "IMPORT_TOOL_DISABLED": "Esa herramienta no está habilitada en la iniciativa elegida.",
+  "IMPORT_PERMISSION_REQUIRED": "No tienes permiso para crear este contenido en la iniciativa elegida.",
+  "IMPORT_APPLY_FAILED": "La importación falló. No se importó nada.",
+  "IMPORT_ACCESS_REVOKED": "La importación falló porque se revocó el acceso al gremio.",
+  "IMPORT_INTERRUPTED": "La importación se interrumpió y puede estar incompleta. Revisa antes de reintentar.",
+  "IMPORT_CREATOR_INACTIVE": "La importación falló porque la cuenta solicitante está inactiva."
 }

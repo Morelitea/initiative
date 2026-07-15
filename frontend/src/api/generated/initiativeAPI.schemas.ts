@@ -1268,6 +1268,18 @@ export interface EmailTestRequest {
   recipient?: string | null;
 }
 
+export type EnvelopeImportRequestEnvelope = { [key: string]: unknown };
+
+/**
+ * Body of ``POST /imports/envelope``. The envelope is a raw dict —
+ * its ``type`` field selects the importer, which validates the full shape
+ * (typing it as a union here would split the OpenAPI schema per type).
+ */
+export interface EnvelopeImportRequest {
+  initiative_id: number;
+  envelope: EnvelopeImportRequestEnvelope;
+}
+
 export type ExportJobReadParams = { [key: string]: unknown };
 
 export type ExportJobStatus = (typeof ExportJobStatus)[keyof typeof ExportJobStatus];
@@ -1580,6 +1592,39 @@ export interface ICalParseResult {
   has_recurring: boolean;
 }
 
+export type ImportJobReadParams = { [key: string]: unknown };
+
+export type ImportJobReadPlan = { [key: string]: unknown } | null;
+
+export type ImportJobReadResult = { [key: string]: unknown } | null;
+
+export type ImportJobStatus = (typeof ImportJobStatus)[keyof typeof ImportJobStatus];
+
+export const ImportJobStatus = {
+  staged: "staged",
+  queued: "queued",
+  running: "running",
+  done: "done",
+  failed: "failed",
+  cancelled: "cancelled",
+  expired: "expired",
+} as const;
+
+export interface ImportJobRead {
+  id: number;
+  guild_id: number;
+  created_by_id: number;
+  source: string;
+  params: ImportJobReadParams;
+  plan: ImportJobReadPlan;
+  result: ImportJobReadResult;
+  status: ImportJobStatus;
+  error: string | null;
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /**
  * Result of an import operation.
  */
@@ -1796,6 +1841,8 @@ export const NotificationType = {
   event_reminder: "event_reminder",
   export_ready: "export_ready",
   export_failed: "export_failed",
+  import_ready: "import_ready",
+  import_failed: "import_failed",
 } as const;
 
 export type NotificationReadData = { [key: string]: unknown };
@@ -2014,44 +2061,6 @@ export interface ProjectDuplicateRequest {
 export interface ProjectFavoriteStatus {
   project_id: number;
   is_favorited: boolean;
-}
-
-export type ProjectImportRequestEnvelope = { [key: string]: unknown };
-
-/**
- * Body for ``POST /api/v1/projects/import``.
- *
- * The envelope is included inline rather than as multipart so the API
- * stays JSON-only. The frontend reads the user's selected file and
- * posts the parsed JSON back here.
- *
- * ``envelope`` is typed as a free-form dict (rather than
- * :class:`ProjectExportEnvelope`) deliberately: when the same model is
- * used in a request body and a response, FastAPI / pydantic emit two
- * OpenAPI schemas (``-Input`` / ``-Output``) that produce duplicate
- * Orval types. Validation still happens — the import service calls
- * ``ProjectExportEnvelope.model_validate(envelope)``.
- */
-export interface ProjectImportRequest {
-  initiative_id: number;
-  envelope: ProjectImportRequestEnvelope;
-}
-
-/**
- * Summary of what happened during an import. Surfaced in the UI so
- * the user can see how many references were dropped or remapped.
- */
-export interface ProjectImportResult {
-  project_id: number;
-  project_name: string;
-  task_count: number;
-  tag_create_count?: number;
-  tag_match_count?: number;
-  property_create_count?: number;
-  property_match_count?: number;
-  property_rename_count?: number;
-  assignee_match_count?: number;
-  assignee_unmatched_emails?: string[];
 }
 
 export interface ProjectTaskSummary {

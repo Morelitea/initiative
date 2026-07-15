@@ -556,6 +556,7 @@
     "success": "« {{name}} » importé",
     "warningUnmatchedAssignees_one": "Importé, mais {{count}} responsable hors de cette initiative a été ignoré : {{emails}}",
     "warningUnmatchedAssignees_other": "Importé, mais {{count}} responsables hors de cette initiative ont été ignorés : {{emails}}",
-    "error": "Impossible d'importer le projet. Veuillez réessayer."
+    "error": "Impossible d'importer le projet. Veuillez réessayer.",
+    "queued": "Import lancé — vous recevrez une notification quand il sera terminé."
   }
 }

@@ -7,10 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Data import: every exported JSON envelope — projects, documents (text, spreadsheet, whiteboard, link), queues, counter groups, and calendar events — can now be imported into an initiative of your choice. Tags and custom properties match by name (or are created), people resolve by email against the target initiative's members with unmatched ones reported, and the importer becomes the owner of everything created. Small files import instantly; large ones run as a background job with an inbox notification when done. Requires the tool's create permission in the target initiative; 0.56.x-era exports (the old `kind` spelling) import unchanged.
+
 ### Changed
 
 - The web app now renews your session silently in the background instead of interrupting you with a "session expired" sign-out when the short-lived access token lapses. You stay signed in as long as you use the app at least once every 30 days; signing out still ends the session everywhere immediately.
 - Single sign-on account data (the IdP subject, refresh token, and sync timestamp) now lives on the per-provider identity links instead of the user row; a boot backfill migrates existing data automatically and nothing changes for signed-in users. The API's `UserRead.oidc_sub` field is replaced by a `has_federated_identity` boolean (read by the profile and deletion dialogs to hide the password confirmation for SSO-only accounts).
+- The project import dialog now uses the shared import engine (API: `POST /projects/import` was replaced by `POST /imports/envelope`, which accepts every tool's envelope — the file's `type` field selects the importer).
 
 ## [0.56.1] - 2026-07-14
 

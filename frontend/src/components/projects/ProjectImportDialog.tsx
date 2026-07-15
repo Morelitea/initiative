@@ -2,8 +2,8 @@ import { useRouter } from "@tanstack/react-router";
 import { type ChangeEvent, type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { useImportEnvelopeApiV1GGuildIdImportsEnvelopePost } from "@/api/generated/imports/imports";
 import type { InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
-import { useImportProjectApiV1GGuildIdProjectsImportPost } from "@/api/generated/projects/projects";
 import { invalidateAllProjects } from "@/api/query-keys";
 import { Button } from "@/components/ui/button";
 import {
@@ -61,7 +61,7 @@ export const ProjectImportDialog = ({
   const [initiativeId, setInitiativeId] = useState<string | null>(defaultInitiativeId);
   const [fileName, setFileName] = useState<string>("");
 
-  const importMutation = useImportProjectApiV1GGuildIdProjectsImportPost();
+  const importMutation = useImportEnvelopeApiV1GGuildIdImportsEnvelopePost();
 
   useEffect(() => {
     if (open) {
@@ -115,7 +115,9 @@ export const ProjectImportDialog = ({
       return;
     }
     try {
-      const result = await importMutation.mutateAsync({
+      // The engine endpoint is a 201-inline / 202-job union; the generated
+      // client returns data only, so discriminate by shape.
+      const response = (await importMutation.mutateAsync({
         guildId,
         data: {
           // Backend types `envelope` as a free-form dict to keep the
@@ -124,20 +126,39 @@ export const ProjectImportDialog = ({
           envelope: envelope as unknown as Record<string, unknown>,
           initiative_id: Number(initiativeId),
         },
-      });
+      })) as
+        | {
+            result: {
+              entity_id: number | null;
+              entity_title: string;
+              unmatched_emails: string[];
+            };
+          }
+        | { id: number; status: string };
       void invalidateAllProjects();
-      toast.success(t("import.success", { name: result.project_name }));
-      if (result.assignee_unmatched_emails && result.assignee_unmatched_emails.length > 0) {
-        toast.warning(
-          t("import.warningUnmatchedAssignees", {
-            count: result.assignee_unmatched_emails.length,
-            emails: result.assignee_unmatched_emails.join(", "),
-          })
-        );
+      if ("result" in response) {
+        const { result } = response;
+        toast.success(t("import.success", { name: result.entity_title }));
+        if (result.unmatched_emails.length > 0) {
+          toast.warning(
+            t("import.warningUnmatchedAssignees", {
+              count: result.unmatched_emails.length,
+              emails: result.unmatched_emails.join(", "),
+            })
+          );
+        }
+        onOpenChange(false);
+        onImported?.();
+        if (result.entity_id != null) {
+          router.navigate({ to: gp(`/projects/${result.entity_id}`) });
+        }
+      } else {
+        // A very large project queued as a background job — the inbox
+        // notification delivers the outcome.
+        toast.success(t("import.queued"));
+        onOpenChange(false);
+        onImported?.();
       }
-      onOpenChange(false);
-      onImported?.();
-      router.navigate({ to: gp(`/projects/${result.project_id}`) });
     } catch (err) {
       toast.error(getErrorMessage(err, "projects:import.error"));
     }
