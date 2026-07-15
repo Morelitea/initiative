@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import base64
+import binascii
+import json
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -113,17 +116,22 @@ async def _refresh_and_sync_user(
     id_token_claims = None
     raw_id_token = token_data.get("id_token")
     if raw_id_token:
-        try:
-            import base64
-            import json as _json
-
-            parts = raw_id_token.split(".")
-            if len(parts) >= 2:
-                payload_b64 = parts[1]
-                payload_b64 += "=" * (-len(payload_b64) % 4)
-                id_token_claims = _json.loads(base64.urlsafe_b64decode(payload_b64))
-        except Exception:
-            pass
+        parts = raw_id_token.split(".")
+        if len(parts) >= 2:
+            payload_b64 = parts[1]
+            payload_b64 += "=" * (-len(payload_b64) % 4)
+            try:
+                id_token_claims = json.loads(base64.urlsafe_b64decode(payload_b64))
+            except (ValueError, binascii.Error) as exc:
+                # Claims are optional here — the provider's userinfo response is
+                # the primary source. A malformed id_token payload just means we
+                # proceed without its claims, but log it so a misbehaving
+                # provider is diagnosable rather than silently ignored.
+                logger.debug(
+                    "Could not decode OIDC id_token claims for user %s: %s",
+                    user.email,
+                    exc,
+                )
 
     claim_values = extract_claim_values(profile, id_token_claims, claim_path)
     sync_result = await sync_oidc_assignments(
