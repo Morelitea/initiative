@@ -1,0 +1,16 @@
+# Paths excluded from Semgrep-based scans. NOTE: the presence of this file
+# replaces Semgrep's built-in default ignore list, so the common entries are
+# restated here alongside our own.
+:include .gitignore
+
+.git/
+node_modules/
+dist/
+build/
+
+# Test code: pytest-style asserts and fixture SQL are test-only by
+# construction and drown out signal from production code.
+*_test.py
+*.test.ts
+*.test.tsx
+frontend/src/__tests__/
