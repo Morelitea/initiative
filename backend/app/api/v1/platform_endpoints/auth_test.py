@@ -27,6 +27,7 @@ from app.core.encryption import (
 )
 from app.core.messages import OidcMessages
 from app.core.security import (
+    REFRESH_COOKIE_NAME,
     SESSION_COOKIE_NAME,
     create_access_token,
     create_upload_token,
@@ -1000,7 +1001,7 @@ async def test_oidc_callback_establishes_refresh_session(
         id_token_claims={"email": "sso-session@example.com", "email_verified": True},
     )
     assert response.status_code in (302, 307)
-    assert response.cookies.get("refresh_token")
+    assert response.cookies.get(REFRESH_COOKIE_NAME)
     assert SESSION_COOKIE_NAME in response.cookies  # legacy cookie unchanged
 
     provider = (
@@ -1018,6 +1019,46 @@ async def test_oidc_callback_establishes_refresh_session(
     ).one()
     assert auth_session.amr == [f"oidc:{PLATFORM_OIDC_SLUG}"]
     assert auth_session.satisfied_providers == [provider.id]
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_oidc_callback_survives_session_store_failure(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The refresh session is additive, not load-bearing: a failure writing it
+    must not fail a successful SSO login — the redirect and legacy session
+    cookie still go out, just without a refresh cookie."""
+    await _enable_platform_oidc(session)
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    async def _boom(*args, **kwargs):
+        raise RuntimeError("session store down")
+
+    monkeypatch.setattr("app.services.auth.sessions.create_session", _boom)
+
+    response = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims={"email": "sso-besteffort@example.com", "email_verified": True},
+    )
+    assert response.status_code in (302, 307)
+    assert response.headers["location"].endswith("/oidc/callback")
+    assert SESSION_COOKIE_NAME in response.cookies
+    assert response.cookies.get(REFRESH_COOKIE_NAME) is None
+
+    user = (
+        await session.exec(
+            select(User).where(
+                User.email_hash == hash_email("sso-besteffort@example.com")
+            )
+        )
+    ).one()
+    rows = (
+        await session.exec(select(AuthSession).where(AuthSession.user_id == user.id))
+    ).all()
+    assert rows == []
 
 
 @pytest.mark.integration
