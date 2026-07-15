@@ -26,7 +26,7 @@ export function recentRoute(item: RecentItemRead): string {
 
 /** Parse a decimal id from a path segment ("42" → 42, anything else → null). */
 function parseId(segment: string | undefined): number | null {
-  if (!segment) {
+  if (!segment || !/^\d+$/.test(segment)) {
     return null;
   }
   const id = Number.parseInt(segment, 10);
