@@ -19,7 +19,6 @@ from app.core.rate_limit import get_real_client_ip, limiter
 from app.core.encryption import (
     decrypt_field,
     encrypt_field,
-    encrypt_token,
     hash_email,
     SALT_EMAIL,
     SALT_OIDC_CLIENT_SECRET,
@@ -58,6 +57,7 @@ from app.services.auth.identity import (
     ResolutionOutcome,
     link_identity,
     resolve_oidc_identity,
+    set_identity_refresh_token,
 )
 from app.services.auth.oidc.discovery import OidcDiscovery
 from app.services.auth.oidc.flow_state import FlowStateError, decode_flow_state
@@ -513,18 +513,13 @@ async def logout(
     current_user: Annotated[User | None, Depends(get_current_user_optional)] = None,
 ) -> None:
     # Note: `session` and `get_current_user_optional` must resolve to the
-    # SAME session. Previously this used AdminSessionDep, which in
-    # production is a different session than SessionDep — so the
-    # `current_user` object returned by the optional auth dep was attached
-    # to a detached SessionDep session, and `session.commit()` on the
-    # admin session silently dropped the token_version bump. That let
-    # previously-issued JWTs stay valid after logout, so a browser with
-    # a cached cookie could keep authenticating until natural expiry.
-    # In tests it worked by accident because conftest aliases both deps
-    # to the same fixture session.
+    # SAME session — the `current_user` object is attached to the dep's
+    # session, so committing a different one silently drops the
+    # token_version bump. (Tests alias both deps to one fixture session,
+    # which can mask a mismatch.)
     # (``admin_session`` is a SEPARATE, deliberate session used only to revoke
-    # auth_sessions — which the request-path role can't touch — never for the
-    # token_version bump above.)
+    # auth_sessions — which the request-path role doesn't touch — never for
+    # the token_version bump above.)
     if current_user is not None:
         current_user.token_version += 1
         auth_header = request.headers.get("Authorization", "")
@@ -538,10 +533,9 @@ async def logout(
                 session.add(device_token)
         session.add(current_user)
         await session.commit()
-        # Kill the refresh side too: the token_version bump invalidates
-        # outstanding *access* tokens, but a leaked refresh token would otherwise
-        # keep rotating (and mint tokens at the new version). "Logout = sign out
-        # everywhere", matching the global token_version bump.
+        # Revoke the refresh side too: the token_version bump covers access
+        # tokens, and revoking the refresh chain completes "logout = sign out
+        # everywhere".
         await session_service.revoke_all_for_user(
             admin_session, user_id=current_user.id
         )
@@ -866,11 +860,12 @@ async def oidc_callback(
         )
         return _error_redirect(is_mobile, OidcMessages.EMAIL_UNVERIFIED)
 
+    identity = resolution.identity
     if resolution.outcome is ResolutionOutcome.EMAIL_MATCH:
         # Platform policy: a verified IdP email claims its matching local
         # account (parity with the previous flow); the link makes every later
         # login resolve by (provider, subject).
-        await link_identity(
+        identity = await link_identity(
             admin_session,
             user=user,
             provider=provider_row,
@@ -878,9 +873,7 @@ async def oidc_callback(
             email_verified=email_verified,
         )
 
-    # Profile refresh + the legacy ``users.oidc_*`` columns — still the inputs
-    # to the background role re-sync and the fallback path until they are
-    # dropped in a later phase.
+    # Profile refresh from the verified claims.
     if email_verified and not user.email_verified:
         user.email_verified = True
     if full_name and user.full_name != full_name:
@@ -888,10 +881,19 @@ async def oidc_callback(
     if avatar_url and user.avatar_url != avatar_url:
         user.avatar_url = avatar_url
         user.avatar_base64 = None
-    user.oidc_sub = completion.subject
-    if completion.refresh_token:
-        user.oidc_refresh_token_encrypted = encrypt_token(completion.refresh_token)
-    user.oidc_last_synced_at = datetime.now(timezone.utc)
+    # Record the login on the identity link: the IdP refresh token (rotated by
+    # the background group re-sync) and the sync stamp the sweep filters on —
+    # the ``federated_identities`` successors of the legacy ``users.oidc_*``
+    # columns, which are no longer written and drop in the final cutover phase.
+    if identity is not None:
+        if completion.refresh_token:
+            await set_identity_refresh_token(
+                admin_session,
+                identity_id=identity.id,
+                refresh_token=completion.refresh_token,
+            )
+        identity.last_synced_at = datetime.now(timezone.utc)
+        admin_session.add(identity)
     admin_session.add(user)
     await admin_session.commit()
     await admin_session.refresh(user)

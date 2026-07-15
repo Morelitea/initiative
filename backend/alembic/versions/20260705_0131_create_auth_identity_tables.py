@@ -9,12 +9,11 @@ existing table:
 
 * ``auth_providers`` — like ``oidc_claim_mappings``: RLS ENABLE+FORCE with NO
   permissive policy, granted only to ``app_admin``. The request path never reads
-  provider config directly (login + CRUD run on the system engine), so
-  guild-scoped provider metadata cannot leak cross-tenant.
+  provider config directly (login + CRUD run on the system engine).
 * ``federated_identities`` — own-row ``_self`` policy; ``app_admin`` does the
-  writes (login resolve/create, link/unlink — a takeover surface); the platform
-  request path gets SELECT for the "your sign-in methods" view. No guild-role
-  grant (identity is account-level, never touched from a guild schema).
+  writes (login resolve/create, link/unlink); the platform request path gets
+  SELECT for the "your sign-in methods" view. No guild-role grant (identity is
+  account-level, never touched from a guild schema).
 """
 
 import sqlalchemy as sa
@@ -119,10 +118,8 @@ def upgrade() -> None:
             # --- auth_providers: system-engine (app_admin) only ---
             "ALTER TABLE public.auth_providers ENABLE ROW LEVEL SECURITY",
             "ALTER TABLE public.auth_providers FORCE ROW LEVEL SECURITY",
-            # Strip the schema-default DML: nothing on the request path may read
-            # provider config (login + CRUD run on app_admin). Permission-denied at
-            # the grant layer AND no permissive RLS policy => guild-scoped SSO
-            # metadata can never leak cross-tenant.
+            # Strip the schema-default DML: nothing on the request path reads
+            # provider config (login + CRUD run on app_admin).
             f'REVOKE ALL ON TABLE public.auth_providers FROM app_guild_base, "{base}"',
             "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.auth_providers TO app_admin",
             "GRANT ALL ON SEQUENCE public.auth_providers_id_seq TO app_admin",
@@ -134,9 +131,9 @@ def upgrade() -> None:
                 f"USING {_self} WITH CHECK {_self}"
             ),
             # Identity is account-level (never touched from a guild schema) and
-            # link/unlink is a takeover surface (system engine only). Drop the
-            # default DML to a clean slate, then re-grant only the platform request
-            # path SELECT for the own-row "your sign-in methods" read.
+            # link/unlink runs on the system engine only. Drop the default DML
+            # to a clean slate, then re-grant only the platform request path
+            # SELECT for the own-row "your sign-in methods" read.
             f'REVOKE ALL ON TABLE public.federated_identities FROM app_guild_base, "{base}"',
             f'GRANT SELECT ON TABLE public.federated_identities TO "{base}"',
             "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.federated_identities TO app_admin",

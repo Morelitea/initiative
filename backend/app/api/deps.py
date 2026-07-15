@@ -362,9 +362,9 @@ async def _load_guild_context(
     ``guild_id`` is the single guild the request operates in (on REST it comes
     from the ``/g/{guild_id}/...`` path, which is only a selector, never a trust
     boundary). Access is validated fresh on every call — real membership or a
-    live PAM grant, else ``GuildAccessError`` — so a forged or stale guild can
-    never read another guild's data. The caller has already coerced ``guild_id``
-    to ``int`` before it reaches the privileged ``SET ROLE``/``search_path`` sink.
+    live PAM grant, else ``GuildAccessError`` — so a stale or mistyped guild id
+    fails closed. The caller has already coerced ``guild_id`` to ``int`` before
+    it reaches the privileged ``SET ROLE``/``search_path`` sink.
 
     Transport-agnostic: it takes only the resolved ``guild_id``. The REST-only
     auto-delegation guard (token-guild must equal path-guild) lives in

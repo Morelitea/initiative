@@ -55,6 +55,7 @@ from app.schemas.platform.api_key import (
 from app.schemas.tenant.stats import UserStatsResponse
 from app.core.messages import AuthMessages, GuildMessages, UserMessages
 from app.services import notifications as notifications_service
+from app.services.auth.identity import has_federated_identity
 from app.services.tenant import initiatives as initiatives_service
 from app.services.platform import guilds as guilds_service
 from app.services.stream_authz import authority as stream_authority
@@ -92,12 +93,18 @@ GuildAdminContext = Annotated[
 async def read_users_me(
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-) -> User:
+) -> UserRead:
     # No initiative_roles enrichment: initiative membership is guild-schema
     # content, which a platform-path request cannot (and must not) read.
     # Guild-scoped rosters (/g/{guild_id}/users/) still serve it; clients
     # derive per-guild manager state from guild-scoped initiative data.
-    return current_user
+    payload = UserRead.model_validate(current_user)
+    # Own-row read on the platform-tier session: whether any external identity
+    # is linked (drives the "SSO account" affordances in the profile UI).
+    payload.has_federated_identity = await has_federated_identity(
+        session, user_id=current_user.id
+    )
+    return payload
 
 
 @me_router.get("/stats", response_model=UserStatsResponse)
@@ -297,10 +304,17 @@ async def update_users_me(
     admin_session: AdminSessionDep,
     response: Response,
     current_user: Annotated[User, Depends(get_current_active_user)],
-) -> User:
+) -> UserRead:
     update_data = user_in.model_dump(exclude_unset=True)
+    # Fetched once: feeds both the password-gate exemption and the response
+    # payload (identities can't change within this request).
+    is_sso_account = await has_federated_identity(
+        admin_session, user_id=current_user.id
+    )
     if not update_data:
-        return current_user
+        payload = UserRead.model_validate(current_user)
+        payload.has_federated_identity = is_sso_account
+        return payload
 
     if (
         update_data.get("email_task_assignment") is False
@@ -327,11 +341,10 @@ async def update_users_me(
 
     password = update_data.get("password")
     if password:
-        # Re-authenticate with the current password before changing it, so a
-        # leaked bearer token / API key can't silently take over the account.
-        # OIDC-only accounts have no local password to confirm and are exempt
-        # (mirrors the delete-account flow's oidc_sub gate).
-        if current_user.oidc_sub is None:
+        # Re-authenticate with the current password before changing it.
+        # SSO-only accounts have no local password to confirm and are exempt
+        # (mirrors the delete-account flow's gate).
+        if not is_sso_account:
             current_password = update_data.get("current_password")
             if not current_password:
                 raise HTTPException(
@@ -453,7 +466,11 @@ async def update_users_me(
     await session.commit()
     await session.refresh(current_user)
     # Platform path — no initiative_roles enrichment (see read_users_me).
-    return current_user
+    # The SPA replaces its auth state with this response, so carry the same
+    # linked-identity signal /users/me serves.
+    payload = UserRead.model_validate(current_user)
+    payload.has_federated_identity = is_sso_account
+    return payload
 
 
 @guild_router.patch("/{user_id}", response_model=UserRead)
@@ -509,10 +526,10 @@ async def update_user(
     if password := update_data.pop("password", None):
         await enforce_password_policy(password)
         user.hashed_password = get_password_hash(password)
-        # Resetting a compromised account must invalidate the attacker's
-        # outstanding sessions: bump token_version (kills unexpired JWTs) and
-        # revoke device tokens / API keys / refresh sessions, mirroring the
-        # self-service and forgot-password reset paths.
+        # A password reset invalidates every outstanding credential: bump
+        # token_version (kills unexpired JWTs) and revoke device tokens /
+        # API keys / refresh sessions, mirroring the self-service and
+        # forgot-password reset paths.
         await user_tokens_service.revoke_user_sessions(
             session, user=user, admin_session=admin_session
         )
@@ -691,12 +708,12 @@ async def delete_own_account(
             detail=UserMessages.CANNOT_DELETE_LAST_ADMIN,
         )
 
-    # Verify password — skipped for OIDC-only users, who were created
+    # Verify password — skipped for SSO-only users, who were created
     # with a random ``hashed_password`` they were never shown
-    # (auth.py provisioning flow). Without this exemption an OIDC-only
+    # (auth.py provisioning flow). Without this exemption an SSO-only
     # account would have no way to satisfy the gate and could only be
     # removed by an admin.
-    if current_user.oidc_sub is None:
+    if not await has_federated_identity(session, user_id=current_user.id):
         if not verify_password(request.password, current_user.hashed_password):
             # 400 (not 401): the user IS authenticated — they passed
             # ``get_current_active_user`` to reach this endpoint. The

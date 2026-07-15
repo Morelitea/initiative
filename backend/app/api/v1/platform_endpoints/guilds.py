@@ -32,6 +32,7 @@ from app.schemas.platform.guild import (
 )
 from app.schemas.platform.user import GuildRemovalProjectInfo, UserPublic
 from app.schemas.tenant.initiative import AdvancedToolHandoffResponse
+from app.services.auth.identity import has_federated_identity
 from app.services.platform import guilds as guilds_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services import rls as rls_service
@@ -364,6 +365,7 @@ async def delete_guild(
     guild_id: int,
     request: GuildDeletionRequest,
     session: SessionDep,
+    admin_session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> Response:
     await _ensure_guild_admin(
@@ -374,12 +376,12 @@ async def delete_guild(
     await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
     guild = await guilds_service.get_guild(session, guild_id=guild_id)
 
-    # Password gate — skipped for OIDC-only users (provisioned with a
+    # Password gate — skipped for SSO-only users (provisioned with a
     # random hash they were never shown), same rationale as the
     # account-deletion endpoint. 400 not 401 so the SPA's axios
     # interceptor doesn't treat a wrong password as a session expiry and
     # force-log-out the user mid-confirmation.
-    if current_user.oidc_sub is None:
+    if not await has_federated_identity(admin_session, user_id=current_user.id):
         if not verify_password(request.password, current_user.hashed_password):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

@@ -81,6 +81,47 @@ async def test_backfill_creates_operator_global_provider_and_links(session):
     assert {link.user_id for link in links} == {u1.id, u2.id}
 
 
+async def test_backfill_copies_refresh_token_and_sync_stamp(session):
+    """The legacy per-user refresh token moves onto the identity link's
+    companion row (verbatim ciphertext), and the sync stamp comes along —
+    without overwriting a token already recorded on the link."""
+    from datetime import datetime, timezone
+
+    from app.models.platform.federated_identity_secret import FederatedIdentitySecret
+
+    await _configure_oidc(session)
+    stamped = datetime(2026, 7, 1, 12, 0, tzinfo=timezone.utc)
+    u1 = await create_user(
+        session,
+        oidc_sub="sub-token",
+        oidc_refresh_token_encrypted="legacy-ciphertext",
+        oidc_last_synced_at=stamped,
+    )
+    await create_user(session, oidc_sub="sub-tokenless")  # no token to copy
+
+    summary = await backfill_oidc_identity()
+    assert summary.refresh_tokens_copied == 1
+
+    link = (
+        await session.exec(
+            select(FederatedIdentity).where(FederatedIdentity.user_id == u1.id)
+        )
+    ).one()
+    assert link.last_synced_at == stamped
+    secret = await session.get(FederatedIdentitySecret, link.id)
+    assert secret is not None
+    assert secret.refresh_token_encrypted == "legacy-ciphertext"
+
+    # Re-run: the copy is gap-filling only — nothing is duplicated or clobbered.
+    secret.refresh_token_encrypted = "rotated-since"
+    session.add(secret)
+    await session.commit()
+    second = await backfill_oidc_identity()
+    assert second.refresh_tokens_copied == 0
+    await session.refresh(secret)
+    assert secret.refresh_token_encrypted == "rotated-since"
+
+
 async def test_backfill_is_idempotent(session):
     ciphertext = encrypt_field("s3cr3t-value", SALT_OIDC_CLIENT_SECRET)
     await _configure_oidc(session, client_secret_ciphertext=ciphertext)

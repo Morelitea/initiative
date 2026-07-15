@@ -139,7 +139,7 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
                 setError(t("profile.passwordsMismatch"));
                 return;
               }
-              if (password && user.oidc_sub === null && !currentPassword) {
+              if (password && !user.has_federated_identity && !currentPassword) {
                 setError(t("profile.currentPasswordRequired"));
                 return;
               }
@@ -157,8 +157,8 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
               if (password) {
                 payload.password = password;
                 // Re-auth: the backend requires the current password to set a
-                // new one (skipped for OIDC-only accounts with no local password).
-                if (user.oidc_sub === null) {
+                // new one (skipped for SSO-only accounts with no local password).
+                if (!user.has_federated_identity) {
                   payload.current_password = currentPassword;
                 }
               }
@@ -191,7 +191,7 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
               />
             </div>
 
-            {user.oidc_sub === null ? (
+            {!user.has_federated_identity ? (
               <div className="space-y-2">
                 <Label htmlFor="current-password">{t("profile.currentPasswordLabel")}</Label>
                 <Input

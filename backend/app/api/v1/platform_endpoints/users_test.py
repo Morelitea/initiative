@@ -18,6 +18,7 @@ from app.models.platform.guild import GuildRole
 from app.models.platform.user import User, UserRole, UserStatus
 
 from app.testing.factories import (
+    create_federated_identity,
     create_guild,
     create_guild_membership,
     create_user,
@@ -968,18 +969,35 @@ async def test_export_users_csv_user_outside_guild(
 
 
 @pytest.mark.integration
+async def test_users_me_reports_linked_identity(
+    client: AsyncClient, session: AsyncSession
+):
+    """/users/me carries has_federated_identity — the signal the profile and
+    deletion dialogs use to hide the password confirmation for SSO accounts."""
+    linked = await create_user(session, email="linked-sso@example.com")
+    await create_federated_identity(session, linked)
+    plain = await create_user(session, email="plain-pwd@example.com")
+
+    response = await client.get("/api/v1/users/me", headers=get_auth_headers(linked))
+    assert response.status_code == 200
+    assert response.json()["has_federated_identity"] is True
+
+    response = await client.get("/api/v1/users/me", headers=get_auth_headers(plain))
+    assert response.status_code == 200
+    assert response.json()["has_federated_identity"] is False
+
+
+@pytest.mark.integration
 async def test_oidc_user_can_self_delete_without_password(
     client: AsyncClient, session: AsyncSession
 ):
-    """OIDC-provisioned users have no usable password (the random hash
-    set at SSO callback was never shown). The self-deletion endpoint
+    """SSO-provisioned users have no usable password (the random hash
+    set at provisioning was never shown). The self-deletion endpoint
     must skip the password gate for them, otherwise they'd be
     permanently blocked from the "Delete account" flow.
     """
     user = await create_user(session, email="oidc-user@example.com")
-    user.oidc_sub = "oidc-subject-123"
-    session.add(user)
-    await session.commit()
+    await create_federated_identity(session, user, subject="oidc-subject-123")
 
     headers = get_auth_headers(user)
     response = await client.post(

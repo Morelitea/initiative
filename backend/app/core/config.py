@@ -598,8 +598,7 @@ class Settings(BaseSettings):
     # True in any shared/production environment; set ``RATE_LIMIT_ENABLED=false``
     # in a local ``.env`` to stop throttling yourself while testing auth flows.
     # This is the same lever the test suite pulls (``limiter.enabled = False``),
-    # surfaced as config — NOT a request-time bypass, so there is no hidden
-    # back door for an attacker to hit.
+    # surfaced as config; it is evaluated at startup, not per request.
     RATE_LIMIT_ENABLED: bool = True
     # Storage backend for rate-limit counters. Defaults to in-process memory
     # (``memory://``), which is per-worker — fine for a single process. For a
@@ -613,9 +612,7 @@ class Settings(BaseSettings):
     # the raw OpenAPI schema (``{API_V1_STR}/openapi.json``). Defaults to True so
     # local development keeps its self-documenting API and the frontend's Orval
     # type generation against a running backend keeps working out of the box.
-    # Operators SHOULD set this to ``False`` in production: the schema enumerates
-    # every route, parameter, and error shape, handing an attacker a free map of
-    # the attack surface (pentest SEC-16). The committed
+    # Operators SHOULD set this to ``False`` in production. The committed
     # ``frontend/openapi.json`` + ``scripts/export_openapi.py`` path means type
     # generation never needs a live ``/openapi.json`` in CI or prod.
     ENABLE_API_DOCS: bool = True
