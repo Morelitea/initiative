@@ -1053,10 +1053,22 @@ async def test_backup_staged_expiry_and_cancel(
     session.add(row)
     await session.commit()
 
-    await import_worker.process_import_gc()
+    # TTL elapsed but GC hasn't swept yet: confirm must refuse and expire the
+    # job NOW — a 200 here would queue a job GC silently kills with no
+    # notification.
+    raced = await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
+    )
+    assert raced.status_code == 409
+    assert raced.json()["detail"] == "IMPORT_NOT_CONFIRMABLE"
     await session.refresh(row)
     assert row.status == ImportJobStatus.expired
     assert row.payload_ref is None
+
+    # GC stays idempotent over the already-expired row.
+    await import_worker.process_import_gc()
+    await session.refresh(row)
+    assert row.status == ImportJobStatus.expired
 
     late = await client.post(
         a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}

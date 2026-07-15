@@ -543,6 +543,20 @@ async def confirm_backup_import(
             status_code=status.HTTP_409_CONFLICT,
             detail=ImportEngineMessages.IMPORT_NOT_CONFIRMABLE,
         )
+    # A staged job whose TTL already elapsed is expired NOW, not silently on
+    # GC's next pass: confirming it would return 200 and then vanish queued
+    # (GC sweeps expired queued rows too) with no notification.
+    now = datetime.now(timezone.utc)
+    if job.expires_at is not None and job.expires_at <= now:
+        import_engine.delete_payload(guild_context.guild_id, job.payload_ref)
+        job.status = ImportJobStatus.expired
+        job.payload_ref = None
+        session.add(job)
+        await session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=ImportEngineMessages.IMPORT_NOT_CONFIRMABLE,
+        )
     include = (body or {}).get("include")
     if include is not None:
         if not isinstance(include, dict) or not all(
@@ -554,6 +568,9 @@ async def confirm_backup_import(
             )
         job.params = {**(job.params or {}), "include": include}
     job.status = ImportJobStatus.queued
+    # Fresh TTL window: the confirmed job now waits on the worker, and a
+    # nearly-elapsed staging TTL must not let GC sweep it out of the queue.
+    job.expires_at = now + timedelta(hours=settings.IMPORT_STAGED_TTL_HOURS)
     session.add(job)
     await session.commit()
     await session.refresh(job)
