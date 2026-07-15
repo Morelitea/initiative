@@ -1,5 +1,5 @@
 import { Capacitor } from "@capacitor/core";
-import axios from "axios";
+import axios, { type AxiosRequestConfig } from "axios";
 
 const DEFAULT_API_BASE_URL = "/api/v1";
 const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
@@ -139,11 +139,66 @@ const emitUnauthorized = () => {
   }
 };
 
+// Silent session renewal (web only). An expired access cookie is renewable:
+// the HttpOnly refresh cookie issued at login rotates into a fresh session via
+// POST /auth/refresh, so a 401 gets one renewal attempt and a retry before it
+// is surfaced as a signed-out state. Concurrent 401s share a single in-flight
+// refresh. Native is excluded: it authenticates with device tokens and no
+// refresh cookie exists there yet.
+let refreshInFlight: Promise<boolean> | null = null;
+
+const attemptSessionRefresh = (): Promise<boolean> => {
+  if (!refreshInFlight) {
+    refreshInFlight = apiClient
+      .post<{ access_token: string }>("/auth/refresh")
+      .then((response) => {
+        // A Bearer token held in memory (web keeps one until reload) must
+        // follow the rotation — the retried request would otherwise resend the
+        // stale header, which the backend reads before the fresh cookie.
+        if (authToken && !isDeviceToken && response.data?.access_token) {
+          setAuthToken(response.data.access_token);
+        }
+        return true;
+      })
+      .catch(() => false)
+      .finally(() => {
+        refreshInFlight = null;
+      });
+  }
+  return refreshInFlight;
+};
+
+// Auth lifecycle endpoints must not trigger a renewal: /auth/refresh itself
+// (recursion), and login/logout, whose 401s mean something other than "the
+// access token expired mid-session".
+const isAuthLifecyclePath = (url: string | undefined): boolean =>
+  !!url && /\/auth\/(token|refresh|logout|device-token)(\?|$)/.test(url);
+
+interface RetriableRequestConfig extends AxiosRequestConfig {
+  _sessionRefreshRetried?: boolean;
+}
+
 // Guild context lives in the request URL (/g/{guildId}/…), per tab — there is
 // no ambient guild context to guard a response against, so the only response
-// concern left is surfacing an expired session.
-apiClient.interceptors.response.use(undefined, (error) => {
-  if (error.response?.status === 401 && hasActiveSession) {
+// concern left is an expired session: try a silent renewal, then surface it.
+apiClient.interceptors.response.use(undefined, async (error) => {
+  const config = error.config as RetriableRequestConfig | undefined;
+  if (
+    error.response?.status === 401 &&
+    !Capacitor.isNativePlatform() &&
+    config &&
+    !config._sessionRefreshRetried &&
+    !isAuthLifecyclePath(config.url)
+  ) {
+    if (await attemptSessionRefresh()) {
+      config._sessionRefreshRetried = true;
+      return apiClient(config);
+    }
+  }
+  // Lifecycle 401s never mean "your session just died": a failed renewal is
+  // surfaced by the request that triggered it, and a login/logout 401 is the
+  // caller's to handle — emitting here would double-fire the signed-out toast.
+  if (error.response?.status === 401 && hasActiveSession && !isAuthLifecyclePath(config?.url)) {
     emitUnauthorized();
   }
   return Promise.reject(error);

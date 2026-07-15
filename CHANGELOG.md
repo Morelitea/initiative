@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The web app now renews your session silently in the background instead of interrupting you with a "session expired" sign-out when the short-lived access token lapses. You stay signed in as long as you use the app at least once every 30 days; signing out still ends the session everywhere immediately.
+
 ## [0.56.1] - 2026-07-14
 
 ### Changed
