@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import io
 import json
+import logging
 import zipfile
 from typing import Any
 
@@ -61,6 +62,8 @@ _TOOL_ORDER = ("project", "document", "queue", "counter_group", "calendar_event"
 _REFRESH_EVERY = 25
 
 _MANIFEST_NAME = "manifest.json"
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_type_field(data: dict[str, Any]) -> dict[str, Any]:
@@ -310,8 +313,17 @@ async def _apply_entry(
                 importer=user,
             )
     except ImportEngineError as exc:
+        logger.warning(
+            "backup entry failed path=%s tool=%s code=%s",
+            entry.path,
+            entry.tool,
+            exc.code,
+        )
         return EntryResult(**base, status="failed", error=exc.code)
     except Exception:
+        # Savepoint isolation stands, but the traceback must reach the logs —
+        # the result JSON carries only a status code.
+        logger.exception("backup entry failed path=%s tool=%s", entry.path, entry.tool)
         return EntryResult(
             **base, status="failed", error=ImportEngineMessages.IMPORT_APPLY_FAILED
         )
@@ -416,6 +428,9 @@ async def _apply_file_entry(
                         )
                     )
     except Exception:
+        logger.exception(
+            "backup file entry failed path=%s asset=%s", entry.path, entry.asset
+        )
         return EntryResult(
             **base, status="failed", error=ImportEngineMessages.IMPORT_APPLY_FAILED
         )

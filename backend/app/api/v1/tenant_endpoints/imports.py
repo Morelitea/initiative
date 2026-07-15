@@ -1,6 +1,7 @@
 """API endpoints for importing tasks from external platforms."""
 
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, status
@@ -483,15 +484,11 @@ async def upload_backup(
             detail=ImportEngineMessages.IMPORT_TOO_LARGE,
         )
 
-    from sqlmodel import select as sql_select
-
-    from app.models.tenant.initiative import Initiative
-
     existing_names = {
         row
         for row in (
             await session.exec(
-                sql_select(Initiative.name).where(Initiative.guild_id == guild_id)
+                select(Initiative.name).where(Initiative.guild_id == guild_id)
             )
         ).all()
     }
@@ -503,8 +500,6 @@ async def upload_backup(
         payload_ref = stage_payload(guild_id, payload, suffix="zip")
     except ImportEngineError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.code)
-
-    from datetime import datetime, timedelta, timezone
 
     job = ImportJob(
         guild_id=guild_id,
