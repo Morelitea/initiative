@@ -62,7 +62,8 @@ class Actor:
     def g(self, path: str = "/") -> str:
         """Guild-scoped API URL: ``a.g("/projects/")`` →
         ``/api/v1/g/<guild_id>/projects/``."""
-        assert self.guild is not None, "actor has no guild; pass guild_role="
+        if self.guild is None:
+            raise ValueError("actor has no guild; pass guild_role=")
         return f"{API}/g/{self.guild.id}{path}"
 
 
