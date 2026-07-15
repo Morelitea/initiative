@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.56.0] - 2026-07-14
+
 ### Added
 
 - Data export: every tool — documents, projects, tasks, queues, counter groups, and calendar events — can be exported straight from its page in type-appropriate formats.
