@@ -35,6 +35,7 @@
       "users": "Users",
       "initiatives": "Initiatives",
       "trash": "Trash",
+      "export": "Export",
       "dangerZone": "Danger zone",
       "auth": "Authentication"
     }

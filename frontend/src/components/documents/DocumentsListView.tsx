@@ -1,20 +1,12 @@
 import { Link } from "@tanstack/react-router";
 import type { ColumnDef, PaginationState, SortingState } from "@tanstack/react-table";
 import { formatDistanceToNow } from "date-fns";
-import {
-  Copy,
-  FileSpreadsheet,
-  FileText,
-  Loader2,
-  Presentation,
-  Shield,
-  Tags,
-  Trash2,
-} from "lucide-react";
+import { FileSpreadsheet, FileText, Presentation } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { DocumentSummary, TagSummary } from "@/api/generated/initiativeAPI.schemas";
+import { DocumentsBulkBar } from "@/components/documents/DocumentsBulkBar";
 import { buildPropertyColumns, propertyColumnIds } from "@/components/properties/propertyColumns";
 import { SortIcon } from "@/components/SortIcon";
 import { TagBadge } from "@/components/tags/TagBadge";
@@ -250,77 +242,18 @@ export const DocumentsListView = ({
   return (
     <>
       {selectedDocuments.length > 0 && (
-        <div className="flex items-center justify-between rounded-md border border-primary bg-primary/5 p-4">
-          <div className="font-medium text-sm">
-            {t("documents:bulk.selected", { count: selectedDocuments.length })}
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onBulkEditTags}
-              disabled={!canEditSelectedDocuments}
-              title={canEditSelectedDocuments ? undefined : t("documents:bulk.needEditAccessTags")}
-            >
-              <Tags className="h-4 w-4" />
-              {t("documents:bulk.editTags")}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onBulkEditAccess}
-              disabled={!canEditSelectedDocuments}
-              title={
-                canEditSelectedDocuments ? undefined : t("documents:bulk.needEditAccessPermissions")
-              }
-            >
-              <Shield className="h-4 w-4" />
-              {t("documents:bulk.editAccess")}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onBulkDuplicate}
-              disabled={isBulkDuplicating || !canDuplicateSelectedDocuments}
-              title={
-                canDuplicateSelectedDocuments
-                  ? undefined
-                  : t("documents:bulk.needEditAccessDuplicate")
-              }
-            >
-              {isBulkDuplicating ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  {t("documents:bulk.duplicating")}
-                </>
-              ) : (
-                <>
-                  <Copy className="h-4 w-4" />
-                  {t("documents:bulk.duplicate")}
-                </>
-              )}
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={onBulkDelete}
-              disabled={isBulkDeleting || !canDeleteSelectedDocuments}
-              title={canDeleteSelectedDocuments ? undefined : t("documents:bulk.needOwnerAccess")}
-            >
-              {isBulkDeleting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  {t("documents:bulk.deleting")}
-                </>
-              ) : (
-                <>
-                  <Trash2 className="h-4 w-4" />
-                  {t("common:delete")}
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
+        <DocumentsBulkBar
+          selectedDocuments={selectedDocuments}
+          canEditSelectedDocuments={canEditSelectedDocuments}
+          canDuplicateSelectedDocuments={canDuplicateSelectedDocuments}
+          canDeleteSelectedDocuments={canDeleteSelectedDocuments}
+          onBulkEditTags={onBulkEditTags}
+          onBulkEditAccess={onBulkEditAccess}
+          onBulkDuplicate={onBulkDuplicate}
+          isBulkDuplicating={isBulkDuplicating}
+          onBulkDelete={onBulkDelete}
+          isBulkDeleting={isBulkDeleting}
+        />
       )}
       <DataTable
         columns={columnsWithProperties}

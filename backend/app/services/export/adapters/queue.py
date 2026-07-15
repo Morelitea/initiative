@@ -24,12 +24,10 @@ from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.messages import ExportMessages
 from app.models.platform.user import User
 from app.models.tenant.queue import Queue, QueueItem
 from app.services.export.contract import RenderItem, RenderRequest
-from app.services.export.engine import ExportError
-from app.services.export.i18n import et, export_locale
+from app.services.export.i18n import et, export_locale, localize_now
 from app.services.platform.csv_export import safe_filename_component
 
 # (row key, ``exports`` label key, Typst width hint) — labels resolve to the
@@ -65,8 +63,8 @@ class QueueAdapter:
         params: dict,
         format: str,
     ) -> int:
-        queue = await self._queue(session, user, guild_id, params)
-        return len(queue.items)
+        queues = await self._queues(session, user, guild_id, params)
+        return sum(len(queue.items) for queue in queues)
 
     async def build(
         self,
@@ -77,39 +75,47 @@ class QueueAdapter:
         params: dict,
         format: str,
     ) -> RenderRequest:
-        queue = await self._queue(session, user, guild_id, params)
-        items = _rotation_order(queue.items)
+        queues = await self._queues(session, user, guild_id, params)
         # One clock read: the filename date and the subtitle timestamp must
         # not straddle midnight into disagreeing dates.
-        now = datetime.now(timezone.utc)
-        date = now.strftime("%Y-%m-%d")
-        stem = safe_filename_component(queue.name).lower()
-        if format == "json":
-            # The envelope is importable machine data — stays canonical, never
-            # localized (translating field keys / enum values breaks import).
-            item = RenderItem(
-                key=f"{stem}-{date}.initiative-queue",
-                data=_envelope(queue, items),
-            )
-        else:
-            item = RenderItem(
-                key=f"{stem}-{date}", data=_report_payload(queue, items, user, now)
-            )
+        now = localize_now(datetime.now(timezone.utc), params.get("tz"))
         return RenderRequest(
             guild_id=guild_id,
             template_id=self.template_id,
             format=format,
-            batch=(item,),
+            batch=tuple(build_queue_item(queue, format, user, now) for queue in queues),
         )
 
-    async def _queue(
+    async def _queues(
         self, session: AsyncSession, user: User, guild_id: int, params: dict
-    ) -> Queue:
+    ) -> list[Queue]:
+        from app.services.export.adapters._common import selection_ids
         from app.services.tenant.queues import get_queue_for_export
 
-        return await get_queue_for_export(
-            session, user, guild_id, queue_id=_queue_id(params)
+        return [
+            await get_queue_for_export(session, user, guild_id, queue_id=queue_id)
+            for queue_id in selection_ids(
+                params, single_key="queue_id", multi_key="queue_ids"
+            )
+        ]
+
+
+def build_queue_item(
+    queue: Queue, format: str, user: User, now: datetime
+) -> RenderItem:
+    items = _rotation_order(queue.items)
+    date = now.strftime("%Y-%m-%d")
+    stem = safe_filename_component(queue.name).lower()
+    if format == "json":
+        # The envelope is importable machine data — stays canonical, never
+        # localized (translating field keys / enum values breaks import).
+        return RenderItem(
+            key=f"{stem}-{date}.initiative-queue",
+            data=_envelope(queue, items),
         )
+    return RenderItem(
+        key=f"{stem}-{date}", data=_report_payload(queue, items, user, now)
+    )
 
 
 def _rotation_order(items: list[QueueItem]) -> list[QueueItem]:
@@ -158,7 +164,7 @@ def _report_payload(
     queue: Queue, items: list[QueueItem], user: User, now: datetime
 ) -> dict[str, Any]:
     loc = export_locale(user)
-    generated_at = now.strftime("%Y-%m-%d %H:%M UTC")
+    generated_at = now.strftime("%Y-%m-%d %H:%M %Z")
     # Both attribution fields can be absent (some OAuth-provisioned accounts
     # carry neither) — never render the literal "None".
     author = user.full_name or user.email or et("fallback.unknownAuthor", loc)
@@ -171,6 +177,7 @@ def _report_payload(
         "title": queue.name,
         "subtitle": " · ".join(parts),
         "footer": et("footer.queue", loc, name=queue.name),
+        "page_of": et("pageOf", loc),
         "description": queue.description or "",
         # Markdown renders the rotation as a numbered turn-order list; the
         # other formats consume the columns/rows table.
@@ -210,11 +217,3 @@ def _member(item: QueueItem) -> str | None:
 
 def _tags(item: QueueItem) -> list[str]:
     return sorted(link.tag.name for link in item.tag_links if link.tag is not None)
-
-
-def _queue_id(params: dict) -> int:
-    """The job row's params round-trip through JSON — validate, don't trust."""
-    try:
-        return int(params["queue_id"])
-    except (KeyError, TypeError, ValueError):
-        raise ExportError(ExportMessages.EXPORT_INVALID_PARAMS)

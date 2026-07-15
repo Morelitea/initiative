@@ -81,6 +81,13 @@ export interface ToolDef {
    * service — rather than an in-app dialog.
    */
   inAppCreate: boolean;
+  /**
+   * Has an export-engine source: single-entity export plus bulk selection
+   * export (`{tool}_ids` selectors; calendar events export as one combined
+   * calendar rather than per-entity files). Intentional gap: the advanced
+   * tool (its content lives in the external service).
+   */
+  bulkExport: boolean;
 }
 
 export const TOOL_REGISTRY: Record<Tool, ToolDef> = {
@@ -93,6 +100,7 @@ export const TOOL_REGISTRY: Record<Tool, ToolDef> = {
     notifications: true,
     personalRoute: "/my-projects",
     inAppCreate: true,
+    bulkExport: true,
   },
   [Tool.document]: {
     icon: ScrollText,
@@ -103,6 +111,7 @@ export const TOOL_REGISTRY: Record<Tool, ToolDef> = {
     notifications: true,
     personalRoute: "/my-documents",
     inAppCreate: true,
+    bulkExport: true,
   },
   [Tool.queue]: {
     icon: GalleryHorizontalEnd,
@@ -113,6 +122,7 @@ export const TOOL_REGISTRY: Record<Tool, ToolDef> = {
     notifications: false,
     personalRoute: null,
     inAppCreate: true,
+    bulkExport: true,
   },
   [Tool.counter_group]: {
     icon: Gauge,
@@ -123,6 +133,7 @@ export const TOOL_REGISTRY: Record<Tool, ToolDef> = {
     notifications: false,
     personalRoute: null,
     inAppCreate: true,
+    bulkExport: true,
   },
   [Tool.calendar_event]: {
     icon: CalendarDays,
@@ -133,6 +144,7 @@ export const TOOL_REGISTRY: Record<Tool, ToolDef> = {
     notifications: true,
     personalRoute: "/my-calendar-events",
     inAppCreate: true,
+    bulkExport: true,
   },
   [Tool.advanced_tool]: {
     icon: Sparkles,
@@ -143,6 +155,7 @@ export const TOOL_REGISTRY: Record<Tool, ToolDef> = {
     notifications: false,
     personalRoute: null,
     inAppCreate: false,
+    bulkExport: false,
   },
 };
 
@@ -154,6 +167,9 @@ export const TOGGLEABLE_TOOLS = TOOLS.filter((t) => !TOOL_REGISTRY[t].core);
 
 /** Tools that appear in the recents bar — mirrors backend RECENTABLE_TOOLS. */
 export const RECENTABLE_TOOLS = TOOLS.filter((t) => TOOL_REGISTRY[t].recents);
+
+/** Tools with an export-engine source (single + bulk selection export). */
+export const BULK_EXPORT_TOOLS = TOOLS.filter((t) => TOOL_REGISTRY[t].bulkExport);
 
 /**
  * Sidebar display order within an initiative. The advanced tool is pinned to
@@ -193,6 +209,16 @@ export const toolApiPath = (tool: Tool): string => `/api/v1/${toolRouteSegment(t
 
 /** Guild-relative list route, e.g. "/counter-groups". */
 export const toolListRoute = (tool: Tool): string => `/${toolRouteSegment(tool)}`;
+
+/** Export-engine endpoint (relative to /g/{guildId}), e.g. "/exports/counter-group"
+ * — the engine's source name is the KEBAB SINGULAR of the tool. */
+export const toolExportEndpoint = (tool: Tool): string => `/exports/${tool.replaceAll("_", "-")}`;
+
+/** Single-entity export selector param, e.g. "counter_group_id". */
+export const toolExportIdParam = (tool: Tool): string => `${tool}_id`;
+
+/** Bulk-selection export selector param, e.g. "counter_group_ids". */
+export const toolExportIdsParam = (tool: Tool): string => `${tool}_ids`;
 
 /** nav.json label key, e.g. "counterGroups". Typed against the nav namespace
  * so `t(toolNavLabelKey(tool))` satisfies typed i18next — the drift test

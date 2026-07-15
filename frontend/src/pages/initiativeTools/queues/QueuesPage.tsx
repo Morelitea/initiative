@@ -8,6 +8,7 @@ import { invalidateAllQueues } from "@/api/query-keys";
 import { BulkAccessBar, canManageSharing } from "@/components/access/BulkAccessBar";
 import { BulkEditAccessDialog } from "@/components/access/BulkEditAccessDialog";
 import { SelectableGridItem } from "@/components/access/SelectableGridItem";
+import { BulkExportButton } from "@/components/exports/BulkExportButton";
 import { CreateQueueDialog } from "@/components/initiativeTools/queues/CreateQueueDialog";
 import { QueueCard } from "@/components/initiativeTools/queues/QueueCard";
 import {
@@ -273,7 +274,9 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
               canManage={canManageSharing(selection.selectedItems)}
               onEditAccess={() => setBulkAccessOpen(true)}
               onExit={selection.exit}
-            />
+            >
+              <BulkExportButton tool={Tool.queue} ids={selection.selectedItems.map((q) => q.id)} />
+            </BulkAccessBar>
           ) : (
             <div className="flex justify-end">
               <Button variant="outline" size="sm" onClick={selection.enter}>

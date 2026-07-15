@@ -13,9 +13,11 @@ import type {
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidateAllDocuments } from "@/api/query-keys";
 import { BulkEditAccessDialog } from "@/components/access/BulkEditAccessDialog";
+import { SelectableGridItem } from "@/components/access/SelectableGridItem";
 import { BulkEditTagsDialog } from "@/components/documents/BulkEditTagsDialog";
 import { CreateDocumentDialog } from "@/components/documents/CreateDocumentDialog";
 import { DocumentCard } from "@/components/documents/DocumentCard";
+import { DocumentsBulkBar } from "@/components/documents/DocumentsBulkBar";
 import { DocumentsFilterBar } from "@/components/documents/DocumentsFilterBar";
 import { DocumentsListView } from "@/components/documents/DocumentsListView";
 import { DocumentsTagsView } from "@/components/documents/DocumentsTagsView";
@@ -71,7 +73,7 @@ export const DocumentsView = ({
   fixedTagIds,
   canCreate,
 }: DocumentsViewProps) => {
-  const { t } = useTranslation(["documents", "common"]);
+  const { t } = useTranslation(["documents", "common", "access"]);
   const router = useRouter();
   const prefetchDocuments = usePrefetchDocumentsList();
   const { user } = useAuth();
@@ -404,6 +406,32 @@ export const DocumentsView = ({
   });
   const [selectedDocuments, setSelectedDocuments] = useState<DocumentSummary[]>([]);
 
+  // Grid/tags selection mode (the table view has its own row checkboxes and
+  // shares the same selectedDocuments state). Entering turns cards into
+  // checkboxes, exactly like the queues/counters lists.
+  const [cardSelectionActive, setCardSelectionActive] = useState(false);
+  const selectedDocumentIds = useMemo(
+    () => new Set(selectedDocuments.map((doc) => doc.id)),
+    [selectedDocuments]
+  );
+  const toggleDocumentSelection = useCallback((document: DocumentSummary) => {
+    setSelectedDocuments((prev) =>
+      prev.some((doc) => doc.id === document.id)
+        ? prev.filter((doc) => doc.id !== document.id)
+        : [...prev, document]
+    );
+  }, []);
+  const exitCardSelection = useCallback(() => {
+    setCardSelectionActive(false);
+    setSelectedDocuments([]);
+  }, []);
+  // Switching views must not strand a hidden selection behind another view's
+  // bulk actions — every view change starts unselected.
+  useEffect(() => {
+    setCardSelectionActive(false);
+    setSelectedDocuments([]);
+  }, [viewMode]);
+
   // Check if user owns all selected documents (required for delete)
   const canDeleteSelectedDocuments = useMemo(() => {
     if (!user || selectedDocuments.length === 0) {
@@ -660,27 +688,90 @@ export const DocumentsView = ({
       ) : documentsQuery.isError ? (
         <p className="text-destructive text-sm">{t("page.loadError")}</p>
       ) : viewMode === "tags" ? (
-        <DocumentsTagsView
-          documents={displayDocuments}
-          allTags={allTags}
-          tagCounts={countsQuery.data?.tag_counts ?? {}}
-          untaggedCount={countsQuery.data?.untagged_count ?? 0}
-          treeSelectedPaths={treeSelectedPaths}
-          onToggleTag={handleTreeTagToggle}
-          page={page}
-          pageSize={pageSize}
-          totalCount={totalCount}
-          hasNext={hasNext}
-          onPageChange={setPage}
-          onPageSizeChange={handlePageSizeChange}
-          onPrefetchPage={prefetchPage}
-        />
+        <>
+          {cardSelectionActive ? (
+            <DocumentsBulkBar
+              selectedDocuments={selectedDocuments}
+              canEditSelectedDocuments={canEditSelectedDocuments}
+              canDuplicateSelectedDocuments={canDuplicateSelectedDocuments}
+              canDeleteSelectedDocuments={canDeleteSelectedDocuments}
+              onBulkEditTags={() => setBulkEditTagsOpen(true)}
+              onBulkEditAccess={() => setBulkEditAccessOpen(true)}
+              onBulkDuplicate={() => duplicateDocuments.mutate(selectedDocuments)}
+              isBulkDuplicating={duplicateDocuments.isPending}
+              onBulkDelete={() => {
+                if (confirm(t("bulk.deleteConfirm", { count: selectedDocuments.length }))) {
+                  deleteDocuments.mutate(selectedDocuments.map((doc) => doc.id));
+                }
+              }}
+              isBulkDeleting={deleteDocuments.isPending}
+              onExit={exitCardSelection}
+            />
+          ) : (
+            <div className="flex justify-end">
+              <Button variant="outline" size="sm" onClick={() => setCardSelectionActive(true)}>
+                {t("access:bulkBar.select")}
+              </Button>
+            </div>
+          )}
+          <DocumentsTagsView
+            documents={displayDocuments}
+            allTags={allTags}
+            tagCounts={countsQuery.data?.tag_counts ?? {}}
+            untaggedCount={countsQuery.data?.untagged_count ?? 0}
+            treeSelectedPaths={treeSelectedPaths}
+            onToggleTag={handleTreeTagToggle}
+            page={page}
+            pageSize={pageSize}
+            totalCount={totalCount}
+            hasNext={hasNext}
+            onPageChange={setPage}
+            onPageSizeChange={handlePageSizeChange}
+            onPrefetchPage={prefetchPage}
+            selectionActive={cardSelectionActive}
+            selectedDocumentIds={selectedDocumentIds}
+            onToggleDocument={toggleDocumentSelection}
+          />
+        </>
       ) : totalCount > 0 ? (
         viewMode === "grid" ? (
           <>
+            {cardSelectionActive ? (
+              <DocumentsBulkBar
+                selectedDocuments={selectedDocuments}
+                canEditSelectedDocuments={canEditSelectedDocuments}
+                canDuplicateSelectedDocuments={canDuplicateSelectedDocuments}
+                canDeleteSelectedDocuments={canDeleteSelectedDocuments}
+                onBulkEditTags={() => setBulkEditTagsOpen(true)}
+                onBulkEditAccess={() => setBulkEditAccessOpen(true)}
+                onBulkDuplicate={() => duplicateDocuments.mutate(selectedDocuments)}
+                isBulkDuplicating={duplicateDocuments.isPending}
+                onBulkDelete={() => {
+                  if (confirm(t("bulk.deleteConfirm", { count: selectedDocuments.length }))) {
+                    deleteDocuments.mutate(selectedDocuments.map((doc) => doc.id));
+                  }
+                }}
+                isBulkDeleting={deleteDocuments.isPending}
+                onExit={exitCardSelection}
+              />
+            ) : (
+              <div className="flex justify-end">
+                <Button variant="outline" size="sm" onClick={() => setCardSelectionActive(true)}>
+                  {t("access:bulkBar.select")}
+                </Button>
+              </div>
+            )}
             <div className="animate grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {documents.map((document) => (
-                <DocumentCard key={document.id} document={document} hideInitiative />
+                <SelectableGridItem
+                  key={document.id}
+                  active={cardSelectionActive}
+                  selected={selectedDocumentIds.has(document.id)}
+                  onToggle={() => toggleDocumentSelection(document)}
+                  label={document.title}
+                >
+                  <DocumentCard document={document} hideInitiative />
+                </SelectableGridItem>
               ))}
             </div>
             {totalCount > 0 && (

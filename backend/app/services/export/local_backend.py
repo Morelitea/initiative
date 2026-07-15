@@ -49,6 +49,7 @@ _CONTENT_TYPES = {
     "md": "text/markdown; charset=utf-8",
     "json": "application/json",
     "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "ics": "text/calendar; charset=utf-8",
     "file": "application/octet-stream",  # per-item override from the blob
 }
 
@@ -68,28 +69,38 @@ def resolve_template(template_id: str) -> Path:
 
 class LocalRenderBackend:
     async def render(self, req: RenderRequest) -> list[RenderedArtifact]:
-        # Only the PDF path involves a template; tabular formats consume the
-        # payload's columns/rows directly. Resolve (and thereby validate) the
-        # template up front so a bad id fails before the executor hop.
-        template = resolve_template(req.template_id) if req.format == "pdf" else None
+        # Validate every referenced template BEFORE the executor hop, so a bad
+        # id fails fast. Items may override the request's format/template (the
+        # aggregate sources mix formats in one batch).
+        for item in req.batch:
+            if (item.format or req.format) == "pdf":
+                resolve_template(item.template_id or req.template_id)
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self._render_sync, template, req)
+        return await loop.run_in_executor(None, self._render_sync, req)
 
     @staticmethod
-    def _render_sync(
-        template: Path | None, req: RenderRequest
-    ) -> list[RenderedArtifact]:
-        return [_render_item(template, req, item) for item in req.batch]
+    def _render_sync(req: RenderRequest) -> list[RenderedArtifact]:
+        return [_render_item(req, item) for item in req.batch]
 
 
-def _render_item(
-    template: Path | None, req: RenderRequest, item: RenderItem
-) -> RenderedArtifact:
-    format = req.format
+def _render_item(req: RenderRequest, item: RenderItem) -> RenderedArtifact:
+    format = item.format or req.format
+    template = (
+        resolve_template(item.template_id or req.template_id)
+        if format == "pdf"
+        else None
+    )
     content_type = _CONTENT_TYPES[format]
-    filename: str | None = item.filename
+    # An overridden-format item names itself so the bundle entry carries the
+    # right extension (the request-level fallback would use the wrong one).
+    filename: str | None = item.filename or (
+        f"{item.key}.{format}" if item.format is not None else None
+    )
     if format == "file":
-        content, content_type, filename = _read_passthrough(req.guild_id, item.data)
+        content, content_type, blob_name = _read_passthrough(req.guild_id, item.data)
+        # A bundle path set by the adapter (e.g. assets/{key}) wins over the
+        # blob's own name; standalone passthroughs keep the original name.
+        filename = filename or blob_name
     elif format == "csv":
         content = (
             spreadsheet.render_csv(item.data["grid"])
@@ -109,11 +120,24 @@ def _render_item(
             content, content_type, lexical_name = lexical.render_markdown(
                 item.data, _blob_reader(req.guild_id)
             )
-            filename = lexical_name or filename
+            if lexical_name is not None:
+                # Referenced assets turn the .md into a nested zip. An
+                # adapter-set bundle path keeps its folder but must adopt the
+                # renderer's extension; standalone exports take the renderer's
+                # name as-is.
+                filename = (
+                    f"{filename.rsplit('.', 1)[0]}.{lexical_name.rsplit('.', 1)[1]}"
+                    if filename
+                    else lexical_name
+                )
         else:
             content = tabular.render_md(item)
     elif format == "docx":
         content = lexical.render_docx(item.data, _blob_reader(req.guild_id))
+    elif format == "ics":
+        from app.services.tenant.ical_service import ical_from_export_dicts
+
+        content = ical_from_export_dicts(item.data.get("events") or [])
     elif format == "json":
         # The payload IS the artifact (e.g. a backup envelope); indent for a
         # human-inspectable file.

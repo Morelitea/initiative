@@ -403,6 +403,12 @@ class Settings(BaseSettings):
     EXPORT_MAX_ROWS: int = 10_000
     # Per-user cap on jobs that are queued or running at once.
     EXPORT_MAX_ACTIVE_JOBS_PER_USER: int = 5
+    # Aggregate (initiative/guild) exports: their own row ceiling — a guild
+    # dump legitimately exceeds EXPORT_MAX_ROWS — and a byte cap on included
+    # uploads (the archive assembles in memory; the cap keeps peak usage
+    # bounded until streaming assembly lands).
+    EXPORT_MAX_BACKUP_ROWS: int = 50_000
+    EXPORT_MAX_BACKUP_UPLOAD_BYTES: int = 268_435_456  # 256 MiB
     # Artifact retention: expires_at = render time + this; the GC pass then
     # deletes the artifact and marks the job expired.
     EXPORT_ARTIFACT_TTL_HOURS: int = 168  # 7 days

@@ -4,10 +4,10 @@ import { downloadBlob } from "@/lib/csv";
 import { getErrorMessage } from "@/lib/errorMessage";
 
 /** Recover the server-chosen filename from a Content-Disposition header —
- * the single source of truth for export names (a Lexical export must be
- * ``.lexical`` for the editor's import picker; a file passthrough keeps an
- * extension the client can't know). Handles both the plain ``filename="…"``
- * and the RFC 5987 ``filename*=utf-8''…`` forms; null when absent. */
+ * the single source of truth for export names (a file passthrough keeps an
+ * extension the client can't know; bundles arrive as ``.zip`` regardless of
+ * format). Handles both the plain ``filename="…"`` and the RFC 5987
+ * ``filename*=utf-8''…`` forms; null when absent. */
 export function filenameFromDisposition(header: string | undefined): string | null {
   if (!header) {
     return null;

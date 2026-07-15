@@ -1,11 +1,10 @@
 import { keepPreviousData } from "@tanstack/react-query";
 import { useRouter, useSearch } from "@tanstack/react-router";
 import { addYears, endOfYear, format, startOfYear, subYears } from "date-fns";
-import { ChevronDown, Download, Filter, Loader2, Upload } from "lucide-react";
+import { ChevronDown, Filter, Loader2, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { apiClient } from "@/api/client";
 import type {
   CalendarEventSummary,
   FilterCondition,
@@ -25,6 +24,9 @@ import {
   CalendarView,
   type CalendarViewMode,
 } from "@/components/calendar";
+import { BulkExportButton } from "@/components/exports/BulkExportButton";
+import { ExportButton } from "@/components/exports/ExportButton";
+import { TOOL_EXPORT_FORMATS } from "@/components/exports/formats";
 import { CreateEventDialog } from "@/components/initiativeTools/events/CreateEventDialog";
 import { ICalImportDialog } from "@/components/initiativeTools/events/ICalImportDialog";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
@@ -44,10 +46,11 @@ import { useGridSelection } from "@/hooks/useGridSelection";
 import { canCreateTool, useMyInitiativePermissions } from "@/hooks/useInitiativeRoles";
 import { useTasks, useUpdateTask } from "@/hooks/useTasks";
 import { useViewPreference } from "@/hooks/useViewPreference";
-import { toast } from "@/lib/chesterToast";
+import { exportFilenameStem } from "@/lib/exportDownload";
 import { useGuildPath } from "@/lib/guildUrl";
 import { getProjectColor } from "@/lib/projectColor";
 import { getItem, setItem } from "@/lib/storage";
+import { toolExportEndpoint } from "@/lib/tools";
 
 const STORAGE_KEY = "initiative-events-prefs";
 
@@ -110,7 +113,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
   const router = useRouter();
   const { user } = useAuth();
   const gp = useGuildPath();
-  const guildId = useActiveGuildId();
+  const _guildId = useActiveGuildId();
   const searchParams = useSearch({ strict: false }) as {
     initiativeId?: string;
     create?: string;
@@ -427,27 +430,6 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
 
   const defaultStartDate = createDefaultDate ? format(createDefaultDate, "yyyy-MM-dd") : undefined;
 
-  const handleExport = useCallback(async () => {
-    try {
-      const params: Record<string, string> = {};
-      if (initiativeId) {
-        params.initiative_id = String(initiativeId);
-      }
-      const response = await apiClient.get(`/g/${guildId}/calendar-events/export.ics`, {
-        params,
-        responseType: "blob",
-      });
-      const url = URL.createObjectURL(response.data as Blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "events.ics";
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch {
-      toast.error(t("export.exportError"));
-    }
-  }, [guildId, initiativeId, t]);
-
   const statusOptions = useMemo(
     () =>
       STATUS_CATEGORIES.map((cat) => ({
@@ -479,10 +461,12 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-semibold text-3xl tracking-tight">{t("title")}</h1>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleExport}>
-            <Download className="mr-1.5 h-4 w-4" />
-            {t("export.exportIcs")}
-          </Button>
+          <ExportButton
+            endpoint={toolExportEndpoint(Tool.calendar_event)}
+            params={initiativeId ? { initiative_id: initiativeId } : {}}
+            formats={TOOL_EXPORT_FORMATS[Tool.calendar_event] ?? []}
+            filenameStem={exportFilenameStem(t("title"), "calendar-events")}
+          />
           {canCreateEvents && (
             <Button variant="outline" size="sm" onClick={() => setImportDialogOpen(true)}>
               <Upload className="mr-1.5 h-4 w-4" />
@@ -609,7 +593,12 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
               canManage={canManageSharing(eventSelection.selectedItems)}
               onEditAccess={() => setBulkAccessOpen(true)}
               onExit={eventSelection.exit}
-            />
+            >
+              <BulkExportButton
+                tool={Tool.calendar_event}
+                ids={eventSelection.selectedItems.map((e) => e.id)}
+              />
+            </BulkAccessBar>
           ) : viewMode === "list" ? (
             <div className="flex justify-end">
               <Button variant="outline" size="sm" onClick={eventSelection.enter}>

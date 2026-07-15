@@ -32,7 +32,11 @@
     grid(
       columns: (1fr, auto),
       payload.at("footer", default: ""),
-      counter(page).display("1 of 1", both: true),
+      // Localized page count: the separator word arrives in the payload
+      // ("1 of 3" / "1 von 3" / …); explicit current/total rather than a
+      // numbering pattern, since pattern words could collide with numbering
+      // symbols (e.g. Italian "di" contains roman-numeral "i").
+      [#counter(page).display() #payload.at("page_of", default: "of") #counter(page).final().first()],
     )
   },
 )
@@ -47,6 +51,96 @@
   for (i, line) in lines.enumerate() {
     line
     if i < lines.len() - 1 { linebreak() }
+  }
+}
+
+// ── Markdown-description blocks (same schema as the document template) ──────
+#let render_runs(runs) = {
+  runs
+    .map(r => {
+      let t = r.at("text", default: "")
+      // A "\n" run is a hard break, not text (Typst collapses raw newlines).
+      if t == "\n" { return linebreak() }
+      let body = if r.at("code", default: false) { raw(t) } else { [#t] }
+      if r.at("bold", default: false) { body = strong(body) }
+      if r.at("italic", default: false) { body = emph(body) }
+      if r.at("strike", default: false) { body = strike(body) }
+      let url = r.at("link", default: none)
+      if url != none { body = link(url, body) }
+      body
+    })
+    .join()
+}
+
+#let render_list(lst, depth) = {
+  // Per-item rendering keeps nested lists directly beneath their parent item;
+  // enum(start:) preserves ordered numbering across single-item calls.
+  set block(above: 3pt, below: 3pt)
+  let ordered = lst.at("ordered", default: false)
+  let index = 1
+  for item in lst.at("items", default: ()) {
+    let body = render_runs(item.at("runs", default: ()))
+    pad(left: depth * 1em)[
+      #if ordered [ #enum(start: index, body) ] else [ #list(body) ]
+    ]
+    index += 1
+    for nested in item.at("children", default: ()) {
+      render_list(nested, depth + 1)
+    }
+  }
+}
+
+#let render_blocks(blocks) = {
+  for b in blocks {
+    let btype = b.at("type", default: "paragraph")
+    if btype == "heading" {
+      let level = calc.min(b.at("level", default: 1), 4)
+      let sizes = (12pt, 11.5pt, 11pt, 10.5pt)
+      v(4pt)
+      text(size: sizes.at(level - 1), weight: "bold", render_runs(b.at("runs", default: ())))
+      v(2pt)
+    } else if btype == "quote" {
+      pad(
+        left: 8pt,
+        block(
+          stroke: (left: 2pt + luma(180)),
+          inset: (left: 8pt, y: 4pt),
+          text(fill: luma(90), render_runs(b.at("runs", default: ()))),
+        ),
+      )
+    } else if btype == "code" {
+      block(
+        fill: luma(246),
+        inset: 8pt,
+        radius: 3pt,
+        width: 100%,
+        raw(b.at("text", default: ""), lang: b.at("language", default: "")),
+      )
+    } else if btype == "hr" {
+      v(4pt)
+      line(length: 100%, stroke: 0.5pt + luma(200))
+      v(4pt)
+    } else if btype == "list" {
+      render_list(b, 0)
+    } else if btype == "table" {
+      let rows = b.at("rows", default: ())
+      if rows.len() > 0 {
+        let width = calc.max(..rows.map(r => r.len()))
+        table(
+          columns: width,
+          inset: (x: 6pt, y: 5pt),
+          stroke: 0.5pt + luma(210),
+          ..rows
+            .map(r => {
+              let padded = r + ((),) * (width - r.len())
+              padded.map(c => render_runs(c))
+            })
+            .flatten()
+        )
+      }
+    } else {
+      par(render_runs(b.at("runs", default: ())))
+    }
   }
 }
 
@@ -105,12 +199,12 @@
     task.at("tags", default: ()).join(", "),
   )
 
-  // Description.
+  // Description: Markdown parsed server-side into blocks (empty → none).
   section(labels.at("description", default: "Description"))
-  let desc = task.at("description", default: "")
-  if desc.trim() != "" [
-    #multiline(desc)
-  ] else [
+  let desc_blocks = task.at("description_blocks", default: ())
+  if desc_blocks.len() > 0 {
+    render_blocks(desc_blocks)
+  } else [
     #text(fill: luma(150), style: "italic", labels.at("noDescription", default: ""))
   ]
 

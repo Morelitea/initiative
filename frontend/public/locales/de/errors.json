@@ -273,6 +273,7 @@
   "EXPORT_WRITE_REQUIRED": "Dieser Export ist zu groß, um ihn mit Lesezugriff zu erstellen.",
   "EXPORT_JOB_NOT_FOUND": "Export nicht gefunden.",
   "EXPORT_NOT_READY": "Dieser Export ist noch nicht zum Herunterladen bereit.",
+  "EXPORT_ADMIN_REQUIRED": "Nur Gilden-Administratoren können die gesamte Gilde exportieren.",
   "ADVANCED_TOOL_NOT_CONFIGURED": "Das erweiterte Tool ist für diese Bereitstellung nicht konfiguriert.",
   "ADVANCED_TOOL_NOT_ENABLED": "Das erweiterte Tool ist für diese Initiative nicht aktiviert.",
   "ADVANCED_TOOL_NOT_FOUND": "Erweitertes Tool nicht gefunden",

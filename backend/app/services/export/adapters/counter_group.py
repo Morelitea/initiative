@@ -24,12 +24,10 @@ from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.messages import ExportMessages
 from app.models.platform.user import User
 from app.models.tenant.counter import Counter, CounterGroup
 from app.services.export.contract import RenderItem, RenderRequest
-from app.services.export.engine import ExportError
-from app.services.export.i18n import et, export_locale
+from app.services.export.i18n import et, export_locale, localize_now
 from app.services.platform.csv_export import safe_filename_component
 
 # (row key, ``exports`` label key, Typst width hint) — labels resolve to the
@@ -64,8 +62,8 @@ class CounterGroupAdapter:
         params: dict,
         format: str,
     ) -> int:
-        group = await self._group(session, user, guild_id, params)
-        return len(group.counters)
+        groups = await self._groups(session, user, guild_id, params)
+        return sum(len(group.counters) for group in groups)
 
     async def build(
         self,
@@ -76,38 +74,46 @@ class CounterGroupAdapter:
         params: dict,
         format: str,
     ) -> RenderRequest:
-        group = await self._group(session, user, guild_id, params)
+        groups = await self._groups(session, user, guild_id, params)
         # One clock read: the filename date and the subtitle timestamp must
         # not straddle midnight into disagreeing dates.
-        now = datetime.now(timezone.utc)
-        date = now.strftime("%Y-%m-%d")
-        stem = safe_filename_component(group.name).lower()
-        if format == "json":
-            # The envelope is importable machine data — stays canonical, never
-            # localized (translating field keys / enum values breaks import).
-            item = RenderItem(
-                key=f"{stem}-{date}.initiative-counter-group",
-                data=_envelope(group),
-            )
-        else:
-            item = RenderItem(
-                key=f"{stem}-{date}", data=_report_payload(group, user, now)
-            )
+        now = localize_now(datetime.now(timezone.utc), params.get("tz"))
         return RenderRequest(
             guild_id=guild_id,
             template_id=self.template_id,
             format=format,
-            batch=(item,),
+            batch=tuple(
+                build_counter_group_item(group, format, user, now) for group in groups
+            ),
         )
 
-    async def _group(
+    async def _groups(
         self, session: AsyncSession, user: User, guild_id: int, params: dict
-    ) -> CounterGroup:
+    ) -> list[CounterGroup]:
+        from app.services.export.adapters._common import selection_ids
         from app.services.tenant.counters import get_counter_group_for_export
 
-        return await get_counter_group_for_export(
-            session, user, guild_id, group_id=_group_id(params)
+        return [
+            await get_counter_group_for_export(session, user, guild_id, group_id=gid)
+            for gid in selection_ids(
+                params, single_key="counter_group_id", multi_key="counter_group_ids"
+            )
+        ]
+
+
+def build_counter_group_item(
+    group: CounterGroup, format: str, user: User, now: datetime
+) -> RenderItem:
+    date = now.strftime("%Y-%m-%d")
+    stem = safe_filename_component(group.name).lower()
+    if format == "json":
+        # The envelope is importable machine data — stays canonical, never
+        # localized (translating field keys / enum values breaks import).
+        return RenderItem(
+            key=f"{stem}-{date}.initiative-counter-group",
+            data=_envelope(group),
         )
+    return RenderItem(key=f"{stem}-{date}", data=_report_payload(group, user, now))
 
 
 def _envelope(group: CounterGroup) -> dict[str, Any]:
@@ -136,7 +142,7 @@ def _envelope(group: CounterGroup) -> dict[str, Any]:
 def _report_payload(group: CounterGroup, user: User, now: datetime) -> dict[str, Any]:
     counters = group.counters
     loc = export_locale(user)
-    generated_at = now.strftime("%Y-%m-%d %H:%M UTC")
+    generated_at = now.strftime("%Y-%m-%d %H:%M %Z")
     # Both attribution fields can be absent (some OAuth-provisioned accounts
     # carry neither) — never render the literal "None".
     author = user.full_name or user.email or et("fallback.unknownAuthor", loc)
@@ -150,6 +156,7 @@ def _report_payload(group: CounterGroup, user: User, now: datetime) -> dict[str,
             ]
         ),
         "footer": et("footer.counters", loc, name=group.name),
+        "page_of": et("pageOf", loc),
         "description": group.description or "",
         "columns": _columns(loc),
         "empty_message": et("empty.generic", loc),
@@ -178,11 +185,3 @@ def _number(value: Decimal | None) -> int | float | None:
     if decimal == decimal.to_integral_value():
         return int(decimal)
     return float(decimal)
-
-
-def _group_id(params: dict) -> int:
-    """The job row's params round-trip through JSON — validate, don't trust."""
-    try:
-        return int(params["counter_group_id"])
-    except (KeyError, TypeError, ValueError):
-        raise ExportError(ExportMessages.EXPORT_INVALID_PARAMS)

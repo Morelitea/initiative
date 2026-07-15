@@ -15,7 +15,15 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Link, useSearch } from "@tanstack/react-router";
-import { Archive, LayoutGrid, List, Pin as PinIcon, Plus, ScrollText } from "lucide-react";
+import {
+  Archive,
+  FileDown,
+  LayoutGrid,
+  List,
+  Pin as PinIcon,
+  Plus,
+  ScrollText,
+} from "lucide-react";
 import { type HTMLAttributes, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -25,6 +33,7 @@ import { invalidateAllProjects } from "@/api/query-keys";
 import { BulkAccessBar, canManageSharing } from "@/components/access/BulkAccessBar";
 import { BulkEditAccessDialog } from "@/components/access/BulkEditAccessDialog";
 import { SelectableGridItem } from "@/components/access/SelectableGridItem";
+import { BulkExportButton } from "@/components/exports/BulkExportButton";
 import { Markdown } from "@/components/Markdown";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { PullToRefresh } from "@/components/PullToRefresh";
@@ -734,7 +743,29 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                     canManage={canManageSharing(selection.selectedItems)}
                     onEditAccess={() => setBulkAccessOpen(true)}
                     onExit={selection.exit}
-                  />
+                  >
+                    {selection.selectedItems.length > 0 &&
+                      // Project backups require WRITE on every selected
+                      // project (the backend refuses mixed selections).
+                      (canManageSharing(selection.selectedItems) ? (
+                        <BulkExportButton
+                          tool={Tool.project}
+                          ids={selection.selectedItems.map((p) => p.id)}
+                        />
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled
+                          title={t("export.noWriteAccess")}
+                        >
+                          <FileDown className="h-4 w-4" />
+                          <span className="hidden sm:ml-2 sm:inline">
+                            {t("export.exportButton")}
+                          </span>
+                        </Button>
+                      ))}
+                  </BulkAccessBar>
                 ) : (
                   pinnedProjectsSection
                 )}

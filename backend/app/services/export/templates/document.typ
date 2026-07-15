@@ -29,7 +29,11 @@
     grid(
       columns: (1fr, auto),
       payload.at("footer", default: ""),
-      counter(page).display("1 of 1", both: true),
+      // Localized page count: the separator word arrives in the payload
+      // ("1 of 3" / "1 von 3" / …); explicit current/total rather than a
+      // numbering pattern, since pattern words could collide with numbering
+      // symbols (e.g. Italian "di" contains roman-numeral "i").
+      [#counter(page).display() #payload.at("page_of", default: "of") #counter(page).final().first()],
     )
   },
 )
@@ -39,6 +43,9 @@
   runs
     .map(r => {
       let t = r.at("text", default: "")
+      // A "\n" run is a hard break (Lexical linebreak nodes); rendering it as
+      // text would collapse to a space.
+      if t == "\n" { return linebreak() }
       let body = if r.at("code", default: false) { raw(t) } else { [#t] }
       if r.at("bold", default: false) { body = strong(body) }
       if r.at("italic", default: false) { body = emph(body) }

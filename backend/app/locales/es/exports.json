@@ -37,6 +37,7 @@
   "generatedBy": "generado el {{date}} por {{author}}",
   "exported": "exportado el {{date}}",
   "round": "ronda {{round}}",
+  "pageOf": "de",
   "status": {
     "current": "Actual",
     "held": "En espera",

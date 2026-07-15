@@ -512,6 +512,28 @@ export interface AuthScopeUpdate {
   scope: AuthScope;
 }
 
+export interface BackupToolEstimate {
+  count?: number;
+  disabled?: boolean;
+}
+
+export type BackupEstimateTools = { [key: string]: BackupToolEstimate };
+
+/**
+ * The wizard's pre-flight numbers: per-tool entity counts, the uploads
+ * footprint (approximate — embedded document images resolve at build time),
+ * and the row/byte ceilings so the client can warn before submitting.
+ */
+export interface BackupEstimate {
+  tools: BackupEstimateTools;
+  uploads_count?: number;
+  uploads_bytes?: number;
+  uploads_approximate?: boolean;
+  estimated_rows?: number;
+  max_rows?: number;
+  max_upload_bytes?: number;
+}
+
 export interface BodyLoginAccessTokenApiV1AuthTokenPost {
   grant_type?: string | null;
   username: string;
@@ -3958,8 +3980,16 @@ export const ExportTasksApiV1GGuildIdExportsTasksGetLayout = {
 } as const;
 
 export type ExportProjectApiV1GGuildIdExportsProjectGetParams = {
-  project_id: number;
+  project_id?: number | null;
+  /**
+   * Bulk selection: one artifact per project, zipped
+   */
+  project_ids?: number[] | null;
   format?: ExportProjectApiV1GGuildIdExportsProjectGetFormat;
+  /**
+   * IANA timezone for report timestamps
+   */
+  tz?: string | null;
 };
 
 export type ExportProjectApiV1GGuildIdExportsProjectGetFormat =
@@ -3973,8 +4003,16 @@ export const ExportProjectApiV1GGuildIdExportsProjectGetFormat = {
 } as const;
 
 export type ExportDocumentApiV1GGuildIdExportsDocumentGetParams = {
-  document_id: number;
+  document_id?: number | null;
+  /**
+   * Bulk selection: one artifact per document, zipped. The format must be valid for every selected document's type.
+   */
+  document_ids?: number[] | null;
   format: ExportDocumentApiV1GGuildIdExportsDocumentGetFormat;
+  /**
+   * IANA timezone for report timestamps
+   */
+  tz?: string | null;
 };
 
 export type ExportDocumentApiV1GGuildIdExportsDocumentGetFormat =
@@ -3991,8 +4029,16 @@ export const ExportDocumentApiV1GGuildIdExportsDocumentGetFormat = {
 } as const;
 
 export type ExportQueueApiV1GGuildIdExportsQueueGetParams = {
-  queue_id: number;
+  queue_id?: number | null;
+  /**
+   * Bulk selection: one artifact per queue, zipped
+   */
+  queue_ids?: number[] | null;
   format?: ExportQueueApiV1GGuildIdExportsQueueGetFormat;
+  /**
+   * IANA timezone for report timestamps
+   */
+  tz?: string | null;
 };
 
 export type ExportQueueApiV1GGuildIdExportsQueueGetFormat =
@@ -4007,8 +4053,16 @@ export const ExportQueueApiV1GGuildIdExportsQueueGetFormat = {
 } as const;
 
 export type ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetParams = {
-  counter_group_id: number;
+  counter_group_id?: number | null;
+  /**
+   * Bulk selection: one artifact per group, zipped
+   */
+  counter_group_ids?: number[] | null;
   format?: ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetFormat;
+  /**
+   * IANA timezone for report timestamps
+   */
+  tz?: string | null;
 };
 
 export type ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetFormat =
@@ -4020,6 +4074,105 @@ export const ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetFormat = {
   csv: "csv",
   xlsx: "xlsx",
   md: "md",
+} as const;
+
+export type ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetParams = {
+  calendar_event_id?: number | null;
+  /**
+   * Bulk selection of events
+   */
+  calendar_event_ids?: number[] | null;
+  /**
+   * All exportable events in this initiative (ignored when ids given)
+   */
+  initiative_id?: number | null;
+  format?: ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetFormat;
+  /**
+   * IANA timezone for report timestamps
+   */
+  tz?: string | null;
+};
+
+export type ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetFormat =
+  (typeof ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetFormat)[keyof typeof ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetFormat];
+
+export const ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetFormat = {
+  ics: "ics",
+  json: "json",
+} as const;
+
+export type EstimateAggregateExportApiV1GGuildIdExportsEstimateGetParams = {
+  scope: EstimateAggregateExportApiV1GGuildIdExportsEstimateGetScope;
+  /**
+   * Required when scope=initiative
+   */
+  initiative_id?: number | null;
+  include_uploads?: boolean;
+};
+
+export type EstimateAggregateExportApiV1GGuildIdExportsEstimateGetScope =
+  (typeof EstimateAggregateExportApiV1GGuildIdExportsEstimateGetScope)[keyof typeof EstimateAggregateExportApiV1GGuildIdExportsEstimateGetScope];
+
+export const EstimateAggregateExportApiV1GGuildIdExportsEstimateGetScope = {
+  initiative: "initiative",
+  guild: "guild",
+} as const;
+
+export type ExportInitiativeApiV1GGuildIdExportsInitiativeGetParams = {
+  initiative_id: number;
+  mode?: ExportInitiativeApiV1GGuildIdExportsInitiativeGetMode;
+  /**
+   * JSON object of tool→bool, e.g. {"project": true, "queue": false}. Omitted = every tool.
+   */
+  include?: string | null;
+  /**
+   * Report mode: JSON object of tool→format; the document entry is a nested map, e.g. {"project": "pdf", "document": {"native": "md", "spreadsheet": "xlsx"}}. Unlisted tools use their backup format.
+   */
+  formats?: string | null;
+  /**
+   * Backup mode: bundle referenced upload blobs
+   */
+  include_uploads?: boolean;
+  /**
+   * IANA timezone for report timestamps
+   */
+  tz?: string | null;
+};
+
+export type ExportInitiativeApiV1GGuildIdExportsInitiativeGetMode =
+  (typeof ExportInitiativeApiV1GGuildIdExportsInitiativeGetMode)[keyof typeof ExportInitiativeApiV1GGuildIdExportsInitiativeGetMode];
+
+export const ExportInitiativeApiV1GGuildIdExportsInitiativeGetMode = {
+  backup: "backup",
+  report: "report",
+} as const;
+
+export type ExportGuildApiV1GGuildIdExportsGuildGetParams = {
+  mode?: ExportGuildApiV1GGuildIdExportsGuildGetMode;
+  /**
+   * JSON object of tool→bool; omitted = every tool
+   */
+  include?: string | null;
+  /**
+   * Report mode: JSON object of tool→format (see /exports/initiative)
+   */
+  formats?: string | null;
+  /**
+   * Backup mode: bundle referenced upload blobs
+   */
+  include_uploads?: boolean;
+  /**
+   * IANA timezone for report timestamps
+   */
+  tz?: string | null;
+};
+
+export type ExportGuildApiV1GGuildIdExportsGuildGetMode =
+  (typeof ExportGuildApiV1GGuildIdExportsGuildGetMode)[keyof typeof ExportGuildApiV1GGuildIdExportsGuildGetMode];
+
+export const ExportGuildApiV1GGuildIdExportsGuildGetMode = {
+  backup: "backup",
+  report: "report",
 } as const;
 
 export type ListQueuesApiV1GGuildIdQueuesGetParams = {
@@ -4046,12 +4199,6 @@ export type ListCounterGroupsApiV1GGuildIdCounterGroupsGetParams = {
    * @maximum 100
    */
   page_size?: number;
-};
-
-export type ExportCalendarEventsIcsApiV1GGuildIdCalendarEventsExportIcsGetParams = {
-  initiative_id?: number | null;
-  start_after?: string | null;
-  start_before?: string | null;
 };
 
 export type ListCalendarEventsApiV1GGuildIdCalendarEventsGetParams = {

@@ -130,6 +130,46 @@ async def get_counter_group_for_export(
     return group
 
 
+async def list_counter_group_ids_for_export(
+    session: AsyncSession,
+    current_user,
+    guild_id: int,
+    *,
+    initiative_ids: list[int],
+) -> list[int]:
+    """Ids of every counter group the user may export in the given initiatives —
+    DAC-visible to the user (guild admins see all via the membership role),
+    feature-flag respected. Deterministic order for stable backup output."""
+    from app.services import permissions as permissions_service
+    from app.services.platform import guilds as guilds_service
+    from app.services.rls import is_guild_admin
+
+    if not initiative_ids:
+        return []
+    conditions = [
+        CounterGroup.initiative_id.in_(initiative_ids),
+        Initiative.counter_groups_enabled == True,  # noqa: E712
+    ]
+    membership = await guilds_service.get_membership(
+        session, guild_id=guild_id, user_id=current_user.id
+    )
+    if membership is None or not is_guild_admin(membership.role):
+        conditions.append(
+            CounterGroup.id.in_(
+                permissions_service.visible_resource_ids_subquery(
+                    "counter_group", current_user.id
+                )
+            )
+        )
+    statement = (
+        select(CounterGroup.id)
+        .join(Initiative, Initiative.id == CounterGroup.initiative_id)
+        .where(*conditions)
+        .order_by(CounterGroup.id.asc())
+    )
+    return list(await session.exec(statement))
+
+
 async def get_counter(
     session: AsyncSession,
     counter_id: int,

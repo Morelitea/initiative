@@ -267,12 +267,11 @@
     "formatMd": "Tabla Markdown",
     "formatMdChecklist": "Lista de tareas Markdown",
     "formatJson": "JSON",
-    "formatExcalidraw": "Archivo de Excalidraw (JSON)",
     "formatOriginal": "Archivo original",
     "formatMarkdown": "Markdown",
     "formatPng": "Imagen PNG",
     "formatSvg": "Imagen SVG",
     "formatDocx": "Word (DOCX)",
-    "formatLexical": "Archivo Lexical (.lexical)"
+    "formatIcs": "iCalendar (.ics)"
   }
 }
