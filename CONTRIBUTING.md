@@ -22,12 +22,20 @@ This will:
 When you're done, run **`dev:cleanup`** from the task palette to remove all seeded test data. Stopping the debug session (if launched via F5) also triggers cleanup automatically.
 
 **What gets seeded:**
-- 2 campaign initiatives (Curse of Strahd, Lost Mine of Phandelver) + the default initiative
-- 3 projects with 12 tasks across all priorities and statuses
-- Subtasks, assignees, documents, tags, and comments
-- All data is clearly TTRPG-themed so it's never confused with real data
 
-The seeder saves created IDs to `.vscode/.dev_seed_ids.json` (gitignored) and uses them for clean teardown. See `scripts/seed_dev_data.py` for details.
+A realistic, TTRPG-themed dataset that exercises the whole app. See `scripts/seed_dev_data.py` for the exact contents.
+
+**Seeded logins** — every account below uses the password **`changeme`**:
+
+| Accounts | Role |
+|----------|------|
+| `admin1@example.com` … `admin4@example.com` | Dedicated **guild admins** (platform tier: member) |
+| `user1@example.com` … `user8@example.com` | Regular **guild members** (never guild admins) |
+| `owner@` · `operator@` · `moderator@` · `support@` · `member@example.com` | One user per **platform-role** tier, for exercising the privilege ladder |
+
+The bootstrap superuser from your `.env` (`FIRST_OWNER_EMAIL`) is also available with its configured password.
+
+The seeder saves created IDs to `.vscode/.dev_seed_ids.json` (gitignored) and uses them for clean teardown.
 
 ### Manual Setup
 

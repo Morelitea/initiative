@@ -56,13 +56,16 @@ export function EmojiPickerPlugin() {
   });
 
   const options: Array<EmojiOption> = useMemo(() => {
+    const query = queryString?.toLowerCase();
     return emojiOptions
       .filter((option: EmojiOption) => {
-        return queryString != null
-          ? new RegExp(queryString, "gi").exec(option.title) || option.keywords != null
-            ? option.keywords.some((keyword: string) => new RegExp(queryString, "gi").exec(keyword))
-            : false
-          : emojiOptions;
+        if (!query) {
+          return true;
+        }
+        return (
+          option.title.toLowerCase().includes(query) ||
+          option.keywords.some((keyword: string) => keyword.toLowerCase().includes(query))
+        );
       })
       .slice(0, MAX_EMOJI_SUGGESTION_COUNT);
   }, [emojiOptions, queryString]);

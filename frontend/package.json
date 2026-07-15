@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.10.0",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsgo -b && vite build",
@@ -42,6 +45,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@excalidraw/excalidraw": "^0.18.1",
+    "@fontsource-variable/outfit": "^5.2.8",
     "@icons-pack/react-simple-icons": "^13.13.0",
     "@lexical/code": "^0.45.0",
     "@lexical/code-prism": "^0.45.0",

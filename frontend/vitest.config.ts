@@ -16,5 +16,9 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/__tests__/setup.ts"],
     css: false,
+    // Tests must be hermetic: a developer's frontend/.env (VITE_API_URL)
+    // would otherwise make apiClient requests absolute, bypassing MSW's
+    // relative handlers.
+    env: { VITE_API_URL: "" },
   },
 });

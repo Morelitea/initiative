@@ -10,4 +10,6 @@ sleep 0.5
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR/../frontend"
-pnpm dev
+# Forward extra args to Vite (e.g. --open, passed by the dev setup tasks to
+# launch the browser once the server is up). Bare `pnpm dev` stays open-free.
+pnpm dev "$@"

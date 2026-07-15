@@ -48,7 +48,7 @@
       "label": "dev:frontend",
       "type": "process",
       "command": "bash",
-      "args": ["scripts/dev-frontend.sh"],
+      "args": ["scripts/dev-frontend.sh", "--open"],
       "options": { "cwd": "${workspaceFolder}" },
       "isBackground": true,
       "presentation": { "reveal": "silent", "panel": "dedicated" },
@@ -63,18 +63,8 @@
       "dependsOn": ["dev:seed"]
     },
     {
-      "label": "dev:open-browser",
-      "type": "process",
-      "command": "bash",
-      "args": ["scripts/dev-open-browser.sh"],
-      "options": { "cwd": "${workspaceFolder}" },
-      "presentation": { "reveal": "silent", "panel": "shared" },
-      "dependsOn": ["dev:backend", "dev:frontend"]
-    },
-    {
       "label": "dev:setup",
-      "dependsOn": ["dev:open-browser"],
-      "dependsOrder": "sequence",
+      "dependsOn": ["dev:backend", "dev:frontend"],
       "presentation": { "reveal": "silent" },
       "problemMatcher": []
     },

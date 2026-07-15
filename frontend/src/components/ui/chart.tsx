@@ -63,6 +63,15 @@ const ChartContainer = React.forwardRef<
 });
 ChartContainer.displayName = "Chart";
 
+// Everything interpolated into the generated <style> block must stay inert
+// CSS. Identifiers go through the platform's CSS.escape(); color values must
+// parse as an actual CSS color per the browser's own parser. Both guards are
+// skipped in non-browser environments (jsdom tests), where no style applies.
+const cssIdent = (value: string) =>
+  typeof CSS !== "undefined" && typeof CSS.escape === "function" ? CSS.escape(value) : value;
+const isCssColor = (value: string) =>
+  typeof CSS === "undefined" || typeof CSS.supports !== "function" || CSS.supports("color", value);
+
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
   const colorConfig = Object.entries(config).filter(([, config]) => config.theme || config.color);
 
@@ -76,11 +85,11 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
         __html: Object.entries(THEMES)
           .map(
             ([theme, prefix]) => `
-${prefix} [data-chart=${id}] {
+${prefix} [data-chart=${cssIdent(id)}] {
 ${colorConfig
   .map(([key, itemConfig]) => {
     const color = itemConfig.theme?.[theme as keyof typeof itemConfig.theme] || itemConfig.color;
-    return color ? `  --color-${key}: ${color};` : null;
+    return color && isCssColor(color) ? `  --color-${cssIdent(key)}: ${color};` : null;
   })
   .join("\n")}
 }

@@ -143,7 +143,8 @@ def _render_item(req: RenderRequest, item: RenderItem) -> RenderedArtifact:
         # human-inspectable file.
         content = json.dumps(item.data, ensure_ascii=False, indent=2).encode("utf-8")
     else:
-        assert template is not None  # resolve_template ran for the pdf path
+        if template is None:  # resolve_template ran for the pdf path
+            raise RuntimeError(f"no template resolved for {format} export")
         if item.data.get("assets") or item.assets_inline:
             content = _compile_with_assets(template, format, item, req.guild_id)
         else:
