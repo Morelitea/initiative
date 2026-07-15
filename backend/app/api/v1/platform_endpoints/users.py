@@ -327,10 +327,9 @@ async def update_users_me(
 
     password = update_data.get("password")
     if password:
-        # Re-authenticate with the current password before changing it, so a
-        # leaked bearer token / API key can't silently take over the account.
+        # Re-authenticate with the current password before changing it.
         # OIDC-only accounts have no local password to confirm and are exempt
-        # (mirrors the delete-account flow's oidc_sub gate).
+        # (mirrors the delete-account flow's gate).
         if current_user.oidc_sub is None:
             current_password = update_data.get("current_password")
             if not current_password:
@@ -509,10 +508,10 @@ async def update_user(
     if password := update_data.pop("password", None):
         await enforce_password_policy(password)
         user.hashed_password = get_password_hash(password)
-        # Resetting a compromised account must invalidate the attacker's
-        # outstanding sessions: bump token_version (kills unexpired JWTs) and
-        # revoke device tokens / API keys / refresh sessions, mirroring the
-        # self-service and forgot-password reset paths.
+        # A password reset invalidates every outstanding credential: bump
+        # token_version (kills unexpired JWTs) and revoke device tokens /
+        # API keys / refresh sessions, mirroring the self-service and
+        # forgot-password reset paths.
         await user_tokens_service.revoke_user_sessions(
             session, user=user, admin_session=admin_session
         )

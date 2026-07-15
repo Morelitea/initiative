@@ -102,9 +102,8 @@ async def resolve_oidc_identity(
 
     # No link. A real asserted email may match an existing local account —
     # surface it, but never write: linking an email-matched account is the
-    # caller's policy decision (and requires the IdP to have verified the
-    # address; an unverified match is refused outright to keep a mintable
-    # unverified token from touching a victim's pre-registered account).
+    # caller's policy decision, and only a verified address may match an
+    # existing account (an unverified match is refused outright).
     if email:
         normalized = email.lower().strip()
         existing = (
@@ -201,9 +200,9 @@ async def _provision(
     full_name: str | None,
     avatar_url: str | None,
 ) -> IdentityResolution:
-    # No email claim: a synthetic address keyed off the IdP-controlled subject
-    # (not attacker-choosable), as in the existing flow. It is not a mailbox,
-    # so it is never marked verified.
+    # No email claim: a synthetic address keyed off the IdP-controlled subject,
+    # as in the existing flow. It is not a mailbox, so it is never marked
+    # verified.
     if email:
         normalized = email.lower().strip()
         verified = email_verified

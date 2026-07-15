@@ -168,8 +168,8 @@ def decode_session_token(token: str) -> dict[str, Any]:
         jwt.MissingRequiredClaimError,
     ):
         # These three mean "not a new-model token" — absent/foreign aud or iss,
-        # or missing the new claims — so fall back to the legacy scheme. A
-        # genuinely expired/forged/malformed JWT raises a *different* PyJWTError
+        # or missing the new claims — so fall back to the legacy scheme. An
+        # expired/invalid-signature/malformed JWT raises a *different* PyJWTError
         # (ExpiredSignature/InvalidSignature/Decode) that is NOT caught here, so
         # it propagates with its true type instead of being masked by the
         # legacy decode's audience error — keeping cutover-window logs honest.
@@ -281,10 +281,10 @@ def _resolve_handoff_signing_material() -> tuple[str, str, str | None]:
     compromise).
 
     Preferred: RS256 with HANDOFF_SIGNING_PRIVATE_KEY_PEM — FOSS holds
-    the private key, the embed verifies with the matching public key.
-    A leak on the embed side cannot forge tokens, and rotation is just
-    a key swap. Set HANDOFF_SIGNING_KEY_ID for a stable ``kid`` so the
-    embed can pick the right verifying key out of a JWKS.
+    the private key, the embed verifies with the matching public key,
+    and rotation is just a key swap. Set HANDOFF_SIGNING_KEY_ID for a
+    stable ``kid`` so the embed can pick the right verifying key out of
+    a JWKS.
     """
     private_pem = settings.HANDOFF_SIGNING_PRIVATE_KEY_PEM
     if private_pem:

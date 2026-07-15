@@ -513,18 +513,13 @@ async def logout(
     current_user: Annotated[User | None, Depends(get_current_user_optional)] = None,
 ) -> None:
     # Note: `session` and `get_current_user_optional` must resolve to the
-    # SAME session. Previously this used AdminSessionDep, which in
-    # production is a different session than SessionDep — so the
-    # `current_user` object returned by the optional auth dep was attached
-    # to a detached SessionDep session, and `session.commit()` on the
-    # admin session silently dropped the token_version bump. That let
-    # previously-issued JWTs stay valid after logout, so a browser with
-    # a cached cookie could keep authenticating until natural expiry.
-    # In tests it worked by accident because conftest aliases both deps
-    # to the same fixture session.
+    # SAME session — the `current_user` object is attached to the dep's
+    # session, so committing a different one silently drops the
+    # token_version bump. (Tests alias both deps to one fixture session,
+    # which can mask a mismatch.)
     # (``admin_session`` is a SEPARATE, deliberate session used only to revoke
-    # auth_sessions — which the request-path role can't touch — never for the
-    # token_version bump above.)
+    # auth_sessions — which the request-path role doesn't touch — never for
+    # the token_version bump above.)
     if current_user is not None:
         current_user.token_version += 1
         auth_header = request.headers.get("Authorization", "")
@@ -538,10 +533,9 @@ async def logout(
                 session.add(device_token)
         session.add(current_user)
         await session.commit()
-        # Kill the refresh side too: the token_version bump invalidates
-        # outstanding *access* tokens, but a leaked refresh token would otherwise
-        # keep rotating (and mint tokens at the new version). "Logout = sign out
-        # everywhere", matching the global token_version bump.
+        # Revoke the refresh side too: the token_version bump covers access
+        # tokens, and revoking the refresh chain completes "logout = sign out
+        # everywhere".
         await session_service.revoke_all_for_user(
             admin_session, user_id=current_user.id
         )
