@@ -1,9 +1,9 @@
 """Initiative/guild backup manifest — the index at the root of a backup zip.
 
 A backup is a zip of per-tool JSON envelopes (each independently versioned by
-its own ``kind`` + ``schema_version``) plus optional upload blobs under
+its own ``type`` + ``schema_version``) plus optional upload blobs under
 ``assets/``. The manifest is what a future import wizard reads first: it
-inventories every entry by kind so files dispatch to the right importer, maps
+inventories every entry by type so files dispatch to the right importer, maps
 assets back to the documents that reference them, and records what was
 deliberately left out (``skipped``) so a backup never silently loses data.
 
@@ -28,7 +28,7 @@ class ManifestEntry(SanitizedBaseModel):
 
     path: str
     tool: str  # "project" | "document" | "queue" | "counter_group" | "calendar_event"
-    kind: str  # envelope kind, or "file"
+    type: str  # envelope type, or "file"
     schema_version: Optional[int] = None  # None for foreign formats
     entity_id: int
     title: str
@@ -71,7 +71,7 @@ class ManifestInitiative(SanitizedBaseModel):
 
 
 class BackupManifest(SanitizedBaseModel):
-    kind: str  # "initiative-backup" | "guild-backup"
+    type: str  # "initiative-backup" | "guild-backup"
     schema_version: int = BACKUP_SCHEMA_VERSION
     app_version: str
     exported_at: datetime

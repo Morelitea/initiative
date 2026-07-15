@@ -118,7 +118,7 @@ def build_counter_group_item(
 
 def _envelope(group: CounterGroup) -> dict[str, Any]:
     return {
-        "kind": "initiative-counter-group",
+        "type": "initiative-counter-group",
         "schema_version": 1,
         "name": group.name,
         "description": group.description,

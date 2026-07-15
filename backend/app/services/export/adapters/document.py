@@ -170,7 +170,7 @@ def build_document_item(
     if doc_type == DocumentType.whiteboard.value:
         # Importable backup: the scene wrapped as the standard Excalidraw
         # file shape INSIDE the generic envelope — a future import
-        # discriminates by kind like every other document type, and
+        # discriminates by type like every other document type, and
         # unwrapping `content` still yields a file any Excalidraw opens.
         content = document.content or {}
         data = _envelope(
@@ -193,7 +193,7 @@ def build_document_item(
         if format == "json":
             # Importable backup: the canonical (already-versioned) snapshot
             # in the generic document envelope, so a future import can
-            # discriminate file kinds uniformly.
+            # discriminate file types uniformly.
             data = _envelope(document, content=document.content or {})
         else:
             data = {"title": document.title, "grid": document.content or {}}
@@ -221,14 +221,14 @@ def build_document_item(
 
 
 def _envelope(document: Document, *, content: dict) -> dict:
-    """The generic ``initiative-document`` envelope: kind + schema_version
+    """The generic ``initiative-document`` envelope: type + schema_version
     discriminate the file for a future import; tags (by name) and custom
     properties (flat, by name) ride along so a backup keeps the document's
     metadata."""
     from app.services.export.property_values import property_export_dict
 
     return {
-        "kind": "initiative-document",
+        "type": "initiative-document",
         "schema_version": 1,
         "document_type": _doc_type(document),
         "title": document.title,

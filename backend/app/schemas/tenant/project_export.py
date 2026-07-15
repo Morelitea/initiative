@@ -137,6 +137,10 @@ class ProjectExportEnvelope(SanitizedBaseModel):
     every list, so requiring them costs nothing at runtime.
     """
 
+    # File-type discriminator, matching the other tool envelopes — a future
+    # import dispatches on it. Defaulted so files exported before the field
+    # existed still validate.
+    type: str = "initiative-project"
     schema_version: int = SCHEMA_VERSION
     app_version: str
     exported_at: datetime
