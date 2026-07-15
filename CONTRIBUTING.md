@@ -21,6 +21,17 @@ This will:
 
 When you're done, run **`dev:cleanup`** from the task palette to remove all seeded test data. Stopping the debug session (if launched via F5) also triggers cleanup automatically.
 
+> **WSL users — the `dev:open-browser` step needs an opener.** The final task opens the app via Python's `webbrowser`, which honors the `$BROWSER` environment variable. Under WSL its default fallback (`gio`) silently no-ops — the task appears to run but no browser opens. Point `$BROWSER` at a Windows opener once in your shell profile:
+>
+> ```bash
+> # ~/.bashrc — open URLs in the Windows default browser (WSL only)
+> export BROWSER=explorer.exe
+> ```
+>
+> After adding the line, **reload the VS Code window** (`Ctrl+Shift+P` → *Developer: Reload Window*) — the task runs as a plain process and inherits the environment VS Code captured at startup, so it won't see the new variable until VS Code re-reads your shell.
+>
+> `explorer.exe` is Windows interop that ships with WSL, so there is nothing to install. If you prefer the dedicated `wslview` command, install the optional **`wslu`** package (from your distro, or the `ppa:wslutilities/wslu` PPA where it has been dropped from the archive) and use `export BROWSER=wslview` instead.
+
 **What gets seeded:**
 - 2 campaign initiatives (Curse of Strahd, Lost Mine of Phandelver) + the default initiative
 - 3 projects with 12 tasks across all priorities and statuses

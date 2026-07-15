@@ -56,7 +56,7 @@ async def is_password_breached(password: str) -> bool:
     # below and turns every password change into a 500 instead of
     # failing open.
     sha1 = (
-        hashlib.sha1(password.encode("utf-8"), usedforsecurity=False)  # nosemgrep
+        hashlib.sha1(password.encode("utf-8"), usedforsecurity=False)
         .hexdigest()
         .upper()
     )

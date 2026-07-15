@@ -36,8 +36,6 @@ export const ResetPasswordPage = () => {
       setError(t("resetPassword.missingToken"));
       return;
     }
-    // UX equality check of two values the user just typed — not a secret
-    // comparison. nosemgrep
     if (password !== confirmPassword) {
       setError(t("resetPassword.passwordMismatch"));
       return;

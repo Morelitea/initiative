@@ -122,7 +122,7 @@ def _assert_legacy_guilds_converted(conn) -> None:
         # ``table`` ∈ _LEGACY_PUBLIC_GUILD_TABLES (the catalog read above is
         # intersected with that hardcoded allowlist via ANY(:t)) — never user
         # input.
-        rows = conn.execute(  # nosemgrep
+        rows = conn.execute(
             text(
                 f'SELECT DISTINCT p.guild_id FROM public."{table}" p '  # noqa: S608
                 "JOIN public.guilds g ON g.id = p.guild_id"
@@ -227,7 +227,7 @@ def _heal_sequence_defaults(conn, schema: str) -> None:
         conn.execute(text(f"CREATE SEQUENCE IF NOT EXISTS {qseq} AS integer"))
         # Never rewind: advance to the max of the column's ids and wherever the
         # local sequence already is (it may exist and be live).
-        conn.execute(  # nosemgrep
+        conn.execute(
             text(
                 f"SELECT setval('{qseq}', GREATEST("  # noqa: S608
                 f'(SELECT COALESCE(max("{col}"), 0) FROM "{schema}"."{tbl}"), '

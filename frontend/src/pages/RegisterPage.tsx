@@ -138,8 +138,6 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
     setError(null);
     setInfoMessage(null);
     try {
-      // UX equality check of two values the user just typed — not a secret
-      // comparison. nosemgrep
       if (password !== confirmPassword) {
         setError(t("register.passwordMismatch"));
         return;

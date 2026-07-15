@@ -201,7 +201,7 @@ async def _rotate_fernet_column(
         else:
             # Count actual writes: a concurrent rotation may have already re-keyed
             # this value (WHERE no longer matches → rowcount 0), so don't overcount.
-            res = await write_conn.execute(  # nosemgrep
+            res = await write_conn.execute(
                 # Identifiers come from this module's hardcoded Fernet-column
                 # registry (and guild_schema_name(int)) — never user input;
                 # values are bind params.
