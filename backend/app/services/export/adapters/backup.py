@@ -95,11 +95,15 @@ class InitiativeExportAdapter:
         return settings.EXPORT_MAX_BACKUP_ROWS
 
     async def count(self, session, *, user, guild_id, params, format) -> int:
-        scope = await _resolve_scope(session, user, guild_id, params, kind=self.source)
+        scope = await _resolve_scope(
+            session, user, guild_id, params, scope_kind=self.source
+        )
         return await _count_scope(session, user, guild_id, params, scope)
 
     async def build(self, session, *, user, guild_id, params, format) -> RenderRequest:
-        scope = await _resolve_scope(session, user, guild_id, params, kind=self.source)
+        scope = await _resolve_scope(
+            session, user, guild_id, params, scope_kind=self.source
+        )
         return await _build_scope(session, user, guild_id, params, scope, self.source)
 
 
@@ -113,7 +117,7 @@ class GuildExportAdapter(InitiativeExportAdapter):
 
 
 async def _resolve_scope(
-    session: AsyncSession, user: User, guild_id: int, params: dict, *, kind: str
+    session: AsyncSession, user: User, guild_id: int, params: dict, *, scope_kind: str
 ):
     """The initiatives this export covers, authorization included: guild scope
     demands a guild ADMIN creator (re-checked on worker replay); initiative
@@ -126,9 +130,9 @@ async def _resolve_scope(
     from app.services.platform import guilds as guilds_service
     from app.services.rls import is_guild_admin
 
-    _validate_params(params, kind=kind)
+    _validate_params(params, scope_kind=scope_kind)
 
-    if kind == "guild":
+    if scope_kind == "guild":
         membership = await guilds_service.get_membership(
             session, guild_id=guild_id, user_id=user.id
         )
@@ -161,7 +165,7 @@ async def _resolve_scope(
     return [initiative]
 
 
-def _validate_params(params: dict, *, kind: str) -> None:
+def _validate_params(params: dict, *, scope_kind: str) -> None:
     mode = params.get("mode") or "backup"
     if mode not in ("backup", "report"):
         raise ExportError(ExportMessages.EXPORT_INVALID_PARAMS)
@@ -313,7 +317,7 @@ async def _build_scope(
     guild_id: int,
     params: dict,
     initiatives,
-    kind: str,
+    scope_kind: str,
 ) -> RenderRequest:
     from app.core.version import get_version
     from app.models.platform.guild import Guild
@@ -340,7 +344,7 @@ async def _build_scope(
     if mode == "backup":
         guild = await session.get(Guild, guild_id)
         manifest = BackupManifest(
-            kind=f"{kind}-backup",
+            type=f"{scope_kind}-backup",
             schema_version=BACKUP_SCHEMA_VERSION,
             app_version=get_version(),
             exported_at=datetime.now(timezone.utc),
@@ -466,7 +470,7 @@ class _ScopeBuilder:
                     item,
                     path=path,
                     tool="project",
-                    kind="initiative-project",
+                    type="initiative-project",
                     schema_version=envelope.schema_version,
                     entity_id=project_id,
                     title=envelope.project.name,
@@ -539,7 +543,7 @@ class _ScopeBuilder:
                     item,
                     path=path,
                     tool="document",
-                    kind="initiative-document",
+                    type="initiative-document",
                     schema_version=1,
                     entity_id=document.id,
                     title=document.title,
@@ -566,7 +570,7 @@ class _ScopeBuilder:
                 ManifestEntry(
                     path=asset_path,
                     tool="document",
-                    kind="file",
+                    type="file",
                     schema_version=None,
                     entity_id=document.id,
                     title=document.title,
@@ -601,7 +605,7 @@ class _ScopeBuilder:
                     item,
                     path=f"{path_stem}.initiative-queue.json",
                     tool="queue",
-                    kind="initiative-queue",
+                    type="initiative-queue",
                     schema_version=1,
                     entity_id=queue.id,
                     title=queue.name,
@@ -634,7 +638,7 @@ class _ScopeBuilder:
                     item,
                     path=f"{path_stem}.initiative-counter-group.json",
                     tool="counter_group",
-                    kind="initiative-counter-group",
+                    type="initiative-counter-group",
                     schema_version=1,
                     entity_id=group.id,
                     title=group.name,
@@ -672,7 +676,7 @@ class _ScopeBuilder:
             item = RenderItem(
                 key=f"{folder}/calendar-events",
                 data={
-                    "kind": "initiative-calendar-events",
+                    "type": "initiative-calendar-events",
                     "schema_version": 1,
                     "events": dicts,
                 },
@@ -687,7 +691,7 @@ class _ScopeBuilder:
                     ManifestEntry(
                         path=f"{folder}/calendar-events.json",
                         tool="calendar_event",
-                        kind="initiative-calendar-events",
+                        type="initiative-calendar-events",
                         schema_version=1,
                         entity_id=initiative.id,
                         title="calendar-events",
@@ -872,7 +876,9 @@ async def estimate_backup(
     from app.services.tenant.attachments import get_guild_storage_usage
 
     params = {"initiative_id": initiative_id, "include_uploads": include_uploads}
-    initiatives = await _resolve_scope(session, user, guild_id, params, kind=scope)
+    initiatives = await _resolve_scope(
+        session, user, guild_id, params, scope_kind=scope
+    )
     ids = await _enumerate(session, user, guild_id, params, initiatives)
 
     tools: dict[str, BackupToolEstimate] = {}

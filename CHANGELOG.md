@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Single sign-on (OIDC) logins now establish the same renewable server-side session as password logins, so upcoming silent session renewal will cover both sign-in methods. No action needed; existing logins keep working.
+- Export envelopes and backup manifests now use a `type` field as their format discriminator instead of `kind` (values unchanged, no schema version bump), and project backups carry `type: "initiative-project"` like the other tools. Files exported by 0.56.0 still import: the editor's import accepts both spellings, and project backups never depended on the field.
 
 ## [0.56.0] - 2026-07-14
 
