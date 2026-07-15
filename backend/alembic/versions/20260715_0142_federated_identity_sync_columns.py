@@ -63,5 +63,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute("DROP TABLE IF EXISTS public.federated_identity_secrets CASCADE")
+    op.drop_table("federated_identity_secrets")
     op.drop_column("federated_identities", "last_synced_at")

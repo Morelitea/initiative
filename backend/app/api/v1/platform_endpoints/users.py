@@ -306,11 +306,14 @@ async def update_users_me(
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> UserRead:
     update_data = user_in.model_dump(exclude_unset=True)
+    # Fetched once: feeds both the password-gate exemption and the response
+    # payload (identities can't change within this request).
+    is_sso_account = await has_federated_identity(
+        admin_session, user_id=current_user.id
+    )
     if not update_data:
         payload = UserRead.model_validate(current_user)
-        payload.has_federated_identity = await has_federated_identity(
-            admin_session, user_id=current_user.id
-        )
+        payload.has_federated_identity = is_sso_account
         return payload
 
     if (
@@ -341,7 +344,7 @@ async def update_users_me(
         # Re-authenticate with the current password before changing it.
         # SSO-only accounts have no local password to confirm and are exempt
         # (mirrors the delete-account flow's gate).
-        if not await has_federated_identity(admin_session, user_id=current_user.id):
+        if not is_sso_account:
             current_password = update_data.get("current_password")
             if not current_password:
                 raise HTTPException(
@@ -466,9 +469,7 @@ async def update_users_me(
     # The SPA replaces its auth state with this response, so carry the same
     # linked-identity signal /users/me serves.
     payload = UserRead.model_validate(current_user)
-    payload.has_federated_identity = await has_federated_identity(
-        admin_session, user_id=current_user.id
-    )
+    payload.has_federated_identity = is_sso_account
     return payload
 
 
