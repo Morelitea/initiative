@@ -17,12 +17,11 @@ bash scripts/dev-seed.sh
 nohup bash scripts/dev-backend.sh > /tmp/initiative-backend.log 2>&1 &
 BACKEND_PID=$!
 
-# Start the frontend in the background (Vite, port-cleanup built in).
-nohup bash scripts/dev-frontend.sh > /tmp/initiative-frontend.log 2>&1 &
+# Start the frontend in the background (Vite, port-cleanup built in). --open makes
+# Vite open the app in the browser once it's listening; its `open` dependency is
+# WSL-aware (launches the Windows browser) and handles macOS/Linux too.
+nohup bash scripts/dev-frontend.sh --open > /tmp/initiative-frontend.log 2>&1 &
 FRONTEND_PID=$!
-
-# Best-effort browser open once Vite is up.
-( sleep 3 && bash scripts/dev-open-browser.sh ) &
 
 echo
 echo "Dev environment starting:"

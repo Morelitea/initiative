@@ -21,24 +21,21 @@ This will:
 
 When you're done, run **`dev:cleanup`** from the task palette to remove all seeded test data. Stopping the debug session (if launched via F5) also triggers cleanup automatically.
 
-> **WSL users — the `dev:open-browser` step needs an opener.** The final task opens the app via Python's `webbrowser`, which honors the `$BROWSER` environment variable. Under WSL its default fallback (`gio`) silently no-ops — the task appears to run but no browser opens. Point `$BROWSER` at a Windows opener once in your shell profile:
->
-> ```bash
-> # ~/.bashrc — open URLs in the Windows default browser (WSL only)
-> export BROWSER=explorer.exe
-> ```
->
-> After adding the line, **reload the VS Code window** (`Ctrl+Shift+P` → *Developer: Reload Window*) — the task runs as a plain process and inherits the environment VS Code captured at startup, so it won't see the new variable until VS Code re-reads your shell.
->
-> `explorer.exe` is Windows interop that ships with WSL, so there is nothing to install. If you prefer the dedicated `wslview` command, install the optional **`wslu`** package (from your distro, or the `ppa:wslutilities/wslu` PPA where it has been dropped from the archive) and use `export BROWSER=wslview` instead.
-
 **What gets seeded:**
-- 2 campaign initiatives (Curse of Strahd, Lost Mine of Phandelver) + the default initiative
-- 3 projects with 12 tasks across all priorities and statuses
-- Subtasks, assignees, documents, tags, and comments
-- All data is clearly TTRPG-themed so it's never confused with real data
 
-The seeder saves created IDs to `.vscode/.dev_seed_ids.json` (gitignored) and uses them for clean teardown. See `scripts/seed_dev_data.py` for details.
+A realistic, TTRPG-themed dataset that exercises the whole app — guilds and initiatives, projects, tasks (with subtasks, assignees, statuses, and priorities), documents, tags, comments, and platform/PAM access-grant rows. It's deliberately themed so it's never mistaken for real data. See `scripts/seed_dev_data.py` for the exact contents.
+
+**Seeded logins** — every account below uses the password **`changeme`**:
+
+| Accounts | Role |
+|----------|------|
+| `admin1@example.com` … `admin4@example.com` | Dedicated **guild admins** (platform tier: member) |
+| `user1@example.com` … `user8@example.com` | Regular **guild members** (never guild admins) |
+| `owner@` · `operator@` · `moderator@` · `support@` · `member@example.com` | One user per **platform-role** tier, for exercising the privilege ladder |
+
+The bootstrap superuser from your `.env` (`FIRST_OWNER_EMAIL`) is also available with its configured password.
+
+The seeder saves created IDs to `.vscode/.dev_seed_ids.json` (gitignored) and uses them for clean teardown.
 
 ### Manual Setup
 

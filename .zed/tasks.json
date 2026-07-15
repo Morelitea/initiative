@@ -33,19 +33,11 @@
   },
   {
     "label": "dev:frontend",
-    "command": "bash scripts/dev-frontend.sh",
+    "command": "bash scripts/dev-frontend.sh --open",
     "cwd": "$ZED_WORKTREE_ROOT",
     "use_new_terminal": false,
     "allow_concurrent_runs": false,
     "reveal": "always"
-  },
-  {
-    "label": "dev:open-browser",
-    "command": "bash scripts/dev-open-browser.sh",
-    "cwd": "$ZED_WORKTREE_ROOT",
-    "use_new_terminal": false,
-    "allow_concurrent_runs": true,
-    "reveal": "never"
   },
   {
     "label": "Dev Environment",
