@@ -556,6 +556,7 @@
     "success": "„{{name}}“ importiert",
     "warningUnmatchedAssignees_one": "Importiert, aber {{count}} zuständige Person, die nicht in dieser Initiative ist, wurde verworfen: {{emails}}",
     "warningUnmatchedAssignees_other": "Importiert, aber {{count}} zuständige Personen, die nicht in dieser Initiative sind, wurden verworfen: {{emails}}",
-    "error": "Das Projekt konnte nicht importiert werden. Bitte versuche es erneut."
+    "error": "Das Projekt konnte nicht importiert werden. Bitte versuche es erneut.",
+    "queued": "Import gestartet — du erhältst eine Benachrichtigung, sobald er abgeschlossen ist."
   }
 }

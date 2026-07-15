@@ -307,5 +307,20 @@
   "SETTINGS_STORAGE_S3_INCOMPLETE": "Les paramètres de stockage S3 sont incomplets.",
   "SETTINGS_STORAGE_TEST_FAILED": "Impossible de se connecter au backend de stockage.",
   "SETTINGS_STORAGE_BACKFILL_RUNNING": "Une migration est déjà en cours.",
-  "SETTINGS_STORAGE_BACKFILL_NOT_CONFIGURED": "Configurez un bucket S3 avant de lancer la migration."
+  "SETTINGS_STORAGE_BACKFILL_NOT_CONFIGURED": "Configurez un bucket S3 avant de lancer la migration.",
+  "IMPORT_UNKNOWN_TYPE": "Ce fichier n'est pas un export Initiative reconnu.",
+  "IMPORT_INVALID_ENVELOPE": "Le fichier d'import est invalide ou corrompu.",
+  "IMPORT_SCHEMA_VERSION_UNSUPPORTED": "Ce fichier provient d'une version plus récente d'Initiative et ne peut pas être importé ici.",
+  "IMPORT_INVALID_PARAMS": "La demande d'import était invalide.",
+  "IMPORT_TOO_LARGE": "Cet import est trop volumineux.",
+  "IMPORT_JOB_LIMIT_REACHED": "Trop d'imports sont en cours. Attendez qu'un import se termine puis réessayez.",
+  "IMPORT_WRITE_REQUIRED": "L'import nécessite un accès en écriture, que cette guilde n'autorise pas actuellement.",
+  "IMPORT_JOB_NOT_FOUND": "Import introuvable.",
+  "IMPORT_NOT_CANCELLABLE": "Cet import ne peut plus être annulé.",
+  "IMPORT_TOOL_DISABLED": "Cet outil n'est pas activé dans l'initiative choisie.",
+  "IMPORT_PERMISSION_REQUIRED": "Vous n'avez pas la permission de créer ce contenu dans l'initiative choisie.",
+  "IMPORT_APPLY_FAILED": "L'import a échoué. Rien n'a été importé.",
+  "IMPORT_ACCESS_REVOKED": "L'import a échoué car l'accès à la guilde a été révoqué.",
+  "IMPORT_INTERRUPTED": "L'import a été interrompu et peut être incomplet. Vérifiez avant de réessayer.",
+  "IMPORT_CREATOR_INACTIVE": "L'import a échoué car le compte demandeur est inactif."
 }
