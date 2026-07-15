@@ -41,7 +41,7 @@ export const AdvancedToolPage = () => {
   // owned by the external service (our advanced_tools table only stores what
   // that service builds), so "create" is a hand-off, not an insert. Two paths:
   //   COLD (opened via a Create button from elsewhere) — baked into the frozen
-  //     iframe src below as ?intent=create, once, at first render.
+  //     iframe src below as ?intent=create, once per initiative.
   //   WARM (clicked while already viewing the embed) — a live postMessage, so
   //     the src never changes and the iframe never reloads.
   const { create } = useSearch({ strict: false }) as { create?: string };
@@ -84,10 +84,13 @@ export const AdvancedToolPage = () => {
   );
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  // The iframe src is frozen on first render (see the render block): the cold
-  // ?intent=create is baked in once, so later warm clicks — which only change
-  // the `create` route token — never alter the src and never reload the iframe.
-  const iframeSrcRef = useRef<string | null>(null);
+  // The iframe src is frozen PER INITIATIVE (see the render block): the cold
+  // ?intent=create is baked in once per initiative, so warm clicks — which only
+  // change the `create` route token — never alter the src and never reload the
+  // iframe. Keyed by initiative id because the router keeps this component
+  // mounted when navigating between two initiatives' embeds; a lifetime freeze
+  // would keep showing the first initiative's iframe.
+  const iframeSrcRef = useRef<{ initiativeId: number; src: string } | null>(null);
   const handoffRef = useRef<AdvancedToolHandoffResponse | null>(null);
   // Tracks whether the cached handoff token has already been forwarded
   // to the iframe. The first ``advanced-tool:ready`` uses the cached
@@ -227,22 +230,30 @@ export const AdvancedToolPage = () => {
   // mounted only changes the `create` route token (the frozen src never
   // reloads the iframe), so we deliver the intent as a live message — mirroring
   // advanced-tool:locale — and the embed opens its create screen in place. The
-  // signed handoff stays the trust boundary; this is a hint. We skip the first
-  // run because the COLD case already rides the frozen src's ?intent=create;
-  // firing here too would double-trigger. (The contentWindow is also null until
-  // the embed is mounted, so nothing is posted mid-load.)
-  const skipFirstCreateIntent = useRef(true);
+  // signed handoff stays the trust boundary; this is a hint.
+  //
+  // Value-driven, not run-driven: this effect also re-fires when iframeOrigin
+  // or isReady resolve asynchronously, so we post only when the token CHANGES
+  // from the last one delivered. Tokens delivered cold (baked into the frozen
+  // src) are pre-consumed where the src is frozen, so they never double-fire
+  // here. A token is consumed only on a successful post — a warm click landing
+  // before the iframe renders is delivered when isReady flips, not dropped.
+  // (A loading iframe DOES have a contentWindow; the target + isReady guard
+  // mirrors the locale bridge above.)
+  const lastCreateTokenRef = useRef(create);
   useEffect(() => {
-    if (skipFirstCreateIntent.current) {
-      skipFirstCreateIntent.current = false;
+    if (create === lastCreateTokenRef.current) return;
+    if (create == null) {
+      // Token cleared (e.g. navigating to a plain embed link) — forget it.
+      lastCreateTokenRef.current = create;
       return;
     }
-    if (create == null || !iframeOrigin) return;
-    iframeRef.current?.contentWindow?.postMessage(
-      { type: "advanced-tool:intent", intent: "create" },
-      iframeOrigin
-    );
-  }, [create, iframeOrigin]);
+    if (!iframeOrigin) return;
+    const target = iframeRef.current?.contentWindow;
+    if (!target || !isReady) return;
+    lastCreateTokenRef.current = create;
+    target.postMessage({ type: "advanced-tool:intent", intent: "create" }, iframeOrigin);
+  }, [create, iframeOrigin, isReady]);
 
   if (configLoading || initiativesQuery.isLoading) {
     return (
@@ -319,15 +330,21 @@ export const AdvancedToolPage = () => {
   // 3rem sticky header on top and the 20rem sidebar on desktop. On mobile
   // the sidebar is offcanvas, so the wrapper extends edge-to-edge.
   //
-  // Freeze the iframe src on first render: the COLD create intent (page opened
+  // Freeze the iframe src per initiative: the COLD create intent (page opened
   // via a Create button) is baked into the URL once as ?intent=create — a
   // routing hint mirroring the guild page's ?scope=guild. Warm re-clicks only
   // change the `create` route token and must NOT reload the iframe, so the src
-  // stays frozen and warm intents ride the postMessage above instead.
-  if (iframeSrcRef.current === null) {
-    iframeSrcRef.current = `${advancedTool.url}/embed/${initiative.id}${
-      create != null ? "?intent=create" : ""
-    }`;
+  // stays frozen and warm intents ride the postMessage above instead. A cold
+  // token is consumed here (write-once-per-key during render, same idiom as
+  // the freeze itself) so the warm effect never re-posts what the URL already
+  // delivered. Navigating to ANOTHER initiative's embed re-freezes for it —
+  // the iframe reload is correct there (different content).
+  if (iframeSrcRef.current?.initiativeId !== initiative.id) {
+    iframeSrcRef.current = {
+      initiativeId: initiative.id,
+      src: `${advancedTool.url}/embed/${initiative.id}${create != null ? "?intent=create" : ""}`,
+    };
+    lastCreateTokenRef.current = create;
   }
 
   // The iframe URL has NO secrets in it — only the initiative id (and the cold
@@ -340,7 +357,7 @@ export const AdvancedToolPage = () => {
     <div className="fixed inset-x-0 top-12 bottom-0 md:left-[var(--sidebar-width,20rem)]">
       <iframe
         ref={iframeRef}
-        src={iframeSrcRef.current}
+        src={iframeSrcRef.current.src}
         title={advancedTool.name}
         className="block h-full w-full border-0 bg-background"
         // Minimum capabilities for an embedded SPA. Notably absent:
