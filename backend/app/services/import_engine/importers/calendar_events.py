@@ -119,6 +119,7 @@ class CalendarEventsImporter:
                 "properties": props_matched,
                 "attendees": attendees_matched,
             },
+            failed={"events": failed} if failed else {},
             unmatched_emails=sorted(unmatched_emails),
             warnings=warnings,
         )

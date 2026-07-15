@@ -26,6 +26,7 @@ from app.core.messages import ImportEngineMessages
 from app.models.platform.user import User
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
 from app.models.tenant.initiative import Initiative
+from app.core.tools import CORE_TOOLS, tool_for_create_permission
 from app.services.import_engine.contract import (
     EnvelopeImporter,
     ImportEngineError,
@@ -88,10 +89,13 @@ async def load_target_initiative(
             ImportEngineMessages.IMPORT_INVALID_PARAMS, status_code=404
         )
 
-    # Tool master switch (core tools have no flag column — default on).
+    # Tool master switch, derived from the Tool enum (the single source of
+    # the create_*/​*_enabled naming) — never by string surgery on the
+    # permission key. Registry construction already proved the mapping exists
+    # (importers/__init__.py), so a miss here is impossible, not "default on".
     permission = PermissionKey(importer.permission)
-    flag_name = permission.value.replace("create_", "") + "_enabled"
-    if not getattr(initiative, flag_name, True):
+    tool = tool_for_create_permission(permission.value)
+    if tool not in CORE_TOOLS and not getattr(initiative, tool.view_permission):
         raise ImportEngineError(
             ImportEngineMessages.IMPORT_TOOL_DISABLED, status_code=400
         )

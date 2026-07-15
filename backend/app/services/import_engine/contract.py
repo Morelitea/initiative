@@ -45,6 +45,9 @@ class EnvelopeImportResult(SanitizedBaseModel):
     created: dict[str, int] = {}
     # Existing rows reused instead of created (tags, property definitions).
     matched: dict[str, int] = {}
+    # Rows that failed inside a partial-success apply (per-event savepoints),
+    # by noun — structured so the UI never parses warning strings for counts.
+    failed: dict[str, int] = {}
     # Property definitions that collided by name and were created renamed
     # (names when known, count always).
     renamed_properties: list[str] = []

@@ -596,3 +596,59 @@ async def test_import_jobs_are_own_row_isolated(
     assert (await client.get(a.g("/imports/jobs"), headers=other.headers)).json() == []
     allowed = await client.get(a.g(f"/imports/jobs/{job_id}"), headers=admin.headers)
     assert allowed.status_code == 200
+
+
+async def test_envelope_byte_bound_enforced_before_body_is_read(
+    client: AsyncClient, acting_user, session, monkeypatch
+):
+    """The byte bound lives in ASGI middleware, not the handler: an honest
+    Content-Length is refused before any body is read, and a chunked
+    (length-less) stream is cut off as soon as it exceeds the limit — the
+    server never buffers more than the cap."""
+    monkeypatch.setattr(settings, "IMPORT_MAX_ENVELOPE_BYTES", 1024)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+
+    big_body = json.dumps(
+        {
+            "initiative_id": a.initiative.id,
+            "envelope": {
+                "type": "initiative-queue",
+                "schema_version": 1,
+                "name": "Q",
+                "items": [],
+                "padding": "x" * 4096,
+            },
+        }
+    ).encode("utf-8")
+
+    # Declared length over the cap: 413 straight from the header.
+    declared = await client.post(
+        a.g("/imports/envelope"),
+        headers={**a.headers, "Content-Type": "application/json"},
+        content=big_body,
+    )
+    assert declared.status_code == 413
+    assert declared.json()["detail"] == "IMPORT_TOO_LARGE"
+
+    # Chunked transfer (no Content-Length): the streaming backstop cuts the
+    # request off mid-body instead of buffering it all.
+    async def chunks():
+        for i in range(0, len(big_body), 512):
+            yield big_body[i : i + 512]
+
+    chunked = await client.post(
+        a.g("/imports/envelope"),
+        headers={**a.headers, "Content-Type": "application/json"},
+        content=chunks(),
+    )
+    assert chunked.status_code == 413
+    assert chunked.json()["detail"] == "IMPORT_TOO_LARGE"
+
+    # An under-cap request still works — the bound didn't break the route.
+    ok = await _import_envelope(
+        client,
+        a,
+        {"type": "initiative-queue", "schema_version": 1, "name": "Q", "items": []},
+        a.initiative.id,
+    )
+    assert ok.status_code == 201

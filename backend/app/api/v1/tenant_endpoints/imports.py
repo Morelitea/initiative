@@ -288,9 +288,7 @@ async def import_from_ticktick(
 # NOTE: the engine routes use literal paths plus a parametric /{job_id};
 # every literal route MUST stay declared before the parametric ones.
 
-from fastapi import Request, Response  # noqa: E402
-
-from app.core.config import settings  # noqa: E402
+from fastapi import Response  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
 
 from app.core.messages import ImportEngineMessages  # noqa: E402
@@ -326,7 +324,6 @@ def _require_writable(guild_context: GuildContext) -> None:
 @router.post("/envelope", response_model=None, status_code=status.HTTP_201_CREATED)
 async def import_envelope(
     payload: EnvelopeImportRequest,
-    request: Request,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
@@ -336,15 +333,10 @@ async def import_envelope(
     the tool's create permission there. Small envelopes apply immediately and
     return ``201`` with the result; large ones return ``202`` with a queued
     job to poll."""
+    # Byte bound (IMPORT_MAX_ENVELOPE_BYTES) is enforced by
+    # BodySizeLimitMiddleware at the ASGI seam — a handler-level check would
+    # run only after FastAPI had already buffered and parsed the body.
     _require_writable(guild_context)
-    # Byte bound on the request body (rows bound the content, but a
-    # pathological single-field envelope must be bounded in bytes too).
-    content_length = request.headers.get("content-length")
-    if content_length and int(content_length) > settings.IMPORT_MAX_ENVELOPE_BYTES:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=ImportEngineMessages.IMPORT_TOO_LARGE,
-        )
     try:
         outcome = await import_engine.start_envelope_import(
             session,
