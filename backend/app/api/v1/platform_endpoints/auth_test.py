@@ -33,9 +33,12 @@ from app.core.security import (
     get_password_hash,
 )
 from app.models.platform.app_setting import AppSetting, AuthScope
+from app.models.platform.auth_provider import AuthProvider
+from app.models.platform.auth_session import AuthSession
 from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.user import User, UserStatus
 from app.services.auth.oidc.provider import OidcClientConfig, OidcProvider
+from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
 from app.testing.factories import (
     create_user,
     get_auth_headers,
@@ -977,6 +980,74 @@ async def test_oidc_callback_provisions_new_user_and_sets_cookie(
     assert user.oidc_sub == "idp-subject-1"
     identities = await _federated_identities(session)
     assert [(i.user_id, i.subject) for i in identities] == [(user.id, "idp-subject-1")]
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_oidc_callback_establishes_refresh_session(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The web callback additively opens a server-side session recording which
+    provider satisfied the login (amr/sat) and issues the rotating refresh
+    cookie — parity with the password login path (additive-first)."""
+    await _enable_platform_oidc(session)
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims={"email": "sso-session@example.com", "email_verified": True},
+    )
+    assert response.status_code in (302, 307)
+    assert response.cookies.get("refresh_token")
+    assert SESSION_COOKIE_NAME in response.cookies  # legacy cookie unchanged
+
+    provider = (
+        await session.exec(
+            select(AuthProvider).where(AuthProvider.slug == PLATFORM_OIDC_SLUG)
+        )
+    ).one()
+    user = (
+        await session.exec(
+            select(User).where(User.email_hash == hash_email("sso-session@example.com"))
+        )
+    ).one()
+    auth_session = (
+        await session.exec(select(AuthSession).where(AuthSession.user_id == user.id))
+    ).one()
+    assert auth_session.amr == [f"oidc:{PLATFORM_OIDC_SLUG}"]
+    assert auth_session.satisfied_providers == [provider.id]
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_oidc_refresh_cookie_rotates_into_access_token(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The refresh cookie issued by the OIDC callback rotates into a fresh
+    access token that authenticates, same as the password-login one."""
+    await _enable_platform_oidc(session)
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims={"email": "sso-rotate@example.com", "email_verified": True},
+    )
+    assert response.status_code in (302, 307)
+
+    resp = await client.post("/api/v1/auth/refresh")
+    assert resp.status_code == 200
+    access_token = resp.json()["access_token"]
+
+    me = await client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert me.status_code == 200
+    assert me.json()["email"] == "sso-rotate@example.com"
 
 
 @pytest.mark.integration
