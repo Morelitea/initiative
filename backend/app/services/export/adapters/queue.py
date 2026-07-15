@@ -127,7 +127,7 @@ def _rotation_order(items: list[QueueItem]) -> list[QueueItem]:
 
 def _envelope(queue: Queue, items: list[QueueItem]) -> dict[str, Any]:
     return {
-        "kind": "initiative-queue",
+        "type": "initiative-queue",
         "schema_version": 1,
         "name": queue.name,
         "description": queue.description,

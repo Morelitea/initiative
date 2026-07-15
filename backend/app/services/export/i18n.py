@@ -9,7 +9,7 @@ locale is available at both delivery paths: inline (the request's
 so no locale needs to be persisted in the job selector.
 
 Scope: only human-facing report chrome is translated. JSON envelopes stay
-canonical (``kind``/``schema_version``/``view_mode`` and field keys are
+canonical (``type``/``schema_version``/``view_mode`` and field keys are
 importable machine data — translating them would break round-trip), and user
 data (titles, names, tags, status names) is never touched.
 """

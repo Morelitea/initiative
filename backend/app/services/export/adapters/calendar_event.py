@@ -86,7 +86,7 @@ class CalendarEventAdapter:
             # The envelope is importable machine data — stays canonical, never
             # localized (translating field keys / enum values breaks import).
             data: dict[str, Any] = {
-                "kind": "initiative-calendar-events",
+                "type": "initiative-calendar-events",
                 "schema_version": 1,
                 "events": dicts,
             }
