@@ -1969,6 +1969,7 @@ async def test_initiative_backup_zip_layout_and_manifest(
 
     # Spot-check envelopes round-trip through the archive paths.
     project_env = json.loads(archive.read(by_type["initiative-project"]["path"]))
+    assert project_env["type"] == "initiative-project"
     assert project_env["project"]["name"] == "Main Arc"
     assert [t["title"] for t in project_env["tasks"]] == ["Fell the tower"]
     doc_env = json.loads(archive.read(by_type["initiative-document"]["path"]))
