@@ -25,12 +25,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Project backup (JSON) export now runs through the export engine: large projects export as a background job with the inbox-notification pickup instead of one long request, and artifacts follow the same private-to-creator delivery and 7-day expiry. The downloaded file and the import flow are unchanged. (API: `GET /projects/{id}/export` was replaced by `GET /exports/project?project_id=…`.)
 - The calendar's ICS export moved onto the export engine (API: `GET /calendar-events/export.ics` was replaced by `GET /exports/calendar-event?format=ics`); the cross-guild `/me/calendar-events/export.ics` feed is unchanged.
 - The queue page header now matches the other tool pages: a labeled Settings button sized like its neighbors, with queue deletion living in the settings page (where it already had a confirm dialog) instead of a header trash icon.
+- The app's font (Outfit) is now bundled with the app instead of loaded from Google Fonts, so pages render without contacting any third-party host — including on air-gapped or intranet deployments.
 
 ### Fixed
 
 - The advanced tool's Create button now works. The sidebar "+" and the "New Advanced Tool" button (in the tool tab) were previously a disabled placeholder; they now open the connected tool's embedded page on its new-item screen, where the tool is built. Nothing is created on our side until it's saved there.
 - Guild admins can now load the member roster of initiatives they haven't joined. The roster API returned 403 for them — every other initiative read already honored the guild-admin override — which left the linked-member and assignee pickers empty when an admin viewed another member's initiative.
 - Boot now heals missing shared-table grants for the system engine. Startup now re-asserts the audited `system_grants` registry for `app_admin`/`app_user` (tables and their row-id sequences), idempotently and additively — completing the issue #835 fix.
+- The editor's emoji picker no longer breaks when the search text contains characters like `(` or `[`, and suggestions now match on the emoji's name as well as its keywords.
+
+### Security
+
+- All GitHub Actions in the CI/release workflows are pinned to full commit SHAs.
+- Chart theme styles are validated by the browser's own CSS parser before being applied (defense in depth; no user-facing change).
 
 ## [0.55.0] - 2026-07-12
 
