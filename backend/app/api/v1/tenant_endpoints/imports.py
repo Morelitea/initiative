@@ -280,3 +280,151 @@ async def import_from_ticktick(
     )
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# Import engine: envelope imports + job lifecycle
+# ---------------------------------------------------------------------------
+# NOTE: the engine routes use literal paths plus a parametric /{job_id};
+# every literal route MUST stay declared before the parametric ones.
+
+from fastapi import Request, Response  # noqa: E402
+
+from app.core.config import settings  # noqa: E402
+from fastapi.responses import JSONResponse  # noqa: E402
+
+from app.core.messages import ImportEngineMessages  # noqa: E402
+from app.models.tenant.import_job import ImportJob, ImportJobStatus  # noqa: E402
+from app.schemas.tenant.import_job import (  # noqa: E402
+    EnvelopeImportRequest,
+    EnvelopeImportResponse,
+    ImportJobRead,
+)
+from app.services.import_engine import engine as import_engine  # noqa: E402
+from app.services.import_engine.contract import (  # noqa: E402
+    ImportEngineError,
+    InlineImport,
+)
+
+_LIST_LIMIT = 50
+
+
+def _require_writable(guild_context: GuildContext) -> None:
+    """Imports are writes, always — no inline carve-out for read-only actors
+    (the inverse of the export engine's read-friendly inline path). A guild
+    in read_only lifecycle can't author rows; a regular PAM grantee must not
+    author content (break-glass acts as a full guild admin and may)."""
+    if guild_context.content_read_only or (
+        guild_context.is_pam and not guild_context.break_glass
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ImportEngineMessages.IMPORT_WRITE_REQUIRED,
+        )
+
+
+@router.post("/envelope", response_model=None, status_code=status.HTTP_201_CREATED)
+async def import_envelope(
+    payload: EnvelopeImportRequest,
+    request: Request,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> Response:
+    """Import a previously-exported JSON envelope (any tool — the envelope's
+    ``type`` field selects the importer) into the chosen initiative. Requires
+    the tool's create permission there. Small envelopes apply immediately and
+    return ``201`` with the result; large ones return ``202`` with a queued
+    job to poll."""
+    _require_writable(guild_context)
+    # Byte bound on the request body (rows bound the content, but a
+    # pathological single-field envelope must be bounded in bytes too).
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > settings.IMPORT_MAX_ENVELOPE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=ImportEngineMessages.IMPORT_TOO_LARGE,
+        )
+    try:
+        outcome = await import_engine.start_envelope_import(
+            session,
+            user=current_user,
+            guild_id=guild_context.guild_id,
+            initiative_id=payload.initiative_id,
+            envelope=payload.envelope,
+        )
+    except ImportEngineError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+
+    if isinstance(outcome, InlineImport):
+        return JSONResponse(
+            status_code=status.HTTP_201_CREATED,
+            content=EnvelopeImportResponse(result=outcome.result).model_dump(
+                mode="json"
+            ),
+        )
+    return JSONResponse(
+        status_code=status.HTTP_202_ACCEPTED,
+        content=ImportJobRead.model_validate(outcome).model_dump(mode="json"),
+    )
+
+
+@router.get("/jobs", response_model=list[ImportJobRead])
+async def list_import_jobs(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> list[ImportJob]:
+    """The caller's import jobs, newest first (RLS scopes the rows: own rows,
+    or the whole guild for a guild admin)."""
+    return list(
+        await session.exec(
+            select(ImportJob).order_by(ImportJob.created_at.desc()).limit(_LIST_LIMIT)
+        )
+    )
+
+
+@router.get("/jobs/{job_id}", response_model=ImportJobRead)
+async def get_import_job(
+    job_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> ImportJob:
+    job = await session.get(ImportJob, job_id)
+    if job is None:  # includes rows RLS hides — 404, never 403
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=ImportEngineMessages.IMPORT_JOB_NOT_FOUND,
+        )
+    return job
+
+
+@router.delete("/jobs/{job_id}", response_model=ImportJobRead)
+async def cancel_import_job(
+    job_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> ImportJob:
+    """Cancel a job that hasn't started applying (staged or queued); its
+    staged payload is deleted. A running/terminal job is not cancellable —
+    409 (an interrupted apply would leave half-committed content)."""
+    job = await session.get(ImportJob, job_id)
+    if job is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=ImportEngineMessages.IMPORT_JOB_NOT_FOUND,
+        )
+    if job.status not in (ImportJobStatus.staged, ImportJobStatus.queued):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=ImportEngineMessages.IMPORT_NOT_CANCELLABLE,
+        )
+    import_engine.delete_payload(guild_context.guild_id, job.payload_ref)
+    job.status = ImportJobStatus.cancelled
+    job.payload_ref = None
+    session.add(job)
+    await session.commit()
+    await session.refresh(job)
+    return job

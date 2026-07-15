@@ -307,5 +307,20 @@
   "SETTINGS_STORAGE_S3_INCOMPLETE": "S3 storage settings are incomplete.",
   "SETTINGS_STORAGE_TEST_FAILED": "Could not connect to the storage backend.",
   "SETTINGS_STORAGE_BACKFILL_RUNNING": "A backfill is already running.",
-  "SETTINGS_STORAGE_BACKFILL_NOT_CONFIGURED": "Configure an S3 bucket before running the backfill."
+  "SETTINGS_STORAGE_BACKFILL_NOT_CONFIGURED": "Configure an S3 bucket before running the backfill.",
+  "IMPORT_UNKNOWN_TYPE": "This file isn't a recognized Initiative export.",
+  "IMPORT_INVALID_ENVELOPE": "The import file is invalid or corrupted.",
+  "IMPORT_SCHEMA_VERSION_UNSUPPORTED": "This file was exported by a newer version of Initiative and can't be imported here.",
+  "IMPORT_INVALID_PARAMS": "The import request was invalid.",
+  "IMPORT_TOO_LARGE": "This import is too large.",
+  "IMPORT_JOB_LIMIT_REACHED": "You have too many imports in progress. Wait for one to finish and try again.",
+  "IMPORT_WRITE_REQUIRED": "Importing needs write access, which this guild doesn't currently allow.",
+  "IMPORT_JOB_NOT_FOUND": "Import not found.",
+  "IMPORT_NOT_CANCELLABLE": "This import can no longer be cancelled.",
+  "IMPORT_TOOL_DISABLED": "That tool isn't enabled in the chosen initiative.",
+  "IMPORT_PERMISSION_REQUIRED": "You don't have permission to create this content in the chosen initiative.",
+  "IMPORT_APPLY_FAILED": "The import failed. Nothing was imported.",
+  "IMPORT_ACCESS_REVOKED": "The import failed because access to the guild was revoked.",
+  "IMPORT_INTERRUPTED": "The import was interrupted and may be incomplete. Check before retrying.",
+  "IMPORT_CREATOR_INACTIVE": "The import failed because the requesting account is inactive."
 }

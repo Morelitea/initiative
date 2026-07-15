@@ -51,7 +51,7 @@ from app.services.tenant import documents as documents_service
 from app.services import permissions as permissions_service
 from app.services import rls as rls_service
 from app.services.tenant import task_statuses as task_statuses_service
-from app.core.messages import ProjectExportMessages, ProjectMessages
+from app.core.messages import ProjectMessages
 from app.core.config import settings as app_settings
 from app.db.query import page_has_next, paginate_sequence
 from app.core.pam_context import has_active_grant
@@ -77,12 +77,9 @@ from app.schemas.tenant.document import (
 )
 from app.schemas.tenant.project_export import (
     ProjectExportEnvelope,
-    ProjectImportRequest,
-    ProjectImportResult,
 )
 from app.schemas.tenant.tag import TagSetRequest, TagSummary
 from app.services.tenant import project_export as project_export_service
-from app.services.tenant import project_import as project_import_service
 from app.services.tenant import recent_views as recent_views_service
 from app.schemas.tenant.recent_view import RecentViewWrite
 
@@ -1911,50 +1908,6 @@ async def build_project_export_for_user(
     )
 
 
-@router.post(
-    "/import", response_model=ProjectImportResult, status_code=status.HTTP_201_CREATED
-)
-async def import_project(
-    payload: ProjectImportRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> ProjectImportResult:
-    """Create a new project from a previously-exported envelope.
-
-    The importer becomes the owner and ``created_by`` for every task.
-    Tags, statuses, and properties are matched by name and created if
-    missing. Property type collisions are resolved by renaming the
-    imported one (never by mutating the target's existing definition).
-    Assignees are matched by email against the *target initiative's*
-    members; unmatched emails are reported in the response so the UI
-    can surface them.
-    """
-    initiative = await _get_initiative_or_404(
-        payload.initiative_id, session, guild_context.guild_id
-    )
-    if not rls_service.is_guild_admin(guild_context.role):
-        has_perm = await rls_service.check_initiative_permission(
-            session,
-            initiative_id=initiative.id,
-            user=current_user,
-            permission_key=PermissionKey.create_projects,
-        )
-        if not has_perm:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=ProjectMessages.CREATE_PERMISSION_REQUIRED,
-            )
-    try:
-        envelope = ProjectExportEnvelope.model_validate(payload.envelope)
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ProjectExportMessages.INVALID_PAYLOAD,
-        ) from exc
-    return await project_import_service.import_project(
-        session,
-        envelope=envelope,
-        target_initiative=initiative,
-        importer=current_user,
-    )
+# POST /projects/import was replaced by the import engine's
+# POST /imports/envelope (the envelope's `type` field selects the importer;
+# projects still apply through services/tenant/project_import.py).

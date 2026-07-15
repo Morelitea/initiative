@@ -556,6 +556,7 @@
     "success": "Imported “{{name}}”",
     "warningUnmatchedAssignees_one": "Imported, but {{count}} assignee not in this initiative was dropped: {{emails}}",
     "warningUnmatchedAssignees_other": "Imported, but {{count}} assignees not in this initiative were dropped: {{emails}}",
-    "error": "Could not import the project. Please try again."
+    "error": "Could not import the project. Please try again.",
+    "queued": "Import started — you'll get a notification when it finishes."
   }
 }
