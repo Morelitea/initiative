@@ -23,7 +23,7 @@ When you're done, run **`dev:cleanup`** from the task palette to remove all seed
 
 **What gets seeded:**
 
-A realistic, TTRPG-themed dataset that exercises the whole app — guilds and initiatives, projects, tasks (with subtasks, assignees, statuses, and priorities), documents, tags, comments, and platform/PAM access-grant rows. It's deliberately themed so it's never mistaken for real data. See `scripts/seed_dev_data.py` for the exact contents.
+A realistic, TTRPG-themed dataset that exercises the whole app. See `scripts/seed_dev_data.py` for the exact contents.
 
 **Seeded logins** — every account below uses the password **`changeme`**:
 
