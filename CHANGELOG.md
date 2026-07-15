@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - The web app now renews your session silently in the background instead of interrupting you with a "session expired" sign-out when the short-lived access token lapses. You stay signed in as long as you use the app at least once every 30 days; signing out still ends the session everywhere immediately.
+- Single sign-on account data (the IdP subject, refresh token, and sync timestamp) now lives on the per-provider identity links instead of the user row; a boot backfill migrates existing data automatically and nothing changes for signed-in users. The API's `UserRead.oidc_sub` field is replaced by a `has_federated_identity` boolean (read by the profile and deletion dialogs to hide the password confirmation for SSO-only accounts).
 
 ## [0.56.1] - 2026-07-14
 

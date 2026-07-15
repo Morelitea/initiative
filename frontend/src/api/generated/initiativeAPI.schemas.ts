@@ -3345,7 +3345,7 @@ export interface UserRead {
   task_completion_audio_feedback: boolean;
   task_completion_haptic_feedback: boolean;
   locale: string;
-  oidc_sub: string | null;
+  has_federated_identity: boolean;
   initiative_roles: UserInitiativeRole[];
   readonly can_create_guilds: boolean;
   /**

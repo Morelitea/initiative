@@ -33,10 +33,11 @@ from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
-from app.core.encryption import SALT_EMAIL, encrypt_field, hash_email
+from app.core.encryption import SALT_EMAIL, encrypt_field, encrypt_token, hash_email
 from app.core.security import get_password_hash
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.federated_identity import FederatedIdentity
+from app.models.platform.federated_identity_secret import FederatedIdentitySecret
 from app.models.platform.user import User, UserRole, UserStatus
 
 logger = logging.getLogger(__name__)
@@ -166,6 +167,52 @@ async def link_identity(
     await session.commit()
     await session.refresh(identity)
     return identity
+
+
+async def set_identity_refresh_token(
+    session: AsyncSession, *, identity_id: int, refresh_token: str | None
+) -> None:
+    """Store (or clear, with ``None``) the IdP refresh token for one identity
+    link in its companion secret row. Stages only — the caller commits."""
+    encrypted = encrypt_token(refresh_token) if refresh_token else None
+    secret = await session.get(FederatedIdentitySecret, identity_id)
+    if secret is None:
+        if encrypted is None:
+            return
+        secret = FederatedIdentitySecret(
+            identity_id=identity_id, refresh_token_encrypted=encrypted
+        )
+    else:
+        secret.refresh_token_encrypted = encrypted
+    session.add(secret)
+
+
+async def has_federated_identity(session: AsyncSession, *, user_id: int) -> bool:
+    """Whether the user has any linked external identity — the "SSO account"
+    signal the password-confirmation gates and the profile UI read."""
+    row = (
+        await session.exec(
+            select(FederatedIdentity.id)
+            .where(FederatedIdentity.user_id == user_id)
+            .limit(1)
+        )
+    ).first()
+    return row is not None
+
+
+async def delete_user_identities(session: AsyncSession, *, user_id: int) -> None:
+    """Remove every identity link (and, via cascade, its stored refresh token)
+    for a user — the anonymize/delete-account cleanup. Stages only."""
+    identities = (
+        await session.exec(
+            select(FederatedIdentity).where(FederatedIdentity.user_id == user_id)
+        )
+    ).all()
+    for identity in identities:
+        secret = await session.get(FederatedIdentitySecret, identity.id)
+        if secret is not None:
+            await session.delete(secret)
+        await session.delete(identity)
 
 
 async def _find_identity(

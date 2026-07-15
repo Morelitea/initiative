@@ -32,10 +32,10 @@ export const SettingsGuildDangerZonePage = () => {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  // OIDC-provisioned accounts have no usable password (the random hash
-  // assigned at SSO callback was never shown to the user). The backend
-  // skips the password gate for these users, so we hide the field.
-  const isOidcUser = user?.oidc_sub != null;
+  // SSO accounts have no usable password (the random hash assigned at
+  // provisioning was never shown to the user). The backend skips the
+  // password gate for these users, so we hide the field.
+  const isOidcUser = user?.has_federated_identity === true;
 
   // The whole phrase is uppercased, including the guild name, so casing
   // never trips up the confirmation. Mirrors the backend check.

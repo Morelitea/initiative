@@ -19,7 +19,6 @@ from app.core.rate_limit import get_real_client_ip, limiter
 from app.core.encryption import (
     decrypt_field,
     encrypt_field,
-    encrypt_token,
     hash_email,
     SALT_EMAIL,
     SALT_OIDC_CLIENT_SECRET,
@@ -58,6 +57,7 @@ from app.services.auth.identity import (
     ResolutionOutcome,
     link_identity,
     resolve_oidc_identity,
+    set_identity_refresh_token,
 )
 from app.services.auth.oidc.discovery import OidcDiscovery
 from app.services.auth.oidc.flow_state import FlowStateError, decode_flow_state
@@ -860,11 +860,12 @@ async def oidc_callback(
         )
         return _error_redirect(is_mobile, OidcMessages.EMAIL_UNVERIFIED)
 
+    identity = resolution.identity
     if resolution.outcome is ResolutionOutcome.EMAIL_MATCH:
         # Platform policy: a verified IdP email claims its matching local
         # account (parity with the previous flow); the link makes every later
         # login resolve by (provider, subject).
-        await link_identity(
+        identity = await link_identity(
             admin_session,
             user=user,
             provider=provider_row,
@@ -872,9 +873,7 @@ async def oidc_callback(
             email_verified=email_verified,
         )
 
-    # Profile refresh + the legacy ``users.oidc_*`` columns — still the inputs
-    # to the background role re-sync and the fallback path until they are
-    # dropped in a later phase.
+    # Profile refresh from the verified claims.
     if email_verified and not user.email_verified:
         user.email_verified = True
     if full_name and user.full_name != full_name:
@@ -882,10 +881,19 @@ async def oidc_callback(
     if avatar_url and user.avatar_url != avatar_url:
         user.avatar_url = avatar_url
         user.avatar_base64 = None
-    user.oidc_sub = completion.subject
-    if completion.refresh_token:
-        user.oidc_refresh_token_encrypted = encrypt_token(completion.refresh_token)
-    user.oidc_last_synced_at = datetime.now(timezone.utc)
+    # Record the login on the identity link: the IdP refresh token (rotated by
+    # the background group re-sync) and the sync stamp the sweep filters on —
+    # the ``federated_identities`` successors of the legacy ``users.oidc_*``
+    # columns, which are no longer written and drop in the final cutover phase.
+    if identity is not None:
+        if completion.refresh_token:
+            await set_identity_refresh_token(
+                admin_session,
+                identity_id=identity.id,
+                refresh_token=completion.refresh_token,
+            )
+        identity.last_synced_at = datetime.now(timezone.utc)
+        admin_session.add(identity)
     admin_session.add(user)
     await admin_session.commit()
     await admin_session.refresh(user)

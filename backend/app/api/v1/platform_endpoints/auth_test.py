@@ -20,6 +20,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import (
     decrypt_field,
+    decrypt_token,
     encrypt_field,
     hash_email,
     SALT_EMAIL,
@@ -37,6 +38,7 @@ from app.models.platform.app_setting import AppSetting, AuthScope
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.auth_session import AuthSession
 from app.models.platform.federated_identity import FederatedIdentity
+from app.models.platform.federated_identity_secret import FederatedIdentitySecret
 from app.models.platform.user import User, UserStatus
 from app.services.auth.oidc.provider import OidcClientConfig, OidcProvider
 from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
@@ -978,9 +980,16 @@ async def test_oidc_callback_provisions_new_user_and_sets_cookie(
     ).one()
     assert user.full_name == "New User"
     assert user.email_verified is True
-    assert user.oidc_sub == "idp-subject-1"
+    # The legacy users.oidc_* columns are no longer written — the identity
+    # link carries the subject, sync stamp, and (companion) refresh token.
+    assert user.oidc_sub is None
     identities = await _federated_identities(session)
     assert [(i.user_id, i.subject) for i in identities] == [(user.id, "idp-subject-1")]
+    identity = identities[0]
+    assert identity.last_synced_at is not None
+    secret = await session.get(FederatedIdentitySecret, identity.id)
+    assert secret is not None
+    assert decrypt_token(secret.refresh_token_encrypted) == "rt-1"
 
 
 @pytest.mark.integration

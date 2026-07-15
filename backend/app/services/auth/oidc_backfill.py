@@ -49,6 +49,7 @@ class OidcBackfillSummary:
     identities_linked: int = 0
     oidc_users: int = 0
     secret_migrated: bool = False
+    refresh_tokens_copied: int = 0
     skipped_reason: str | None = None
 
 
@@ -109,7 +110,38 @@ async def _run(session) -> OidcBackfillSummary:
     )
     inserted = result.rowcount
 
-    # 3. The client secret was reconciled into auth_provider_secrets by
+    # 3. Copy the legacy per-user refresh token + sync stamp onto the identity
+    #    links (verbatim ciphertext — same Fernet salt on both columns). Gaps
+    #    only: a token already recorded on a link (login writes it there now)
+    #    is never overwritten by a stale legacy value.
+    token_result = await session.exec(
+        text(
+            "INSERT INTO federated_identity_secrets "
+            "(identity_id, refresh_token_encrypted, created_at, updated_at) "
+            "SELECT fi.id, u.oidc_refresh_token_encrypted, now(), now() "
+            "FROM federated_identities fi "
+            "JOIN users u ON u.id = fi.user_id AND u.oidc_sub = fi.subject "
+            "WHERE fi.provider_id = :pid "
+            "AND u.oidc_refresh_token_encrypted IS NOT NULL "
+            "ON CONFLICT (identity_id) DO NOTHING"
+        ),
+        params={"pid": provider.id},
+    )
+    refresh_tokens_copied = token_result.rowcount
+    await session.exec(
+        text(
+            "UPDATE federated_identities fi "
+            "SET last_synced_at = u.oidc_last_synced_at "
+            "FROM users u "
+            "WHERE u.id = fi.user_id AND u.oidc_sub = fi.subject "
+            "AND fi.provider_id = :pid "
+            "AND fi.last_synced_at IS NULL "
+            "AND u.oidc_last_synced_at IS NOT NULL"
+        ),
+        params={"pid": provider.id},
+    )
+
+    # 4. The client secret was reconciled into auth_provider_secrets by
     #    ensure_platform_provider above (ciphertext verbatim — same Fernet salt
     #    on both columns); here we only compute the summary flag.
     secret_migrated = bool(
@@ -141,4 +173,5 @@ async def _run(session) -> OidcBackfillSummary:
         identities_linked=inserted,
         oidc_users=oidc_users,
         secret_migrated=secret_migrated,
+        refresh_tokens_copied=refresh_tokens_copied,
     )

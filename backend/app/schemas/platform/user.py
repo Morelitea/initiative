@@ -169,10 +169,11 @@ class UserRead(UserBase):
     task_completion_audio_feedback: bool = True
     task_completion_haptic_feedback: bool = True
     locale: str = "en"
-    # Non-null for users provisioned via OIDC SSO; consumed by the
-    # self-deletion dialog so it can hide the password gate, since
-    # OIDC-only accounts have no usable password to type in.
-    oidc_sub: Optional[str] = None
+    # True when the account has a linked external identity (SSO). Consumed by
+    # the profile/deletion UI to hide the password confirmation, since SSO-only
+    # accounts have no usable password to type in. Populated by the self
+    # endpoints (/users/me and PATCH /users/me); defaults False elsewhere.
+    has_federated_identity: bool = False
     initiative_roles: List["UserInitiativeRole"] = Field(default_factory=list)
 
     @computed_field(return_type=bool)  # type: ignore[misc]
