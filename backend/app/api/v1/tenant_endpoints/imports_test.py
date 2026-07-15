@@ -950,9 +950,10 @@ async def test_backup_corrupt_entry_fails_alone(
     )
     resp = await _upload_backup(client, a, zip_bytes)
     job_id = resp.json()["id"]
-    await client.post(
+    confirmed = await client.post(
         a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
     )
+    assert confirmed.status_code == 200, confirmed.text
     await _run_import_worker(monkeypatch, role_session)
 
     job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
@@ -977,9 +978,10 @@ async def test_backup_admin_revoked_before_apply_fails_closed(
     )
     resp = await _upload_backup(client, a, zip_bytes)
     job_id = resp.json()["id"]
-    await client.post(
+    confirmed = await client.post(
         a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
     )
+    assert confirmed.status_code == 200, confirmed.text
 
     a.membership.role = GuildRole.member
     session.add(a.membership)
@@ -1019,9 +1021,10 @@ async def test_backup_quota_exceeded_fails_job(
     zip_bytes = _make_backup_zip(manifest, {"assets/huge.bin": b"x" * 1024})
     resp = await _upload_backup(client, a, zip_bytes)
     job_id = resp.json()["id"]
-    await client.post(
+    confirmed = await client.post(
         a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
     )
+    assert confirmed.status_code == 200, confirmed.text
     await _run_import_worker(monkeypatch, role_session)
     job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
     assert job["status"] == ImportJobStatus.failed.value
@@ -1091,9 +1094,10 @@ async def test_backup_legacy_kind_manifest_imports(
     resp = await _upload_backup(client, a, zip_bytes)
     assert resp.status_code == 201, resp.text
     job_id = resp.json()["id"]
-    await client.post(
+    confirmed = await client.post(
         a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
     )
+    assert confirmed.status_code == 200, confirmed.text
     await _run_import_worker(monkeypatch, role_session)
     job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
     assert job["status"] == ImportJobStatus.done.value, job.get("error")
@@ -1143,9 +1147,10 @@ async def test_backup_restores_fresh_assets_into_storage(
 
     resp = await _upload_backup(client, a, zip_bytes)
     job_id = resp.json()["id"]
-    await client.post(
+    confirmed = await client.post(
         a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
     )
+    assert confirmed.status_code == 200, confirmed.text
     await _run_import_worker(monkeypatch, role_session)
 
     job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
@@ -1201,9 +1206,10 @@ async def test_backup_quota_uses_zip_sizes_not_manifest_claims(
 
     resp = await _upload_backup(client, a, zip_bytes)
     job_id = resp.json()["id"]
-    await client.post(
+    confirmed = await client.post(
         a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
     )
+    assert confirmed.status_code == 200, confirmed.text
     await _run_import_worker(monkeypatch, role_session)
 
     job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()

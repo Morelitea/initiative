@@ -208,6 +208,21 @@ def _install_soft_delete_filter():
 
 
 @pytest.fixture(autouse=True)
+def _isolated_uploads_dir(monkeypatch, tmp_path):
+    """Every test gets its own uploads directory.
+
+    The default (repo-relative ``uploads/``) is shared state three ways over:
+    across consecutive tests (guild ids RESTART IDENTITY every test, so
+    ``guild_1/`` accumulates and any deprovision purges another test's
+    blobs), across xdist workers (per-worker DATABASES, one shared
+    filesystem), and — worst — with a locally running dev server, whose
+    background workers (import/export GC, guild purges) sweep the very tree
+    a test just staged a payload into. Storage resolves ``UPLOADS_DIR``
+    lazily per call, so a per-test tmp dir isolates all of it."""
+    monkeypatch.setattr(settings, "UPLOADS_DIR", str(tmp_path / "uploads"))
+
+
+@pytest.fixture(autouse=True)
 def _disable_hibp_check(monkeypatch):
     """Disable the HaveIBeenPwned breach lookup for all tests by default.
 
