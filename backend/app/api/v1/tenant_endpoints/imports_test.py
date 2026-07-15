@@ -1166,3 +1166,48 @@ async def test_backup_restores_fresh_assets_into_storage(
     ).one()
     assert upload.size_bytes == len(payload)
     assert upload.content_type == "application/pdf"
+
+
+async def test_backup_quota_uses_zip_sizes_not_manifest_claims(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """The manifest is caller-supplied text: declaring size_bytes=1 for a
+    large blob must NOT slip past the guild storage quota — the check
+    accumulates the zip's own central-directory sizes."""
+    from sqlmodel import select
+
+    from app.models.platform.guild import Guild
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    guild = (await session.exec(select(Guild).where(Guild.id == a.guild.id))).one()
+    guild.max_storage_bytes = 10_000
+    session.add(guild)
+    await session.commit()
+
+    big_blob = b"x" * 50_000  # actual bytes far over the quota
+    manifest = _minimal_manifest(
+        assets=[
+            {
+                "path": "assets/liar.bin",
+                "storage_key": "liar.bin",
+                "original_filename": "liar.bin",
+                "content_type": "application/octet-stream",
+                "size_bytes": 1,  # understated claim
+                "referenced_by": [],
+            }
+        ]
+    )
+    zip_bytes = _make_backup_zip(manifest, {"assets/liar.bin": big_blob})
+
+    resp = await _upload_backup(client, a, zip_bytes)
+    job_id = resp.json()["id"]
+    await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
+    )
+    await _run_import_worker(monkeypatch, role_session)
+
+    job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert job["status"] == ImportJobStatus.failed.value
+    assert job["error"] == "IMPORT_QUOTA_EXCEEDED"
+    # Nothing was written despite the understated claim.
+    assert get_guild_storage(a.guild.id).open_readable("liar.bin") is None

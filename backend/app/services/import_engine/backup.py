@@ -468,7 +468,18 @@ async def _restore_assets(
         if existing is not None:
             result.assets_deduped += 1
             continue
-        incoming += asset.size_bytes
+        # Quota accumulates from the zip's OWN central-directory size, never
+        # the manifest's declared size_bytes: the manifest is caller-supplied
+        # text and could understate to slip past the guild's storage cap.
+        # zipfile guarantees .read() returns at most info.file_size (a
+        # mismatching stream fails the CRC check), so this is the true upper
+        # bound of what gets written.
+        try:
+            info = archive.getinfo(asset.path)
+        except KeyError:
+            result.warnings.append(f"asset_missing:{asset.storage_key}")
+            continue
+        incoming += info.file_size
         to_restore.append(asset)
 
     try:
