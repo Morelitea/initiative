@@ -190,8 +190,10 @@ describe("tool surfaces", () => {
     expect(PALETTE_TOOLS).toEqual(TOOLS.filter((tool) => TOOL_REGISTRY[tool].commandPalette));
   });
 
-  // Generous timeout: importing the page pulls in the whole tab-view graph.
-  it("every tool has an initiative-detail tab view", { timeout: 30_000 }, async () => {
+  // Generous timeout: importing the page pulls in the whole tab-view graph,
+  // which can take over 30s on a slow machine while the full suite's workers
+  // are all transforming concurrently.
+  it("every tool has an initiative-detail tab view", { timeout: 60_000 }, async () => {
     const { TOOL_TAB_VIEWS } = await import("@/pages/InitiativeDetailPage");
     for (const tool of TOOLS) {
       expect(
