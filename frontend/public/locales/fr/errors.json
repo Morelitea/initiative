@@ -322,5 +322,9 @@
   "IMPORT_APPLY_FAILED": "L'import a échoué. Rien n'a été importé.",
   "IMPORT_ACCESS_REVOKED": "L'import a échoué car l'accès à la guilde a été révoqué.",
   "IMPORT_INTERRUPTED": "L'import a été interrompu et peut être incomplet. Vérifiez avant de réessayer.",
-  "IMPORT_CREATOR_INACTIVE": "L'import a échoué car le compte demandeur est inactif."
+  "IMPORT_CREATOR_INACTIVE": "L'import a échoué car le compte demandeur est inactif.",
+  "IMPORT_ADMIN_REQUIRED": "Seuls les administrateurs de guilde peuvent importer une sauvegarde.",
+  "IMPORT_NOT_CONFIRMABLE": "Cet import ne peut pas être confirmé — il a peut-être expiré ou déjà commencé.",
+  "IMPORT_ZIP_INVALID": "Ce fichier n'est pas une sauvegarde Initiative valide.",
+  "IMPORT_QUOTA_EXCEEDED": "Les fichiers de la sauvegarde ne tiennent pas dans le stockage de cette guilde."
 }

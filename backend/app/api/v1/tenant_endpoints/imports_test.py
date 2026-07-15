@@ -1,6 +1,8 @@
 """Tests for import parse endpoints — error response shape."""
 
+import io
 import json
+import zipfile
 
 import pytest
 from httpx import AsyncClient
@@ -9,6 +11,7 @@ from app.core.config import settings
 from app.models.platform.guild import GuildRole
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
 from app.services.import_engine import worker as import_worker
+from app.services.storage import get_guild_storage
 from app.testing.factories import (
     create_calendar_event,
     create_counter_group,
@@ -652,3 +655,514 @@ async def test_envelope_byte_bound_enforced_before_body_is_read(
         a.initiative.id,
     )
     assert ok.status_code == 201
+
+
+# ---------------------------------------------------------------------------
+# Backup-zip imports
+# ---------------------------------------------------------------------------
+
+
+def _make_backup_zip(manifest: dict, members: dict[str, bytes] | None = None) -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("manifest.json", json.dumps(manifest))
+        for name, data in (members or {}).items():
+            archive.writestr(name, data)
+    return buffer.getvalue()
+
+
+def _minimal_manifest(initiative_id=1, name="Restored", entries=None, assets=None):
+    return {
+        "type": "initiative-backup",
+        "schema_version": 1,
+        "app_version": "0.0.0-test",
+        "exported_at": "2026-07-15T00:00:00+00:00",
+        "exported_by_email": "test@example.com",
+        "source_instance_url": None,
+        "guild": {"id": 999, "name": "Source Guild"},
+        "include_uploads": bool(assets),
+        "initiatives": [
+            {
+                "id": initiative_id,
+                "name": name,
+                "description": "from backup",
+                "color": "#aabbcc",
+                "tools": {
+                    "project": "included",
+                    "document": "included",
+                    "queue": "included",
+                    "counter_group": "disabled",
+                    "calendar_event": "included",
+                },
+            }
+        ],
+        "entries": entries or [],
+        "assets": assets or [],
+        "skipped": [],
+    }
+
+
+def _queue_entry(initiative_id=1):
+    envelope = {
+        "type": "initiative-queue",
+        "schema_version": 1,
+        "name": "Restored Queue",
+        "items": [{"label": "Aria", "position": 1.0}],
+    }
+    entry = {
+        "path": "initiatives/1-restored/queues/1-restored-queue.initiative-queue.json",
+        "tool": "queue",
+        "type": "initiative-queue",
+        "schema_version": 1,
+        "entity_id": 1,
+        "title": "Restored Queue",
+        "initiative_id": initiative_id,
+        "tags": [],
+        "properties": [],
+        "asset": None,
+    }
+    return entry, envelope
+
+
+async def _upload_backup(client, actor, zip_bytes):
+    return await client.post(
+        actor.g("/imports/backup"),
+        headers=actor.headers,
+        files={"file": ("backup.zip", zip_bytes, "application/zip")},
+    )
+
+
+async def _run_import_worker(monkeypatch, role_session):
+    user_session = await role_session("app_user")
+    monkeypatch.setattr(import_worker, "_open_user_session", lambda: user_session)
+    await import_worker.process_import_jobs()
+
+
+async def test_backup_import_end_to_end_with_assets(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """Upload → plan → confirm → worker apply: a new initiative appears with
+    the manifest's tool switches and the importer as manager; entries apply
+    through the per-type importers; the file document's blob is restored
+    (deduped here — same guild, key already exists) and quota-checked."""
+    from sqlmodel import select
+
+    from app.models.tenant.document import Document, DocumentType
+    from app.models.tenant.initiative import Initiative, InitiativeMember
+    from app.models.tenant.queue import Queue
+
+    from app.testing.factories import create_upload
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    payload = b"%PDF-restored-handout"
+    # The blob and its uploads row already exist in this guild (the re-import
+    # case) — the restore must dedupe on the storage key, not overwrite.
+    get_guild_storage(a.guild.id).write(
+        "restore-me.pdf", payload, content_type="application/pdf"
+    )
+    await create_upload(
+        session,
+        a.guild,
+        a.user,
+        filename="restore-me.pdf",
+        size_bytes=len(payload),
+        content_type="application/pdf",
+    )
+
+    entry, envelope = _queue_entry()
+    file_entry = {
+        "path": "assets/restore-me.pdf",
+        "tool": "document",
+        "type": "file",
+        "schema_version": None,
+        "entity_id": 2,
+        "title": "Handout",
+        "initiative_id": 1,
+        "tags": ["restored"],
+        "properties": [],
+        "asset": "assets/restore-me.pdf",
+    }
+    manifest = _minimal_manifest(
+        entries=[entry, file_entry],
+        assets=[
+            {
+                "path": "assets/restore-me.pdf",
+                "storage_key": "restore-me.pdf",
+                "original_filename": "Handout.pdf",
+                "content_type": "application/pdf",
+                "size_bytes": len(payload),
+                "referenced_by": ["initiatives/1-restored/documents/2-handout"],
+            }
+        ],
+    )
+    zip_bytes = _make_backup_zip(
+        manifest,
+        {
+            entry["path"]: json.dumps(envelope).encode(),
+            "assets/restore-me.pdf": payload,
+        },
+    )
+
+    resp = await _upload_backup(client, a, zip_bytes)
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    job_id = body["id"]
+    assert body["status"] == ImportJobStatus.staged.value
+    plan = body["plan"]
+    assert plan["source_guild_name"] == "Source Guild"
+    assert plan["initiatives"][0]["proposed_name"] == "Restored"
+    assert plan["initiatives"][0]["entry_counts"] == {"queue": 1, "document": 1}
+    assert plan["asset_count"] == 1
+    assert plan["asset_bytes"] == len(payload)
+
+    confirmed = await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
+    )
+    assert confirmed.status_code == 200
+    assert confirmed.json()["status"] == ImportJobStatus.queued.value
+
+    await _run_import_worker(monkeypatch, role_session)
+
+    job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert job["status"] == ImportJobStatus.done.value, job.get("error")
+    result = job["result"]
+    assert result["per_tool"]["queue"]["created"] == 1
+    assert result["per_tool"]["document"]["created"] == 1
+    # Same guild: the storage key already existed, so the blob deduped.
+    assert result["assets_deduped"] == 1
+    assert result["assets_restored"] == 0
+
+    restored = (
+        await session.exec(select(Initiative).where(Initiative.name == "Restored"))
+    ).one()
+    assert restored.description == "from backup"
+    assert restored.queues_enabled is True
+    assert restored.counter_groups_enabled is False  # "disabled" in manifest
+    member = (
+        await session.exec(
+            select(InitiativeMember).where(
+                InitiativeMember.initiative_id == restored.id
+            )
+        )
+    ).one()
+    assert member.user_id == a.user.id
+
+    queue = (
+        await session.exec(select(Queue).where(Queue.initiative_id == restored.id))
+    ).one()
+    assert queue.name == "Restored Queue"
+    file_doc = (
+        await session.exec(
+            select(Document).where(
+                Document.initiative_id == restored.id,
+                Document.document_type == DocumentType.file,
+            )
+        )
+    ).one()
+    assert file_doc.title == "Handout"
+    assert file_doc.file_url.endswith("/restore-me.pdf")
+    assert file_doc.original_filename == "Handout.pdf"
+
+
+async def test_backup_requires_real_admin(client, acting_user, session):
+    member = await acting_user(
+        guild_role=GuildRole.member, initiative=True, project=True
+    )
+    zip_bytes = _make_backup_zip(_minimal_manifest())
+    denied = await _upload_backup(client, member, zip_bytes)
+    assert denied.status_code == 403
+    assert denied.json()["detail"] == "IMPORT_ADMIN_REQUIRED"
+
+
+async def test_backup_rejects_invalid_and_bomb_zips(
+    client, acting_user, session, monkeypatch
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+
+    garbage = await _upload_backup(client, a, b"not a zip at all")
+    assert garbage.status_code == 400
+    assert garbage.json()["detail"] == "IMPORT_ZIP_INVALID"
+
+    traversal = _make_backup_zip(_minimal_manifest(), {"../escape.txt": b"x"})
+    escaped = await _upload_backup(client, a, traversal)
+    assert escaped.status_code == 400
+    assert escaped.json()["detail"] == "IMPORT_ZIP_INVALID"
+
+    monkeypatch.setattr(settings, "IMPORT_MAX_ZIP_MEMBERS", 1)
+    entry, envelope = _queue_entry()
+    bomb = _make_backup_zip(
+        _minimal_manifest(entries=[entry]),
+        {entry["path"]: json.dumps(envelope).encode()},
+    )
+    too_many = await _upload_backup(client, a, bomb)
+    assert too_many.status_code == 400
+    assert too_many.json()["detail"] == "IMPORT_TOO_LARGE"
+
+    monkeypatch.setattr(settings, "IMPORT_MAX_ZIP_MEMBERS", 20_000)
+    future = _make_backup_zip({**_minimal_manifest(), "schema_version": 99})
+    unsupported = await _upload_backup(client, a, future)
+    assert unsupported.status_code == 400
+    assert unsupported.json()["detail"] == "IMPORT_SCHEMA_VERSION_UNSUPPORTED"
+
+
+async def test_backup_confirm_include_map_skips_tools(
+    client, acting_user, session, monkeypatch, role_session
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    entry, envelope = _queue_entry()
+    zip_bytes = _make_backup_zip(
+        _minimal_manifest(entries=[entry]),
+        {entry["path"]: json.dumps(envelope).encode()},
+    )
+    resp = await _upload_backup(client, a, zip_bytes)
+    job_id = resp.json()["id"]
+    confirmed = await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"),
+        headers=a.headers,
+        json={"include": {"queue": False}},
+    )
+    assert confirmed.status_code == 200
+
+    await _run_import_worker(monkeypatch, role_session)
+    job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert job["status"] == ImportJobStatus.done.value, job.get("error")
+    assert job["result"]["per_tool"]["queue"]["skipped"] == 1
+    assert job["result"]["per_tool"]["queue"]["created"] == 0
+
+
+async def test_backup_corrupt_entry_fails_alone(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """One corrupt member fails its entry; the rest of the backup restores
+    and the job completes with a per-entry report."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    good_entry, good_envelope = _queue_entry()
+    bad_entry = dict(good_entry)
+    bad_entry["path"] = "initiatives/1-restored/queues/2-bad.initiative-queue.json"
+    bad_entry["title"] = "Bad Queue"
+    bad_entry["entity_id"] = 2
+    zip_bytes = _make_backup_zip(
+        _minimal_manifest(entries=[good_entry, bad_entry]),
+        {
+            good_entry["path"]: json.dumps(good_envelope).encode(),
+            bad_entry["path"]: b"{corrupt json",
+        },
+    )
+    resp = await _upload_backup(client, a, zip_bytes)
+    job_id = resp.json()["id"]
+    await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
+    )
+    await _run_import_worker(monkeypatch, role_session)
+
+    job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert job["status"] == ImportJobStatus.done.value, job.get("error")
+    assert job["result"]["per_tool"]["queue"] == {
+        "created": 1,
+        "failed": 1,
+        "skipped": 0,
+    }
+    statuses = {e["title"]: e["status"] for e in job["result"]["entries"]}
+    assert statuses == {"Restored Queue": "created", "Bad Queue": "failed"}
+
+
+async def test_backup_admin_revoked_before_apply_fails_closed(
+    client, acting_user, session, monkeypatch, role_session
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    entry, envelope = _queue_entry()
+    zip_bytes = _make_backup_zip(
+        _minimal_manifest(entries=[entry]),
+        {entry["path"]: json.dumps(envelope).encode()},
+    )
+    resp = await _upload_backup(client, a, zip_bytes)
+    job_id = resp.json()["id"]
+    await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
+    )
+
+    a.membership.role = GuildRole.member
+    session.add(a.membership)
+    await session.commit()
+
+    await _run_import_worker(monkeypatch, role_session)
+    job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert job["status"] == ImportJobStatus.failed.value
+    assert job["error"] == "IMPORT_ADMIN_REQUIRED"
+
+
+async def test_backup_quota_exceeded_fails_job(
+    client, acting_user, session, monkeypatch, role_session
+):
+    from sqlmodel import select
+
+    from app.models.platform.guild import Guild
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    guild = (await session.exec(select(Guild).where(Guild.id == a.guild.id))).one()
+    guild.max_storage_bytes = 1
+    session.add(guild)
+    await session.commit()
+
+    manifest = _minimal_manifest(
+        assets=[
+            {
+                "path": "assets/huge.bin",
+                "storage_key": "huge.bin",
+                "original_filename": "huge.bin",
+                "content_type": "application/octet-stream",
+                "size_bytes": 1_000_000,
+                "referenced_by": [],
+            }
+        ]
+    )
+    zip_bytes = _make_backup_zip(manifest, {"assets/huge.bin": b"x" * 1024})
+    resp = await _upload_backup(client, a, zip_bytes)
+    job_id = resp.json()["id"]
+    await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
+    )
+    await _run_import_worker(monkeypatch, role_session)
+    job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert job["status"] == ImportJobStatus.failed.value
+    assert job["error"] == "IMPORT_QUOTA_EXCEEDED"
+
+
+async def test_backup_staged_expiry_and_cancel(
+    client, acting_user, session, monkeypatch
+):
+    """An unconfirmed staged backup expires via GC (payload deleted); a
+    staged backup can also be cancelled; a cancelled/expired one can't be
+    confirmed."""
+    from datetime import datetime, timedelta, timezone
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    zip_bytes = _make_backup_zip(_minimal_manifest())
+
+    staged = await _upload_backup(client, a, zip_bytes)
+    job_id = staged.json()["id"]
+
+    from app.testing import route_session_to_guild
+
+    await route_session_to_guild(session, a.guild.id)
+    row = await session.get(ImportJob, job_id)
+    row.expires_at = datetime.now(timezone.utc) - timedelta(hours=1)
+    session.add(row)
+    await session.commit()
+
+    await import_worker.process_import_gc()
+    await session.refresh(row)
+    assert row.status == ImportJobStatus.expired
+    assert row.payload_ref is None
+
+    late = await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
+    )
+    assert late.status_code == 409
+    assert late.json()["detail"] == "IMPORT_NOT_CONFIRMABLE"
+
+    second = await _upload_backup(client, a, zip_bytes)
+    second_id = second.json()["id"]
+    cancelled = await client.delete(
+        a.g(f"/imports/jobs/{second_id}"), headers=a.headers
+    )
+    assert cancelled.status_code == 200
+    assert cancelled.json()["status"] == ImportJobStatus.cancelled.value
+
+
+async def test_backup_legacy_kind_manifest_imports(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """0.56.0-era backups spell every discriminator `kind` — manifest and
+    entries normalize and import."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    entry, envelope = _queue_entry()
+    legacy_entry = {k: v for k, v in entry.items() if k != "type"}
+    legacy_entry["kind"] = "initiative-queue"
+    legacy_envelope = {k: v for k, v in envelope.items() if k != "type"}
+    legacy_envelope["kind"] = "initiative-queue"
+    manifest = _minimal_manifest(entries=[legacy_entry])
+    manifest.pop("type")
+    manifest["kind"] = "initiative-backup"
+    zip_bytes = _make_backup_zip(
+        manifest, {entry["path"]: json.dumps(legacy_envelope).encode()}
+    )
+
+    resp = await _upload_backup(client, a, zip_bytes)
+    assert resp.status_code == 201, resp.text
+    job_id = resp.json()["id"]
+    await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
+    )
+    await _run_import_worker(monkeypatch, role_session)
+    job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert job["status"] == ImportJobStatus.done.value, job.get("error")
+    assert job["result"]["per_tool"]["queue"]["created"] == 1
+
+
+async def test_backup_restores_fresh_assets_into_storage(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """A cross-guild restore: the storage key doesn't exist here, so the blob
+    is written into guild storage, an uploads row is registered, and the file
+    document serves from the restored key."""
+    from pathlib import Path
+
+    from sqlmodel import select
+
+    from app.models.tenant.upload import Upload
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    payload = b"%PDF-brand-new-blob"
+    file_entry = {
+        "path": "assets/from-elsewhere.pdf",
+        "tool": "document",
+        "type": "file",
+        "schema_version": None,
+        "entity_id": 1,
+        "title": "Foreign Handout",
+        "initiative_id": 1,
+        "tags": [],
+        "properties": [],
+        "asset": "assets/from-elsewhere.pdf",
+    }
+    manifest = _minimal_manifest(
+        entries=[file_entry],
+        assets=[
+            {
+                "path": "assets/from-elsewhere.pdf",
+                "storage_key": "from-elsewhere.pdf",
+                "original_filename": "Foreign Handout.pdf",
+                "content_type": "application/pdf",
+                "size_bytes": len(payload),
+                "referenced_by": [],
+            }
+        ],
+    )
+    zip_bytes = _make_backup_zip(manifest, {"assets/from-elsewhere.pdf": payload})
+
+    resp = await _upload_backup(client, a, zip_bytes)
+    job_id = resp.json()["id"]
+    await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"), headers=a.headers, json={}
+    )
+    await _run_import_worker(monkeypatch, role_session)
+
+    job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
+    assert job["status"] == ImportJobStatus.done.value, job.get("error")
+    assert job["result"]["assets_restored"] == 1
+    assert job["result"]["asset_bytes"] == len(payload)
+
+    blob = get_guild_storage(a.guild.id).open_readable("from-elsewhere.pdf")
+    assert blob is not None
+    assert Path(blob.path).read_bytes() == payload
+    from app.testing import route_session_to_guild
+
+    await route_session_to_guild(session, a.guild.id)
+    upload = (
+        await session.exec(
+            select(Upload).where(Upload.filename == "from-elsewhere.pdf")
+        )
+    ).one()
+    assert upload.size_bytes == len(payload)
+    assert upload.content_type == "application/pdf"

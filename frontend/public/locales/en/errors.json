@@ -322,5 +322,9 @@
   "IMPORT_APPLY_FAILED": "The import failed. Nothing was imported.",
   "IMPORT_ACCESS_REVOKED": "The import failed because access to the guild was revoked.",
   "IMPORT_INTERRUPTED": "The import was interrupted and may be incomplete. Check before retrying.",
-  "IMPORT_CREATOR_INACTIVE": "The import failed because the requesting account is inactive."
+  "IMPORT_CREATOR_INACTIVE": "The import failed because the requesting account is inactive.",
+  "IMPORT_ADMIN_REQUIRED": "Only guild admins can import a backup.",
+  "IMPORT_NOT_CONFIRMABLE": "This import can't be confirmed — it may have expired or already started.",
+  "IMPORT_ZIP_INVALID": "This file isn't a valid Initiative backup.",
+  "IMPORT_QUOTA_EXCEEDED": "The backup's files don't fit in this guild's storage."
 }

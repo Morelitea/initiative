@@ -157,26 +157,7 @@ async def start_envelope_import(
         await session.commit()
         return InlineImport(result=result)
 
-    # Serialize count+insert per user so concurrent requests can't race past
-    # the cap. Transaction-scoped advisory lock: released at the commit below.
-    await session.exec(
-        text("SELECT pg_advisory_xact_lock(:ns, :uid)"),
-        params={"ns": _JOB_CAP_LOCK_NS, "uid": user.id},
-    )
-    active = (
-        await session.exec(
-            select(func.count())
-            .select_from(ImportJob)
-            .where(
-                ImportJob.created_by_id == user.id,
-                ImportJob.status.in_(_ACTIVE_STATUSES),
-            )
-        )
-    ).one()
-    if active >= settings.IMPORT_MAX_ACTIVE_JOBS_PER_USER:
-        raise ImportEngineError(
-            ImportEngineMessages.IMPORT_JOB_LIMIT_REACHED, status_code=429
-        )
+    await count_active_jobs_locked(session, user=user)
 
     payload_ref = stage_payload(
         guild_id, json.dumps(envelope).encode("utf-8"), suffix="json"
@@ -195,6 +176,30 @@ async def start_envelope_import(
     await session.commit()
     await session.refresh(job)
     return job
+
+
+async def count_active_jobs_locked(session: AsyncSession, *, user: User) -> None:
+    """Enforce the per-user active-job cap under a transaction-scoped
+    advisory lock, so concurrent requests can't race past it (the lock is
+    released at the caller's commit). Raises IMPORT_JOB_LIMIT_REACHED."""
+    await session.exec(
+        text("SELECT pg_advisory_xact_lock(:ns, :uid)"),
+        params={"ns": _JOB_CAP_LOCK_NS, "uid": user.id},
+    )
+    active = (
+        await session.exec(
+            select(func.count())
+            .select_from(ImportJob)
+            .where(
+                ImportJob.created_by_id == user.id,
+                ImportJob.status.in_(_ACTIVE_STATUSES),
+            )
+        )
+    ).one()
+    if active >= settings.IMPORT_MAX_ACTIVE_JOBS_PER_USER:
+        raise ImportEngineError(
+            ImportEngineMessages.IMPORT_JOB_LIMIT_REACHED, status_code=429
+        )
 
 
 def stage_payload(guild_id: int, payload: bytes, *, suffix: str) -> str:

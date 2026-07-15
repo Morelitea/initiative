@@ -46,3 +46,54 @@ class EnvelopeImportResponse(SanitizedBaseModel):
     """201 body for an inline (small) envelope import."""
 
     result: EnvelopeImportResult
+
+
+class EntryResult(SanitizedBaseModel):
+    """One manifest entry's apply outcome inside a backup import."""
+
+    path: str
+    tool: str
+    type: str
+    title: str
+    status: str  # "created" | "failed" | "skipped"
+    error: Optional[str] = None  # short code, never content
+    detail: Optional[EnvelopeImportResult] = None
+
+
+class BackupPlanInitiative(SanitizedBaseModel):
+    """One initiative in the pre-flight plan: what would be created."""
+
+    source_id: int
+    name: str
+    proposed_name: str
+    tools: dict[str, str]  # tool -> "included" | "excluded" | "disabled"
+    entry_counts: dict[str, int]  # tool -> entries in the zip
+
+
+class BackupImportPlan(SanitizedBaseModel):
+    """The confirm-screen summary, persisted to ``import_jobs.plan`` —
+    counts and names only, never envelope content."""
+
+    source_guild_name: str = ""
+    app_version: str = ""
+    exported_at: Optional[str] = None
+    schema_version: int = 0
+    initiatives: list[BackupPlanInitiative] = []
+    asset_count: int = 0
+    asset_bytes: int = 0
+    skipped: list[dict[str, Any]] = []
+    unknown_types: list[str] = []
+
+
+class BackupImportResult(SanitizedBaseModel):
+    """Terminal report for a backup import, persisted to
+    ``import_jobs.result``."""
+
+    initiatives: list[dict[str, Any]] = []  # {source_id, initiative_id, name}
+    per_tool: dict[str, dict[str, int]] = {}  # tool -> {created, failed, skipped}
+    entries: list[EntryResult] = []
+    assets_restored: int = 0
+    assets_deduped: int = 0
+    asset_bytes: int = 0
+    unmatched_emails: list[str] = []
+    warnings: list[str] = []

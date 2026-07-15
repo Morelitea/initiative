@@ -613,3 +613,57 @@ async def count_role_members(
     stmt = select(func.count()).where(InitiativeMember.role_id == role_id)
     result = await session.exec(stmt)
     return result.one()
+
+
+async def create_imported_initiative(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    name: str,
+    description: str | None,
+    color: str | None,
+    tool_flags: dict[str, bool],
+    manager_id: int,
+) -> Initiative:
+    """Create an initiative for a backup import: the exact create-endpoint
+    sequence (row → built-in roles → creator as PM), with the name suffixed
+    on collision (always-create policy) instead of 409ing, and the tool
+    master switches taken from the backup manifest. Flush-only — the backup
+    orchestrator owns its per-chunk transaction."""
+    from app.core.tools import TOGGLEABLE_TOOLS
+    from app.services.import_engine.common import unique_name
+
+    existing = {
+        row
+        for row in (
+            await session.exec(
+                select(Initiative.name).where(Initiative.guild_id == guild_id)
+            )
+        ).all()
+    }
+    initiative = Initiative(
+        name=unique_name(existing, name),
+        description=description,
+        color=color,
+        guild_id=guild_id,
+        **{
+            t.view_permission: bool(tool_flags.get(t.view_permission, False))
+            for t in TOGGLEABLE_TOOLS
+        },
+    )
+    session.add(initiative)
+    await session.flush()
+
+    pm_role, _member_role = await create_builtin_roles(
+        session, initiative_id=initiative.id
+    )
+    session.add(
+        InitiativeMember(
+            initiative_id=initiative.id,
+            user_id=manager_id,
+            role_id=pm_role.id,
+            guild_id=guild_id,
+        )
+    )
+    await session.flush()
+    return initiative
