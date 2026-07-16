@@ -64,6 +64,27 @@ describe("buildTaskCalendarEntries", () => {
     expect(due?.meta).toMatchObject({ type: "task", taskId: 9, kind: "due" });
   });
 
+  it("keeps each marker on its own day rather than spanning start → due", () => {
+    // Load-bearing for the calendar's fetch: EventsPage windows tasks on
+    // "start_date OR due_date in the visible range", which is only complete
+    // because a task occupies those two days and nothing in between. A task
+    // straddling the whole window renders nothing inside it, so fetching it
+    // would be pointless. If tasks ever render as a bar across the two dates,
+    // that window has to widen to match — or spanning tasks vanish.
+    const task = buildTask({
+      id: 11,
+      start_date: "2026-01-15T09:00:00",
+      due_date: "2026-03-20T17:00:00",
+    });
+
+    const entries = buildTaskCalendarEntries(task, COLOR);
+
+    expect(entries).toHaveLength(2);
+    for (const entry of entries) {
+      expect(entry.startAt).toBe(entry.endAt);
+    }
+  });
+
   it("renders a single start marker when only start_date is set", () => {
     const task = buildTask({ id: 10, start_date: "2026-01-15T09:00:00", due_date: undefined });
     const entries = buildTaskCalendarEntries(task, COLOR);

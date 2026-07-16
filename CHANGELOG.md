@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Import surfaces: each tool's list page (documents, projects, queues, counter groups, calendar) gained an "Import from file" action — an overflow menu on the header and a button in the empty state — for importing that tool's JSON export. The backup import runs through a wizard in guild settings: pick a zip and it's previewed locally (nothing uploaded until you continue), then uploaded, planned, and confirmed.
 - Guild settings **Data** tab: the former Export tab now hosts both directions — export and import — plus one activity table showing recent export and import jobs together, with re-download for finished exports and a report view for finished imports. The old `/settings/export` URL redirects here.
 
+### Fixed
+
+- The calendar no longer drops tasks. It asked for the first 100 tasks in the initiative with no date filter at all, so a busy initiative could silently leave in-window tasks off the calendar entirely, while still transferring tasks from years you weren't looking at. It now fetches exactly the dates the current view shows (day, week, month, year, or list) and pages through all of them. The project filter's options now come from the initiative's projects, so they no longer appear and disappear as you move between months.
+
 ### Changed
 
 - The document and task pickers on queue items, and the project's "attach existing document" picker, now search as you type on the server instead of downloading every document and task in the initiative when the dialog opens. Opening a picker shows the most recent entries and typing narrows them; large initiatives no longer stall these dialogs. Project document cards now load only the documents actually attached (API: `GET /documents/` gained an `ids` filter, max 100 per request).
