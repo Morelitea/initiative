@@ -16,7 +16,13 @@ vi.mock("@/lib/chesterToast", () => ({
 // The wizard's first step reads the manifest from the local file; stub the
 // peek so the test doesn't need a real zip.
 vi.mock("@/lib/backupPeek", () => ({
-  BackupPeekError: class extends Error {},
+  BackupPeekError: class extends Error {
+    code: string;
+    constructor(code: string) {
+      super(code);
+      this.code = code;
+    }
+  },
   peekBackupManifest: vi.fn(),
 }));
 
@@ -137,7 +143,9 @@ describe("ImportWizard", () => {
 
   it("rejects a non-backup file at the peek step without uploading", async () => {
     const { BackupPeekError } = await import("@/lib/backupPeek");
-    (peekBackupManifest as ReturnType<typeof vi.fn>).mockRejectedValue(new BackupPeekError("nope"));
+    (peekBackupManifest as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new BackupPeekError("not_backup")
+    );
     let uploaded = false;
     server.use(
       guildHttp.post("/imports/backup", () => {

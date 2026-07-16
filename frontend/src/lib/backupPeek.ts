@@ -24,7 +24,23 @@ const EOCD_SEARCH_SPAN = 22 + 65_536;
 // A manifest is small; refuse to inflate something absurd.
 const MAX_MANIFEST_BYTES = 8 * 1024 * 1024;
 
-export class BackupPeekError extends Error {}
+/** Why a peek failed, in terms the UI can act on:
+ * - ``not_backup`` — the file isn't an Initiative backup (wrong file, wrong
+ *   structure, or corrupt beyond recognition).
+ * - ``unreadable`` — it looks like a zip we can't decode here (zip64, an
+ *   unsupported compression method, a decompression failure).
+ * The message is a stable code, never user-facing text — the wizard maps the
+ * code to a localized string. */
+export type BackupPeekCode = "not_backup" | "unreadable";
+
+export class BackupPeekError extends Error {
+  readonly code: BackupPeekCode;
+  constructor(code: BackupPeekCode) {
+    super(code);
+    this.code = code;
+    this.name = "BackupPeekError";
+  }
+}
 
 async function bytes(file: File, start: number, end: number): Promise<DataView> {
   const buf = await file.slice(start, end).arrayBuffer();
@@ -46,12 +62,12 @@ async function findCentralDirectory(
       const offset = tail.getUint32(i + 16, true);
       // 0xffffffff would mean zip64; backups under the 256 MiB cap never are.
       if (offset === 0xffffffff) {
-        throw new BackupPeekError("zip64 not supported");
+        throw new BackupPeekError("unreadable");
       }
       return { offset, size, count };
     }
   }
-  throw new BackupPeekError("no end-of-central-directory record");
+  throw new BackupPeekError("not_backup");
 }
 
 interface MemberRef {
@@ -69,7 +85,7 @@ async function findManifestRef(file: File): Promise<MemberRef> {
   let pos = 0;
   for (let i = 0; i < count && pos + 46 <= dir.byteLength; i++) {
     if (dir.getUint32(pos, true) !== CEN_SIG) {
-      throw new BackupPeekError("corrupt central directory");
+      throw new BackupPeekError("not_backup");
     }
     const compression = dir.getUint16(pos + 10, true);
     const compressedSize = dir.getUint32(pos + 20, true);
@@ -92,7 +108,7 @@ async function findManifestRef(file: File): Promise<MemberRef> {
     }
     pos += 46 + nameLen + extraLen + commentLen;
   }
-  throw new BackupPeekError("manifest.json not found");
+  throw new BackupPeekError("not_backup");
 }
 
 async function inflate(compressed: ArrayBuffer, compression: number): Promise<Uint8Array> {
@@ -100,7 +116,7 @@ async function inflate(compressed: ArrayBuffer, compression: number): Promise<Ui
     return new Uint8Array(compressed);
   }
   if (compression !== 8) {
-    throw new BackupPeekError(`unsupported compression method ${compression}`);
+    throw new BackupPeekError("unreadable");
   }
   const stream = new Blob([compressed])
     .stream()
@@ -129,7 +145,7 @@ export interface PeekedManifest {
 export async function peekBackupManifest(file: File): Promise<PeekedManifest> {
   const ref = await findManifestRef(file);
   if (ref.uncompressedSize > MAX_MANIFEST_BYTES || ref.compressedSize > MAX_MANIFEST_BYTES) {
-    throw new BackupPeekError("manifest too large");
+    throw new BackupPeekError("not_backup");
   }
   // The local header repeats name/extra with possibly different extra length,
   // so read it to find where the data actually starts.
@@ -139,7 +155,7 @@ export async function peekBackupManifest(file: File): Promise<PeekedManifest> {
     Math.min(ref.localHeaderOffset + 30, file.size)
   );
   if (local.byteLength < 30 || local.getUint32(0, true) !== LOC_SIG) {
-    throw new BackupPeekError("corrupt local header");
+    throw new BackupPeekError("not_backup");
   }
   const nameLen = local.getUint16(26, true);
   const extraLen = local.getUint16(28, true);
@@ -150,15 +166,15 @@ export async function peekBackupManifest(file: File): Promise<PeekedManifest> {
   try {
     parsed = JSON.parse(new TextDecoder().decode(inflated));
   } catch {
-    throw new BackupPeekError("manifest is not JSON");
+    throw new BackupPeekError("not_backup");
   }
   if (typeof parsed !== "object" || parsed === null) {
-    throw new BackupPeekError("manifest is not an object");
+    throw new BackupPeekError("not_backup");
   }
   const manifest = parsed as PeekedManifest;
   const discriminator = manifest.type ?? manifest.kind;
   if (discriminator !== "initiative-backup" && discriminator !== "guild-backup") {
-    throw new BackupPeekError("not an Initiative backup manifest");
+    throw new BackupPeekError("not_backup");
   }
   return manifest;
 }
