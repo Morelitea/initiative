@@ -14,14 +14,15 @@ from app.api.deps import (
     GuildContext,
     require_guild_roles,
 )
-from app.api.v1.platform_endpoints.auth import client_ip
 from app.api.v1.platform_endpoints.session_cookies import (
+    clear_refresh_cookie,
     set_refresh_cookie,
     set_session_cookie,
 )
 from app.core.config import settings
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.password_policy import enforce_password_policy
+from app.core.rate_limit import get_inet_client_ip
 from app.core.security import (
     create_access_token,
     get_password_hash,
@@ -390,7 +391,7 @@ async def update_users_me(
                 amr=[] if is_sso_account else ["pwd"],
                 satisfied_providers=[],
                 user_agent=request.headers.get("user-agent"),
-                ip=client_ip(request),
+                ip=get_inet_client_ip(request),
             )
             await admin_session.commit()
             refreshed_token, refreshed_max_age = mint_access_token(
@@ -418,6 +419,10 @@ async def update_users_me(
                 refreshed_token,
                 max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
             )
+            # The browser still holds the refresh cookie whose chain was just
+            # revoked above — clear it so the SPA doesn't resend a dead token
+            # on its next silent renewal.
+            clear_refresh_cookie(response)
 
     if "avatar_base64" in update_data:
         avatar_value = update_data["avatar_base64"]

@@ -1000,6 +1000,40 @@ async def test_password_change_keeps_this_device_signed_in(
 
 
 @pytest.mark.integration
+async def test_password_change_fallback_clears_dead_refresh_cookie(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """If the session store fails right after the global revocation, the
+    legacy re-issue must also clear the (now revoked) refresh cookie so the
+    SPA doesn't resend a dead token on its next silent renewal."""
+    await create_user(session, email="pwfall@example.com")
+
+    login = await client.post(
+        "/api/v1/auth/token",
+        data={"username": "pwfall@example.com", "password": "testpassword123"},
+    )
+    assert login.status_code == 200
+    assert login.cookies.get("refresh_token")
+
+    async def _boom(*args, **kwargs):
+        raise RuntimeError("session store down")
+
+    monkeypatch.setattr("app.services.auth.sessions.create_session", _boom)
+
+    change = await client.patch(
+        "/api/v1/users/me",
+        json={"password": "newpassword456", "current_password": "testpassword123"},
+    )
+    assert change.status_code == 200
+    set_cookies = change.headers.get_list("set-cookie")
+    assert any(
+        c.startswith("refresh_token=") and ("Max-Age=0" in c or "1970" in c)
+        for c in set_cookies
+    ), set_cookies
+    assert any(c.startswith("session_token=") for c in set_cookies)
+
+
+@pytest.mark.integration
 async def test_users_me_reports_linked_identity(
     client: AsyncClient, session: AsyncSession
 ):

@@ -1704,6 +1704,13 @@ async def test_login_session_store_failure_falls_back_to_legacy(
     claims = pyjwt.decode(token, options={"verify_signature": False})
     assert "sid" not in claims
     assert resp.cookies.get(REFRESH_COOKIE_NAME) is None
+    # Any leftover refresh cookie is actively cleared so it can't ride the
+    # new login into a later silent renewal.
+    set_cookies = resp.headers.get_list("set-cookie")
+    assert any(
+        c.startswith(f"{REFRESH_COOKIE_NAME}=") and ("Max-Age=0" in c or "1970" in c)
+        for c in set_cookies
+    ), set_cookies
 
     me = await client.get(
         "/api/v1/users/me", headers={"Authorization": f"Bearer {token}"}

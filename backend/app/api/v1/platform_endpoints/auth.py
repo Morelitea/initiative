@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-import ipaddress
 import logging
 from typing import Any, Annotated
 from urllib.parse import urlencode
@@ -15,7 +14,7 @@ from app.api.deps import SessionDep, get_current_active_user, get_current_user_o
 from app.db.session import get_admin_session
 from app.core.config import API_V1_STR, settings
 from sqlmodel.ext.asyncio.session import AsyncSession
-from app.core.rate_limit import get_real_client_ip, limiter
+from app.core.rate_limit import get_inet_client_ip, limiter
 from app.core.encryption import (
     decrypt_field,
     encrypt_field,
@@ -90,17 +89,6 @@ logger = logging.getLogger(__name__)
 # per-request OidcProvider is just configuration composed around them.
 _oidc_discovery = OidcDiscovery()
 _oidc_jwks = JwksResolver()
-
-
-def client_ip(request: Request) -> str | None:
-    """The client IP as a value the INET ``auth_sessions.ip`` column accepts, or
-    ``None`` when it isn't a parseable address (e.g. the ``testclient`` peer).
-    Guards the login/refresh path from faulting on a non-IP host string."""
-    try:
-        ipaddress.ip_address(get_real_client_ip(request))
-    except ValueError:
-        return None
-    return get_real_client_ip(request)
 
 
 def _refresh_rejected(detail: str) -> JSONResponse:
@@ -388,7 +376,7 @@ async def login_access_token(
             amr=["pwd"],
             satisfied_providers=[],
             user_agent=request.headers.get("user-agent"),
-            ip=client_ip(request),
+            ip=get_inet_client_ip(request),
         )
         await admin_session.commit()
     except Exception:
@@ -404,6 +392,10 @@ async def login_access_token(
         set_session_cookie(
             response, access_token, max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
         )
+        # A leftover refresh cookie from an earlier session (possibly another
+        # account on this browser) must not ride the new login — clear it so a
+        # later silent renewal can't swap the session out from under the user.
+        clear_refresh_cookie(response)
         return Token(access_token=access_token)
 
     access_token, access_max_age = mint_access_token(
@@ -446,7 +438,7 @@ async def refresh_access_token(
         admin_session,
         raw_refresh_token=raw,
         user_agent=request.headers.get("user-agent"),
-        ip=client_ip(request),
+        ip=get_inet_client_ip(request),
     )
     # Commit BEFORE branching: one commit persists the rotation (ROTATED) or the
     # theft-revocation (REUSED), so a rejection can't leave the chain kill
@@ -930,7 +922,7 @@ async def oidc_callback(
             amr=[f"oidc:{provider_slug}"],
             satisfied_providers=[provider_id],
             user_agent=request.headers.get("user-agent"),
-            ip=client_ip(request),
+            ip=get_inet_client_ip(request),
         )
         await admin_session.commit()
     except Exception:
@@ -948,6 +940,9 @@ async def oidc_callback(
             legacy_token,
             max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         )
+        # Same rule as the password-login fallback: a leftover refresh cookie
+        # must not ride the new login.
+        clear_refresh_cookie(oidc_response)
         return oidc_response
 
     app_token, access_max_age = mint_access_token(
