@@ -16,12 +16,13 @@ from app.db.query import (
     apply_sorting,
     build_paginated_response,
     extract_condition_value,
+    iter_leaf_conditions,
     paginate_sequence,
     paginated_query,
     parse_conditions,
     parse_sort_fields,
 )
-from app.schemas.query import FilterOp, SortDir
+from app.schemas.query import FilterCondition, FilterOp, SortDir
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import (
@@ -1257,21 +1258,32 @@ async def _parse_task_list_query(
 
     tz = _validate_tz(tz)
 
-    property_value_conditions = [
-        cond for cond in user_conditions if cond.field == "property_values"
+    # Every property_values leaf, wherever it sits, so its definition is loaded
+    # and the limit counts what the query actually compiles.
+    property_value_leaves = [
+        cond
+        for cond in iter_leaf_conditions(user_conditions)
+        if cond.field == "property_values"
     ]
-    if len(property_value_conditions) > properties_service.MAX_PROPERTY_FILTERS:
+    if len(property_value_leaves) > properties_service.MAX_PROPERTY_FILTERS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=QueryMessages.INVALID_CONDITIONS,
         )
     property_ids_needed: list[int] = []
-    for cond in property_value_conditions:
+    for cond in property_value_leaves:
         if isinstance(cond.value, dict):
             try:
                 property_ids_needed.append(int(cond.value.get("property_id")))
             except (TypeError, ValueError):
                 continue
+    # The cross-guild path AND-s these into its statement by hand, so it can
+    # only take top-level leaves — a grouped one isn't an unconditional filter.
+    property_value_conditions = [
+        cond
+        for cond in user_conditions
+        if isinstance(cond, FilterCondition) and cond.field == "property_values"
+    ]
     property_definitions_map = await properties_service.load_definitions_by_ids(
         session,
         property_ids_needed,
@@ -1548,10 +1560,12 @@ async def list_tasks(
     conditions: Optional[str] = Query(
         default=None,
         description=(
-            "JSON list of filter conditions. Each object: "
+            "JSON list of filter conditions, AND-ed together. Each object: "
             '{"field": "<column>", "op": "<operator>", "value": <val>}. '
             "Any Task column is valid plus virtual fields: "
-            "status_category, assignee_ids, tag_ids, initiative_ids."
+            "status_category, assignee_ids, tag_ids, initiative_ids. "
+            'An object with a "conditions" key is an AND/OR group: '
+            '{"logic": "or", "conditions": [...]}.'
         ),
     ),
     include_archived: bool = Query(default=False, description="Include archived tasks"),
