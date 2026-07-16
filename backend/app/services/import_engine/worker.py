@@ -182,6 +182,22 @@ async def _execute(session: AsyncSession, job: ImportJob, *, guild_id: int) -> d
     if payload is None:
         raise ImportEngineError(ImportEngineMessages.IMPORT_INVALID_PARAMS)
 
+    if job.source == "backup":
+        from app.services.import_engine import backup as backup_service
+
+        async with _open_user_session() as user_session:
+            # Route as the creator; apply_backup re-verifies REAL guild
+            # adminship and owns its own per-chunk commits + refreshes.
+            await establish_guild_access(user_session, user, guild_id)
+            backup_result = await backup_service.apply_backup(
+                user_session,
+                user=user,
+                guild_id=guild_id,
+                payload=payload,
+                include=(job.params or {}).get("include"),
+            )
+        return backup_result.model_dump(mode="json")
+
     importer = import_engine.get_importer(job.source)
     envelope = importer.validate(json.loads(payload))
 

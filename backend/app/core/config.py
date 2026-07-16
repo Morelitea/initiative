@@ -426,6 +426,12 @@ class Settings(BaseSettings):
     IMPORT_MAX_ENVELOPE_BYTES: int = 20_971_520  # 20 MiB
     # Staged payloads awaiting confirm/apply expire after this.
     IMPORT_STAGED_TTL_HOURS: int = 24
+    # Backup-zip imports: upload byte cap (mirrors the export bundle cap),
+    # plus zip-bomb bounds independent of the transfer cap — total declared
+    # uncompressed size and member count.
+    IMPORT_MAX_BACKUP_UPLOAD_BYTES: int = 268_435_456  # 256 MiB
+    IMPORT_MAX_BACKUP_UNCOMPRESSED_BYTES: int = 1_073_741_824  # 4x the upload cap
+    IMPORT_MAX_ZIP_MEMBERS: int = 20_000
 
     # First/bootstrap user — becomes the platform `owner` tier (there is no
     # superuser concept). The legacy FIRST_SUPERUSER_* env names are accepted

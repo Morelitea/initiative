@@ -551,6 +551,10 @@ export interface BodyUploadAttachmentApiV1GGuildIdAttachmentsPost {
   file: Blob;
 }
 
+export interface BodyUploadBackupApiV1GGuildIdImportsBackupPost {
+  file: Blob;
+}
+
 export interface BodyUploadDocumentFileApiV1GGuildIdDocumentsUploadPost {
   title: string;
   initiative_id: number;
@@ -4183,6 +4187,10 @@ export const ExportGuildApiV1GGuildIdExportsGuildGetMode = {
   backup: "backup",
   report: "report",
 } as const;
+
+export type ConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody = {
+  [key: string]: unknown;
+} | null;
 
 export type ListQueuesApiV1GGuildIdQueuesGetParams = {
   initiative_id?: number | null;

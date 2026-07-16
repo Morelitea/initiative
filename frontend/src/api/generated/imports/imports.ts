@@ -21,6 +21,8 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  BodyUploadBackupApiV1GGuildIdImportsBackupPost,
+  ConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody,
   EnvelopeImportRequest,
   HTTPValidationError,
   ImportJobRead,
@@ -1129,6 +1131,230 @@ export const useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete = <
 > => {
   return useMutation(
     getCancelImportJobApiV1GGuildIdImportsJobsJobIdDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Upload a backup zip and get its pre-flight plan. The zip is staged in
+ * guild storage and the job parked as ``staged`` (nothing is imported yet);
+ * ``POST /imports/jobs/{id}/confirm`` starts the apply. Unconfirmed staged
+ * backups expire after IMPORT_STAGED_TTL_HOURS. Guild admins only.
+ * @summary Upload Backup
+ */
+export const uploadBackupApiV1GGuildIdImportsBackupPost = (
+  guildId: number,
+  bodyUploadBackupApiV1GGuildIdImportsBackupPost: BodyType<BodyUploadBackupApiV1GGuildIdImportsBackupPost>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  const formData = new FormData();
+  formData.append(`file`, bodyUploadBackupApiV1GGuildIdImportsBackupPost.file);
+
+  return apiMutator<ImportJobRead>(
+    {
+      url: `/api/v1/g/${guildId}/imports/backup`,
+      method: "POST",
+      headers: { "Content-Type": "multipart/form-data" },
+      data: formData,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUploadBackupApiV1GGuildIdImportsBackupPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadBackupApiV1GGuildIdImportsBackupPost>>,
+    TError,
+    { guildId: number; data: BodyType<BodyUploadBackupApiV1GGuildIdImportsBackupPost> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof uploadBackupApiV1GGuildIdImportsBackupPost>>,
+  TError,
+  { guildId: number; data: BodyType<BodyUploadBackupApiV1GGuildIdImportsBackupPost> },
+  TContext
+> => {
+  const mutationKey = ["uploadBackupApiV1GGuildIdImportsBackupPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof uploadBackupApiV1GGuildIdImportsBackupPost>>,
+    { guildId: number; data: BodyType<BodyUploadBackupApiV1GGuildIdImportsBackupPost> }
+  > = (props) => {
+    const { guildId, data } = props ?? {};
+
+    return uploadBackupApiV1GGuildIdImportsBackupPost(guildId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UploadBackupApiV1GGuildIdImportsBackupPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof uploadBackupApiV1GGuildIdImportsBackupPost>>
+>;
+export type UploadBackupApiV1GGuildIdImportsBackupPostMutationBody =
+  BodyType<BodyUploadBackupApiV1GGuildIdImportsBackupPost>;
+export type UploadBackupApiV1GGuildIdImportsBackupPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Upload Backup
+ */
+export const useUploadBackupApiV1GGuildIdImportsBackupPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof uploadBackupApiV1GGuildIdImportsBackupPost>>,
+      TError,
+      { guildId: number; data: BodyType<BodyUploadBackupApiV1GGuildIdImportsBackupPost> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof uploadBackupApiV1GGuildIdImportsBackupPost>>,
+  TError,
+  { guildId: number; data: BodyType<BodyUploadBackupApiV1GGuildIdImportsBackupPost> },
+  TContext
+> => {
+  return useMutation(
+    getUploadBackupApiV1GGuildIdImportsBackupPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Confirm a staged backup: flips it to ``queued`` for the worker.
+ * Optional body ``{"include": {tool: bool}}`` narrows which tools apply
+ * (omitted tools default to included). Guild admins only — re-checked here
+ * and again at apply time.
+ * @summary Confirm Backup Import
+ */
+export const confirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPost = (
+  guildId: number,
+  jobId: number,
+  confirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody?: BodyType<ConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ImportJobRead>(
+    {
+      url: `/api/v1/g/${guildId}/imports/jobs/${jobId}/confirm`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: confirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody,
+      signal,
+    },
+    options
+  );
+};
+
+export const getConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof confirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPost>>,
+    TError,
+    {
+      guildId: number;
+      jobId: number;
+      data?: BodyType<ConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof confirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPost>>,
+  TError,
+  {
+    guildId: number;
+    jobId: number;
+    data?: BodyType<ConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody>;
+  },
+  TContext
+> => {
+  const mutationKey = ["confirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof confirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPost>>,
+    {
+      guildId: number;
+      jobId: number;
+      data?: BodyType<ConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody>;
+    }
+  > = (props) => {
+    const { guildId, jobId, data } = props ?? {};
+
+    return confirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPost(
+      guildId,
+      jobId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof confirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPost>>
+>;
+export type ConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutationBody =
+  | BodyType<ConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody>
+  | undefined;
+export type ConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Confirm Backup Import
+ */
+export const useConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof confirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPost>>,
+      TError,
+      {
+        guildId: number;
+        jobId: number;
+        data?: BodyType<ConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody>;
+      },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof confirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPost>>,
+  TError,
+  {
+    guildId: number;
+    jobId: number;
+    data?: BodyType<ConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody>;
+  },
+  TContext
+> => {
+  return useMutation(
+    getConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostMutationOptions(options),
     queryClient
   );
 };

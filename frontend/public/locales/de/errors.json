@@ -322,5 +322,9 @@
   "IMPORT_APPLY_FAILED": "Der Import ist fehlgeschlagen. Es wurde nichts importiert.",
   "IMPORT_ACCESS_REVOKED": "Der Import ist fehlgeschlagen, weil der Zugriff auf die Gilde entzogen wurde.",
   "IMPORT_INTERRUPTED": "Der Import wurde unterbrochen und ist möglicherweise unvollständig. Prüfe das Ergebnis vor einem erneuten Versuch.",
-  "IMPORT_CREATOR_INACTIVE": "Der Import ist fehlgeschlagen, weil das anfragende Konto inaktiv ist."
+  "IMPORT_CREATOR_INACTIVE": "Der Import ist fehlgeschlagen, weil das anfragende Konto inaktiv ist.",
+  "IMPORT_ADMIN_REQUIRED": "Nur Gilden-Administratoren können ein Backup importieren.",
+  "IMPORT_NOT_CONFIRMABLE": "Dieser Import kann nicht bestätigt werden — er ist möglicherweise abgelaufen oder bereits gestartet.",
+  "IMPORT_ZIP_INVALID": "Diese Datei ist kein gültiges Initiative-Backup.",
+  "IMPORT_QUOTA_EXCEEDED": "Die Dateien des Backups passen nicht in den Speicher dieser Gilde."
 }

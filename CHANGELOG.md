@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Backup restore: a whole initiative or guild backup zip can be imported by a guild admin. Upload shows a pre-flight plan (source guild, per-initiative content counts, file payload size) before anything is applied; confirming restores each backed-up initiative as a NEW initiative (renamed on collision, tool switches from the backup, the importer becomes its manager), with uploaded files restored into guild storage (deduplicated and quota-checked) and every entry applied through the same importers as single-file imports — a corrupt entry fails alone and is reported, never the whole restore. Unconfirmed uploads expire after 24 hours.
 - Data import: every exported JSON envelope — projects, documents (text, spreadsheet, whiteboard, link), queues, counter groups, and calendar events — can now be imported into an initiative of your choice. Tags and custom properties match by name (or are created), people resolve by email against the target initiative's members with unmatched ones reported, and the importer becomes the owner of everything created. Small files import instantly; large ones run as a background job with an inbox notification when done. Requires the tool's create permission in the target initiative; 0.56.x-era exports (the old `kind` spelling) import unchanged.
 
 ### Changed

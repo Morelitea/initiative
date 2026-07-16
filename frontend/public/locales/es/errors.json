@@ -322,5 +322,9 @@
   "IMPORT_APPLY_FAILED": "La importación falló. No se importó nada.",
   "IMPORT_ACCESS_REVOKED": "La importación falló porque se revocó el acceso al gremio.",
   "IMPORT_INTERRUPTED": "La importación se interrumpió y puede estar incompleta. Revisa antes de reintentar.",
-  "IMPORT_CREATOR_INACTIVE": "La importación falló porque la cuenta solicitante está inactiva."
+  "IMPORT_CREATOR_INACTIVE": "La importación falló porque la cuenta solicitante está inactiva.",
+  "IMPORT_ADMIN_REQUIRED": "Solo los administradores del gremio pueden importar una copia de seguridad.",
+  "IMPORT_NOT_CONFIRMABLE": "Esta importación no se puede confirmar; puede haber caducado o ya haber comenzado.",
+  "IMPORT_ZIP_INVALID": "Este archivo no es una copia de seguridad válida de Initiative.",
+  "IMPORT_QUOTA_EXCEEDED": "Los archivos de la copia de seguridad no caben en el almacenamiento de este gremio."
 }

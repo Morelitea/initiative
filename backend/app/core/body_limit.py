@@ -28,6 +28,13 @@ _RULES: tuple[tuple[re.Pattern[str], Callable[[], int], str], ...] = (
         lambda: settings.IMPORT_MAX_ENVELOPE_BYTES,
         "IMPORT_TOO_LARGE",
     ),
+    (
+        # Multipart adds framing overhead around the zip; allow 1 MiB slack
+        # over the cap the handler's bounded read enforces exactly.
+        re.compile(r"^/api/v1/g/\d+/imports/backup$"),
+        lambda: settings.IMPORT_MAX_BACKUP_UPLOAD_BYTES + 1_048_576,
+        "IMPORT_TOO_LARGE",
+    ),
 )
 
 

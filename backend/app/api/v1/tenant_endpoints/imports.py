@@ -1,7 +1,8 @@
 """API endpoints for importing tasks from external platforms."""
 
 import logging
-from typing import Annotated
+from datetime import datetime, timedelta, timezone
+from typing import Annotated, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 from sqlalchemy.orm import selectinload
@@ -416,6 +417,160 @@ async def cancel_import_job(
     import_engine.delete_payload(guild_context.guild_id, job.payload_ref)
     job.status = ImportJobStatus.cancelled
     job.payload_ref = None
+    session.add(job)
+    await session.commit()
+    await session.refresh(job)
+    return job
+
+
+# ---------------------------------------------------------------------------
+# Backup-zip imports (guild admin only)
+# ---------------------------------------------------------------------------
+
+from fastapi import File, UploadFile  # noqa: E402
+
+from app.core.config import settings  # noqa: E402
+from app.models.platform.guild import GuildRole  # noqa: E402
+from app.services.import_engine import backup as backup_service  # noqa: E402
+from app.services.import_engine.engine import (  # noqa: E402
+    count_active_jobs_locked,
+    stage_payload,
+)
+from app.services.tenant.attachments import (  # noqa: E402
+    FileTooLargeError,
+    read_upload_bounded,
+)
+
+
+def _require_real_guild_admin(guild_context: GuildContext) -> None:
+    """Backup import creates initiatives and restores blobs — guild admins
+    only, and REAL membership at that: a break-glass grant synthesizes an
+    admin role, but the worker re-checks actual membership at apply time, so
+    a stand-in would only fail later. Reject it up front."""
+    if guild_context.grant is not None or guild_context.role != GuildRole.admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ImportEngineMessages.IMPORT_ADMIN_REQUIRED,
+        )
+
+
+@router.post(
+    "/backup", response_model=ImportJobRead, status_code=status.HTTP_201_CREATED
+)
+async def upload_backup(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    file: UploadFile = File(...),
+) -> ImportJob:
+    """Upload a backup zip and get its pre-flight plan. The zip is staged in
+    guild storage and the job parked as ``staged`` (nothing is imported yet);
+    ``POST /imports/jobs/{id}/confirm`` starts the apply. Unconfirmed staged
+    backups expire after IMPORT_STAGED_TTL_HOURS. Guild admins only."""
+    _require_real_guild_admin(guild_context)
+    _require_writable(guild_context)
+    guild_id = guild_context.guild_id
+
+    # Byte cap: BodySizeLimitMiddleware already rejected an oversized or
+    # chunked-over-cap request at the ASGI seam; this bounded read is the
+    # in-process backstop.
+    try:
+        payload = await read_upload_bounded(
+            file, settings.IMPORT_MAX_BACKUP_UPLOAD_BYTES
+        )
+    except FileTooLargeError:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=ImportEngineMessages.IMPORT_TOO_LARGE,
+        )
+
+    existing_names = {
+        row
+        for row in (
+            await session.exec(
+                select(Initiative.name).where(Initiative.guild_id == guild_id)
+            )
+        ).all()
+    }
+    try:
+        plan = backup_service.plan_backup(
+            payload, existing_initiative_names=existing_names
+        )
+        await count_active_jobs_locked(session, user=current_user)
+        payload_ref = stage_payload(guild_id, payload, suffix="zip")
+    except ImportEngineError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+
+    job = ImportJob(
+        guild_id=guild_id,
+        created_by_id=current_user.id,
+        source="backup",
+        params={},
+        payload_ref=payload_ref,
+        plan=plan.model_dump(mode="json"),
+        status=ImportJobStatus.staged,
+        expires_at=datetime.now(timezone.utc)
+        + timedelta(hours=settings.IMPORT_STAGED_TTL_HOURS),
+    )
+    session.add(job)
+    await session.commit()
+    await session.refresh(job)
+    return job
+
+
+@router.post("/jobs/{job_id}/confirm", response_model=ImportJobRead)
+async def confirm_backup_import(
+    job_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    body: Optional[dict] = None,
+) -> ImportJob:
+    """Confirm a staged backup: flips it to ``queued`` for the worker.
+    Optional body ``{"include": {tool: bool}}`` narrows which tools apply
+    (omitted tools default to included). Guild admins only — re-checked here
+    and again at apply time."""
+    _require_real_guild_admin(guild_context)
+    _require_writable(guild_context)
+    job = await session.get(ImportJob, job_id)
+    if job is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=ImportEngineMessages.IMPORT_JOB_NOT_FOUND,
+        )
+    if job.status != ImportJobStatus.staged or job.source != "backup":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=ImportEngineMessages.IMPORT_NOT_CONFIRMABLE,
+        )
+    # A staged job whose TTL already elapsed is expired NOW, not silently on
+    # GC's next pass: confirming it would return 200 and then vanish queued
+    # (GC sweeps expired queued rows too) with no notification.
+    now = datetime.now(timezone.utc)
+    if job.expires_at is not None and job.expires_at <= now:
+        import_engine.delete_payload(guild_context.guild_id, job.payload_ref)
+        job.status = ImportJobStatus.expired
+        job.payload_ref = None
+        session.add(job)
+        await session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=ImportEngineMessages.IMPORT_NOT_CONFIRMABLE,
+        )
+    include = (body or {}).get("include")
+    if include is not None:
+        if not isinstance(include, dict) or not all(
+            isinstance(v, bool) for v in include.values()
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ImportEngineMessages.IMPORT_INVALID_PARAMS,
+            )
+        job.params = {**(job.params or {}), "include": include}
+    job.status = ImportJobStatus.queued
+    # Fresh TTL window: the confirmed job now waits on the worker, and a
+    # nearly-elapsed staging TTL must not let GC sweep it out of the queue.
+    job.expires_at = now + timedelta(hours=settings.IMPORT_STAGED_TTL_HOURS)
     session.add(job)
     await session.commit()
     await session.refresh(job)
