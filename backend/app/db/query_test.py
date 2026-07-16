@@ -601,6 +601,19 @@ class TestDateValueCoercion:
         bind = list(result.whereclause.get_children())[1]
         assert bind.value == date(2026, 6, 1)
 
+    def test_date_column_narrowed_by_a_full_timestamp_takes_the_day(self):
+        """date.fromisoformat() won't read a time component, but a caller
+        windowing a date column sends exactly that (JS toISOString())."""
+        stmt = select(_dummy_table)
+        conditions = [
+            FilterCondition(
+                field="due_on", op=FilterOp.gte, value="2026-06-01T12:30:00.000Z"
+            )
+        ]
+        result = apply_filters(stmt, _DummyModel, conditions)
+        bind = list(result.whereclause.get_children())[1]
+        assert bind.value == date(2026, 6, 1)
+
     def test_coerces_each_value_of_an_in_list(self):
         stmt = select(_dummy_table)
         conditions = [

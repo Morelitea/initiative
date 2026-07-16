@@ -297,10 +297,18 @@ def _coerce_value(col: Any, value: Any) -> Any:
     if py_type not in (datetime, date) or not isinstance(value, str):
         return value
     try:
-        # date columns take a plain date; a datetime column reads either form.
         return py_type.fromisoformat(value)
     except ValueError:
-        return value
+        pass
+    if py_type is date:
+        # A date column narrowed with a full timestamp — the shape JS
+        # toISOString() produces, which date.fromisoformat() won't read. The
+        # caller means the calendar day, so take it.
+        try:
+            return datetime.fromisoformat(value).date()
+        except ValueError:
+            pass
+    return value
 
 
 def _build_filter_clause(col: Any, op: FilterOp, value: Any):

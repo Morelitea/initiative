@@ -217,6 +217,12 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     // start_date, its due_date, or both (see buildTaskCalendarEntries), so the
     // window has to match either one — a task due in-window but started before
     // it still belongs on the calendar.
+    //
+    // A task that straddles the whole window (starts before, due after) matches
+    // neither arm, which is correct: its two markers sit on days outside the
+    // window and it renders nothing inside it. That holds only while markers
+    // are single days rather than a bar spanning start → due — pinned by a test
+    // in taskCalendarEntries.test.ts.
     conditions.push({
       logic: "or",
       conditions: (["start_date", "due_date"] as const).map((field) => ({
