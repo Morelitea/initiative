@@ -3914,6 +3914,10 @@ export type GetDocumentCountsApiV1GGuildIdDocumentsCountsGetParams = {
 
 export type ListDocumentsApiV1GGuildIdDocumentsGetParams = {
   initiative_id?: number | null;
+  /**
+   * Filter to specific document IDs — for hydrating a known set of documents without walking a collection. Maximum 100 IDs.
+   */
+  ids?: number[] | null;
   search?: string | null;
   /**
    * Filter by tag IDs
@@ -3942,10 +3946,7 @@ export type ListDocumentsApiV1GGuildIdDocumentsGetParams = {
 
 export type AutocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGetParams = {
   initiative_id: number;
-  /**
-   * @minLength 1
-   */
-  q: string;
+  q?: string;
   /**
    * @maximum 20
    */

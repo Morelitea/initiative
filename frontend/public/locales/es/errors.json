@@ -137,6 +137,7 @@
   "DOCUMENT_OWNER_REQUIRED": "Se requiere permiso de propietario del documento",
   "DOCUMENT_NO_ACCESS": "No tienes acceso a este documento",
   "DOCUMENT_TITLE_ALREADY_EXISTS": "Ya existe un documento con este título en esta iniciativa",
+  "DOCUMENT_TOO_MANY_IDS": "Se solicitaron demasiados documentos a la vez (máximo 100)",
   "DOCUMENT_TITLE_REQUIRED": "El título del documento es obligatorio",
   "DOCUMENT_CANNOT_ASSIGN_OWNER": "No se puede asignar permiso de propietario",
   "DOCUMENT_USER_MUST_BE_MEMBER": "El usuario debe ser miembro de la iniciativa",

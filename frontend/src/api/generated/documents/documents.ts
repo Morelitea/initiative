@@ -503,6 +503,10 @@ export const useCreateDocumentApiV1GGuildIdDocumentsPost = <
  *
  * Returns lightweight document info (id, title, updated_at) for typeahead.
  * Only returns documents the user has permission to access.
+ *
+ * An empty ``q`` matches everything, so a picker that opens before the user
+ * types gets the most recently updated documents rather than an error. The
+ * result is bounded by ``limit`` either way.
  * @summary Autocomplete Documents
  */
 export const autocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGet = (

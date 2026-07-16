@@ -48,6 +48,7 @@ import {
 } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { toast } from "@/lib/chesterToast";
+import { autocompleteDocuments, type DocumentAutocomplete } from "@/lib/documentUtils";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { fetchAllPages } from "@/lib/fetchAllPages";
 import type { MutationOpts } from "@/types/mutation";
@@ -137,6 +138,28 @@ export const useInitiativeDocuments = (
       return response.items;
     },
     ...options,
+  });
+};
+
+/**
+ * Title typeahead over an initiative's documents, for pickers.
+ *
+ * Returns a small page of slim ``{id, title}`` rows from the server rather
+ * than the whole collection, so a picker's cost tracks what the user typed.
+ * Pass ``enabled: false`` until the picker is open.
+ */
+export const useDocumentAutocomplete = (
+  initiativeId: number,
+  query: string,
+  options?: QueryOpts<DocumentAutocomplete[]> & { limit?: number }
+) => {
+  const guildId = useActiveGuildId();
+  const { limit = 20, ...queryOptions } = options ?? {};
+  return useQuery<DocumentAutocomplete[]>({
+    queryKey: ["documents", "autocomplete", guildId, initiativeId, query, limit],
+    queryFn: () => autocompleteDocuments(guildId, initiativeId, query, limit),
+    placeholderData: keepPreviousData,
+    ...queryOptions,
   });
 };
 
