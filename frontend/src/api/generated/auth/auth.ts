@@ -27,11 +27,12 @@ import type {
   DeviceTokenRequest,
   DeviceTokenResponse,
   HTTPValidationError,
-  OidcCallbackApiV1AuthOidcCallbackGetParams,
-  OidcLoginApiV1AuthOidcLoginGetParams,
+  LoginProvidersResponse,
   OidcStatusApiV1AuthOidcStatusGet200,
   PasswordResetRequest,
   PasswordResetSubmit,
+  ProviderCallbackApiV1AuthProviderSlugCallbackGetParams,
+  ProviderLoginApiV1AuthProviderSlugLoginGetParams,
   RegisterUserApiV1AuthRegisterPostParams,
   Token,
   UploadTokenResponse,
@@ -959,6 +960,9 @@ export const useRevokeDeviceTokenApiV1AuthDeviceTokensTokenIdDelete = <
   );
 };
 /**
+ * Legacy single-provider status for the current login page. Superseded by
+ * ``GET /auth/providers``; removed once the SPA switches to the provider
+ * loop.
  * @summary Oidc Status
  */
 export const oidcStatusApiV1AuthOidcStatusGet = (
@@ -1082,71 +1086,80 @@ export function useOidcStatusApiV1AuthOidcStatusGet<
 }
 
 /**
- * @summary Oidc Login
+ * The sign-in providers the login page offers — non-secret metadata only.
+ *
+ * Empty in guild posture (operator-global providers are dormant there) and
+ * on instances with no SSO configured. The platform provider is reconciled
+ * from ``app_settings`` on the way out, same as the login flow, so the
+ * listing can never disagree with what ``/auth/oidc/login`` would do.
+ * Registry rows are read on the system engine (``auth_providers`` carries no
+ * request-path grant).
+ * @summary List Login Providers
  */
-export const oidcLoginApiV1AuthOidcLoginGet = (
-  params?: OidcLoginApiV1AuthOidcLoginGetParams,
+export const listLoginProvidersApiV1AuthProvidersGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<unknown>(
-    { url: `/api/v1/auth/oidc/login`, method: "GET", params, signal },
+  return apiMutator<LoginProvidersResponse>(
+    { url: `/api/v1/auth/providers`, method: "GET", signal },
     options
   );
 };
 
-export const getOidcLoginApiV1AuthOidcLoginGetQueryKey = (
-  params?: OidcLoginApiV1AuthOidcLoginGetParams
-) => {
-  return [`/api/v1/auth/oidc/login`, ...(params ? [params] : [])] as const;
+export const getListLoginProvidersApiV1AuthProvidersGetQueryKey = () => {
+  return [`/api/v1/auth/providers`] as const;
 };
 
-export const getOidcLoginApiV1AuthOidcLoginGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof oidcLoginApiV1AuthOidcLoginGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  params?: OidcLoginApiV1AuthOidcLoginGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof oidcLoginApiV1AuthOidcLoginGet>>, TError, TData>
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }
-) => {
+export const getListLoginProvidersApiV1AuthProvidersGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listLoginProvidersApiV1AuthProvidersGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof listLoginProvidersApiV1AuthProvidersGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getOidcLoginApiV1AuthOidcLoginGetQueryKey(params);
+  const queryKey = queryOptions?.queryKey ?? getListLoginProvidersApiV1AuthProvidersGetQueryKey();
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof oidcLoginApiV1AuthOidcLoginGet>>> = ({
-    signal,
-  }) => oidcLoginApiV1AuthOidcLoginGet(params, requestOptions, signal);
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listLoginProvidersApiV1AuthProvidersGet>>
+  > = ({ signal }) => listLoginProvidersApiV1AuthProvidersGet(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof oidcLoginApiV1AuthOidcLoginGet>>,
+    Awaited<ReturnType<typeof listLoginProvidersApiV1AuthProvidersGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type OidcLoginApiV1AuthOidcLoginGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof oidcLoginApiV1AuthOidcLoginGet>>
+export type ListLoginProvidersApiV1AuthProvidersGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listLoginProvidersApiV1AuthProvidersGet>>
 >;
-export type OidcLoginApiV1AuthOidcLoginGetQueryError = ErrorType<HTTPValidationError>;
+export type ListLoginProvidersApiV1AuthProvidersGetQueryError = ErrorType<unknown>;
 
-export function useOidcLoginApiV1AuthOidcLoginGet<
-  TData = Awaited<ReturnType<typeof oidcLoginApiV1AuthOidcLoginGet>>,
-  TError = ErrorType<HTTPValidationError>,
+export function useListLoginProvidersApiV1AuthProvidersGet<
+  TData = Awaited<ReturnType<typeof listLoginProvidersApiV1AuthProvidersGet>>,
+  TError = ErrorType<unknown>,
 >(
-  params: undefined | OidcLoginApiV1AuthOidcLoginGetParams,
   options: {
     query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof oidcLoginApiV1AuthOidcLoginGet>>, TError, TData>
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listLoginProvidersApiV1AuthProvidersGet>>,
+        TError,
+        TData
+      >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof oidcLoginApiV1AuthOidcLoginGet>>,
+          Awaited<ReturnType<typeof listLoginProvidersApiV1AuthProvidersGet>>,
           TError,
-          Awaited<ReturnType<typeof oidcLoginApiV1AuthOidcLoginGet>>
+          Awaited<ReturnType<typeof listLoginProvidersApiV1AuthProvidersGet>>
         >,
         "initialData"
       >;
@@ -1154,20 +1167,23 @@ export function useOidcLoginApiV1AuthOidcLoginGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useOidcLoginApiV1AuthOidcLoginGet<
-  TData = Awaited<ReturnType<typeof oidcLoginApiV1AuthOidcLoginGet>>,
-  TError = ErrorType<HTTPValidationError>,
+export function useListLoginProvidersApiV1AuthProvidersGet<
+  TData = Awaited<ReturnType<typeof listLoginProvidersApiV1AuthProvidersGet>>,
+  TError = ErrorType<unknown>,
 >(
-  params?: OidcLoginApiV1AuthOidcLoginGetParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof oidcLoginApiV1AuthOidcLoginGet>>, TError, TData>
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listLoginProvidersApiV1AuthProvidersGet>>,
+        TError,
+        TData
+      >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof oidcLoginApiV1AuthOidcLoginGet>>,
+          Awaited<ReturnType<typeof listLoginProvidersApiV1AuthProvidersGet>>,
           TError,
-          Awaited<ReturnType<typeof oidcLoginApiV1AuthOidcLoginGet>>
+          Awaited<ReturnType<typeof listLoginProvidersApiV1AuthProvidersGet>>
         >,
         "initialData"
       >;
@@ -1175,37 +1191,43 @@ export function useOidcLoginApiV1AuthOidcLoginGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useOidcLoginApiV1AuthOidcLoginGet<
-  TData = Awaited<ReturnType<typeof oidcLoginApiV1AuthOidcLoginGet>>,
-  TError = ErrorType<HTTPValidationError>,
+export function useListLoginProvidersApiV1AuthProvidersGet<
+  TData = Awaited<ReturnType<typeof listLoginProvidersApiV1AuthProvidersGet>>,
+  TError = ErrorType<unknown>,
 >(
-  params?: OidcLoginApiV1AuthOidcLoginGetParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof oidcLoginApiV1AuthOidcLoginGet>>, TError, TData>
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listLoginProvidersApiV1AuthProvidersGet>>,
+        TError,
+        TData
+      >
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * @summary Oidc Login
+ * @summary List Login Providers
  */
 
-export function useOidcLoginApiV1AuthOidcLoginGet<
-  TData = Awaited<ReturnType<typeof oidcLoginApiV1AuthOidcLoginGet>>,
-  TError = ErrorType<HTTPValidationError>,
+export function useListLoginProvidersApiV1AuthProvidersGet<
+  TData = Awaited<ReturnType<typeof listLoginProvidersApiV1AuthProvidersGet>>,
+  TError = ErrorType<unknown>,
 >(
-  params?: OidcLoginApiV1AuthOidcLoginGetParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof oidcLoginApiV1AuthOidcLoginGet>>, TError, TData>
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listLoginProvidersApiV1AuthProvidersGet>>,
+        TError,
+        TData
+      >
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getOidcLoginApiV1AuthOidcLoginGetQueryOptions(params, options);
+  const queryOptions = getListLoginProvidersApiV1AuthProvidersGetQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -1215,34 +1237,40 @@ export function useOidcLoginApiV1AuthOidcLoginGet<
 }
 
 /**
- * @summary Oidc Callback
+ * Begin the relying-party flow for one provider. The platform provider's
+ * slug is ``oidc``, so the pre-generalization ``/auth/oidc/login`` URL is
+ * this same route.
+ * @summary Provider Login
  */
-export const oidcCallbackApiV1AuthOidcCallbackGet = (
-  params?: OidcCallbackApiV1AuthOidcCallbackGetParams,
+export const providerLoginApiV1AuthProviderSlugLoginGet = (
+  providerSlug: string,
+  params?: ProviderLoginApiV1AuthProviderSlugLoginGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<unknown>(
-    { url: `/api/v1/auth/oidc/callback`, method: "GET", params, signal },
+    { url: `/api/v1/auth/${providerSlug}/login`, method: "GET", params, signal },
     options
   );
 };
 
-export const getOidcCallbackApiV1AuthOidcCallbackGetQueryKey = (
-  params?: OidcCallbackApiV1AuthOidcCallbackGetParams
+export const getProviderLoginApiV1AuthProviderSlugLoginGetQueryKey = (
+  providerSlug: string,
+  params?: ProviderLoginApiV1AuthProviderSlugLoginGetParams
 ) => {
-  return [`/api/v1/auth/oidc/callback`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/auth/${providerSlug}/login`, ...(params ? [params] : [])] as const;
 };
 
-export const getOidcCallbackApiV1AuthOidcCallbackGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof oidcCallbackApiV1AuthOidcCallbackGet>>,
+export const getProviderLoginApiV1AuthProviderSlugLoginGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof providerLoginApiV1AuthProviderSlugLoginGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: OidcCallbackApiV1AuthOidcCallbackGetParams,
+  providerSlug: string,
+  params?: ProviderLoginApiV1AuthProviderSlugLoginGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof oidcCallbackApiV1AuthOidcCallbackGet>>,
+        Awaited<ReturnType<typeof providerLoginApiV1AuthProviderSlugLoginGet>>,
         TError,
         TData
       >
@@ -1253,42 +1281,50 @@ export const getOidcCallbackApiV1AuthOidcCallbackGetQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getOidcCallbackApiV1AuthOidcCallbackGetQueryKey(params);
+    queryOptions?.queryKey ??
+    getProviderLoginApiV1AuthProviderSlugLoginGetQueryKey(providerSlug, params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof oidcCallbackApiV1AuthOidcCallbackGet>>
-  > = ({ signal }) => oidcCallbackApiV1AuthOidcCallbackGet(params, requestOptions, signal);
+    Awaited<ReturnType<typeof providerLoginApiV1AuthProviderSlugLoginGet>>
+  > = ({ signal }) =>
+    providerLoginApiV1AuthProviderSlugLoginGet(providerSlug, params, requestOptions, signal);
 
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof oidcCallbackApiV1AuthOidcCallbackGet>>,
+  return {
+    queryKey,
+    queryFn,
+    enabled: providerSlug !== null && providerSlug !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof providerLoginApiV1AuthProviderSlugLoginGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type OidcCallbackApiV1AuthOidcCallbackGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof oidcCallbackApiV1AuthOidcCallbackGet>>
+export type ProviderLoginApiV1AuthProviderSlugLoginGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof providerLoginApiV1AuthProviderSlugLoginGet>>
 >;
-export type OidcCallbackApiV1AuthOidcCallbackGetQueryError = ErrorType<HTTPValidationError>;
+export type ProviderLoginApiV1AuthProviderSlugLoginGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useOidcCallbackApiV1AuthOidcCallbackGet<
-  TData = Awaited<ReturnType<typeof oidcCallbackApiV1AuthOidcCallbackGet>>,
+export function useProviderLoginApiV1AuthProviderSlugLoginGet<
+  TData = Awaited<ReturnType<typeof providerLoginApiV1AuthProviderSlugLoginGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: undefined | OidcCallbackApiV1AuthOidcCallbackGetParams,
+  providerSlug: string,
+  params: undefined | ProviderLoginApiV1AuthProviderSlugLoginGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof oidcCallbackApiV1AuthOidcCallbackGet>>,
+        Awaited<ReturnType<typeof providerLoginApiV1AuthProviderSlugLoginGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof oidcCallbackApiV1AuthOidcCallbackGet>>,
+          Awaited<ReturnType<typeof providerLoginApiV1AuthProviderSlugLoginGet>>,
           TError,
-          Awaited<ReturnType<typeof oidcCallbackApiV1AuthOidcCallbackGet>>
+          Awaited<ReturnType<typeof providerLoginApiV1AuthProviderSlugLoginGet>>
         >,
         "initialData"
       >;
@@ -1296,24 +1332,25 @@ export function useOidcCallbackApiV1AuthOidcCallbackGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useOidcCallbackApiV1AuthOidcCallbackGet<
-  TData = Awaited<ReturnType<typeof oidcCallbackApiV1AuthOidcCallbackGet>>,
+export function useProviderLoginApiV1AuthProviderSlugLoginGet<
+  TData = Awaited<ReturnType<typeof providerLoginApiV1AuthProviderSlugLoginGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: OidcCallbackApiV1AuthOidcCallbackGetParams,
+  providerSlug: string,
+  params?: ProviderLoginApiV1AuthProviderSlugLoginGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof oidcCallbackApiV1AuthOidcCallbackGet>>,
+        Awaited<ReturnType<typeof providerLoginApiV1AuthProviderSlugLoginGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof oidcCallbackApiV1AuthOidcCallbackGet>>,
+          Awaited<ReturnType<typeof providerLoginApiV1AuthProviderSlugLoginGet>>,
           TError,
-          Awaited<ReturnType<typeof oidcCallbackApiV1AuthOidcCallbackGet>>
+          Awaited<ReturnType<typeof providerLoginApiV1AuthProviderSlugLoginGet>>
         >,
         "initialData"
       >;
@@ -1321,15 +1358,16 @@ export function useOidcCallbackApiV1AuthOidcCallbackGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useOidcCallbackApiV1AuthOidcCallbackGet<
-  TData = Awaited<ReturnType<typeof oidcCallbackApiV1AuthOidcCallbackGet>>,
+export function useProviderLoginApiV1AuthProviderSlugLoginGet<
+  TData = Awaited<ReturnType<typeof providerLoginApiV1AuthProviderSlugLoginGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: OidcCallbackApiV1AuthOidcCallbackGetParams,
+  providerSlug: string,
+  params?: ProviderLoginApiV1AuthProviderSlugLoginGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof oidcCallbackApiV1AuthOidcCallbackGet>>,
+        Awaited<ReturnType<typeof providerLoginApiV1AuthProviderSlugLoginGet>>,
         TError,
         TData
       >
@@ -1339,18 +1377,19 @@ export function useOidcCallbackApiV1AuthOidcCallbackGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * @summary Oidc Callback
+ * @summary Provider Login
  */
 
-export function useOidcCallbackApiV1AuthOidcCallbackGet<
-  TData = Awaited<ReturnType<typeof oidcCallbackApiV1AuthOidcCallbackGet>>,
+export function useProviderLoginApiV1AuthProviderSlugLoginGet<
+  TData = Awaited<ReturnType<typeof providerLoginApiV1AuthProviderSlugLoginGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: OidcCallbackApiV1AuthOidcCallbackGetParams,
+  providerSlug: string,
+  params?: ProviderLoginApiV1AuthProviderSlugLoginGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof oidcCallbackApiV1AuthOidcCallbackGet>>,
+        Awaited<ReturnType<typeof providerLoginApiV1AuthProviderSlugLoginGet>>,
         TError,
         TData
       >
@@ -1359,7 +1398,187 @@ export function useOidcCallbackApiV1AuthOidcCallbackGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getOidcCallbackApiV1AuthOidcCallbackGetQueryOptions(params, options);
+  const queryOptions = getProviderLoginApiV1AuthProviderSlugLoginGetQueryOptions(
+    providerSlug,
+    params,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Complete the relying-party flow for one provider (see provider_login:
+ * the platform provider's slug is ``oidc``, so the URL operators registered
+ * at their IdP is this same route).
+ * @summary Provider Callback
+ */
+export const providerCallbackApiV1AuthProviderSlugCallbackGet = (
+  providerSlug: string,
+  params?: ProviderCallbackApiV1AuthProviderSlugCallbackGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<unknown>(
+    { url: `/api/v1/auth/${providerSlug}/callback`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getProviderCallbackApiV1AuthProviderSlugCallbackGetQueryKey = (
+  providerSlug: string,
+  params?: ProviderCallbackApiV1AuthProviderSlugCallbackGetParams
+) => {
+  return [`/api/v1/auth/${providerSlug}/callback`, ...(params ? [params] : [])] as const;
+};
+
+export const getProviderCallbackApiV1AuthProviderSlugCallbackGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof providerCallbackApiV1AuthProviderSlugCallbackGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  providerSlug: string,
+  params?: ProviderCallbackApiV1AuthProviderSlugCallbackGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof providerCallbackApiV1AuthProviderSlugCallbackGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getProviderCallbackApiV1AuthProviderSlugCallbackGetQueryKey(providerSlug, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof providerCallbackApiV1AuthProviderSlugCallbackGet>>
+  > = ({ signal }) =>
+    providerCallbackApiV1AuthProviderSlugCallbackGet(providerSlug, params, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: providerSlug !== null && providerSlug !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof providerCallbackApiV1AuthProviderSlugCallbackGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ProviderCallbackApiV1AuthProviderSlugCallbackGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof providerCallbackApiV1AuthProviderSlugCallbackGet>>
+>;
+export type ProviderCallbackApiV1AuthProviderSlugCallbackGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useProviderCallbackApiV1AuthProviderSlugCallbackGet<
+  TData = Awaited<ReturnType<typeof providerCallbackApiV1AuthProviderSlugCallbackGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  providerSlug: string,
+  params: undefined | ProviderCallbackApiV1AuthProviderSlugCallbackGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof providerCallbackApiV1AuthProviderSlugCallbackGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof providerCallbackApiV1AuthProviderSlugCallbackGet>>,
+          TError,
+          Awaited<ReturnType<typeof providerCallbackApiV1AuthProviderSlugCallbackGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useProviderCallbackApiV1AuthProviderSlugCallbackGet<
+  TData = Awaited<ReturnType<typeof providerCallbackApiV1AuthProviderSlugCallbackGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  providerSlug: string,
+  params?: ProviderCallbackApiV1AuthProviderSlugCallbackGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof providerCallbackApiV1AuthProviderSlugCallbackGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof providerCallbackApiV1AuthProviderSlugCallbackGet>>,
+          TError,
+          Awaited<ReturnType<typeof providerCallbackApiV1AuthProviderSlugCallbackGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useProviderCallbackApiV1AuthProviderSlugCallbackGet<
+  TData = Awaited<ReturnType<typeof providerCallbackApiV1AuthProviderSlugCallbackGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  providerSlug: string,
+  params?: ProviderCallbackApiV1AuthProviderSlugCallbackGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof providerCallbackApiV1AuthProviderSlugCallbackGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Provider Callback
+ */
+
+export function useProviderCallbackApiV1AuthProviderSlugCallbackGet<
+  TData = Awaited<ReturnType<typeof providerCallbackApiV1AuthProviderSlugCallbackGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  providerSlug: string,
+  params?: ProviderCallbackApiV1AuthProviderSlugCallbackGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof providerCallbackApiV1AuthProviderSlugCallbackGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getProviderCallbackApiV1AuthProviderSlugCallbackGetQueryOptions(
+    providerSlug,
+    params,
+    options
+  );
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

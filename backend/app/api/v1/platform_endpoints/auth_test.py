@@ -787,7 +787,7 @@ def _wire_fake_idp(monkeypatch, idp: FakeIdp) -> None:
             OidcClientConfig(
                 issuer=app_settings.oidc_issuer,
                 client_id=app_settings.oidc_client_id,
-                redirect_uri=auth_module._backend_redirect_uri(),
+                redirect_uri=auth_module._provider_redirect_uri(PLATFORM_OIDC_SLUG),
                 client_secret=secret,
                 scopes=" ".join(app_settings.oidc_scopes or ["openid"]),
             ),
@@ -1115,6 +1115,159 @@ async def test_oidc_refresh_cookie_rotates_into_access_token(
     )
     assert me.status_code == 200
     assert me.json()["email"] == "sso-rotate@example.com"
+
+
+async def _create_provider_row(session: AsyncSession, **overrides) -> AuthProvider:
+    """A registry-managed (non-platform) operator-global provider row."""
+    defaults = {
+        "slug": "corp",
+        "display_name": "Corp SSO",
+        "kind": "oidc",
+        "enabled": True,
+        "guild_id": None,
+        "issuer": OIDC_ISSUER,
+        "client_id": OIDC_CLIENT_ID,
+        "scopes": "openid email",
+        "allow_jit": True,
+    }
+    row = AuthProvider(**{**defaults, **overrides})
+    session.add(row)
+    await session.commit()
+    await session.refresh(row)
+    return row
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_provider_login_unknown_or_unready_slug_is_404(
+    client: AsyncClient, session: AsyncSession
+):
+    """A slug with no registry row — or a row that is disabled or missing its
+    client config — must not begin a login."""
+    await _enable_platform_oidc(session)
+    await _create_provider_row(session, slug="off", enabled=False)
+    await _create_provider_row(session, slug="bare", issuer=None)
+
+    for slug in ("nope", "off", "bare"):
+        response = await client.get(
+            f"/api/v1/auth/{slug}/login", follow_redirects=False
+        )
+        assert response.status_code == 404, slug
+        assert response.json()["detail"] == "OIDC_NOT_ENABLED"
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_login_providers_listing(client: AsyncClient, session: AsyncSession):
+    """/auth/providers lists the platform provider plus login-ready registry
+    rows — and only those."""
+    await _enable_platform_oidc(session)
+    await _create_provider_row(session, slug="corp", display_name="Corp SSO")
+    await _create_provider_row(session, slug="off", enabled=False)
+    await _create_provider_row(session, slug="bare", issuer=None)
+
+    response = await client.get("/api/v1/auth/providers")
+    assert response.status_code == 200
+    providers = response.json()["providers"]
+    assert [(p["slug"], p["login_url"]) for p in providers] == [
+        ("oidc", "/api/v1/auth/oidc/login"),
+        ("corp", "/api/v1/auth/corp/login"),
+    ]
+    assert providers[0]["display_name"] == "Test IdP"
+    assert providers[1]["kind"] == "oidc"
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_login_providers_empty_in_guild_posture_or_unconfigured(
+    client: AsyncClient, session: AsyncSession
+):
+    response = await client.get("/api/v1/auth/providers")
+    assert response.json()["providers"] == []  # nothing configured
+
+    await _enable_platform_oidc(session, auth_scope=AuthScope.guild.value)
+    await _create_provider_row(session, slug="corp")
+    response = await client.get("/api/v1/auth/providers")
+    assert response.json()["providers"] == []  # dormant in guild posture
+
+
+def _wire_fake_idp_for_row(monkeypatch, idp: FakeIdp) -> None:
+    """Point the registry-row client builder at the fake IdP's transport —
+    the row-based twin of ``_wire_fake_idp``."""
+    import app.api.v1.platform_endpoints.auth as auth_module
+
+    async def _builder(admin_session, row):
+        return OidcProvider(
+            OidcClientConfig(
+                issuer=row.issuer,
+                client_id=row.client_id,
+                redirect_uri=auth_module._provider_redirect_uri(row.slug),
+                client_secret="s3cret",
+                scopes=row.scopes or "openid",
+            ),
+            client_factory=idp.client_factory(),
+        )
+
+    monkeypatch.setattr(auth_module, "_build_row_oidc_provider", _builder)
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_row_provider_full_login_flow(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """End-to-end against a registry-managed provider row: begin at the
+    per-slug login URL, complete at its callback, and the provisioned identity
+    and session belong to THAT provider (not the platform one)."""
+    await _enable_platform_oidc(session)
+    row = await _create_provider_row(session, slug="corp")
+    idp = FakeIdp()
+    _wire_fake_idp_for_row(monkeypatch, idp)
+
+    begin = await client.get("/api/v1/auth/corp/login", follow_redirects=False)
+    assert begin.status_code in (302, 307)
+    location = begin.headers["location"]
+    assert location.startswith(f"{OIDC_ISSUER}/authorize?")
+    query = {k: v[0] for k, v in parse_qs(urlsplit(location).query).items()}
+    assert query["redirect_uri"].endswith("/api/v1/auth/corp/callback")
+
+    idp.token_response = httpx.Response(
+        200,
+        json={
+            "access_token": "at-corp",
+            "refresh_token": "rt-corp",
+            "id_token": mint_id_token(
+                nonce=query["nonce"],
+                email="corp-user@example.com",
+                email_verified=True,
+            ),
+            "token_type": "Bearer",
+        },
+    )
+    response = await client.get(
+        "/api/v1/auth/corp/callback",
+        params={"code": "code-corp", "state": query["state"]},
+        follow_redirects=False,
+    )
+    assert response.status_code in (302, 307)
+    assert SESSION_COOKIE_NAME in response.cookies
+
+    user = (
+        await session.exec(
+            select(User).where(User.email_hash == hash_email("corp-user@example.com"))
+        )
+    ).one()
+    identity = (
+        await session.exec(
+            select(FederatedIdentity).where(FederatedIdentity.user_id == user.id)
+        )
+    ).one()
+    assert identity.provider_id == row.id
+    auth_session = (
+        await session.exec(select(AuthSession).where(AuthSession.user_id == user.id))
+    ).one()
+    assert auth_session.amr == ["oidc:corp"]
+    assert auth_session.satisfied_providers == [row.id]
 
 
 @pytest.mark.integration

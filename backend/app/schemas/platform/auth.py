@@ -1,9 +1,28 @@
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import ConfigDict, EmailStr, Field
 
 from app.schemas.base import RawTextStr, SanitizedBaseModel
+
+
+class LoginProviderEntry(SanitizedBaseModel):
+    """One sign-in provider offered on the login page (non-secret metadata)."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    slug: str
+    display_name: str
+    kind: str
+    login_url: str
+    icon: Optional[str] = None
+    button_style: Optional[str] = None
+
+
+class LoginProvidersResponse(SanitizedBaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    providers: List[LoginProviderEntry]
 
 
 class VerificationSendResponse(SanitizedBaseModel):

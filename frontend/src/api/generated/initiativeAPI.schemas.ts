@@ -1783,6 +1783,22 @@ export interface LeaveGuildRequest {
   project_deletions?: number[];
 }
 
+/**
+ * One sign-in provider offered on the login page (non-secret metadata).
+ */
+export interface LoginProviderEntry {
+  slug: string;
+  display_name: string;
+  kind: string;
+  login_url: string;
+  icon: string | null;
+  button_style: string | null;
+}
+
+export interface LoginProvidersResponse {
+  providers: LoginProviderEntry[];
+}
+
 export type MentionEntityType = (typeof MentionEntityType)[keyof typeof MentionEntityType];
 
 export const MentionEntityType = {
@@ -3736,12 +3752,12 @@ export type BootstrapStatusApiV1AuthBootstrapGet200 = { [key: string]: boolean }
 
 export type OidcStatusApiV1AuthOidcStatusGet200 = { [key: string]: unknown };
 
-export type OidcLoginApiV1AuthOidcLoginGetParams = {
+export type ProviderLoginApiV1AuthProviderSlugLoginGetParams = {
   mobile?: boolean;
   device_name?: string;
 };
 
-export type OidcCallbackApiV1AuthOidcCallbackGetParams = {
+export type ProviderCallbackApiV1AuthProviderSlugCallbackGetParams = {
   code?: string | null;
   state?: string | null;
 };
