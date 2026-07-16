@@ -78,4 +78,28 @@ describe("NotificationBell export notifications", () => {
 
     expect(downloadBlob).not.toHaveBeenCalled();
   });
+
+  it("renders import notifications with their own text, not the generic fallback", async () => {
+    mockInbox([
+      buildNotification({
+        type: "import_ready" as NotificationType,
+        data: { guild_id: 1, import_job_id: 7, source: "backup" },
+      }),
+      buildNotification({
+        id: 2,
+        type: "import_failed" as NotificationType,
+        data: { guild_id: 1, import_job_id: 8, source: "initiative-queue" },
+      }),
+    ]);
+    renderWithProviders(<NotificationBell />);
+
+    await userEvent.click(screen.getByRole("button", { name: /notifications/i }));
+    // Each import type renders its own text, not the generic fallback — the
+    // bug was both showing "You have a new notification".
+    expect(await screen.findByText(/import finished/i)).toBeInTheDocument();
+    expect(screen.getByText(/import failed/i)).toBeInTheDocument();
+    expect(screen.queryByText(/new notification/i)).not.toBeInTheDocument();
+    // Imports navigate to the Data-tab report rather than downloading.
+    expect(downloadBlob).not.toHaveBeenCalled();
+  });
 });

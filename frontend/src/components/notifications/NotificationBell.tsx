@@ -84,6 +84,13 @@ const notificationLink = (notification: NotificationRead): string | null => {
         return `/projects/${data.project_id}`;
       }
       return null;
+    case "import_ready":
+    case "import_failed": {
+      // The report lives on the guild's Data settings tab (the jobs table's
+      // "View report"). Absolute guild path — the notification names its guild.
+      const guildId = Number(data.guild_id);
+      return Number.isFinite(guildId) ? buildGuildPath(guildId, "/settings/data") : null;
+    }
     case "user_pending_approval":
       return "/settings";
     case "mention":
@@ -228,6 +235,10 @@ const notificationText = (
       return t("notifications.exportReady");
     case "export_failed":
       return t("notifications.exportFailed");
+    case "import_ready":
+      return t("notifications.importReady");
+    case "import_failed":
+      return t("notifications.importFailed");
     default:
       return t("notifications.defaultNotification");
   }

@@ -227,7 +227,9 @@
       "enable": "Activar"
     },
     "exportReady": "Tu exportación está lista: haz clic para descargarla.",
-    "exportFailed": "Tu exportación falló. Intenta exportar de nuevo."
+    "exportFailed": "Tu exportación falló. Intenta exportar de nuevo.",
+    "importReady": "Tu importación finalizó: haz clic para ver el informe.",
+    "importFailed": "Tu importación falló. Haz clic para ver qué ocurrió."
   },
   "version": {
     "newVersionAvailable": "Nueva versión disponible",
