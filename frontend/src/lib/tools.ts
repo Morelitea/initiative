@@ -88,6 +88,10 @@ export interface ToolDef {
    * tool (its content lives in the external service).
    */
   bulkExport: boolean;
+  /** Has an import surface: a JSON envelope of this type can be imported
+   * (drives the list-page "Import" affordances). Backup import is separate
+   * (guild settings), not per-tool. */
+  importable: boolean;
 }
 
 export const TOOL_REGISTRY: Record<Tool, ToolDef> = {
@@ -101,6 +105,7 @@ export const TOOL_REGISTRY: Record<Tool, ToolDef> = {
     personalRoute: "/my-projects",
     inAppCreate: true,
     bulkExport: true,
+    importable: true,
   },
   [Tool.document]: {
     icon: ScrollText,
@@ -112,6 +117,7 @@ export const TOOL_REGISTRY: Record<Tool, ToolDef> = {
     personalRoute: "/my-documents",
     inAppCreate: true,
     bulkExport: true,
+    importable: true,
   },
   [Tool.queue]: {
     icon: GalleryHorizontalEnd,
@@ -123,6 +129,7 @@ export const TOOL_REGISTRY: Record<Tool, ToolDef> = {
     personalRoute: null,
     inAppCreate: true,
     bulkExport: true,
+    importable: true,
   },
   [Tool.counter_group]: {
     icon: Gauge,
@@ -134,6 +141,7 @@ export const TOOL_REGISTRY: Record<Tool, ToolDef> = {
     personalRoute: null,
     inAppCreate: true,
     bulkExport: true,
+    importable: true,
   },
   [Tool.calendar_event]: {
     icon: CalendarDays,
@@ -145,6 +153,7 @@ export const TOOL_REGISTRY: Record<Tool, ToolDef> = {
     personalRoute: "/my-calendar-events",
     inAppCreate: true,
     bulkExport: true,
+    importable: true,
   },
   [Tool.advanced_tool]: {
     icon: Sparkles,
@@ -156,6 +165,7 @@ export const TOOL_REGISTRY: Record<Tool, ToolDef> = {
     personalRoute: null,
     inAppCreate: false,
     bulkExport: false,
+    importable: false,
   },
 };
 
@@ -170,6 +180,7 @@ export const RECENTABLE_TOOLS = TOOLS.filter((t) => TOOL_REGISTRY[t].recents);
 
 /** Tools with an export-engine source (single + bulk selection export). */
 export const BULK_EXPORT_TOOLS = TOOLS.filter((t) => TOOL_REGISTRY[t].bulkExport);
+export const IMPORTABLE_TOOLS = TOOLS.filter((t) => TOOL_REGISTRY[t].importable);
 
 /**
  * Sidebar display order within an initiative. The advanced tool is pinned to
@@ -216,6 +227,19 @@ export const toolExportEndpoint = (tool: Tool): string => `/exports/${tool.repla
 
 /** Single-entity export selector param, e.g. "counter_group_id". */
 export const toolExportIdParam = (tool: Tool): string => `${tool}_id`;
+
+/** The envelope ``type`` discriminator a tool's single-entity export emits —
+ * the same value its importer registers under. Calendar events export as one
+ * combined (plural) envelope; every other tool is the kebab-singular. */
+export const toolEnvelopeType = (tool: Tool): string =>
+  tool === Tool.calendar_event
+    ? "initiative-calendar-events"
+    : `initiative-${tool.replaceAll("_", "-")}`;
+
+/** Inverse of {@link toolEnvelopeType}: which tool an envelope belongs to,
+ * or null for an unknown/backup type. */
+export const toolForEnvelopeType = (type: string): Tool | null =>
+  IMPORTABLE_TOOLS.find((tool) => toolEnvelopeType(tool) === type) ?? null;
 
 /** Bulk-selection export selector param, e.g. "counter_group_ids". */
 export const toolExportIdsParam = (tool: Tool): string => `${tool}_ids`;

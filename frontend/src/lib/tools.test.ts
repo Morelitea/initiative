@@ -248,3 +248,20 @@ describe("tool exports", () => {
     expect(toolExportIdsParam(Tool.counter_group)).toBe("counter_group_ids");
   });
 });
+
+describe("tool imports", () => {
+  it("importable tools are exactly the bulk-export tools", async () => {
+    const { IMPORTABLE_TOOLS, BULK_EXPORT_TOOLS } = await import("@/lib/tools");
+    expect([...IMPORTABLE_TOOLS].sort()).toEqual([...BULK_EXPORT_TOOLS].sort());
+  });
+
+  it("round-trips the envelope type discriminator for every importable tool", async () => {
+    const { IMPORTABLE_TOOLS, toolEnvelopeType, toolForEnvelopeType } = await import("@/lib/tools");
+    for (const tool of IMPORTABLE_TOOLS) {
+      expect(toolForEnvelopeType(toolEnvelopeType(tool))).toBe(tool);
+    }
+    // Calendar events are the plural exception; a backup type maps to no tool.
+    expect(toolEnvelopeType(Tool.calendar_event)).toBe("initiative-calendar-events");
+    expect(toolForEnvelopeType("initiative-backup")).toBeNull();
+  });
+});
