@@ -1,7 +1,8 @@
+import logging
 from datetime import datetime, timezone
 from typing import Annotated, List, Optional, Sequence
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlmodel import select
 
 from app.api.deps import (
@@ -13,13 +14,18 @@ from app.api.deps import (
     GuildContext,
     require_guild_roles,
 )
+from app.api.v1.platform_endpoints.auth import client_ip
+from app.api.v1.platform_endpoints.session_cookies import (
+    set_refresh_cookie,
+    set_session_cookie,
+)
 from app.core.config import settings
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.password_policy import enforce_password_policy
 from app.core.security import (
-    SESSION_COOKIE_NAME,
     create_access_token,
     get_password_hash,
+    mint_access_token,
     verify_password,
 )
 from app.core.user_input_validators import (
@@ -55,6 +61,7 @@ from app.schemas.platform.api_key import (
 from app.schemas.tenant.stats import UserStatsResponse
 from app.core.messages import AuthMessages, GuildMessages, UserMessages
 from app.services import notifications as notifications_service
+from app.services.auth import sessions as session_service
 from app.services.auth.identity import has_federated_identity
 from app.services.tenant import initiatives as initiatives_service
 from app.services.platform import guilds as guilds_service
@@ -72,6 +79,8 @@ from app.services.tenant import recent_views as recent_views_service
 TASK_COMPLETION_VISUAL_FEEDBACK_VALUES: frozenset[str] = frozenset(
     {"none", "confetti", "heart", "d20", "gold_coin", "random"}
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 # Cross-guild "my" aggregate (user stats). Mounted under /api/v1/me; user-scoped
@@ -299,6 +308,7 @@ async def create_user(
 
 @router.patch("/me", response_model=UserRead)
 async def update_users_me(
+    request: Request,
     user_in: UserSelfUpdate,
     session: UserSessionDep,
     admin_session: AdminSessionDep,
@@ -363,23 +373,51 @@ async def update_users_me(
         await user_tokens_service.revoke_user_sessions(
             session, user=current_user, admin_session=admin_session
         )
-        # ...but keep THIS session alive. The version bump above invalidates the
-        # caller's own token too, so re-issue the session cookie with the new
-        # version: every *other* session/device still dies, while the user who
-        # just changed their password stays logged in (web cookie auth).
-        refreshed_token = create_access_token(
-            subject=str(current_user.id),
-            token_version=current_user.token_version,
-        )
-        response.set_cookie(
-            key=SESSION_COOKIE_NAME,
-            value=refreshed_token,
-            httponly=True,
-            samesite="lax",
-            secure=settings.cookie_secure,
-            max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            path="/",
-        )
+        # ...but keep THIS device signed in: the revocation above killed the
+        # caller's own access token AND refresh chain, so open a fresh session
+        # and re-issue both cookies — every *other* session/device still dies.
+        # ``amr`` records what this request proved: the current password for
+        # local accounts; nothing for the SSO-exempt path (no factor was
+        # presented here).
+        #
+        # Fallback: a transient session-store failure must not fail the
+        # password change — re-issue a legacy long-lived token instead (the
+        # dual-verify window accepts both); that session just can't renew.
+        try:
+            issued = await session_service.create_session(
+                admin_session,
+                user_id=current_user.id,
+                amr=[] if is_sso_account else ["pwd"],
+                satisfied_providers=[],
+                user_agent=request.headers.get("user-agent"),
+                ip=client_ip(request),
+            )
+            await admin_session.commit()
+            refreshed_token, refreshed_max_age = mint_access_token(
+                user_id=current_user.id,
+                token_version=current_user.token_version,
+                session_id=issued.session.id,
+                amr=issued.session.amr,
+                satisfied_providers=issued.session.satisfied_providers,
+            )
+            set_session_cookie(response, refreshed_token, max_age=refreshed_max_age)
+            set_refresh_cookie(response, issued.refresh_token)
+        except Exception:
+            await admin_session.rollback()
+            logger.exception(
+                "Failed to establish refresh session for user %s after password "
+                "change; falling back to a legacy access token",
+                current_user.id,
+            )
+            refreshed_token = create_access_token(
+                subject=str(current_user.id),
+                token_version=current_user.token_version,
+            )
+            set_session_cookie(
+                response,
+                refreshed_token,
+                max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            )
 
     if "avatar_base64" in update_data:
         avatar_value = update_data["avatar_base64"]

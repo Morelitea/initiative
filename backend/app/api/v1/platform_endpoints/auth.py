@@ -36,6 +36,11 @@ from app.core.security import (
     verify_password,
 )
 from app.core.user_input_validators import normalize_timezone
+from app.api.v1.platform_endpoints.session_cookies import (
+    clear_refresh_cookie,
+    set_refresh_cookie,
+    set_session_cookie,
+)
 from app.models.platform.app_setting import AuthScope
 from app.models.platform.user import User, UserRole, UserStatus
 from app.models.platform.guild import Guild, GuildRole
@@ -86,12 +91,8 @@ logger = logging.getLogger(__name__)
 _oidc_discovery = OidcDiscovery()
 _oidc_jwks = JwksResolver()
 
-# The refresh cookie is scoped to the auth routes so it never rides along on
-# ordinary API requests — it is only presented to /auth/refresh and /auth/logout.
-REFRESH_COOKIE_PATH = f"{API_V1_STR}/auth"
 
-
-def _client_ip(request: Request) -> str | None:
+def client_ip(request: Request) -> str | None:
     """The client IP as a value the INET ``auth_sessions.ip`` column accepts, or
     ``None`` when it isn't a parseable address (e.g. the ``testclient`` peer).
     Guards the login/refresh path from faulting on a non-IP host string."""
@@ -100,43 +101,6 @@ def _client_ip(request: Request) -> str | None:
     except ValueError:
         return None
     return get_real_client_ip(request)
-
-
-def _set_session_cookie(response: Response, token: str, *, max_age: int) -> None:
-    """Set the session-auth cookie (read by ``get_current_user``). During the
-    cutover this holds a legacy JWT at login and a new-model access token after
-    the first refresh — the verifier accepts either."""
-    response.set_cookie(
-        key=SESSION_COOKIE_NAME,
-        value=token,
-        httponly=True,
-        samesite="lax",
-        secure=settings.cookie_secure,
-        max_age=max_age,
-        path="/",
-    )
-
-
-def _set_refresh_cookie(response: Response, token: str) -> None:
-    response.set_cookie(
-        key=REFRESH_COOKIE_NAME,
-        value=token,
-        httponly=True,
-        samesite="lax",
-        secure=settings.cookie_secure,
-        max_age=settings.AUTH_REFRESH_TTL_DAYS * 86400,
-        path=REFRESH_COOKIE_PATH,
-    )
-
-
-def _clear_refresh_cookie(response: Response) -> None:
-    response.delete_cookie(
-        key=REFRESH_COOKIE_NAME,
-        path=REFRESH_COOKIE_PATH,
-        httponly=True,
-        secure=settings.cookie_secure,
-        samesite="lax",
-    )
 
 
 def _refresh_rejected(detail: str) -> JSONResponse:
@@ -152,7 +116,7 @@ def _refresh_rejected(detail: str) -> JSONResponse:
         content={"detail": detail},
         headers={"WWW-Authenticate": "Bearer"},
     )
-    _clear_refresh_cookie(response)
+    clear_refresh_cookie(response)
     response.delete_cookie(key=SESSION_COOKIE_NAME, path="/")
     return response
 
@@ -408,23 +372,15 @@ async def login_access_token(
             await session.rollback()
             logger.exception("Failed to upgrade password hash for user %s", user.id)
 
-    access_token = create_access_token(
-        subject=str(user.id), token_version=user.token_version
-    )
-    _set_session_cookie(
-        response, access_token, max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
-    )
-
-    # Additively establish a server-side session + rotating refresh cookie (the
-    # new login model, history/auth-detailed-design.md §3). The legacy session
-    # cookie above is untouched, so existing clients are unaffected; the refresh
-    # cookie only matters once a client calls /auth/refresh. Session writes run
-    # on the system engine (auth_sessions is app_admin-only).
+    # The new login model end-to-end (history/auth-detailed-design.md §3): the
+    # server-side session is load-bearing — the access token carries sid/amr/sat
+    # and lives AUTH_ACCESS_TTL_MINUTES; the rotating refresh cookie carries the
+    # session (the SPA renews silently). Session writes run on the system engine
+    # (auth_sessions is app_admin-only).
     #
-    # Best-effort: this is additive and not yet load-bearing, so a transient DB
-    # error establishing the session must NOT turn a successful password auth
-    # into a 500 (same rule as the hash-upgrade above) — legacy clients that
-    # never touch the refresh cookie would otherwise be broken by it.
+    # Fallback: a transient session-store failure must not block sign-in — issue
+    # a legacy long-lived token instead (the dual-verify window accepts both);
+    # that session just can't renew silently.
     try:
         issued = await session_service.create_session(
             admin_session,
@@ -432,14 +388,33 @@ async def login_access_token(
             amr=["pwd"],
             satisfied_providers=[],
             user_agent=request.headers.get("user-agent"),
-            ip=_client_ip(request),
+            ip=client_ip(request),
         )
         await admin_session.commit()
-        _set_refresh_cookie(response, issued.refresh_token)
     except Exception:
         await admin_session.rollback()
-        logger.exception("Failed to establish refresh session for user %s", user.id)
+        logger.exception(
+            "Failed to establish refresh session for user %s; "
+            "falling back to a legacy access token",
+            user.id,
+        )
+        access_token = create_access_token(
+            subject=str(user.id), token_version=user.token_version
+        )
+        set_session_cookie(
+            response, access_token, max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        )
+        return Token(access_token=access_token)
 
+    access_token, access_max_age = mint_access_token(
+        user_id=user.id,
+        token_version=user.token_version,
+        session_id=issued.session.id,
+        amr=issued.session.amr,
+        satisfied_providers=issued.session.satisfied_providers,
+    )
+    set_session_cookie(response, access_token, max_age=access_max_age)
+    set_refresh_cookie(response, issued.refresh_token)
     return Token(access_token=access_token)
 
 
@@ -471,7 +446,7 @@ async def refresh_access_token(
         admin_session,
         raw_refresh_token=raw,
         user_agent=request.headers.get("user-agent"),
-        ip=_client_ip(request),
+        ip=client_ip(request),
     )
     # Commit BEFORE branching: one commit persists the rotation (ROTATED) or the
     # theft-revocation (REUSED), so a rejection can't leave the chain kill
@@ -499,8 +474,8 @@ async def refresh_access_token(
         amr=issued.session.amr,
         satisfied_providers=issued.session.satisfied_providers,
     )
-    _set_session_cookie(response, access_token, max_age=access_max_age)
-    _set_refresh_cookie(response, issued.refresh_token)
+    set_session_cookie(response, access_token, max_age=access_max_age)
+    set_refresh_cookie(response, issued.refresh_token)
     return Token(access_token=access_token)
 
 
@@ -547,7 +522,7 @@ async def logout(
         secure=settings.cookie_secure,
         samesite="lax",
     )
-    _clear_refresh_cookie(response)
+    clear_refresh_cookie(response)
 
 
 @router.post("/upload-token", response_model=UploadTokenResponse)
@@ -933,33 +908,21 @@ async def oidc_callback(
         redirect_params = {"token": device_token, "token_type": "device_token"}
         redirect_url = f"{_mobile_redirect_uri()}?{urlencode(redirect_params)}"
         return RedirectResponse(redirect_url)
-    app_token = create_access_token(
-        subject=str(user.id), token_version=user.token_version
-    )
-    oidc_response = RedirectResponse(_frontend_redirect_uri())
-    oidc_response.set_cookie(
-        key=SESSION_COOKIE_NAME,
-        value=app_token,
-        httponly=True,
-        samesite="lax",
-        secure=settings.cookie_secure,
-        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        path="/",
-    )
-
-    # Additively establish the server-side session + rotating refresh cookie,
-    # mirroring the password login path (history/auth-detailed-design.md §3).
-    # The session records which provider satisfied this login (amr/sat) — the
-    # inputs the per-guild auth-policy gate and step-up read later.
+    # The new login model, mirroring the password path (§3): the session is
+    # load-bearing — the access token carries sid/amr/sat (the inputs the
+    # per-guild auth-policy gate and step-up read later) and the rotating
+    # refresh cookie carries the session.
     #
-    # Best-effort: this is additive and not yet load-bearing, so a transient DB
-    # error here must not turn a successful SSO login into a failure — the
-    # legacy session cookie above already authenticates the user.
+    # Fallback: a transient session-store failure must not fail a successful
+    # SSO login — issue a legacy long-lived token instead (dual-verify window);
+    # that session just can't renew silently.
     #
     # ``user`` is attached to ``admin_session``, so the rollback below expires
-    # its attributes; the plain ints are captured up front so the failure path
-    # never touches the ORM object again.
-    user_id, provider_id, provider_slug = user.id, provider_row.id, provider_row.slug
+    # its attributes; the plain values are captured up front so the failure
+    # path never touches the ORM object again.
+    user_id, token_version = user.id, user.token_version
+    provider_id, provider_slug = provider_row.id, provider_row.slug
+    oidc_response = RedirectResponse(_frontend_redirect_uri())
     try:
         issued = await session_service.create_session(
             admin_session,
@@ -967,13 +930,35 @@ async def oidc_callback(
             amr=[f"oidc:{provider_slug}"],
             satisfied_providers=[provider_id],
             user_agent=request.headers.get("user-agent"),
-            ip=_client_ip(request),
+            ip=client_ip(request),
         )
         await admin_session.commit()
-        _set_refresh_cookie(oidc_response, issued.refresh_token)
     except Exception:
         await admin_session.rollback()
-        logger.exception("Failed to establish refresh session for user %s", user_id)
+        logger.exception(
+            "Failed to establish refresh session for user %s; "
+            "falling back to a legacy access token",
+            user_id,
+        )
+        legacy_token = create_access_token(
+            subject=str(user_id), token_version=token_version
+        )
+        set_session_cookie(
+            oidc_response,
+            legacy_token,
+            max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        )
+        return oidc_response
+
+    app_token, access_max_age = mint_access_token(
+        user_id=user_id,
+        token_version=token_version,
+        session_id=issued.session.id,
+        amr=issued.session.amr,
+        satisfied_providers=issued.session.satisfied_providers,
+    )
+    set_session_cookie(oidc_response, app_token, max_age=access_max_age)
+    set_refresh_cookie(oidc_response, issued.refresh_token)
     return oidc_response
 
 

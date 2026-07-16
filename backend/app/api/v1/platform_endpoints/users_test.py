@@ -969,6 +969,37 @@ async def test_export_users_csv_user_outside_guild(
 
 
 @pytest.mark.integration
+async def test_password_change_keeps_this_device_signed_in(
+    client: AsyncClient, session: AsyncSession
+):
+    """Changing the password revokes every other session, but THIS device gets
+    a fresh server-side session: both cookies are re-issued and the new
+    refresh chain rotates."""
+    await create_user(session, email="pwkeep@example.com")
+
+    login = await client.post(
+        "/api/v1/auth/token",
+        data={"username": "pwkeep@example.com", "password": "testpassword123"},
+    )
+    assert login.status_code == 200
+
+    change = await client.patch(
+        "/api/v1/users/me",
+        json={"password": "newpassword456", "current_password": "testpassword123"},
+    )
+    assert change.status_code == 200
+    assert change.cookies.get("refresh_token")  # fresh chain for this device
+
+    rotated = await client.post("/api/v1/auth/refresh")
+    assert rotated.status_code == 200
+    me = await client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"Bearer {rotated.json()['access_token']}"},
+    )
+    assert me.status_code == 200
+
+
+@pytest.mark.integration
 async def test_users_me_reports_linked_identity(
     client: AsyncClient, session: AsyncSession
 ):
