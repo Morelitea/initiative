@@ -19,7 +19,6 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import (
-    decrypt_field,
     decrypt_token,
     encrypt_field,
     hash_email,
@@ -767,35 +766,29 @@ async def test_logout_clears_session_cookie(client: AsyncClient, session: AsyncS
 
 
 def _wire_fake_idp(monkeypatch, idp: FakeIdp) -> None:
-    """Point the endpoints' provider builder at the fake IdP's transport.
+    """Point the (single) provider-client builder at the fake IdP's transport.
 
-    Same client configuration the real builder derives from app_settings, but
-    every OIDC HTTP call (discovery, JWKS, token, userinfo) is routed through
-    the fake — skipping the module-level discovery/JWKS caches keeps tests
-    isolated from each other.
+    Same client configuration the real builder derives from the resolved
+    registry row, but every OIDC HTTP call (discovery, JWKS, token, userinfo)
+    is routed through the fake — skipping the module-level discovery/JWKS
+    caches keeps tests isolated from each other.
     """
     import app.api.v1.platform_endpoints.auth as auth_module
 
-    def _builder(app_settings):
-        secret = (
-            decrypt_field(
-                app_settings.oidc_client_secret_encrypted, SALT_OIDC_CLIENT_SECRET
-            )
-            if app_settings.oidc_client_secret_encrypted
-            else None
-        )
+    async def _builder(admin_session, row):
         return OidcProvider(
             OidcClientConfig(
-                issuer=app_settings.oidc_issuer,
-                client_id=app_settings.oidc_client_id,
-                redirect_uri=auth_module._provider_redirect_uri(PLATFORM_OIDC_SLUG),
-                client_secret=secret,
-                scopes=" ".join(app_settings.oidc_scopes or ["openid"]),
+                issuer=row.issuer,
+                client_id=row.client_id,
+                redirect_uri=auth_module._provider_redirect_uri(row.slug),
+                client_secret="s3cret",
+                scopes=row.scopes or "openid",
+                provider_slug=row.slug,
             ),
             client_factory=idp.client_factory(),
         )
 
-    monkeypatch.setattr(auth_module, "_build_oidc_provider", _builder)
+    monkeypatch.setattr(auth_module, "_build_row_oidc_provider", _builder)
 
 
 async def _enable_platform_oidc(session: AsyncSession, **overrides) -> None:
@@ -1172,24 +1165,26 @@ async def test_login_providers_empty_in_guild_posture_or_unconfigured(
     assert response.json()["providers"] == []  # dormant in guild posture
 
 
-def _wire_fake_idp_for_row(monkeypatch, idp: FakeIdp) -> None:
-    """Point the registry-row client builder at the fake IdP's transport —
-    the row-based twin of ``_wire_fake_idp``."""
-    import app.api.v1.platform_endpoints.auth as auth_module
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_state_from_one_provider_rejected_by_another(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """A flow state begun with one provider must not complete against another
+    — the state carries the slug it was minted for."""
+    await _enable_platform_oidc(session)
+    await create_auth_provider(session, slug="corp")
+    _wire_fake_idp(monkeypatch, FakeIdp())
 
-    async def _builder(admin_session, row):
-        return OidcProvider(
-            OidcClientConfig(
-                issuer=row.issuer,
-                client_id=row.client_id,
-                redirect_uri=auth_module._provider_redirect_uri(row.slug),
-                client_secret="s3cret",
-                scopes=row.scopes or "openid",
-            ),
-            client_factory=idp.client_factory(),
-        )
-
-    monkeypatch.setattr(auth_module, "_build_row_oidc_provider", _builder)
+    state, _nonce = await _begin_login(client)  # begun with the platform slug
+    response = await client.get(
+        "/api/v1/auth/corp/callback",
+        params={"code": "code-1", "state": state},
+        follow_redirects=False,
+    )
+    assert response.status_code in (302, 307)
+    assert "invalid_state" in response.headers["location"]
+    assert "session_token" not in response.cookies
 
 
 @pytest.mark.integration
@@ -1203,7 +1198,7 @@ async def test_row_provider_full_login_flow(
     await _enable_platform_oidc(session)
     row = await create_auth_provider(session, slug="corp")
     idp = FakeIdp()
-    _wire_fake_idp_for_row(monkeypatch, idp)
+    _wire_fake_idp(monkeypatch, idp)
 
     begin = await client.get("/api/v1/auth/corp/login", follow_redirects=False)
     assert begin.status_code in (302, 307)

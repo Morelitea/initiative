@@ -51,6 +51,10 @@ class OidcFlowState:
     nonce: str
     mobile: bool = False
     device_name: str = ""
+    # The provider slug this login attempt was begun with; verified at
+    # complete so the state can't be replayed against another provider.
+    # Empty only in states minted before the field existed.
+    provider_slug: str = ""
 
     @property
     def code_challenge(self) -> str:
@@ -60,7 +64,7 @@ class OidcFlowState:
 
 
 def create_flow_state(
-    *, mobile: bool = False, device_name: str = ""
+    *, mobile: bool = False, device_name: str = "", provider_slug: str = ""
 ) -> tuple[str, OidcFlowState]:
     """Generate a fresh verifier + nonce and return ``(state, payload)`` —
     ``state`` is the encrypted token to send to the IdP, ``payload`` supplies
@@ -72,6 +76,7 @@ def create_flow_state(
         nonce=secrets.token_urlsafe(_NONCE_BYTES),
         mobile=mobile,
         device_name=device_name[:DEVICE_NAME_MAX_CHARS],
+        provider_slug=provider_slug,
     )
     plaintext = json.dumps(
         {
@@ -79,6 +84,7 @@ def create_flow_state(
             "nonce": payload.nonce,
             "mobile": payload.mobile,
             "device_name": payload.device_name,
+            "provider_slug": payload.provider_slug,
         },
         separators=(",", ":"),
     )
@@ -107,6 +113,7 @@ def decode_flow_state(
             nonce=data["nonce"],
             mobile=bool(data.get("mobile", False)),
             device_name=str(data.get("device_name", ""))[:DEVICE_NAME_MAX_CHARS],
+            provider_slug=str(data.get("provider_slug", "")),
         )
     except (ValueError, KeyError, TypeError) as exc:
         raise FlowStateError("malformed flow state payload") from exc

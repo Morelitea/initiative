@@ -49,7 +49,7 @@ from app.api.v1.platform_endpoints.session_cookies import (
     set_refresh_cookie,
     set_session_cookie,
 )
-from app.models.platform.app_setting import AuthScope
+from app.models.platform.app_setting import AppSetting, AuthScope
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.auth_provider_secret import AuthProviderSecret
 from app.models.platform.user import User, UserRole, UserStatus
@@ -87,6 +87,7 @@ from app.services.auth.oidc.provider import (
 from app.services.auth.platform_provider import (
     PLATFORM_OIDC_SLUG,
     ensure_platform_provider,
+    get_platform_provider,
 )
 from app.services.auth.sessions import RefreshOutcome
 from app.services.platform import app_settings as app_settings_service
@@ -648,7 +649,7 @@ def _frontend_redirect_uri() -> str:
     return f"{base}/oidc/callback"
 
 
-def _platform_oidc_active(app_settings: Any) -> bool:
+def _platform_oidc_active(app_settings: AppSetting) -> bool:
     """The platform OIDC login is offered only when the platform posture is
     live AND the provider is enabled + fully configured. In guild scope the
     platform provider is dormant (kept, not deleted) and must not authenticate
@@ -669,7 +670,7 @@ def _row_login_ready(row: AuthProvider) -> bool:
 
 
 async def _resolve_login_provider(
-    app_settings: Any, admin_session: AsyncSession, provider_slug: str
+    app_settings: AppSetting, admin_session: AsyncSession, provider_slug: str
 ) -> AuthProvider:
     """The enabled operator-global provider row for one login slug, or 404.
 
@@ -704,39 +705,15 @@ async def _resolve_login_provider(
     return row
 
 
-def _build_oidc_provider(app_settings: Any) -> OidcProvider:
-    """The relying-party client for the platform provider, configured from
-    ``app_settings`` (still the operator's config surface until the provider
-    registry gets its own CRUD). Tests monkeypatch this builder to point the
-    flow at a fake IdP."""
-    scopes = app_settings.oidc_scopes or ["openid"]
-    client_secret = (
-        decrypt_field(
-            app_settings.oidc_client_secret_encrypted, SALT_OIDC_CLIENT_SECRET
-        )
-        if app_settings.oidc_client_secret_encrypted
-        else None
-    )
-    return OidcProvider(
-        OidcClientConfig(
-            issuer=app_settings.oidc_issuer,
-            client_id=app_settings.oidc_client_id,
-            redirect_uri=_provider_redirect_uri(PLATFORM_OIDC_SLUG),
-            client_secret=client_secret,
-            scopes=" ".join(scopes),
-        ),
-        discovery=_oidc_discovery,
-        jwks=_oidc_jwks,
-    )
-
-
 async def _build_row_oidc_provider(
     admin_session: AsyncSession, row: AuthProvider
 ) -> OidcProvider:
-    """The relying-party client for a registry-managed provider row. The
-    client secret comes from the app_admin-only companion table; ``None``
-    (public / PKCE-only client) is valid. Tests monkeypatch this builder to
-    point a row-based flow at a fake IdP."""
+    """The relying-party client for one provider row — the single builder for
+    every slug. The platform row is reconciled from ``app_settings`` (config
+    AND secret) by ``_resolve_login_provider`` before it gets here, so the
+    registry row is always the client's source of truth. The secret comes from
+    the app_admin-only companion table; ``None`` (public / PKCE-only client)
+    is valid. Tests monkeypatch this builder to point flows at a fake IdP."""
     secret_row = await admin_session.get(AuthProviderSecret, row.id)
     client_secret = (
         decrypt_field(secret_row.client_secret_encrypted, SALT_OIDC_CLIENT_SECRET)
@@ -750,18 +727,11 @@ async def _build_row_oidc_provider(
             redirect_uri=_provider_redirect_uri(row.slug),
             client_secret=client_secret,
             scopes=row.scopes or "openid",
+            provider_slug=row.slug,
         ),
         discovery=_oidc_discovery,
         jwks=_oidc_jwks,
     )
-
-
-async def _oidc_client_for(
-    app_settings: Any, admin_session: AsyncSession, row: AuthProvider
-) -> OidcProvider:
-    if row.slug == PLATFORM_OIDC_SLUG:
-        return _build_oidc_provider(app_settings)
-    return await _build_row_oidc_provider(admin_session, row)
 
 
 @router.get("/oidc/status")
@@ -797,9 +767,10 @@ async def list_login_providers(
     """The sign-in providers the login page offers — non-secret metadata only.
 
     Empty in guild posture (operator-global providers are dormant there) and
-    on instances with no SSO configured. The platform provider is reconciled
-    from ``app_settings`` on the way out, same as the login flow, so the
-    listing can never disagree with what ``/auth/oidc/login`` would do.
+    on instances with no SSO configured. Strictly read-only: an
+    unauthenticated GET must not trigger writes, so the platform entry is
+    built from ``app_settings`` (its config surface) rather than the
+    write-capable reconcile — that runs in the login flow and at boot.
     Registry rows are read on the system engine (``auth_providers`` carries no
     request-path grant)."""
     app_settings = await app_settings_service.get_app_settings(session)
@@ -808,8 +779,19 @@ async def list_login_providers(
 
     entries: list[LoginProviderEntry] = []
     if _platform_oidc_active(app_settings):
-        platform_row = await ensure_platform_provider(admin_session, app_settings)
-        entries.append(_login_entry(platform_row))
+        # Row read only for display extras (icon/button_style); name and
+        # liveness come from app_settings, matching what login would do.
+        platform_row = await get_platform_provider(admin_session)
+        entries.append(
+            LoginProviderEntry(
+                slug=PLATFORM_OIDC_SLUG,
+                display_name=app_settings.oidc_provider_name or "SSO",
+                kind="oidc",
+                login_url=f"{API_V1_STR}/auth/{PLATFORM_OIDC_SLUG}/login",
+                icon=platform_row.icon if platform_row else None,
+                button_style=platform_row.button_style if platform_row else None,
+            )
+        )
 
     rows = (
         await admin_session.exec(
@@ -848,7 +830,7 @@ async def provider_login(
     provider_row = await _resolve_login_provider(
         app_settings, admin_session, provider_slug
     )
-    provider = await _oidc_client_for(app_settings, admin_session, provider_row)
+    provider = await _build_row_oidc_provider(admin_session, provider_row)
     try:
         begun = await provider.begin(
             mobile=mobile, device_name=device_name if mobile else ""
@@ -906,7 +888,7 @@ async def provider_callback(
         except FlowStateError:
             is_mobile = None
 
-    provider = await _oidc_client_for(app_settings, admin_session, provider_row)
+    provider = await _build_row_oidc_provider(admin_session, provider_row)
     try:
         completion = await provider.complete(code=code or "", state=state or "")
     except OidcFlowError as exc:
