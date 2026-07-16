@@ -9,6 +9,7 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { CreateDocumentDialog } from "@/components/documents/CreateDocumentDialog";
 import { DocumentCard } from "@/components/documents/DocumentCard";
+import { AsyncCombobox } from "@/components/ui/async-combobox";
 import { Button } from "@/components/ui/button";
 import {
   Carousel,
@@ -27,12 +28,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useDateLocale } from "@/hooks/useDateLocale";
-import { useInitiativeDocuments } from "@/hooks/useDocuments";
+import { useDocumentAutocomplete, useDocumentsList } from "@/hooks/useDocuments";
 import { useAttachProjectDocument, useDetachProjectDocument } from "@/hooks/useProjects";
 import { toast } from "@/lib/chesterToast";
+import { MAX_DOCUMENT_IDS } from "@/lib/documentUtils";
 import { getItem, setItem } from "@/lib/storage";
 
 type ProjectDocumentsSectionProps = {
@@ -56,23 +57,36 @@ export const ProjectDocumentsSection = ({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string>("");
+  // Server search only returns matches for the live query, so the trigger's
+  // label can't be looked up from the results once the query moves on.
+  const [selectedDocumentLabel, setSelectedDocumentLabel] = useState<string | null>(null);
+  const [docSearch, setDocSearch] = useState("");
   const storageKey = `project:${projectId}:documentsCollapsed`;
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
     return getItem(storageKey) === "true";
   });
 
-  const initiativeDocsQuery = useInitiativeDocuments(initiativeId);
+  const attachedDocumentIds = useMemo(() => documents.map((doc) => doc.document_id), [documents]);
 
-  const attachedDocumentIds = useMemo(
-    () => new Set(documents.map((doc) => doc.document_id)),
-    [documents]
+  // Hydrate only the attached documents — the cards need the full summary
+  // (featured image, tags, badges), but nothing here needs the initiative's
+  // other documents.
+  const attachedDocsQuery = useDocumentsList(
+    { ids: attachedDocumentIds.slice(0, MAX_DOCUMENT_IDS), page_size: MAX_DOCUMENT_IDS },
+    { enabled: attachedDocumentIds.length > 0 }
   );
+
+  // Attach picker — server typeahead, only while the dialog is open.
+  const docSearchQuery = useDocumentAutocomplete(initiativeId, docSearch, {
+    enabled: dialogOpen,
+  });
 
   const attachMutation = useAttachProjectDocument(projectId, {
     onSuccess: () => {
       toast.success(t("documents.attached"));
       setDialogOpen(false);
       setSelectedDocumentId("");
+      setSelectedDocumentLabel(null);
     },
   });
 
@@ -82,31 +96,22 @@ export const ProjectDocumentsSection = ({
     },
   });
 
-  const initiativeDocuments = useMemo(
-    () => initiativeDocsQuery.data ?? [],
-    [initiativeDocsQuery.data]
-  );
-
   const documentsById = useMemo(() => {
     const map = new Map<number, DocumentSummary>();
-    initiativeDocuments.forEach((doc) => {
+    (attachedDocsQuery.data?.items ?? []).forEach((doc) => {
       map.set(doc.id, doc);
     });
     return map;
-  }, [initiativeDocuments]);
+  }, [attachedDocsQuery.data]);
 
-  const availableDocs = useMemo(() => {
-    return initiativeDocuments.filter((doc) => !attachedDocumentIds.has(doc.id));
-  }, [initiativeDocuments, attachedDocumentIds]);
-
-  const comboboxItems = useMemo(
-    () =>
-      availableDocs.map((doc) => ({
-        value: String(doc.id),
-        label: doc.title,
-      })),
-    [availableDocs]
-  );
+  // Filtering the already-attached out of a small result page — the server has
+  // no notion of which of them this project already holds.
+  const comboboxItems = useMemo(() => {
+    const attached = new Set(attachedDocumentIds);
+    return (docSearchQuery.data ?? [])
+      .filter((doc) => !attached.has(doc.id))
+      .map((doc) => ({ value: String(doc.id), label: doc.title }));
+  }, [docSearchQuery.data, attachedDocumentIds]);
 
   return (
     <Collapsible
@@ -169,20 +174,20 @@ export const ProjectDocumentsSection = ({
                   </DialogHeader>
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <SearchableCombobox
+                      <AsyncCombobox
                         items={comboboxItems}
-                        value={selectedDocumentId}
-                        onValueChange={(value) => setSelectedDocumentId(value)}
-                        placeholder={
-                          initiativeDocsQuery.isLoading
-                            ? t("documents.loadingDocuments")
-                            : t("documents.chooseDocument")
-                        }
-                        emptyMessage={
-                          availableDocs.length === 0
-                            ? t("documents.allAttached")
-                            : t("documents.noMatchesFound")
-                        }
+                        value={selectedDocumentId || null}
+                        selectedLabel={selectedDocumentLabel}
+                        onValueChange={(value) => {
+                          setSelectedDocumentId(value);
+                          setSelectedDocumentLabel(
+                            comboboxItems.find((item) => item.value === value)?.label ?? null
+                          );
+                        }}
+                        onSearchChange={setDocSearch}
+                        loading={docSearchQuery.isFetching}
+                        placeholder={t("documents.chooseDocument")}
+                        emptyMessage={t("documents.noMatchesFound")}
                         buttonClassName="justify-between"
                       />
                       <p className="text-muted-foreground text-xs">{t("documents.attachHint")}</p>
@@ -192,11 +197,7 @@ export const ProjectDocumentsSection = ({
                     <Button
                       type="button"
                       onClick={() => attachMutation.mutate(Number(selectedDocumentId))}
-                      disabled={
-                        attachMutation.isPending ||
-                        !selectedDocumentId ||
-                        availableDocs.length === 0
-                      }
+                      disabled={attachMutation.isPending || !selectedDocumentId}
                     >
                       {attachMutation.isPending ? (
                         <>
