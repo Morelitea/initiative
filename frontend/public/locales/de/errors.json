@@ -139,6 +139,7 @@
   "DOCUMENT_OWNER_REQUIRED": "Eigentümerberechtigung für das Dokument erforderlich",
   "DOCUMENT_NO_ACCESS": "Du hast keinen Zugriff auf dieses Dokument",
   "DOCUMENT_TITLE_ALREADY_EXISTS": "Ein Dokument mit diesem Titel existiert bereits in dieser Initiative",
+  "DOCUMENT_TOO_MANY_IDS": "Zu viele Dokumente auf einmal angefordert (maximal 100)",
   "DOCUMENT_TITLE_REQUIRED": "Dokumenttitel ist erforderlich",
   "DOCUMENT_CANNOT_ASSIGN_OWNER": "Eigentümerberechtigung kann nicht zugewiesen werden",
   "DOCUMENT_USER_MUST_BE_MEMBER": "Der Benutzer muss Mitglied der Initiative sein",
