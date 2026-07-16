@@ -817,10 +817,16 @@ async def list_login_providers(
             .where(
                 AuthProvider.guild_id.is_(None),
                 AuthProvider.slug != PLATFORM_OIDC_SLUG,
+                AuthProvider.enabled.is_(True),
+                AuthProvider.kind == "oidc",
+                AuthProvider.issuer.is_not(None),
+                AuthProvider.client_id.is_not(None),
             )
             .order_by(AuthProvider.display_name)
         )
     ).all()
+    # _row_login_ready re-checks the same predicates and stays the single
+    # authority (it also guards empty strings, which SQL NULL checks miss).
     entries.extend(_login_entry(row) for row in rows if _row_login_ready(row))
     return LoginProvidersResponse(providers=entries)
 

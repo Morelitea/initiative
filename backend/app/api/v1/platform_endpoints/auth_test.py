@@ -43,6 +43,7 @@ from app.models.platform.user import User, UserStatus
 from app.services.auth.oidc.provider import OidcClientConfig, OidcProvider
 from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
 from app.testing.factories import (
+    create_auth_provider,
     create_user,
     get_auth_headers,
     get_auth_token,
@@ -1117,26 +1118,6 @@ async def test_oidc_refresh_cookie_rotates_into_access_token(
     assert me.json()["email"] == "sso-rotate@example.com"
 
 
-async def _create_provider_row(session: AsyncSession, **overrides) -> AuthProvider:
-    """A registry-managed (non-platform) operator-global provider row."""
-    defaults = {
-        "slug": "corp",
-        "display_name": "Corp SSO",
-        "kind": "oidc",
-        "enabled": True,
-        "guild_id": None,
-        "issuer": OIDC_ISSUER,
-        "client_id": OIDC_CLIENT_ID,
-        "scopes": "openid email",
-        "allow_jit": True,
-    }
-    row = AuthProvider(**{**defaults, **overrides})
-    session.add(row)
-    await session.commit()
-    await session.refresh(row)
-    return row
-
-
 @pytest.mark.integration
 @pytest.mark.auth
 async def test_provider_login_unknown_or_unready_slug_is_404(
@@ -1145,8 +1126,8 @@ async def test_provider_login_unknown_or_unready_slug_is_404(
     """A slug with no registry row — or a row that is disabled or missing its
     client config — must not begin a login."""
     await _enable_platform_oidc(session)
-    await _create_provider_row(session, slug="off", enabled=False)
-    await _create_provider_row(session, slug="bare", issuer=None)
+    await create_auth_provider(session, slug="off", enabled=False)
+    await create_auth_provider(session, slug="bare", issuer=None)
 
     for slug in ("nope", "off", "bare"):
         response = await client.get(
@@ -1162,9 +1143,9 @@ async def test_login_providers_listing(client: AsyncClient, session: AsyncSessio
     """/auth/providers lists the platform provider plus login-ready registry
     rows — and only those."""
     await _enable_platform_oidc(session)
-    await _create_provider_row(session, slug="corp", display_name="Corp SSO")
-    await _create_provider_row(session, slug="off", enabled=False)
-    await _create_provider_row(session, slug="bare", issuer=None)
+    await create_auth_provider(session, slug="corp", display_name="Corp SSO")
+    await create_auth_provider(session, slug="off", enabled=False)
+    await create_auth_provider(session, slug="bare", issuer=None)
 
     response = await client.get("/api/v1/auth/providers")
     assert response.status_code == 200
@@ -1186,7 +1167,7 @@ async def test_login_providers_empty_in_guild_posture_or_unconfigured(
     assert response.json()["providers"] == []  # nothing configured
 
     await _enable_platform_oidc(session, auth_scope=AuthScope.guild.value)
-    await _create_provider_row(session, slug="corp")
+    await create_auth_provider(session, slug="corp")
     response = await client.get("/api/v1/auth/providers")
     assert response.json()["providers"] == []  # dormant in guild posture
 
@@ -1220,7 +1201,7 @@ async def test_row_provider_full_login_flow(
     per-slug login URL, complete at its callback, and the provisioned identity
     and session belong to THAT provider (not the platform one)."""
     await _enable_platform_oidc(session)
-    row = await _create_provider_row(session, slug="corp")
+    row = await create_auth_provider(session, slug="corp")
     idp = FakeIdp()
     _wire_fake_idp_for_row(monkeypatch, idp)
 
