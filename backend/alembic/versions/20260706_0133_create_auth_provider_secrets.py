@@ -1,11 +1,9 @@
 """create auth_provider_secrets (app_admin-only client-secret store)
 
 Splits the provider client secret out of ``auth_providers`` into an
-**app_admin-only** companion (history/auth-detailed-design.md §6.2): the
-request-path (``platform_<tier>``) roles hold *no* grant on secret material, so
-even an over-broad query or an injection on the authenticated path cannot
-exfiltrate a client secret. Metadata (issuer, client_id — public in OIDC) stays
-on ``auth_providers``; only the secret is here.
+**app_admin-only** companion (history/auth-detailed-design.md §6.2): the secret
+is read and written only by the system engine. Metadata (issuer, client_id —
+public in OIDC) stays on ``auth_providers``; only the secret is here.
 
 1:1 with the provider (``provider_id`` PK, FK ``ON DELETE CASCADE``). The public
 schema default-grants platform_base + app_guild_base full DML on every new
@@ -52,8 +50,8 @@ def upgrade() -> None:
             "ALTER TABLE public.auth_provider_secrets ENABLE ROW LEVEL SECURITY",
             "ALTER TABLE public.auth_provider_secrets FORCE ROW LEVEL SECURITY",
             # Strip the schema-default DML: the client secret is read/written only
-            # by the system engine (provider CRUD via AdminSessionDep + config.manage),
-            # never on the request path — so a request-role query can't reach it.
+            # by the system engine (provider CRUD via AdminSessionDep +
+            # config.manage), never on the request path.
             f'REVOKE ALL ON TABLE public.auth_provider_secrets FROM app_guild_base, "{base}"',
             "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.auth_provider_secrets TO app_admin",
         ]

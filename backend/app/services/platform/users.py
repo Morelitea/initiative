@@ -16,6 +16,7 @@ from app.core.security import get_password_hash
 from app.db.session import set_rls_context
 from app.models.platform.user import User, UserRole, UserStatus
 from app.models.platform.guild import GuildMembership, GuildRole
+from app.services.auth import identity as identity_service
 from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceGrant, ResourceAccessLevel
 from app.models.tenant.task import TaskAssignee
@@ -670,7 +671,10 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     # Unguessable random password hash — matches the SYSTEM_USER pattern.
     user.hashed_password = get_password_hash(secrets.token_urlsafe(32))
 
-    # Strip the rest of the PII surface.
+    # Strip the rest of the PII surface. The IdP subject and refresh token
+    # live on the identity links now — remove the links themselves; the
+    # legacy users.oidc_* columns are still cleared while they exist.
+    await identity_service.delete_user_identities(session, user_id=user_id)
     user.full_name = None
     user.avatar_base64 = None
     user.avatar_url = None

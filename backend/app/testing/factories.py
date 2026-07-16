@@ -17,6 +17,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
@@ -51,7 +52,10 @@ from app.models.tenant.task import (
     TaskStatusCategory,
 )
 from app.models.tenant.upload import Upload
+from app.models.platform.auth_provider import AuthProvider, AuthProviderKind
+from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.user import User, UserRole, UserStatus
+from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
 from app.services.tenant.initiatives import create_builtin_roles
 from app.testing.schema_harness import route_session_to_guild
 
@@ -1119,3 +1123,55 @@ async def create_upload(
         await session.refresh(upload)
 
     return upload
+
+
+async def create_federated_identity(
+    session: AsyncSession,
+    user: User,
+    *,
+    subject: str | None = None,
+    provider: "AuthProvider | None" = None,
+    commit: bool = True,
+    **overrides: Any,
+) -> FederatedIdentity:
+    """Link ``user`` to an auth provider (the platform row by default).
+
+    Gets-or-creates the operator-global platform provider so tests can mark a
+    user as SSO-linked without configuring OIDC.
+    """
+    if provider is None:
+        provider = (
+            await session.exec(
+                select(AuthProvider).where(
+                    AuthProvider.slug == PLATFORM_OIDC_SLUG,
+                    AuthProvider.guild_id.is_(None),
+                )
+            )
+        ).one_or_none()
+        if provider is None:
+            provider = AuthProvider(
+                slug=PLATFORM_OIDC_SLUG,
+                display_name="Test SSO",
+                kind=AuthProviderKind.oidc.value,
+                enabled=True,
+                issuer="https://idp.test.example",
+                client_id="test-client",
+                allow_jit=True,
+            )
+            session.add(provider)
+            await session.flush()
+
+    defaults = {
+        "user_id": user.id,
+        "provider_id": provider.id,
+        "subject": subject or f"test-sub-{user.id}",
+        "email_verified": True,
+    }
+    identity = FederatedIdentity(**{**defaults, **overrides})
+    session.add(identity)
+
+    if commit:
+        await session.commit()
+        await session.refresh(identity)
+
+    return identity

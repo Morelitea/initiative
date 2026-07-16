@@ -73,6 +73,10 @@ logger = logging.getLogger(__name__)
 _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
     ("users", "ai_api_key_encrypted", SALT_AI_API_KEY),
     ("users", "oidc_refresh_token_encrypted", SALT_OIDC_REFRESH_TOKEN),
+    # Successor home for the IdP refresh token (same salt → ciphertext moves
+    # verbatim). Both rows are rotated during the transition; users.oidc_* is
+    # dropped in Phase 4.
+    ("federated_identity_secrets", "refresh_token_encrypted", SALT_OIDC_REFRESH_TOKEN),
     ("app_settings", "oidc_client_secret_encrypted", SALT_OIDC_CLIENT_SECRET),
     # Successor home for the OIDC client secret (same salt → ciphertext moves
     # verbatim). Both rows are rotated during the transition; app_settings is

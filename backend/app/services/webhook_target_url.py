@@ -10,9 +10,8 @@ internal port scanning and metadata-credential scraping.
 
 The defense:
 
-* Only ``https://`` is accepted by default. Plain ``http://`` lets a
-  MITM strip the signature header and forge payloads at the transport
-  layer, which defeats the whole point of HMAC.
+* Only ``https://`` is accepted by default, so signed payloads always
+  ride an encrypted transport.
 * At create/update time we resolve the hostname and reject any address
   that isn't a public unicast IP (private, loopback, link-local, etc.).
 * The same check runs again immediately before delivery in case DNS
@@ -128,14 +127,12 @@ def _enforce_address_policy(
     Two rules combine here:
 
     * **No private addresses** unless the dev escape hatch is on. The
-      "any private blocks all" rule still applies — an attacker who
-      publishes ``[1.1.1.1, 10.0.0.1]`` shouldn't roll the dice on
-      whichever one httpx picks.
-    * **No plain http to public hosts, ever.** A MITM on the way to a
-      public webhook target can strip the signature and forge payloads.
-      The dev flag deliberately doesn't relax this — its scope is local
-      / private targets only, where there's no useful TLS to be
-      between Initiative and auto.
+      "any private blocks all" rule still applies: a hostname that
+      resolves to a mixed public/private set is rejected as a whole,
+      not decided by whichever address httpx happens to pick.
+    * **No plain http to public hosts, ever.** The dev flag deliberately
+      doesn't relax this — its scope is local / private targets only,
+      where there's no useful TLS to be had between Initiative and auto.
 
     The matrix:
 

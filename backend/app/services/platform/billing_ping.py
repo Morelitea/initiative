@@ -6,8 +6,8 @@ signed ``/billing/headcount`` call and push recomputed caps back through
 ``/billing/guild-tier``. The ping is a **trigger, not a source of truth**:
 
 * payload is the guild id and a fresh event id only — no member data, no
-  PII, and deliberately **no member count** (a forged or stale ping can only
-  cause billing to recompute the truth);
+  PII, and deliberately **no member count** (a stale or spurious ping only
+  causes billing to recompute the truth);
 * no retry queue and no delivery guarantee — a lost ping is corrected by
   the next one or by billing's period-close reconciliation;
 * the join/leave transaction must never fail or slow because billing is

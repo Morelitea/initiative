@@ -35,8 +35,7 @@ def parse_conditions(
     """Safely parse a JSON-encoded list of filter conditions.
 
     Designed for use with query parameters that carry structured filters as a
-    JSON string.  Applies size and count limits before touching the payload so
-    an attacker cannot exhaust memory or CPU with a crafted input.
+    JSON string.  Applies size and count limits before parsing the payload.
 
     Returns an empty list when *raw* is ``None`` or empty.
 

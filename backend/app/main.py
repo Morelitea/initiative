@@ -136,19 +136,27 @@ async def lifespan(app: FastAPI):
 
         await storage_config.refresh_storage_config(session)
     # Migrate the single platform OIDC config into the provider registry +
-    # identity links (operator-global; idempotent, self-healing). Runs after
+    # identity links, and copy the per-user refresh token + sync stamp onto
+    # those links (operator-global; idempotent, self-healing). Runs after
     # ensure_defaults so the settings singleton exists. Additive — the legacy
-    # app_settings.oidc_* / users.oidc_sub stay as the fallback path.
+    # app_settings.oidc_* / users.oidc_* columns stay (unread) until the final
+    # cutover phase drops them.
     from app.services.auth.oidc_backfill import backfill_oidc_identity
 
     oidc = await backfill_oidc_identity()
-    if oidc.provider_created or oidc.identities_linked or oidc.secret_migrated:
+    if (
+        oidc.provider_created
+        or oidc.identities_linked
+        or oidc.secret_migrated
+        or oidc.refresh_tokens_copied
+    ):
         logger.info(
             "OIDC identity back-fill: provider %s, %d identities linked (of %d), "
-            "secret %s",
+            "%d refresh token(s) copied, secret %s",
             "created" if oidc.provider_created else "existing",
             oidc.identities_linked,
             oidc.oidc_users,
+            oidc.refresh_tokens_copied,
             "migrated" if oidc.secret_migrated else "unchanged",
         )
     app.state.notification_tasks = background_tasks_service.start_background_tasks()

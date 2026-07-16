@@ -249,9 +249,12 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession):
     demotes platform admins to member, revokes auth artifacts, and keeps
     the row so historical FKs resolve."""
     from app.models.platform.api_key import UserApiKey
+    from app.models.platform.federated_identity import FederatedIdentity
+    from app.models.platform.federated_identity_secret import FederatedIdentitySecret
     from app.models.platform.push_token import PushToken
     from app.models.platform.user_token import UserToken
     from app.models.platform.user import UserRole
+    from app.testing.factories import create_federated_identity
 
     user = await create_user(
         session,
@@ -260,6 +263,14 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession):
         avatar_url="https://example.com/avatar.png",
         role=UserRole.operator,
     )
+    # SSO link + stored IdP refresh token — both must be severed by anonymize.
+    identity = await create_federated_identity(session, user, subject="anon-sub")
+    session.add(
+        FederatedIdentitySecret(
+            identity_id=identity.id, refresh_token_encrypted="ciphertext"
+        )
+    )
+    await session.commit()
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)
 
@@ -311,6 +322,14 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession):
     assert anonymized.avatar_url is None
     assert anonymized.avatar_base64 is None
     assert anonymized.oidc_sub is None
+    # The SSO link and its stored refresh token are gone.
+    remaining_identities = (
+        await session.exec(
+            select(FederatedIdentity).where(FederatedIdentity.user_id == original_id)
+        )
+    ).all()
+    assert remaining_identities == []
+    assert (await session.get(FederatedIdentitySecret, identity.id)) is None
     assert anonymized.email_hash != original_email_hash
     # Login is doubly impossible: the email_hash no longer matches the
     # user's old email, and the password hash is fresh nonsense.
