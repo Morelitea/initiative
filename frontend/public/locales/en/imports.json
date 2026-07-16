@@ -15,6 +15,7 @@
       "prompt": "Choose a backup file",
       "hint": "A .zip exported from Initiative's guild or initiative backup.",
       "notZip": "This file isn't a valid Initiative backup.",
+      "readFailed": "Couldn't read this backup file. It may be corrupted.",
       "tooLarge": "This file is larger than the {{limit}} upload limit.",
       "reading": "Reading backup…"
     },

@@ -24,6 +24,8 @@ import {
 } from "@/components/ui/table";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useDateLocale } from "@/hooks/useDateLocale";
+import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 import { downloadExportArtifact } from "@/lib/exportDownload";
 import { queryClient } from "@/lib/queryClient";
 
@@ -110,6 +112,10 @@ export function DataJobsTable() {
   const handleCancel = async (job: ImportJobRead) => {
     try {
       await cancelMutation.mutateAsync({ guildId, jobId: job.id });
+    } catch (err) {
+      // Most often a 409: the job started running between render and click.
+      // Surface it instead of the row silently flipping to "running".
+      toast.error(getErrorMessage(err, "imports:job.failed"));
     } finally {
       void queryClient.invalidateQueries({
         queryKey: getListImportJobsApiV1GGuildIdImportsJobsGetQueryKey(guildId),

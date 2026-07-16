@@ -95,8 +95,10 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
       setPeeked(manifest);
       setStep("peek");
     } catch (err) {
+      // A BackupPeekError means the file isn't a backup; anything else
+      // (DecompressionStream/TextDecoder failure, OOM) is a read failure.
       setPickError(
-        err instanceof BackupPeekError ? t("wizard.pick.notZip") : t("wizard.pick.notZip")
+        err instanceof BackupPeekError ? t("wizard.pick.notZip") : t("wizard.pick.readFailed")
       );
     }
   };

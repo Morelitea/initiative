@@ -15,6 +15,7 @@
       "prompt": "Choisir un fichier de sauvegarde",
       "hint": "Un .zip exporté depuis une sauvegarde de guilde ou d'initiative d'Initiative.",
       "notZip": "Ce fichier n'est pas une sauvegarde Initiative valide.",
+      "readFailed": "Impossible de lire ce fichier de sauvegarde. Il est peut-être corrompu.",
       "tooLarge": "Ce fichier dépasse la limite de téléversement de {{limit}}.",
       "reading": "Lecture de la sauvegarde…"
     },

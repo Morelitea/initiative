@@ -90,4 +90,32 @@ describe("EnvelopeImportDialog", () => {
     selectFile({ hello: "world" });
     expect(await screen.findByText(/isn't a recognized Initiative export/i)).toBeInTheDocument();
   });
+
+  it("ignores a slow read of an earlier file when a newer one is picked", async () => {
+    renderWithProviders(<EnvelopeImportDialog tool={Tool.queue} open onOpenChange={() => {}} />);
+    const input = screen.getByLabelText(/export file/i) as HTMLInputElement;
+
+    // First pick: a file whose read resolves LATER.
+    const slow = new File(["{}"], "slow.json", { type: "application/json" });
+    let releaseSlow: (v: string) => void = () => {};
+    Object.defineProperty(slow, "text", {
+      value: () =>
+        new Promise<string>((resolve) => {
+          releaseSlow = resolve;
+        }),
+    });
+    Object.defineProperty(input, "files", { value: [slow], configurable: true });
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+
+    // Second pick, mid-flight: a valid matching file that resolves immediately.
+    selectFile({ type: "initiative-queue", name: "Good Queue", schema_version: 1 });
+    await waitFor(() => expect(screen.getByText(/Good Queue/)).toBeInTheDocument());
+
+    // The earlier read finishes last with a wrong-tool payload — it must NOT
+    // overwrite the newer selection's accepted state.
+    releaseSlow(JSON.stringify({ type: "initiative-document", title: "Stale" }));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByText(/import it from that tool's page/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^import$/i })).not.toBeDisabled();
+  });
 });

@@ -56,7 +56,7 @@ export function ImportReport({ job }: { job: ImportJobRead }) {
           {Object.entries(result.per_tool).map(([tool, counts]) => (
             <p key={tool} className="text-xs">
               <span className="font-medium">
-                {t(`table.source.initiative-${tool.replace("_", "-")}` as never, {
+                {t(`table.source.initiative-${tool.replaceAll("_", "-")}` as never, {
                   defaultValue: tool,
                 })}
               </span>

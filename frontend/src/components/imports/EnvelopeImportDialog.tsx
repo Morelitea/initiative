@@ -1,4 +1,4 @@
-import { type ChangeEvent, type FormEvent, useEffect, useMemo, useState } from "react";
+import { type ChangeEvent, type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useImportEnvelopeApiV1GGuildIdImportsEnvelopePost } from "@/api/generated/imports/imports";
@@ -75,6 +75,9 @@ export function EnvelopeImportDialog({
     fixedInitiativeId != null ? String(fixedInitiativeId) : null
   );
   const [fileName, setFileName] = useState("");
+  // Bumped on each file pick; an async read that finishes after a newer pick
+  // started must not stamp its (stale) result onto the input.
+  const readGeneration = useRef(0);
 
   const importMutation = useImportEnvelopeApiV1GGuildIdImportsEnvelopePost();
 
@@ -104,6 +107,10 @@ export function EnvelopeImportDialog({
   }, [open, fixedInitiativeId, creatableInitiatives]);
 
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const generation = ++readGeneration.current;
+    // Only write state if this is still the most recent pick — a slower read
+    // of an earlier file must not clobber a newer selection's result.
+    const isStale = () => generation !== readGeneration.current;
     setParseError(null);
     setEnvelope(null);
     const file = e.target.files?.[0];
@@ -118,7 +125,11 @@ export function EnvelopeImportDialog({
     }
     setFileName(file.name);
     try {
-      const parsed = JSON.parse(await file.text()) as ParsedEnvelope;
+      const text = await file.text();
+      if (isStale()) {
+        return;
+      }
+      const parsed = JSON.parse(text) as ParsedEnvelope;
       const type = parsed.type ?? parsed.kind;
       if (!type) {
         setParseError(t("imports:envelope.parseError"));
@@ -136,6 +147,9 @@ export function EnvelopeImportDialog({
       }
       setEnvelope(parsed);
     } catch {
+      if (isStale()) {
+        return;
+      }
       setParseError(t("imports:envelope.parseError"));
     }
   };

@@ -15,6 +15,7 @@
       "prompt": "Backup-Datei wählen",
       "hint": "Eine aus einem Gilden- oder Initiative-Backup von Initiative exportierte .zip.",
       "notZip": "Diese Datei ist kein gültiges Initiative-Backup.",
+      "readFailed": "Diese Backup-Datei konnte nicht gelesen werden. Sie ist möglicherweise beschädigt.",
       "tooLarge": "Diese Datei ist größer als das Upload-Limit von {{limit}}.",
       "reading": "Backup wird gelesen…"
     },
