@@ -1,0 +1,113 @@
+{
+  "job": {
+    "succeeded": "Importación finalizada.",
+    "failed": "La importación falló.",
+    "queued": "Importación iniciada: recibirás una notificación cuando termine."
+  },
+  "wizard": {
+    "title": "Importar una copia de seguridad",
+    "back": "Atrás",
+    "close": "Cerrar",
+    "cancelUpload": "Cancelar importación",
+    "upload": "Subir copia de seguridad",
+    "start": "Iniciar importación",
+    "pick": {
+      "prompt": "Elige un archivo de copia de seguridad",
+      "hint": "Un .zip exportado desde una copia de seguridad de gremio o iniciativa de Initiative.",
+      "notZip": "Este archivo no es una copia de seguridad válida de Initiative.",
+      "readFailed": "No se pudo leer este archivo de copia de seguridad. Puede estar dañado.",
+      "tooLarge": "Este archivo supera el límite de subida de {{limit}}.",
+      "reading": "Leyendo la copia de seguridad…"
+    },
+    "peek": {
+      "source": "Copia de seguridad de {{name}}",
+      "exportedAt": "Exportado {{date}} · Initiative v{{version}}",
+      "initiative_one": "{{count}} iniciativa",
+      "initiative_other": "{{count}} iniciativas",
+      "entries_one": "{{count}} elemento",
+      "entries_other": "{{count}} elementos",
+      "assets": "{{count}} archivos subidos ({{size}})",
+      "noAssets": "Sin archivos subidos",
+      "note": "Todavía no se ha subido nada: revisa y continúa para subir."
+    },
+    "uploading": "Subiendo la copia de seguridad…",
+    "plan": {
+      "prompt": "Revisa lo que se importará",
+      "willCreate": "\"{{name}}\" se importará como una nueva iniciativa \"{{proposed}}\"",
+      "toolCount": "{{tool}}: {{count}}",
+      "skipped_one": "El exportador dejó {{count}} elemento fuera de esta copia de seguridad",
+      "skipped_other": "El exportador dejó {{count}} elementos fuera de esta copia de seguridad",
+      "unknownTypes": "Se omitirán tipos de contenido desconocidos: {{types}}",
+      "note": "Cada iniciativa de la copia se crea de nuevo; nada existente se modifica. La importación se ejecuta en segundo plano."
+    },
+    "progress": {
+      "title": "Importando…",
+      "note": "Esto puede tardar un poco. Puedes cerrar este diálogo: recibirás una notificación y el informe permanece disponible en la configuración del gremio."
+    },
+    "report": {
+      "title": "Importación finalizada",
+      "failedTitle": "La importación falló",
+      "initiativesCreated_one": "{{count}} iniciativa creada",
+      "initiativesCreated_other": "{{count}} iniciativas creadas",
+      "perTool": "{{created}} creados · {{failed}} fallidos · {{skipped}} omitidos",
+      "assets": "{{restored}} archivos restaurados, {{deduped}} ya presentes",
+      "unmatchedEmails": "Algunas personas no se pudieron emparejar por correo: {{emails}}",
+      "failedEntries": "Elementos que no se importaron:",
+      "nothing": "No se importó nada."
+    }
+  },
+  "envelope": {
+    "title": "Importar desde archivo",
+    "description": "Importa un archivo JSON exportado desde Initiative. El contenido del archivo se crea en la iniciativa que elijas.",
+    "selectFile": "Archivo de exportación",
+    "parseError": "Este archivo no es una exportación reconocida de Initiative.",
+    "wrongTool": "Este archivo es una exportación de {{type}}: impórtalo desde la página de esa herramienta.",
+    "fileTooLarge": "Este archivo es demasiado grande para importar.",
+    "preview": "{{title}} · {{type}}",
+    "targetInitiative": "Importar en",
+    "selectInitiative": "Elige una iniciativa",
+    "importButton": "Importar",
+    "importing": "Importando…",
+    "success": "\"{{name}}\" importado.",
+    "queued": "Importación iniciada: recibirás una notificación cuando termine.",
+    "warningUnmatched_one": "{{count}} persona no se pudo emparejar por correo: {{emails}}",
+    "warningUnmatched_other": "{{count}} personas no se pudieron emparejar por correo: {{emails}}",
+    "error": "La importación falló."
+  },
+  "entry": {
+    "menuLabel": "Más acciones",
+    "importBackup": "Importar desde archivo",
+    "import": "Importar"
+  },
+  "table": {
+    "direction": {
+      "export": "Exportación",
+      "import": "Importación"
+    },
+    "status": {
+      "staged": "Esperando confirmación",
+      "queued": "En cola",
+      "running": "En curso",
+      "done": "Finalizado",
+      "failed": "Fallido",
+      "cancelled": "Cancelado",
+      "expired": "Caducado"
+    },
+    "source": {
+      "backup": "Copia de seguridad",
+      "initiative-project": "Proyecto",
+      "initiative-document": "Documento",
+      "initiative-queue": "Cola",
+      "initiative-counter-group": "Grupo de contadores",
+      "initiative-calendar-events": "Calendario"
+    },
+    "cancel": "Cancelar",
+    "viewReport": "Ver informe",
+    "reportTitle": "Informe de importación"
+  },
+  "dataTab": {
+    "importTitle": "Importar una copia de seguridad",
+    "importDescription": "Restaura un zip de copia de seguridad de iniciativa o gremio. Cada iniciativa respaldada se crea como una nueva iniciativa; nada existente se modifica.",
+    "open": "Importar…"
+  }
+}

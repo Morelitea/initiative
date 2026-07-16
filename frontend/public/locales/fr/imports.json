@@ -1,0 +1,113 @@
+{
+  "job": {
+    "succeeded": "Import terminé.",
+    "failed": "L'import a échoué.",
+    "queued": "Import lancé — vous recevrez une notification quand il sera terminé."
+  },
+  "wizard": {
+    "title": "Importer une sauvegarde",
+    "back": "Retour",
+    "close": "Fermer",
+    "cancelUpload": "Annuler l'import",
+    "upload": "Téléverser la sauvegarde",
+    "start": "Lancer l'import",
+    "pick": {
+      "prompt": "Choisir un fichier de sauvegarde",
+      "hint": "Un .zip exporté depuis une sauvegarde de guilde ou d'initiative d'Initiative.",
+      "notZip": "Ce fichier n'est pas une sauvegarde Initiative valide.",
+      "readFailed": "Impossible de lire ce fichier de sauvegarde. Il est peut-être corrompu.",
+      "tooLarge": "Ce fichier dépasse la limite de téléversement de {{limit}}.",
+      "reading": "Lecture de la sauvegarde…"
+    },
+    "peek": {
+      "source": "Sauvegarde de {{name}}",
+      "exportedAt": "Exporté {{date}} · Initiative v{{version}}",
+      "initiative_one": "{{count}} initiative",
+      "initiative_other": "{{count}} initiatives",
+      "entries_one": "{{count}} élément",
+      "entries_other": "{{count}} éléments",
+      "assets": "{{count}} fichiers téléversés ({{size}})",
+      "noAssets": "Aucun fichier téléversé",
+      "note": "Rien n'est encore téléversé — vérifiez et continuez pour téléverser."
+    },
+    "uploading": "Téléversement de la sauvegarde…",
+    "plan": {
+      "prompt": "Vérifiez ce qui sera importé",
+      "willCreate": "« {{name}} » sera importé comme nouvelle initiative « {{proposed}} »",
+      "toolCount": "{{tool}} : {{count}}",
+      "skipped_one": "L'exportateur a laissé {{count}} élément hors de cette sauvegarde",
+      "skipped_other": "L'exportateur a laissé {{count}} éléments hors de cette sauvegarde",
+      "unknownTypes": "Les types de contenu inconnus seront ignorés : {{types}}",
+      "note": "Chaque initiative de la sauvegarde est créée à neuf — rien d'existant n'est modifié. L'import s'exécute en arrière-plan."
+    },
+    "progress": {
+      "title": "Import en cours…",
+      "note": "Cela peut prendre un moment. Vous pouvez fermer cette fenêtre — vous recevrez une notification, et le rapport reste disponible dans les paramètres de la guilde."
+    },
+    "report": {
+      "title": "Import terminé",
+      "failedTitle": "L'import a échoué",
+      "initiativesCreated_one": "{{count}} initiative créée",
+      "initiativesCreated_other": "{{count}} initiatives créées",
+      "perTool": "{{created}} créés · {{failed}} échoués · {{skipped}} ignorés",
+      "assets": "{{restored}} fichiers restaurés, {{deduped}} déjà présents",
+      "unmatchedEmails": "Certaines personnes n'ont pas pu être associées par e-mail : {{emails}}",
+      "failedEntries": "Éléments non importés :",
+      "nothing": "Rien n'a été importé."
+    }
+  },
+  "envelope": {
+    "title": "Importer depuis un fichier",
+    "description": "Importez un fichier JSON exporté depuis Initiative. Le contenu du fichier est créé dans l'initiative que vous choisissez.",
+    "selectFile": "Fichier d'export",
+    "parseError": "Ce fichier n'est pas un export Initiative reconnu.",
+    "wrongTool": "Ce fichier est un export {{type}} — importez-le depuis la page de cet outil.",
+    "fileTooLarge": "Ce fichier est trop volumineux pour être importé.",
+    "preview": "{{title}} · {{type}}",
+    "targetInitiative": "Importer dans",
+    "selectInitiative": "Choisir une initiative",
+    "importButton": "Importer",
+    "importing": "Import en cours…",
+    "success": "« {{name}} » importé.",
+    "queued": "Import lancé — vous recevrez une notification quand il sera terminé.",
+    "warningUnmatched_one": "{{count}} personne n'a pas pu être associée par e-mail : {{emails}}",
+    "warningUnmatched_other": "{{count}} personnes n'ont pas pu être associées par e-mail : {{emails}}",
+    "error": "L'import a échoué."
+  },
+  "entry": {
+    "menuLabel": "Plus d'actions",
+    "importBackup": "Importer depuis un fichier",
+    "import": "Importer"
+  },
+  "table": {
+    "direction": {
+      "export": "Export",
+      "import": "Import"
+    },
+    "status": {
+      "staged": "En attente de confirmation",
+      "queued": "En file",
+      "running": "En cours",
+      "done": "Terminé",
+      "failed": "Échoué",
+      "cancelled": "Annulé",
+      "expired": "Expiré"
+    },
+    "source": {
+      "backup": "Sauvegarde",
+      "initiative-project": "Projet",
+      "initiative-document": "Document",
+      "initiative-queue": "File",
+      "initiative-counter-group": "Groupe de compteurs",
+      "initiative-calendar-events": "Calendrier"
+    },
+    "cancel": "Annuler",
+    "viewReport": "Voir le rapport",
+    "reportTitle": "Rapport d'import"
+  },
+  "dataTab": {
+    "importTitle": "Importer une sauvegarde",
+    "importDescription": "Restaurez un zip de sauvegarde d'initiative ou de guilde. Chaque initiative sauvegardée est créée comme une nouvelle initiative — rien d'existant n'est modifié.",
+    "open": "Importer…"
+  }
+}

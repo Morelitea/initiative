@@ -1,0 +1,113 @@
+{
+  "job": {
+    "succeeded": "Import abgeschlossen.",
+    "failed": "Import fehlgeschlagen.",
+    "queued": "Import gestartet — du erhältst eine Benachrichtigung, sobald er fertig ist."
+  },
+  "wizard": {
+    "title": "Backup importieren",
+    "back": "Zurück",
+    "close": "Schließen",
+    "cancelUpload": "Import abbrechen",
+    "upload": "Backup hochladen",
+    "start": "Import starten",
+    "pick": {
+      "prompt": "Backup-Datei wählen",
+      "hint": "Eine aus einem Gilden- oder Initiative-Backup von Initiative exportierte .zip.",
+      "notZip": "Diese Datei ist kein gültiges Initiative-Backup.",
+      "readFailed": "Diese Backup-Datei konnte nicht gelesen werden. Sie ist möglicherweise beschädigt.",
+      "tooLarge": "Diese Datei ist größer als das Upload-Limit von {{limit}}.",
+      "reading": "Backup wird gelesen…"
+    },
+    "peek": {
+      "source": "Backup von {{name}}",
+      "exportedAt": "Exportiert {{date}} · Initiative v{{version}}",
+      "initiative_one": "{{count}} Initiative",
+      "initiative_other": "{{count}} Initiativen",
+      "entries_one": "{{count}} Element",
+      "entries_other": "{{count}} Elemente",
+      "assets": "{{count}} hochgeladene Dateien ({{size}})",
+      "noAssets": "Keine hochgeladenen Dateien",
+      "note": "Es wurde noch nichts hochgeladen — prüfen und fortfahren, um hochzuladen."
+    },
+    "uploading": "Backup wird hochgeladen…",
+    "plan": {
+      "prompt": "Überprüfe, was importiert wird",
+      "willCreate": "\"{{name}}\" wird als neue Initiative \"{{proposed}}\" importiert",
+      "toolCount": "{{tool}}: {{count}}",
+      "skipped_one": "{{count}} Element wurde vom Exporteur aus diesem Backup ausgelassen",
+      "skipped_other": "{{count}} Elemente wurden vom Exporteur aus diesem Backup ausgelassen",
+      "unknownTypes": "Unbekannte Inhaltstypen werden übersprungen: {{types}}",
+      "note": "Jede Initiative im Backup wird neu erstellt — Bestehendes wird nicht verändert. Der Import läuft im Hintergrund."
+    },
+    "progress": {
+      "title": "Wird importiert…",
+      "note": "Das kann eine Weile dauern. Du kannst diesen Dialog schließen — du erhältst eine Benachrichtigung, und der Bericht bleibt in den Gilden-Einstellungen verfügbar."
+    },
+    "report": {
+      "title": "Import abgeschlossen",
+      "failedTitle": "Import fehlgeschlagen",
+      "initiativesCreated_one": "{{count}} Initiative erstellt",
+      "initiativesCreated_other": "{{count}} Initiativen erstellt",
+      "perTool": "{{created}} erstellt · {{failed}} fehlgeschlagen · {{skipped}} übersprungen",
+      "assets": "{{restored}} Dateien wiederhergestellt, {{deduped}} bereits vorhanden",
+      "unmatchedEmails": "Einige Personen konnten nicht per E-Mail zugeordnet werden: {{emails}}",
+      "failedEntries": "Nicht importierte Elemente:",
+      "nothing": "Es wurde nichts importiert."
+    }
+  },
+  "envelope": {
+    "title": "Aus Datei importieren",
+    "description": "Importiere eine aus Initiative exportierte JSON-Datei. Der Inhalt der Datei wird in der gewählten Initiative erstellt.",
+    "selectFile": "Exportdatei",
+    "parseError": "Diese Datei ist kein bekannter Initiative-Export.",
+    "wrongTool": "Diese Datei ist ein {{type}}-Export — importiere sie über die Seite dieses Werkzeugs.",
+    "fileTooLarge": "Diese Datei ist zu groß zum Importieren.",
+    "preview": "{{title}} · {{type}}",
+    "targetInitiative": "Importieren in",
+    "selectInitiative": "Initiative wählen",
+    "importButton": "Importieren",
+    "importing": "Wird importiert…",
+    "success": "\"{{name}}\" importiert.",
+    "queued": "Import gestartet — du erhältst eine Benachrichtigung, sobald er fertig ist.",
+    "warningUnmatched_one": "{{count}} Person konnte nicht per E-Mail zugeordnet werden: {{emails}}",
+    "warningUnmatched_other": "{{count}} Personen konnten nicht per E-Mail zugeordnet werden: {{emails}}",
+    "error": "Import fehlgeschlagen."
+  },
+  "entry": {
+    "menuLabel": "Weitere Aktionen",
+    "importBackup": "Aus Datei importieren",
+    "import": "Importieren"
+  },
+  "table": {
+    "direction": {
+      "export": "Export",
+      "import": "Import"
+    },
+    "status": {
+      "staged": "Wartet auf Bestätigung",
+      "queued": "In Warteschlange",
+      "running": "Läuft",
+      "done": "Fertig",
+      "failed": "Fehlgeschlagen",
+      "cancelled": "Abgebrochen",
+      "expired": "Abgelaufen"
+    },
+    "source": {
+      "backup": "Backup",
+      "initiative-project": "Projekt",
+      "initiative-document": "Dokument",
+      "initiative-queue": "Warteschlange",
+      "initiative-counter-group": "Zählergruppe",
+      "initiative-calendar-events": "Kalender"
+    },
+    "cancel": "Abbrechen",
+    "viewReport": "Bericht anzeigen",
+    "reportTitle": "Import-Bericht"
+  },
+  "dataTab": {
+    "importTitle": "Backup importieren",
+    "importDescription": "Ein Initiative- oder Gilden-Backup-Zip wiederherstellen. Jede gesicherte Initiative wird als neue Initiative erstellt — Bestehendes wird nicht verändert.",
+    "open": "Importieren…"
+  }
+}

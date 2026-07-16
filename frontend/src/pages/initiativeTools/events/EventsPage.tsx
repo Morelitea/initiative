@@ -27,6 +27,7 @@ import {
 import { BulkExportButton } from "@/components/exports/BulkExportButton";
 import { ExportButton } from "@/components/exports/ExportButton";
 import { TOOL_EXPORT_FORMATS } from "@/components/exports/formats";
+import { ToolImportAction } from "@/components/imports/ToolImportAction";
 import { CreateEventDialog } from "@/components/initiativeTools/events/CreateEventDialog";
 import { ICalImportDialog } from "@/components/initiativeTools/events/ICalImportDialog";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
@@ -473,6 +474,11 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
               {t("import.importIcs")}
             </Button>
           )}
+          <ToolImportAction
+            tool={Tool.calendar_event}
+            canImport={canCreateEvents}
+            fixedInitiativeId={fixedInitiativeId}
+          />
         </div>
       </div>
 

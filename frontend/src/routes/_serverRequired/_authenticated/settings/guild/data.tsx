@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
-export const Route = createFileRoute("/_serverRequired/_authenticated/settings/guild/export")({
+export const Route = createFileRoute("/_serverRequired/_authenticated/settings/guild/data")({
   beforeLoad: ({ context }) => {
     const guildId = context.guilds?.activeGuildId;
     if (guildId) {
