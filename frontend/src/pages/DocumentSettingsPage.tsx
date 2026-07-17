@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { DocumentSettingsAccessTab } from "@/components/documents/settings/DocumentSettingsAccessTab";
 import { DocumentSettingsAdvancedTab } from "@/components/documents/settings/DocumentSettingsAdvancedTab";
 import { DocumentSettingsDetailsTab } from "@/components/documents/settings/DocumentSettingsDetailsTab";
@@ -29,7 +30,7 @@ import {
   useUpdateDocument,
 } from "@/hooks/useDocuments";
 import { useInitiatives } from "@/hooks/useInitiatives";
-import { useSetDocumentTags } from "@/hooks/useTags";
+import { useSetToolTags } from "@/hooks/useToolTags";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -55,7 +56,7 @@ export const DocumentSettingsPage = () => {
   const [isTemplate, setIsTemplate] = useState(false);
   const [documentTags, setDocumentTags] = useState<TagSummary[]>([]);
 
-  const setDocumentTagsMutation = useSetDocumentTags();
+  const setDocumentTagsMutation = useSetToolTags(Tool.document);
 
   const documentQuery = useDocument(Number.isFinite(parsedId) ? parsedId : null);
 
@@ -207,7 +208,7 @@ export const DocumentSettingsPage = () => {
   const handleTagsChange = (newTags: TagSummary[]) => {
     setDocumentTags(newTags);
     setDocumentTagsMutation.mutate({
-      documentId: parsedId,
+      id: parsedId,
       tagIds: newTags.map((tg) => tg.id),
     });
   };

@@ -46,7 +46,7 @@ import { useComments, useCommentsCache } from "@/hooks/useComments";
 import { useDocument, useSetDocumentCache, useUpdateDocument } from "@/hooks/useDocuments";
 import { useSetDocumentProperties } from "@/hooks/useProperties";
 import { useRecordRecentView } from "@/hooks/useRecents";
-import { useSetDocumentTags } from "@/hooks/useTags";
+import { useSetToolTags } from "@/hooks/useToolTags";
 import { toast } from "@/lib/chesterToast";
 import { createEmptyEditorState, normalizeEditorState } from "@/lib/editorState";
 
@@ -85,6 +85,7 @@ import type {
   PropertySummary,
   TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import type { SmartLinkContent } from "@/components/documents/SmartLinkDocumentViewer";
 import type { SpreadsheetContent } from "@/components/documents/SpreadsheetDocumentEditor";
 import type { WhiteboardScene } from "@/components/documents/WhiteboardDocumentEditor";
@@ -135,7 +136,7 @@ export const DocumentDetailPage = () => {
   const gp = useGuildPath();
   const sidePanel = useDocumentSidePanel();
   const { isEnabled: isAIEnabled } = useAIEnabled();
-  const setDocumentTagsMutation = useSetDocumentTags();
+  const setDocumentTagsMutation = useSetToolTags(Tool.document);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [featuredImageUrl, setFeaturedImageUrl] = useState<string | null>(null);
   const [tags, setTags] = useState<TagSummary[]>([]);
@@ -946,7 +947,7 @@ export const DocumentDetailPage = () => {
       setTags(newTags);
       // Immediately save tag changes to the server
       setDocumentTagsMutation.mutate({
-        documentId: parsedId,
+        id: parsedId,
         tagIds: newTags.map((tg) => tg.id),
       });
     },

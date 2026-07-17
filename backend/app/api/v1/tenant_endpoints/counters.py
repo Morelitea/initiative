@@ -64,7 +64,6 @@ from app.services import permissions as permissions_service
 from app.services.tenant import recent_views as recent_views_service
 from app.api import resource_access
 from app.core.tools import Tool
-from app.schemas.tenant.tag import TagSetRequest
 from app.services.tenant import tags as tags_service
 from app.services import rls as rls_service
 from app.services.stream_authz import authority as stream_authority
@@ -456,43 +455,6 @@ async def update_counter_group(
         await _emit_counter(
             session, group_id, "group_updated", result.model_dump(mode="json")
         )
-    return result
-
-
-@router.put("/{group_id}/tags", response_model=CounterGroupRead)
-async def set_counter_group_tags(
-    group_id: int,
-    tags_in: TagSetRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> CounterGroupRead:
-    """Set tags on a counter group. Replaces all existing tags. Requires
-    write access."""
-    group = await _get_counter_group_with_access(
-        session, group_id, current_user, guild_context, access="write"
-    )
-    await tags_service.set_entity_tags(
-        session,
-        tags_service.TOOL_TAG_LINKS[Tool.counter_group],
-        guild_id=guild_context.guild_id,
-        entity_id=group.id,
-        tag_ids=tags_in.tag_ids,
-    )
-    group.updated_at = datetime.now(timezone.utc)
-    session.add(group)
-    await session.commit()
-
-    hydrated = await _refetch_group(session, group.id)
-    result = serialize_counter_group(
-        hydrated,
-        my_permission_level=_compute_my_permission(
-            hydrated, current_user, guild_context
-        ),
-    )
-    await _emit_counter(
-        session, group_id, "group_updated", result.model_dump(mode="json")
-    )
     return result
 
 

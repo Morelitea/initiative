@@ -60,6 +60,5 @@
   "updateError": "No se pudo actualizar la etiqueta.",
   "deleteError": "No se pudo eliminar la etiqueta.",
   "taskTagsError": "No se pudieron actualizar las etiquetas de la tarea.",
-  "projectTagsError": "No se pudieron actualizar las etiquetas del proyecto.",
-  "documentTagsError": "No se pudieron actualizar las etiquetas del documento."
+  "toolTagsError": "No se pudieron actualizar las etiquetas."
 }

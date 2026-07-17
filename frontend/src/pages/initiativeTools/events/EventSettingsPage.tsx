@@ -8,6 +8,7 @@ import type {
   PropertySummary,
   TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ShareControl } from "@/components/access/ShareControl";
 import {
   datesAreValid,
@@ -52,10 +53,10 @@ import {
   useDeleteCalendarEvent,
   useSetCalendarEventGrants,
   useSetEventAttendees,
-  useSetEventTags,
   useUpdateCalendarEvent,
 } from "@/hooks/useCalendarEvents";
 import { useInitiative } from "@/hooks/useInitiatives";
+import { useSetToolTags } from "@/hooks/useToolTags";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
 import { getUserDisplayName } from "@/lib/userDisplay";
@@ -237,7 +238,7 @@ export function EventSettingsPage() {
     onSuccess: () => toast.success(t("detailsUpdated")),
   });
 
-  const setEventTags = useSetEventTags(eventId);
+  const setEventTags = useSetToolTags(Tool.calendar_event);
 
   const setGrants = useSetCalendarEventGrants(eventId, {
     onSuccess: () => toast.success(t("detailsUpdated")),
@@ -250,7 +251,7 @@ export function EventSettingsPage() {
     const previous = tags;
     setTags(newTags);
     setEventTags.mutate(
-      newTags.map((tag) => tag.id),
+      { id: eventId, tagIds: newTags.map((tag) => tag.id) },
       { onError: () => setTags(previous) }
     );
   };

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ShareControl } from "@/components/access/ShareControl";
 import { TagPicker } from "@/components/tags";
 import {
@@ -36,7 +37,7 @@ import {
   useSetCounterGroupGrants,
   useUpdateCounterGroup,
 } from "@/hooks/useCounters";
-import { useSetCounterGroupTags } from "@/hooks/useToolTags";
+import { useSetToolTags } from "@/hooks/useToolTags";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
 
@@ -75,7 +76,7 @@ export function CounterGroupSettingsPage() {
     },
   });
 
-  const setGroupTags = useSetCounterGroupTags();
+  const setGroupTags = useSetToolTags(Tool.counter_group);
 
   const handleDetailsSave = () => {
     const trimmedName = nameValue.trim();
@@ -234,7 +235,7 @@ export function CounterGroupSettingsPage() {
                   onChange={(newTags) => {
                     setTags(newTags);
                     setGroupTags.mutate({
-                      groupId: parsedId,
+                      id: parsedId,
                       tagIds: newTags.map((tag) => tag.id),
                     });
                   }}
