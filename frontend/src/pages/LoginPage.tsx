@@ -46,7 +46,9 @@ export const LoginPage = () => {
     return code && code.trim().length > 0 ? code.trim() : null;
   }, [searchParams]);
 
-  // Fetch the sign-in providers the server offers (one button per provider)
+  // Fetch the sign-in providers the server offers (one button per provider).
+  // Re-runs when the server becomes configured: on native the base URL is
+  // hydrated after mount, and a fetch before that returns nothing.
   useEffect(() => {
     const fetchProviders = async () => {
       try {
@@ -57,7 +59,7 @@ export const LoginPage = () => {
       }
     };
     void fetchProviders();
-  }, []);
+  }, [isServerConfigured]);
 
   const handleProviderLogin = async (provider: LoginProviderEntry) => {
     if (isNativePlatform && serverUrl) {
