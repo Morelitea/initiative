@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.57.0] - 2026-07-16
+
 ### Added
 
 - Tags on every tool: queues, counter groups, and advanced tools can now be tagged, joining projects, documents, calendar events, tasks, and queue items. Each tool's settings flow gained a tag picker, its lists show tag chips, and tag support is now wired automatically for any future tool (drift-tested against the tool registry).
