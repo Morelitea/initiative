@@ -2,7 +2,7 @@
   "detail": {
     "notFound": "Tag not found",
     "notFoundDescription": "This tag may have been deleted or you may have followed a broken link.",
-    "backToTags": "\u2190 Back to home",
+    "backToTags": "← Back to home",
     "taggedItems_one": "{{count}} tagged item",
     "taggedItems_other": "{{count}} tagged items",
     "edit": "Edit",
@@ -10,37 +10,50 @@
     "deleteTitle": "Delete tag?",
     "deleteDescription": "The tag \"{{name}}\" will be sent to the trash and hidden from all tasks, projects, and documents that use it. You can restore it from Settings → Trash before the retention period ends.",
     "deleted": "Tag deleted",
-    "saving": "Saving\u2026",
+    "saving": "Saving…",
     "save": "Save",
     "tasksTab": "Tasks ({{count}})",
     "projectsTab": "Projects ({{count}})",
     "documentsTab": "Documents ({{count}})"
   },
-
+  "manage": {
+    "edit": "Edit tags",
+    "done": "Done editing",
+    "editTagTitle": "Edit tag",
+    "editTag": "Edit {{name}}",
+    "deleteTag": "Delete {{name}}",
+    "selectTag": "Select {{name}}",
+    "color": "Color",
+    "deleteSelected": "Delete selected ({{count}})",
+    "bulkDeleteTitle": "Delete selected tags?",
+    "bulkDeleteDescription_one": "{{count}} tag will be sent to the trash and hidden from all tasks, projects, and documents that use it. You can restore it from Settings → Trash before the retention period ends.",
+    "bulkDeleteDescription_other": "{{count}} tags will be sent to the trash and hidden from all tasks, projects, and documents that use them. You can restore them from Settings → Trash before the retention period ends.",
+    "bulkDeleted_one": "{{count}} tag deleted.",
+    "bulkDeleted_other": "{{count}} tags deleted.",
+    "bulkDeleteError": "Some tags could not be deleted.",
+    "selectAll": "Select all tags"
+  },
   "picker": {
     "defaultPlaceholder": "Add tags...",
     "createHeading": "Create new tag",
     "namePlaceholder": "Tag name",
-    "creating": "Creating\u2026",
+    "creating": "Creating…",
     "create": "Create",
     "searchPlaceholder": "Search or create tags...",
-    "loading": "Loading\u2026",
+    "loading": "Loading…",
     "existingTags": "Existing tags",
     "noTagsFound": "No tags found.",
     "createTag": "Create \"{{name}}\"",
     "selected": "{{count}} selected"
   },
-
   "tree": {
     "notTagged": "Not tagged",
     "collapse": "Collapse",
     "expand": "Expand"
   },
-
   "badge": {
     "remove": "Remove {{name}} tag"
   },
-
   "updated": "Tag updated.",
   "deleted": "Tag deleted.",
   "createError": "Unable to create tag.",
