@@ -1125,6 +1125,39 @@ async def create_upload(
     return upload
 
 
+async def create_auth_provider(
+    session: AsyncSession,
+    commit: bool = True,
+    **overrides: Any,
+) -> AuthProvider:
+    """Create an operator-global auth provider registry row.
+
+    Defaults to a login-ready OIDC row pointing at the test IdP constants
+    (``app.testing.oidc``), so a fake-IdP flow verifies against it as-is.
+    """
+    from app.testing.oidc import CLIENT_ID as _TEST_CLIENT_ID, ISSUER as _TEST_ISSUER
+
+    defaults = {
+        "slug": "corp",
+        "display_name": "Corp SSO",
+        "kind": AuthProviderKind.oidc.value,
+        "enabled": True,
+        "guild_id": None,
+        "issuer": _TEST_ISSUER,
+        "client_id": _TEST_CLIENT_ID,
+        "scopes": "openid email",
+        "allow_jit": True,
+    }
+    provider = AuthProvider(**{**defaults, **overrides})
+    session.add(provider)
+
+    if commit:
+        await session.commit()
+        await session.refresh(provider)
+
+    return provider
+
+
 async def create_federated_identity(
     session: AsyncSession,
     user: User,

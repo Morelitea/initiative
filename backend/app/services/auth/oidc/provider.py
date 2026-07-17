@@ -80,6 +80,9 @@ class OidcClientConfig:
     redirect_uri: str
     client_secret: str | None = None  # None = public client (PKCE-only)
     scopes: str = DEFAULT_SCOPES
+    # The registry slug this client serves. Bound into the login flow state so
+    # a state begun with one provider only completes against that provider.
+    provider_slug: str = ""
 
     def __post_init__(self) -> None:
         for field_name in ("issuer", "client_id", "redirect_uri"):
@@ -140,7 +143,11 @@ class OidcProvider:
     async def begin(self, *, mobile: bool = False, device_name: str = "") -> OidcBegin:
         """Mint the flow state and build the authorization redirect URL."""
         metadata = await self._fetch_metadata()
-        state, payload = create_flow_state(mobile=mobile, device_name=device_name)
+        state, payload = create_flow_state(
+            mobile=mobile,
+            device_name=device_name,
+            provider_slug=self._config.provider_slug,
+        )
         params = {
             "response_type": "code",
             "client_id": self._config.client_id,
@@ -166,6 +173,13 @@ class OidcProvider:
             flow = decode_flow_state(state, max_age_seconds=self._max_state_age)
         except FlowStateError as exc:
             raise OidcFlowError("invalid_state", str(exc)) from exc
+        # A state begun with one provider completes only against that provider.
+        # An empty recorded slug is accepted for states minted before the field
+        # existed (in-flight logins across a deploy).
+        if flow.provider_slug and flow.provider_slug != self._config.provider_slug:
+            raise OidcFlowError(
+                "invalid_state", "flow state belongs to a different provider"
+            )
 
         metadata = await self._fetch_metadata()
         token_data = await self._exchange_code(
