@@ -14,6 +14,8 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.services import permissions as permissions_service
+from app.core.tools import Tool
+from app.services.tenant import tags as tags_service
 from app.services.permissions import (
     DAC_RESOURCES,
     compute_permission,
@@ -82,6 +84,7 @@ async def get_counter_group(
             selectinload(CounterGroup.counters),
             selectinload(CounterGroup.grants).selectinload(ResourceGrant.role),
             selectinload(CounterGroup.initiative).selectinload(Initiative.memberships),
+            tags_service.TOOL_TAG_LINKS[Tool.counter_group].load_options(),
         )
     )
     if populate_existing:

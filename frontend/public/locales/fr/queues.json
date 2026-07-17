@@ -121,5 +121,7 @@
     "activeOnly": "Actif",
     "inactiveOnly": "Inactif",
     "noMatchingQueues": "Aucune file ne correspond à vos filtres."
-  }
+  },
+  "tagsDescription": "Ajoutez des étiquettes pour organiser et filtrer les files.",
+  "noWriteAccessTags": "Vous avez besoin d'un accès en écriture pour gérer les étiquettes."
 }

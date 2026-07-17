@@ -103,7 +103,6 @@
   "TASK_STATUS_NOT_FOUND_FOR_PROJECT": "Statut de tâche introuvable pour ce projet",
   "TASK_ASSIGNEES_NOT_FOUND": "Un ou plusieurs assignés introuvables",
   "TASK_INVALID_ASSIGNEE_ID": "Identifiant d'assigné invalide",
-  "TASK_TAGS_NOT_FOUND": "Une ou plusieurs étiquettes introuvables",
   "TASK_DUPLICATE_NOT_FOUND": "Tâche dupliquée introuvable",
   "SUBTASK_NOT_FOUND": "Sous-tâche introuvable",
   "SUBTASK_NOT_FOUND_FOR_TASK": "Sous-tâche introuvable pour cette tâche",
@@ -151,7 +150,6 @@
   "DOCUMENT_SMART_LINK_URL_REQUIRED": "Une URL est requise pour les documents de lien intelligent",
   "DOCUMENT_SMART_LINK_URL_INVALID": "Les URLs de lien intelligent doivent commencer par http:// ou https://",
   "DOCUMENT_SPREADSHEET_INVALID_PAYLOAD": "Le contenu de la feuille de calcul est invalide ou dans un format non pris en charge.",
-  "DOCUMENT_INVALID_TAG_IDS": "Un ou plusieurs identifiants d'étiquettes sont invalides",
   "DOCUMENT_NOT_A_FILE_DOCUMENT": "Seuls les documents de type fichier téléversés prennent en charge les versions",
   "DOCUMENT_VERSION_NOT_FOUND": "Version introuvable",
   "DOCUMENT_CANNOT_DELETE_LAST_VERSION": "Impossible de supprimer la seule version ; supprimez plutôt le document",
@@ -237,7 +235,6 @@
   "QUEUE_NO_ITEMS": "La file ne contient aucun élément",
   "QUEUE_NO_CURRENT_ITEM": "Aucun tour actuel à reporter",
   "QUEUE_ITEM_NOT_HELD": "Cet élément n'est pas en attente",
-  "QUEUE_INVALID_TAG_IDS": "Un ou plusieurs identifiants d'étiquettes sont invalides",
   "QUEUES_NOT_ENABLED": "Les files ne sont pas activées pour cette initiative",
   "NOTIFICATION_NOT_FOUND": "Notification introuvable",
   "QUERY_INVALID_CONDITIONS": "Conditions de filtre invalides",
@@ -327,5 +324,6 @@
   "IMPORT_ADMIN_REQUIRED": "Seuls les administrateurs de guilde peuvent importer une sauvegarde.",
   "IMPORT_NOT_CONFIRMABLE": "Cet import ne peut pas être confirmé — il a peut-être expiré ou déjà commencé.",
   "IMPORT_ZIP_INVALID": "Ce fichier n'est pas une sauvegarde Initiative valide.",
-  "IMPORT_QUOTA_EXCEEDED": "Les fichiers de la sauvegarde ne tiennent pas dans le stockage de cette guilde."
+  "IMPORT_QUOTA_EXCEEDED": "Les fichiers de la sauvegarde ne tiennent pas dans le stockage de cette guilde.",
+  "INVALID_TAG_IDS": "Une ou plusieurs étiquettes n'existent plus"
 }

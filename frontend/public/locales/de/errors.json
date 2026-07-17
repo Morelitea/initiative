@@ -105,7 +105,6 @@
   "TASK_STATUS_NOT_FOUND_FOR_PROJECT": "Aufgabenstatus für dieses Projekt nicht gefunden",
   "TASK_ASSIGNEES_NOT_FOUND": "Eine oder mehrere zuständige Personen nicht gefunden",
   "TASK_INVALID_ASSIGNEE_ID": "Ungültige ID der zuständigen Person",
-  "TASK_TAGS_NOT_FOUND": "Ein oder mehrere Tags nicht gefunden",
   "TASK_DUPLICATE_NOT_FOUND": "Duplizierte Aufgabe nicht gefunden",
   "SUBTASK_NOT_FOUND": "Teilaufgabe nicht gefunden",
   "SUBTASK_NOT_FOUND_FOR_TASK": "Teilaufgabe für diese Aufgabe nicht gefunden",
@@ -153,7 +152,6 @@
   "DOCUMENT_SMART_LINK_URL_REQUIRED": "Für Smart-Link-Dokumente ist eine URL erforderlich",
   "DOCUMENT_SMART_LINK_URL_INVALID": "Smart-Link-URLs müssen mit http:// oder https:// beginnen",
   "DOCUMENT_SPREADSHEET_INVALID_PAYLOAD": "Der Tabelleninhalt ist ungültig oder hat ein nicht unterstütztes Format.",
-  "DOCUMENT_INVALID_TAG_IDS": "Eine oder mehrere Tag-IDs sind ungültig",
   "DOCUMENT_NOT_A_FILE_DOCUMENT": "Nur hochgeladene Dateidokumente unterstützen Versionen",
   "DOCUMENT_VERSION_NOT_FOUND": "Version nicht gefunden",
   "DOCUMENT_CANNOT_DELETE_LAST_VERSION": "Die einzige Version kann nicht gelöscht werden — lösche stattdessen das Dokument",
@@ -239,7 +237,6 @@
   "QUEUE_NO_ITEMS": "Die Warteschlange enthält keine Elemente",
   "QUEUE_NO_CURRENT_ITEM": "Kein aktuelles Element zum Anhalten",
   "QUEUE_ITEM_NOT_HELD": "Dieses Element ist derzeit nicht angehalten",
-  "QUEUE_INVALID_TAG_IDS": "Eine oder mehrere Tag-IDs sind ungültig",
   "QUEUES_NOT_ENABLED": "Warteschlangen sind für diese Initiative nicht aktiviert",
   "COUNTER_NOT_FOUND": "Zähler nicht gefunden",
   "COUNTER_GROUP_NOT_FOUND": "Zählergruppe nicht gefunden",
@@ -327,5 +324,6 @@
   "IMPORT_ADMIN_REQUIRED": "Nur Gilden-Administratoren können ein Backup importieren.",
   "IMPORT_NOT_CONFIRMABLE": "Dieser Import kann nicht bestätigt werden — er ist möglicherweise abgelaufen oder bereits gestartet.",
   "IMPORT_ZIP_INVALID": "Diese Datei ist kein gültiges Initiative-Backup.",
-  "IMPORT_QUOTA_EXCEEDED": "Die Dateien des Backups passen nicht in den Speicher dieser Gilde."
+  "IMPORT_QUOTA_EXCEEDED": "Die Dateien des Backups passen nicht in den Speicher dieser Gilde.",
+  "INVALID_TAG_IDS": "Ein oder mehrere Tags existieren nicht mehr"
 }

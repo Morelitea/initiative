@@ -30,8 +30,10 @@ from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.tenant.tag import DocumentTag
 from app.models.tenant.project import Project
 from app.core.config import settings
+from app.core.tools import Tool
 from app.core.messages import DocumentMessages
 from app.services.tenant import attachments as attachments_service
+from app.services.tenant import tags as tags_service
 from app.services.tenant.collaboration import collaboration_manager
 
 
@@ -422,18 +424,13 @@ async def duplicate_document(
     )
     session.add(owner_permission)
 
-    # Copy tags from source document
-    source_tag_links = getattr(source, "tag_links", None) or []
-    if source_tag_links:
-        session.add_all(
-            [
-                DocumentTag(
-                    document_id=duplicated.id,
-                    tag_id=link.tag_id,
-                )
-                for link in source_tag_links
-            ]
-        )
+    # Copy tags from source document (active only)
+    await tags_service.copy_entity_tags(
+        session,
+        tags_service.TOOL_TAG_LINKS[Tool.document],
+        source_id=source.id,
+        target_id=duplicated.id,
+    )
 
     # Copy property values ONLY when the target initiative matches the
     # source's — definitions are initiative-scoped, so cross-initiative

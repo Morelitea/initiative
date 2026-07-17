@@ -121,5 +121,7 @@
     "activeOnly": "Activas",
     "inactiveOnly": "Inactivas",
     "noMatchingQueues": "Ninguna cola coincide con tus filtros."
-  }
+  },
+  "tagsDescription": "Agrega etiquetas para organizar y filtrar colas.",
+  "noWriteAccessTags": "Necesitas acceso de escritura para administrar etiquetas."
 }

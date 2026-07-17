@@ -8,7 +8,7 @@ from pydantic import ConfigDict, Field
 from app.schemas.base import RichTextStr, SanitizedBaseModel
 
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
-from app.schemas.tenant.tag import TagSummary
+from app.schemas.tenant.tag import TagSummary, tag_summaries
 from app.schemas.platform.user import UserPublic
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -144,6 +144,7 @@ class QueueSummary(QueueBase):
     created_at: datetime
     updated_at: datetime
     my_permission_level: Optional[str] = None
+    tags: List[TagSummary] = Field(default_factory=list)
     # The full sharing state — every resource_grants row for this queue. Exposed on
     # the summary (not just the detail read) so list views can manage sharing in
     # bulk without a per-item detail fetch.
@@ -168,16 +169,6 @@ class QueueRead(QueueSummary):
 # ---------------------------------------------------------------------------
 # Serialization helpers
 # ---------------------------------------------------------------------------
-
-
-def _serialize_queue_item_tags(item: "QueueItem") -> List[TagSummary]:
-    tag_links = getattr(item, "tag_links", None) or []
-    tags: List[TagSummary] = []
-    for link in tag_links:
-        tag = getattr(link, "tag", None)
-        if tag:
-            tags.append(TagSummary(id=tag.id, name=tag.name, color=tag.color))
-    return tags
 
 
 def _serialize_queue_item_documents(item: "QueueItem") -> List[QueueItemDocumentRead]:
@@ -223,7 +214,7 @@ def serialize_queue_item(item: "QueueItem") -> QueueItemRead:
         notes=item.notes,
         is_visible=item.is_visible,
         held_at_round=item.held_at_round,
-        tags=_serialize_queue_item_tags(item),
+        tags=tag_summaries(getattr(item, "tag_links", None)),
         documents=_serialize_queue_item_documents(item),
         tasks=_serialize_queue_item_tasks(item),
         created_at=item.created_at,
@@ -252,6 +243,7 @@ def serialize_queue_summary(
         created_at=queue.created_at,
         updated_at=queue.updated_at,
         my_permission_level=my_permission_level,
+        tags=tag_summaries(getattr(queue, "tag_links", None)),
         grants=serialize_grants(queue),
     )
 

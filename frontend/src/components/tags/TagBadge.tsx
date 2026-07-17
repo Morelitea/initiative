@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -9,6 +9,10 @@ import { cn } from "@/lib/utils";
 interface TagBadgeProps {
   tag: TagSummary;
   to?: string;
+  /** Set when the badge renders inside a wrapping link (card-as-anchor):
+   * navigates programmatically instead of nesting an `<a>` in an `<a>`,
+   * and stops the click from also triggering the outer link. */
+  nested?: boolean;
   onClick?: () => void;
   onRemove?: () => void;
   size?: "sm" | "md";
@@ -22,12 +26,22 @@ function truncateSegment(segment: string, maxLength: number): string {
   return segment.slice(0, maxLength - 3) + "...";
 }
 
-export function TagBadge({ tag, to, onClick, onRemove, size = "sm", className }: TagBadgeProps) {
+export function TagBadge({
+  tag,
+  to,
+  nested = false,
+  onClick,
+  onRemove,
+  size = "sm",
+  className,
+}: TagBadgeProps) {
   const { t } = useTranslation("tags");
+  const navigate = useNavigate();
+  const handleClick = onClick ?? (to && nested ? () => void navigate({ to }) : undefined);
   // Tags render pure black (not the slate the counter tiles use) on light
   // tag colors — the saturated user-picked backgrounds need the extra contrast.
   const textColor = getContrastingTextColor(tag.color) === "#0F172A" ? "#000000" : "#FFFFFF";
-  const isClickable = !!onClick || !!to;
+  const isClickable = !!handleClick || !!to;
 
   // Truncate each segment individually (e.g., "long-name/a" -> "long-na.../a")
   const segments = tag.name.split("/");
@@ -61,7 +75,7 @@ export function TagBadge({ tag, to, onClick, onRemove, size = "sm", className }:
     </button>
   ) : null;
 
-  if (to) {
+  if (to && !nested) {
     // When onRemove is also set, wrap in a span so the button isn't nested inside the link
     if (removeButton) {
       return (
@@ -85,13 +99,22 @@ export function TagBadge({ tag, to, onClick, onRemove, size = "sm", className }:
     <span
       role={isClickable ? "button" : undefined}
       tabIndex={isClickable ? 0 : undefined}
-      onClick={isClickable ? onClick : undefined}
+      onClick={
+        handleClick
+          ? (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleClick();
+            }
+          : undefined
+      }
       onKeyDown={
-        isClickable
+        handleClick
           ? (e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
-                onClick?.();
+                e.stopPropagation();
+                handleClick();
               }
             }
           : undefined

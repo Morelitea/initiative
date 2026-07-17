@@ -1,8 +1,10 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import {
+  Check,
   ChevronsDownUp,
   ChevronsUpDown,
   ListTodo,
+  Pencil,
   Plus,
   ScrollText,
   Settings,
@@ -61,7 +63,7 @@ export const AppSidebar = () => {
   const { activeGuild, activeGuildId } = useGuilds();
   const isMobile = useIsMobile();
   const location = useLocation();
-  const { t } = useTranslation("nav");
+  const { t } = useTranslation(["nav", "tags"]);
 
   // Auto-close sidebar on mobile after navigation
   useAutoCloseSidebar();
@@ -217,6 +219,7 @@ export const AppSidebar = () => {
 
   // Collapse/expand all for tags
   const [tagCollapseKey, setTagCollapseKey] = useState(0);
+  const [tagEditMode, setTagEditMode] = useState(false);
   const collapseAllTags = useCallback(() => {
     setItem("tag-group-collapsed-states", JSON.stringify({}));
     setTagCollapseKey((k) => k + 1);
@@ -238,6 +241,19 @@ export const AppSidebar = () => {
     setItem("tag-group-collapsed-states", JSON.stringify(states));
     setTagCollapseKey((k) => k + 1);
   }, [tagsQuery.data]);
+  // Mirrors allInitiativesCollapsed: groups default collapsed, so the header
+  // toggle shows "expand all" until some group path is stored open.
+  const allTagsCollapsed = useMemo(() => {
+    try {
+      const stored = getItem("tag-group-collapsed-states");
+      if (!stored) return true;
+      const states = JSON.parse(stored) as Record<string, boolean>;
+      return !Object.values(states).some(Boolean);
+    } catch {
+      return true;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- storage-backed, re-read per collapse action
+  }, [tagCollapseKey]);
 
   // Fetch latest DockerHub version
   const { data: latestVersion, isLoading: isLoadingVersion } = useDockerHubVersion();
@@ -469,40 +485,55 @@ export const AppSidebar = () => {
                             <Tag className="h-4 w-4" />
                             <span className="flex-1">{t("tags")}</span>
                             {(tagsQuery.data ?? []).length > 0 && (
-                              <Tooltip delayDuration={300}>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-5 w-5 shrink-0"
-                                    onClick={expandAllTags}
-                                    aria-label={t("expandAll")}
-                                  >
-                                    <ChevronsUpDown className="h-3.5 w-3.5" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom">
-                                  <p>{t("expandAll")}</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            )}
-                            {(tagsQuery.data ?? []).length > 0 && (
-                              <Tooltip delayDuration={300}>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-5 w-5 shrink-0"
-                                    onClick={collapseAllTags}
-                                    aria-label={t("collapseAll")}
-                                  >
-                                    <ChevronsDownUp className="h-3.5 w-3.5" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom">
-                                  <p>{t("collapseAll")}</p>
-                                </TooltipContent>
-                              </Tooltip>
+                              <>
+                                <Tooltip delayDuration={300}>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-5 w-5 shrink-0"
+                                      onClick={() => setTagEditMode((v) => !v)}
+                                      aria-pressed={tagEditMode}
+                                      aria-label={
+                                        tagEditMode ? t("tags:manage.done") : t("tags:manage.edit")
+                                      }
+                                    >
+                                      {tagEditMode ? (
+                                        <Check className="h-3.5 w-3.5" />
+                                      ) : (
+                                        <Pencil className="h-3.5 w-3.5" />
+                                      )}
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="bottom">
+                                    <p>
+                                      {tagEditMode ? t("tags:manage.done") : t("tags:manage.edit")}
+                                    </p>
+                                  </TooltipContent>
+                                </Tooltip>
+                                <Tooltip delayDuration={300}>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-5 w-5 shrink-0"
+                                      onClick={allTagsCollapsed ? expandAllTags : collapseAllTags}
+                                      aria-label={
+                                        allTagsCollapsed ? t("expandAll") : t("collapseAll")
+                                      }
+                                    >
+                                      {allTagsCollapsed ? (
+                                        <ChevronsUpDown className="h-3.5 w-3.5" />
+                                      ) : (
+                                        <ChevronsDownUp className="h-3.5 w-3.5" />
+                                      )}
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="bottom">
+                                    <p>{allTagsCollapsed ? t("expandAll") : t("collapseAll")}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </>
                             )}
                           </SidebarGroupLabel>
                           <SidebarGroupContent>
@@ -511,6 +542,8 @@ export const AppSidebar = () => {
                               isLoading={tagsQuery.isLoading}
                               activeGuildId={activeGuildId}
                               collapseKey={tagCollapseKey}
+                              editMode={tagEditMode}
+                              onExpandAll={expandAllTags}
                             />
                           </SidebarGroupContent>
                         </SidebarGroup>

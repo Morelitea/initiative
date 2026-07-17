@@ -35,6 +35,7 @@ import type {
   ListCounterGroupsApiV1GGuildIdCounterGroupsGetParams,
   RecentViewWrite,
   ResourceGrantSchema,
+  TagSetRequest,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -772,6 +773,107 @@ export const useDuplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicateP
 > => {
   return useMutation(
     getDuplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Set tags on a counter group. Replaces all existing tags. Requires
+ * write access.
+ * @summary Set Counter Group Tags
+ */
+export const setCounterGroupTagsApiV1GGuildIdCounterGroupsGroupIdTagsPut = (
+  guildId: number,
+  groupId: number,
+  tagSetRequest: BodyType<TagSetRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<CounterGroupRead>(
+    {
+      url: `/api/v1/g/${guildId}/counter-groups/${groupId}/tags`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: tagSetRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSetCounterGroupTagsApiV1GGuildIdCounterGroupsGroupIdTagsPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setCounterGroupTagsApiV1GGuildIdCounterGroupsGroupIdTagsPut>>,
+    TError,
+    { guildId: number; groupId: number; data: BodyType<TagSetRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setCounterGroupTagsApiV1GGuildIdCounterGroupsGroupIdTagsPut>>,
+  TError,
+  { guildId: number; groupId: number; data: BodyType<TagSetRequest> },
+  TContext
+> => {
+  const mutationKey = ["setCounterGroupTagsApiV1GGuildIdCounterGroupsGroupIdTagsPut"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setCounterGroupTagsApiV1GGuildIdCounterGroupsGroupIdTagsPut>>,
+    { guildId: number; groupId: number; data: BodyType<TagSetRequest> }
+  > = (props) => {
+    const { guildId, groupId, data } = props ?? {};
+
+    return setCounterGroupTagsApiV1GGuildIdCounterGroupsGroupIdTagsPut(
+      guildId,
+      groupId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetCounterGroupTagsApiV1GGuildIdCounterGroupsGroupIdTagsPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setCounterGroupTagsApiV1GGuildIdCounterGroupsGroupIdTagsPut>>
+>;
+export type SetCounterGroupTagsApiV1GGuildIdCounterGroupsGroupIdTagsPutMutationBody =
+  BodyType<TagSetRequest>;
+export type SetCounterGroupTagsApiV1GGuildIdCounterGroupsGroupIdTagsPutMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Set Counter Group Tags
+ */
+export const useSetCounterGroupTagsApiV1GGuildIdCounterGroupsGroupIdTagsPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof setCounterGroupTagsApiV1GGuildIdCounterGroupsGroupIdTagsPut>>,
+      TError,
+      { guildId: number; groupId: number; data: BodyType<TagSetRequest> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof setCounterGroupTagsApiV1GGuildIdCounterGroupsGroupIdTagsPut>>,
+  TError,
+  { guildId: number; groupId: number; data: BodyType<TagSetRequest> },
+  TContext
+> => {
+  return useMutation(
+    getSetCounterGroupTagsApiV1GGuildIdCounterGroupsGroupIdTagsPutMutationOptions(options),
     queryClient
   );
 };

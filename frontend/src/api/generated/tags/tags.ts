@@ -22,6 +22,8 @@ import type {
 
 import type {
   HTTPValidationError,
+  TagBulkEditRequest,
+  TagBulkEditResponse,
   TagCreate,
   TagRead,
   TagUpdate,
@@ -258,6 +260,101 @@ export const useCreateTagApiV1GGuildIdTagsPost = <
   return useMutation(getCreateTagApiV1GGuildIdTagsPostMutationOptions(options), queryClient);
 };
 /**
+ * Add and/or remove tags across many entities of one type, atomically.
+ *
+ * Every target is authorized with the same write gate its own set-tags
+ * endpoint uses (tasks/queue items via their parent project/queue, tools via
+ * the unified resource-access registry). Nothing is applied unless every
+ * target passes — one transaction, and for tasks one realtime signal per
+ * affected project instead of one per task.
+ * @summary Bulk Edit Tags
+ */
+export const bulkEditTagsApiV1GGuildIdTagsBulkPost = (
+  guildId: number,
+  tagBulkEditRequest: BodyType<TagBulkEditRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<TagBulkEditResponse>(
+    {
+      url: `/api/v1/g/${guildId}/tags/bulk`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: tagBulkEditRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getBulkEditTagsApiV1GGuildIdTagsBulkPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bulkEditTagsApiV1GGuildIdTagsBulkPost>>,
+    TError,
+    { guildId: number; data: BodyType<TagBulkEditRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof bulkEditTagsApiV1GGuildIdTagsBulkPost>>,
+  TError,
+  { guildId: number; data: BodyType<TagBulkEditRequest> },
+  TContext
+> => {
+  const mutationKey = ["bulkEditTagsApiV1GGuildIdTagsBulkPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof bulkEditTagsApiV1GGuildIdTagsBulkPost>>,
+    { guildId: number; data: BodyType<TagBulkEditRequest> }
+  > = (props) => {
+    const { guildId, data } = props ?? {};
+
+    return bulkEditTagsApiV1GGuildIdTagsBulkPost(guildId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type BulkEditTagsApiV1GGuildIdTagsBulkPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof bulkEditTagsApiV1GGuildIdTagsBulkPost>>
+>;
+export type BulkEditTagsApiV1GGuildIdTagsBulkPostMutationBody = BodyType<TagBulkEditRequest>;
+export type BulkEditTagsApiV1GGuildIdTagsBulkPostMutationError = ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Bulk Edit Tags
+ */
+export const useBulkEditTagsApiV1GGuildIdTagsBulkPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof bulkEditTagsApiV1GGuildIdTagsBulkPost>>,
+      TError,
+      { guildId: number; data: BodyType<TagBulkEditRequest> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof bulkEditTagsApiV1GGuildIdTagsBulkPost>>,
+  TError,
+  { guildId: number; data: BodyType<TagBulkEditRequest> },
+  TContext
+> => {
+  return useMutation(getBulkEditTagsApiV1GGuildIdTagsBulkPostMutationOptions(options), queryClient);
+};
+/**
  * Get a specific tag by ID.
  * @summary Get Tag
  */
@@ -492,8 +589,9 @@ export const useUpdateTagApiV1GGuildIdTagsTagIdPatch = <
   return useMutation(getUpdateTagApiV1GGuildIdTagsTagIdPatchMutationOptions(options), queryClient);
 };
 /**
- * Soft-delete a tag. The tag moves to the guild's trash; on hard-purge
- * its junction rows fall via FK CASCADE.
+ * Soft-delete a tag. The tag moves to the guild's trash; junction rows
+ * stay in place (reads hide them via the soft-delete filter) and fall with
+ * the tag's ORM relationship cascade on hard purge.
  * @summary Delete Tag
  */
 export const deleteTagApiV1GGuildIdTagsTagIdDelete = (

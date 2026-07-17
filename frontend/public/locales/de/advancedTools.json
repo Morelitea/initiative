@@ -5,5 +5,10 @@
   "noTools": "Noch keine erweiterten Tools",
   "noToolsDescription": "Diese Initiative hat noch keine erweiterten Tools aus {{name}}.",
   "createdExternally": "Erweiterte Tools werden in {{name}} erstellt und bearbeitet; Freigabe und Löschung werden hier verwaltet.",
-  "updated": "Aktualisiert {{date}}"
+  "updated": "Aktualisiert {{date}}",
+  "tags": "Tags",
+  "manageTags": "Tags verwalten",
+  "editTagsTitle": "Tags bearbeiten",
+  "editTagsDescription": "Tags für {{name}} hinzufügen oder entfernen.",
+  "error": "Etwas ist schiefgelaufen"
 }

@@ -1,7 +1,8 @@
 import { Loader2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 
-import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
+import type { TagSummary, TagTarget } from "@/api/generated/initiativeAPI.schemas";
+import { bulkEditTagsApiV1GGuildIdTagsBulkPost } from "@/api/generated/tags/tags";
 import { TagPicker } from "@/components/tags/TagPicker";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,9 +26,10 @@ interface TaggableItem {
 
 interface BulkEditTagsDialogProps<T extends TaggableItem> extends DialogWithSuccessProps {
   items: T[];
-  /** API call to set the full tag list for a single item. */
-  setTags: (itemId: number, tagIds: number[]) => Promise<unknown>;
-  /** Called after all API calls succeed to invalidate relevant caches. */
+  /** Entity type for the server-side bulk endpoint. */
+  targetType: TagTarget;
+  guildId: number;
+  /** Called after the bulk call succeeds to invalidate relevant caches. */
   onInvalidate: () => void;
   /** i18n labels — each dialog can provide its own strings. */
   labels: {
@@ -52,7 +54,8 @@ export function BulkEditTagsDialog<T extends TaggableItem>({
   open,
   onOpenChange,
   items,
-  setTags,
+  targetType,
+  guildId,
   onInvalidate,
   onSuccess,
   labels,
@@ -96,27 +99,16 @@ export function BulkEditTagsDialog<T extends TaggableItem>({
 
     setIsPending(true);
     try {
-      if (mode === "add") {
-        const addIds = new Set(tagsToAdd.map((t) => t.id));
-        await Promise.all(
-          items.map((item) => {
-            const currentIds = new Set((item.tags ?? []).map((t) => t.id));
-            const merged = [...currentIds, ...addIds];
-            const uniqueIds = [...new Set(merged)];
-            return setTags(item.id, uniqueIds);
-          })
-        );
-        toast.success(labels.tagsAdded);
-      } else {
-        const removeIds = new Set(tagsToRemove.map((t) => t.id));
-        await Promise.all(
-          items.map((item) => {
-            const filtered = (item.tags ?? []).filter((t) => !removeIds.has(t.id)).map((t) => t.id);
-            return setTags(item.id, filtered);
-          })
-        );
-        toast.success(labels.tagsRemoved);
-      }
+      // One atomic server-side call: adds/removals are computed against
+      // current DB state, so a stale client cache can't corrupt the merge,
+      // and a mid-batch failure can't leave items half-edited.
+      await bulkEditTagsApiV1GGuildIdTagsBulkPost(guildId, {
+        target_type: targetType,
+        target_ids: items.map((item) => item.id),
+        add_tag_ids: mode === "add" ? tagsToAdd.map((t) => t.id) : [],
+        remove_tag_ids: mode === "remove" ? tagsToRemove.map((t) => t.id) : [],
+      });
+      toast.success(mode === "add" ? labels.tagsAdded : labels.tagsRemoved);
 
       onInvalidate();
       resetState();
@@ -137,7 +129,8 @@ export function BulkEditTagsDialog<T extends TaggableItem>({
     tagsToAdd,
     tagsToRemove,
     items,
-    setTags,
+    targetType,
+    guildId,
     onInvalidate,
     resetState,
     onOpenChange,

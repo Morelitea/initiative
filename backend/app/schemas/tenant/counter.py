@@ -11,6 +11,7 @@ from app.core.messages import CounterMessages
 from app.models.tenant.counter import CounterViewMode
 from app.schemas.base import SanitizedBaseModel
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
+from app.schemas.tenant.tag import TagSummary, tag_summaries
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.counter import Counter, CounterGroup
@@ -165,6 +166,7 @@ class CounterGroupSummary(CounterGroupBase):
     created_by_id: int
     counter_count: int = 0
     my_permission_level: Optional[str] = None
+    tags: List[TagSummary] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
     # The full sharing state — every resource_grants row for this group. Exposed on
@@ -254,6 +256,7 @@ def serialize_counter_group_summary(
         my_permission_level=my_permission_level,
         created_at=group.created_at,
         updated_at=group.updated_at,
+        tags=tag_summaries(getattr(group, "tag_links", None)),
         grants=serialize_grants(group),
     )
 

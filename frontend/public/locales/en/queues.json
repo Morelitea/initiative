@@ -121,5 +121,7 @@
     "activeOnly": "Active",
     "inactiveOnly": "Inactive",
     "noMatchingQueues": "No queues match your filters."
-  }
+  },
+  "tagsDescription": "Add tags to organize and filter queues.",
+  "noWriteAccessTags": "You need write access to manage tags."
 }

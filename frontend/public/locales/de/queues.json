@@ -121,5 +121,7 @@
     "activeOnly": "Aktiv",
     "inactiveOnly": "Inaktiv",
     "noMatchingQueues": "Keine Abläufe (Queues) entsprechen deinen Filtern."
-  }
+  },
+  "tagsDescription": "Füge Tags hinzu, um Abläufe (Queues) zu organisieren und zu filtern.",
+  "noWriteAccessTags": "Du benötigst Schreibzugriff, um Tags zu verwalten."
 }

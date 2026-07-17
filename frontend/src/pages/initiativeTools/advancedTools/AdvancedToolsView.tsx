@@ -1,4 +1,4 @@
-import { ExternalLink, Loader2, Sparkles } from "lucide-react";
+import { ExternalLink, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -7,6 +7,7 @@ import { invalidateAllAdvancedTools } from "@/api/query-keys";
 import { BulkAccessBar, canManageSharing } from "@/components/access/BulkAccessBar";
 import { BulkEditAccessDialog } from "@/components/access/BulkEditAccessDialog";
 import { SelectableGridItem } from "@/components/access/SelectableGridItem";
+import { AdvancedToolCard } from "@/components/initiativeTools/advancedTools/AdvancedToolCard";
 import { ToolCreateButton } from "@/components/tools/ToolCreateButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -98,19 +99,7 @@ export const AdvancedToolsView = ({ fixedInitiativeId, canCreate }: AdvancedTool
                 onToggle={() => selection.toggle(tool)}
                 label={tool.name}
               >
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <Sparkles className="h-4 w-4 shrink-0" />
-                      <span className="min-w-0 truncate">{tool.name}</span>
-                    </CardTitle>
-                    <CardDescription>
-                      {t("updated", {
-                        date: new Date(tool.updated_at).toLocaleDateString(),
-                      })}
-                    </CardDescription>
-                  </CardHeader>
-                </Card>
+                <AdvancedToolCard tool={tool} />
               </SelectableGridItem>
             ))}
           </div>

@@ -109,5 +109,8 @@
     "filterByInitiative": "Initiative",
     "allInitiatives": "All initiatives",
     "noMatchingGroups": "No counter groups match your filters."
-  }
+  },
+  "tags": "Tags",
+  "tagsDescription": "Add tags to organize and filter counter groups.",
+  "noWriteAccessTags": "You need write access to manage tags."
 }

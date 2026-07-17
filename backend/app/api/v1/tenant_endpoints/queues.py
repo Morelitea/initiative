@@ -64,6 +64,8 @@ from app.core.tools import Tool
 from app.services import permissions as permissions_service
 from app.services.tenant import queues as queues_service
 from app.services.tenant import recent_views as recent_views_service
+from app.services.tenant import tags as tags_service
+from app.schemas.tenant.tag import TagSetRequest
 from app.services import rls as rls_service
 from app.schemas.tenant.recent_view import RecentViewWrite
 from app.services.stream_authz import authority as stream_authority
@@ -269,6 +271,7 @@ async def list_queues(
             selectinload(Queue.items),
             selectinload(Queue.grants).selectinload(ResourceGrant.role),
             selectinload(Queue.initiative).selectinload(Initiative.memberships),
+            tags_service.TOOL_TAG_LINKS[Tool.queue].load_options(),
         )
         .order_by(Queue.updated_at.desc(), Queue.id.desc())
         .offset((page - 1) * page_size)
@@ -422,6 +425,42 @@ async def update_queue(
     return result
 
 
+@router.put("/{queue_id}/tags", response_model=QueueRead)
+async def set_queue_tags(
+    queue_id: int,
+    tags_in: TagSetRequest,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> QueueRead:
+    """Set tags on a queue. Replaces all existing tags. Requires write access."""
+    queue = await _get_queue_with_access(
+        session, queue_id, current_user, guild_context, access="write"
+    )
+    await tags_service.set_entity_tags(
+        session,
+        tags_service.TOOL_TAG_LINKS[Tool.queue],
+        guild_id=guild_context.guild_id,
+        entity_id=queue.id,
+        tag_ids=tags_in.tag_ids,
+    )
+    queue.updated_at = datetime.now(timezone.utc)
+    session.add(queue)
+    await session.commit()
+
+    hydrated = await _refetch_queue(session, queue_id)
+    result = serialize_queue(
+        hydrated,
+        my_permission_level=_compute_my_permission(
+            hydrated, current_user, guild_context
+        ),
+    )
+    await _emit_queue(
+        session, queue_id, "queue_updated", result.model_dump(mode="json")
+    )
+    return result
+
+
 @router.delete("/{queue_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_queue(
     queue_id: int,
@@ -498,11 +537,12 @@ async def add_queue_item(
 
     # Set tags if provided
     if item_in.tag_ids:
-        await queues_service.set_queue_item_tags(
+        await tags_service.set_entity_tags(
             session,
-            item,
-            item_in.tag_ids,
-            queue.guild_id,
+            tags_service.TAG_LINKS["queue_item"],
+            guild_id=queue.guild_id,
+            entity_id=item.id,
+            tag_ids=item_in.tag_ids,
         )
 
     # Set document links if provided
@@ -899,7 +939,7 @@ async def release_held_item(
 async def set_queue_item_tags(
     queue_id: int,
     item_id: int,
-    tag_ids: List[int],
+    tags_in: TagSetRequest,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
@@ -910,7 +950,13 @@ async def set_queue_item_tags(
     )
     item = await _get_item_for_queue(session, queue_id, item_id)
 
-    await queues_service.set_queue_item_tags(session, item, tag_ids, queue.guild_id)
+    await tags_service.set_entity_tags(
+        session,
+        tags_service.TAG_LINKS["queue_item"],
+        guild_id=queue.guild_id,
+        entity_id=item.id,
+        tag_ids=tags_in.tag_ids,
+    )
     await session.commit()
 
     hydrated_item = await queues_service.get_queue_item(

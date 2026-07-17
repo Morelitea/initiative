@@ -5,5 +5,10 @@
   "noTools": "Pas encore d'outils avancés",
   "noToolsDescription": "Cette initiative n'a pas encore d'outils avancés provenant de {{name}}.",
   "createdExternally": "Les outils avancés sont créés et modifiés dans {{name}} ; le partage et la suppression sont gérés ici.",
-  "updated": "Mis à jour le {{date}}"
+  "updated": "Mis à jour le {{date}}",
+  "tags": "Étiquettes",
+  "manageTags": "Gérer les étiquettes",
+  "editTagsTitle": "Modifier les étiquettes",
+  "editTagsDescription": "Ajoutez ou supprimez des étiquettes pour {{name}}.",
+  "error": "Une erreur s'est produite"
 }

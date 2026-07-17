@@ -5,5 +5,10 @@
   "noTools": "No advanced tools yet",
   "noToolsDescription": "This initiative has no advanced tools from {{name}} yet.",
   "createdExternally": "Advanced tools are created and edited in {{name}}; sharing and deletion are managed here.",
-  "updated": "Updated {{date}}"
+  "updated": "Updated {{date}}",
+  "tags": "Tags",
+  "manageTags": "Manage tags",
+  "editTagsTitle": "Edit tags",
+  "editTagsDescription": "Add or remove tags for {{name}}.",
+  "error": "Something went wrong"
 }

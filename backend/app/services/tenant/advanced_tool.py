@@ -15,6 +15,8 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.models.tenant.advanced_tool import AdvancedTool
+from app.core.tools import Tool
+from app.services.tenant import tags as tags_service
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
 
@@ -34,6 +36,7 @@ async def get_advanced_tool(
         .options(
             selectinload(AdvancedTool.grants).selectinload(ResourceGrant.role),
             selectinload(AdvancedTool.initiative).selectinload(Initiative.memberships),
+            tags_service.TOOL_TAG_LINKS[Tool.advanced_tool].load_options(),
         )
     )
     if populate_existing:

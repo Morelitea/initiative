@@ -16,7 +16,23 @@
     "projectsTab": "Projekte ({{count}})",
     "documentsTab": "Dokumente ({{count}})"
   },
-
+  "manage": {
+    "edit": "Tags bearbeiten",
+    "done": "Fertig",
+    "editTagTitle": "Tag bearbeiten",
+    "editTag": "{{name}} bearbeiten",
+    "deleteTag": "{{name}} löschen",
+    "selectTag": "{{name}} auswählen",
+    "color": "Farbe",
+    "deleteSelected": "Ausgewählte löschen ({{count}})",
+    "bulkDeleteTitle": "Ausgewählte Tags löschen?",
+    "bulkDeleteDescription_one": "{{count}} Tag wird in den Papierkorb verschoben und in allen Aufgaben, Projekten und Dokumenten ausgeblendet, die ihn verwenden. Du kannst ihn unter Einstellungen → Papierkorb wiederherstellen, bevor die Aufbewahrungsfrist endet.",
+    "bulkDeleteDescription_other": "{{count}} Tags werden in den Papierkorb verschoben und in allen Aufgaben, Projekten und Dokumenten ausgeblendet, die sie verwenden. Du kannst sie unter Einstellungen → Papierkorb wiederherstellen, bevor die Aufbewahrungsfrist endet.",
+    "bulkDeleted_one": "{{count}} Tag gelöscht.",
+    "bulkDeleted_other": "{{count}} Tags gelöscht.",
+    "bulkDeleteError": "Einige Tags konnten nicht gelöscht werden.",
+    "selectAll": "Alle Tags auswählen"
+  },
   "picker": {
     "defaultPlaceholder": "Tags hinzufügen...",
     "createHeading": "Neuen Tag erstellen",
@@ -30,17 +46,14 @@
     "createTag": "\"{{name}}\" erstellen",
     "selected": "{{count}} ausgewählt"
   },
-
   "tree": {
     "notTagged": "Nicht getaggt",
     "collapse": "Einklappen",
     "expand": "Ausklappen"
   },
-
   "badge": {
     "remove": "Tag {{name}} entfernen"
   },
-
   "updated": "Tag aktualisiert.",
   "deleted": "Tag gelöscht.",
   "createError": "Tag kann nicht erstellt werden.",

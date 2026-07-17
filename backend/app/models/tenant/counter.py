@@ -3,14 +3,16 @@ from decimal import Decimal
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
+from pydantic import ConfigDict
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, Numeric, String, Text
-from sqlmodel import Enum as SQLEnum, Field, Relationship
+from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
 from app.models.tenant._mixins import SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.initiative import Initiative
     from app.models.tenant.resource_grant import ResourceGrant
+    from app.models.tenant.tag import Tag
 
 
 class CounterViewMode(str, Enum):
@@ -57,6 +59,10 @@ class CounterGroup(SoftDeleteMixin, table=True):
             "order_by": "Counter.position",
         },
     )
+    tag_links: List["CounterGroupTag"] = Relationship(
+        back_populates="counter_group",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
     grants: List["ResourceGrant"] = Relationship(
         sa_relationship_kwargs={
             "primaryjoin": (
@@ -66,6 +72,24 @@ class CounterGroup(SoftDeleteMixin, table=True):
             "viewonly": True,
         }
     )
+
+
+class CounterGroupTag(SQLModel, table=True):
+    """Junction table linking counter groups to tags."""
+
+    __tablename__ = "counter_group_tags"
+    __allow_unmapped__ = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    counter_group_id: int = Field(foreign_key="counter_groups.id", primary_key=True)
+    tag_id: int = Field(foreign_key="tags.id", primary_key=True, index=True)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+    counter_group: Optional[CounterGroup] = Relationship(back_populates="tag_links")
+    tag: Optional["Tag"] = Relationship(back_populates="counter_group_links")
 
 
 class Counter(SoftDeleteMixin, table=True):
