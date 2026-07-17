@@ -1,6 +1,6 @@
 from typing import List, Literal, Optional
 
-from pydantic import ConfigDict, EmailStr, Field
+from pydantic import ConfigDict, EmailStr, Field, field_validator
 
 from app.models.platform.app_setting import AuthScope
 from app.schemas.base import RawTextStr, SanitizedBaseModel
@@ -10,6 +10,80 @@ class AuthScopeUpdate(SanitizedBaseModel):
     """Switch where login is configured (platform-wide vs per-guild)."""
 
     scope: AuthScope
+
+
+class AuthProviderAdminRead(SanitizedBaseModel):
+    """One registry provider for the operator admin — never the secret."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: int
+    slug: str
+    display_name: str
+    kind: str
+    enabled: bool
+    issuer: Optional[str] = None
+    client_id: Optional[str] = None
+    scopes: Optional[str] = None
+    role_claim_path: Optional[str] = None
+    allow_jit: bool
+    icon: Optional[str] = None
+    button_style: Optional[str] = None
+    # Whether a client secret is stored (write-only; its value is never read
+    # back on any request path).
+    secret_set: bool = False
+    # The platform provider row is configured through the SSO settings form,
+    # not this CRUD.
+    reserved: bool = False
+
+
+_SLUG_PATTERN = r"^[a-z0-9][a-z0-9-]{0,63}$"
+
+
+class AuthProviderCreate(SanitizedBaseModel):
+    """A new operator-global login provider. Complete rows only — the login
+    flow refuses config-incomplete providers, so the CRUD does too."""
+
+    slug: str = Field(pattern=_SLUG_PATTERN)
+    display_name: str = Field(min_length=1, max_length=128)
+    kind: Literal["oidc"] = "oidc"
+    enabled: bool = True
+    # https-only, matching discovery's rule — surfaced at write time instead
+    # of as a stray error mid-login.
+    issuer: str = Field(pattern=r"^https://.+")
+    client_id: str = Field(min_length=1)
+    client_secret: Optional[RawTextStr] = None  # None = public / PKCE-only
+    scopes: Optional[str] = Field(default="openid email profile", max_length=512)
+    role_claim_path: Optional[str] = Field(default=None, max_length=256)
+    allow_jit: bool = True
+    icon: Optional[str] = Field(default=None, max_length=64)
+    button_style: Optional[str] = Field(default=None, max_length=64)
+
+
+class AuthProviderUpdate(SanitizedBaseModel):
+    """Partial update. ``client_secret``: absent = keep, empty = clear,
+    value = replace. The slug is immutable — it is the identity the login
+    URLs, flow states, and linked identities hang off."""
+
+    display_name: Optional[str] = Field(default=None, min_length=1, max_length=128)
+    enabled: Optional[bool] = None
+    issuer: Optional[str] = Field(default=None, pattern=r"^https://.+")
+    client_id: Optional[str] = Field(default=None, min_length=1)
+    client_secret: Optional[RawTextStr] = None
+    scopes: Optional[str] = Field(default=None, max_length=512)
+    role_claim_path: Optional[str] = Field(default=None, max_length=256)
+    allow_jit: Optional[bool] = None
+    icon: Optional[str] = Field(default=None, max_length=64)
+    button_style: Optional[str] = Field(default=None, max_length=64)
+
+    @field_validator("display_name", "issuer", "client_id", "enabled", "allow_jit")
+    @classmethod
+    def _no_explicit_null(cls, value, info):
+        """Absent means keep; an explicit null would strip config a login-ready
+        row requires (the login flow refuses config-incomplete providers)."""
+        if value is None:
+            raise ValueError(f"{info.field_name} cannot be null")
+        return value
 
 
 class OIDCSettingsResponse(SanitizedBaseModel):

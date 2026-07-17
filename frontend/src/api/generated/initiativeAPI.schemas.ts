@@ -502,6 +502,70 @@ export interface AttachmentUploadResponse {
 }
 
 /**
+ * One registry provider for the operator admin — never the secret.
+ */
+export interface AuthProviderAdminRead {
+  id: number;
+  slug: string;
+  display_name: string;
+  kind: string;
+  enabled: boolean;
+  issuer: string | null;
+  client_id: string | null;
+  scopes: string | null;
+  role_claim_path: string | null;
+  allow_jit: boolean;
+  icon: string | null;
+  button_style: string | null;
+  secret_set: boolean;
+  reserved: boolean;
+}
+
+/**
+ * A new operator-global login provider. Complete rows only — the login
+ * flow refuses config-incomplete providers, so the CRUD does too.
+ */
+export interface AuthProviderCreate {
+  /** @pattern ^[a-z0-9][a-z0-9-]{0,63}$ */
+  slug: string;
+  /**
+   * @minLength 1
+   * @maxLength 128
+   */
+  display_name: string;
+  kind?: "oidc";
+  enabled?: boolean;
+  /** @pattern ^https://.+ */
+  issuer: string;
+  /** @minLength 1 */
+  client_id: string;
+  client_secret?: string | null;
+  scopes?: string | null;
+  role_claim_path?: string | null;
+  allow_jit?: boolean;
+  icon?: string | null;
+  button_style?: string | null;
+}
+
+/**
+ * Partial update. ``client_secret``: absent = keep, empty = clear,
+ * value = replace. The slug is immutable — it is the identity the login
+ * URLs, flow states, and linked identities hang off.
+ */
+export interface AuthProviderUpdate {
+  display_name?: string | null;
+  enabled?: boolean | null;
+  issuer?: string | null;
+  client_id?: string | null;
+  client_secret?: string | null;
+  scopes?: string | null;
+  role_claim_path?: string | null;
+  allow_jit?: boolean | null;
+  icon?: string | null;
+  button_style?: string | null;
+}
+
+/**
  * Where login is configured: once for the whole platform, or per guild.
  *
  * Mutually exclusive postures (see the auth-settings-scope design doc): the
