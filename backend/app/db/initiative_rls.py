@@ -168,8 +168,13 @@ INITIATIVE_PATHS: dict[str, PathBuilder] = {
     "document_links": document_links_path(),
     # One hop -> queues
     "queue_items": via("queues", "queue_id"),
+    "queue_tags": via("queues", "queue_id"),
     # One hop -> counter_groups
     "counters": via("counter_groups", "counter_group_id"),
+    "counter_group_tags": via("counter_groups", "counter_group_id"),
+    # One hop -> advanced_tools (initiative_id nullable: a guild-wide tool's
+    # tags resolve to the admin/PAM legs only, mirroring the parent row)
+    "advanced_tool_tags": via("advanced_tools", "advanced_tool_id"),
     # One hop -> calendar_events
     "calendar_event_attendees": via("calendar_events", "calendar_event_id"),
     "calendar_event_documents": via("calendar_events", "calendar_event_id"),

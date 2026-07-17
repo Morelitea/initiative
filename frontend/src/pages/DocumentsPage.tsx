@@ -22,6 +22,7 @@ import { DocumentsFilterBar } from "@/components/documents/DocumentsFilterBar";
 import { DocumentsListView } from "@/components/documents/DocumentsListView";
 import { DocumentsTagsView } from "@/components/documents/DocumentsTagsView";
 import { PaginationBar } from "@/components/documents/PaginationBar";
+import { ToolImportAction } from "@/components/imports/ToolImportAction";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
 import { UNTAGGED_PATH } from "@/components/tags/TagTreeView";
@@ -597,6 +598,7 @@ export const DocumentsView = ({
                   {t("page.newDocument")}
                 </Button>
               ) : null}
+              <ToolImportAction tool={Tool.document} canImport={canCreateDocuments} />
             </div>
             <p className="text-muted-foreground text-sm">{t("page.subtitle")}</p>
           </div>
@@ -631,6 +633,11 @@ export const DocumentsView = ({
               {t("page.newDocument")}
             </Button>
           )}
+          <ToolImportAction
+            tool={Tool.document}
+            canImport={canCreateDocuments}
+            fixedInitiativeId={lockedInitiativeId ?? undefined}
+          />
           <Tabs
             value={viewMode}
             onValueChange={(value) => setViewMode(value as "grid" | "list" | "tags")}
@@ -820,10 +827,16 @@ export const DocumentsView = ({
             <CardTitle>{t("page.noDocumentsTitle")}</CardTitle>
             <CardDescription>{t("page.noDocumentsDescription")}</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex gap-2">
             <Button onClick={() => setCreateDialogOpen(true)} disabled={!canCreateDocuments}>
               {t("page.startWriting")}
             </Button>
+            <ToolImportAction
+              tool={Tool.document}
+              canImport={canCreateDocuments}
+              fixedInitiativeId={lockedInitiativeId ?? undefined}
+              variant="button"
+            />
           </CardContent>
         </Card>
       )}

@@ -17,7 +17,10 @@ from app.core.encryption import (
     SALT_OIDC_CLIENT_SECRET,
 )
 from app.db.session import AdminSessionLocal
+from app.models.platform.federated_identity import FederatedIdentity
+from app.models.platform.federated_identity_secret import FederatedIdentitySecret
 from app.models.platform.user import User
+from app.services.auth.platform_provider import get_platform_provider
 from app.services.platform import app_settings as app_settings_service
 from app.services.oidc_sync import extract_claim_values, sync_oidc_assignments
 
@@ -39,25 +42,27 @@ async def _fetch_oidc_metadata(issuer_url: str) -> dict:
         return resp.json()
 
 
-async def _refresh_and_sync_user(
+async def _refresh_and_sync_identity(
     session: AsyncSession,
-    user: User,
     *,
+    identity: FederatedIdentity,
+    secret: FederatedIdentitySecret,
+    user: User,
     token_endpoint: str,
     userinfo_endpoint: str,
     client_id: str,
     client_secret: str,
     claim_path: str,
 ) -> bool:
-    """Refresh a single user's token and sync claims. Returns True on success."""
+    """Refresh one identity link's token and sync claims. True on success."""
     try:
-        refresh_token = decrypt_token(user.oidc_refresh_token_encrypted)
+        refresh_token = decrypt_token(secret.refresh_token_encrypted)
     except Exception:
         logger.warning(
             "Failed to decrypt refresh token for user %s; clearing", user.email
         )
-        user.oidc_refresh_token_encrypted = None
-        session.add(user)
+        secret.refresh_token_encrypted = None
+        session.add(secret)
         await session.commit()
         return False
 
@@ -77,8 +82,8 @@ async def _refresh_and_sync_user(
                     user.email,
                     token_resp.status_code,
                 )
-                user.oidc_refresh_token_encrypted = None
-                session.add(user)
+                secret.refresh_token_encrypted = None
+                session.add(secret)
                 await session.commit()
                 return False
             token_resp.raise_for_status()
@@ -94,8 +99,8 @@ async def _refresh_and_sync_user(
             # Handle token rotation - commit immediately to prevent loss
             new_refresh = token_data.get("refresh_token")
             if new_refresh:
-                user.oidc_refresh_token_encrypted = encrypt_token(new_refresh)
-                session.add(user)
+                secret.refresh_token_encrypted = encrypt_token(new_refresh)
+                session.add(secret)
                 await session.commit()
 
             # Fetch userinfo
@@ -150,8 +155,8 @@ async def _refresh_and_sync_user(
         len(sync_result.initiatives_removed),
     )
 
-    user.oidc_last_synced_at = datetime.now(timezone.utc)
-    session.add(user)
+    identity.last_synced_at = datetime.now(timezone.utc)
+    session.add(identity)
     await session.commit()
     return True
 
@@ -186,24 +191,42 @@ async def process_oidc_refresh_sync() -> None:
             )
             return
 
+        provider = await get_platform_provider(session)
+        if provider is None:
+            # Created by the boot backfill / first login; nothing to sweep yet.
+            logger.debug("oidc-refresh-sync: no platform provider row")
+            return
+
         cutoff = datetime.now(timezone.utc) - _SYNC_INTERVAL
-        stmt = select(User).where(
-            User.oidc_refresh_token_encrypted.is_not(None),
-            (User.oidc_last_synced_at < cutoff) | User.oidc_last_synced_at.is_(None),
+        stmt = (
+            select(FederatedIdentity, FederatedIdentitySecret, User)
+            .join(
+                FederatedIdentitySecret,
+                FederatedIdentitySecret.identity_id == FederatedIdentity.id,
+            )
+            .join(User, User.id == FederatedIdentity.user_id)
+            .where(
+                FederatedIdentity.provider_id == provider.id,
+                FederatedIdentitySecret.refresh_token_encrypted.is_not(None),
+                (FederatedIdentity.last_synced_at < cutoff)
+                | FederatedIdentity.last_synced_at.is_(None),
+            )
         )
         result = await session.exec(stmt)
-        users = result.all()
+        due = result.all()
 
-        if not users:
-            logger.debug("oidc-refresh-sync: no users due for sync")
+        if not due:
+            logger.debug("oidc-refresh-sync: no identities due for sync")
             return
 
         succeeded = 0
         revoked = 0
-        for user in users:
-            ok = await _refresh_and_sync_user(
+        for identity, secret, user in due:
+            ok = await _refresh_and_sync_identity(
                 session,
-                user,
+                identity=identity,
+                secret=secret,
+                user=user,
                 token_endpoint=token_endpoint,
                 userinfo_endpoint=userinfo_endpoint,
                 client_id=app_settings.oidc_client_id,
@@ -214,12 +237,13 @@ async def process_oidc_refresh_sync() -> None:
             )
             if ok:
                 succeeded += 1
-            elif user.oidc_refresh_token_encrypted is None:
+            elif secret.refresh_token_encrypted is None:
                 revoked += 1
 
         logger.info(
-            "OIDC refresh sync: processed %d users, %d succeeded, %d token(s) revoked",
-            len(users),
+            "OIDC refresh sync: processed %d identities, %d succeeded, "
+            "%d token(s) revoked",
+            len(due),
             succeeded,
             revoked,
         )

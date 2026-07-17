@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime, timedelta, timezone
+import logging
 import secrets
 
 from sqlalchemy import Integer, bindparam, func, text
@@ -22,6 +23,8 @@ from app.models.tenant.guild_setting import GuildSetting
 from app.models.platform.user import User
 from app.services.platform import billing_ping
 
+logger = logging.getLogger(__name__)
+
 DEFAULT_INVITE_EXPIRATION_DAYS = 7
 INVITE_CODE_BYTES = 16
 
@@ -39,6 +42,32 @@ async def get_primary_guild(session: AsyncSession) -> Guild:
     guild = result.first()
     if guild:
         return guild
+    # Zero VISIBLE guilds is either a genuinely fresh database (the designed
+    # quiet path: the first boot seeds the primary guild before the first
+    # registration, and every registration creates or joins a guild) or a
+    # session that cannot see the real rows (wrong DATABASE_URL* target, a
+    # blinded system engine). A blinded session reads zero rows in users too,
+    # so row counts alone can't tell the two apart — but guild_<id> schemas
+    # live in the catalog, which row-level security never filters, and
+    # deprovisioning drops a deleted guild's schema. Either signal means this
+    # database is NOT fresh: say so before seeding a default guild into what
+    # may be a live install.
+    user_count = (await session.exec(select(func.count()).select_from(User))).one()
+    schema_count = (
+        await session.exec(
+            text("SELECT count(*) FROM pg_namespace WHERE nspname ~ '^guild_[0-9]+$'")
+        )
+    ).one()[0]
+    if user_count or schema_count:
+        logger.warning(
+            "no guilds visible, but the database is not fresh (%d visible "
+            "user(s), %d guild schema(s)) — creating a default primary guild. "
+            "If this instance previously had guilds, verify the DATABASE_URL* "
+            "variables point at the intended database and that the system "
+            "engine can read public.guilds",
+            user_count,
+            schema_count,
+        )
     now = datetime.now(timezone.utc)
     guild = Guild(
         name="Primary Guild",

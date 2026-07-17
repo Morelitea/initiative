@@ -227,7 +227,9 @@
       "enable": "Enable"
     },
     "exportReady": "Your export is ready — click to download.",
-    "exportFailed": "Your export failed. Try exporting again."
+    "exportFailed": "Your export failed. Try exporting again.",
+    "importReady": "Your import finished — click to view the report.",
+    "importFailed": "Your import failed. Click to see what happened."
   },
   "version": {
     "newVersionAvailable": "New Version Available",

@@ -93,6 +93,7 @@ from app.services import notifications as notifications_service
 from app.services import permissions as permissions_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import recent_views as recent_views_service
+from app.services.tenant import tags as tags_service
 from app.services import rls as rls_service
 from app.schemas.tenant.recent_view import RecentViewWrite
 from app.services.ai_generation import AIGenerationError, generate_document_summary
@@ -106,6 +107,11 @@ router = APIRouter()
 me_router = APIRouter()
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
+
+# Upper bound on the ``ids`` filter, matching the page_size ceiling: the
+# filter exists to hydrate one page worth of known documents, not to smuggle
+# an unbounded IN list into the query.
+MAX_DOCUMENT_IDS = 100
 
 DOCUMENT_SORT_FIELDS = {
     "title": Document.title,
@@ -329,6 +335,7 @@ def _build_visible_docs_filters(
     user_id: int,
     *,
     initiative_id: Optional[int] = None,
+    ids: Optional[List[int]] = None,
     search: Optional[str] = None,
     tag_ids: Optional[List[int]] = None,
     untagged: Optional[bool] = None,
@@ -349,6 +356,9 @@ def _build_visible_docs_filters(
     if initiative_id is not None:
         conditions.append(Document.initiative_id == initiative_id)
 
+    if ids is not None:
+        conditions.append(Document.id.in_(tuple(ids)))
+
     if search:
         normalized = search.strip().lower()
         if normalized:
@@ -367,8 +377,11 @@ def _build_visible_docs_filters(
         conditions.append(Document.id.in_(tag_subquery))
 
     if untagged:
+        # Join Tag so a document whose only tags are trashed counts as
+        # untagged — consistent with every read path that joins Tag.
         tagged_subquery = (
             select(DocumentTag.document_id)
+            .join(Tag, Tag.id == DocumentTag.tag_id)
             .where(DocumentTag.document_id == Document.id)
             .correlate(Document)
         )
@@ -544,6 +557,7 @@ async def get_document_counts(
         .select_from(visible_docs_subq)
         .where(
             ~select(DocumentTag.document_id)
+            .join(Tag, Tag.id == DocumentTag.tag_id)
             .where(DocumentTag.document_id == visible_docs_subq.c.id)
             .correlate(visible_docs_subq)
             .exists()
@@ -600,6 +614,13 @@ async def list_documents(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     initiative_id: Optional[int] = Query(default=None),
+    ids: Optional[List[int]] = Query(
+        default=None,
+        description=(
+            "Filter to specific document IDs — for hydrating a known set of "
+            f"documents without walking a collection. Maximum {MAX_DOCUMENT_IDS} IDs."
+        ),
+    ),
     search: Optional[str] = Query(default=None),
     tag_ids: Optional[List[int]] = Query(default=None, description="Filter by tag IDs"),
     untagged: Optional[bool] = Query(
@@ -633,10 +654,17 @@ async def list_documents(
             session, initiative_id=initiative_id, guild_id=guild_context.guild_id
         )
 
+    if ids is not None and len(ids) > MAX_DOCUMENT_IDS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=DocumentMessages.TOO_MANY_IDS,
+        )
+
     conditions = _build_visible_docs_filters(
         guild_context.guild_id,
         current_user.id,
         initiative_id=initiative_id,
+        ids=ids,
         search=search,
         tag_ids=tag_ids,
         untagged=untagged,
@@ -726,13 +754,17 @@ async def autocomplete_documents(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     initiative_id: int = Query(...),
-    q: str = Query(..., min_length=1),
+    q: str = Query(default=""),
     limit: int = Query(default=10, le=20),
 ) -> List[DocumentAutocomplete]:
     """Search documents by title within an initiative for autocomplete/wikilinks.
 
     Returns lightweight document info (id, title, updated_at) for typeahead.
     Only returns documents the user has permission to access.
+
+    An empty ``q`` matches everything, so a picker that opens before the user
+    types gets the most recently updated documents rather than an error. The
+    result is bounded by ``limit`` either way.
     """
     await _get_initiative_or_404(
         session, initiative_id=initiative_id, guild_id=guild_context.guild_id
@@ -1720,34 +1752,13 @@ async def set_document_tags(
     )
     _require_document_access(document, current_user, access="write")
 
-    # Validate all tags belong to this guild
-    if tags_in.tag_ids:
-        tags_stmt = select(Tag).where(
-            Tag.id.in_(tags_in.tag_ids),
-            Tag.guild_id == guild_context.guild_id,
-        )
-        tags_result = await session.exec(tags_stmt)
-        valid_tags = tags_result.all()
-        valid_tag_ids = {t.id for t in valid_tags}
-
-        invalid_ids = set(tags_in.tag_ids) - valid_tag_ids
-        if invalid_ids:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=DocumentMessages.INVALID_TAG_IDS,
-            )
-
-    # Remove existing tags
-    delete_stmt = sa_delete(DocumentTag).where(DocumentTag.document_id == document_id)
-    await session.exec(delete_stmt)
-
-    # Add new tags
-    for tag_id in tags_in.tag_ids:
-        document_tag = DocumentTag(
-            document_id=document_id,
-            tag_id=tag_id,
-        )
-        session.add(document_tag)
+    await tags_service.set_entity_tags(
+        session,
+        tags_service.TOOL_TAG_LINKS[Tool.document],
+        guild_id=guild_context.guild_id,
+        entity_id=document_id,
+        tag_ids=tags_in.tag_ids,
+    )
 
     # Fetch fresh document to avoid issues with deleted relationship objects
     doc_stmt = (
@@ -1764,6 +1775,9 @@ async def set_document_tags(
                 DocumentPropertyValue.value_user
             ),
         )
+        # Refresh the identity-mapped document's tag_links (the pre-write
+        # collection survives the commit under expire_on_commit=False).
+        .execution_options(populate_existing=True)
     )
     result = await session.exec(doc_stmt)
     doc = result.one()

@@ -20,6 +20,7 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_upload_user
+from app.core.body_limit import BodySizeLimitMiddleware
 from app.api.v1.api import api_router
 from app.core.messages import GuildMessages
 from app.core.rate_limit import limiter
@@ -71,9 +72,16 @@ async def lifespan(app: FastAPI):
         backfill_guild_schemas,
         ensure_shared_table_grants,
         ensure_system_engine_bypassrls,
+        verify_effective_shared_grants,
+        verify_engine_identities,
         warn_if_privileged_database_url,
     )
 
+    # Before the heals: name the three DB logins in the log, and warn loudly
+    # on wiring that collapses the role separation (app/admin URLs sharing a
+    # login, a privileged app login) — so the operator sees which login each
+    # repair below will act on.
+    await verify_engine_identities()
     # Before anything touches the system engine: a policy-bound admin login
     # (restored database, hand-created role) reads shared tables as empty and
     # the seeding below would die with an opaque RLS violation (issue #835).
@@ -83,6 +91,10 @@ async def lifespan(app: FastAPI):
     # seeding dies on "permission denied for table guilds" instead. Re-assert
     # the audited shared-table grants from the registry (issue #835 follow-up).
     await ensure_shared_table_grants()
+    # The heal above targets the canonical role names; verify the CONNECTED
+    # logins actually hold the audited privileges, stopping with the exact
+    # GRANTs when a deployment's URLs connect as other logins.
+    await verify_effective_shared_grants()
     await warn_if_privileged_database_url()
     backfill = await backfill_guild_schemas()
     if backfill.failed:
@@ -135,19 +147,27 @@ async def lifespan(app: FastAPI):
 
         await storage_config.refresh_storage_config(session)
     # Migrate the single platform OIDC config into the provider registry +
-    # identity links (operator-global; idempotent, self-healing). Runs after
+    # identity links, and copy the per-user refresh token + sync stamp onto
+    # those links (operator-global; idempotent, self-healing). Runs after
     # ensure_defaults so the settings singleton exists. Additive — the legacy
-    # app_settings.oidc_* / users.oidc_sub stay as the fallback path.
+    # app_settings.oidc_* / users.oidc_* columns stay (unread) until the final
+    # cutover phase drops them.
     from app.services.auth.oidc_backfill import backfill_oidc_identity
 
     oidc = await backfill_oidc_identity()
-    if oidc.provider_created or oidc.identities_linked or oidc.secret_migrated:
+    if (
+        oidc.provider_created
+        or oidc.identities_linked
+        or oidc.secret_migrated
+        or oidc.refresh_tokens_copied
+    ):
         logger.info(
             "OIDC identity back-fill: provider %s, %d identities linked (of %d), "
-            "secret %s",
+            "%d refresh token(s) copied, secret %s",
             "created" if oidc.provider_created else "existing",
             oidc.identities_linked,
             oidc.oidc_users,
+            oidc.refresh_tokens_copied,
             "migrated" if oidc.secret_migrated else "unchanged",
         )
     app.state.notification_tasks = background_tasks_service.start_background_tasks()
@@ -310,6 +330,11 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(SecurityHeadersMiddleware)
 
+# Body-size bounds for upload-shaped routes — enforced at the ASGI seam so an
+# oversized (or chunked, length-less) request is refused before its body is
+# buffered, not after FastAPI has already parsed it.
+app.add_middleware(BodySizeLimitMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
     # Explicit allowlist (never "*"): wildcard + allow_credentials reflects any
@@ -464,6 +489,7 @@ def _inject_query_schemas(openapi_schema: dict) -> None:
     # ``string`` that FastAPI infers from the endpoint signature.  The Axios
     # paramsSerializer on the frontend JSON-encodes arrays of objects automatically.
     fc_ref = {"$ref": "#/components/schemas/FilterCondition"}
+    fg_ref = {"$ref": "#/components/schemas/FilterGroup"}
     sf_ref = {"$ref": "#/components/schemas/SortField"}
     for path_item in openapi_schema.get("paths", {}).values():
         for operation in path_item.values():
@@ -471,7 +497,11 @@ def _inject_query_schemas(openapi_schema: dict) -> None:
                 continue
             for param in operation.get("parameters", []):
                 if param.get("name") == "conditions" and param.get("in") == "query":
-                    param["schema"] = {"type": "array", "items": fc_ref}
+                    # An item is either a leaf comparison or an AND/OR group.
+                    param["schema"] = {
+                        "type": "array",
+                        "items": {"anyOf": [fc_ref, fg_ref]},
+                    }
                     param.pop("anyOf", None)
                 if param.get("name") == "sorting" and param.get("in") == "query":
                     param["schema"] = {"type": "array", "items": sf_ref}

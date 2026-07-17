@@ -8,17 +8,16 @@ from sqlmodel import Field, SQLModel
 class FederatedIdentity(SQLModel, table=True):
     """A link between one global Initiative user and one external identity.
 
-    Identity is keyed on ``(provider_id, subject)`` — the IdP ``sub`` — never on
-    email, so trusting multiple providers can't collide into account takeover.
-    One user may have many linked identities (a work SSO, a personal passkey
-    provider, …); the user row stays Initiative's system of record.
+    Identity is keyed on ``(provider_id, subject)`` — the IdP ``sub``; email is
+    a display attribute, never a join key. One user may have many linked
+    identities (a work SSO, a personal passkey provider, …); the user row stays
+    Initiative's system of record.
 
     Own-row RLS: a user sees/manages only their own links on the request path —
     there is **no** admin-read-all policy. Cross-user identity management (support)
     runs on the system engine (``app_admin``), never a platform-tier request role,
     so a support UI must not assume request-path access here. The IdP refresh token
-    (for group re-sync) is *not* stored here yet — it arrives, encrypted, with the
-    OIDC-login phase.
+    (for group re-sync) lives in the companion ``federated_identity_secrets``.
     """
 
     __tablename__ = "federated_identities"
@@ -49,5 +48,10 @@ class FederatedIdentity(SQLModel, table=True):
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
     last_login_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    # When the background group re-sync (or a login, which also syncs) last ran
+    # for this link — the due-date the re-sync sweep filters on.
+    last_synced_at: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )

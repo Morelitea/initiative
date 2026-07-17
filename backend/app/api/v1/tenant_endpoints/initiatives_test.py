@@ -881,7 +881,7 @@ async def test_advanced_tool_handoff_succeeds_for_initiative_manager(
 
     payload = jwt.decode(
         body["handoff_token"],
-        app_settings.SECRET_KEY,
+        app_settings.jwt_signing_key,
         # Hardcoded HS256 (not JWT_ALGORITHM) — the handoff signing
         # path explicitly uses HS256 in its no-private-key fallback, so
         # tests must assert against that algorithm directly. Decoupling
@@ -961,7 +961,7 @@ async def test_advanced_tool_handoff_can_create_false_for_view_only_role(
     assert response.status_code == 200
     payload = jwt.decode(
         response.json()["handoff_token"],
-        app_settings.SECRET_KEY,
+        app_settings.jwt_signing_key,
         # Hardcoded HS256 (not JWT_ALGORITHM) — the handoff signing
         # path explicitly uses HS256 in its no-private-key fallback, so
         # tests must assert against that algorithm directly. Decoupling

@@ -20,5 +20,10 @@ export default defineConfig({
     // would otherwise make apiClient requests absolute, bypassing MSW's
     // relative handlers.
     env: { VITE_API_URL: "" },
+    // Headroom over the 5s default: with every worker transforming the app's
+    // heavy import graphs in parallel, userEvent-driven dialog tests can sit
+    // queued for seconds on slower dev machines and time out spuriously while
+    // passing in isolation. CI finishes comfortably under either ceiling.
+    testTimeout: 15_000,
   },
 });

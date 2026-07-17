@@ -1,7 +1,7 @@
 """Reusable query utilities for filtering, sorting, and pagination.
 
 Provides composable functions that transform SQLAlchemy Select statements:
-- parse_conditions: safely parses a JSON string into FilterCondition list
+- parse_conditions: safely parses a JSON string into a FilterCondition/FilterGroup list
 - apply_filters: adds WHERE clauses from FilterCondition/FilterGroup lists
 - apply_sorting: adds ORDER BY clauses from SortField list or comma-separated strings
 - apply_pagination: adds OFFSET/LIMIT
@@ -11,6 +11,8 @@ Provides composable functions that transform SQLAlchemy Select statements:
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
+from datetime import date, datetime
 from typing import Any
 
 from pydantic import ValidationError
@@ -24,6 +26,51 @@ from app.schemas.query import FilterCondition, FilterGroup, FilterOp, SortField,
 _MAX_CONDITIONS = 50
 _MAX_SORT_FIELDS = 10
 _MAX_RAW_LENGTH = 10_000
+# How deeply groups may nest. A group counts as one level, so the default
+# admits ``or_(and_(a, b), and_(c, d))`` — the shape a two-field date window
+# needs — without letting a payload nest arbitrarily.
+_MAX_GROUP_DEPTH = 3
+
+
+def iter_leaf_conditions(
+    conditions: list[FilterCondition | FilterGroup],
+) -> Iterator[FilterCondition]:
+    """Yield every :class:`FilterCondition` in *conditions*, groups included.
+
+    For callers that need to see each leaf wherever it sits (loading the
+    property definitions a filter references, counting against a limit).
+    Callers that read a value to *narrow* a query must not use this — see
+    :func:`extract_condition_value`.
+    """
+    for cond in conditions:
+        if isinstance(cond, FilterGroup):
+            yield from iter_leaf_conditions(cond.conditions)
+        else:
+            yield cond
+
+
+def _parse_condition_item(item: Any) -> FilterCondition | FilterGroup:
+    """Build a condition or group from one raw JSON item.
+
+    A ``conditions`` key marks a group; anything else is a leaf comparison.
+    """
+    if not isinstance(item, dict):
+        raise TypeError("condition must be an object")
+    if "conditions" in item:
+        return FilterGroup(**item)
+    return FilterCondition(**item)
+
+
+def _check_group_depth(
+    conditions: list[FilterCondition | FilterGroup],
+    max_depth: int,
+    depth: int = 1,
+) -> None:
+    for cond in conditions:
+        if isinstance(cond, FilterGroup):
+            if depth >= max_depth:
+                raise ValueError(f"conditions nested too deeply (max {max_depth})")
+            _check_group_depth(cond.conditions, max_depth, depth + 1)
 
 
 def parse_conditions(
@@ -31,12 +78,21 @@ def parse_conditions(
     *,
     max_conditions: int = _MAX_CONDITIONS,
     max_length: int = _MAX_RAW_LENGTH,
-) -> list[FilterCondition]:
+    max_depth: int = _MAX_GROUP_DEPTH,
+) -> list[FilterCondition | FilterGroup]:
     """Safely parse a JSON-encoded list of filter conditions.
 
     Designed for use with query parameters that carry structured filters as a
-    JSON string.  Applies size and count limits before touching the payload so
-    an attacker cannot exhaust memory or CPU with a crafted input.
+    JSON string.  Applies size and count limits before parsing the payload.
+
+    Items are flat :class:`FilterCondition` comparisons (implicitly AND-ed) or
+    :class:`FilterGroup` objects for explicit AND/OR logic, which
+    :func:`apply_filters` resolves recursively.  A group is any item carrying a
+    ``conditions`` key::
+
+        [{"logic": "or", "conditions": [
+            {"field": "start_date", "op": "gte", "value": "..."},
+            {"field": "due_date", "op": "gte", "value": "..."}]}]
 
     Returns an empty list when *raw* is ``None`` or empty.
 
@@ -61,9 +117,20 @@ def parse_conditions(
         raise ValueError(f"too many conditions (max {max_conditions})")
 
     try:
-        return [FilterCondition(**item) for item in items]
+        parsed = [_parse_condition_item(item) for item in items]
     except (ValidationError, TypeError) as exc:
         raise ValueError("invalid condition structure") from exc
+
+    # Depth and leaf count are checked after parsing: the payload limit above
+    # only bounds the top level, and a group's leaves cost the same to compile
+    # as top-level ones.
+    _check_group_depth(parsed, max_depth)
+
+    leaf_count = sum(1 for _ in iter_leaf_conditions(parsed))
+    if leaf_count > max_conditions:
+        raise ValueError(f"too many conditions (max {max_conditions})")
+
+    return parsed
 
 
 def parse_sort_fields(
@@ -103,11 +170,20 @@ def parse_sort_fields(
 
 
 def extract_condition_value(
-    conditions: list[FilterCondition],
+    conditions: list[FilterCondition | FilterGroup],
     field: str,
 ) -> Any:
-    """Return the ``value`` for the first condition matching *field*, or ``None``."""
+    """Return the ``value`` for the first top-level condition matching *field*,
+    or ``None``.
+
+    Deliberately does not descend into groups: callers use the returned value as
+    a guaranteed narrowing of the result set (which projects to check access on,
+    which initiatives to query), and only a top-level condition is AND-ed into
+    every row. A field inside an ``or`` group holds for some rows, not all.
+    """
     for cond in conditions:
+        if isinstance(cond, FilterGroup):
+            continue
         if cond.field == field:
             return cond.value
     return None
@@ -197,12 +273,57 @@ def _resolve_group(
     return not_(combined) if group.negate else combined
 
 
+def _column_python_type(col: Any) -> type | None:
+    """The Python type *col* stores, or ``None`` if it doesn't declare one."""
+    try:
+        return col.type.python_type
+    except (AttributeError, NotImplementedError):
+        return None
+
+
+def _coerce_value(col: Any, value: Any) -> Any:
+    """Parse an ISO-8601 string into the date/datetime *col* expects.
+
+    Conditions arrive as JSON, which has no date type, so a caller can only
+    send a string. SQLAlchemy binds a Python ``str`` as VARCHAR even when it is
+    compared against a timestamp column, which Postgres then refuses to compare
+    — so the parse has to happen here.
+
+    Anything that isn't an ISO string for a date/datetime column is passed
+    through untouched: a value this can't read is one the caller shouldn't
+    quietly have filtered away.
+    """
+    py_type = _column_python_type(col)
+    if py_type not in (datetime, date) or not isinstance(value, str):
+        return value
+    try:
+        return py_type.fromisoformat(value)
+    except ValueError:
+        pass
+    if py_type is date:
+        # A date column narrowed with a full timestamp — the shape JS
+        # toISOString() produces, which date.fromisoformat() won't read. The
+        # caller means the calendar day, so take it.
+        try:
+            return datetime.fromisoformat(value).date()
+        except ValueError:
+            pass
+    return value
+
+
 def _build_filter_clause(col: Any, op: FilterOp, value: Any):
     """Return a single WHERE clause for *col* with the given operator.
 
     Negation is handled by the caller via ``FilterCondition.negate``,
     not by separate operators.
     """
+    if op not in (FilterOp.is_null, FilterOp.ilike):
+        value = (
+            [_coerce_value(col, v) for v in value]
+            if op == FilterOp.in_ and isinstance(value, (list, tuple))
+            else _coerce_value(col, value)
+        )
+
     if op == FilterOp.eq:
         return col == value
     if op == FilterOp.lt:

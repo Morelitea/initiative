@@ -73,6 +73,28 @@ BULK_EXPORT_TOOLS = (
 )
 
 
+# Tag-assignment surfaces: EVERY tool is taggable, plus these content-level
+# extras — sub-resources of a tool (tasks, queue items) rather than tools
+# themselves. The assignment registry (app.services.tenant.tags.TAG_LINKS) and
+# the ``TagTarget`` schema enum both derive from TAG_TARGETS, so a new Tool is
+# taggable across every surface with no per-surface edit; tags_test.py fails if
+# any surface drifts.
+TAGGABLE_EXTRAS: tuple[str, ...] = ("task", "queue_item")
+TAG_TARGETS: tuple[str, ...] = tuple(t.value for t in Tool) + TAGGABLE_EXTRAS
+
+
 def tool_export_source(tool: Tool) -> str:
     """The export adapter registry key / endpoint segment for a tool."""
     return tool.value.replace("_", "-")
+
+
+def tool_for_create_permission(permission_value: str) -> Tool:
+    """The Tool whose ``create_permission`` is ``permission_value`` — the
+    inverse lookup the import engine uses to reach a tool's master switch
+    without re-deriving column names by string surgery. Raises KeyError for
+    a permission that gates no tool (callers validate at registry-build
+    time, so a miss is a programming error, never a request error)."""
+    return _TOOL_BY_CREATE_PERMISSION[permission_value]
+
+
+_TOOL_BY_CREATE_PERMISSION: dict[str, Tool] = {t.create_permission: t for t in Tool}

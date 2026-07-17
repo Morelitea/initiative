@@ -413,6 +413,26 @@ class Settings(BaseSettings):
     # deletes the artifact and marks the job expired.
     EXPORT_ARTIFACT_TTL_HOURS: int = 168  # 7 days
 
+    # --- Import engine (mirrors the export knobs; imports are writes) ------
+    # Inline-vs-job auto-select: at or under this many rows the envelope
+    # applies in-request; above it the payload is staged and a job queued.
+    IMPORT_INLINE_MAX_ROWS: int = 200
+    # Hard ceiling on rows in one envelope import.
+    IMPORT_MAX_ROWS: int = 10_000
+    # Per-user cap on jobs that are staged, queued, or running at once.
+    IMPORT_MAX_ACTIVE_JOBS_PER_USER: int = 5
+    # Byte bound on a single envelope request body (rows bound the content,
+    # but a pathological single-field envelope must be bounded in bytes too).
+    IMPORT_MAX_ENVELOPE_BYTES: int = 20_971_520  # 20 MiB
+    # Staged payloads awaiting confirm/apply expire after this.
+    IMPORT_STAGED_TTL_HOURS: int = 24
+    # Backup-zip imports: upload byte cap (mirrors the export bundle cap),
+    # plus zip-bomb bounds independent of the transfer cap — total declared
+    # uncompressed size and member count.
+    IMPORT_MAX_BACKUP_UPLOAD_BYTES: int = 268_435_456  # 256 MiB
+    IMPORT_MAX_BACKUP_UNCOMPRESSED_BYTES: int = 1_073_741_824  # 4x the upload cap
+    IMPORT_MAX_ZIP_MEMBERS: int = 20_000
+
     # First/bootstrap user — becomes the platform `owner` tier (there is no
     # superuser concept). The legacy FIRST_SUPERUSER_* env names are accepted
     # as aliases so existing deployments keep working.
@@ -584,8 +604,7 @@ class Settings(BaseSettings):
     # True in any shared/production environment; set ``RATE_LIMIT_ENABLED=false``
     # in a local ``.env`` to stop throttling yourself while testing auth flows.
     # This is the same lever the test suite pulls (``limiter.enabled = False``),
-    # surfaced as config — NOT a request-time bypass, so there is no hidden
-    # back door for an attacker to hit.
+    # surfaced as config; it is evaluated at startup, not per request.
     RATE_LIMIT_ENABLED: bool = True
     # Storage backend for rate-limit counters. Defaults to in-process memory
     # (``memory://``), which is per-worker — fine for a single process. For a
@@ -599,9 +618,7 @@ class Settings(BaseSettings):
     # the raw OpenAPI schema (``{API_V1_STR}/openapi.json``). Defaults to True so
     # local development keeps its self-documenting API and the frontend's Orval
     # type generation against a running backend keeps working out of the box.
-    # Operators SHOULD set this to ``False`` in production: the schema enumerates
-    # every route, parameter, and error shape, handing an attacker a free map of
-    # the attack surface (pentest SEC-16). The committed
+    # Operators SHOULD set this to ``False`` in production. The committed
     # ``frontend/openapi.json`` + ``scripts/export_openapi.py`` path means type
     # generation never needs a live ``/openapi.json`` in CI or prod.
     ENABLE_API_DOCS: bool = True

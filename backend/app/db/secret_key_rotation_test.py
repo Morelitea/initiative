@@ -21,6 +21,7 @@ from app.core.encryption import (
     encrypt_field,
     hash_email,
 )
+from app.db import session as db_session
 from app.db.schema_provisioning import (
     drop_guild_schema,
     guild_schema_name,
@@ -247,6 +248,16 @@ async def test_rotate_visits_per_guild_schema_settings(engine, monkeypatch):
                 {"g": gid},
             )
         assert decrypt_field(ct, SALT_AI_API_KEY, secret_key=NEW) == "guild-ai"
+
+        # The per-guild sweep assumes guild_<id> roles on pooled system-engine
+        # connections; a fresh checkout afterwards must run as the plain system
+        # login again (a lingering guild role would RLS-filter public tables to
+        # zero rows for every later consumer of the pool).
+        async with db_session.admin_engine.connect() as conn:
+            who = (await conn.execute(text("SELECT current_user"))).scalar()
+            visible = await conn.scalar(text("SELECT count(*) FROM public.guilds"))
+        assert who == "app_admin"
+        assert visible >= 1
     finally:
         if gid is not None:
             async with engine.begin() as conn:

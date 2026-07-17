@@ -74,6 +74,7 @@ SHARED_TABLES: frozenset[str] = frozenset(
         "auth_providers",  # login provider registry (operator-global or guild-scoped)
         "auth_provider_secrets",  # provider client secret; app_admin-only companion
         "federated_identities",  # (provider, subject) -> user links
+        "federated_identity_secrets",  # IdP refresh token; app_admin-only companion
         "auth_sessions",  # session/refresh store (JWT sid = row id); app_admin-only
         # Platform-wide
         "app_settings",  # OIDC / SMTP / branding config
@@ -116,6 +117,9 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         "export_jobs",  # a job may span initiatives ("export all my tasks"), so
         # it can't use initiative_access; the row leaks selector text and gates
         # the artifact download, so it must not be guild-wide-readable either.
+        "import_jobs",  # same shape as export_jobs: a backup import spans
+        # initiatives, and the row's options/plan/report text plus the staged
+        # payload it gates must not be guild-wide-readable.
     }
 )
 
@@ -128,6 +132,7 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
 # this is the policy overlay) — enforced in ``tenancy_test.py``.
 OWN_ROW_TABLES: dict[str, str] = {
     "export_jobs": "created_by_id",
+    "import_jobs": "created_by_id",
 }
 
 # --- Guild-scoped (derived) -------------------------------------------------

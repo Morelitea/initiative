@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import type {
   CalendarEventSummary,
   FilterCondition,
+  FilterGroup,
   ListTasksApiV1GGuildIdTasksGetParams,
   TaskPriority,
   TaskStatusCategory,
@@ -23,10 +24,12 @@ import {
   type CalendarEntryReschedule,
   CalendarView,
   type CalendarViewMode,
+  calendarVisibleRange,
 } from "@/components/calendar";
 import { BulkExportButton } from "@/components/exports/BulkExportButton";
 import { ExportButton } from "@/components/exports/ExportButton";
 import { TOOL_EXPORT_FORMATS } from "@/components/exports/formats";
+import { ToolImportAction } from "@/components/imports/ToolImportAction";
 import { CreateEventDialog } from "@/components/initiativeTools/events/CreateEventDialog";
 import { ICalImportDialog } from "@/components/initiativeTools/events/ICalImportDialog";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
@@ -44,6 +47,7 @@ import { useCalendarEventsList, useRescheduleCalendarEvent } from "@/hooks/useCa
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { canCreateTool, useMyInitiativePermissions } from "@/hooks/useInitiativeRoles";
+import { useProjects } from "@/hooks/useProjects";
 import { useTasks, useUpdateTask } from "@/hooks/useTasks";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { exportFilenameStem } from "@/lib/exportDownload";
@@ -179,6 +183,12 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     );
   }, [showEvents, showTasks, statusFilters, priorityFilters, projectFilters, propertyFilters]);
 
+  // The span the current view renders — the window the tasks query fetches.
+  const visibleRange = useMemo(
+    () => calendarVisibleRange(focusDate, viewMode, weekStartsOn),
+    [focusDate, viewMode, weekStartsOn]
+  );
+
   // Serialize property filters into the query-param shape the backend
   // expects. Empty list drops the param entirely so the URL stays clean.
   const propertyFiltersParam = useMemo(() => {
@@ -201,7 +211,28 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
 
   const tasksParams = useMemo((): ListTasksApiV1GGuildIdTasksGetParams | null => {
     if (!showTasks) return null;
-    const conditions: FilterCondition[] = [];
+    const conditions: (FilterCondition | FilterGroup)[] = [];
+
+    // Fetch only the tasks the current view can render. A task is placed by its
+    // start_date, its due_date, or both (see buildTaskCalendarEntries), so the
+    // window has to match either one — a task due in-window but started before
+    // it still belongs on the calendar.
+    //
+    // A task that straddles the whole window (starts before, due after) matches
+    // neither arm, which is correct: its two markers sit on days outside the
+    // window and it renders nothing inside it. That holds only while markers
+    // are single days rather than a bar spanning start → due — pinned by a test
+    // in taskCalendarEntries.test.ts.
+    conditions.push({
+      logic: "or",
+      conditions: (["start_date", "due_date"] as const).map((field) => ({
+        logic: "and" as const,
+        conditions: [
+          { field, op: "gte", value: visibleRange.start.toISOString() },
+          { field, op: "lte", value: visibleRange.end.toISOString() },
+        ],
+      })),
+    });
 
     // If initiativeId is specified, filter by that initiative; otherwise show all guild tasks
     if (initiativeId) {
@@ -231,13 +262,16 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
       });
     }
     return {
-      conditions: conditions.length > 0 ? conditions : undefined,
+      conditions,
       page: 1,
-      page_size: 100,
+      // The calendar must render every in-window task, so take the whole
+      // window: page_size=0 makes useTasks walk the server's pages.
+      page_size: 0,
       tz: userTimezone,
     };
   }, [
     showTasks,
+    visibleRange,
     initiativeId,
     statusFilters,
     priorityFilters,
@@ -246,11 +280,14 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     userTimezone,
   ]);
 
-  const defaultTaskParams: ListTasksApiV1GGuildIdTasksGetParams = { page: 1, page_size: 100 };
+  const defaultTaskParams: ListTasksApiV1GGuildIdTasksGetParams = { page: 1, page_size: 0 };
   const tasksQuery = useTasks(tasksParams ?? defaultTaskParams, {
     enabled: !!tasksParams,
     placeholderData: keepPreviousData,
   });
+
+  // Same param shape the sidebar and dashboard use, so this shares their cache.
+  const projectsQuery = useProjects(undefined, { enabled: showTasks, staleTime: 30_000 });
 
   const canCreateEvents = useMemo(() => {
     if (canCreate !== undefined) return canCreate;
@@ -439,20 +476,23 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     [t]
   );
 
-  // Derive unique projects from task results for the project filter dropdown
+  // Options for the project filter. Sourced from the projects list rather than
+  // the task rows those filters produce: the rows only cover the visible date
+  // window, so deriving from them would drop a project from the dropdown on
+  // every month it happens to have no task in — including the one currently
+  // selected.
   const projectOptions = useMemo(() => {
-    const tasks = tasksQuery.data?.items ?? [];
-    const seen = new Map<number, string>();
-    tasks.forEach((task) => {
-      if (!seen.has(task.project_id)) {
-        seen.set(task.project_id, task.project_name ?? String(task.project_id));
-      }
-    });
-    return Array.from(seen.entries()).map(([id, name]) => ({
-      value: String(id),
-      label: name,
-    }));
-  }, [tasksQuery.data]);
+    const projects = projectsQuery.data?.items ?? [];
+    return projects
+      .filter(
+        (project) =>
+          // Template projects are held out of the calendar's tasks, so an
+          // option for one would filter to nothing.
+          !project.is_template && (initiativeId === null || project.initiative_id === initiativeId)
+      )
+      .map((project) => ({ value: String(project.id), label: project.name }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [projectsQuery.data, initiativeId]);
 
   const isLoading = eventsQuery.isLoading && !eventsQuery.data;
 
@@ -473,6 +513,11 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
               {t("import.importIcs")}
             </Button>
           )}
+          <ToolImportAction
+            tool={Tool.calendar_event}
+            canImport={canCreateEvents}
+            fixedInitiativeId={fixedInitiativeId}
+          />
         </div>
       </div>
 

@@ -190,8 +190,10 @@ describe("tool surfaces", () => {
     expect(PALETTE_TOOLS).toEqual(TOOLS.filter((tool) => TOOL_REGISTRY[tool].commandPalette));
   });
 
-  // Generous timeout: importing the page pulls in the whole tab-view graph.
-  it("every tool has an initiative-detail tab view", { timeout: 30_000 }, async () => {
+  // Generous timeout: importing the page pulls in the whole tab-view graph,
+  // which can take over 30s on a slow machine while the full suite's workers
+  // are all transforming concurrently.
+  it("every tool has an initiative-detail tab view", { timeout: 60_000 }, async () => {
     const { TOOL_TAB_VIEWS } = await import("@/pages/InitiativeDetailPage");
     for (const tool of TOOLS) {
       expect(
@@ -244,5 +246,22 @@ describe("tool exports", () => {
     expect(toolExportEndpoint(Tool.document)).toBe("/exports/document");
     expect(toolExportIdParam(Tool.queue)).toBe("queue_id");
     expect(toolExportIdsParam(Tool.counter_group)).toBe("counter_group_ids");
+  });
+});
+
+describe("tool imports", () => {
+  it("importable tools are exactly the bulk-export tools", async () => {
+    const { IMPORTABLE_TOOLS, BULK_EXPORT_TOOLS } = await import("@/lib/tools");
+    expect([...IMPORTABLE_TOOLS].sort()).toEqual([...BULK_EXPORT_TOOLS].sort());
+  });
+
+  it("round-trips the envelope type discriminator for every importable tool", async () => {
+    const { IMPORTABLE_TOOLS, toolEnvelopeType, toolForEnvelopeType } = await import("@/lib/tools");
+    for (const tool of IMPORTABLE_TOOLS) {
+      expect(toolForEnvelopeType(toolEnvelopeType(tool))).toBe(tool);
+    }
+    // Calendar events are the plural exception; a backup type maps to no tool.
+    expect(toolEnvelopeType(Tool.calendar_event)).toBe("initiative-calendar-events");
+    expect(toolForEnvelopeType("initiative-backup")).toBeNull();
   });
 });

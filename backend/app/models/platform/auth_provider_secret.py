@@ -8,11 +8,9 @@ from sqlmodel import Field, SQLModel
 class AuthProviderSecret(SQLModel, table=True):
     """The client secret for one auth provider — kept OUT of ``auth_providers``.
 
-    Split into this **app_admin-only** companion (history/auth-detailed-design.md
-    §6.2) so the request-path (``platform_<tier>``) roles hold *no* grant on secret
-    material: even an over-broad query or an injection on the authenticated path
-    cannot exfiltrate a client secret. Provider metadata (``issuer``/``client_id``
-    — public in OIDC) stays on ``auth_providers``; only the secret lives here.
+    A companion table read and written only by the system engine. Provider
+    metadata (``issuer``/``client_id`` — public in OIDC) stays on
+    ``auth_providers``; only the secret lives here.
 
     1:1 with the provider — ``provider_id`` is the PK and an FK to
     ``auth_providers.id`` (``ON DELETE CASCADE``, declared in the migration).

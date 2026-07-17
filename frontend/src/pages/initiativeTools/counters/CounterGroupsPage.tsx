@@ -9,6 +9,7 @@ import { BulkAccessBar, canManageSharing } from "@/components/access/BulkAccessB
 import { BulkEditAccessDialog } from "@/components/access/BulkEditAccessDialog";
 import { SelectableGridItem } from "@/components/access/SelectableGridItem";
 import { BulkExportButton } from "@/components/exports/BulkExportButton";
+import { ToolImportAction } from "@/components/imports/ToolImportAction";
 import { CounterGroupCard } from "@/components/initiativeTools/counters/CounterGroupCard";
 import { CountersFilterBar } from "@/components/initiativeTools/counters/CountersFilterBar";
 import { CreateCounterGroupDialog } from "@/components/initiativeTools/counters/CreateCounterGroupDialog";
@@ -161,6 +162,7 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
                   {t("createGroup")}
                 </Button>
               )}
+              <ToolImportAction tool={Tool.counter_group} canImport={canCreateGroups} />
             </div>
             <p className="text-muted-foreground text-sm">{t("noGroupsDescription")}</p>
           </div>
@@ -173,6 +175,11 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
             <Plus className="h-4 w-4" />
             {t("createGroup")}
           </Button>
+          <ToolImportAction
+            tool={Tool.counter_group}
+            canImport={canCreateGroups}
+            fixedInitiativeId={lockedInitiativeId ?? undefined}
+          />
         </div>
       )}
 
@@ -241,10 +248,16 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
             <CardTitle>{t("noGroups")}</CardTitle>
             <CardDescription>{t("noGroupsDescription")}</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex gap-2">
             <Button onClick={() => setCreateOpen(true)} disabled={!canCreateGroups}>
               {t("createFirst")}
             </Button>
+            <ToolImportAction
+              tool={Tool.counter_group}
+              canImport={canCreateGroups}
+              fixedInitiativeId={lockedInitiativeId ?? undefined}
+              variant="button"
+            />
           </CardContent>
         </Card>
       )}

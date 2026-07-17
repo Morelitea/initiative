@@ -150,3 +150,76 @@ def test_backfill_non_403_head_error_is_a_failure(tmp_path):
     assert summary.failed == 1
     assert summary.copied == 0
     assert "a.png" not in dest.written
+
+
+async def test_backfill_finally_releases_lock_after_aborted_transaction(
+    engine, monkeypatch, tmp_path
+):
+    """A failure inside the guild loop leaves the connection's transaction
+    aborted; the ``finally`` must roll back FIRST so the advisory unlock still
+    runs. The original error must propagate (not the in-failed-transaction
+    error from the cleanup), the cluster-wide lock must be free for the next
+    run, and the pooled connection must return without a lingering guild
+    role."""
+    import types
+
+    import pytest
+    from sqlalchemy import text
+    from sqlalchemy.exc import ProgrammingError
+
+    import app.db.backfill_uploads_to_s3 as backfill_mod
+    from app.core.config import settings as app_settings
+    from app.db import session as db_session
+    from app.db.schema_provisioning import drop_guild_schema, provision_guild
+
+    async with engine.begin() as conn:
+        gid = await conn.scalar(
+            text("INSERT INTO public.guilds (name) VALUES ('S3 Guild') RETURNING id")
+        )
+    await provision_guild(gid)
+    (tmp_path / f"guild_{gid}").mkdir()
+
+    monkeypatch.setattr(app_settings, "UPLOADS_DIR", str(tmp_path))
+    monkeypatch.setattr(
+        backfill_mod.storage_config,
+        "current_storage_config",
+        lambda: types.SimpleNamespace(
+            backend="s3", bucket="test-bucket", kms_key_id=None
+        ),
+    )
+    monkeypatch.setattr(backfill_mod, "build_s3_client", lambda cfg: object())
+
+    async def _abort_transaction(conn, schema):
+        await conn.execute(text("SELECT * FROM nonexistent_backfill_probe"))
+
+    monkeypatch.setattr(backfill_mod, "_guild_upload_meta", _abort_transaction)
+
+    try:
+        with pytest.raises(ProgrammingError, match="nonexistent_backfill_probe"):
+            await backfill_mod.backfill_uploads_to_s3(dry_run=True)
+
+        # Probe from a DIFFERENT session (advisory locks are session-scoped, so
+        # the leaked holder itself could always re-take its own lock).
+        async with engine.connect() as conn:
+            got = (
+                await conn.execute(
+                    text("SELECT pg_try_advisory_lock(:k)"),
+                    {"k": backfill_mod._BACKFILL_LOCK_KEY},
+                )
+            ).scalar()
+            if got:
+                await conn.execute(
+                    text("SELECT pg_advisory_unlock(:k)"),
+                    {"k": backfill_mod._BACKFILL_LOCK_KEY},
+                )
+        assert got, "advisory lock must be released after a failed run"
+
+        async with db_session.admin_engine.connect() as conn:
+            who = (await conn.execute(text("SELECT current_user"))).scalar()
+        assert who == "app_admin"
+    finally:
+        async with engine.begin() as conn:
+            await drop_guild_schema(conn, gid)
+            await conn.execute(
+                text("DELETE FROM public.guilds WHERE id = :g"), {"g": gid}
+            )

@@ -11,7 +11,7 @@ from app.models.tenant.document import DocumentType
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.initiative import InitiativeRead, serialize_initiative
 from app.schemas.tenant.property import PropertySummary
-from app.schemas.tenant.tag import TagSummary
+from app.schemas.tenant.tag import TagSummary, tag_summaries
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.document import (
@@ -188,17 +188,6 @@ def _serialize_project_links(document: "Document") -> List[DocumentProjectLink]:
     return links
 
 
-def _serialize_document_tags(document: "Document") -> List[TagSummary]:
-    """Serialize document tags to TagSummary list."""
-    tag_links = getattr(document, "tag_links", None) or []
-    tags: List[TagSummary] = []
-    for link in tag_links:
-        tag = getattr(link, "tag", None)
-        if tag:
-            tags.append(TagSummary(id=tag.id, name=tag.name, color=tag.color))
-    return tags
-
-
 def _serialize_document_properties(document: "Document") -> List[PropertySummary]:
     """Serialize loaded document property values.
 
@@ -244,7 +233,7 @@ def serialize_document_summary(
         projects=_serialize_project_links(document),
         comment_count=getattr(document, "comment_count", 0),
         grants=serialize_grants(document),
-        tags=_serialize_document_tags(document),
+        tags=tag_summaries(getattr(document, "tag_links", None)),
         properties=_serialize_document_properties(document),
         document_type=document.document_type.value
         if document.document_type

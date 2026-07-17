@@ -227,7 +227,9 @@
       "enable": "Aktivieren"
     },
     "exportReady": "Dein Export ist bereit — klicke zum Herunterladen.",
-    "exportFailed": "Dein Export ist fehlgeschlagen. Versuche es erneut."
+    "exportFailed": "Dein Export ist fehlgeschlagen. Versuche es erneut.",
+    "importReady": "Dein Import ist abgeschlossen — klicke, um den Bericht anzusehen.",
+    "importFailed": "Dein Import ist fehlgeschlagen. Klicke, um zu sehen, was passiert ist."
   },
   "version": {
     "newVersionAvailable": "Neue Version verfügbar",

@@ -50,6 +50,7 @@ from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.auth_provider_secret import AuthProviderSecret
 from app.models.platform.auth_session import AuthSession
 from app.models.platform.federated_identity import FederatedIdentity
+from app.models.platform.federated_identity_secret import FederatedIdentitySecret
 from app.models.platform.user_token import UserToken
 from app.models.platform.push_token import PushToken
 from app.models.platform.auto_delegation_jti import AutoDelegationJti
@@ -59,6 +60,7 @@ from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.advanced_tool import AdvancedTool
 from app.models.tenant.export_job import ExportJob
+from app.models.tenant.import_job import ImportJob
 
 __all__ = [
     "User",
@@ -67,9 +69,11 @@ __all__ = [
     "AuthProviderSecret",
     "AuthSession",
     "FederatedIdentity",
+    "FederatedIdentitySecret",
     "ResourceGrant",
     "AdvancedTool",
     "ExportJob",
+    "ImportJob",
     "Project",
     "Task",
     "TaskAssignee",

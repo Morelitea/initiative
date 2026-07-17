@@ -233,11 +233,11 @@ export function DeleteAccountDialog({
   };
 
   const expectedConfirmation = CONFIRMATION_PHRASES[action];
-  // OIDC-provisioned accounts have no usable password (the random hash
-  // assigned at SSO callback was never shown to the user). The backend
-  // skips the password gate for these users; the dialog hides the
-  // password field accordingly.
-  const isOidcUser = user.oidc_sub != null;
+  // SSO accounts have no usable password (the random hash assigned at
+  // provisioning was never shown to the user). The backend skips the
+  // password gate for these users; the dialog hides the password field
+  // accordingly.
+  const isOidcUser = user.has_federated_identity;
 
   // Validation
   const canProceedFromChooseType = action !== null;

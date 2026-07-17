@@ -96,9 +96,13 @@ async def _build_filename_guild_map() -> dict[str, int]:
             if exists is None:  # schema missing/partial — skip
                 continue
             # Assume the guild's own role for the schema read (the system
-            # login holds no standing guild-schema access).
+            # login holds no standing guild-schema access). Transaction-local:
+            # the role dies with this connection's transaction, so it can
+            # never ride the pooled connection into a later checkout (a
+            # session-level set_config would survive any commit on this
+            # connection and leave later system-engine reads RLS-filtered).
             await conn.execute(
-                text("SELECT set_config('role', :r, false)"),
+                text("SELECT set_config('role', :r, true)"),
                 {"r": guild_role_name(gid)},
             )
             rows = (

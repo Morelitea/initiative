@@ -10,7 +10,7 @@ from app.schemas.base import RawTextStr, SanitizedBaseModel
 from app.models.tenant.calendar_event import RSVPStatus
 from app.schemas.tenant.property import PropertySummary
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
-from app.schemas.tenant.tag import TagSummary
+from app.schemas.tenant.tag import TagSummary, tag_summaries
 from app.schemas.platform.user import UserPublic
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -181,16 +181,6 @@ class CalendarEventRead(CalendarEventSummary):
 # ---------------------------------------------------------------------------
 
 
-def _serialize_tags(event: "CalendarEvent") -> List[TagSummary]:
-    tag_links = getattr(event, "tag_links", None) or []
-    tags: List[TagSummary] = []
-    for link in tag_links:
-        tag = getattr(link, "tag", None)
-        if tag:
-            tags.append(TagSummary(id=tag.id, name=tag.name, color=tag.color))
-    return tags
-
-
 def _serialize_documents(event: "CalendarEvent") -> List[CalendarEventDocumentRead]:
     doc_links = getattr(event, "document_links", None) or []
     result: List[CalendarEventDocumentRead] = []
@@ -296,7 +286,7 @@ def serialize_calendar_event_summary(
         attendee_names=names,
         attendee_previews=previews,
         property_values=_serialize_event_properties(event),
-        tags=_serialize_tags(event),
+        tags=tag_summaries(getattr(event, "tag_links", None)),
         grants=serialize_grants(event),
         my_permission_level=my_permission_level,
         created_at=event.created_at,

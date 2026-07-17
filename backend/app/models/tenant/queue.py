@@ -71,6 +71,10 @@ class Queue(SoftDeleteMixin, table=True):
             "foreign_keys": "[QueueItem.queue_id]",
         },
     )
+    tag_links: List["QueueTag"] = Relationship(
+        back_populates="queue",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
     grants: List["ResourceGrant"] = Relationship(
         sa_relationship_kwargs={
             "primaryjoin": (
@@ -153,6 +157,24 @@ class QueueItem(SoftDeleteMixin, table=True):
         back_populates="queue_item",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
+
+
+class QueueTag(SQLModel, table=True):
+    """Junction table linking queues to tags."""
+
+    __tablename__ = "queue_tags"
+    __allow_unmapped__ = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    queue_id: int = Field(foreign_key="queues.id", primary_key=True)
+    tag_id: int = Field(foreign_key="tags.id", primary_key=True, index=True)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+    queue: Optional[Queue] = Relationship(back_populates="tag_links")
+    tag: Optional["Tag"] = Relationship(back_populates="queue_links")
 
 
 class QueueItemTag(SQLModel, table=True):

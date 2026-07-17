@@ -1066,3 +1066,101 @@ async def test_rolling_recurrence_spring_forward_preserves_wall_clock_time(
     assert new_due_la.minute == 30
     new_due_utc = new_task.due_date.astimezone(timezone.utc)
     assert new_due_utc == datetime(2026, 3, 9, 9, 30, 0, tzinfo=timezone.utc)
+
+
+@pytest.mark.integration
+async def test_filter_tasks_by_date_window_group(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """An OR group windows tasks by start_date OR due_date.
+
+    The shape the calendar sends: a task belongs on screen if either of its
+    dates lands in the visible range, so a task due in-window but started
+    before it must still come back.
+    """
+    from datetime import datetime, timezone
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+
+    async def _dated(title, start, due):
+        task = await _create_task(session, a.project, title)
+        task.start_date = start
+        task.due_date = due
+        session.add(task)
+        await session.commit()
+        return task
+
+    def _at(day):
+        return datetime(2026, 6, day, 12, 0, tzinfo=timezone.utc)
+
+    # Window is June 2026; each task is named for why it should/shouldn't match.
+    both_inside = await _dated("both inside", _at(10), _at(11))
+    due_only = await _dated("due only", None, _at(12))
+    start_only = await _dated("start only", _at(13), None)
+    # Starts in May, due in June: the due marker is on screen.
+    straddles = await _dated(
+        "straddles", datetime(2026, 5, 20, 12, 0, tzinfo=timezone.utc), _at(14)
+    )
+    outside = await _dated(
+        "outside",
+        datetime(2026, 8, 1, 12, 0, tzinfo=timezone.utc),
+        datetime(2026, 8, 2, 12, 0, tzinfo=timezone.utc),
+    )
+    undated = await _create_task(session, a.project, "undated")
+
+    window_start = "2026-06-01T00:00:00+00:00"
+    window_end = "2026-06-30T23:59:59+00:00"
+    conditions = json.dumps(
+        [
+            {
+                "logic": "or",
+                "conditions": [
+                    {
+                        "logic": "and",
+                        "conditions": [
+                            {"field": field, "op": "gte", "value": window_start},
+                            {"field": field, "op": "lte", "value": window_end},
+                        ],
+                    }
+                    for field in ("start_date", "due_date")
+                ],
+            }
+        ]
+    )
+
+    # params= rather than an f-string URL: the "+" in a UTC offset is a space
+    # once the query string is decoded.
+    response = await client.get(
+        a.g("/tasks/"),
+        params={"conditions": conditions, "page_size": 0},
+        headers=a.headers,
+    )
+
+    assert response.status_code == 200
+    returned = {t["id"] for t in response.json()["items"]}
+    assert returned == {both_inside.id, due_only.id, start_only.id, straddles.id}
+    assert outside.id not in returned
+    assert undated.id not in returned
+
+
+@pytest.mark.integration
+async def test_list_tasks_rejects_conditions_nested_too_deeply(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    conditions = json.dumps(
+        [
+            {
+                "conditions": [
+                    {"conditions": [{"conditions": [{"field": "id", "value": 1}]}]}
+                ]
+            }
+        ]
+    )
+
+    response = await client.get(
+        a.g(f"/tasks/?conditions={conditions}"), headers=a.headers
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "QUERY_INVALID_CONDITIONS"

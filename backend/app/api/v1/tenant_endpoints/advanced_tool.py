@@ -29,6 +29,8 @@ from app.api.deps import (
 )
 from app.core.messages import AdvancedToolMessages, InitiativeMessages
 from app.core.tools import Tool
+from app.schemas.tenant.tag import TagSetRequest
+from app.services.tenant import tags as tags_service
 from app.models.platform.user import User
 from app.models.tenant.advanced_tool import AdvancedTool
 from app.models.tenant.initiative import Initiative, PermissionKey
@@ -129,6 +131,7 @@ async def list_advanced_tools(
         .options(
             selectinload(AdvancedTool.grants).selectinload(ResourceGrant.role),
             selectinload(AdvancedTool.initiative).selectinload(Initiative.memberships),
+            tags_service.TOOL_TAG_LINKS[Tool.advanced_tool].load_options(),
         )
         .order_by(AdvancedTool.updated_at.desc(), AdvancedTool.id.desc())
         .offset((page - 1) * page_size)
@@ -348,6 +351,44 @@ async def update_advanced_tool(
         tool.updated_at = datetime.now(timezone.utc)
         session.add(tool)
         await session.commit()
+
+    hydrated = await _refetch(session, tool.id)
+    return serialize_advanced_tool(
+        hydrated,
+        my_permission_level=_compute_my_permission(
+            hydrated, current_user, guild_context
+        ),
+    )
+
+
+@router.put("/{advanced_tool_id}/tags", response_model=AdvancedToolRead)
+async def set_advanced_tool_tags(
+    advanced_tool_id: int,
+    tags_in: TagSetRequest,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> AdvancedToolRead:
+    """Set tags on an advanced tool. Replaces all existing tags. Requires
+    write access."""
+    tool = await resource_access.load_authorized(
+        session,
+        Tool.advanced_tool,
+        advanced_tool_id,
+        current_user,
+        guild_context,
+        access="write",
+    )
+    await tags_service.set_entity_tags(
+        session,
+        tags_service.TOOL_TAG_LINKS[Tool.advanced_tool],
+        guild_id=guild_context.guild_id,
+        entity_id=tool.id,
+        tag_ids=tags_in.tag_ids,
+    )
+    tool.updated_at = datetime.now(timezone.utc)
+    session.add(tool)
+    await session.commit()
 
     hydrated = await _refetch(session, tool.id)
     return serialize_advanced_tool(

@@ -5,7 +5,7 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/settings/g
     const guildId = context.guilds?.activeGuildId;
     if (guildId) {
       throw redirect({
-        to: "/g/$guildId/settings/export",
+        to: "/g/$guildId/settings/data",
         params: { guildId: String(guildId) },
       });
     }

@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.57.0] - 2026-07-16
+
+### Added
+
+- Tags on every tool: queues, counter groups, and advanced tools can now be tagged, joining projects, documents, calendar events, tasks, and queue items. Each tool's settings flow gained a tag picker, its lists show tag chips, and tag support is now wired automatically for any future tool (drift-tested against the tool registry).
+- Bulk tag edit is a single atomic operation: one request adds/removes tags across the whole selection server-side. A failure (for example a tag someone else just deleted) changes nothing — no more half-applied batches — and a bulk edit no longer floods other viewers with one refresh per item.
+- Sidebar tag editing: a pencil toggle in the Tags header switches the sidebar tag browser into edit mode — rename, recolor, or trash any tag inline, with a select-all checkbox and bulk delete — no need to visit each tool that uses the tag. The separate expand-all/collapse-all buttons merged into one toggle.
+- Backup restore: a whole initiative or guild backup zip can be imported by a guild admin. Upload shows a pre-flight plan (source guild, per-initiative content counts, file payload size) before anything is applied; confirming restores each backed-up initiative as a NEW initiative (renamed on collision, tool switches from the backup, the importer becomes its manager), with uploaded files restored into guild storage (deduplicated and quota-checked) and every entry applied through the same importers as single-file imports — a corrupt entry fails alone and is reported, never the whole restore. Unconfirmed uploads expire after 24 hours.
+- Data import: every exported JSON envelope — projects, documents (text, spreadsheet, whiteboard, link), queues, counter groups, and calendar events — can now be imported into an initiative of your choice. Tags and custom properties match by name (or are created), people resolve by email against the target initiative's members with unmatched ones reported, and the importer becomes the owner of everything created. Small files import instantly; large ones run as a background job with an inbox notification when done. Requires the tool's create permission in the target initiative; 0.56.x-era exports (the old `kind` spelling) import unchanged.
+- Import surfaces: each tool's list page (documents, projects, queues, counter groups, calendar) gained an "Import from file" action — an overflow menu on the header and a button in the empty state — for importing that tool's JSON export. The backup import runs through a wizard in guild settings: pick a zip and it's previewed locally (nothing uploaded until you continue), then uploaded, planned, and confirmed.
+- Guild settings **Data** tab: the former Export tab now hosts both directions — export and import — plus one activity table showing recent export and import jobs together, with re-download for finished exports and a report view for finished imports. The old `/settings/export` URL redirects here.
+
+### Fixed
+
+- Startup no longer fails with `permission denied for table guilds` (or, before 0.55, `new row violates row-level security policy for table "guilds"`) on installs that still have `PREVIOUS_SECRET_KEY` set. The boot-time secret-key sweep left an assumed per-guild database role on a pooled connection after committing, which blinded the startup seeding that ran next — it saw no guilds, tried to re-create the default one, and crashed the boot. The role is now transaction-scoped in the rotation sweep, the S3 upload backfill, and the local-upload relocation walk, so it can never outlive the work it was assumed for.
+- Bulk tag edits could partially apply and error when the selection was edited from a stale view (for example after another member deleted a tag); the resulting event storm could also degrade the whole server.
+- The tag list shown on tasks, projects, and documents right after saving tags now always reflects the save (it could briefly show the previous tags).
+- Duplicating or cloning tasks, projects, and documents no longer carries over links to tags sitting in the trash.
+- The documents "untagged" filter and count now treat a document whose only tags are trashed as untagged.
+- Renaming or recoloring a tag now refreshes its chips everywhere immediately; deleting a tag refreshes all tools' lists, not just tasks.
+- Imports now match existing tags case-insensitively, matching the duplicate rule the tag editor enforces.
+- The calendar no longer drops tasks. It asked for the first 100 tasks in the initiative with no date filter at all, so a busy initiative could silently leave in-window tasks off the calendar entirely, while still transferring tasks from years you weren't looking at. It now fetches exactly the dates the current view shows (day, week, month, year, or list) and pages through all of them. The project filter's options now come from the initiative's projects, so they no longer appear and disappear as you move between months.
+
+### Changed
+
+- Startup now logs which Postgres login each of the three database connections uses, and warns loudly (without refusing to boot) on wiring that collapses the role separation: `DATABASE_URL_APP` and `DATABASE_URL_ADMIN` sharing a login, or the app login holding SUPERUSER/BYPASSRLS (for example, swapped connection strings). It also verifies the connected logins actually hold the audited shared-table privileges — a deployment connecting as non-standard logins now stops at boot with the exact `GRANT` statements to run, instead of failing later with a bare "permission denied" mid-request or mid-seeding. Creating the default primary guild in a database that shows signs of not being fresh (existing users or surviving guild schemas) now logs a warning naming the likely causes.
+- The document and task pickers on queue items, and the project's "attach existing document" picker, now search as you type on the server instead of downloading every document and task in the initiative when the dialog opens. Opening a picker shows the most recent entries and typing narrows them; large initiatives no longer stall these dialogs. Project document cards now load only the documents actually attached (API: `GET /documents/` gained an `ids` filter, max 100 per request).
+- The web app now renews your session silently in the background instead of interrupting you with a "session expired" sign-out when the short-lived access token lapses. You stay signed in as long as you use the app at least once every 30 days; signing out still ends the session everywhere immediately.
+- Single sign-on account data (the IdP subject, refresh token, and sync timestamp) now lives on the per-provider identity links instead of the user row; a boot backfill migrates existing data automatically and nothing changes for signed-in users. The API's `UserRead.oidc_sub` field is replaced by a `has_federated_identity` boolean (read by the profile and deletion dialogs to hide the password confirmation for SSO-only accounts).
+- The project import dialog now uses the shared import engine (API: `POST /projects/import` was replaced by `POST /imports/envelope`, which accepts every tool's envelope — the file's `type` field selects the importer).
+
 ## [0.56.1] - 2026-07-14
 
 ### Changed

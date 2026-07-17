@@ -556,6 +556,7 @@
     "success": "“{{name}}” importado",
     "warningUnmatchedAssignees_one": "Importado, pero se descartó {{count}} responsable que no pertenece a esta iniciativa: {{emails}}",
     "warningUnmatchedAssignees_other": "Importado, pero se descartaron {{count}} responsables que no pertenecen a esta iniciativa: {{emails}}",
-    "error": "No se pudo importar el proyecto. Inténtalo de nuevo."
+    "error": "No se pudo importar el proyecto. Inténtalo de nuevo.",
+    "queued": "Importación iniciada: recibirás una notificación cuando termine."
   }
 }

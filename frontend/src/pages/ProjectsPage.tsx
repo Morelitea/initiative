@@ -34,11 +34,11 @@ import { BulkAccessBar, canManageSharing } from "@/components/access/BulkAccessB
 import { BulkEditAccessDialog } from "@/components/access/BulkEditAccessDialog";
 import { SelectableGridItem } from "@/components/access/SelectableGridItem";
 import { BulkExportButton } from "@/components/exports/BulkExportButton";
+import { ToolImportAction } from "@/components/imports/ToolImportAction";
 import { Markdown } from "@/components/Markdown";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { CreateProjectDialog } from "@/components/projects/CreateProjectDialog";
-import { ProjectImportDialog } from "@/components/projects/ProjectImportDialog";
 import { ProjectCardLink, ProjectRowLink } from "@/components/projects/ProjectPreview";
 import { ProjectsFilterBar } from "@/components/projects/ProjectsFilterBar";
 import { Button } from "@/components/ui/button";
@@ -113,7 +113,6 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
       if (urlInitiativeId) setInitiativeId(urlInitiativeId);
     },
   });
-  const [isImportOpen, setIsImportOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useViewPreference<string>(PROJECT_SEARCH_KEY, "");
   type ProjectSortMode = "custom" | "updated" | "created" | "alphabetical" | "recently_viewed";
   const [persistedSortMode, setPersistedSortMode] = useViewPreference<ProjectSortMode>(
@@ -638,16 +637,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                   {t("addProject")}
                 </Button>
               )}
-              {canCreateProjects && (
-                <Button
-                  size="sm"
-                  variant="link"
-                  className="h-auto px-0 text-muted-foreground"
-                  onClick={() => setIsImportOpen(true)}
-                >
-                  {t("import.importButton")}
-                </Button>
-              )}
+              <ToolImportAction tool={Tool.project} canImport={canCreateProjects} />
             </div>
             <p className="text-muted-foreground">{t("subtitle")}</p>
           </div>
@@ -682,6 +672,13 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                   <Plus className="h-4 w-4" />
                   {t("addProject")}
                 </Button>
+              )}
+              {lockedInitiativeId && (
+                <ToolImportAction
+                  tool={Tool.project}
+                  canImport={canCreateProjects}
+                  fixedInitiativeId={lockedInitiativeId}
+                />
               )}
               <Tabs
                 value={viewMode}
@@ -732,9 +729,19 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                 </CardHeader>
               </Card>
             ) : filteredProjects.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
-                {projects.length === 0 ? t("noProjects") : t("noMatchingProjects")}
-              </p>
+              <div className="space-y-3">
+                <p className="text-muted-foreground text-sm">
+                  {projects.length === 0 ? t("noProjects") : t("noMatchingProjects")}
+                </p>
+                {projects.length === 0 && (
+                  <ToolImportAction
+                    tool={Tool.project}
+                    canImport={canCreateProjects}
+                    fixedInitiativeId={lockedInitiativeId ?? undefined}
+                    variant="button"
+                  />
+                )}
+              </div>
             ) : (
               <>
                 {selection.active ? (
@@ -916,15 +923,6 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
             }}
             defaultInitiativeId={initiativeId}
             onCreated={() => handleComposerOpenChange(false)}
-          />
-        )}
-
-        {canCreateProjects && (
-          <ProjectImportDialog
-            open={isImportOpen}
-            onOpenChange={setIsImportOpen}
-            creatableInitiatives={creatableInitiatives}
-            defaultInitiativeId={initiativeId}
           />
         )}
 

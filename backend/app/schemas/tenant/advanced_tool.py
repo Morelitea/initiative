@@ -17,6 +17,7 @@ from pydantic import ConfigDict, Field
 
 from app.schemas.base import RawTextStr, SanitizedBaseModel
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
+from app.schemas.tenant.tag import TagSummary, tag_summaries
 
 
 class AdvancedToolBase(SanitizedBaseModel):
@@ -58,6 +59,7 @@ class AdvancedToolRead(AdvancedToolBase):
     my_permission_level: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    tags: List[TagSummary] = Field(default_factory=list)
     grants: List[ResourceGrantSchema] = Field(default_factory=list)
 
 
@@ -119,5 +121,6 @@ def serialize_advanced_tool(
         my_permission_level=my_permission_level,
         created_at=tool.created_at,
         updated_at=tool.updated_at,
+        tags=tag_summaries(getattr(tool, "tag_links", None)),
         grants=serialize_grants(tool),
     )

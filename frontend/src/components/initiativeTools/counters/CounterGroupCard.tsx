@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import type { CounterGroupSummary } from "@/api/generated/initiativeAPI.schemas";
+import { TagBadge } from "@/components/tags/TagBadge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -34,11 +35,21 @@ export const CounterGroupCard = ({ group, initiativeName, className }: CounterGr
             <p className="line-clamp-2 text-muted-foreground text-sm">{group.description}</p>
           )}
         </CardHeader>
-        <CardContent className="pt-0">
+        <CardContent className="space-y-2 pt-0">
           <div className="flex items-center gap-3 text-muted-foreground text-sm">
             {initiativeName && <span className="truncate">{initiativeName}</span>}
             <Badge variant="outline">{t("counterCount", { count: group.counter_count })}</Badge>
           </div>
+          {group.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {group.tags.slice(0, 3).map((tag) => (
+                <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} nested />
+              ))}
+              {group.tags.length > 3 && (
+                <span className="text-muted-foreground text-xs">+{group.tags.length - 3}</span>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
     </Link>

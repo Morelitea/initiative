@@ -865,7 +865,7 @@ async def test_set_queue_item_tags(
     response = await client.put(
         a.g(f"/queues/{queue_data['id']}/items/{item_data['id']}/tags"),
         headers=a.headers,
-        json=[tag.id],
+        json={"tag_ids": [tag.id]},
     )
 
     assert response.status_code == 200

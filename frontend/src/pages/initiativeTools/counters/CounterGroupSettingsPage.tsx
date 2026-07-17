@@ -3,7 +3,9 @@ import { Copy, Loader2, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
 import { ShareControl } from "@/components/access/ShareControl";
+import { TagPicker } from "@/components/tags";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -34,6 +36,7 @@ import {
   useSetCounterGroupGrants,
   useUpdateCounterGroup,
 } from "@/hooks/useCounters";
+import { useSetCounterGroupTags } from "@/hooks/useToolTags";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
 
@@ -57,11 +60,13 @@ export function CounterGroupSettingsPage() {
 
   const [nameValue, setNameValue] = useState("");
   const [descriptionValue, setDescriptionValue] = useState("");
+  const [tags, setTags] = useState<TagSummary[]>([]);
 
   useEffect(() => {
     if (!group) return;
     setNameValue(group.name);
     setDescriptionValue(group.description ?? "");
+    setTags(group.tags ?? []);
   }, [group]);
 
   const updateGroup = useUpdateCounterGroup(parsedId, {
@@ -69,6 +74,8 @@ export function CounterGroupSettingsPage() {
       toast.success(t("groupUpdated"));
     },
   });
+
+  const setGroupTags = useSetCounterGroupTags();
 
   const handleDetailsSave = () => {
     const trimmedName = nameValue.trim();
@@ -211,6 +218,29 @@ export function CounterGroupSettingsPage() {
                 >
                   {updateGroup.isPending ? t("saving") : t("common:save")}
                 </Button>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("tags")}</CardTitle>
+              <CardDescription>{t("tagsDescription")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {canManage ? (
+                <TagPicker
+                  selectedTags={tags}
+                  onChange={(newTags) => {
+                    setTags(newTags);
+                    setGroupTags.mutate({
+                      groupId: parsedId,
+                      tagIds: newTags.map((tag) => tag.id),
+                    });
+                  }}
+                />
+              ) : (
+                <p className="text-muted-foreground text-sm">{t("noWriteAccessTags")}</p>
               )}
             </CardContent>
           </Card>

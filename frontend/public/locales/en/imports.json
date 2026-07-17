@@ -1,0 +1,113 @@
+{
+  "job": {
+    "succeeded": "Import finished.",
+    "failed": "Import failed.",
+    "queued": "Import started — you'll get a notification when it finishes."
+  },
+  "wizard": {
+    "title": "Import a backup",
+    "back": "Back",
+    "close": "Close",
+    "cancelUpload": "Cancel import",
+    "upload": "Upload backup",
+    "start": "Start import",
+    "pick": {
+      "prompt": "Choose a backup file",
+      "hint": "A .zip exported from Initiative's guild or initiative backup.",
+      "notZip": "This file isn't a valid Initiative backup.",
+      "readFailed": "Couldn't read this backup file. It may be corrupted.",
+      "tooLarge": "This file is larger than the {{limit}} upload limit.",
+      "reading": "Reading backup…"
+    },
+    "peek": {
+      "source": "Backup of {{name}}",
+      "exportedAt": "Exported {{date}} · Initiative v{{version}}",
+      "initiative_one": "{{count}} initiative",
+      "initiative_other": "{{count}} initiatives",
+      "entries_one": "{{count}} item",
+      "entries_other": "{{count}} items",
+      "assets": "{{count}} uploaded files ({{size}})",
+      "noAssets": "No uploaded files",
+      "note": "Nothing is uploaded yet — review and continue to upload."
+    },
+    "uploading": "Uploading backup…",
+    "plan": {
+      "prompt": "Review what will be imported",
+      "willCreate": "\"{{name}}\" will be imported as a new initiative \"{{proposed}}\"",
+      "toolCount": "{{tool}}: {{count}}",
+      "skipped_one": "{{count}} item was left out of this backup by its exporter",
+      "skipped_other": "{{count}} items were left out of this backup by its exporter",
+      "unknownTypes": "Unknown content types will be skipped: {{types}}",
+      "note": "Each initiative in the backup is created fresh — nothing existing is changed. The import runs in the background."
+    },
+    "progress": {
+      "title": "Importing…",
+      "note": "This can take a while. You can close this dialog — you'll get a notification, and the report stays available in guild settings."
+    },
+    "report": {
+      "title": "Import finished",
+      "failedTitle": "Import failed",
+      "initiativesCreated_one": "{{count}} initiative created",
+      "initiativesCreated_other": "{{count}} initiatives created",
+      "perTool": "{{created}} created · {{failed}} failed · {{skipped}} skipped",
+      "assets": "{{restored}} files restored, {{deduped}} already present",
+      "unmatchedEmails": "Some people couldn't be matched by email: {{emails}}",
+      "failedEntries": "Items that failed to import:",
+      "nothing": "Nothing was imported."
+    }
+  },
+  "envelope": {
+    "title": "Import from file",
+    "description": "Import a JSON file exported from Initiative. The file's contents are created in the initiative you choose.",
+    "selectFile": "Export file",
+    "parseError": "This file isn't a recognized Initiative export.",
+    "wrongTool": "This file is a {{type}} export — import it from that tool's page.",
+    "fileTooLarge": "This file is too large to import.",
+    "preview": "{{title}} · {{type}}",
+    "targetInitiative": "Import into",
+    "selectInitiative": "Choose an initiative",
+    "importButton": "Import",
+    "importing": "Importing…",
+    "success": "Imported \"{{name}}\".",
+    "queued": "Import started — you'll get a notification when it finishes.",
+    "warningUnmatched_one": "{{count}} person couldn't be matched by email: {{emails}}",
+    "warningUnmatched_other": "{{count}} people couldn't be matched by email: {{emails}}",
+    "error": "Import failed."
+  },
+  "entry": {
+    "menuLabel": "More actions",
+    "importBackup": "Import from file",
+    "import": "Import"
+  },
+  "table": {
+    "direction": {
+      "export": "Export",
+      "import": "Import"
+    },
+    "status": {
+      "staged": "Awaiting confirmation",
+      "queued": "Queued",
+      "running": "Running",
+      "done": "Finished",
+      "failed": "Failed",
+      "cancelled": "Cancelled",
+      "expired": "Expired"
+    },
+    "source": {
+      "backup": "Backup",
+      "initiative-project": "Project",
+      "initiative-document": "Document",
+      "initiative-queue": "Queue",
+      "initiative-counter-group": "Counter group",
+      "initiative-calendar-events": "Calendar"
+    },
+    "cancel": "Cancel",
+    "viewReport": "View report",
+    "reportTitle": "Import report"
+  },
+  "dataTab": {
+    "importTitle": "Import a backup",
+    "importDescription": "Restore an initiative or guild backup zip. Each backed-up initiative is created as a new initiative — nothing existing is changed.",
+    "open": "Import…"
+  }
+}

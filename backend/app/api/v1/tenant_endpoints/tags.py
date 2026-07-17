@@ -2,10 +2,11 @@ from datetime import datetime, timezone
 from typing import Annotated, List, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func
+from sqlalchemy import func, update as sa_update
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
+from app.api import resource_access
 from app.api.deps import (
     GuildContext,
     RLSSessionDep,
@@ -13,16 +14,22 @@ from app.api.deps import (
     get_current_active_user,
     get_guild_membership,
 )
-from app.core.messages import TagMessages
+from app.core.messages import QueueMessages, TagMessages, TaskMessages
+from app.core.tools import Tool
 from app.models.tenant.tag import Tag, TaskTag, ProjectTag, DocumentTag
 from app.models.tenant.task import Task
 from app.models.tenant.project import Project
 from app.models.tenant.document import Document
+from app.models.tenant.queue import QueueItem
 from app.models.platform.user import User
 from app.services import permissions as permissions_service
 from app.services.platform import guilds as guilds_service
+from app.services.realtime import broadcast_event
+from app.services.tenant import tags as tags_service
 from app.services.tenant.soft_delete import soft_delete_entity
 from app.schemas.tenant.tag import (
+    TagBulkEditRequest,
+    TagBulkEditResponse,
     TagCreate,
     TagRead,
     TagUpdate,
@@ -32,6 +39,11 @@ from app.schemas.tenant.tag import (
     TaggedDocumentSummary,
 )
 
+# The tag dictionary is a guild-wide folksonomy BY DESIGN: every guild member
+# (initiative membership not required) may list, create, rename, recolor, and
+# trash tags, so the only gate here is guild membership. Hard purge alone is
+# admin-gated (the RESTRICTIVE RLS policy on ``tags``). Pinned by
+# ``test_any_guild_member_can_manage_the_tag_dictionary``.
 router = APIRouter()
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
@@ -107,6 +119,112 @@ async def create_tag(
     return tag
 
 
+@router.post("/bulk", response_model=TagBulkEditResponse)
+async def bulk_edit_tags(
+    payload: TagBulkEditRequest,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> TagBulkEditResponse:
+    """Add and/or remove tags across many entities of one type, atomically.
+
+    Every target is authorized with the same write gate its own set-tags
+    endpoint uses (tasks/queue items via their parent project/queue, tools via
+    the unified resource-access registry). Nothing is applied unless every
+    target passes — one transaction, and for tasks one realtime signal per
+    affected project instead of one per task.
+    """
+    target = payload.target_type.value
+    spec = tags_service.TAG_LINKS[target]
+    add_ids = await tags_service.validate_guild_tag_ids(
+        session, guild_context.guild_id, payload.add_tag_ids
+    )
+    remove_ids = list(dict.fromkeys(payload.remove_tag_ids))
+    target_ids = list(dict.fromkeys(payload.target_ids))
+
+    # project_id -> initiative_id for the post-commit broadcasts, captured off
+    # the rows the authorization step already loads — no re-query later.
+    project_initiatives: dict[int, int] = {}
+    if target == "task":
+        rows = (
+            await session.exec(
+                select(Task.id, Task.project_id).where(Task.id.in_(target_ids))
+            )
+        ).all()
+        if len(rows) != len(target_ids):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
+            )
+        for project_id in {project_id for _, project_id in rows}:
+            project = await resource_access.load_authorized(
+                session,
+                Tool.project,
+                project_id,
+                current_user,
+                guild_context,
+                access="write",
+            )
+            project_initiatives[project_id] = project.initiative_id
+    elif target == "queue_item":
+        rows = (
+            await session.exec(
+                select(QueueItem.id, QueueItem.queue_id).where(
+                    QueueItem.id.in_(target_ids)
+                )
+            )
+        ).all()
+        if len(rows) != len(target_ids):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=QueueMessages.ITEM_NOT_FOUND,
+            )
+        for queue_id in {queue_id for _, queue_id in rows}:
+            await resource_access.load_authorized(
+                session,
+                Tool.queue,
+                queue_id,
+                current_user,
+                guild_context,
+                access="write",
+            )
+    else:
+        for target_id in target_ids:
+            await resource_access.load_authorized(
+                session,
+                Tool(target),
+                target_id,
+                current_user,
+                guild_context,
+                access="write",
+            )
+
+    await tags_service.bulk_edit_tags(
+        session,
+        spec,
+        entity_ids=target_ids,
+        add_tag_ids=add_ids,
+        remove_tag_ids=remove_ids,
+    )
+    if project_initiatives:
+        await session.exec(
+            sa_update(Project)
+            .where(Project.id.in_(project_initiatives))
+            .values(updated_at=datetime.now(timezone.utc))
+        )
+    await session.commit()
+
+    for project_id, initiative_id in project_initiatives.items():
+        await broadcast_event(
+            guild_context.guild_id,
+            initiative_id,
+            "task",
+            "updated",
+            {"project_id": project_id},
+        )
+
+    return TagBulkEditResponse(updated_count=len(target_ids))
+
+
 @router.get("/{tag_id}", response_model=TagRead)
 async def get_tag(
     tag_id: int,
@@ -156,8 +274,9 @@ async def delete_tag(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
-    """Soft-delete a tag. The tag moves to the guild's trash; on hard-purge
-    its junction rows fall via FK CASCADE."""
+    """Soft-delete a tag. The tag moves to the guild's trash; junction rows
+    stay in place (reads hide them via the soft-delete filter) and fall with
+    the tag's ORM relationship cascade on hard purge."""
     tag = await _get_tag_or_404(session, tag_id, guild_context.guild_id)
     retention_days = await guilds_service.get_guild_retention_days(
         session, guild_context.guild_id

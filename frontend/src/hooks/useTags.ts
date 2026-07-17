@@ -25,8 +25,12 @@ import {
 } from "@/api/generated/tags/tags";
 import { setTaskTagsApiV1GGuildIdTasksTaskIdTagsPut } from "@/api/generated/tasks/tasks";
 import {
+  invalidateAllAdvancedTools,
+  invalidateAllCalendarEvents,
+  invalidateAllCounterGroups,
   invalidateAllDocuments,
   invalidateAllProjects,
+  invalidateAllQueues,
   invalidateAllTags,
   invalidateAllTasks,
 } from "@/api/query-keys";
@@ -34,6 +38,18 @@ import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import type { MutationOpts } from "@/types/mutation";
+
+/** Refresh every list that embeds TagSummary chips — a rename/recolor or
+ * delete must reach all of them, not just the tags list. */
+const invalidateTagBearers = () => {
+  void invalidateAllTasks();
+  void invalidateAllProjects();
+  void invalidateAllDocuments();
+  void invalidateAllQueues();
+  void invalidateAllCounterGroups();
+  void invalidateAllCalendarEvents();
+  void invalidateAllAdvancedTools();
+};
 
 export const useTags = (options?: { enabled?: boolean }) => {
   const guildId = useActiveGuildId();
@@ -95,6 +111,7 @@ export const useUpdateTag = (
     onSuccess: (...args) => {
       toast.success(t("updated"));
       void invalidateAllTags();
+      invalidateTagBearers();
       onSuccess?.(...args);
     },
     onError: (...args) => {
@@ -105,10 +122,16 @@ export const useUpdateTag = (
   });
 };
 
-export const useDeleteTag = (options?: MutationOpts<void, number>) => {
+export const useDeleteTag = (
+  options?: MutationOpts<void, number> & {
+    /** Skip the per-delete success toast — for batch callers that show one
+     * summary toast instead. Error toasts still fire per tag. */
+    silent?: boolean;
+  }
+) => {
   const guildId = useActiveGuildId();
   const { t } = useTranslation("tags");
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const { onSuccess, onError, onSettled, silent, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
@@ -116,9 +139,11 @@ export const useDeleteTag = (options?: MutationOpts<void, number>) => {
       await deleteTagApiV1GGuildIdTagsTagIdDelete(guildId, tagId);
     },
     onSuccess: (...args) => {
-      toast.success(t("deleted"));
+      if (!silent) {
+        toast.success(t("deleted"));
+      }
       void invalidateAllTags();
-      void invalidateAllTasks();
+      invalidateTagBearers();
       onSuccess?.(...args);
     },
     onError: (...args) => {

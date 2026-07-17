@@ -9,6 +9,7 @@ import { BulkAccessBar, canManageSharing } from "@/components/access/BulkAccessB
 import { BulkEditAccessDialog } from "@/components/access/BulkEditAccessDialog";
 import { SelectableGridItem } from "@/components/access/SelectableGridItem";
 import { BulkExportButton } from "@/components/exports/BulkExportButton";
+import { ToolImportAction } from "@/components/imports/ToolImportAction";
 import { CreateQueueDialog } from "@/components/initiativeTools/queues/CreateQueueDialog";
 import { QueueCard } from "@/components/initiativeTools/queues/QueueCard";
 import {
@@ -229,6 +230,7 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
                   {t("createQueue")}
                 </Button>
               )}
+              <ToolImportAction tool={Tool.queue} canImport={canCreateQueues} />
             </div>
             <p className="text-muted-foreground text-sm">{t("noQueuesDescription")}</p>
           </div>
@@ -241,6 +243,11 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
             <Plus className="h-4 w-4" />
             {t("createQueue")}
           </Button>
+          <ToolImportAction
+            tool={Tool.queue}
+            canImport={canCreateQueues}
+            fixedInitiativeId={lockedInitiativeId ?? undefined}
+          />
         </div>
       )}
 
@@ -334,10 +341,16 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
             <CardTitle>{t("noQueues")}</CardTitle>
             <CardDescription>{t("noQueuesDescription")}</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex gap-2">
             <Button onClick={() => setCreateDialogOpen(true)} disabled={!canCreateQueues}>
               {t("createFirst")}
             </Button>
+            <ToolImportAction
+              tool={Tool.queue}
+              canImport={canCreateQueues}
+              fixedInitiativeId={lockedInitiativeId ?? undefined}
+              variant="button"
+            />
           </CardContent>
         </Card>
       )}

@@ -19,6 +19,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import UserRole
 from app.testing.factories import (
+    create_federated_identity,
     create_guild,
     create_guild_membership,
     create_user,
@@ -317,8 +318,9 @@ async def test_delete_guild_wrong_confirmation(
 async def test_delete_guild_oidc_user_skips_password(
     client: AsyncClient, session: AsyncSession
 ):
-    """OIDC-only users delete with just the phrase — no password required."""
-    user = await create_user(session, email="sso@example.com", oidc_sub="sso-123")
+    """SSO-only users delete with just the phrase — no password required."""
+    user = await create_user(session, email="sso@example.com")
+    await create_federated_identity(session, user, subject="sso-123")
     guild = await create_guild(session, name="To Delete")
     await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
 
@@ -828,7 +830,7 @@ async def test_guild_advanced_tool_handoff_succeeds_for_admin(
 
     payload = jwt.decode(
         body["handoff_token"],
-        app_settings.SECRET_KEY,
+        app_settings.jwt_signing_key,
         # Hardcoded HS256 — the handoff signing path uses HS256 in its
         # no-private-key fallback regardless of JWT_ALGORITHM. See
         # initiatives_test.py for the same rationale.

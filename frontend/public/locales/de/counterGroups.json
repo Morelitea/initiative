@@ -109,5 +109,8 @@
     "filterByInitiative": "Initiative",
     "allInitiatives": "Alle Initiativen",
     "noMatchingGroups": "Keine Zählergruppen entsprechen deinen Filtern."
-  }
+  },
+  "tags": "Tags",
+  "tagsDescription": "Füge Tags hinzu, um Zählergruppen zu organisieren und zu filtern.",
+  "noWriteAccessTags": "Du benötigst Schreibzugriff, um Tags zu verwalten."
 }
