@@ -138,6 +138,174 @@ async def test_app_user_grants_match_audited_matrix(engine):
     _assert_matrix("app_user", live, SHARED_TABLE_APP_USER_GRANTS)
 
 
+async def test_users_role_is_writable_only_by_the_system_engine(engine):
+    """``users.role`` (the platform-tier ladder) is assigned only through the
+    capability-gated endpoint that runs on the system engine. Each request-path
+    floor holds a column-scoped UPDATE covering every ``users`` column *except*
+    ``role``; ``app_admin`` keeps the full grant the endpoint relies on
+    (migration 0144). A new ``users`` column must be granted to the request
+    floors too, or this test fails — the same "decide it explicitly" discipline
+    as the table-grant registry."""
+    request_roles = [
+        "app_guild_base",
+        f"{settings.PLATFORM_ROLE_PREFIX}platform_base",
+        "app_user",
+    ]
+    async with engine.connect() as conn:
+        all_columns = set(
+            (
+                await conn.execute(
+                    text(
+                        "SELECT column_name FROM information_schema.columns "
+                        "WHERE table_schema = 'public' AND table_name = 'users'"
+                    )
+                )
+            ).scalars()
+        )
+        expected = all_columns - {"role"}
+        for role in request_roles:
+            rows = (
+                await conn.execute(
+                    text(
+                        "SELECT column_name, "
+                        "has_column_privilege(:role, 'public.users', column_name, "
+                        "'UPDATE') AS can_update "
+                        "FROM information_schema.columns "
+                        "WHERE table_schema = 'public' AND table_name = 'users'"
+                    ),
+                    {"role": role},
+                )
+            ).all()
+            writable = {name for name, can_update in rows if can_update}
+            assert "role" not in writable, (
+                f"{role} must not hold UPDATE on users.role — role assignment is "
+                "system-engine-only"
+            )
+            assert writable == expected, (
+                f"{role} UPDATE columns on users drifted from 'every column but "
+                f"role': missing {sorted(expected - writable)}, unexpected "
+                f"{sorted(writable - expected)} (grant the new column, or exclude it)"
+            )
+        # Positive control: the system engine retains the role write its
+        # sanctioned endpoint needs.
+        admin_can = (
+            await conn.execute(
+                text(
+                    "SELECT has_column_privilege('app_admin', 'public.users', "
+                    "'role', 'UPDATE')"
+                )
+            )
+        ).scalar()
+        assert admin_can, "app_admin must retain UPDATE on users.role"
+
+
+async def test_users_request_path_insert_is_pinned_to_member(engine):
+    """A request-path insert into ``users`` may only create a plain member; the
+    RESTRICTIVE policy from migration 0144 enforces it (``app_admin`` bypasses
+    RLS and still seeds the bootstrap owner)."""
+    async with engine.connect() as conn:
+        row = (
+            await conn.execute(
+                text(
+                    "SELECT permissive, cmd, with_check FROM pg_policies "
+                    "WHERE schemaname = 'public' AND tablename = 'users' "
+                    "AND policyname = 'users_request_insert_member_only'"
+                )
+            )
+        ).one_or_none()
+    assert row is not None, "member-only insert policy on users is missing"
+    permissive, cmd, with_check = row
+    assert permissive == "RESTRICTIVE", "insert-member policy must be RESTRICTIVE"
+    assert cmd == "INSERT"
+    assert "role" in (with_check or "") and "member" in (with_check or ""), (
+        f"insert-member policy check does not pin role to member: {with_check!r}"
+    )
+
+
+async def test_guild_membership_role_is_writable_only_by_the_system_engine(engine):
+    """A guild membership's ``role`` is changed only on the system engine (the
+    guild-admin endpoint). The request-path floors hold no UPDATE on
+    ``guild_memberships``; ``app_guild_base`` keeps INSERT (create-user) and
+    DELETE (self-leave), ``platform_base`` keeps only SELECT, and ``app_admin``
+    keeps the full grant (migration 0145)."""
+    base = f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
+    async with engine.connect() as conn:
+
+        async def privs(role: str) -> dict[str, bool]:
+            row = (
+                await conn.execute(
+                    text(
+                        "SELECT "
+                        "has_table_privilege(:r, 'public.guild_memberships', "
+                        "'SELECT') AS s, "
+                        "has_table_privilege(:r, 'public.guild_memberships', "
+                        "'INSERT') AS i, "
+                        "has_table_privilege(:r, 'public.guild_memberships', "
+                        "'UPDATE') AS u, "
+                        "has_table_privilege(:r, 'public.guild_memberships', "
+                        "'DELETE') AS d"
+                    ),
+                    {"r": role},
+                )
+            ).one()
+            return {
+                "SELECT": row[0],
+                "INSERT": row[1],
+                "UPDATE": row[2],
+                "DELETE": row[3],
+            }
+
+        guild = await privs("app_guild_base")
+        assert not guild["UPDATE"], (
+            "app_guild_base must not hold UPDATE on guild_memberships — a guild "
+            "role change is system-engine-only"
+        )
+        assert guild["SELECT"] and guild["INSERT"] and guild["DELETE"], (
+            "app_guild_base still needs SELECT/INSERT/DELETE (create-user, "
+            f"self-leave): {guild}"
+        )
+
+        platform = await privs(base)
+        assert platform == {
+            "SELECT": True,
+            "INSERT": False,
+            "UPDATE": False,
+            "DELETE": False,
+        }, f"platform_base should hold only SELECT on guild_memberships: {platform}"
+
+        admin = await privs("app_admin")
+        assert admin["UPDATE"], "app_admin must retain UPDATE on guild_memberships"
+
+
+async def test_guild_membership_write_policies_are_tightened(engine):
+    """Self-leave DELETE is scoped to the caller's own row, and a request-path
+    insert is pinned to a plain member (migration 0145)."""
+    async with engine.connect() as conn:
+        policies = {
+            name: (permissive, cmd, qual, with_check)
+            for name, permissive, cmd, qual, with_check in (
+                await conn.execute(
+                    text(
+                        "SELECT policyname, permissive, cmd, qual, with_check "
+                        "FROM pg_policies WHERE schemaname = 'public' "
+                        "AND tablename = 'guild_memberships'"
+                    )
+                )
+            ).all()
+        }
+    delete_policy = policies.get("guild_memberships_delete")
+    assert delete_policy is not None, "guild_memberships_delete policy is missing"
+    assert "current_user_id" in (delete_policy[2] or ""), (
+        f"delete policy must scope to the caller's own row: {delete_policy[2]!r}"
+    )
+    insert_policy = policies.get("guild_memberships_request_insert_member_only")
+    assert insert_policy is not None, "member-only insert policy is missing"
+    assert insert_policy[0] == "RESTRICTIVE", "insert-member policy must be RESTRICTIVE"
+    assert "member" in (insert_policy[3] or ""), (
+        f"insert-member policy must pin role to member: {insert_policy[3]!r}"
+    )
+
+
 async def test_rls_shared_tables_are_forced(engine):
     async with engine.connect() as conn:
         rows = (

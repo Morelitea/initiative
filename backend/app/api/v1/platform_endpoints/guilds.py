@@ -519,10 +519,15 @@ async def update_guild_membership(
     guild_id: int,
     user_id: int,
     payload: GuildMembershipUpdate,
-    session: SessionDep,
+    session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> Response:
     """Update a user's guild membership role. Guild admin only.
+
+    Runs on the system engine: assigning a guild role is a privileged
+    operation (like a platform-role change), so the guild role itself holds no
+    UPDATE on ``guild_memberships`` — the write happens here, after the
+    app-layer guild-admin check, and never under a request-path role.
 
     Restrictions:
     - Cannot change your own role
@@ -533,7 +538,6 @@ async def update_guild_membership(
         guild_id=guild_id,
         user_id=current_user.id,
     )
-    await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
 
     if user_id == current_user.id:
         raise HTTPException(

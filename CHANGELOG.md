@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Platform role assignment is now enforced at the database layer: the request-path database roles carry column-scoped grants on the user table that exclude the platform role column, so role changes can only happen through the dedicated operator/owner role-assignment endpoint. Unused write privileges the request-path roles held on the user table were revoked outright. No behavior change for any existing flow; this is defense in depth, verified by CI invariants against the live catalog.
+- Guild role assignment (promoting a member to guild admin) is now enforced at the database layer too. The endpoint runs on the system engine, and the shared guild database role no longer holds write access to change a membership's role — so a guild member cannot be elevated except through the guild-admin endpoint. Self-leave is scoped to your own membership, and request-path membership creation is pinned to a plain member. No behavior change for any existing flow; verified by CI invariants.
+
 ## [0.57.0] - 2026-07-16
 
 ### Added
