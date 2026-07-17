@@ -142,7 +142,9 @@ async def bulk_edit_tags(
     remove_ids = list(dict.fromkeys(payload.remove_tag_ids))
     target_ids = list(dict.fromkeys(payload.target_ids))
 
-    affected_project_ids: set[int] = set()
+    # project_id -> initiative_id for the post-commit broadcasts, captured off
+    # the rows the authorization step already loads — no re-query later.
+    project_initiatives: dict[int, int] = {}
     if target == "task":
         rows = (
             await session.exec(
@@ -153,9 +155,8 @@ async def bulk_edit_tags(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
             )
-        affected_project_ids = {project_id for _, project_id in rows}
-        for project_id in affected_project_ids:
-            await resource_access.load_authorized(
+        for project_id in {project_id for _, project_id in rows}:
+            project = await resource_access.load_authorized(
                 session,
                 Tool.project,
                 project_id,
@@ -163,6 +164,7 @@ async def bulk_edit_tags(
                 guild_context,
                 access="write",
             )
+            project_initiatives[project_id] = project.initiative_id
     elif target == "queue_item":
         rows = (
             await session.exec(
@@ -203,28 +205,22 @@ async def bulk_edit_tags(
         add_tag_ids=add_ids,
         remove_tag_ids=remove_ids,
     )
-    if affected_project_ids:
+    if project_initiatives:
         await session.exec(
             sa_update(Project)
-            .where(Project.id.in_(affected_project_ids))
+            .where(Project.id.in_(project_initiatives))
             .values(updated_at=datetime.now(timezone.utc))
         )
     await session.commit()
 
-    for project_id in affected_project_ids:
-        initiative_id = (
-            await session.exec(
-                select(Project.initiative_id).where(Project.id == project_id)
-            )
-        ).one_or_none()
-        if initiative_id is not None:
-            await broadcast_event(
-                guild_context.guild_id,
-                initiative_id,
-                "task",
-                "updated",
-                {"project_id": project_id},
-            )
+    for project_id, initiative_id in project_initiatives.items():
+        await broadcast_event(
+            guild_context.guild_id,
+            initiative_id,
+            "task",
+            "updated",
+            {"project_id": project_id},
+        )
 
     return TagBulkEditResponse(updated_count=len(target_ids))
 

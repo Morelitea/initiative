@@ -64,29 +64,9 @@ const sendAuthMessage = (websocket: WebSocket, token: string | null) => {
 
 // Bursts of task events (an import, another user's bulk operation) coalesce
 // into one refetch per window instead of one per event — the signal is
-// content-free, so collapsing duplicates loses nothing.
+// content-free, so collapsing duplicates loses nothing. The debounce state
+// lives inside the socket effect so it dies with the socket.
 const TASK_EVENT_DEBOUNCE_MS = 300;
-const pendingTaskProjectIds = new Set<number>();
-let taskEventTimer: number | null = null;
-
-const handleTaskEvent = (data?: Record<string, unknown>) => {
-  const projectId = data?.project_id;
-  if (typeof projectId === "number") {
-    pendingTaskProjectIds.add(projectId);
-  }
-  if (taskEventTimer !== null) {
-    return;
-  }
-  taskEventTimer = window.setTimeout(() => {
-    taskEventTimer = null;
-    const projectIds = [...pendingTaskProjectIds];
-    pendingTaskProjectIds.clear();
-    void invalidateAllTasks();
-    for (const id of projectIds) {
-      void invalidateProject(id);
-    }
-  }, TASK_EVENT_DEBOUNCE_MS);
-};
 
 const handleProjectEvent = () => {
   void invalidateAllProjects();
@@ -143,6 +123,30 @@ export const useRealtimeUpdates = () => {
     const guildId = routeGuildId;
 
     let isActive = true;
+
+    // Effect-scoped debounce: a burst of task events costs one refetch per
+    // window, and unmount/guild-switch clears the timer with the socket.
+    const pendingTaskProjectIds = new Set<number>();
+    let taskEventTimer: number | null = null;
+
+    const handleTaskEvent = (data?: Record<string, unknown>) => {
+      const projectId = data?.project_id;
+      if (typeof projectId === "number") {
+        pendingTaskProjectIds.add(projectId);
+      }
+      if (taskEventTimer !== null) {
+        return;
+      }
+      taskEventTimer = window.setTimeout(() => {
+        taskEventTimer = null;
+        const projectIds = [...pendingTaskProjectIds];
+        pendingTaskProjectIds.clear();
+        void invalidateAllTasks();
+        for (const id of projectIds) {
+          void invalidateProject(id);
+        }
+      }, TASK_EVENT_DEBOUNCE_MS);
+    };
 
     const scheduleReconnect = (delayMs = 2000) => {
       if (!isActive || reconnectTimerRef.current !== null) {
@@ -232,6 +236,10 @@ export const useRealtimeUpdates = () => {
 
     return () => {
       isActive = false;
+      if (taskEventTimer !== null) {
+        window.clearTimeout(taskEventTimer);
+        taskEventTimer = null;
+      }
       if (reconnectTimerRef.current) {
         window.clearTimeout(reconnectTimerRef.current);
         reconnectTimerRef.current = null;
