@@ -49,7 +49,7 @@ export const QueueCard = ({ queue, initiativeName, className }: QueueCardProps) 
           {queue.tags.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {queue.tags.slice(0, 3).map((tag) => (
-                <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} />
+                <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} nested />
               ))}
               {queue.tags.length > 3 && (
                 <span className="text-muted-foreground text-xs">+{queue.tags.length - 3}</span>

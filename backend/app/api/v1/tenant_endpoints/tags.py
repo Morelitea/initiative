@@ -39,6 +39,11 @@ from app.schemas.tenant.tag import (
     TaggedDocumentSummary,
 )
 
+# The tag dictionary is a guild-wide folksonomy BY DESIGN: every guild member
+# (initiative membership not required) may list, create, rename, recolor, and
+# trash tags, so the only gate here is guild membership. Hard purge alone is
+# admin-gated (the RESTRICTIVE RLS policy on ``tags``). Pinned by
+# ``test_any_guild_member_can_manage_the_tag_dictionary``.
 router = APIRouter()
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]

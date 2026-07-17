@@ -30,6 +30,45 @@ async def _task_tag_ids(session, guild_id: int, task_id: int) -> set[int]:
 
 
 # ---------------------------------------------------------------------------
+# Tag dictionary permissions (deliberate product decision)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+async def test_any_guild_member_can_manage_the_tag_dictionary(
+    client: AsyncClient, acting_user
+):
+    """Product decision: the tag dictionary is a guild-wide folksonomy.
+
+    EVERY guild member — even one in no initiative — can create, rename,
+    recolor, and trash tags; only hard purge is admin-gated (the RESTRICTIVE
+    RLS policy). This test pins the decision so the openness reads as
+    intentional, not as a missing gate.
+    """
+    admin = await acting_user(guild_role=GuildRole.admin)
+    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+
+    created = await client.post(
+        member.g("/tags/"),
+        headers=member.headers,
+        json={"name": "Folk Tag", "color": "#112233"},
+    )
+    assert created.status_code == 201
+    tag_id = created.json()["id"]
+
+    renamed = await client.patch(
+        member.g(f"/tags/{tag_id}"),
+        headers=member.headers,
+        json={"name": "Folk Tag Renamed", "color": "#445566"},
+    )
+    assert renamed.status_code == 200
+    assert renamed.json()["name"] == "Folk Tag Renamed"
+
+    trashed = await client.delete(member.g(f"/tags/{tag_id}"), headers=member.headers)
+    assert trashed.status_code == 204
+
+
+# ---------------------------------------------------------------------------
 # Single-entity set-tags (shared service path)
 # ---------------------------------------------------------------------------
 

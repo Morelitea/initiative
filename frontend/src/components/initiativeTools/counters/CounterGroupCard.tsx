@@ -43,7 +43,7 @@ export const CounterGroupCard = ({ group, initiativeName, className }: CounterGr
           {group.tags.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {group.tags.slice(0, 3).map((tag) => (
-                <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} />
+                <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} nested />
               ))}
               {group.tags.length > 3 && (
                 <span className="text-muted-foreground text-xs">+{group.tags.length - 3}</span>
