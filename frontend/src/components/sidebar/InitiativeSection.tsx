@@ -165,8 +165,10 @@ export const InitiativeSection = memo(
                 </TooltipContent>
               </Tooltip>
 
-              {/* Mobile: Show three-dot menu */}
-              <DropdownMenu>
+              {/* Mobile: Show three-dot menu. modal={false}: a modal dropdown
+                  nested in the non-modal mobile sidebar drawer dismisses the
+                  drawer on open (matches the user-footer dropdown). */}
+              <DropdownMenu modal={false}>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
@@ -282,8 +284,11 @@ export const InitiativeSection = memo(
                             </TooltipContent>
                           </Tooltip>
 
-                          {/* Mobile: Show three-dot menu */}
-                          <DropdownMenu>
+                          {/* Mobile: Show three-dot menu. modal={false}: a modal
+                              dropdown nested in the non-modal mobile sidebar
+                              drawer dismisses the drawer on open (matches the
+                              user-footer dropdown). */}
+                          <DropdownMenu modal={false}>
                             <DropdownMenuTrigger asChild>
                               <Button
                                 variant="ghost"

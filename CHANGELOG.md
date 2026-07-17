@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - The sidebar "Edit tag" dialog is no longer visually broken — the name field now fills the row and the color picker sits beside it, instead of the color picker taking the full width and collapsing the name field to a sliver.
+- On mobile, opening the three-dot menu next to an initiative or project in the sidebar no longer dismisses the sidebar drawer.
 - Removed redundant spacing between icons and labels across buttons throughout the app; the button's built-in gap now handles it consistently.
 
 ## [0.57.0] - 2026-07-16
