@@ -60,6 +60,5 @@
   "updateError": "Tag kann nicht aktualisiert werden.",
   "deleteError": "Tag kann nicht gelöscht werden.",
   "taskTagsError": "Aufgaben-Tags können nicht aktualisiert werden.",
-  "projectTagsError": "Projekt-Tags können nicht aktualisiert werden.",
-  "documentTagsError": "Dokument-Tags können nicht aktualisiert werden."
+  "toolTagsError": "Tags können nicht aktualisiert werden."
 }

@@ -78,7 +78,6 @@ from app.schemas.tenant.document import (
 from app.schemas.tenant.project_export import (
     ProjectExportEnvelope,
 )
-from app.schemas.tenant.tag import TagSetRequest
 from app.services.tenant import project_export as project_export_service
 from app.services.tenant import recent_views as recent_views_service
 from app.schemas.tenant.recent_view import RecentViewWrite
@@ -1757,45 +1756,6 @@ async def delete_project(
     )
     await session.commit()
     await _broadcast_project(project, "deleted")
-
-
-@router.put("/{project_id}/tags", response_model=ProjectRead)
-async def set_project_tags(
-    project_id: int,
-    tags_in: TagSetRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> ProjectRead:
-    """Set tags on a project. Replaces all existing tags with the provided list."""
-    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
-    await _require_project_membership(project, current_user, session, access="write")
-
-    await tags_service.set_entity_tags(
-        session,
-        tags_service.TOOL_TAG_LINKS[Tool.project],
-        guild_id=guild_context.guild_id,
-        entity_id=project_id,
-        tag_ids=tags_in.tag_ids,
-    )
-
-    # Update timestamp directly via SQL to avoid issues with deleted relationship objects
-    update_stmt = select(Project).where(Project.id == project_id)
-    result = await session.exec(update_stmt)
-    proj = result.one()
-    proj.updated_at = datetime.now(timezone.utc)
-    await session.commit()
-
-    # Refetch with all relationships
-    updated = await _get_project_or_404(
-        project_id, session, guild_context.guild_id, populate_existing=True
-    )
-    await _attach_task_summaries(session, [updated])
-    return await _project_read_for_user(
-        session,
-        current_user,
-        updated,
-    )
 
 
 @router.put("/{project_id}/grants", response_model=ProjectRead)

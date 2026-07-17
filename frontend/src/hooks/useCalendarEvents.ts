@@ -12,7 +12,6 @@ import {
   setAttendeesApiV1GGuildIdCalendarEventsEventIdAttendeesPut,
   setCalendarEventGrantsApiV1GGuildIdCalendarEventsEventIdGrantsPut,
   setDocumentsApiV1GGuildIdCalendarEventsEventIdDocumentsPut,
-  setTagsApiV1GGuildIdCalendarEventsEventIdTagsPut,
   updateCalendarEventApiV1GGuildIdCalendarEventsEventIdPatch,
   updateRsvpApiV1GGuildIdCalendarEventsEventIdRsvpPatch,
 } from "@/api/generated/calendar-events/calendar-events";
@@ -241,33 +240,6 @@ export const useUpdateEventRSVP = (
         eventId,
         data
       ) as unknown as Promise<CalendarEventRead>;
-    },
-    onSuccess: (...args) => {
-      void invalidateCalendarEvent(eventId);
-      void invalidateAllCalendarEvents();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "calendarEvents:error"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
-
-export const useSetEventTags = (
-  eventId: number,
-  options?: MutationOpts<CalendarEventRead, number[]>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (tagIds: number[]) => {
-      return setTagsApiV1GGuildIdCalendarEventsEventIdTagsPut(guildId, eventId, {
-        tag_ids: tagIds,
-      }) as unknown as Promise<CalendarEventRead>;
     },
     onSuccess: (...args) => {
       void invalidateCalendarEvent(eventId);

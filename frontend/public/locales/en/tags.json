@@ -60,6 +60,5 @@
   "updateError": "Unable to update tag.",
   "deleteError": "Unable to delete tag.",
   "taskTagsError": "Unable to update task tags.",
-  "projectTagsError": "Unable to update project tags.",
-  "documentTagsError": "Unable to update document tags."
+  "toolTagsError": "Unable to update tags."
 }

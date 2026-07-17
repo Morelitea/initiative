@@ -43,7 +43,6 @@ import type {
   PropertyValuesSetRequest,
   RecentViewWrite,
   ResourceGrantSchema,
-  TagSetRequest,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -2203,111 +2202,10 @@ export const useGenerateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPost = <
   );
 };
 /**
- * Set tags on a document. Replaces all existing tags with the provided list.
- * @summary Set Document Tags
- */
-export const setDocumentTagsApiV1GGuildIdDocumentsDocumentIdTagsPut = (
-  guildId: number,
-  documentId: number,
-  tagSetRequest: BodyType<TagSetRequest>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<DocumentRead>(
-    {
-      url: `/api/v1/g/${guildId}/documents/${documentId}/tags`,
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      data: tagSetRequest,
-      signal,
-    },
-    options
-  );
-};
-
-export const getSetDocumentTagsApiV1GGuildIdDocumentsDocumentIdTagsPutMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setDocumentTagsApiV1GGuildIdDocumentsDocumentIdTagsPut>>,
-    TError,
-    { guildId: number; documentId: number; data: BodyType<TagSetRequest> },
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof setDocumentTagsApiV1GGuildIdDocumentsDocumentIdTagsPut>>,
-  TError,
-  { guildId: number; documentId: number; data: BodyType<TagSetRequest> },
-  TContext
-> => {
-  const mutationKey = ["setDocumentTagsApiV1GGuildIdDocumentsDocumentIdTagsPut"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setDocumentTagsApiV1GGuildIdDocumentsDocumentIdTagsPut>>,
-    { guildId: number; documentId: number; data: BodyType<TagSetRequest> }
-  > = (props) => {
-    const { guildId, documentId, data } = props ?? {};
-
-    return setDocumentTagsApiV1GGuildIdDocumentsDocumentIdTagsPut(
-      guildId,
-      documentId,
-      data,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type SetDocumentTagsApiV1GGuildIdDocumentsDocumentIdTagsPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setDocumentTagsApiV1GGuildIdDocumentsDocumentIdTagsPut>>
->;
-export type SetDocumentTagsApiV1GGuildIdDocumentsDocumentIdTagsPutMutationBody =
-  BodyType<TagSetRequest>;
-export type SetDocumentTagsApiV1GGuildIdDocumentsDocumentIdTagsPutMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Set Document Tags
- */
-export const useSetDocumentTagsApiV1GGuildIdDocumentsDocumentIdTagsPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setDocumentTagsApiV1GGuildIdDocumentsDocumentIdTagsPut>>,
-      TError,
-      { guildId: number; documentId: number; data: BodyType<TagSetRequest> },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof setDocumentTagsApiV1GGuildIdDocumentsDocumentIdTagsPut>>,
-  TError,
-  { guildId: number; documentId: number; data: BodyType<TagSetRequest> },
-  TContext
-> => {
-  return useMutation(
-    getSetDocumentTagsApiV1GGuildIdDocumentsDocumentIdTagsPutMutationOptions(options),
-    queryClient
-  );
-};
-/**
  * Replace the custom property values on a document.
  *
- * Requires document write access (same gate as PUT /tags). Values are
- * validated server-side against each property definition's type and
- * options.
+ * Requires document write access. Values are validated server-side against
+ * each property definition's type and options.
  * @summary Set Document Properties
  */
 export const setDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPut = (

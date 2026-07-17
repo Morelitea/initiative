@@ -35,7 +35,6 @@ import type {
   ProjectUpdate,
   RecentViewWrite,
   ResourceGrantSchema,
-  TagSetRequest,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -2154,106 +2153,6 @@ export const useReorderProjectsApiV1GGuildIdProjectsReorderPost = <
 > => {
   return useMutation(
     getReorderProjectsApiV1GGuildIdProjectsReorderPostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Set tags on a project. Replaces all existing tags with the provided list.
- * @summary Set Project Tags
- */
-export const setProjectTagsApiV1GGuildIdProjectsProjectIdTagsPut = (
-  guildId: number,
-  projectId: number,
-  tagSetRequest: BodyType<TagSetRequest>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<ProjectRead>(
-    {
-      url: `/api/v1/g/${guildId}/projects/${projectId}/tags`,
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      data: tagSetRequest,
-      signal,
-    },
-    options
-  );
-};
-
-export const getSetProjectTagsApiV1GGuildIdProjectsProjectIdTagsPutMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setProjectTagsApiV1GGuildIdProjectsProjectIdTagsPut>>,
-    TError,
-    { guildId: number; projectId: number; data: BodyType<TagSetRequest> },
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof setProjectTagsApiV1GGuildIdProjectsProjectIdTagsPut>>,
-  TError,
-  { guildId: number; projectId: number; data: BodyType<TagSetRequest> },
-  TContext
-> => {
-  const mutationKey = ["setProjectTagsApiV1GGuildIdProjectsProjectIdTagsPut"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setProjectTagsApiV1GGuildIdProjectsProjectIdTagsPut>>,
-    { guildId: number; projectId: number; data: BodyType<TagSetRequest> }
-  > = (props) => {
-    const { guildId, projectId, data } = props ?? {};
-
-    return setProjectTagsApiV1GGuildIdProjectsProjectIdTagsPut(
-      guildId,
-      projectId,
-      data,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type SetProjectTagsApiV1GGuildIdProjectsProjectIdTagsPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setProjectTagsApiV1GGuildIdProjectsProjectIdTagsPut>>
->;
-export type SetProjectTagsApiV1GGuildIdProjectsProjectIdTagsPutMutationBody =
-  BodyType<TagSetRequest>;
-export type SetProjectTagsApiV1GGuildIdProjectsProjectIdTagsPutMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Set Project Tags
- */
-export const useSetProjectTagsApiV1GGuildIdProjectsProjectIdTagsPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setProjectTagsApiV1GGuildIdProjectsProjectIdTagsPut>>,
-      TError,
-      { guildId: number; projectId: number; data: BodyType<TagSetRequest> },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof setProjectTagsApiV1GGuildIdProjectsProjectIdTagsPut>>,
-  TError,
-  { guildId: number; projectId: number; data: BodyType<TagSetRequest> },
-  TContext
-> => {
-  return useMutation(
-    getSetProjectTagsApiV1GGuildIdProjectsProjectIdTagsPutMutationOptions(options),
     queryClient
   );
 };
