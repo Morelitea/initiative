@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { AuthProvidersSection } from "@/components/admin/AuthProvidersSection";
 import { OidcClaimMappingsSection } from "@/components/admin/OidcClaimMappingsSection";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -244,6 +245,7 @@ export const SettingsAuthPage = () => {
           </div>
         </CardFooter>
       </Card>
+      <AuthProvidersSection />
       <OidcClaimMappingsSection />
     </div>
   );

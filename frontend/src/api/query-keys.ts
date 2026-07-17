@@ -216,6 +216,9 @@ export const invalidateEmailSettings = () => invalidatePersonalExact([`/api/v1/s
 
 export const invalidateAuthSettings = () => invalidatePersonalExact([`/api/v1/settings/auth`]);
 
+export const invalidateAuthProviders = () =>
+  invalidatePersonalExact([`/api/v1/settings/auth/providers/`]);
+
 export const invalidateStorageSettings = () =>
   invalidatePersonalExact([`/api/v1/settings/storage`]);
 
