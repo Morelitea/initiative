@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Startup no longer fails with `permission denied for table guilds` (or, before 0.55, `new row violates row-level security policy for table "guilds"`) on installs that still have `PREVIOUS_SECRET_KEY` set. The boot-time secret-key sweep left an assumed per-guild database role on a pooled connection after committing, which blinded the startup seeding that ran next — it saw no guilds, tried to re-create the default one, and crashed the boot. The role is now transaction-scoped in the rotation sweep, the S3 upload backfill, and the local-upload relocation walk, so it can never outlive the work it was assumed for.
 - Bulk tag edits could partially apply and error when the selection was edited from a stale view (for example after another member deleted a tag); the resulting event storm could also degrade the whole server.
 - The tag list shown on tasks, projects, and documents right after saving tags now always reflects the save (it could briefly show the previous tags).
 - Duplicating or cloning tasks, projects, and documents no longer carries over links to tags sitting in the trash.

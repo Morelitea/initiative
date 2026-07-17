@@ -220,9 +220,11 @@ async def backfill_uploads_to_s3(
                 if not guild_dir.is_dir():
                     continue
                 # Assume the guild's own role for the schema read (the system
-                # login holds no standing guild-schema access).
+                # login holds no standing guild-schema access). Transaction-local:
+                # the role dies with this connection's transaction instead of
+                # riding the pooled connection into later checkouts.
                 await conn.execute(
-                    text("SELECT set_config('role', :r, false)"),
+                    text("SELECT set_config('role', :r, true)"),
                     {"r": guild_role_name(gid)},
                 )
                 meta = await _guild_upload_meta(conn, guild_schema_name(gid))
@@ -242,8 +244,11 @@ async def backfill_uploads_to_s3(
                 if on_progress is not None:
                     await on_progress(summary)
         finally:
-            # Shed the last guild role, then release the lock (same session).
-            await conn.execute(text("SELECT set_config('role', 'none', false)"))
+            # Roll back first: it clears the transaction-local guild role AND
+            # any aborted-transaction state, so the unlock below always runs
+            # (a failed statement would otherwise fault it). The advisory lock
+            # is session-scoped and survives the rollback.
+            await conn.rollback()
             await conn.execute(
                 text("SELECT pg_advisory_unlock(:k)"), {"k": _BACKFILL_LOCK_KEY}
             )
