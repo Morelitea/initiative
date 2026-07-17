@@ -78,11 +78,16 @@ async def set_tool_tags(
 
     if not tag_ids:
         return []
+    # Re-read under the session-wide soft-delete filter. A tag trashed by a
+    # concurrent request between the write above and this read is filtered out
+    # here — skip it rather than KeyError (mirrors tag_summaries dropping links
+    # whose tag is gone), so the race returns a clean list, never a 500.
     tags_by_id = {
         tag.id: tag
         for tag in (await session.exec(select(Tag).where(Tag.id.in_(tag_ids)))).all()
     }
     return [
         TagSummary(id=tag.id, name=tag.name, color=tag.color)
-        for tag in (tags_by_id[tag_id] for tag_id in tag_ids)
+        for tag_id in tag_ids
+        if (tag := tags_by_id.get(tag_id)) is not None
     ]
