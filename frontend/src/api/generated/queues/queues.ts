@@ -34,6 +34,7 @@ import type {
   QueueUpdate,
   RecentViewWrite,
   ResourceGrantSchema,
+  TagSetRequest,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -634,6 +635,100 @@ export const useDeleteQueueApiV1GGuildIdQueuesQueueIdDelete = <
 > => {
   return useMutation(
     getDeleteQueueApiV1GGuildIdQueuesQueueIdDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Set tags on a queue. Replaces all existing tags. Requires write access.
+ * @summary Set Queue Tags
+ */
+export const setQueueTagsApiV1GGuildIdQueuesQueueIdTagsPut = (
+  guildId: number,
+  queueId: number,
+  tagSetRequest: BodyType<TagSetRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<QueueRead>(
+    {
+      url: `/api/v1/g/${guildId}/queues/${queueId}/tags`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: tagSetRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSetQueueTagsApiV1GGuildIdQueuesQueueIdTagsPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setQueueTagsApiV1GGuildIdQueuesQueueIdTagsPut>>,
+    TError,
+    { guildId: number; queueId: number; data: BodyType<TagSetRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setQueueTagsApiV1GGuildIdQueuesQueueIdTagsPut>>,
+  TError,
+  { guildId: number; queueId: number; data: BodyType<TagSetRequest> },
+  TContext
+> => {
+  const mutationKey = ["setQueueTagsApiV1GGuildIdQueuesQueueIdTagsPut"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setQueueTagsApiV1GGuildIdQueuesQueueIdTagsPut>>,
+    { guildId: number; queueId: number; data: BodyType<TagSetRequest> }
+  > = (props) => {
+    const { guildId, queueId, data } = props ?? {};
+
+    return setQueueTagsApiV1GGuildIdQueuesQueueIdTagsPut(guildId, queueId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetQueueTagsApiV1GGuildIdQueuesQueueIdTagsPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setQueueTagsApiV1GGuildIdQueuesQueueIdTagsPut>>
+>;
+export type SetQueueTagsApiV1GGuildIdQueuesQueueIdTagsPutMutationBody = BodyType<TagSetRequest>;
+export type SetQueueTagsApiV1GGuildIdQueuesQueueIdTagsPutMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Set Queue Tags
+ */
+export const useSetQueueTagsApiV1GGuildIdQueuesQueueIdTagsPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof setQueueTagsApiV1GGuildIdQueuesQueueIdTagsPut>>,
+      TError,
+      { guildId: number; queueId: number; data: BodyType<TagSetRequest> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof setQueueTagsApiV1GGuildIdQueuesQueueIdTagsPut>>,
+  TError,
+  { guildId: number; queueId: number; data: BodyType<TagSetRequest> },
+  TContext
+> => {
+  return useMutation(
+    getSetQueueTagsApiV1GGuildIdQueuesQueueIdTagsPutMutationOptions(options),
     queryClient
   );
 };
@@ -1767,7 +1862,7 @@ export const setQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPut = (
   guildId: number,
   queueId: number,
   itemId: number,
-  setQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPutBody: BodyType<number[]>,
+  tagSetRequest: BodyType<TagSetRequest>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -1776,7 +1871,7 @@ export const setQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPut = (
       url: `/api/v1/g/${guildId}/queues/${queueId}/items/${itemId}/tags`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      data: setQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPutBody,
+      data: tagSetRequest,
       signal,
     },
     options
@@ -1790,14 +1885,14 @@ export const getSetQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPutMuta
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof setQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPut>>,
     TError,
-    { guildId: number; queueId: number; itemId: number; data: BodyType<number[]> },
+    { guildId: number; queueId: number; itemId: number; data: BodyType<TagSetRequest> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof setQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPut>>,
   TError,
-  { guildId: number; queueId: number; itemId: number; data: BodyType<number[]> },
+  { guildId: number; queueId: number; itemId: number; data: BodyType<TagSetRequest> },
   TContext
 > => {
   const mutationKey = ["setQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPut"];
@@ -1809,7 +1904,7 @@ export const getSetQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPutMuta
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof setQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPut>>,
-    { guildId: number; queueId: number; itemId: number; data: BodyType<number[]> }
+    { guildId: number; queueId: number; itemId: number; data: BodyType<TagSetRequest> }
   > = (props) => {
     const { guildId, queueId, itemId, data } = props ?? {};
 
@@ -1829,9 +1924,8 @@ export type SetQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPutMutation
   NonNullable<
     Awaited<ReturnType<typeof setQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPut>>
   >;
-export type SetQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPutMutationBody = BodyType<
-  number[]
->;
+export type SetQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPutMutationBody =
+  BodyType<TagSetRequest>;
 export type SetQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPutMutationError =
   ErrorType<HTTPValidationError>;
 
@@ -1846,7 +1940,7 @@ export const useSetQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPut = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof setQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPut>>,
       TError,
-      { guildId: number; queueId: number; itemId: number; data: BodyType<number[]> },
+      { guildId: number; queueId: number; itemId: number; data: BodyType<TagSetRequest> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1855,7 +1949,7 @@ export const useSetQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPut = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof setQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPut>>,
   TError,
-  { guildId: number; queueId: number; itemId: number; data: BodyType<number[]> },
+  { guildId: number; queueId: number; itemId: number; data: BodyType<TagSetRequest> },
   TContext
 > => {
   return useMutation(

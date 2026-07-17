@@ -103,7 +103,6 @@
   "TASK_STATUS_NOT_FOUND_FOR_PROJECT": "Estado de tarea no encontrado para este proyecto",
   "TASK_ASSIGNEES_NOT_FOUND": "Uno o más asignados no encontrados",
   "TASK_INVALID_ASSIGNEE_ID": "ID de asignado no válido",
-  "TASK_TAGS_NOT_FOUND": "Una o más etiquetas no encontradas",
   "TASK_DUPLICATE_NOT_FOUND": "Tarea duplicada no encontrada",
   "SUBTASK_NOT_FOUND": "Subtarea no encontrada",
   "SUBTASK_NOT_FOUND_FOR_TASK": "Subtarea no encontrada para esta tarea",
@@ -150,7 +149,6 @@
   "DOCUMENT_SMART_LINK_URL_REQUIRED": "Se requiere una URL para los documentos de enlace inteligente",
   "DOCUMENT_SMART_LINK_URL_INVALID": "Las URL de enlace inteligente deben comenzar con http:// o https://",
   "DOCUMENT_SPREADSHEET_INVALID_PAYLOAD": "El contenido de la hoja de cálculo no es válido o tiene un formato no compatible.",
-  "DOCUMENT_INVALID_TAG_IDS": "Uno o más IDs de etiqueta no son válidos",
   "DOCUMENT_NOT_A_FILE_DOCUMENT": "Solo los documentos de archivo subidos admiten versiones",
   "DOCUMENT_VERSION_NOT_FOUND": "Versión no encontrada",
   "DOCUMENT_CANNOT_DELETE_LAST_VERSION": "No se puede eliminar la única versión; elimina el documento en su lugar",
@@ -236,7 +234,6 @@
   "QUEUE_NO_ITEMS": "La cola no tiene elementos",
   "QUEUE_NO_CURRENT_ITEM": "No hay turno actual para retener",
   "QUEUE_ITEM_NOT_HELD": "Este elemento no está retenido",
-  "QUEUE_INVALID_TAG_IDS": "Uno o más IDs de etiqueta no son válidos",
   "QUEUES_NOT_ENABLED": "Las colas no están habilitadas para esta iniciativa",
   "NOTIFICATION_NOT_FOUND": "Notificación no encontrada",
   "QUERY_INVALID_CONDITIONS": "Condiciones de filtro no válidas",
@@ -326,5 +323,6 @@
   "IMPORT_ADMIN_REQUIRED": "Solo los administradores del gremio pueden importar una copia de seguridad.",
   "IMPORT_NOT_CONFIRMABLE": "Esta importación no se puede confirmar; puede haber caducado o ya haber comenzado.",
   "IMPORT_ZIP_INVALID": "Este archivo no es una copia de seguridad válida de Initiative.",
-  "IMPORT_QUOTA_EXCEEDED": "Los archivos de la copia de seguridad no caben en el almacenamiento de este gremio."
+  "IMPORT_QUOTA_EXCEEDED": "Los archivos de la copia de seguridad no caben en el almacenamiento de este gremio.",
+  "INVALID_TAG_IDS": "Una o más etiquetas ya no existen"
 }

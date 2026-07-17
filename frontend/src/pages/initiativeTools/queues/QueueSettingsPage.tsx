@@ -3,7 +3,9 @@ import { Loader2, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
 import { ShareControl } from "@/components/access/ShareControl";
+import { TagPicker } from "@/components/tags";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -20,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useDeleteQueue, useQueue, useSetQueueGrants, useUpdateQueue } from "@/hooks/useQueues";
+import { useSetQueueTags } from "@/hooks/useToolTags";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
 
@@ -41,16 +44,20 @@ export const QueueSettingsPage = () => {
 
   const [nameValue, setNameValue] = useState("");
   const [descriptionValue, setDescriptionValue] = useState("");
+  const [tags, setTags] = useState<TagSummary[]>([]);
 
   useEffect(() => {
     if (!queue) return;
     setNameValue(queue.name);
     setDescriptionValue(queue.description ?? "");
+    setTags(queue.tags ?? []);
   }, [queue]);
 
   const updateQueue = useUpdateQueue(parsedId, {
     onSuccess: () => toast.success(t("detailsUpdated")),
   });
+
+  const setQueueTags = useSetQueueTags();
 
   const handleDetailsSave = () => {
     const trimmedName = nameValue.trim();
@@ -167,6 +174,29 @@ export const QueueSettingsPage = () => {
                 >
                   {updateQueue.isPending ? t("saving") : t("common:save")}
                 </Button>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("tags")}</CardTitle>
+              <CardDescription>{t("tagsDescription")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {canManage ? (
+                <TagPicker
+                  selectedTags={tags}
+                  onChange={(newTags) => {
+                    setTags(newTags);
+                    setQueueTags.mutate({
+                      queueId: parsedId,
+                      tagIds: newTags.map((tag) => tag.id),
+                    });
+                  }}
+                />
+              ) : (
+                <p className="text-muted-foreground text-sm">{t("noWriteAccessTags")}</p>
               )}
             </CardContent>
           </Card>

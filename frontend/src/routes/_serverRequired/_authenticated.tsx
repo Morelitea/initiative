@@ -30,7 +30,6 @@ import { VersionDialog } from "@/components/VersionDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useBackButton } from "@/hooks/useBackButton";
 import { useGuilds } from "@/hooks/useGuilds";
-import { useLegacyFilterStorageMigration } from "@/hooks/useLegacyFilterStorageMigration";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
 import {
@@ -99,7 +98,6 @@ function AppLayout() {
   useRealtimeUpdates();
   usePushNotifications();
   useBackButton();
-  useLegacyFilterStorageMigration();
 
   // No cross-tab guild convergence: each tab keeps the guild from its own URL,
   // so two tabs can sit in two different guilds at once.

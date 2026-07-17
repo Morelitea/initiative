@@ -359,6 +359,15 @@ export interface AdvancedToolHandoffResponse {
   initiative_id?: number | null;
 }
 
+/**
+ * Lightweight tag representation for embedding in other schemas.
+ */
+export interface TagSummary {
+  id: number;
+  name: string;
+  color: string;
+}
+
 export type AdvancedToolReadData = { [key: string]: unknown };
 
 export interface AdvancedToolRead {
@@ -375,6 +384,7 @@ export interface AdvancedToolRead {
   my_permission_level: string | null;
   created_at: string;
   updated_at: string;
+  tags: TagSummary[];
   grants: ResourceGrantSchema[];
 }
 
@@ -711,15 +721,6 @@ export interface PropertySummary {
   value: unknown;
 }
 
-/**
- * Lightweight tag representation for embedding in other schemas.
- */
-export interface TagSummary {
-  id: number;
-  name: string;
-  color: string;
-}
-
 export interface CalendarEventSummary {
   /**
    * @minLength 1
@@ -888,6 +889,7 @@ export interface CounterGroupSummary {
   created_by_id: number;
   counter_count: number;
   my_permission_level: string | null;
+  tags: TagSummary[];
   created_at: string;
   updated_at: string;
   grants: ResourceGrantSchema[];
@@ -937,6 +939,7 @@ export interface CounterGroupRead {
   created_by_id: number;
   counter_count: number;
   my_permission_level: string | null;
+  tags: TagSummary[];
   created_at: string;
   updated_at: string;
   grants: ResourceGrantSchema[];
@@ -2351,6 +2354,7 @@ export interface QueueSummary {
   created_at: string;
   updated_at: string;
   my_permission_level: string | null;
+  tags: TagSummary[];
   grants: ResourceGrantSchema[];
 }
 
@@ -2379,6 +2383,7 @@ export interface QueueRead {
   created_at: string;
   updated_at: string;
   my_permission_level: string | null;
+  tags: TagSummary[];
   grants: ResourceGrantSchema[];
   items: QueueItemRead[];
   current_item: QueueItemRead | null;
@@ -2643,6 +2648,42 @@ export interface SubtaskUpdate {
   is_completed?: boolean | null;
 }
 
+/**
+ * Entity types a bulk tag edit can address.
+ */
+export type TagTarget = (typeof TagTarget)[keyof typeof TagTarget];
+
+export const TagTarget = {
+  project: "project",
+  document: "document",
+  queue: "queue",
+  counter_group: "counter_group",
+  calendar_event: "calendar_event",
+  advanced_tool: "advanced_tool",
+  task: "task",
+  queue_item: "queue_item",
+} as const;
+
+/**
+ * Add and/or remove tags across many entities of one type, atomically.
+ */
+export interface TagBulkEditRequest {
+  target_type: TagTarget;
+  /**
+   * @minItems 1
+   * @maxItems 500
+   */
+  target_ids: number[];
+  /** @maxItems 100 */
+  add_tag_ids?: number[];
+  /** @maxItems 100 */
+  remove_tag_ids?: number[];
+}
+
+export interface TagBulkEditResponse {
+  updated_count: number;
+}
+
 export interface TagCreate {
   /**
    * @minLength 1
@@ -2671,6 +2712,7 @@ export interface TagRead {
  * Request body for setting tags on an entity.
  */
 export interface TagSetRequest {
+  /** @maxItems 100 */
   tag_ids?: number[];
 }
 

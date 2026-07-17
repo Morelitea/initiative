@@ -9,10 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Tags on every tool: queues, counter groups, and advanced tools can now be tagged, joining projects, documents, calendar events, tasks, and queue items. Each tool's settings flow gained a tag picker, its lists show tag chips, and tag support is now wired automatically for any future tool (drift-tested against the tool registry).
+- Bulk tag edit is a single atomic operation: one request adds/removes tags across the whole selection server-side. A failure (for example a tag someone else just deleted) changes nothing — no more half-applied batches — and a bulk edit no longer floods other viewers with one refresh per item.
 - Backup restore: a whole initiative or guild backup zip can be imported by a guild admin. Upload shows a pre-flight plan (source guild, per-initiative content counts, file payload size) before anything is applied; confirming restores each backed-up initiative as a NEW initiative (renamed on collision, tool switches from the backup, the importer becomes its manager), with uploaded files restored into guild storage (deduplicated and quota-checked) and every entry applied through the same importers as single-file imports — a corrupt entry fails alone and is reported, never the whole restore. Unconfirmed uploads expire after 24 hours.
 - Data import: every exported JSON envelope — projects, documents (text, spreadsheet, whiteboard, link), queues, counter groups, and calendar events — can now be imported into an initiative of your choice. Tags and custom properties match by name (or are created), people resolve by email against the target initiative's members with unmatched ones reported, and the importer becomes the owner of everything created. Small files import instantly; large ones run as a background job with an inbox notification when done. Requires the tool's create permission in the target initiative; 0.56.x-era exports (the old `kind` spelling) import unchanged.
 - Import surfaces: each tool's list page (documents, projects, queues, counter groups, calendar) gained an "Import from file" action — an overflow menu on the header and a button in the empty state — for importing that tool's JSON export. The backup import runs through a wizard in guild settings: pick a zip and it's previewed locally (nothing uploaded until you continue), then uploaded, planned, and confirmed.
 - Guild settings **Data** tab: the former Export tab now hosts both directions — export and import — plus one activity table showing recent export and import jobs together, with re-download for finished exports and a report view for finished imports. The old `/settings/export` URL redirects here.
+
+### Fixed
+
+- Bulk tag edits could partially apply and error when the selection was edited from a stale view (for example after another member deleted a tag); the resulting event storm could also degrade the whole server.
+- The tag list shown on tasks, projects, and documents right after saving tags now always reflects the save (it could briefly show the previous tags).
+- Duplicating or cloning tasks, projects, and documents no longer carries over links to tags sitting in the trash.
+- The documents "untagged" filter and count now treat a document whose only tags are trashed as untagged.
+- Renaming or recoloring a tag now refreshes its chips everywhere immediately; deleting a tag refreshes all tools' lists, not just tasks.
+- Imports now match existing tags case-insensitively, matching the duplicate rule the tag editor enforces.
 
 ### Changed
 

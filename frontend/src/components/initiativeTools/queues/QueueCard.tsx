@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import type { QueueSummary } from "@/api/generated/initiativeAPI.schemas";
+import { TagBadge } from "@/components/tags/TagBadge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -37,7 +38,7 @@ export const QueueCard = ({ queue, initiativeName, className }: QueueCardProps) 
             <p className="line-clamp-2 text-muted-foreground text-sm">{queue.description}</p>
           )}
         </CardHeader>
-        <CardContent className="pt-0">
+        <CardContent className="space-y-2 pt-0">
           <div className="flex items-center gap-3 text-muted-foreground text-sm">
             {initiativeName && <span className="truncate">{initiativeName}</span>}
             <Badge variant="outline">{t("itemCount", { count: queue.item_count })}</Badge>
@@ -45,6 +46,16 @@ export const QueueCard = ({ queue, initiativeName, className }: QueueCardProps) 
               <span className="text-xs">{t("roundN", { count: queue.current_round })}</span>
             )}
           </div>
+          {queue.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {queue.tags.slice(0, 3).map((tag) => (
+                <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} />
+              ))}
+              {queue.tags.length > 3 && (
+                <span className="text-muted-foreground text-xs">+{queue.tags.length - 3}</span>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
     </Link>

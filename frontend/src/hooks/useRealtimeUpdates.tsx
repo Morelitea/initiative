@@ -62,12 +62,30 @@ const sendAuthMessage = (websocket: WebSocket, token: string | null) => {
   websocket.send(message);
 };
 
+// Bursts of task events (an import, another user's bulk operation) coalesce
+// into one refetch per window instead of one per event — the signal is
+// content-free, so collapsing duplicates loses nothing.
+const TASK_EVENT_DEBOUNCE_MS = 300;
+const pendingTaskProjectIds = new Set<number>();
+let taskEventTimer: number | null = null;
+
 const handleTaskEvent = (data?: Record<string, unknown>) => {
-  void invalidateAllTasks();
   const projectId = data?.project_id;
   if (typeof projectId === "number") {
-    void invalidateProject(projectId);
+    pendingTaskProjectIds.add(projectId);
   }
+  if (taskEventTimer !== null) {
+    return;
+  }
+  taskEventTimer = window.setTimeout(() => {
+    taskEventTimer = null;
+    const projectIds = [...pendingTaskProjectIds];
+    pendingTaskProjectIds.clear();
+    void invalidateAllTasks();
+    for (const id of projectIds) {
+      void invalidateProject(id);
+    }
+  }, TASK_EVENT_DEBOUNCE_MS);
 };
 
 const handleProjectEvent = () => {

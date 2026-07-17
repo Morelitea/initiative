@@ -109,5 +109,8 @@
     "filterByInitiative": "Iniciativa",
     "allInitiatives": "Todas las iniciativas",
     "noMatchingGroups": "Ningún grupo de contadores coincide con tus filtros."
-  }
+  },
+  "tags": "Etiquetas",
+  "tagsDescription": "Agrega etiquetas para organizar y filtrar grupos de contadores.",
+  "noWriteAccessTags": "Necesitas acceso de escritura para administrar etiquetas."
 }

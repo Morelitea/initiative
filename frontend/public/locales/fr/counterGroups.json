@@ -109,5 +109,8 @@
     "filterByInitiative": "Initiative",
     "allInitiatives": "Toutes les initiatives",
     "noMatchingGroups": "Aucun groupe de compteurs ne correspond à vos filtres."
-  }
+  },
+  "tags": "Étiquettes",
+  "tagsDescription": "Ajoutez des étiquettes pour organiser et filtrer les groupes de compteurs.",
+  "noWriteAccessTags": "Vous avez besoin d'un accès en écriture pour gérer les étiquettes."
 }

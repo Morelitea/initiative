@@ -265,11 +265,9 @@ export const useSetEventTags = (
   return useMutation({
     ...rest,
     mutationFn: async (tagIds: number[]) => {
-      return setTagsApiV1GGuildIdCalendarEventsEventIdTagsPut(
-        guildId,
-        eventId,
-        tagIds
-      ) as unknown as Promise<CalendarEventRead>;
+      return setTagsApiV1GGuildIdCalendarEventsEventIdTagsPut(guildId, eventId, {
+        tag_ids: tagIds,
+      }) as unknown as Promise<CalendarEventRead>;
     },
     onSuccess: (...args) => {
       void invalidateCalendarEvent(eventId);

@@ -779,7 +779,9 @@ export const useSetQueueItemTags = (
         guildId,
         queueId,
         itemId,
-        tagIds
+        {
+          tag_ids: tagIds,
+        }
       ) as unknown as Promise<QueueItemRead>;
     },
     onSuccess: (...args) => {
