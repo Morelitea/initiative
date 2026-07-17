@@ -312,7 +312,7 @@ export function QueueDetailPage() {
             <QueueViewToggle view={view} onChange={setView} />
             {canEdit && (
               <Button variant="outline" size="sm" onClick={() => setAddItemOpen(true)}>
-                <Plus className="mr-1 h-4 w-4" />
+                <Plus className="h-4 w-4" />
                 {t("addItem")}
               </Button>
             )}
@@ -328,7 +328,7 @@ export function QueueDetailPage() {
             <CardContent>
               {canEdit && (
                 <Button onClick={() => setAddItemOpen(true)}>
-                  <Plus className="mr-1 h-4 w-4" />
+                  <Plus className="h-4 w-4" />
                   {t("addItem")}
                 </Button>
               )}

@@ -216,7 +216,7 @@ export const CreateDocumentWizard = () => {
         {/* Back button */}
         {step !== "select-guild" && (
           <Button variant="ghost" size="sm" className="w-fit" onClick={handleBack}>
-            <ChevronLeft className="mr-1 h-4 w-4" />
+            <ChevronLeft className="h-4 w-4" />
             {t("createWizard.back")}
           </Button>
         )}

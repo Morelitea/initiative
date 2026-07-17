@@ -239,7 +239,7 @@ export const QueueSettingsPage = () => {
                   onClick={() => setDeleteDialogOpen(true)}
                   disabled={!isOwner}
                 >
-                  <Trash2 className="mr-2 h-4 w-4" />
+                  <Trash2 className="h-4 w-4" />
                   {t("deleteQueue")}
                 </Button>
               </CardContent>

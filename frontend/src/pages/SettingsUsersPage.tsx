@@ -422,7 +422,7 @@ export const SettingsUsersPage = () => {
             onClick={exportAllUsersCsv}
             disabled={!usersQuery.data?.length}
           >
-            <Download className="mr-1.5 h-4 w-4" />
+            <Download className="h-4 w-4" />
             {t("users.exportAll")}
           </Button>
         </CardHeader>

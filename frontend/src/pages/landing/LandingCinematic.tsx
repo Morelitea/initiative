@@ -793,7 +793,7 @@ export const LandingCinematic = () => {
                 asChild
               >
                 <Link to="/register">
-                  <Shield className="mr-2 h-5 w-5 transition-transform duration-300 group-hover:rotate-12" />
+                  <Shield className="h-5 w-5 transition-transform duration-300 group-hover:rotate-12" />
                   {t("hero.ctaStart")}
                 </Link>
               </Button>
@@ -1153,7 +1153,7 @@ export const LandingCinematic = () => {
                 >
                   <Link to="/register">
                     {t("cta.button")}
-                    <Sparkles className="ml-2 h-5 w-5 transition-transform duration-300 group-hover:rotate-12" />
+                    <Sparkles className="h-5 w-5 transition-transform duration-300 group-hover:rotate-12" />
                   </Link>
                 </Button>
               </div>

@@ -958,7 +958,7 @@ export const ProjectTasksSection = ({
               <Button variant="ghost" size="sm" className="h-8 px-3">
                 {filtersOpen ? t("tasks.hideFilters") : t("tasks.showFilters")}
                 <ChevronDown
-                  className={`ml-1 h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
+                  className={`h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
                 />
               </Button>
             </CollapsibleTrigger>

@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Multiple sign-in providers: the sign-in page now offers a button for every SSO provider the server has configured, not just one. Operators manage additional OIDC providers in Settings → Authentication — with presets for Google and Microsoft Entra, and a custom option for any OIDC identity provider (Keycloak, Authentik, Zitadel, …) — alongside the existing platform SSO form. Client secrets are write-only: set or replaced, never displayed.
 
+### Changed
+
+- Sidebar rows use their full width: an initiative, project, or tool row's name and count now span the whole row until you hover it, at which point the settings/"+" button slides in and the name shrinks to make room (rather than the button permanently reserving space or overlapping the text). The reveal animation is skipped for users who prefer reduced motion.
+
+### Fixed
+
+- The sidebar "Edit tag" dialog is no longer visually broken — the name field now fills the row and the color picker sits beside it, instead of the color picker taking the full width and collapsing the name field to a sliver.
+- On mobile, opening the three-dot menu next to an initiative or project in the sidebar no longer dismisses the sidebar drawer.
+- Removed redundant spacing between icons and labels across buttons throughout the app; the button's built-in gap now handles it consistently.
+
 ## [0.57.0] - 2026-07-16
 
 ### Added

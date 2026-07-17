@@ -74,7 +74,7 @@ export const SearchableCombobox = ({
             disabled={disabled}
           >
             {selectedItem?.label ?? placeholder}
-            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[320px] p-0">

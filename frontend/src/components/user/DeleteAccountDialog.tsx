@@ -484,7 +484,7 @@ export function DeleteAccountDialog({
                 deleteAccount.isPending
               }
             >
-              <ChevronLeft className="mr-1 h-4 w-4" />
+              <ChevronLeft className="h-4 w-4" />
               {t("deleteAccount.back")}
             </Button>
 
@@ -509,7 +509,7 @@ export function DeleteAccountDialog({
                 >
                   {isCheckingEligibility ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                       {t("deleteAccount.checking")}
                     </>
                   ) : (
@@ -524,7 +524,7 @@ export function DeleteAccountDialog({
                 >
                   {deleteAccount.isPending ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                       {t("deleteAccount.deleting")}
                     </>
                   ) : action === "deactivate" ? (

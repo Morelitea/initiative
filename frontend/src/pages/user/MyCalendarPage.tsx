@@ -233,7 +233,7 @@ export const MyCalendarPage = () => {
             <p className="text-muted-foreground">{t("tasks:myCalendar.subtitle")}</p>
           </div>
           <Button variant="outline" size="sm" onClick={handleExport}>
-            <Download className="mr-1.5 h-4 w-4" />
+            <Download className="h-4 w-4" />
             {t("calendarEvents:export.exportIcs")}
           </Button>
         </div>
@@ -252,7 +252,7 @@ export const MyCalendarPage = () => {
               <Button variant="ghost" size="sm" className="h-8 px-3">
                 {table.filtersOpen ? t("tasks:filters.hide") : t("tasks:filters.show")}
                 <ChevronDown
-                  className={`ml-1 h-4 w-4 transition-transform ${table.filtersOpen ? "rotate-180" : ""}`}
+                  className={`h-4 w-4 transition-transform ${table.filtersOpen ? "rotate-180" : ""}`}
                 />
               </Button>
             </CollapsibleTrigger>

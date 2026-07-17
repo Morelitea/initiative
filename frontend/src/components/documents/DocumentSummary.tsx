@@ -71,7 +71,7 @@ export const DocumentSummary = ({ documentId, summary, onSummaryChange }: Docume
         <Sparkles className="mx-auto h-8 w-8 text-muted-foreground" />
         <p className="text-muted-foreground text-sm">{t("summary.generateDescription")}</p>
         <Button onClick={() => generateSummary.mutate()} disabled={generateSummary.isPending}>
-          <Sparkles className="mr-2 h-4 w-4" />
+          <Sparkles className="h-4 w-4" />
           {t("summary.generateButton")}
         </Button>
         {generateSummary.isError && <p className="text-destructive text-sm">{getErrorMessage()}</p>}

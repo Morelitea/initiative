@@ -396,7 +396,7 @@ export const NotificationBell = () => {
             disabled={unreadCount === 0 || markAllMutation.isPending}
             onClick={() => markAllMutation.mutate()}
           >
-            <CheckCheck className="mr-1 h-3 w-3" />
+            <CheckCheck className="h-3 w-3" />
             {t("notifications.markAllRead")}
           </Button>
         </div>
