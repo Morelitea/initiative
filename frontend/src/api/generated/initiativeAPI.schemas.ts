@@ -3860,8 +3860,6 @@ export type RegisterUserApiV1AuthRegisterPostParams = {
 
 export type BootstrapStatusApiV1AuthBootstrapGet200 = { [key: string]: boolean };
 
-export type OidcStatusApiV1AuthOidcStatusGet200 = { [key: string]: unknown };
-
 export type ProviderLoginApiV1AuthProviderSlugLoginGetParams = {
   mobile?: boolean;
   device_name?: string;

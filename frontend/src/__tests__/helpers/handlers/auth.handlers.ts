@@ -18,7 +18,7 @@ export const authHandlers = [
     });
   }),
 
-  http.get("/api/v1/auth/oidc/status", () => {
-    return HttpResponse.json({ enabled: false });
+  http.get("/api/v1/auth/providers", () => {
+    return HttpResponse.json({ providers: [] });
   }),
 ];

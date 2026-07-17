@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Multiple sign-in providers: the sign-in page now offers a button for every SSO provider the server has configured, not just one. Operators can register additional OIDC providers alongside the existing platform SSO (via the API today; a management UI is on its way), each with its own name and sign-in button.
+
 ## [0.57.0] - 2026-07-16
 
 ### Added
