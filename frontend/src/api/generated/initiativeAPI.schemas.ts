@@ -3887,9 +3887,9 @@ export type ProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetParams =
 
 export type ListTasksApiV1GGuildIdTasksGetParams = {
   /**
-   * JSON list of filter conditions. Each object: {"field": "<column>", "op": "<operator>", "value": <val>}. Any Task column is valid plus virtual fields: status_category, assignee_ids, tag_ids, initiative_ids.
+   * JSON list of filter conditions, AND-ed together. Each object: {"field": "<column>", "op": "<operator>", "value": <val>}. Any Task column is valid plus virtual fields: status_category, assignee_ids, tag_ids, initiative_ids. An object with a "conditions" key is an AND/OR group: {"logic": "or", "conditions": [...]}.
    */
-  conditions?: FilterCondition[];
+  conditions?: (FilterCondition | FilterGroup)[];
   /**
    * Include archived tasks
    */
@@ -3956,6 +3956,10 @@ export type GetDocumentCountsApiV1GGuildIdDocumentsCountsGetParams = {
 
 export type ListDocumentsApiV1GGuildIdDocumentsGetParams = {
   initiative_id?: number | null;
+  /**
+   * Filter to specific document IDs — for hydrating a known set of documents without walking a collection. Maximum 100 IDs.
+   */
+  ids?: number[] | null;
   search?: string | null;
   /**
    * Filter by tag IDs
@@ -3984,10 +3988,7 @@ export type ListDocumentsApiV1GGuildIdDocumentsGetParams = {
 
 export type AutocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGetParams = {
   initiative_id: number;
-  /**
-   * @minLength 1
-   */
-  q: string;
+  q?: string;
   /**
    * @maximum 20
    */
@@ -3999,7 +4000,7 @@ export type ExportTasksApiV1GGuildIdExportsTasksGetParams = {
   /**
    * Same JSON filter conditions as the task list
    */
-  conditions?: FilterCondition[];
+  conditions?: (FilterCondition | FilterGroup)[];
   /**
    * Same JSON sort fields as the task list
    */
@@ -4306,7 +4307,7 @@ export type SyncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentIdSync
   };
 
 export type ListMyTasksApiV1MeTasksGetParams = {
-  conditions?: FilterCondition[];
+  conditions?: (FilterCondition | FilterGroup)[];
   /**
    * Include archived tasks
    */
@@ -4325,7 +4326,7 @@ export type ListMyTasksApiV1MeTasksGetParams = {
 };
 
 export type ListMyCreatedTasksApiV1MeTasksCreatedGetParams = {
-  conditions?: FilterCondition[];
+  conditions?: (FilterCondition | FilterGroup)[];
   /**
    * Include archived tasks
    */

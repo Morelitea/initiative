@@ -478,6 +478,7 @@ def _inject_query_schemas(openapi_schema: dict) -> None:
     # ``string`` that FastAPI infers from the endpoint signature.  The Axios
     # paramsSerializer on the frontend JSON-encodes arrays of objects automatically.
     fc_ref = {"$ref": "#/components/schemas/FilterCondition"}
+    fg_ref = {"$ref": "#/components/schemas/FilterGroup"}
     sf_ref = {"$ref": "#/components/schemas/SortField"}
     for path_item in openapi_schema.get("paths", {}).values():
         for operation in path_item.values():
@@ -485,7 +486,11 @@ def _inject_query_schemas(openapi_schema: dict) -> None:
                 continue
             for param in operation.get("parameters", []):
                 if param.get("name") == "conditions" and param.get("in") == "query":
-                    param["schema"] = {"type": "array", "items": fc_ref}
+                    # An item is either a leaf comparison or an AND/OR group.
+                    param["schema"] = {
+                        "type": "array",
+                        "items": {"anyOf": [fc_ref, fg_ref]},
+                    }
                     param.pop("anyOf", None)
                 if param.get("name") == "sorting" and param.get("in") == "query":
                     param["schema"] = {"type": "array", "items": sf_ref}

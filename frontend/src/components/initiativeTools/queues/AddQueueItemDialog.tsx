@@ -1,9 +1,13 @@
-import { Link } from "@tanstack/react-router";
-import { Loader2, X } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
+import {
+  ENTITY_PICKER_PAGE_SIZE,
+  type LinkedEntity,
+  LinkedEntityPicker,
+} from "@/components/initiativeTools/queues/LinkedEntityPicker";
 import { TagPicker } from "@/components/tags/TagPicker";
 import { Button } from "@/components/ui/button";
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
@@ -20,7 +24,7 @@ import { Label } from "@/components/ui/label";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { useInitiativeDocuments } from "@/hooks/useDocuments";
+import { useDocumentAutocomplete } from "@/hooks/useDocuments";
 import { useInitiativeMembers } from "@/hooks/useInitiatives";
 import { useCreateQueueItem } from "@/hooks/useQueues";
 import { useTasks } from "@/hooks/useTasks";
@@ -52,8 +56,15 @@ export const AddQueueItemDialog = ({
   const [isVisible, setIsVisible] = useState(true);
   const [selectedTags, setSelectedTags] = useState<TagSummary[]>([]);
   const [userId, setUserId] = useState<number | null>(null);
-  const [selectedDocIds, setSelectedDocIds] = useState<number[]>([]);
-  const [selectedTaskIds, setSelectedTaskIds] = useState<number[]>([]);
+  // Selections carry their titles: the typeahead only returns rows matching
+  // the live query, so a chip's label can't be looked up from the results.
+  const [selectedDocs, setSelectedDocs] = useState<LinkedEntity[]>([]);
+  const [selectedTasks, setSelectedTasks] = useState<LinkedEntity[]>([]);
+
+  const [docSearch, setDocSearch] = useState("");
+  const [docPickerOpen, setDocPickerOpen] = useState(false);
+  const [taskSearch, setTaskSearch] = useState("");
+  const [taskPickerOpen, setTaskPickerOpen] = useState(false);
 
   // Reset form when dialog closes
   useEffect(() => {
@@ -65,8 +76,8 @@ export const AddQueueItemDialog = ({
       setIsVisible(true);
       setSelectedTags([]);
       setUserId(null);
-      setSelectedDocIds([]);
-      setSelectedTaskIds([]);
+      setSelectedDocs([]);
+      setSelectedTasks([]);
     }
   }, [open]);
 
@@ -81,48 +92,31 @@ export const AddQueueItemDialog = ({
     [membersQuery.data]
   );
 
-  // Fetch initiative documents for document picker
-  const docsQuery = useInitiativeDocuments(initiativeId);
-  const docItems = useMemo(
-    () =>
-      (docsQuery.data ?? [])
-        .filter((doc) => !selectedDocIds.includes(doc.id))
-        .map((doc) => ({
-          value: String(doc.id),
-          label: doc.title,
-        })),
-    [docsQuery.data, selectedDocIds]
-  );
-  const docLookup = useMemo(() => {
-    const map = new Map<number, string>();
-    for (const doc of docsQuery.data ?? []) {
-      map.set(doc.id, doc.title);
-    }
-    return map;
-  }, [docsQuery.data]);
-
-  // Fetch initiative tasks for task picker
-  const tasksQuery = useTasks({
-    conditions: [{ field: "initiative_ids", op: "in_", value: [initiativeId] }],
-    page_size: 0,
+  // Document picker — server typeahead, only while the picker is open.
+  const docsQuery = useDocumentAutocomplete(initiativeId, docSearch, {
+    enabled: open && docPickerOpen,
+    limit: ENTITY_PICKER_PAGE_SIZE,
   });
-  const taskItems = useMemo(
-    () =>
-      (tasksQuery.data?.items ?? [])
-        .filter((task) => !selectedTaskIds.includes(task.id))
-        .map((task) => ({
-          value: String(task.id),
-          label: task.title,
-        })),
-    [tasksQuery.data, selectedTaskIds]
+  const docResults = useMemo(
+    () => (docsQuery.data ?? []).map((doc) => ({ id: doc.id, title: doc.title })),
+    [docsQuery.data]
   );
-  const taskLookup = useMemo(() => {
-    const map = new Map<number, string>();
-    for (const task of tasksQuery.data?.items ?? []) {
-      map.set(task.id, task.title);
-    }
-    return map;
-  }, [tasksQuery.data]);
+
+  // Task picker — server typeahead over titles within this initiative.
+  const tasksQuery = useTasks(
+    {
+      conditions: [
+        { field: "initiative_ids", op: "in_", value: [initiativeId] },
+        ...(taskSearch ? [{ field: "title", op: "ilike" as const, value: taskSearch }] : []),
+      ],
+      page_size: ENTITY_PICKER_PAGE_SIZE,
+    },
+    { enabled: open && taskPickerOpen }
+  );
+  const taskResults = useMemo(
+    () => (tasksQuery.data?.items ?? []).map((task) => ({ id: task.id, title: task.title })),
+    [tasksQuery.data]
+  );
 
   const createItem = useCreateQueueItem(queueId, {
     onSuccess: () => {
@@ -146,8 +140,8 @@ export const AddQueueItemDialog = ({
       is_visible: isVisible,
       tag_ids: selectedTags.length > 0 ? selectedTags.map((tg) => tg.id) : undefined,
       user_id: userId ?? undefined,
-      document_ids: selectedDocIds.length > 0 ? selectedDocIds : undefined,
-      task_ids: selectedTaskIds.length > 0 ? selectedTaskIds : undefined,
+      document_ids: selectedDocs.length > 0 ? selectedDocs.map((doc) => doc.id) : undefined,
+      task_ids: selectedTasks.length > 0 ? selectedTasks.map((task) => task.id) : undefined,
     });
   };
 
@@ -260,93 +254,31 @@ export const AddQueueItemDialog = ({
             </div>
           </div>
 
-          {/* Linked Documents */}
-          <div className="space-y-2">
-            <Label>{t("linkedDocuments")}</Label>
-            <SearchableCombobox
-              items={docItems}
-              value={null}
-              onValueChange={(val) => {
-                const docId = Number(val);
-                if (docId && !selectedDocIds.includes(docId)) {
-                  setSelectedDocIds((prev) => [...prev, docId]);
-                }
-              }}
-              placeholder={t("selectDocument")}
-              emptyMessage={t("noDocuments")}
-            />
-            {selectedDocIds.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {selectedDocIds.map((docId) => (
-                  <span
-                    key={docId}
-                    className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs"
-                  >
-                    <Link
-                      to={gp(`/documents/${docId}`)}
-                      className="hover:text-primary hover:underline"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {docLookup.get(docId) ?? `#${docId}`}
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedDocIds((prev) => prev.filter((id) => id !== docId))}
-                      className="text-muted-foreground hover:text-foreground"
-                      aria-label={t("removeLink")}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
+          <LinkedEntityPicker
+            label={t("linkedDocuments")}
+            selected={selectedDocs}
+            onChange={setSelectedDocs}
+            results={docResults}
+            loading={docsQuery.isFetching}
+            onSearchChange={setDocSearch}
+            onOpenChange={setDocPickerOpen}
+            hrefFor={(id) => gp(`/documents/${id}`)}
+            placeholder={t("selectDocument")}
+            emptyMessage={t("noDocuments")}
+          />
 
-          {/* Linked Tasks */}
-          <div className="space-y-2">
-            <Label>{t("linkedTasks")}</Label>
-            <SearchableCombobox
-              items={taskItems}
-              value={null}
-              onValueChange={(val) => {
-                const taskId = Number(val);
-                if (taskId && !selectedTaskIds.includes(taskId)) {
-                  setSelectedTaskIds((prev) => [...prev, taskId]);
-                }
-              }}
-              placeholder={t("selectTask")}
-              emptyMessage={t("noTasks")}
-            />
-            {selectedTaskIds.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {selectedTaskIds.map((taskId) => (
-                  <span
-                    key={taskId}
-                    className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs"
-                  >
-                    <Link
-                      to={gp(`/tasks/${taskId}`)}
-                      className="hover:text-primary hover:underline"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {taskLookup.get(taskId) ?? `#${taskId}`}
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setSelectedTaskIds((prev) => prev.filter((id) => id !== taskId))
-                      }
-                      className="text-muted-foreground hover:text-foreground"
-                      aria-label={t("removeLink")}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
+          <LinkedEntityPicker
+            label={t("linkedTasks")}
+            selected={selectedTasks}
+            onChange={setSelectedTasks}
+            results={taskResults}
+            loading={tasksQuery.isFetching}
+            onSearchChange={setTaskSearch}
+            onOpenChange={setTaskPickerOpen}
+            hrefFor={(id) => gp(`/tasks/${id}`)}
+            placeholder={t("selectTask")}
+            emptyMessage={t("noTasks")}
+          />
         </div>
 
         <DialogFooter>

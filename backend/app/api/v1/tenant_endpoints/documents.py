@@ -108,6 +108,11 @@ me_router = APIRouter()
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
+# Upper bound on the ``ids`` filter, matching the page_size ceiling: the
+# filter exists to hydrate one page worth of known documents, not to smuggle
+# an unbounded IN list into the query.
+MAX_DOCUMENT_IDS = 100
+
 DOCUMENT_SORT_FIELDS = {
     "title": Document.title,
     "updated_at": Document.updated_at,
@@ -330,6 +335,7 @@ def _build_visible_docs_filters(
     user_id: int,
     *,
     initiative_id: Optional[int] = None,
+    ids: Optional[List[int]] = None,
     search: Optional[str] = None,
     tag_ids: Optional[List[int]] = None,
     untagged: Optional[bool] = None,
@@ -349,6 +355,9 @@ def _build_visible_docs_filters(
 
     if initiative_id is not None:
         conditions.append(Document.initiative_id == initiative_id)
+
+    if ids is not None:
+        conditions.append(Document.id.in_(tuple(ids)))
 
     if search:
         normalized = search.strip().lower()
@@ -605,6 +614,13 @@ async def list_documents(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     initiative_id: Optional[int] = Query(default=None),
+    ids: Optional[List[int]] = Query(
+        default=None,
+        description=(
+            "Filter to specific document IDs — for hydrating a known set of "
+            f"documents without walking a collection. Maximum {MAX_DOCUMENT_IDS} IDs."
+        ),
+    ),
     search: Optional[str] = Query(default=None),
     tag_ids: Optional[List[int]] = Query(default=None, description="Filter by tag IDs"),
     untagged: Optional[bool] = Query(
@@ -638,10 +654,17 @@ async def list_documents(
             session, initiative_id=initiative_id, guild_id=guild_context.guild_id
         )
 
+    if ids is not None and len(ids) > MAX_DOCUMENT_IDS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=DocumentMessages.TOO_MANY_IDS,
+        )
+
     conditions = _build_visible_docs_filters(
         guild_context.guild_id,
         current_user.id,
         initiative_id=initiative_id,
+        ids=ids,
         search=search,
         tag_ids=tag_ids,
         untagged=untagged,
@@ -731,13 +754,17 @@ async def autocomplete_documents(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     initiative_id: int = Query(...),
-    q: str = Query(..., min_length=1),
+    q: str = Query(default=""),
     limit: int = Query(default=10, le=20),
 ) -> List[DocumentAutocomplete]:
     """Search documents by title within an initiative for autocomplete/wikilinks.
 
     Returns lightweight document info (id, title, updated_at) for typeahead.
     Only returns documents the user has permission to access.
+
+    An empty ``q`` matches everything, so a picker that opens before the user
+    types gets the most recently updated documents rather than an error. The
+    result is bounded by ``limit`` either way.
     """
     await _get_initiative_or_404(
         session, initiative_id=initiative_id, guild_id=guild_context.guild_id

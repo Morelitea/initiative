@@ -1,7 +1,19 @@
 """Unit tests for the reusable query utility functions."""
 
+from datetime import date, datetime, timezone
+
 import pytest
-from sqlalchemy import Column, Integer, MetaData, String, Boolean, Float, Table
+from sqlalchemy import (
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    Float,
+    Integer,
+    MetaData,
+    String,
+    Table,
+)
 from sqlmodel import select
 
 from app.db.query import (
@@ -11,6 +23,7 @@ from app.db.query import (
     apply_pagination,
     build_paginated_response,
     extract_condition_value,
+    iter_leaf_conditions,
     parse_conditions,
     parse_sort_fields,
 )
@@ -30,6 +43,8 @@ _dummy_table = Table(
     Column("priority", String(20)),
     Column("score", Float),
     Column("is_active", Boolean),
+    Column("due_at", DateTime(timezone=True)),
+    Column("due_on", Date),
 )
 
 
@@ -41,6 +56,8 @@ class _DummyModel:
     priority = _dummy_table.c.priority
     score = _dummy_table.c.score
     is_active = _dummy_table.c.is_active
+    due_at = _dummy_table.c.due_at
+    due_on = _dummy_table.c.due_on
 
 
 # ---------------------------------------------------------------------------
@@ -542,6 +559,108 @@ class TestCallableFilterHandler:
         assert received["value"] == [10, 20]
 
 
+class TestDateValueCoercion:
+    """ISO strings in conditions must reach the DB as real dates.
+
+    JSON has no date type, so a date filter can only arrive as a string, and
+    SQLAlchemy binds a str as VARCHAR even against a timestamp column —
+    Postgres then refuses to compare the two.
+    """
+
+    def test_iso_string_binds_as_timestamp_not_varchar(self):
+        stmt = select(_dummy_table)
+        conditions = [
+            FilterCondition(
+                field="due_at", op=FilterOp.gte, value="2026-06-01T00:00:00+00:00"
+            )
+        ]
+        result = apply_filters(stmt, _DummyModel, conditions)
+        bind = list(result.whereclause.get_children())[1]
+        assert isinstance(bind.type, DateTime)
+        assert bind.value == datetime(2026, 6, 1, tzinfo=timezone.utc)
+
+    def test_parses_z_suffix(self):
+        """The shape JS toISOString() produces."""
+        stmt = select(_dummy_table)
+        conditions = [
+            FilterCondition(
+                field="due_at", op=FilterOp.lte, value="2026-06-30T23:59:59.999Z"
+            )
+        ]
+        result = apply_filters(stmt, _DummyModel, conditions)
+        bind = list(result.whereclause.get_children())[1]
+        assert bind.value.tzinfo is not None
+        assert bind.value.year == 2026
+
+    def test_date_column_gets_a_date(self):
+        stmt = select(_dummy_table)
+        conditions = [
+            FilterCondition(field="due_on", op=FilterOp.eq, value="2026-06-01")
+        ]
+        result = apply_filters(stmt, _DummyModel, conditions)
+        bind = list(result.whereclause.get_children())[1]
+        assert bind.value == date(2026, 6, 1)
+
+    def test_date_column_narrowed_by_a_full_timestamp_takes_the_day(self):
+        """date.fromisoformat() won't read a time component, but a caller
+        windowing a date column sends exactly that (JS toISOString())."""
+        stmt = select(_dummy_table)
+        conditions = [
+            FilterCondition(
+                field="due_on", op=FilterOp.gte, value="2026-06-01T12:30:00.000Z"
+            )
+        ]
+        result = apply_filters(stmt, _DummyModel, conditions)
+        bind = list(result.whereclause.get_children())[1]
+        assert bind.value == date(2026, 6, 1)
+
+    def test_coerces_each_value_of_an_in_list(self):
+        stmt = select(_dummy_table)
+        conditions = [
+            FilterCondition(
+                field="due_on", op=FilterOp.in_, value=["2026-06-01", "2026-06-02"]
+            )
+        ]
+        result = apply_filters(stmt, _DummyModel, conditions)
+        sql = str(result.compile(compile_kwargs={"literal_binds": True}))
+        # Rendered as dates, not quoted strings needing a cast.
+        assert "'2026-06-01'" in sql
+
+    def test_datetime_column_accepts_a_date_only_string(self):
+        stmt = select(_dummy_table)
+        conditions = [
+            FilterCondition(field="due_at", op=FilterOp.gte, value="2026-06-01")
+        ]
+        result = apply_filters(stmt, _DummyModel, conditions)
+        bind = list(result.whereclause.get_children())[1]
+        assert bind.value == datetime(2026, 6, 1)
+
+    def test_unparseable_string_is_left_alone(self):
+        """Passed through rather than dropped: silently ignoring a filter the
+        caller asked for would widen the result set."""
+        stmt = select(_dummy_table)
+        conditions = [
+            FilterCondition(field="due_at", op=FilterOp.gte, value="whenever")
+        ]
+        result = apply_filters(stmt, _DummyModel, conditions)
+        bind = list(result.whereclause.get_children())[1]
+        assert bind.value == "whenever"
+
+    def test_non_date_columns_are_untouched(self):
+        stmt = select(_dummy_table)
+        conditions = [FilterCondition(field="name", op=FilterOp.eq, value="2026-06-01")]
+        result = apply_filters(stmt, _DummyModel, conditions)
+        bind = list(result.whereclause.get_children())[1]
+        assert bind.value == "2026-06-01"
+
+    def test_is_null_value_is_not_coerced(self):
+        """is_null reads its value as a boolean flag, not a comparand."""
+        stmt = select(_dummy_table)
+        conditions = [FilterCondition(field="due_at", op=FilterOp.is_null, value=True)]
+        result = apply_filters(stmt, _DummyModel, conditions)
+        assert "IS NULL" in str(result.compile()).upper()
+
+
 # ---------------------------------------------------------------------------
 # apply_sorting
 # ---------------------------------------------------------------------------
@@ -1002,6 +1121,68 @@ class TestParseConditions:
         result = parse_conditions(json.dumps(items))
         assert len(result) == 50
 
+    def test_parses_group(self):
+        raw = (
+            '[{"logic": "or", "conditions": ['
+            '{"field": "start_date", "op": "gte", "value": "2026-01-01"},'
+            '{"field": "due_date", "op": "gte", "value": "2026-01-01"}]}]'
+        )
+        result = parse_conditions(raw)
+        assert len(result) == 1
+        group = result[0]
+        assert isinstance(group, FilterGroup)
+        assert group.logic == "or"
+        assert [c.field for c in group.conditions] == ["start_date", "due_date"]
+
+    def test_parses_group_alongside_flat_conditions(self):
+        raw = (
+            '[{"field": "priority", "op": "in_", "value": ["high"]},'
+            '{"logic": "or", "conditions": [{"field": "a", "value": 1}]}]'
+        )
+        result = parse_conditions(raw)
+        assert isinstance(result[0], FilterCondition)
+        assert isinstance(result[1], FilterGroup)
+
+    def test_group_logic_defaults_to_and(self):
+        result = parse_conditions('[{"conditions": [{"field": "a", "value": 1}]}]')
+        assert result[0].logic == "and"
+
+    def test_parses_nested_group(self):
+        raw = (
+            '[{"logic": "or", "conditions": ['
+            '{"logic": "and", "conditions": ['
+            '{"field": "start_date", "op": "gte", "value": "a"},'
+            '{"field": "start_date", "op": "lte", "value": "b"}]}]}]'
+        )
+        result = parse_conditions(raw)
+        assert isinstance(result[0].conditions[0], FilterGroup)
+
+    def test_rejects_group_nested_too_deeply(self):
+        raw = (
+            '[{"conditions": [{"conditions": [{"conditions": ['
+            '{"field": "a", "value": 1}]}]}]}]'
+        )
+        with pytest.raises(ValueError, match="nested too deeply"):
+            parse_conditions(raw)
+
+    def test_custom_max_depth(self):
+        raw = '[{"conditions": [{"conditions": [{"field": "a", "value": 1}]}]}]'
+        assert parse_conditions(raw)  # depth 2 is fine by default
+        with pytest.raises(ValueError, match="nested too deeply"):
+            parse_conditions(raw, max_depth=1)
+
+    def test_rejects_too_many_conditions_inside_a_group(self):
+        """The count is of leaves, so a group can't smuggle past the limit."""
+        import json
+
+        items = [{"conditions": [{"field": "f", "value": i} for i in range(51)]}]
+        with pytest.raises(ValueError, match="too many conditions"):
+            parse_conditions(json.dumps(items))
+
+    def test_rejects_invalid_structure_inside_a_group(self):
+        with pytest.raises(ValueError, match="invalid condition structure"):
+            parse_conditions('[{"conditions": [{"bad_key": "value"}]}]')
+
 
 # ---------------------------------------------------------------------------
 # extract_condition_value
@@ -1028,6 +1209,54 @@ class TestExtractConditionValue:
     def test_returns_none_when_not_found(self):
         conditions = [FilterCondition(field="name", value="test")]
         assert extract_condition_value(conditions, "missing") is None
+
+    def test_ignores_values_inside_groups(self):
+        """A grouped field doesn't hold for every row, so it must not be read
+        as a narrowing of the result set."""
+        conditions = [
+            FilterGroup(
+                logic="or",
+                conditions=[FilterCondition(field="project_id", value=7)],
+            )
+        ]
+        assert extract_condition_value(conditions, "project_id") is None
+
+    def test_finds_top_level_match_past_a_group(self):
+        conditions = [
+            FilterGroup(conditions=[FilterCondition(field="a", value=1)]),
+            FilterCondition(field="project_id", value=7),
+        ]
+        assert extract_condition_value(conditions, "project_id") == 7
+
+
+# ---------------------------------------------------------------------------
+# iter_leaf_conditions
+# ---------------------------------------------------------------------------
+
+
+class TestIterLeafConditions:
+    def test_yields_flat_conditions(self):
+        conditions = [
+            FilterCondition(field="a", value=1),
+            FilterCondition(field="b", value=2),
+        ]
+        assert [c.field for c in iter_leaf_conditions(conditions)] == ["a", "b"]
+
+    def test_descends_into_nested_groups(self):
+        conditions = [
+            FilterCondition(field="a", value=1),
+            FilterGroup(
+                logic="or",
+                conditions=[
+                    FilterCondition(field="b", value=2),
+                    FilterGroup(conditions=[FilterCondition(field="c", value=3)]),
+                ],
+            ),
+        ]
+        assert [c.field for c in iter_leaf_conditions(conditions)] == ["a", "b", "c"]
+
+    def test_empty(self):
+        assert list(iter_leaf_conditions([])) == []
 
     def test_empty_list_returns_none(self):
         assert extract_condition_value([], "anything") is None
