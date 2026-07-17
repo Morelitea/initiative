@@ -34,6 +34,58 @@ async def test_get_primary_guild_creates_if_missing(session: AsyncSession):
 
 @pytest.mark.unit
 @pytest.mark.service
+async def test_get_primary_guild_seed_warns_when_users_exist(
+    session: AsyncSession, caplog
+):
+    """Zero guilds beside existing users is either a deliberate all-guilds-
+    deleted state or a session that cannot see the real rows (wrong database
+    target, blinded system engine) — the seed must say so in the log instead
+    of silently creating a fresh default guild."""
+    await session.exec(text("TRUNCATE TABLE guilds RESTART IDENTITY CASCADE"))
+    await create_user(session)
+
+    with caplog.at_level("WARNING", logger="app.services.platform.guilds"):
+        guild = await guild_service.get_primary_guild(session)
+
+    assert guild.name == "Primary Guild"
+    assert any(
+        "creating a default primary guild" in record.getMessage()
+        for record in caplog.records
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_get_primary_guild_seed_warns_when_guild_schemas_survive(
+    session: AsyncSession, caplog
+):
+    """A blinded session reads zero rows in users as well as guilds, so row
+    counts alone can't flag it — but guild_<id> schemas live in the catalog,
+    which row-level security never filters. Seeding beside surviving guild
+    schemas must warn."""
+    from app.db import session as db_session
+    from app.db.schema_provisioning import drop_guild_schema, provision_guild
+
+    gid = 990_301  # synthetic high id, mirrors the provisioning tests
+    await session.exec(text("TRUNCATE TABLE users, guilds RESTART IDENTITY CASCADE"))
+    await session.commit()
+    await provision_guild(gid)
+    try:
+        with caplog.at_level("WARNING", logger="app.services.platform.guilds"):
+            guild = await guild_service.get_primary_guild(session)
+
+        assert guild.name == "Primary Guild"
+        assert any(
+            "the database is not fresh" in record.getMessage()
+            for record in caplog.records
+        )
+    finally:
+        async with db_session.provisioning_engine.begin() as conn:
+            await drop_guild_schema(conn, gid)
+
+
+@pytest.mark.unit
+@pytest.mark.service
 async def test_get_primary_guild_returns_existing(session: AsyncSession):
     """Test that existing guild is returned as primary."""
     # Create a guild first
