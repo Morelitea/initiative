@@ -24,7 +24,6 @@ from app.models.tenant.document import Document
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.property import CalendarEventPropertyValue
 from app.models.tenant.resource_grant import ResourceGrant
-from app.models.tenant.tag import Tag
 
 
 # ---------------------------------------------------------------------------
@@ -194,36 +193,6 @@ async def set_event_attendees(
 # ---------------------------------------------------------------------------
 # Tag / document attachment helpers
 # ---------------------------------------------------------------------------
-
-
-async def set_event_tags(
-    session: AsyncSession,
-    event: CalendarEvent,
-    tag_ids: list[int],
-    guild_id: int,
-) -> None:
-    """Replace all tags on a calendar event. Validates tag_ids belong to guild."""
-    if tag_ids:
-        tags_stmt = select(Tag).where(Tag.id.in_(tag_ids), Tag.guild_id == guild_id)
-        tags_result = await session.exec(tags_stmt)
-        valid_tags = tags_result.all()
-        valid_tag_ids = {t.id for t in valid_tags}
-
-        invalid_ids = set(tag_ids) - valid_tag_ids
-        if invalid_ids:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=CalendarEventMessages.INVALID_TAG_IDS,
-            )
-
-    delete_stmt = sa_delete(CalendarEventTag).where(
-        CalendarEventTag.calendar_event_id == event.id,
-    )
-    await session.exec(delete_stmt)
-
-    for tag_id in tag_ids:
-        link = CalendarEventTag(calendar_event_id=event.id, tag_id=tag_id)
-        session.add(link)
 
 
 async def set_event_documents(

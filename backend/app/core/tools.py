@@ -73,6 +73,16 @@ BULK_EXPORT_TOOLS = (
 )
 
 
+# Tag-assignment surfaces: EVERY tool is taggable, plus these content-level
+# extras — sub-resources of a tool (tasks, queue items) rather than tools
+# themselves. The assignment registry (app.services.tenant.tags.TAG_LINKS) and
+# the ``TagTarget`` schema enum both derive from TAG_TARGETS, so a new Tool is
+# taggable across every surface with no per-surface edit; tags_test.py fails if
+# any surface drifts.
+TAGGABLE_EXTRAS: tuple[str, ...] = ("task", "queue_item")
+TAG_TARGETS: tuple[str, ...] = tuple(t.value for t in Tool) + TAGGABLE_EXTRAS
+
+
 def tool_export_source(tool: Tool) -> str:
     """The export adapter registry key / endpoint segment for a tool."""
     return tool.value.replace("_", "-")

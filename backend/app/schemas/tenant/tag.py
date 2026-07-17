@@ -1,8 +1,10 @@
 from datetime import datetime
+from enum import Enum
 from typing import List, Optional
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
+from app.core.tools import TAG_TARGETS
 from app.schemas.base import SanitizedBaseModel
 
 
@@ -47,6 +49,18 @@ class TagSummary(SanitizedBaseModel):
     color: str
 
 
+def tag_summaries(tag_links) -> List[TagSummary]:
+    """Serialize eager-loaded ``tag_links`` junction rows to ``TagSummary`` —
+    the one serializer every taggable entity uses. Links whose tag was
+    filtered out (trashed) by the soft-delete loader criteria are skipped."""
+    summaries: List[TagSummary] = []
+    for link in tag_links or []:
+        tag = getattr(link, "tag", None)
+        if tag is not None:
+            summaries.append(TagSummary(id=tag.id, name=tag.name, color=tag.color))
+    return summaries
+
+
 class TagRead(TagBase):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
@@ -61,7 +75,35 @@ class TagRead(TagBase):
 class TagSetRequest(SanitizedBaseModel):
     """Request body for setting tags on an entity."""
 
-    tag_ids: List[int] = Field(default_factory=list)
+    tag_ids: List[int] = Field(default_factory=list, max_length=100)
+
+
+# Derived, never re-declared: every Tool value plus the content-level extras
+# (see TAG_TARGETS in app.core.tools). A new Tool lands here — and in the
+# OpenAPI spec / generated frontend types — automatically.
+TagTarget = Enum("TagTarget", {name: name for name in TAG_TARGETS}, type=str)
+TagTarget.__doc__ = "Entity types a bulk tag edit can address."
+
+
+class TagBulkEditRequest(SanitizedBaseModel):
+    """Add and/or remove tags across many entities of one type, atomically."""
+
+    target_type: TagTarget
+    target_ids: List[int] = Field(min_length=1, max_length=500)
+    add_tag_ids: List[int] = Field(default_factory=list, max_length=100)
+    remove_tag_ids: List[int] = Field(default_factory=list, max_length=100)
+
+    @model_validator(mode="after")
+    def require_an_operation(self) -> "TagBulkEditRequest":
+        if not self.add_tag_ids and not self.remove_tag_ids:
+            raise ValueError("add_tag_ids or remove_tag_ids must be non-empty")
+        return self
+
+
+class TagBulkEditResponse(SanitizedBaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    updated_count: int
 
 
 class TaggedEntitiesResponse(SanitizedBaseModel):

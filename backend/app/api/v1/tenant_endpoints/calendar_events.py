@@ -62,6 +62,8 @@ from app.services.tenant import ical_service
 from app.services import notifications as notifications_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import recent_views as recent_views_service
+from app.services.tenant import tags as tags_service
+from app.schemas.tenant.tag import TagSetRequest
 from app.schemas.tenant.recent_view import RecentViewWrite
 from app.services import rls as rls_service
 
@@ -621,11 +623,12 @@ async def create_calendar_event(
             guild_context.guild_id,
         )
     if event_in.tag_ids:
-        await events_service.set_event_tags(
+        await tags_service.set_entity_tags(
             session,
-            event,
-            event_in.tag_ids,
-            guild_context.guild_id,
+            tags_service.TOOL_TAG_LINKS[Tool.calendar_event],
+            guild_id=guild_context.guild_id,
+            entity_id=event.id,
+            tag_ids=event_in.tag_ids,
         )
     if event_in.document_ids:
         await events_service.set_event_documents(
@@ -889,7 +892,7 @@ async def update_rsvp(
 @router.put("/{event_id}/tags", response_model=CalendarEventRead)
 async def set_tags(
     event_id: int,
-    tag_ids: List[int],
+    tags_in: TagSetRequest,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
@@ -902,7 +905,14 @@ async def set_tags(
         guild_context,
         PermissionKey.create_calendar_events,
     )
-    await events_service.set_event_tags(session, event, tag_ids, guild_context.guild_id)
+    await tags_service.set_entity_tags(
+        session,
+        tags_service.TOOL_TAG_LINKS[Tool.calendar_event],
+        guild_id=guild_context.guild_id,
+        entity_id=event.id,
+        tag_ids=tags_in.tag_ids,
+    )
+    event.updated_at = datetime.now(timezone.utc)
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
     return serialize_calendar_event(hydrated, user_id=current_user.id)

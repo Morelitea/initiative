@@ -17,6 +17,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Protocol
 
+from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -74,8 +75,14 @@ async def ensure_tag(
     silently match guild-less tags (``WHERE guild_id IS NULL``) and
     cross-pollinate across guilds. Callers must guarantee a real guild
     before reaching this helper.
+
+    The match is case-insensitive to mirror the tag CRUD's duplicate-name
+    rule — otherwise an import could mint a case-variant duplicate that the
+    endpoints would reject with a 409.
     """
-    stmt = select(Tag).where(Tag.guild_id == guild_id, Tag.name == name)
+    stmt = select(Tag).where(
+        Tag.guild_id == guild_id, func.lower(Tag.name) == name.strip().lower()
+    )
     existing = (await session.exec(stmt)).one_or_none()
     if existing is not None:
         return TagResolved(id=existing.id, created=False)

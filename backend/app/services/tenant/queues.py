@@ -17,6 +17,8 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.core.messages import QueueMessages
+from app.core.tools import Tool
+from app.services.tenant import tags as tags_service
 from app.services import permissions as permissions_service
 from app.services.permissions import (
     DAC_RESOURCES,
@@ -33,7 +35,6 @@ from app.models.tenant.queue import (
     QueueItemTask,
 )
 from app.models.tenant.resource_grant import ResourceGrant
-from app.models.tenant.tag import Tag
 from app.models.tenant.task import Task
 from app.models.platform.user import User
 
@@ -105,6 +106,7 @@ async def get_queue(
             selectinload(Queue.items).selectinload(QueueItem.user),
             selectinload(Queue.grants).selectinload(ResourceGrant.role),
             selectinload(Queue.initiative).selectinload(Initiative.memberships),
+            tags_service.TOOL_TAG_LINKS[Tool.queue].load_options(),
         )
     )
     if populate_existing:
@@ -551,44 +553,6 @@ async def release_held(
 # ---------------------------------------------------------------------------
 # Tag / document / task attachment helpers
 # ---------------------------------------------------------------------------
-
-
-async def set_queue_item_tags(
-    session: AsyncSession,
-    item: QueueItem,
-    tag_ids: list[int],
-    guild_id: int,
-) -> None:
-    """Replace all tags on a queue item. Validates tag_ids belong to guild."""
-    if tag_ids:
-        tags_stmt = select(Tag).where(
-            Tag.id.in_(tag_ids),
-            Tag.guild_id == guild_id,
-        )
-        tags_result = await session.exec(tags_stmt)
-        valid_tags = tags_result.all()
-        valid_tag_ids = {t.id for t in valid_tags}
-
-        invalid_ids = set(tag_ids) - valid_tag_ids
-        if invalid_ids:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=QueueMessages.INVALID_TAG_IDS,
-            )
-
-    # Remove existing tag links
-    delete_stmt = sa_delete(QueueItemTag).where(
-        QueueItemTag.queue_item_id == item.id,
-    )
-    await session.exec(delete_stmt)
-
-    # Add new tag links
-    for tag_id in tag_ids:
-        link = QueueItemTag(
-            queue_item_id=item.id,
-            tag_id=tag_id,
-        )
-        session.add(link)
 
 
 async def set_queue_item_documents(

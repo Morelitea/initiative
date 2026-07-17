@@ -72,7 +72,7 @@ from app.schemas.ai_generation import (
     GenerateSubtasksResponse,
     GenerateDescriptionResponse,
 )
-from app.schemas.tenant.tag import TagSummary, TagSetRequest
+from app.schemas.tenant.tag import TagSetRequest
 from app.schemas.tenant.property import PropertyValuesSetRequest
 from app.services.realtime import broadcast_event
 from app.services.tenant import webhook_dispatcher
@@ -82,6 +82,7 @@ from app.services.tenant.recurrence import get_next_due_date
 from app.services.tenant import task_statuses as task_statuses_service
 from app.services import ai_generation as ai_generation_service
 from app.services.tenant import properties as properties_service
+from app.services.tenant import tags as tags_service
 from app.core.messages import (
     ProjectMessages,
     QueryMessages,
@@ -498,18 +499,6 @@ def _annotate_task_guild(tasks: list[Task]) -> None:
         object.__setattr__(task, "guild", guild)
 
 
-def _annotate_task_tags(tasks: list[Task]) -> None:
-    """Annotate tasks with their tags extracted from tag_links relationship."""
-    for task in tasks:
-        tag_links = getattr(task, "tag_links", [])
-        tags = [
-            TagSummary(id=link.tag.id, name=link.tag.name, color=link.tag.color)
-            for link in tag_links
-            if link.tag is not None
-        ]
-        object.__setattr__(task, "tags", tags)
-
-
 def _annotate_task_properties(tasks: list[Task]) -> None:
     """Annotate tasks with serialized ``PropertySummary`` values.
 
@@ -718,7 +707,7 @@ async def _fetch_task(
     if task:
         await _annotate_tasks(session, [task])
         _annotate_task_guild([task])
-        _annotate_task_tags([task])
+        tags_service.annotate_tags([task])
         _annotate_task_properties([task])
     return task
 
@@ -865,16 +854,15 @@ async def _advance_recurrence_if_needed(
     await _clone_subtasks(session, task.id, new_task.id)
     assignee_ids = [assignee.id for assignee in task.assignees]
     await _set_task_assignees(session, new_task, assignee_ids)
-    if task.tag_links:
-        session.add_all(
-            [
-                TaskTag(task_id=new_task.id, tag_id=link.tag_id)
-                for link in task.tag_links
-            ]
-        )
-        await session.flush()
+    await tags_service.copy_entity_tags(
+        session,
+        tags_service.TAG_LINKS["task"],
+        source_id=task.id,
+        target_id=new_task.id,
+    )
+    await session.flush()
     await session.refresh(new_task, attribute_names=["assignees", "tag_links"])
-    _annotate_task_tags([new_task])
+    tags_service.annotate_tags([new_task])
     await _broadcast_task(
         session, new_task.guild_id, new_task.project_id, "created", task_id=new_task.id
     )
@@ -1071,7 +1059,7 @@ async def _gather_global_task_reads(
         rows = list((await guild_session.exec(build_query())).all())
         tasks = [row[0] for row in rows]
         await _annotate_tasks(guild_session, tasks)
-        _annotate_task_tags(tasks)
+        tags_service.annotate_tags(tasks)
         _annotate_task_properties(tasks)
         # row[1] is the SQL-computed date_group, carried for the global sort.
         return [(_task_to_list_read(task), row[1]) for task, row in zip(tasks, rows)]
@@ -1617,7 +1605,7 @@ async def list_tasks(
         session, statement, count_stmt, page, page_size
     )
     await _annotate_tasks(session, tasks)
-    _annotate_task_tags(tasks)
+    tags_service.annotate_tags(tasks)
     _annotate_task_properties(tasks)
     items = [_task_to_list_read(task) for task in tasks]
     return TaskListResponse(
@@ -2008,14 +1996,13 @@ async def duplicate_task(
         )
         session.add(new_subtask)
 
-    # Copy tags
-    if original_task.tag_links:
-        session.add_all(
-            [
-                TaskTag(task_id=new_task.id, tag_id=link.tag_id)
-                for link in original_task.tag_links
-            ]
-        )
+    # Copy tags (active only — links to trashed tags are not carried forward)
+    await tags_service.copy_entity_tags(
+        session,
+        tags_service.TAG_LINKS["task"],
+        source_id=original_task.id,
+        target_id=new_task.id,
+    )
 
     # Copy property values — duplicate stays in the same project and
     # therefore the same initiative, so definitions always resolve.
@@ -2656,34 +2643,14 @@ async def set_task_tags(
         guild_id=guild_context.guild_id,
     )
 
-    # Validate that all tag IDs belong to this guild
-    unique_tag_ids = list(dict.fromkeys(tags_in.tag_ids))
-    if unique_tag_ids:
-        stmt = select(Tag).where(
-            Tag.id.in_(tuple(unique_tag_ids)),
-            Tag.guild_id == guild_context.guild_id,
-        )
-        result = await session.exec(stmt)
-        tags = result.all()
-        if len(tags) != len(unique_tag_ids):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=TaskMessages.TAGS_NOT_FOUND,
-            )
-
-    # Delete existing task tags
-    delete_stmt = delete(TaskTag).where(TaskTag.task_id == task.id)
-    await session.exec(delete_stmt)
-
-    # Add new task tags
     task_id_to_update = task.id
-    if unique_tag_ids:
-        session.add_all(
-            [
-                TaskTag(task_id=task_id_to_update, tag_id=tag_id)
-                for tag_id in unique_tag_ids
-            ]
-        )
+    await tags_service.set_entity_tags(
+        session,
+        tags_service.TAG_LINKS["task"],
+        guild_id=guild_context.guild_id,
+        entity_id=task_id_to_update,
+        tag_ids=tags_in.tag_ids,
+    )
 
     # Update timestamp via a lightweight select (avoids stale relationship objects)
     ts_stmt = select(Task).where(Task.id == task_id_to_update)
@@ -2694,8 +2661,12 @@ async def set_task_tags(
     await _touch_project(session, ts_task.project_id, timestamp=now)
     await session.commit()
 
-    # Single fetch with all relationships for the response
-    task = await _fetch_task(session, task_id_to_update, guild_context.guild_id)
+    # Single fetch with all relationships for the response —
+    # populate_existing so the identity-mapped task's tag_links refresh
+    # (expire_on_commit=False keeps the pre-write collection otherwise).
+    task = await _fetch_task(
+        session, task_id_to_update, guild_context.guild_id, populate_existing=True
+    )
     if task is None:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

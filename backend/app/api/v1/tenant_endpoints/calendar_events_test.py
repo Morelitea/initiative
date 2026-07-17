@@ -81,7 +81,7 @@ async def test_list_events_summary_includes_tags(
     assign = await client.put(
         a.g(f"/calendar-events/{event.id}/tags"),
         headers=a.headers,
-        json=[tag.id],
+        json={"tag_ids": [tag.id]},
     )
     assert assign.status_code == 200
 

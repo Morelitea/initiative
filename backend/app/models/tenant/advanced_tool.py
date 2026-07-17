@@ -1,15 +1,17 @@
 from datetime import datetime, timezone
 from typing import Any, List, Optional, TYPE_CHECKING
 
+from pydantic import ConfigDict
 from sqlalchemy import Column, DateTime, ForeignKey, Integer
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlmodel import Field, Relationship
+from sqlmodel import Field, Relationship, SQLModel
 
 from app.models.tenant._mixins import SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.initiative import Initiative
     from app.models.tenant.resource_grant import ResourceGrant
+    from app.models.tenant.tag import Tag
 
 
 class AdvancedTool(SoftDeleteMixin, table=True):
@@ -69,3 +71,25 @@ class AdvancedTool(SoftDeleteMixin, table=True):
             "viewonly": True,
         }
     )
+    tag_links: List["AdvancedToolTag"] = Relationship(
+        back_populates="advanced_tool",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+
+
+class AdvancedToolTag(SQLModel, table=True):
+    """Junction table linking advanced tools to tags."""
+
+    __tablename__ = "advanced_tool_tags"
+    __allow_unmapped__ = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    advanced_tool_id: int = Field(foreign_key="advanced_tools.id", primary_key=True)
+    tag_id: int = Field(foreign_key="tags.id", primary_key=True, index=True)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+    advanced_tool: Optional[AdvancedTool] = Relationship(back_populates="tag_links")
+    tag: Optional["Tag"] = Relationship(back_populates="advanced_tool_links")

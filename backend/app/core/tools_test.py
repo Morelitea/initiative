@@ -122,6 +122,69 @@ def test_recent_entity_types_agree_across_surfaces():
     assert derived <= {t.value for t in Tool}
 
 
+def test_every_tool_is_taggable():
+    # Tag assignment spans EVERY tool plus exactly the declared content-level
+    # extras — the registry, the canonical target list, and the bulk-edit wire
+    # enum all agree. A new tool that forgets its TagLinkSpec fails here.
+    from app.core.tools import TAG_TARGETS, TAGGABLE_EXTRAS
+    from app.schemas.tenant.tag import TagTarget
+    from app.services.tenant.tags import EXTRA_TAG_LINKS, TAG_LINKS, TOOL_TAG_LINKS
+
+    assert set(TOOL_TAG_LINKS) == set(Tool)
+    assert set(EXTRA_TAG_LINKS) == set(TAGGABLE_EXTRAS)
+    assert set(TAG_LINKS) == set(TAG_TARGETS)
+    assert {t.value for t in TagTarget} == set(TAG_TARGETS)
+
+
+def test_tag_link_specs_carry_the_uniform_contract():
+    # Every taggable entity honors the structural contract everything derives
+    # from: an ``entity.tag_links`` relationship to its junction, a
+    # ``junction.tag`` relationship to Tag, a composite (fk, tag_id) PK, an
+    # initiative-scoped RLS path for the junction table, and a delete-orphan
+    # relationship from Tag to the junction (so hard purge removes every link).
+    from sqlalchemy import inspect as sa_inspect
+
+    from app.db.initiative_rls import INITIATIVE_PATHS
+    from app.models.tenant.tag import Tag
+    from app.services.tenant.tags import TAG_LINKS
+
+    junctions = set()
+    for name, spec in TAG_LINKS.items():
+        rel = sa_inspect(spec.entity).relationships["tag_links"]
+        assert rel.mapper.class_ is spec.junction, name
+        jmapper = sa_inspect(spec.junction)
+        assert jmapper.relationships["tag"].mapper.class_ is Tag, name
+        pk = {c.name for c in jmapper.persist_selectable.primary_key.columns}
+        assert pk == {spec.fk, "tag_id"}, name
+        assert spec.junction.__tablename__ in INITIATIVE_PATHS, name
+        junctions.add(spec.junction)
+    cascaded = {
+        rel.mapper.class_
+        for rel in sa_inspect(Tag).relationships
+        if rel.cascade.delete_orphan
+    }
+    assert junctions <= cascaded
+
+
+def test_every_tag_target_has_a_set_tags_route():
+    # Every tool exposes PUT .../{<its path param>}/tags taking TagSetRequest,
+    # and the two extras keep their hard-coded routes. Path params come from
+    # RESOURCE_ACCESS (the enforcement registry), so this needs no mirror list.
+    from app.api.resource_access import RESOURCE_ACCESS
+    from app.main import app
+
+    put_tag_paths = {
+        path
+        for path, item in app.openapi()["paths"].items()
+        if "put" in item and path.endswith("/tags")
+    }
+    for tool, cfg in RESOURCE_ACCESS.items():
+        suffix = f"{{{cfg.path_param}}}/tags"
+        assert any(p.endswith(suffix) for p in put_tag_paths), (tool, suffix)
+    for extra_suffix in ("{task_id}/tags", "{item_id}/tags"):
+        assert any(p.endswith(extra_suffix) for p in put_tag_paths), extra_suffix
+
+
 def test_export_adapters_cover_exactly_the_bulk_export_tools():
     """The export-engine adapter registry and the tool registry must agree:
     every BULK_EXPORT_TOOLS member has an adapter keyed by its kebab-singular
