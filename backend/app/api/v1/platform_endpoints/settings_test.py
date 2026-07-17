@@ -1032,8 +1032,11 @@ async def test_auth_scope_switch_is_non_destructive(
     headers = get_auth_headers(owner)
     await _configure_platform_oidc(client, headers)
 
-    status_resp = await client.get("/api/v1/auth/oidc/status")
-    assert status_resp.json()["enabled"] is True
+    async def _login_offered() -> bool:
+        listing = await client.get("/api/v1/auth/providers")
+        return any(p["slug"] == "oidc" for p in listing.json()["providers"])
+
+    assert await _login_offered() is True
 
     # Switch to guild scope: OIDC config is retained but the login goes dormant.
     resp = await client.put(
@@ -1044,8 +1047,7 @@ async def test_auth_scope_switch_is_non_destructive(
     assert body["auth_scope"] == "guild"
     assert body["enabled"] is True  # stored config untouched...
     assert body["issuer"] == "https://idp.example.com"
-    status_resp = await client.get("/api/v1/auth/oidc/status")
-    assert status_resp.json()["enabled"] is False  # ...but not offered
+    assert await _login_offered() is False  # ...but not offered
 
     # Switch back: everything as before.
     resp = await client.put(
@@ -1053,8 +1055,7 @@ async def test_auth_scope_switch_is_non_destructive(
     )
     assert resp.status_code == 200
     assert resp.json()["auth_scope"] == "platform"
-    status_resp = await client.get("/api/v1/auth/oidc/status")
-    assert status_resp.json()["enabled"] is True
+    assert await _login_offered() is True
 
 
 @pytest.mark.integration

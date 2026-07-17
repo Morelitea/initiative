@@ -734,21 +734,6 @@ async def _build_row_oidc_provider(
     )
 
 
-@router.get("/oidc/status")
-async def oidc_status(request: Request, session: SessionDep) -> dict[str, Any]:
-    """Legacy single-provider status for the current login page. Superseded by
-    ``GET /auth/providers``; removed once the SPA switches to the provider
-    loop."""
-    app_settings = await app_settings_service.get_app_settings(session)
-    enabled = _platform_oidc_active(app_settings)
-    login_url = None
-    provider_name = None
-    if enabled:
-        login_url = f"{API_V1_STR}/auth/oidc/login"
-        provider_name = app_settings.oidc_provider_name
-    return {"enabled": enabled, "login_url": login_url, "provider_name": provider_name}
-
-
 def _login_entry(row: AuthProvider) -> LoginProviderEntry:
     return LoginProviderEntry(
         slug=row.slug,
