@@ -1089,9 +1089,10 @@ export function useOidcStatusApiV1AuthOidcStatusGet<
  * The sign-in providers the login page offers — non-secret metadata only.
  *
  * Empty in guild posture (operator-global providers are dormant there) and
- * on instances with no SSO configured. The platform provider is reconciled
- * from ``app_settings`` on the way out, same as the login flow, so the
- * listing can never disagree with what ``/auth/oidc/login`` would do.
+ * on instances with no SSO configured. Strictly read-only: an
+ * unauthenticated GET must not trigger writes, so the platform entry is
+ * built from ``app_settings`` (its config surface) rather than the
+ * write-capable reconcile — that runs in the login flow and at boot.
  * Registry rows are read on the system engine (``auth_providers`` carries no
  * request-path grant).
  * @summary List Login Providers
