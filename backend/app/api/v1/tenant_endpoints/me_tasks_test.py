@@ -381,3 +381,60 @@ async def test_list_my_tasks_priority_sorted_desc_across_guilds(
     assert response.status_code == 200, response.text
     titles = [t["title"] for t in response.json()["items"]]
     assert titles == ["urgent", "high", "medium", "low"]
+
+
+@pytest.mark.integration
+async def test_list_my_tasks_property_value_is_null_filter(
+    client: AsyncClient, session: AsyncSession
+):
+    """GET /me/tasks filters by a custom property value.
+
+    Regression: the property definition needed to compile the filter lives in
+    the guild schema, but the /me session runs in the ``public`` search_path.
+    Loading definitions off that un-routed session raised
+    ``UndefinedTableError: relation "property_definitions" does not exist`` and
+    the endpoint 500'd; definitions must be loaded per-guild.
+    """
+    from app.models.tenant.property import PropertyType
+    from app.testing.factories import (
+        create_property_definition,
+        create_task_property_value,
+    )
+
+    user = await create_user(session, email="user@example.com")
+    guild, initiative, project = await _setup_guild_with_project(session, user)
+
+    definition = await create_property_definition(
+        session, initiative, name="Owner note", type=PropertyType.text
+    )
+
+    with_value = await _create_task(
+        session, project, "Has value", created_by_id=user.id
+    )
+    without_value = await _create_task(
+        session, project, "No value", created_by_id=user.id
+    )
+    await _assign(session, with_value, user.id)
+    await _assign(session, without_value, user.id)
+    await create_task_property_value(
+        session, with_value, definition, value_text="something"
+    )
+
+    headers = get_auth_headers(user)
+    conditions = json.dumps(
+        [
+            {
+                "field": "property_values",
+                "op": "is_null",
+                "value": {"property_id": definition.id, "value": True},
+            }
+        ]
+    )
+    response = await client.get(
+        f"/api/v1/me/tasks?conditions={conditions}", headers=headers
+    )
+
+    assert response.status_code == 200, response.text
+    task_ids = {t["id"] for t in response.json()["items"]}
+    assert without_value.id in task_ids
+    assert with_value.id not in task_ids
