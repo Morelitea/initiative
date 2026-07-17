@@ -155,6 +155,24 @@ async def test_update_secret_semantics(client: AsyncClient, session: AsyncSessio
         f"{BASE}{provider_id}", headers=headers, json={"client_secret": ""}
     )
     assert cleared.json()["secret_set"] is False
+    # Clearing removes the companion row rather than leaving an empty one.
+    session.expire_all()
+    assert await session.get(AuthProviderSecret, provider_id) is None
+
+
+async def test_update_rejects_explicit_null_on_required_config(
+    client: AsyncClient, session: AsyncSession
+):
+    """An explicit null on issuer/client_id/display_name would leave an
+    enabled provider the login flow refuses — rejected at the schema."""
+    headers = await _owner_headers(session)
+    provider = await create_auth_provider(session)
+
+    for field_name in ("issuer", "client_id", "display_name", "enabled"):
+        response = await client.patch(
+            f"{BASE}{provider.id}", headers=headers, json={field_name: None}
+        )
+        assert response.status_code == 422, field_name
 
 
 async def test_delete_cascades_identity_links(

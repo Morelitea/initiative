@@ -67,14 +67,15 @@ async def _set_provider_secret(
     session: AsyncSession, provider_id: int, client_secret: str | None
 ) -> None:
     """Store (or clear, with ``None``/empty) the encrypted client secret in
-    the companion row. Stages only — the caller commits."""
-    encrypted = (
-        encrypt_field(client_secret, SALT_OIDC_CLIENT_SECRET) if client_secret else None
-    )
+    the companion row; clearing deletes the row rather than leaving an empty
+    one. Stages only — the caller commits."""
     secret = await session.get(AuthProviderSecret, provider_id)
+    if not client_secret:
+        if secret is not None:
+            await session.delete(secret)
+        return
+    encrypted = encrypt_field(client_secret, SALT_OIDC_CLIENT_SECRET)
     if secret is None:
-        if encrypted is None:
-            return
         secret = AuthProviderSecret(
             provider_id=provider_id, client_secret_encrypted=encrypted
         )
@@ -119,9 +120,16 @@ async def list_auth_providers(
             .order_by(AuthProvider.display_name)
         )
     ).all()
-    return [
-        _admin_read(row, secret_set=await _secret_set(session, row.id)) for row in rows
-    ]
+    with_secret = set(
+        (
+            await session.exec(
+                select(AuthProviderSecret.provider_id).where(
+                    AuthProviderSecret.client_secret_encrypted.is_not(None)
+                )
+            )
+        ).all()
+    )
+    return [_admin_read(row, secret_set=row.id in with_secret) for row in rows]
 
 
 @router.post(

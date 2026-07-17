@@ -1,6 +1,6 @@
 from typing import List, Literal, Optional
 
-from pydantic import ConfigDict, EmailStr, Field
+from pydantic import ConfigDict, EmailStr, Field, field_validator
 
 from app.models.platform.app_setting import AuthScope
 from app.schemas.base import RawTextStr, SanitizedBaseModel
@@ -75,6 +75,15 @@ class AuthProviderUpdate(SanitizedBaseModel):
     allow_jit: Optional[bool] = None
     icon: Optional[str] = Field(default=None, max_length=64)
     button_style: Optional[str] = Field(default=None, max_length=64)
+
+    @field_validator("display_name", "issuer", "client_id", "enabled", "allow_jit")
+    @classmethod
+    def _no_explicit_null(cls, value, info):
+        """Absent means keep; an explicit null would strip config a login-ready
+        row requires (the login flow refuses config-incomplete providers)."""
+        if value is None:
+            raise ValueError(f"{info.field_name} cannot be null")
+        return value
 
 
 class OIDCSettingsResponse(SanitizedBaseModel):
