@@ -324,6 +324,10 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
     # Guild-scoped live copies — one write transaction per guild schema (independently
     # resumable). A guild whose schema is missing/broken is logged and skipped.
     async with engine.connect() as conn:
+        # Pooled connection: shed any guild role a prior checkout assumed (a
+        # lingering role would RLS-filter public.guilds to zero rows and the
+        # sweep would silently skip every guild schema).
+        await conn.execute(text("SELECT set_config('role', 'none', false)"))
         guild_ids = (
             (await conn.execute(text("SELECT id FROM public.guilds ORDER BY id")))
             .scalars()
@@ -336,9 +340,16 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
                 engine.connect() as read_conn,
                 engine.begin() as write_conn,
             ):
+                # Transaction-local: the guild role dies with each connection's
+                # transaction (the write txn's commit, the read txn's rollback
+                # on close). A session-level set_config survives the write
+                # txn's COMMIT, so the pooled connection would return to the
+                # pool still wearing guild_<id> and every later system-engine
+                # checkout would read shared tables RLS-filtered — boot seeding
+                # then tries to re-create the primary guild (issue #927).
                 for conn_ in (read_conn, write_conn):
                     await conn_.execute(
-                        text("SELECT set_config('role', :r, false)"),
+                        text("SELECT set_config('role', :r, true)"),
                         {"r": guild_role_name(gid)},
                     )
                 for table, column, salt in _GUILD_SCHEMA_COLUMNS:

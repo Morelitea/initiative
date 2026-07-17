@@ -784,3 +784,185 @@ async def ensure_shared_table_grants() -> None:
         "needed.",
         asserted,
     )
+
+
+# --- engine identity + effective-privilege verification ----------------------
+#
+# The two heals above repair the CANONICAL roles: the BYPASSRLS check keys on
+# whatever login DATABASE_URL_ADMIN connects as, while the grant heal targets
+# the literal app_admin / app_user names. A deployment whose URLs connect as
+# other logins (hand-created roles, swapped APP/ADMIN strings, one login doing
+# double duty) slips between the two and fails later with an opaque permission
+# error deep in seeding or a request. These boot checks pin the wiring itself:
+# name the three logins in the log, stop on wiring the role model cannot
+# support, and verify the CONNECTED logins hold the audited privileges — with
+# the exact repair in the error when they don't.
+
+
+async def verify_engine_identities() -> None:
+    """Log which Postgres logins the three engines connect as, and warn loudly
+    on wiring that collapses the role separation.
+
+    The three connection strings are distinct trust surfaces: a policy-bound
+    request login (``DATABASE_URL_APP``), a row-level-security-exempt system
+    engine (``DATABASE_URL_ADMIN``), and a DDL-only provisioning login
+    (``DATABASE_URL``). Self-hosted deployments sometimes run the app and
+    admin URLs on one login (or the app URL on a privileged login) — that
+    functions, because routed requests ``SET ROLE`` into guild/platform roles
+    either way, but the unrouted request surface then runs at the system
+    engine's privileges and loses its database-level row-security backstop.
+    Following the ``warn_if_privileged_database_url`` pattern, that wiring
+    gets a framed WARNING naming the recommended split, not a boot stop.
+
+    Runs before the heals so the operator sees which login each repair will
+    act on. Probes ``session_user`` (the login) rather than ``current_user``
+    so residual pool state can never skew the answer.
+    """
+    async with db_session.engine.connect() as conn:
+        app_login, app_db, app_bypasses = (
+            await conn.execute(
+                text(
+                    "SELECT session_user, current_database(), "
+                    "(SELECT rolsuper OR rolbypassrls FROM pg_roles "
+                    " WHERE rolname = session_user)"
+                )
+            )
+        ).one()
+    async with db_session.admin_engine.connect() as conn:
+        admin_login, admin_db = (
+            await conn.execute(text("SELECT session_user, current_database()"))
+        ).one()
+    async with db_session.provisioning_engine.connect() as conn:
+        prov_login = (await conn.execute(text("SELECT session_user"))).scalar()
+
+    logger.info(
+        "database logins: provisioning=%r app=%r admin=%r",
+        prov_login,
+        app_login,
+        admin_login,
+    )
+    bar = "=" * 70
+    if (app_login, app_db) == (admin_login, admin_db):
+        logger.warning(
+            "\n%s\n"
+            "NOT RECOMMENDED: DATABASE_URL_APP and DATABASE_URL_ADMIN both\n"
+            "connect to database %r as %r.\n"
+            "These are meant to be separate trust surfaces — a policy-bound\n"
+            "request login (app_user) and an RLS-exempt system engine\n"
+            "(app_admin). On a shared login the request path's unrouted\n"
+            "queries run at the system engine's privileges, without the\n"
+            "database-level row-security backstop.\n"
+            "Point DATABASE_URL_APP at app_user and DATABASE_URL_ADMIN at\n"
+            "app_admin (see docker-compose.example.yml).\n"
+            "%s",
+            bar,
+            app_db,
+            app_login,
+            bar,
+        )
+    elif app_bypasses:
+        logger.warning(
+            "\n%s\n"
+            "NOT RECOMMENDED: DATABASE_URL_APP connects as %r, which holds\n"
+            "SUPERUSER or BYPASSRLS. The request path is designed to run\n"
+            "policy-bound; with these attributes its unrouted queries read\n"
+            "shared tables without the row-security backstop. If the APP and\n"
+            "ADMIN connection strings are swapped, swap them back; otherwise\n"
+            "point DATABASE_URL_APP at the app_user role (see\n"
+            "docker-compose.example.yml).\n"
+            "%s",
+            bar,
+            app_login,
+            bar,
+        )
+
+
+def _effective_grants_exit_message(
+    login: str, env_var: str, canonical_role: str, missing: list[tuple[str, str]]
+) -> str:
+    from app.db import system_grants
+
+    by_table: dict[str, set[str]] = {}
+    for table, verb in missing:
+        by_table.setdefault(table, set()).add(verb)
+    grant_lines = "\n".join(
+        f"  GRANT {system_grants.grant_sql(frozenset(verbs))} "
+        f'ON TABLE {table} TO "{login}";'
+        for table, verbs in sorted(by_table.items())
+    )
+    return (
+        f"\n{'=' * 70}\n"
+        f"{env_var} connects as {login!r}, which is missing privileges this\n"
+        "surface requires on the shared tables. The audited grants target the\n"
+        f"canonical {canonical_role!r} role; this deployment's login either\n"
+        "isn't that role or lost its grants (roles are cluster state — a\n"
+        "restore does not bring them back).\n\n"
+        f"Either point {env_var} at {canonical_role!r} (recommended), or grant\n"
+        "the missing privileges as the object owner:\n\n"
+        f"{grant_lines}\n\n"
+        "(a table granted INSERT also needs GRANT USAGE on its id sequence)\n"
+        "then restart the app.\n"
+        f"{'=' * 70}"
+    )
+
+
+async def _effective_missing_grants(
+    conn: AsyncConnection, matrix: dict[str, frozenset[str] | None]
+) -> list[tuple[str, str]]:
+    """``(table, verb)`` pairs from the audited matrix that the connection's
+    LOGIN (``session_user``) does not effectively hold. One round trip."""
+    values = ", ".join(
+        f"('public.{table}', '{verb}')"
+        for table, verbs in matrix.items()
+        if verbs
+        for verb in verbs
+    )
+    if not values:
+        return []
+    rows = (
+        await conn.execute(
+            text(
+                "SELECT t.tbl, t.priv "
+                f"FROM (VALUES {values}) AS t(tbl, priv) "
+                "WHERE NOT has_table_privilege(session_user, t.tbl, t.priv)"
+            )
+        )
+    ).all()
+    return [(table, verb) for table, verb in rows]
+
+
+async def verify_effective_shared_grants() -> None:
+    """Verify the CONNECTED app/admin logins effectively hold their audited
+    shared-table privileges, stopping boot with the exact repair when not.
+
+    Companion to :func:`ensure_shared_table_grants`, which heals the canonical
+    ``app_admin`` / ``app_user`` roles by name: this check runs afterwards and
+    probes ``session_user`` on each engine, so a deployment whose URLs connect
+    as other logins stops here with actionable GRANT statements instead of
+    failing later inside seeding (or a request) with a bare
+    "permission denied for table ..." error. A canonical deployment passes in
+    one SELECT per engine.
+    """
+    from app.db import system_grants
+
+    for engine_, env_var, canonical_role, matrix in (
+        (
+            db_session.admin_engine,
+            "DATABASE_URL_ADMIN",
+            "app_admin",
+            system_grants.SHARED_TABLE_SYSTEM_GRANTS,
+        ),
+        (
+            db_session.engine,
+            "DATABASE_URL_APP",
+            "app_user",
+            system_grants.SHARED_TABLE_APP_USER_GRANTS,
+        ),
+    ):
+        async with engine_.connect() as conn:
+            login = (await conn.execute(text("SELECT session_user"))).scalar()
+            missing = await _effective_missing_grants(conn, matrix)
+        if missing:
+            raise SystemExit(
+                _effective_grants_exit_message(login, env_var, canonical_role, missing)
+            )

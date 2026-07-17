@@ -13,6 +13,8 @@ from app.db.schema_provisioning import (
     deprovision_guild,
     ensure_shared_table_grants,
     ensure_system_engine_bypassrls,
+    verify_effective_shared_grants,
+    verify_engine_identities,
 )
 from app.db.session import AdminSessionLocal, run_migrations, set_rls_context
 from app.models.platform.guild import Guild
@@ -164,6 +166,9 @@ async def check_pre_baseline_db() -> None:
 async def init() -> None:
     await check_pre_baseline_db()
     await run_migrations()
+    # Name the three DB logins in the log and warn loudly on wiring that
+    # collapses the role separation, before the heals act on those logins.
+    await verify_engine_identities()
     # A policy-bound system engine (restored database, hand-created role) reads
     # shared tables as empty; the seeding below would then try to re-create the
     # primary guild and die on the guilds RLS policy (issue #835). Verify —
@@ -174,6 +179,9 @@ async def init() -> None:
     # restored role can be missing them, failing with "permission denied for
     # table guilds" (issue #835 follow-up).
     await ensure_shared_table_grants()
+    # The heal targets the canonical role names; verify the CONNECTED logins
+    # actually hold the audited privileges (exact GRANTs in the error if not).
+    await verify_effective_shared_grants()
     await init_owner()
     async with AdminSessionLocal() as session:
         # guild_settings is guild-scoped; route into the primary guild's schema so

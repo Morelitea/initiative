@@ -969,3 +969,83 @@ async def test_shared_grants_probe_detects_partial_grant(engine, monkeypatch):
         assert intact is False
     finally:
         await _drop_probe_table(engine)
+
+
+# --- verify_engine_identities / verify_effective_shared_grants ---------------
+#
+# The heals above repair the canonical roles; these boot checks pin the wiring
+# itself — which login each URL connects as, and whether the CONNECTED logins
+# effectively hold the audited privileges.
+
+
+async def test_engine_identities_warn_on_shared_app_and_admin_login(
+    monkeypatch, caplog
+):
+    import app.db.session as db_session
+
+    # Point the app engine at the (harness) admin engine: same login, same DB.
+    # Working-but-not-recommended wiring warns loudly and boots (the
+    # warn_if_privileged_database_url pattern), it never stops.
+    monkeypatch.setattr(db_session, "engine", db_session.admin_engine)
+    with caplog.at_level("WARNING", logger="app.db.schema_provisioning"):
+        await schema_provisioning.verify_engine_identities()
+    joined = "\n".join(r.getMessage() for r in caplog.records)
+    assert "DATABASE_URL_APP and DATABASE_URL_ADMIN" in joined
+    assert "NOT RECOMMENDED" in joined
+
+
+async def test_engine_identities_warn_on_privileged_app_login(
+    engine, monkeypatch, caplog
+):
+    import app.db.session as db_session
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    # App engine as app_admin (BYPASSRLS) — a swapped-URLs deployment. A
+    # DISTINCT engine from a distinct login must be the admin side so the
+    # same-login warning doesn't fire instead.
+    swapped_app = create_async_engine(db_session.admin_engine.url, echo=False)
+    monkeypatch.setattr(db_session, "engine", swapped_app)
+    monkeypatch.setattr(db_session, "admin_engine", engine)
+    try:
+        with caplog.at_level("WARNING", logger="app.db.schema_provisioning"):
+            await schema_provisioning.verify_engine_identities()
+        joined = "\n".join(r.getMessage() for r in caplog.records)
+        assert "SUPERUSER or" in joined
+        assert "BYPASSRLS" in joined
+        assert "DATABASE_URL_APP" in joined
+    finally:
+        await swapped_app.dispose()
+
+
+async def test_effective_grants_pass_for_privileged_logins(engine, monkeypatch):
+    import app.db.session as db_session
+
+    # Admin side: the harness's real app_admin (audited grants from the
+    # baseline). App side: the owning test login, which holds everything —
+    # the check must complete without exiting.
+    monkeypatch.setattr(db_session, "engine", engine)
+    await schema_provisioning.verify_effective_shared_grants()
+
+
+async def test_effective_grants_fail_closed_for_grantless_admin_login(
+    engine, monkeypatch
+):
+    import app.db.session as db_session
+
+    role = f"{engine.url.database}_nogrant_role"
+    bound_engine = await _create_policy_bound_login(engine, role, "nogrant-pw")
+    monkeypatch.setattr(db_session, "admin_engine", bound_engine)
+    monkeypatch.setattr(db_session, "engine", engine)  # app side passes (owner)
+    try:
+        with pytest.raises(SystemExit) as excinfo:
+            await schema_provisioning.verify_effective_shared_grants()
+        message = str(excinfo.value)
+        assert "DATABASE_URL_ADMIN" in message
+        assert role in message
+        # The repair must be copy-pasteable: real GRANT statements naming the
+        # actual login, including the table the reporter's boot died on.
+        assert f'ON TABLE public.guilds TO "{role}";' in message
+        assert "GRANT SELECT, INSERT, UPDATE, DELETE" in message
+    finally:
+        await bound_engine.dispose()
+        await _drop_login(engine, role)

@@ -72,9 +72,16 @@ async def lifespan(app: FastAPI):
         backfill_guild_schemas,
         ensure_shared_table_grants,
         ensure_system_engine_bypassrls,
+        verify_effective_shared_grants,
+        verify_engine_identities,
         warn_if_privileged_database_url,
     )
 
+    # Before the heals: name the three DB logins in the log, and warn loudly
+    # on wiring that collapses the role separation (app/admin URLs sharing a
+    # login, a privileged app login) — so the operator sees which login each
+    # repair below will act on.
+    await verify_engine_identities()
     # Before anything touches the system engine: a policy-bound admin login
     # (restored database, hand-created role) reads shared tables as empty and
     # the seeding below would die with an opaque RLS violation (issue #835).
@@ -84,6 +91,10 @@ async def lifespan(app: FastAPI):
     # seeding dies on "permission denied for table guilds" instead. Re-assert
     # the audited shared-table grants from the registry (issue #835 follow-up).
     await ensure_shared_table_grants()
+    # The heal above targets the canonical role names; verify the CONNECTED
+    # logins actually hold the audited privileges, stopping with the exact
+    # GRANTs when a deployment's URLs connect as other logins.
+    await verify_effective_shared_grants()
     await warn_if_privileged_database_url()
     backfill = await backfill_guild_schemas()
     if backfill.failed:

@@ -1,11 +1,19 @@
-"""Unit tests for the legacy flat-upload relocation (file-move logic only).
+"""Tests for the legacy flat-upload relocation.
 
-``relocate_flat_uploads`` is pure (filesystem + a filename->guild map), so these
-run without a database. The DB-backed map builder and the boot orchestration are
-covered by integration runs.
+``relocate_flat_uploads`` is pure (filesystem + a filename->guild map), so most
+tests run without a database. The DB-backed map builder gets a regression test
+for its pooled-connection role hygiene (issue #927).
 """
 
-from app.db.local_upload_migration import _legacy_flat_files, relocate_flat_uploads
+from sqlalchemy import text
+
+from app.db import session as db_session
+from app.db.local_upload_migration import (
+    _build_filename_guild_map,
+    _legacy_flat_files,
+    relocate_flat_uploads,
+)
+from app.db.schema_provisioning import drop_guild_schema, provision_guild
 
 
 def test_relocate_moves_flat_files_into_guild_dirs(tmp_path):
@@ -57,6 +65,39 @@ def test_legacy_flat_files_ignores_subdirs(tmp_path):
 
 def test_legacy_flat_files_missing_root(tmp_path):
     assert _legacy_flat_files(tmp_path / "nope") == []
+
+
+async def test_filename_map_walk_leaves_no_guild_role_on_the_pool(engine):
+    """The per-guild schema walk assumes ``guild_<id>`` roles on a pooled
+    system-engine connection. After it finishes, a fresh checkout from that
+    pool must run as the plain system login again — a lingering guild role
+    RLS-filters public tables to zero rows for every later consumer of the
+    pool. Pins the connection hygiene the boot path depends on (issue #927
+    was this leak, on the secret-key rotation's committed write path)."""
+    gid = None
+    try:
+        async with engine.begin() as conn:
+            gid = await conn.scalar(
+                text(
+                    "INSERT INTO public.guilds (name) VALUES ('Walk Guild') RETURNING id"
+                )
+            )
+        await provision_guild(gid)
+
+        await _build_filename_guild_map()
+
+        async with db_session.admin_engine.connect() as conn:
+            who = (await conn.execute(text("SELECT current_user"))).scalar()
+            visible = await conn.scalar(text("SELECT count(*) FROM public.guilds"))
+        assert who == "app_admin"
+        assert visible >= 1
+    finally:
+        if gid is not None:
+            async with engine.begin() as conn:
+                await drop_guild_schema(conn, gid)
+                await conn.execute(
+                    text("DELETE FROM public.guilds WHERE id = :g"), {"g": gid}
+                )
 
 
 # --- DB-backed: the guild map builder spans guilds on one connection ----------
