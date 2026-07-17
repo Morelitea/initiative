@@ -310,7 +310,7 @@ export const ShareControl = ({
                 <PopoverTrigger asChild>
                   <Button type="button" variant="outline" size="sm" disabled={disabled}>
                     {t("share.addPeople")}
-                    <ChevronDown className="ml-1 h-4 w-4 opacity-50" />
+                    <ChevronDown className="h-4 w-4 opacity-50" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-72 p-0" align="end">
@@ -408,7 +408,7 @@ export const ShareControl = ({
                 <PopoverTrigger asChild>
                   <Button type="button" variant="outline" size="sm" disabled={disabled}>
                     {t("share.addRoles")}
-                    <ChevronDown className="ml-1 h-4 w-4 opacity-50" />
+                    <ChevronDown className="h-4 w-4 opacity-50" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-72 p-0" align="end">

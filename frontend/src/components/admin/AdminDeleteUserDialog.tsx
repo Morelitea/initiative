@@ -530,7 +530,7 @@ export function AdminDeleteUserDialog({
                               onClick={() => setGuildDeleteConfirm(guildBlocker)}
                               disabled={isResolvingBlocker}
                             >
-                              <Trash2 className="mr-1 h-4 w-4" />
+                              <Trash2 className="h-4 w-4" />
                               {t("adminDeleteUser.deleteGuild")}
                             </Button>
                           </div>
@@ -598,7 +598,7 @@ export function AdminDeleteUserDialog({
                                   onClick={() => setInitiativeDeleteConfirm(initBlocker)}
                                   disabled={isResolvingBlocker}
                                 >
-                                  <Trash2 className="mr-1 h-4 w-4" />
+                                  <Trash2 className="h-4 w-4" />
                                   {t("adminDeleteUser.deleteInitiative")}
                                 </Button>
                               </div>
@@ -749,7 +749,7 @@ export function AdminDeleteUserDialog({
               onClick={handleBack}
               disabled={step === "choose-type" || deleteUser.isPending || isResolvingBlocker}
             >
-              <ChevronLeft className="mr-1 h-4 w-4" />
+              <ChevronLeft className="h-4 w-4" />
               {t("adminDeleteUser.back")}
             </Button>
 
@@ -776,7 +776,7 @@ export function AdminDeleteUserDialog({
                 >
                   {isCheckingEligibility ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                       {t("adminDeleteUser.loading")}
                     </>
                   ) : (
@@ -791,7 +791,7 @@ export function AdminDeleteUserDialog({
                 >
                   {deleteUser.isPending ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                       {action === "deactivate"
                         ? t("adminDeleteUser.deactivating")
                         : t("adminDeleteUser.deleting")}

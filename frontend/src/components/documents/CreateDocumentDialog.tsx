@@ -309,7 +309,7 @@ export const CreateDocumentDialog = ({
                     className="h-auto px-2 py-1 text-xs"
                     onClick={() => setSelectedTemplateId("")}
                   >
-                    <X className="mr-1 h-3 w-3" />
+                    <X className="h-3 w-3" />
                     {t("create.clear")}
                   </Button>
                 )}
@@ -411,7 +411,7 @@ export const CreateDocumentDialog = ({
                   className="w-full"
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  <Upload className="mr-2 h-4 w-4" />
+                  <Upload className="h-4 w-4" />
                   {t("create.chooseFile")}
                 </Button>
               )}
@@ -513,7 +513,7 @@ export const CreateDocumentDialog = ({
             >
               {createDocument.isPending ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   {t("create.creating")}
                 </>
               ) : (
@@ -539,7 +539,7 @@ export const CreateDocumentDialog = ({
             >
               {uploadDocument.isPending ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   {t("create.uploadingFile")}
                 </>
               ) : (
@@ -566,7 +566,7 @@ export const CreateDocumentDialog = ({
             >
               {createDocument.isPending ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   {t("create.creating")}
                 </>
               ) : (

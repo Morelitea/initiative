@@ -460,7 +460,7 @@ export const ProjectTaskStatusesManager = ({
               }}
               disabled={!canManage || createStatus.isPending}
             >
-              {createStatus.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {createStatus.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {t("statuses.add")}
             </Button>
           </div>
@@ -480,7 +480,7 @@ export const ProjectTaskStatusesManager = ({
                   onClick={handleSaveAll}
                   disabled={!hasChanges || updateStatus.isPending}
                 >
-                  <Save className="mr-2 h-4 w-4" />
+                  <Save className="h-4 w-4" />
                   {t("statuses.saveChanges")}
                 </Button>
               )}
@@ -580,9 +580,7 @@ export const ProjectTaskStatusesManager = ({
               onClick={handleDeleteConfirm}
               disabled={deleteStatusMutation.isPending || !fallbackOptions.length}
             >
-              {deleteStatusMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : null}
+              {deleteStatusMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {t("common:delete")}
             </Button>
           </DialogFooter>

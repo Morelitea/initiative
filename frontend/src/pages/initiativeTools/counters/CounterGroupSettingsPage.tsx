@@ -279,7 +279,7 @@ export function CounterGroupSettingsPage() {
             </CardHeader>
             <CardContent>
               <Button type="button" variant="outline" onClick={openDuplicateDialog}>
-                <Copy className="mr-2 h-4 w-4" />
+                <Copy className="h-4 w-4" />
                 {t("duplicate.action")}
               </Button>
             </CardContent>
@@ -298,7 +298,7 @@ export function CounterGroupSettingsPage() {
                   onClick={() => setDeleteDialogOpen(true)}
                   disabled={!isOwner}
                 >
-                  <Trash2 className="mr-2 h-4 w-4" />
+                  <Trash2 className="h-4 w-4" />
                   {t("deleteGroup")}
                 </Button>
               </CardContent>

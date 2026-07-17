@@ -152,7 +152,7 @@ export const InitiativeSection = memo(
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/initiative:opacity-100 lg:flex"
+                    className="hidden h-6 w-0 shrink-0 overflow-hidden p-0 opacity-0 transition-all group-hover/initiative:w-6 group-hover/initiative:opacity-100 motion-reduce:transition-none lg:flex"
                     asChild
                   >
                     <Link to={gp(`/initiatives/${initiative.id}/settings`)}>
@@ -269,7 +269,7 @@ export const InitiativeSection = memo(
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/project:opacity-100 lg:flex"
+                                className="hidden h-6 w-0 shrink-0 overflow-hidden p-0 opacity-0 transition-all group-hover/project:w-6 group-hover/project:opacity-100 motion-reduce:transition-none lg:flex"
                                 asChild
                               >
                                 <Link to={gp(`/projects/${project.id}/settings`)}>

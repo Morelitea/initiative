@@ -36,7 +36,7 @@ export const DocumentSettingsAdvancedTab = ({
             onClick={onDuplicateClick}
             disabled={!canManageDocument}
           >
-            <Copy className="mr-2 h-4 w-4" />
+            <Copy className="h-4 w-4" />
             {t("settings.duplicateDocument")}
           </Button>
           <Button
@@ -45,7 +45,7 @@ export const DocumentSettingsAdvancedTab = ({
             onClick={onCopyClick}
             disabled={!canManageDocument}
           >
-            <ArrowRightLeft className="mr-2 h-4 w-4" />
+            <ArrowRightLeft className="h-4 w-4" />
             {t("settings.copyToInitiative")}
           </Button>
         </CardContent>
@@ -59,7 +59,7 @@ export const DocumentSettingsAdvancedTab = ({
           </CardHeader>
           <CardContent>
             <Button type="button" variant="destructive" onClick={onDeleteClick} disabled={!isOwner}>
-              <Trash2 className="mr-2 h-4 w-4" />
+              <Trash2 className="h-4 w-4" />
               {t("settings.deleteDocument")}
             </Button>
           </CardContent>

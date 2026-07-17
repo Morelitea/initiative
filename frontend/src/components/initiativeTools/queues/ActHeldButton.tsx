@@ -34,9 +34,9 @@ export const ActHeldButton = ({ itemId, onAct }: ActHeldButtonProps) => {
     <DropdownMenu>
       <DropdownMenuTrigger asChild onClick={(event) => event.stopPropagation()}>
         <Button type="button" size="sm" aria-label={t("actNow")}>
-          <Zap className="mr-1 h-4 w-4" />
+          <Zap className="h-4 w-4" />
           {t("actNow")}
-          <ChevronDown className="ml-1 h-3 w-3" aria-hidden="true" />
+          <ChevronDown className="h-3 w-3" aria-hidden="true" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" onClick={(event) => event.stopPropagation()}>
