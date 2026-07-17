@@ -191,7 +191,7 @@ export const InitiativeDetailPage = () => {
                 to="/g/$guildId/initiatives/$initiativeId/settings"
                 params={{ guildId: guildIdParam, initiativeId: String(initiative.id) }}
               >
-                <Settings className="mr-2 h-4 w-4" />
+                <Settings className="h-4 w-4" />
                 {t("detail.initiativeSettings")}
               </Link>
             </Button>

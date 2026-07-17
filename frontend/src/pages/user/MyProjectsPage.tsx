@@ -418,7 +418,7 @@ export const MyProjectsPage = () => {
               <Button variant="ghost" size="sm" className="h-8 px-3">
                 {filtersOpen ? t("projects:filters.hide") : t("projects:filters.show")}
                 <ChevronDown
-                  className={`ml-1 h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
+                  className={`h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
                 />
               </Button>
             </CollapsibleTrigger>

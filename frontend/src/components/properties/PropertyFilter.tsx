@@ -324,7 +324,7 @@ export const PropertyFilter = ({
         disabled={!canAddMore}
         className="h-8"
       >
-        <Plus className="mr-1 h-4 w-4" />
+        <Plus className="h-4 w-4" />
         {t("filter.addFilter")}
       </Button>
     </div>

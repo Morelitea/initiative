@@ -52,7 +52,7 @@ export const AdvancedToolCard = ({ tool }: AdvancedToolCardProps) => {
               className="text-muted-foreground"
               onClick={() => setTagsDialogOpen(true)}
             >
-              <TagIcon className="mr-1 h-4 w-4" />
+              <TagIcon className="h-4 w-4" />
               {t("manageTags")}
             </Button>
           )}

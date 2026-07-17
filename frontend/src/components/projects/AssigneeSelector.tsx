@@ -123,7 +123,7 @@ export const AssigneeSelector = ({
               selectedOptions.length === 0 && "text-muted-foreground"
             )}
           >
-            <Users className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+            <Users className="h-4 w-4 shrink-0 opacity-50" />
             {selectedOptions.length > 0 ? (
               <div className="flex flex-wrap gap-1">
                 {selectedOptions.map((option) => {

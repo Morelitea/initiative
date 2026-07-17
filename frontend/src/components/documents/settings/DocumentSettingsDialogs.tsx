@@ -112,7 +112,7 @@ export const DocumentSettingsDialogs = ({
             >
               {isDuplicating ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   {t("settings.duplicating")}
                 </>
               ) : (
@@ -187,7 +187,7 @@ export const DocumentSettingsDialogs = ({
             >
               {isCopying ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   {t("settings.copying")}
                 </>
               ) : (
@@ -215,7 +215,7 @@ export const DocumentSettingsDialogs = ({
             <Button type="button" variant="destructive" onClick={onDelete} disabled={isDeleting}>
               {isDeleting ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   {t("settings.deleting")}
                 </>
               ) : (

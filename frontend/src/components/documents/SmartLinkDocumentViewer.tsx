@@ -72,7 +72,7 @@ export function SmartLinkDocumentViewer({ content, className }: SmartLinkDocumen
       </p>
       <Button asChild variant="default" size="sm">
         <a href={url} target="_blank" rel="noopener noreferrer">
-          <ExternalLink className="mr-2 h-4 w-4" />
+          <ExternalLink className="h-4 w-4" />
           {t("smartLink.openInNewTab")}
         </a>
       </Button>

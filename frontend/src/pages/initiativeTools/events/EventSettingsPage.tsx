@@ -465,7 +465,7 @@ export function EventSettingsPage() {
           <Button onClick={handleSave} disabled={updateEvent.isPending || !datesValid}>
             {updateEvent.isPending ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
                 {t("saving")}
               </>
             ) : (
@@ -513,7 +513,7 @@ export function EventSettingsPage() {
           <Button onClick={handleSaveAttendees} disabled={setAttendees.isPending}>
             {setAttendees.isPending ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
                 {t("saving")}
               </>
             ) : (
@@ -577,7 +577,7 @@ export function EventSettingsPage() {
             onClick={() => setDeleteConfirmOpen(true)}
             disabled={deleteEvent.isPending}
           >
-            <Trash2 className="mr-2 h-4 w-4" />
+            <Trash2 className="h-4 w-4" />
             {t("deleteEvent")}
           </Button>
         </CardContent>

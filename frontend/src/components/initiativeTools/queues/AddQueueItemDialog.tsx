@@ -285,7 +285,7 @@ export const AddQueueItemDialog = ({
           <Button type="button" onClick={handleSubmit} disabled={!canSubmit}>
             {isAdding ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
                 {t("adding")}
               </>
             ) : (

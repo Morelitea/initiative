@@ -1245,12 +1245,12 @@ export const DocumentDetailPage = () => {
                             >
                               {isUploadingFeaturedImage ? (
                                 <>
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  <Loader2 className="h-4 w-4 animate-spin" />
                                   {t("detail.uploading")}
                                 </>
                               ) : (
                                 <>
-                                  <ImagePlus className="mr-2 h-4 w-4" />
+                                  <ImagePlus className="h-4 w-4" />
                                   {t("detail.uploadImage")}
                                 </>
                               )}
@@ -1273,7 +1273,7 @@ export const DocumentDetailPage = () => {
                                 }}
                                 disabled={isUploadingFeaturedImage}
                               >
-                                <X className="mr-2 h-4 w-4" />
+                                <X className="h-4 w-4" />
                                 {t("detail.removeImage")}
                               </Button>
                             ) : null}
@@ -1367,7 +1367,7 @@ export const DocumentDetailPage = () => {
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    <ExternalLink className="mr-2 h-4 w-4" />
+                    <ExternalLink className="h-4 w-4" />
                     {t("smartLink.openInNewTab")}
                   </a>
                 </Button>
@@ -1381,9 +1381,9 @@ export const DocumentDetailPage = () => {
                 className={cn(document.document_type !== "smart_link" && "ml-auto")}
               >
                 {isFullscreen ? (
-                  <Minimize2 className="mr-2 h-4 w-4" />
+                  <Minimize2 className="h-4 w-4" />
                 ) : (
-                  <Maximize2 className="mr-2 h-4 w-4" />
+                  <Maximize2 className="h-4 w-4" />
                 )}
                 {t(isFullscreen ? "detail.exitFullscreen" : "detail.enterFullscreen")}
               </Button>
@@ -1494,7 +1494,7 @@ export const DocumentDetailPage = () => {
                       >
                         {saveDocument.isPending ? (
                           <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            <Loader2 className="h-4 w-4 animate-spin" />
                             {t("detail.saving")}
                           </>
                         ) : (
