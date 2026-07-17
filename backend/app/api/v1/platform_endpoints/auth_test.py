@@ -997,9 +997,11 @@ async def test_oidc_callback_provisions_new_user_and_sets_cookie(
 async def test_oidc_callback_establishes_refresh_session(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
-    """The web callback additively opens a server-side session recording which
-    provider satisfied the login (amr/sat) and issues the rotating refresh
-    cookie — parity with the password login path (additive-first)."""
+    """The web callback opens a server-side session recording which provider
+    satisfied the login (amr/sat), mints the new-model access token from it,
+    and issues the rotating refresh cookie — parity with password login."""
+    import jwt as pyjwt
+
     await _enable_platform_oidc(session)
     idp = FakeIdp()
     _wire_fake_idp(monkeypatch, idp)
@@ -1011,7 +1013,7 @@ async def test_oidc_callback_establishes_refresh_session(
     )
     assert response.status_code in (302, 307)
     assert response.cookies.get(REFRESH_COOKIE_NAME)
-    assert SESSION_COOKIE_NAME in response.cookies  # legacy cookie unchanged
+    assert SESSION_COOKIE_NAME in response.cookies
 
     provider = (
         await session.exec(
@@ -1028,6 +1030,14 @@ async def test_oidc_callback_establishes_refresh_session(
     ).one()
     assert auth_session.amr == [f"oidc:{PLATFORM_OIDC_SLUG}"]
     assert auth_session.satisfied_providers == [provider.id]
+
+    # The cookie carries the new-model access token minted from that session.
+    claims = pyjwt.decode(
+        response.cookies[SESSION_COOKIE_NAME], options={"verify_signature": False}
+    )
+    assert claims["sid"] == str(auth_session.id)
+    assert claims["amr"] == [f"oidc:{PLATFORM_OIDC_SLUG}"]
+    assert claims["sat"] == [provider.id]
 
 
 @pytest.mark.integration
@@ -1056,6 +1066,13 @@ async def test_oidc_callback_survives_session_store_failure(
     assert response.headers["location"].endswith("/oidc/callback")
     assert SESSION_COOKIE_NAME in response.cookies
     assert response.cookies.get(REFRESH_COOKIE_NAME) is None
+    # The fallback cookie is a legacy (session-less) token.
+    import jwt as pyjwt
+
+    claims = pyjwt.decode(
+        response.cookies[SESSION_COOKIE_NAME], options={"verify_signature": False}
+    )
+    assert "sid" not in claims
 
     user = (
         await session.exec(
@@ -1633,6 +1650,72 @@ async def test_login_sets_refresh_cookie(client: AsyncClient, session: AsyncSess
     assert resp.status_code == 200
     assert resp.cookies.get("refresh_token")
     assert resp.cookies.get("session_token")  # legacy cookie unchanged
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_login_issues_session_access_token(
+    client: AsyncClient, session: AsyncSession
+):
+    """Login mints the new-model access token: short-lived (AUTH_ACCESS_TTL),
+    carrying the server-side session id and satisfied factors (sid/amr/sat)."""
+    import jwt as pyjwt
+
+    from app.core.config import settings as app_settings
+
+    _, password = await _make_login_user(session, "newmodel@example.com")
+    resp = await _login(client, "newmodel@example.com", password)
+    assert resp.status_code == 200
+
+    claims = pyjwt.decode(
+        resp.json()["access_token"], options={"verify_signature": False}
+    )
+    assert claims["amr"] == ["pwd"]
+    assert claims["sat"] == []
+    assert claims["sid"]
+    assert resp.cookies.get(REFRESH_COOKIE_NAME)
+    set_cookies = resp.headers.get_list("set-cookie")
+    expected_age = f"Max-Age={app_settings.AUTH_ACCESS_TTL_MINUTES * 60}"
+    assert any(
+        c.startswith(f"{SESSION_COOKIE_NAME}=") and expected_age in c
+        for c in set_cookies
+    ), set_cookies
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_login_session_store_failure_falls_back_to_legacy(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """A session-store failure must not block sign-in: login falls back to a
+    legacy long-lived token (no refresh cookie) that still authenticates."""
+    import jwt as pyjwt
+
+    _, password = await _make_login_user(session, "fallback@example.com")
+
+    async def _boom(*args, **kwargs):
+        raise RuntimeError("session store down")
+
+    monkeypatch.setattr("app.services.auth.sessions.create_session", _boom)
+
+    resp = await _login(client, "fallback@example.com", password)
+    assert resp.status_code == 200
+    token = resp.json()["access_token"]
+    claims = pyjwt.decode(token, options={"verify_signature": False})
+    assert "sid" not in claims
+    assert resp.cookies.get(REFRESH_COOKIE_NAME) is None
+    # Any leftover refresh cookie is actively cleared so it can't ride the
+    # new login into a later silent renewal.
+    set_cookies = resp.headers.get_list("set-cookie")
+    assert any(
+        c.startswith(f"{REFRESH_COOKIE_NAME}=") and ("Max-Age=0" in c or "1970" in c)
+        for c in set_cookies
+    ), set_cookies
+
+    me = await client.get(
+        "/api/v1/users/me", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert me.status_code == 200
 
 
 @pytest.mark.integration

@@ -1,5 +1,7 @@
 """Shared rate limiter configuration for the application."""
 
+import ipaddress
+
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from starlette.requests import Request
@@ -26,6 +28,17 @@ def get_real_client_ip(request: Request) -> str:
 
     # Direct connection IP (or BEHIND_PROXY not set)
     return get_remote_address(request)
+
+
+def get_inet_client_ip(request: Request) -> str | None:
+    """The client IP as a value an INET column accepts, or ``None`` when it
+    isn't a parseable address (e.g. the ``testclient`` peer). Guards session
+    bookkeeping writes from faulting on a non-IP host string."""
+    try:
+        ipaddress.ip_address(get_real_client_ip(request))
+    except ValueError:
+        return None
+    return get_real_client_ip(request)
 
 
 def _default_limits() -> list[str]:
