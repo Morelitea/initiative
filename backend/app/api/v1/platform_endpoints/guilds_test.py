@@ -828,15 +828,11 @@ async def test_guild_advanced_tool_handoff_succeeds_for_admin(
     assert body["iframe_url"] == "https://embed.example.com"
     assert body["expires_in_seconds"] > 0
 
-    payload = jwt.decode(
-        body["handoff_token"],
-        app_settings.jwt_signing_key,
-        # Hardcoded HS256 — the handoff signing path uses HS256 in its
-        # no-private-key fallback regardless of JWT_ALGORITHM. See
-        # initiatives_test.py for the same rationale.
-        algorithms=["HS256"],
-        audience=ADVANCED_TOOL_AUDIENCE,
-    )
+    # The handoff signs RS256 across the trust boundary; assert the algorithm
+    # and read the claims (the signature round-trip is covered in security_test).
+    assert jwt.get_unverified_header(body["handoff_token"])["alg"] == "RS256"
+    payload = jwt.decode(body["handoff_token"], options={"verify_signature": False})
+    assert payload["aud"] == ADVANCED_TOOL_AUDIENCE
     assert payload["sub"] == str(admin.id)
     assert payload["scope"] == "guild"
     assert "initiative_id" not in payload

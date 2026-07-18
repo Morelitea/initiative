@@ -20,6 +20,8 @@ import asyncpg
 import pytest
 from alembic import command
 from alembic.config import Config
+from cryptography.hazmat.primitives import serialization as _serialization
+from cryptography.hazmat.primitives.asymmetric import rsa as _rsa
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -53,6 +55,28 @@ WORKER_ID = os.environ.get("PYTEST_XDIST_WORKER", "master")
 # read these at apply time, and guild provisioning is already prefix-aware.
 settings.GUILD_ROLE_PREFIX = f"test_{WORKER_ID}_"
 settings.PLATFORM_ROLE_PREFIX = f"test_{WORKER_ID}_"
+
+# Advanced-tool handoff tokens are always RS256 (verified across a trust
+# boundary), so any test that mints one needs a real signing key. Generate one
+# ephemeral keypair for the whole session: the private PEM is what the mint path
+# reads; the public PEM is exported for tests that verify a minted token's
+# signature end to end.
+_handoff_key = _rsa.generate_private_key(public_exponent=65537, key_size=2048)
+HANDOFF_TEST_PRIVATE_PEM = _handoff_key.private_bytes(
+    encoding=_serialization.Encoding.PEM,
+    format=_serialization.PrivateFormat.PKCS8,
+    encryption_algorithm=_serialization.NoEncryption(),
+).decode("ascii")
+HANDOFF_TEST_PUBLIC_PEM = (
+    _handoff_key.public_key()
+    .public_bytes(
+        encoding=_serialization.Encoding.PEM,
+        format=_serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    .decode("ascii")
+)
+settings.HANDOFF_SIGNING_PRIVATE_KEY_PEM = HANDOFF_TEST_PRIVATE_PEM
+settings.HANDOFF_SIGNING_KEY_ID = "test-handoff-key"
 
 # --- Test-infrastructure superuser ---------------------------------------------
 # The suite needs cluster-superuser powers the APP must never hold: CREATE

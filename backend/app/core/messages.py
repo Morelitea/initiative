@@ -474,6 +474,9 @@ class AdvancedToolMessages:
     GUILD_WIDE_NOT_SHAREABLE = "ADVANCED_TOOL_GUILD_WIDE_NOT_SHAREABLE"
     # The run endpoint only accepts the automation service's delegation tokens.
     DELEGATED_RUN_ONLY = "ADVANCED_TOOL_DELEGATED_RUN_ONLY"
+    # ADVANCED_TOOL_URL is set but no handoff signing key is configured, so the
+    # handoff cannot be minted (fail closed, retryable once configured).
+    SIGNING_NOT_CONFIGURED = "ADVANCED_TOOL_SIGNING_NOT_CONFIGURED"
 
 
 class WebhookSubscriptionMessages:

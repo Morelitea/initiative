@@ -273,23 +273,32 @@ ADVANCED_TOOL_AUDIENCE = "initiative:advanced-tool"
 ADVANCED_TOOL_HANDOFF_LIFETIME = timedelta(seconds=60)
 
 
+class HandoffSigningNotConfiguredError(RuntimeError):
+    """Raised when a handoff token is requested but no RS256 signing key is
+    configured. The token is verified by a separate service, so there is no
+    symmetric fallback — the caller must translate this into a fail-closed
+    response (503) rather than mint an unverifiable token."""
+
+
 def _resolve_handoff_signing_material() -> tuple[str, str, str | None]:
-    """Pick (key, algorithm, kid) for signing advanced-tool handoff JWTs.
+    """Return (private_key_pem, "RS256", kid) for signing handoff JWTs.
 
-    Default: HS256 with the JWT signing key — works out of the box for OSS
-    but requires sharing the secret with the embed backend (single point of
-    compromise).
+    Handoff tokens cross a trust boundary: the advanced-tool embed verifies
+    them with the public half of this key, so they are always RS256 — never
+    a symmetric scheme that would force sharing a secret across that boundary.
+    Set HANDOFF_SIGNING_KEY_ID for a stable ``kid`` so the embed can pick the
+    right verifying key out of a JWKS during rotation.
 
-    Preferred: RS256 with HANDOFF_SIGNING_PRIVATE_KEY_PEM — FOSS holds
-    the private key, the embed verifies with the matching public key,
-    and rotation is just a key swap. Set HANDOFF_SIGNING_KEY_ID for a
-    stable ``kid`` so the embed can pick the right verifying key out of
-    a JWKS.
+    Fails closed (raises) when no key is configured: a deployment that turns
+    on ADVANCED_TOOL_URL must also supply HANDOFF_SIGNING_PRIVATE_KEY_PEM.
     """
     private_pem = settings.HANDOFF_SIGNING_PRIVATE_KEY_PEM
-    if private_pem:
-        return private_pem, "RS256", settings.HANDOFF_SIGNING_KEY_ID
-    return settings.jwt_signing_key, "HS256", None
+    if not private_pem:
+        raise HandoffSigningNotConfiguredError(
+            "HANDOFF_SIGNING_PRIVATE_KEY_PEM is required to mint advanced-tool "
+            "handoff tokens"
+        )
+    return private_pem, "RS256", settings.HANDOFF_SIGNING_KEY_ID
 
 
 def create_advanced_tool_handoff_token(
@@ -311,11 +320,11 @@ def create_advanced_tool_handoff_token(
       2. Backend validates membership + master switch + URL config.
       3. Backend returns this token, which the SPA passes to the iframe via
          postMessage (never a query string).
-      4. The iframe's backend verifies the token (RS256 public key OR
-         HS256 shared secret), confirms ``aud == ADVANCED_TOOL_AUDIENCE``,
-         and exchanges it for its own session. The ``jti`` claim is used
-         as a one-shot guard — once exchanged, the embed must reject any
-         repeat presentation of the same token within the 60s window.
+      4. The iframe's backend verifies the token with the matching RS256
+         public key, confirms ``aud == ADVANCED_TOOL_AUDIENCE``, and
+         exchanges it for its own session. The ``jti`` claim is used as a
+         one-shot guard — once exchanged, the embed must reject any repeat
+         presentation of the same token within the 60s window.
 
     ``scope`` is "initiative" or "guild". For guild scope the iframe is
     used by guild admins only and there is no ``initiative_id``. The

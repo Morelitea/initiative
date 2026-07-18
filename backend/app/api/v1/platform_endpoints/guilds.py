@@ -11,7 +11,11 @@ from app.api.deps import SessionDep, UserSessionDep, get_current_active_user
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
 from app.core.messages import AdvancedToolMessages, GuildMessages
-from app.core.security import create_advanced_tool_handoff_token, verify_password
+from app.core.security import (
+    HandoffSigningNotConfiguredError,
+    create_advanced_tool_handoff_token,
+    verify_password,
+)
 from app.db.schema_provisioning import deprovision_guild
 from app.db.session import get_admin_session, set_rls_context
 from app.models.platform.guild import GuildRole, GuildMembership, Guild, GuildStatus
@@ -338,16 +342,24 @@ async def create_guild_advanced_tool_handoff(
         user_id=current_user.id,
     )
 
-    token, expires_in_seconds = create_advanced_tool_handoff_token(
-        user_id=current_user.id,
-        guild_id=guild_id,
-        guild_role=GuildRole.admin.value,
-        # Guild admins are managers by definition for this scope.
-        is_manager=True,
-        # Admins always have create permission at the guild level.
-        can_create=True,
-        scope="guild",
-    )
+    try:
+        token, expires_in_seconds = create_advanced_tool_handoff_token(
+            user_id=current_user.id,
+            guild_id=guild_id,
+            guild_role=GuildRole.admin.value,
+            # Guild admins are managers by definition for this scope.
+            is_manager=True,
+            # Admins always have create permission at the guild level.
+            can_create=True,
+            scope="guild",
+        )
+    except HandoffSigningNotConfiguredError as exc:
+        # ADVANCED_TOOL_URL is on but no RS256 signing key — fail closed
+        # (retryable once the operator configures the key).
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=AdvancedToolMessages.SIGNING_NOT_CONFIGURED,
+        ) from exc
 
     return AdvancedToolHandoffResponse(
         handoff_token=token,

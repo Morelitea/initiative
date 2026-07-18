@@ -1,3 +1,4 @@
+import string
 from functools import lru_cache
 from urllib.parse import urlsplit
 
@@ -189,6 +190,22 @@ class Settings(BaseSettings):
         if value is None:
             return None
         return _validate_strong_key(value, "JWT_SIGNING_KEY", rotation_hint=False)
+
+    @field_validator("GUILD_ROLE_PREFIX", "PLATFORM_ROLE_PREFIX")
+    @classmethod
+    def _validate_role_prefix(cls, value: str) -> str:
+        # These prefixes are interpolated into Postgres ROLE-name DDL and into
+        # every request's SET ROLE. Pin them to identifier-safe characters once
+        # at load time (fail closed) so no name-builder or migration has to
+        # re-check — same charset the role migrations enforce. Empty is the
+        # production default.
+        allowed = frozenset(string.ascii_letters + string.digits + "_")
+        if value and not set(value) <= allowed:
+            raise ValueError(
+                "must contain only ASCII letters, digits, and underscore "
+                "(it becomes part of Postgres role names)"
+            )
+        return value
 
     @property
     def jwt_signing_key(self) -> str:
@@ -526,13 +543,14 @@ class Settings(BaseSettings):
     # ADVANCED_TOOL_URL. Defaults to the ADVANCED_TOOL_URL origin if unset.
     ADVANCED_TOOL_ALLOWED_ORIGINS: list[str] | str | None = None
 
-    # Optional asymmetric key material for signing advanced-tool handoff
-    # JWTs with RS256 instead of HS256. When set, the proprietary embed
-    # backend verifies tokens using the matching public key only — no
-    # secret has to be shared between FOSS and the embed service. Falls
-    # back to HS256 with SECRET_KEY when unset, so OSS deployments work
-    # out of the box. Generate a 2048-bit RSA keypair with
-    # ``openssl genrsa -out private.pem 2048`` and feed the PEM here.
+    # RSA private key (PEM) for signing advanced-tool handoff JWTs. Handoff
+    # tokens cross a trust boundary — the proprietary embed backend verifies
+    # them with the matching public key — so signing is always RS256 and no
+    # secret is shared across that boundary. REQUIRED whenever
+    # ADVANCED_TOOL_URL is set: with the URL on and this unset, the handoff
+    # endpoints fail closed (503) and the app logs a warning at boot.
+    # Generate a 2048-bit keypair with ``openssl genrsa -out private.pem 2048``
+    # and feed the PEM here.
     HANDOFF_SIGNING_PRIVATE_KEY_PEM: str | None = None
     # Key id stamped on the JWT header. The proprietary side reads ``kid``
     # to pick the right verifying key — useful when rotating.
