@@ -105,7 +105,7 @@ const CreateGuildButton = ({ expanded = false }: { expanded?: boolean }) => {
     </DialogTrigger>
   ) : (
     <Tooltip>
-      <TooltipTrigger>
+      <TooltipTrigger asChild>
         <DialogTrigger asChild>
           <Button
             variant="secondary"
