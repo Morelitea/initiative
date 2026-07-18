@@ -114,6 +114,41 @@ describe("AuthProvidersSection", () => {
     expect("client_secret" in call.data).toBe(false);
   });
 
+  it("shows the slug error on invalid submit and clears it on reopen", async () => {
+    renderWithProviders(<AuthProvidersSection />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Add provider" }));
+    fireEvent.change(await screen.findByLabelText("Slug"), {
+      target: { value: "bad-" },
+    });
+    fireEvent.change(screen.getByLabelText("Display name"), {
+      target: { value: "Bad" },
+    });
+    fireEvent.change(screen.getByLabelText("Issuer URL"), {
+      target: { value: "https://id.example" },
+    });
+    fireEvent.change(screen.getByLabelText("Client ID"), {
+      target: { value: "c" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(createMutate).not.toHaveBeenCalled();
+    expect(screen.getByText(/no leading or trailing dash/i)).toBeInTheDocument();
+
+    // Typing clears the error…
+    fireEvent.change(screen.getByLabelText("Slug"), { target: { value: "bad" } });
+    expect(screen.queryByText(/no leading or trailing dash/i)).not.toBeInTheDocument();
+
+    // …and a stale error never survives a close/reopen.
+    fireEvent.change(screen.getByLabelText("Slug"), { target: { value: "bad-" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(screen.getByText(/no leading or trailing dash/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add provider" }));
+    expect(await screen.findByLabelText("Slug")).toBeInTheDocument();
+    expect(screen.queryByText(/no leading or trailing dash/i)).not.toBeInTheDocument();
+  });
+
   it("deletes after confirmation", async () => {
     renderWithProviders(<AuthProvidersSection />);
 

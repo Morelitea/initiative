@@ -7,7 +7,6 @@ from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
-    Path,
     Query,
     Request,
     Response,
@@ -43,7 +42,7 @@ from app.core.security import (
     password_needs_rehash,
     verify_password,
 )
-from app.core.user_input_validators import normalize_timezone
+from app.core.user_input_validators import is_valid_provider_slug, normalize_timezone
 from app.api.v1.platform_endpoints.session_cookies import (
     clear_refresh_cookie,
     set_refresh_cookie,
@@ -678,7 +677,12 @@ async def _resolve_login_provider(
     is dormant and must not authenticate anyone — enforced server-side, not
     just hidden in the UI. The platform slug keeps ``app_settings`` as its
     config surface (reconciled into the registry row on every resolve); any
-    other slug is a registry row directly."""
+    other slug is a registry row directly. A malformed slug is treated like an
+    unknown one (no registry row can carry it)."""
+    if not is_valid_provider_slug(provider_slug):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
+        )
     if app_settings.auth_scope != AuthScope.platform.value:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
@@ -804,7 +808,7 @@ async def provider_login(
     request: Request,
     session: SessionDep,
     admin_session: AdminSessionDep,
-    provider_slug: Annotated[str, Path(pattern=r"^[a-z0-9][a-z0-9-]{0,63}$")],
+    provider_slug: str,
     mobile: bool = Query(default=False),
     device_name: str = Query(default="Mobile Device"),
 ) -> RedirectResponse:
@@ -852,7 +856,7 @@ async def provider_callback(
     request: Request,
     session: SessionDep,
     admin_session: AdminSessionDep,
-    provider_slug: Annotated[str, Path(pattern=r"^[a-z0-9][a-z0-9-]{0,63}$")],
+    provider_slug: str,
     code: str | None = Query(default=None),
     state: str | None = Query(default=None),
 ):
