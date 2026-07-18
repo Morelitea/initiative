@@ -1218,6 +1218,9 @@ class _TaskListQuery:
     guild_ids: Optional[list]
     property_value_conditions: list
     property_definitions: dict
+    # Every property_values leaf's definition id (nested groups included), so the
+    # deferred cross-guild loader resolves exactly what the limit check counted.
+    property_ids_needed: list[int]
 
 
 async def _parse_task_list_query(
@@ -1299,6 +1302,7 @@ async def _parse_task_list_query(
         guild_ids=extract_condition_value(user_conditions, "guild_ids"),
         property_value_conditions=property_value_conditions,
         property_definitions=property_definitions_map,
+        property_ids_needed=property_ids_needed,
     )
 
 
@@ -1317,13 +1321,7 @@ async def _load_property_definitions_across_guilds(
     needs the definition's *type* (which typed column to compare), so the first
     guild that resolves an id wins and its type is reused for every guild's
     schema-local ``property_id`` predicate."""
-    needed: list[int] = []
-    for cond in q.property_value_conditions:
-        if isinstance(cond.value, dict):
-            try:
-                needed.append(int(cond.value.get("property_id")))
-            except (TypeError, ValueError):
-                continue
+    needed = q.property_ids_needed
     if not needed:
         return {}
 

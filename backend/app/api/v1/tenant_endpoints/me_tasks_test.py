@@ -438,3 +438,78 @@ async def test_list_my_tasks_property_value_is_null_filter(
     task_ids = {t["id"] for t in response.json()["items"]}
     assert without_value.id in task_ids
     assert with_value.id not in task_ids
+
+
+@pytest.mark.integration
+async def test_list_my_tasks_property_filter_spans_guilds(
+    client: AsyncClient, session: AsyncSession
+):
+    """GET /me/tasks applies a property_values filter across EVERY guild.
+
+    ``_load_property_definitions_across_guilds`` routes into each guild's schema
+    to resolve the definition, then the compiled ``property_id`` predicate runs
+    per-guild. A definition id is unique only within a schema, so two guilds
+    typically both assign the same id to their first definition; the loader
+    merges first-id-wins and the filter must still resolve correctly in both.
+    """
+    from app.models.tenant.property import PropertyType
+    from app.testing.factories import (
+        create_property_definition,
+        create_task_property_value,
+    )
+
+    user = await create_user(session, email="user@example.com")
+    guild1, initiative1, project1 = await _setup_guild_with_project(
+        session, user, guild_name="Guild 1"
+    )
+    guild2, initiative2, project2 = await _setup_guild_with_project(
+        session, user, guild_name="Guild 2"
+    )
+
+    def1 = await create_property_definition(
+        session, initiative1, name="Note", type=PropertyType.text
+    )
+    def2 = await create_property_definition(
+        session, initiative2, name="Note", type=PropertyType.text
+    )
+    # Per-schema sequences: the first definition in each guild shares an id. The
+    # filter carries one property_id, so this collision is what makes a single
+    # cross-guild filter meaningful (and exercises the first-id-wins merge).
+    assert def1.id == def2.id
+
+    # Build each guild's rows fully before moving on: the assign/value writes
+    # route the session's ROLE into that guild, so interleaving would leave a
+    # write pointed at the wrong guild's schema.
+    g1_has = await _create_task(session, project1, "g1 has", created_by_id=user.id)
+    g1_empty = await _create_task(session, project1, "g1 empty", created_by_id=user.id)
+    await _assign(session, g1_has, user.id)
+    await _assign(session, g1_empty, user.id)
+    await create_task_property_value(session, g1_has, def1, value_text="x")
+
+    g2_has = await _create_task(session, project2, "g2 has", created_by_id=user.id)
+    g2_empty = await _create_task(session, project2, "g2 empty", created_by_id=user.id)
+    await _assign(session, g2_has, user.id)
+    await _assign(session, g2_empty, user.id)
+    await create_task_property_value(session, g2_has, def2, value_text="y")
+
+    headers = get_auth_headers(user)
+    conditions = json.dumps(
+        [
+            {
+                "field": "property_values",
+                "op": "is_null",
+                "value": {"property_id": def1.id, "value": True},
+            }
+        ]
+    )
+    response = await client.get(
+        f"/api/v1/me/tasks?conditions={conditions}", headers=headers
+    )
+
+    assert response.status_code == 200, response.text
+    # Key by (guild_id, id): ids collide across schemas.
+    found = {(t["guild_id"], t["id"]) for t in response.json()["items"]}
+    assert (guild1.id, g1_empty.id) in found
+    assert (guild2.id, g2_empty.id) in found
+    assert (guild1.id, g1_has.id) not in found
+    assert (guild2.id, g2_has.id) not in found
