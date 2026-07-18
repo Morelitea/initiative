@@ -33,12 +33,14 @@ import type {
   GuildRemovalEligibilityResponse,
   GuildRemovalRequest,
   HTTPValidationError,
+  SearchUsersApiV1GGuildIdUsersSearchGetParams,
   UserCreate,
   UserGuildMember,
   UserPublic,
   UserRead,
   UserSelfUpdate,
   UserStatsResponse,
+  UserSummaryListResponse,
   UserUpdate,
 } from "../initiativeAPI.schemas";
 
@@ -1256,6 +1258,184 @@ export const useCreateUserApiV1GGuildIdUsersPost = <
 > => {
   return useMutation(getCreateUserApiV1GGuildIdUsersPostMutationOptions(options), queryClient);
 };
+/**
+ * Slim, searchable, paginated roster for typeahead/pickers.
+ *
+ * Same authorization as the full member list (``RLSSessionDep`` +
+ * ``GuildContextDep``, membership re-validated per request): the new params
+ * are additive filters on an already-RLS-gated query, so they only ever
+ * narrow the row set. Returns :class:`UserSummary` (no email, roles, or
+ * ``initiative_roles`` enrichment) instead of the heavy ``UserGuildMember``.
+ * @summary Search Users
+ */
+export const searchUsersApiV1GGuildIdUsersSearchGet = (
+  guildId: number,
+  params?: SearchUsersApiV1GGuildIdUsersSearchGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserSummaryListResponse>(
+    { url: `/api/v1/g/${guildId}/users/search`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getSearchUsersApiV1GGuildIdUsersSearchGetQueryKey = (
+  guildId: number,
+  params?: SearchUsersApiV1GGuildIdUsersSearchGetParams
+) => {
+  return [`/api/v1/g/${guildId}/users/search`, ...(params ? [params] : [])] as const;
+};
+
+export const getSearchUsersApiV1GGuildIdUsersSearchGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: SearchUsersApiV1GGuildIdUsersSearchGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getSearchUsersApiV1GGuildIdUsersSearchGetQueryKey(guildId, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>
+  > = ({ signal }) =>
+    searchUsersApiV1GGuildIdUsersSearchGet(guildId, params, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type SearchUsersApiV1GGuildIdUsersSearchGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>
+>;
+export type SearchUsersApiV1GGuildIdUsersSearchGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useSearchUsersApiV1GGuildIdUsersSearchGet<
+  TData = Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: undefined | SearchUsersApiV1GGuildIdUsersSearchGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>,
+          TError,
+          Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useSearchUsersApiV1GGuildIdUsersSearchGet<
+  TData = Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: SearchUsersApiV1GGuildIdUsersSearchGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>,
+          TError,
+          Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useSearchUsersApiV1GGuildIdUsersSearchGet<
+  TData = Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: SearchUsersApiV1GGuildIdUsersSearchGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Search Users
+ */
+
+export function useSearchUsersApiV1GGuildIdUsersSearchGet<
+  TData = Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: SearchUsersApiV1GGuildIdUsersSearchGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof searchUsersApiV1GGuildIdUsersSearchGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getSearchUsersApiV1GGuildIdUsersSearchGetQueryOptions(
+    guildId,
+    params,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
 /**
  * Export guild members as a CSV file. Pass `user_id` one or more times to
  * restrict the export to a subset. Without `user_id`, all visible members are

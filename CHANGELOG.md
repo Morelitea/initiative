@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Member pickers no longer download the entire guild roster: a new slim, searchable, paginated endpoint serves member typeaheads (guild-wide and per-initiative), returning just id, name, avatar, and status for a bounded page of results instead of every member's full profile. This is the backend groundwork for server-side member search in the assignee and mention pickers.
 - Multiple sign-in providers: the sign-in page now offers a button for every SSO provider the server has configured, not just one. Operators manage additional OIDC providers in Settings → Authentication — with presets for Google and Microsoft Entra, and a custom option for any OIDC identity provider (Keycloak, Authentik, Zitadel, …) — alongside the existing platform SSO form. Client secrets are write-only: set or replaced, never displayed.
 
 ### Changed
