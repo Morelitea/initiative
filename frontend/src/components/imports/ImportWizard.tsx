@@ -196,7 +196,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
 
         {step === "peek" && (
           <Button variant="ghost" size="sm" className="w-fit" onClick={() => setStep("pick")}>
-            <ChevronLeft className="mr-1 h-4 w-4" />
+            <ChevronLeft className="h-4 w-4" />
             {t("wizard.back")}
           </Button>
         )}

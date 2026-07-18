@@ -32,6 +32,7 @@ from app.api.v1.tenant_endpoints import (
     tags,
     task_statuses,
     tasks,
+    tools,
     trash,
 )
 from app.api.v1.platform_endpoints import (
@@ -131,6 +132,8 @@ guild_router.include_router(
 )
 guild_router.include_router(storage.router, prefix="/storage", tags=["storage"])
 guild_router.include_router(tags.router, prefix="/tags", tags=["tags"])
+# Generic per-tool surfaces addressed by the Tool enum ({tool} path param).
+guild_router.include_router(tools.router, prefix="/tools", tags=["tools"])
 guild_router.include_router(
     advanced_tool.router, prefix="/advanced-tools", tags=["advanced-tools"]
 )

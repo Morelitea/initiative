@@ -171,7 +171,7 @@ export function ExportWizard({ scope, initiativeId, open, onOpenChange }: Export
 
         {step !== "mode" && step !== "progress" && (
           <Button variant="ghost" size="sm" className="w-fit" onClick={back}>
-            <ChevronLeft className="mr-1 h-4 w-4" />
+            <ChevronLeft className="h-4 w-4" />
             {t("wizard.back")}
           </Button>
         )}

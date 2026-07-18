@@ -226,7 +226,7 @@ export const InitiativeSettingsDialogs = ({
             >
               {createRoleMutation.isPending ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   {t("settings.creatingRole")}
                 </>
               ) : (
@@ -291,7 +291,7 @@ export const InitiativeSettingsDialogs = ({
             >
               {updateRoleMutation.isPending ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   {t("settings.savingRole")}
                 </>
               ) : (

@@ -77,9 +77,9 @@ async def test_list_events_summary_includes_tags(
 
     tag = await create_tag(session, guild, name="Priority", color="#ff0000")
 
-    # Assign the tag to the event.
+    # Assign the tag to the event (via the generic tool tags route).
     assign = await client.put(
-        a.g(f"/calendar-events/{event.id}/tags"),
+        a.g(f"/tools/calendar_event/{event.id}/tags"),
         headers=a.headers,
         json={"tag_ids": [tag.id]},
     )

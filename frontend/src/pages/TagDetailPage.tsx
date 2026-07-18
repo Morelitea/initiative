@@ -168,13 +168,13 @@ export const TagDetailPage = () => {
         {!isEditing && (
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={handleStartEdit}>
-              <Settings className="mr-1 h-4 w-4" />
+              <Settings className="h-4 w-4" />
               {t("detail.edit")}
             </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="destructive" size="sm">
-                  <Trash2 className="mr-1 h-4 w-4" />
+                  <Trash2 className="h-4 w-4" />
                   {t("detail.delete")}
                 </Button>
               </AlertDialogTrigger>

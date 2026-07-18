@@ -81,7 +81,6 @@ from app.schemas.tenant.document import (
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.ai_generation import GenerateDocumentSummaryResponse
 from app.schemas.tenant.property import PropertyValuesSetRequest
-from app.schemas.tenant.tag import TagSetRequest
 from app.services.tenant import attachments as attachments_service
 from app.services import storage_config
 from app.services.storage import build_upload_response, get_guild_storage
@@ -93,7 +92,6 @@ from app.services import notifications as notifications_service
 from app.services import permissions as permissions_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import recent_views as recent_views_service
-from app.services.tenant import tags as tags_service
 from app.services import rls as rls_service
 from app.schemas.tenant.recent_view import RecentViewWrite
 from app.services.ai_generation import AIGenerationError, generate_document_summary
@@ -1738,61 +1736,6 @@ async def generate_summary(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.put("/{document_id}/tags", response_model=DocumentRead)
-async def set_document_tags(
-    document_id: int,
-    tags_in: TagSetRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> DocumentRead:
-    """Set tags on a document. Replaces all existing tags with the provided list."""
-    document = await _get_document_or_404(
-        session, document_id=document_id, guild_id=guild_context.guild_id
-    )
-    _require_document_access(document, current_user, access="write")
-
-    await tags_service.set_entity_tags(
-        session,
-        tags_service.TOOL_TAG_LINKS[Tool.document],
-        guild_id=guild_context.guild_id,
-        entity_id=document_id,
-        tag_ids=tags_in.tag_ids,
-    )
-
-    # Fetch fresh document to avoid issues with deleted relationship objects
-    doc_stmt = (
-        select(Document)
-        .where(Document.id == document_id)
-        .options(
-            selectinload(Document.initiative),
-            selectinload(Document.grants).selectinload(ResourceGrant.role),
-            selectinload(Document.tag_links).selectinload(DocumentTag.tag),
-            selectinload(Document.property_values).selectinload(
-                DocumentPropertyValue.property_definition
-            ),
-            selectinload(Document.property_values).selectinload(
-                DocumentPropertyValue.value_user
-            ),
-        )
-        # Refresh the identity-mapped document's tag_links (the pre-write
-        # collection survives the commit under expire_on_commit=False).
-        .execution_options(populate_existing=True)
-    )
-    result = await session.exec(doc_stmt)
-    doc = result.one()
-    doc.updated_at = datetime.now(timezone.utc)
-    await session.commit()
-
-    return serialize_document(
-        doc,
-        my_permission_level=_compute_my_doc_permission_level(
-            doc,
-            current_user.id,
-        ),
-    )
-
-
 @router.put("/{document_id}/properties", response_model=DocumentRead)
 async def set_document_properties(
     document_id: int,
@@ -1803,9 +1746,8 @@ async def set_document_properties(
 ) -> DocumentRead:
     """Replace the custom property values on a document.
 
-    Requires document write access (same gate as PUT /tags). Values are
-    validated server-side against each property definition's type and
-    options.
+    Requires document write access. Values are validated server-side against
+    each property definition's type and options.
     """
     document = await _get_document_or_404(
         session, document_id=document_id, guild_id=guild_context.guild_id

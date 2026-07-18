@@ -212,7 +212,7 @@ export const UserSettingsSecurityPage = () => {
                     onClick={() => setRevokeTarget(device)}
                     disabled={revokeToken.isPending}
                   >
-                    <Trash2 className="mr-1.5 h-4 w-4" />
+                    <Trash2 className="h-4 w-4" />
                     {t("security.revoke")}
                   </Button>
                 </div>

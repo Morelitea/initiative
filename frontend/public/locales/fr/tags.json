@@ -60,6 +60,5 @@
   "updateError": "Impossible de mettre à jour l'étiquette.",
   "deleteError": "Impossible de supprimer l'étiquette.",
   "taskTagsError": "Impossible de mettre à jour les étiquettes de la tâche.",
-  "projectTagsError": "Impossible de mettre à jour les étiquettes du projet.",
-  "documentTagsError": "Impossible de mettre à jour les étiquettes du document."
+  "toolTagsError": "Impossible de mettre à jour les étiquettes."
 }

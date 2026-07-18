@@ -286,7 +286,7 @@ export const FileDocumentViewer = ({
                   size="sm"
                   aria-label={t("versions.label")}
                 >
-                  <History className="mr-2 h-4 w-4" />
+                  <History className="h-4 w-4" />
                   {t("versions.label")}
                   {versions.length > 1 && (
                     <Badge variant="secondary" className="ml-2 px-1.5">
@@ -307,9 +307,9 @@ export const FileDocumentViewer = ({
                       disabled={uploadVersion.isPending}
                     >
                       {uploadVersion.isPending ? (
-                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : (
-                        <Upload className="mr-1.5 h-3.5 w-3.5" />
+                        <Upload className="h-3.5 w-3.5" />
                       )}
                       {t("versions.uploadNew")}
                     </Button>
@@ -363,11 +363,11 @@ export const FileDocumentViewer = ({
             </Popover>
           )}
           <Button variant="outline" size="sm" onClick={handleOpenInNewTab}>
-            <ExternalLink className="mr-2 h-4 w-4" />
+            <ExternalLink className="h-4 w-4" />
             {t("viewer.openNewTab")}
           </Button>
           <Button variant="outline" size="sm" onClick={handleDownload}>
-            <Download className="mr-2 h-4 w-4" />
+            <Download className="h-4 w-4" />
             {t("viewer.download")}
           </Button>
         </div>
@@ -437,7 +437,7 @@ export const FileDocumentViewer = ({
                   <FileText className="mb-4 h-16 w-16 text-muted-foreground" />
                   <p className="mb-4 text-muted-foreground">{pdfError}</p>
                   <Button onClick={handleDownload}>
-                    <Download className="mr-2 h-4 w-4" />
+                    <Download className="h-4 w-4" />
                     {t("viewer.downloadPdf")}
                   </Button>
                 </div>
@@ -569,11 +569,11 @@ export const FileDocumentViewer = ({
             </p>
             <div className="flex gap-3">
               <Button onClick={handleDownload}>
-                <Download className="mr-2 h-4 w-4" />
+                <Download className="h-4 w-4" />
                 {t("viewer.downloadFileType", { fileType: fileTypeLabel })}
               </Button>
               <Button variant="outline" onClick={handleOpenInNewTab}>
-                <ExternalLink className="mr-2 h-4 w-4" />
+                <ExternalLink className="h-4 w-4" />
                 {t("viewer.openNewTab")}
               </Button>
             </div>
@@ -590,7 +590,7 @@ export const FileDocumentViewer = ({
             </h3>
             <p className="mb-6 text-muted-foreground">{t("viewer.unknownFileType")}</p>
             <Button onClick={handleDownload}>
-              <Download className="mr-2 h-4 w-4" />
+              <Download className="h-4 w-4" />
               {t("viewer.downloadFile")}
             </Button>
           </div>

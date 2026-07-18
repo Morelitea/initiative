@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ProjectRead, TagSummary } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { TagPicker } from "@/components/tags";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useUpdateProject } from "@/hooks/useProjects";
-import { useSetProjectTags } from "@/hooks/useTags";
+import { useSetToolTags } from "@/hooks/useToolTags";
 
 interface ProjectSettingsDetailsTabProps {
   project: ProjectRead;
@@ -33,7 +34,7 @@ export const ProjectSettingsDetailsTab = ({
   const [descriptionMessage, setDescriptionMessage] = useState<string | null>(null);
   const [projectTags, setProjectTags] = useState<TagSummary[]>([]);
 
-  const setProjectTagsMutation = useSetProjectTags();
+  const setProjectTagsMutation = useSetToolTags(Tool.project);
 
   useEffect(() => {
     if (project) {
@@ -195,7 +196,7 @@ export const ProjectSettingsDetailsTab = ({
                 onChange={(newTags) => {
                   setProjectTags(newTags);
                   setProjectTagsMutation.mutate({
-                    projectId: projectId,
+                    id: projectId,
                     tagIds: newTags.map((tag) => tag.id),
                   });
                 }}

@@ -37,7 +37,6 @@ import type {
   PropertyValuesSetRequest,
   RecentViewWrite,
   ResourceGrantSchema,
-  TagSetRequest,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -1068,99 +1067,6 @@ export const useUpdateRsvpApiV1GGuildIdCalendarEventsEventIdRsvpPatch = <
 > => {
   return useMutation(
     getUpdateRsvpApiV1GGuildIdCalendarEventsEventIdRsvpPatchMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * @summary Set Tags
- */
-export const setTagsApiV1GGuildIdCalendarEventsEventIdTagsPut = (
-  guildId: number,
-  eventId: number,
-  tagSetRequest: BodyType<TagSetRequest>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<CalendarEventRead>(
-    {
-      url: `/api/v1/g/${guildId}/calendar-events/${eventId}/tags`,
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      data: tagSetRequest,
-      signal,
-    },
-    options
-  );
-};
-
-export const getSetTagsApiV1GGuildIdCalendarEventsEventIdTagsPutMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setTagsApiV1GGuildIdCalendarEventsEventIdTagsPut>>,
-    TError,
-    { guildId: number; eventId: number; data: BodyType<TagSetRequest> },
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof setTagsApiV1GGuildIdCalendarEventsEventIdTagsPut>>,
-  TError,
-  { guildId: number; eventId: number; data: BodyType<TagSetRequest> },
-  TContext
-> => {
-  const mutationKey = ["setTagsApiV1GGuildIdCalendarEventsEventIdTagsPut"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setTagsApiV1GGuildIdCalendarEventsEventIdTagsPut>>,
-    { guildId: number; eventId: number; data: BodyType<TagSetRequest> }
-  > = (props) => {
-    const { guildId, eventId, data } = props ?? {};
-
-    return setTagsApiV1GGuildIdCalendarEventsEventIdTagsPut(guildId, eventId, data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type SetTagsApiV1GGuildIdCalendarEventsEventIdTagsPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setTagsApiV1GGuildIdCalendarEventsEventIdTagsPut>>
->;
-export type SetTagsApiV1GGuildIdCalendarEventsEventIdTagsPutMutationBody = BodyType<TagSetRequest>;
-export type SetTagsApiV1GGuildIdCalendarEventsEventIdTagsPutMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Set Tags
- */
-export const useSetTagsApiV1GGuildIdCalendarEventsEventIdTagsPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setTagsApiV1GGuildIdCalendarEventsEventIdTagsPut>>,
-      TError,
-      { guildId: number; eventId: number; data: BodyType<TagSetRequest> },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof setTagsApiV1GGuildIdCalendarEventsEventIdTagsPut>>,
-  TError,
-  { guildId: number; eventId: number; data: BodyType<TagSetRequest> },
-  TContext
-> => {
-  return useMutation(
-    getSetTagsApiV1GGuildIdCalendarEventsEventIdTagsPutMutationOptions(options),
     queryClient
   );
 };

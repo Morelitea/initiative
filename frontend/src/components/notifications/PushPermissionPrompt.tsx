@@ -79,7 +79,7 @@ export const PushPermissionPrompt = () => {
             onClick={handleDismiss}
             className="text-blue-700 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100"
           >
-            <X className="mr-1 h-4 w-4" />
+            <X className="h-4 w-4" />
             {t("notifications.push.dismiss")}
           </Button>
           <Button

@@ -13,6 +13,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Guild role assignment (promoting a member to guild admin) is now enforced at the database layer too. The endpoint runs on the system engine, and the shared guild database role no longer holds write access to change a membership's role — so a guild member cannot be elevated except through the guild-admin endpoint. Self-leave is scoped to your own membership, and request-path membership creation is pinned to a plain member. No behavior change for any existing flow; verified by CI invariants.
 - Cross-guild access grants (the time-bound PAM / break-glass rows) can now only be written by the system-engine endpoints that already gate them by capability; the request-path database roles keep read access but no longer hold write access to the grants table. Defense in depth, verified by CI invariants.
 
+### Added
+
+- Multiple sign-in providers: the sign-in page now offers a button for every SSO provider the server has configured, not just one. Operators manage additional OIDC providers in Settings → Authentication — with presets for Google and Microsoft Entra, and a custom option for any OIDC identity provider (Keycloak, Authentik, Zitadel, …) — alongside the existing platform SSO form. Client secrets are write-only: set or replaced, never displayed.
+
+### Changed
+
+- Sidebar rows use their full width: an initiative, project, or tool row's name and count now span the whole row until you hover it, at which point the settings/"+" button slides in and the name shrinks to make room (rather than the button permanently reserving space or overlapping the text). The reveal animation is skipped for users who prefer reduced motion.
+
+### Fixed
+
+- The sidebar "Edit tag" dialog is no longer visually broken — the name field now fills the row and the color picker sits beside it, instead of the color picker taking the full width and collapsing the name field to a sliver.
+- On mobile, opening the three-dot menu next to an initiative or project in the sidebar no longer dismisses the sidebar drawer.
+- Removed redundant spacing between icons and labels across buttons throughout the app; the button's built-in gap now handles it consistently.
+- The "My Tasks" page no longer returns a 500 error when filtered by a custom property. The cross-guild task views load property definitions per guild schema now, instead of querying a table that isn't visible on that request's connection.
+
 ## [0.57.0] - 2026-07-16
 
 ### Added

@@ -1,6 +1,16 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 
+import {
+  createAuthProviderApiV1SettingsAuthProvidersPost,
+  deleteAuthProviderApiV1SettingsAuthProvidersProviderIdDelete,
+  getListAuthProvidersApiV1SettingsAuthProvidersGetQueryKey,
+  listAuthProvidersApiV1SettingsAuthProvidersGet,
+  updateAuthProviderApiV1SettingsAuthProvidersProviderIdPatch,
+} from "@/api/generated/auth-providers/auth-providers";
 import type {
+  AuthProviderAdminRead,
+  AuthProviderCreate,
+  AuthProviderUpdate,
   AuthScopeUpdate,
   EmailSettingsResponse,
   EmailSettingsUpdate,
@@ -60,6 +70,7 @@ import {
   getGetChangelogApiV1ChangelogGetQueryKey,
 } from "@/api/generated/version/version";
 import {
+  invalidateAuthProviders,
   invalidateAuthSettings,
   invalidateEmailSettings,
   invalidateInterfaceSettings,
@@ -107,6 +118,17 @@ export const useOidcSettings = (options?: QueryOpts<OIDCSettingsResponse>) => {
     queryKey: getGetOidcSettingsApiV1SettingsAuthGetQueryKey(),
     queryFn: () =>
       getOidcSettingsApiV1SettingsAuthGet() as unknown as Promise<OIDCSettingsResponse>,
+    ...options,
+  });
+};
+
+export const useAuthProviders = (options?: QueryOpts<AuthProviderAdminRead[]>) => {
+  return useQuery<AuthProviderAdminRead[]>({
+    queryKey: getListAuthProvidersApiV1SettingsAuthProvidersGetQueryKey(),
+    queryFn: () =>
+      listAuthProvidersApiV1SettingsAuthProvidersGet() as unknown as Promise<
+        AuthProviderAdminRead[]
+      >,
     ...options,
   });
 };
@@ -217,6 +239,66 @@ export const useUpdateOidcSettings = (
     },
     onSuccess: (...args) => {
       void invalidateAuthSettings();
+      onSuccess?.(...args);
+    },
+    onError,
+    onSettled,
+  });
+};
+
+export const useCreateAuthProvider = (
+  options?: MutationOpts<AuthProviderAdminRead, AuthProviderCreate>
+) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
+  return useMutation({
+    ...rest,
+    mutationFn: async (data: AuthProviderCreate) => {
+      return createAuthProviderApiV1SettingsAuthProvidersPost(
+        data
+      ) as unknown as Promise<AuthProviderAdminRead>;
+    },
+    onSuccess: (...args) => {
+      void invalidateAuthProviders();
+      onSuccess?.(...args);
+    },
+    onError,
+    onSettled,
+  });
+};
+
+export const useUpdateAuthProvider = (
+  options?: MutationOpts<AuthProviderAdminRead, { providerId: number; data: AuthProviderUpdate }>
+) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
+  return useMutation({
+    ...rest,
+    mutationFn: async ({ providerId, data }: { providerId: number; data: AuthProviderUpdate }) => {
+      return updateAuthProviderApiV1SettingsAuthProvidersProviderIdPatch(
+        providerId,
+        data
+      ) as unknown as Promise<AuthProviderAdminRead>;
+    },
+    onSuccess: (...args) => {
+      void invalidateAuthProviders();
+      onSuccess?.(...args);
+    },
+    onError,
+    onSettled,
+  });
+};
+
+export const useDeleteAuthProvider = (options?: MutationOpts<void, number>) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
+  return useMutation({
+    ...rest,
+    mutationFn: async (providerId: number) => {
+      await deleteAuthProviderApiV1SettingsAuthProvidersProviderIdDelete(providerId);
+    },
+    onSuccess: (...args) => {
+      void invalidateAuthProviders();
       onSuccess?.(...args);
     },
     onError,

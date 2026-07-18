@@ -166,23 +166,53 @@ def test_tag_link_specs_carry_the_uniform_contract():
     assert junctions <= cascaded
 
 
-def test_every_tag_target_has_a_set_tags_route():
-    # Every tool exposes PUT .../{<its path param>}/tags taking TagSetRequest,
-    # and the two extras keep their hard-coded routes. Path params come from
-    # RESOURCE_ACCESS (the enforcement registry), so this needs no mirror list.
-    from app.api.resource_access import RESOURCE_ACCESS
+def test_tag_model_carries_one_links_relationship_per_tag_target():
+    # ``Tag`` has a ``<target>_links`` relationship for EVERY taggable target
+    # — derived from the enum-backed TAG_TARGETS, so a new tool that forgets
+    # to wire its junction onto Tag fails here. Exact equality also catches a
+    # leftover relationship for a removed target.
+    from sqlalchemy import inspect as sa_inspect
+
+    from app.core.tools import TAG_TARGETS
+    from app.models.tenant.tag import Tag
+    from app.services.tenant.tags import TAG_LINKS
+
+    mapper = sa_inspect(Tag)
+    links = {name for name in mapper.relationships.keys() if name.endswith("_links")}
+    assert links == {f"{target}_links" for target in TAG_TARGETS}
+    for target in TAG_TARGETS:
+        rel = mapper.relationships[f"{target}_links"]
+        assert rel.mapper.class_ is TAG_LINKS[target].junction, target
+        assert rel.cascade.delete_orphan, target
+
+
+def test_the_generic_tool_tags_route_is_the_only_tool_set_tags_surface():
+    # ONE generic route serves every tool — its {tool} path param is the Tool
+    # enum itself, so a new member is covered with no new endpoint. Only the
+    # two content-level extras keep hand-written set-tags routes; the exact
+    # equality means a re-added per-tool copy fails here.
     from app.main import app
 
+    spec = app.openapi()
     put_tag_paths = {
         path
-        for path, item in app.openapi()["paths"].items()
+        for path, item in spec["paths"].items()
         if "put" in item and path.endswith("/tags")
     }
-    for tool, cfg in RESOURCE_ACCESS.items():
-        suffix = f"{{{cfg.path_param}}}/tags"
-        assert any(p.endswith(suffix) for p in put_tag_paths), (tool, suffix)
-    for extra_suffix in ("{task_id}/tags", "{item_id}/tags"):
-        assert any(p.endswith(extra_suffix) for p in put_tag_paths), extra_suffix
+    generic = "/api/v1/g/{guild_id}/tools/{tool}/{tool_id}/tags"
+    extras = {
+        "/api/v1/g/{guild_id}/tasks/{task_id}/tags",
+        "/api/v1/g/{guild_id}/queues/{queue_id}/items/{item_id}/tags",
+    }
+    assert put_tag_paths == {generic} | extras
+
+    tool_param = next(
+        p for p in spec["paths"][generic]["put"]["parameters"] if p["name"] == "tool"
+    )
+    schema = tool_param["schema"]
+    ref = schema.get("$ref") or schema["allOf"][0]["$ref"]
+    enum_values = spec["components"]["schemas"][ref.rsplit("/", 1)[-1]]["enum"]
+    assert set(enum_values) == {t.value for t in Tool}
 
 
 def test_export_adapters_cover_exactly_the_bulk_export_tools():
