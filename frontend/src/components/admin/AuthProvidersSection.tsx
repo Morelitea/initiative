@@ -102,6 +102,7 @@ export const AuthProvidersSection = () => {
     setPreset("custom");
     setForm(EMPTY_FORM);
     setClearSecret(false);
+    setSlugError(false);
   };
 
   const createProvider = useCreateAuthProvider({
@@ -131,6 +132,7 @@ export const AuthProvidersSection = () => {
     setPreset("custom");
     setForm(EMPTY_FORM);
     setClearSecret(false);
+    setSlugError(false);
     setDialogOpen(true);
   };
 
@@ -147,11 +149,13 @@ export const AuthProvidersSection = () => {
       enabled: provider.enabled,
     });
     setClearSecret(false);
+    setSlugError(false);
     setDialogOpen(true);
   };
 
   const applyPreset = (key: PresetKey) => {
     setPreset(key);
+    setSlugError(false);
     const values = PRESETS[key];
     setForm((prev) => ({
       ...prev,
