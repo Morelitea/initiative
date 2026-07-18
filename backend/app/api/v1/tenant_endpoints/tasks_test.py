@@ -1164,3 +1164,29 @@ async def test_list_tasks_rejects_conditions_nested_too_deeply(
 
     assert response.status_code == 400
     assert response.json()["detail"] == "QUERY_INVALID_CONDITIONS"
+
+
+@pytest.mark.integration
+async def test_read_task_includes_creator_summary(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The task read embeds a ``creator`` summary so the detail view can show
+    'Created by …' without fetching the whole guild roster."""
+    a = await acting_user(
+        guild_role=GuildRole.member, initiative=True, project=True, full_name="Ada C."
+    )
+    create = await client.post(
+        a.g("/tasks/"),
+        headers=a.headers,
+        json={"title": "Authored Task", "project_id": a.project.id},
+    )
+    assert create.status_code == 201
+    task_id = create.json()["id"]
+
+    response = await client.get(a.g(f"/tasks/{task_id}"), headers=a.headers)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["created_by_id"] == a.user.id
+    assert body["creator"] is not None
+    assert body["creator"]["id"] == a.user.id
+    assert body["creator"]["full_name"] == "Ada C."

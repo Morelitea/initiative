@@ -2600,13 +2600,24 @@ export interface ResourceGrantBulkResponse {
 }
 
 /**
+ * A user eligible to become the restored entity's owner. Carries the
+ * display name so the picker needn't fetch the whole guild roster.
+ */
+export interface RestoreOwnerCandidate {
+  id: number;
+  full_name?: string | null;
+}
+
+/**
  * 409 payload when the entity's owner is no longer an active member of
  * the relevant initiative. The client opens a picker seeded with
- * ``valid_owner_ids`` and resubmits with the chosen one.
+ * ``valid_owners`` and resubmits with the chosen one. ``valid_owner_ids``
+ * is retained as the bare-id form for validation/back-compat.
  */
 export interface RestoreNeedsReassignmentResponse {
   needs_reassignment?: true;
   valid_owner_ids: number[];
+  valid_owners?: RestoreOwnerCandidate[];
   detail?: string;
 }
 
@@ -3166,6 +3177,7 @@ export interface TaskRead {
   position: number;
   is_archived: boolean;
   created_by_id: number | null;
+  creator: UserPublic | null;
   assignees: UserPublic[];
   recurrence_occurrence_count: number;
   comment_count: number;
@@ -3988,6 +4000,22 @@ export type ProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetParams =
   /**
    * @minimum 1
    * @maximum 20
+   */
+  page_size?: number;
+};
+
+export type SearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetParams = {
+  /**
+   * Case-insensitive substring match on the member's name.
+   */
+  search?: string | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 0
+   * @maximum 100
    */
   page_size?: number;
 };

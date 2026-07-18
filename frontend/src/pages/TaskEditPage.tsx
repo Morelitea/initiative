@@ -32,7 +32,7 @@ import { getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey } from "@/api/generated/
 import { invalidateProject, invalidateProjectTaskStatuses } from "@/api/query-keys";
 import { CommentSection } from "@/components/comments/CommentSection";
 import { Markdown } from "@/components/Markdown";
-import { AssigneeSelector } from "@/components/projects/AssigneeSelector";
+import { MemberMultiSelect } from "@/components/members/MemberSearchSelect";
 import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
 import { AddPropertyButton } from "@/components/properties/AddPropertyButton";
 import { PropertyList } from "@/components/properties/PropertyList";
@@ -83,13 +83,16 @@ import {
   useTask,
   useUpdateTask,
 } from "@/hooks/useTasks";
-import { useUsers } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { queryClient } from "@/lib/queryClient";
-import { resolveUploadUrl } from "@/lib/uploadUrl";
-import { getInitialsForUser, getUserDisplayName, isAnonymizedUser } from "@/lib/userDisplay";
+import {
+  getAvatarSrc,
+  getInitialsForUser,
+  getUserDisplayName,
+  isAnonymizedUser,
+} from "@/lib/userDisplay";
 
 const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
 
@@ -153,8 +156,6 @@ export const TaskEditPage = () => {
   const [moveContext, setMoveContext] = useState<MoveTaskVariables | null>(null);
 
   const taskQuery = useTask(parsedTaskId);
-
-  const usersQuery = useUsers();
 
   const projectId = taskQuery.data?.project_id;
   const projectQuery = useProject(projectId ?? null);
@@ -319,34 +320,22 @@ export const TaskEditPage = () => {
     });
   };
 
-  const users = useMemo(() => usersQuery.data ?? [], [usersQuery.data]);
   const project = projectQuery.data;
 
   // Creator metadata for the inline "Created by …" chip in the title row.
-  // ``users`` may not include the creator if they've since left the guild —
-  // fall back to ``User #<id>`` in that case so the chip still renders.
-  const creator = useMemo(() => {
-    if (task?.created_by_id == null) return null;
-    return users.find((user) => user.id === task.created_by_id) ?? null;
-  }, [users, task?.created_by_id]);
+  // The creator summary rides the task read payload; fall back to
+  // ``User #<id>`` if the author has since left the guild (creator absent).
+  const creator = task?.creator ?? null;
 
-  // The non-time-varying part of the chip. Gated on ``usersQuery.isSuccess``
-  // when there *is* a creator id so we don't flash "User #<id>" while the
-  // users list is still loading — once users arrive, the genuine "creator
-  // has left the guild" case is the only path to that fallback.
   const creationContext = useMemo(() => {
     if (!task?.created_at) return null;
-    if (task.created_by_id != null && !usersQuery.isSuccess) return null;
     const anonymized = isAnonymizedUser(creator);
     const displayName = creator
       ? getUserDisplayName(creator)
       : task.created_by_id != null
         ? `User #${task.created_by_id}`
         : null;
-    const avatarSrc =
-      creator && !anonymized
-        ? resolveUploadUrl(creator.avatar_url) || creator.avatar_base64 || undefined
-        : undefined;
+    const avatarSrc = creator && !anonymized ? getAvatarSrc(creator) : undefined;
     return {
       createdAt: new Date(task.created_at),
       displayName,
@@ -355,7 +344,7 @@ export const TaskEditPage = () => {
       initials: getInitialsForUser(creator),
       creatorId: creator?.id ?? null,
     };
-  }, [task?.created_at, task?.created_by_id, creator, usersQuery.isSuccess]);
+  }, [task?.created_at, task?.created_by_id, creator]);
 
   // Tick once a minute so the "N ago" label stays fresh while the page is
   // open — ``formatDistanceToNow`` reads ``Date.now()`` at call time, so a
@@ -378,60 +367,6 @@ export const TaskEditPage = () => {
         absolute: format(creationContext.createdAt, "PPpp", { locale: dateLocale }),
       }
     : null;
-  // Pure DAC: only users with write access (owner or write level) can be assigned tasks
-  // Includes both explicit user permissions and role-based permissions
-  const userOptions = useMemo(() => {
-    if (!project) {
-      return users.map((user) => ({
-        id: user.id,
-        label: getUserDisplayName(user),
-        avatarUrl: user.avatar_url,
-        avatarBase64: user.avatar_base64,
-      }));
-    }
-    const allowed = new Set<number>();
-    // Explicit per-user grants
-    project.grants?.forEach((grant) => {
-      if (grant.user_id != null && (grant.level === "owner" || grant.level === "write")) {
-        allowed.add(grant.user_id);
-      }
-    });
-
-    // Role-based grants: find roles with write access,
-    // then include initiative members with those roles
-    const writeRoleIds = new Set(
-      project.grants
-        ?.filter((grant) => grant.role_id != null && grant.level === "write")
-        .map((grant) => grant.role_id as number) ?? []
-    );
-    if (writeRoleIds.size > 0) {
-      project.initiative?.members?.forEach((member) => {
-        if (member.role_id && writeRoleIds.has(member.role_id)) {
-          allowed.add(member.user.id);
-        }
-      });
-    }
-
-    // All-initiative-members grant with write: every initiative member is assignable
-    const allMembersWritable = project.grants?.some(
-      (grant) =>
-        grant.all_initiative_members && (grant.level === "owner" || grant.level === "write")
-    );
-    if (allMembersWritable) {
-      project.initiative?.members?.forEach((member) => {
-        allowed.add(member.user.id);
-      });
-    }
-
-    return users
-      .filter((user) => allowed.has(user.id))
-      .map((user) => ({
-        id: user.id,
-        label: getUserDisplayName(user),
-        avatarUrl: user.avatar_url,
-        avatarBase64: user.avatar_base64,
-      }));
-  }, [users, project]);
 
   // Combine server-attached properties with locally-added stubs (definitions
   // the user just picked but hasn't given a value yet). Drop any pending
@@ -872,9 +807,10 @@ export const TaskEditPage = () => {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label>{t("edit.assigneesLabel")}</Label>
-                  <AssigneeSelector
+                  <MemberMultiSelect
+                    scope={{ type: "project", projectId: projectId ?? null }}
                     selectedIds={assigneeIds}
-                    options={userOptions}
+                    selectedUsers={task?.assignees}
                     onChange={setAssigneeIds}
                     disabled={isReadOnly}
                     emptyMessage={t("edit.assigneesEmptyMessage")}
@@ -908,6 +844,7 @@ export const TaskEditPage = () => {
                   entityId={parsedTaskId}
                   properties={combinedProperties}
                   disabled={isReadOnly}
+                  initiativeId={project?.initiative_id}
                 />
                 <AddPropertyButton
                   initiativeId={project?.initiative_id ?? 0}

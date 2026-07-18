@@ -168,6 +168,15 @@ class Task(SoftDeleteMixin, table=True):
     assignees: List["User"] = Relationship(
         back_populates="tasks_assigned", link_model=TaskAssignee
     )
+    # Read-only link to the author (``created_by_id``) so reads can expose a
+    # ``creator`` summary without a separate roster fetch. ``foreign_keys`` is
+    # explicit because ``assignees`` also relates Task↔User (via TaskAssignee).
+    creator: Optional["User"] = Relationship(
+        sa_relationship_kwargs={
+            "foreign_keys": "[Task.created_by_id]",
+            "viewonly": True,
+        }
+    )
     subtasks: List["Subtask"] = Relationship(
         back_populates="task",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},

@@ -161,14 +161,34 @@ describe("PropertyInput", () => {
   });
 
   describe("user_reference type", () => {
-    it("renders a user picker combobox backed by the users API", async () => {
-      // Seed a user so the combobox has items; useUsers returns UserGuildMember[].
+    it("renders a user picker backed by the initiative-members search API", async () => {
+      // The picker is scoped to the property's initiative (default id 1) and
+      // fetches a slim, paginated UserSummary page when opened.
       server.use(
-        guildHttp.get("/users/", () =>
-          HttpResponse.json([
-            { id: 7, full_name: "Ada Lovelace", email: "ada@example.com" },
-            { id: 8, full_name: "Grace Hopper", email: "grace@example.com" },
-          ])
+        guildHttp.get("/initiatives/:initiativeId/members/search", () =>
+          HttpResponse.json({
+            items: [
+              {
+                id: 7,
+                full_name: "Ada Lovelace",
+                avatar_url: null,
+                avatar_base64: null,
+                status: "active",
+              },
+              {
+                id: 8,
+                full_name: "Grace Hopper",
+                avatar_url: null,
+                avatar_base64: null,
+                status: "active",
+              },
+            ],
+            total_count: 2,
+            page: 1,
+            page_size: 25,
+            has_next: false,
+            has_prev: false,
+          })
         )
       );
       renderWithProviders(
@@ -180,7 +200,7 @@ describe("PropertyInput", () => {
       );
       const trigger = screen.getByRole("combobox");
       expect(trigger).toBeInTheDocument();
-      // Wait for users to load and render in the popover after we open it.
+      // Members load and render in the popover only after it opens (enabled gate).
       await userEvent.click(trigger);
       await waitFor(() =>
         expect(screen.getByRole("option", { name: /Ada Lovelace/i })).toBeInTheDocument()

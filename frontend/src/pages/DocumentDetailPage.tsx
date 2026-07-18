@@ -1306,6 +1306,7 @@ export const DocumentDetailPage = () => {
                     entityId={parsedId}
                     properties={combinedProperties}
                     disabled={!canEditDocument}
+                    initiativeId={document.initiative_id}
                   />
                   <AddPropertyButton
                     initiativeId={document.initiative_id}

@@ -6,7 +6,7 @@ import type {
   TaskPriority,
   TaskRecurrenceOutput,
 } from "@/api/generated/initiativeAPI.schemas";
-import { AssigneeSelector } from "@/components/projects/AssigneeSelector";
+import { MemberMultiSelect } from "@/components/members/MemberSearchSelect";
 import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
 import {
   Accordion,
@@ -34,8 +34,6 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
 
-import type { UserOption } from "./projectTasksConfig";
-
 interface ProjectTaskComposerProps {
   title: string;
   description: string;
@@ -49,7 +47,7 @@ interface ProjectTaskComposerProps {
   isArchived: boolean;
   isSubmitting: boolean;
   hasError: boolean;
-  users: UserOption[];
+  projectId: number;
   onTitleChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
   onPriorityChange: (value: TaskPriority) => void;
@@ -76,7 +74,7 @@ export const ProjectTaskComposer = ({
   isArchived,
   isSubmitting,
   hasError,
-  users,
+  projectId,
   onTitleChange,
   onDescriptionChange,
   onPriorityChange,
@@ -152,9 +150,9 @@ export const ProjectTaskComposer = ({
                     </div>
                     <div className="space-y-2">
                       <Label>{t("taskComposer.assigneesLabel")}</Label>
-                      <AssigneeSelector
+                      <MemberMultiSelect
+                        scope={{ type: "project", projectId }}
                         selectedIds={assigneeIds}
-                        options={users}
                         onChange={onAssigneesChange}
                         disabled={isSubmitting}
                         emptyMessage={t("taskComposer.assigneesEmptyMessage")}

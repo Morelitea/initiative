@@ -1,5 +1,5 @@
 import { Link, useParams, useRouter } from "@tanstack/react-router";
-import { Loader2, Trash2, X } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -20,9 +20,9 @@ import {
   toDateKey,
   toTimeSlotRounded,
 } from "@/components/initiativeTools/events/eventDateTime";
+import { MemberMultiSelect } from "@/components/members/MemberSearchSelect";
 import { AddPropertyButton, PropertyList } from "@/components/properties";
 import { TagPicker } from "@/components/tags";
-import { Badge } from "@/components/ui/badge";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -38,7 +38,6 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import {
   Select,
   SelectContent,
@@ -55,11 +54,9 @@ import {
   useSetEventAttendees,
   useUpdateCalendarEvent,
 } from "@/hooks/useCalendarEvents";
-import { useInitiative } from "@/hooks/useInitiatives";
 import { useSetToolTags } from "@/hooks/useToolTags";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
-import { getUserDisplayName } from "@/lib/userDisplay";
 
 export function EventSettingsPage() {
   const { t } = useTranslation(["calendarEvents", "common", "access"]);
@@ -88,55 +85,14 @@ export function EventSettingsPage() {
   // the PropertyList. The list's debounced save handles persistence.
   const [pendingProperties, setPendingProperties] = useState<PropertyDefinitionRead[]>([]);
 
-  // Attendee candidates: initiative members who can access this event via its
-  // grants — mirrors task-assignee derivation (ProjectDetailPage.userOptions)
-  // but scoped to the initiative's members rather than all guild users. Any
-  // grant level qualifies (attending needs only view access). The initiative is
-  // read via get_initiative (the same source ShareControl uses), which honors
-  // the guild-admin override — the /members endpoint 403'd for a non-member
-  // admin and left the picker empty.
-  const { data: initiative } = useInitiative(event?.initiative_id ?? null);
-  const members = useMemo(() => {
-    const initiativeMembers = initiative?.members ?? [];
-    const grants = event?.grants ?? [];
-    if (grants.some((g) => g.all_initiative_members)) {
-      return initiativeMembers.map((m) => m.user);
-    }
-    const grantedUserIds = new Set(
-      grants.filter((g) => g.user_id != null).map((g) => g.user_id as number)
-    );
-    const grantedRoleIds = new Set(
-      grants.filter((g) => g.role_id != null).map((g) => g.role_id as number)
-    );
-    return initiativeMembers
-      .filter(
-        (m) => grantedUserIds.has(m.user.id) || (m.role_id != null && grantedRoleIds.has(m.role_id))
-      )
-      .map((m) => m.user);
-  }, [initiative?.members, event?.grants]);
-
-  const memberItems = useMemo(() => {
-    return (members ?? [])
-      .filter((m) => !attendeeIds.includes(m.id))
-      .map((m) => ({
-        value: String(m.id),
-        label: getUserDisplayName(m),
-      }));
-  }, [members, attendeeIds]);
-
-  const attendeeNames = useMemo(() => {
-    const map = new Map<number, string>();
-    for (const m of members ?? []) {
-      map.set(m.id, getUserDisplayName(m));
-    }
-    // Also include names from event attendees in case members haven't loaded
-    for (const a of event?.attendees ?? []) {
-      if (a.user && !map.has(a.user_id)) {
-        map.set(a.user_id, getUserDisplayName(a.user));
-      }
-    }
-    return map;
-  }, [members, event]);
+  // Attendee candidates come from the initiative-scoped member typeahead
+  // (MemberMultiSelect below) — every initiative member may attend. Event DAC
+  // (the ShareControl below) is a separate concern tracked in #948. The current
+  // attendees carry their own user summaries, so the chips render immediately.
+  const attendeeUsers = useMemo(
+    () => (event?.attendees ?? []).flatMap((a) => (a.user ? [a.user] : [])),
+    [event?.attendees]
+  );
 
   // Merge server-side property values with freshly-attached (pending) defs —
   // mirrors the DocumentDetailPage / TaskEditPage pattern. Pending defs are
@@ -481,34 +437,14 @@ export function EventSettingsPage() {
           <CardTitle>{t("attendees")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <SearchableCombobox
-            items={memberItems}
-            value={null}
-            onValueChange={(val) => {
-              if (val) {
-                setAttendeeIds((prev) => [...prev, Number(val)]);
-              }
-            }}
+          <MemberMultiSelect
+            scope={{ type: "initiative", initiativeId: event?.initiative_id ?? null }}
+            selectedIds={attendeeIds}
+            selectedUsers={attendeeUsers}
+            onChange={setAttendeeIds}
             placeholder={t("addAttendee")}
             emptyMessage={t("noAttendees")}
           />
-
-          {attendeeIds.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {attendeeIds.map((id) => (
-                <Badge key={id} variant="secondary" className="gap-1 pr-1">
-                  {attendeeNames.get(id) ?? `User ${id}`}
-                  <button
-                    type="button"
-                    className="rounded-full p-0.5 hover:bg-muted"
-                    onClick={() => setAttendeeIds((prev) => prev.filter((a) => a !== id))}
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </Badge>
-              ))}
-            </div>
-          )}
 
           <Button onClick={handleSaveAttendees} disabled={setAttendees.isPending}>
             {setAttendees.isPending ? (
@@ -556,7 +492,12 @@ export function EventSettingsPage() {
           <CardTitle>{t("properties")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <PropertyList entityKind="event" entityId={eventId} properties={combinedProperties} />
+          <PropertyList
+            entityKind="event"
+            entityId={eventId}
+            properties={combinedProperties}
+            initiativeId={event.initiative_id}
+          />
           <AddPropertyButton
             initiativeId={event.initiative_id}
             currentPropertyIds={combinedPropertyIds}

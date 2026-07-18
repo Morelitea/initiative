@@ -687,6 +687,7 @@ async def _fetch_task(
             .selectinload(Project.initiative)
             .selectinload(Initiative.guild),
             selectinload(Task.assignees),
+            selectinload(Task.creator),
             selectinload(Task.task_status),
             selectinload(Task.tag_links).selectinload(TaskTag.tag),
             selectinload(Task.property_values).selectinload(

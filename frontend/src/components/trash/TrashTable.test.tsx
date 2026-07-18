@@ -4,7 +4,6 @@ import { HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
 import { buildTrashItem, buildTrashListResponse } from "@/__tests__/factories/trash.factory";
-import { buildUserGuildMember } from "@/__tests__/factories/user.factory";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
@@ -110,23 +109,21 @@ describe("TrashTable", () => {
           ])
         )
       ),
+      // The 409 now carries the eligible owners inline (id + name), so the
+      // dialog renders them directly without fetching the guild roster.
       guildHttp.post(restoreEndpoint, () =>
         HttpResponse.json(
           {
             needs_reassignment: true,
             valid_owner_ids: [11, 12],
+            valid_owners: [
+              { id: 11, full_name: "Alice" },
+              { id: 12, full_name: "Bob" },
+            ],
             detail: "TRASH_NEEDS_REASSIGNMENT",
           },
           { status: 409 }
         )
-      ),
-      // ReassignOwnerDialog uses useUsers(item.guild_id) to populate the picker.
-      guildHttp.get("/users/", () =>
-        HttpResponse.json([
-          buildUserGuildMember({ id: 11, full_name: "Alice" }),
-          buildUserGuildMember({ id: 12, full_name: "Bob" }),
-          buildUserGuildMember({ id: 99, full_name: "Outsider" }),
-        ])
       )
     );
 

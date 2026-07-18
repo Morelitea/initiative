@@ -16,10 +16,6 @@ import {
   getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey,
   readTaskApiV1GGuildIdTasksTaskIdGet,
 } from "@/api/generated/tasks/tasks";
-import {
-  getListUsersApiV1GGuildIdUsersGetQueryKey,
-  listUsersApiV1GGuildIdUsersGet,
-} from "@/api/generated/users/users";
 
 export const Route = createFileRoute("/_serverRequired/_authenticated/g/$guildId/tasks_/$taskId")({
   loader: async ({ context, params }) => {
@@ -29,17 +25,13 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/g/$guildId
 
     // Prefetch in background - don't block navigation on failure
     try {
-      // Prefetch task, users, and comments in parallel
+      // Prefetch task and comments in parallel (the task read now embeds its
+      // creator summary, so the full guild roster is no longer needed here).
       const [task] = await Promise.all([
         queryClient.ensureQueryData({
           queryKey: getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey(guildId, taskId),
           queryFn: () => readTaskApiV1GGuildIdTasksTaskIdGet(guildId, taskId),
           staleTime: 30_000,
-        }),
-        queryClient.ensureQueryData({
-          queryKey: getListUsersApiV1GGuildIdUsersGetQueryKey(guildId),
-          queryFn: () => listUsersApiV1GGuildIdUsersGet(guildId),
-          staleTime: 60_000,
         }),
         queryClient.ensureQueryData({
           queryKey: getListCommentsApiV1GGuildIdCommentsGetQueryKey(guildId, { task_id: taskId }),

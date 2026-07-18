@@ -46,11 +46,7 @@ import { ProjectTaskComposer } from "@/components/projects/ProjectTaskComposer";
 import { ProjectTasksFilters } from "@/components/projects/ProjectTasksFilters";
 import { ProjectTasksKanbanView } from "@/components/projects/ProjectTasksKanbanView";
 import { ProjectTasksTableView } from "@/components/projects/ProjectTasksTableView";
-import {
-  type DueFilterOption,
-  priorityVariant,
-  type UserOption,
-} from "@/components/projects/projectTasksConfig";
+import { type DueFilterOption, priorityVariant } from "@/components/projects/projectTasksConfig";
 import {
   computeMidpoint,
   isDraggingDown,
@@ -183,7 +179,6 @@ type ProjectTasksSectionProps = {
    */
   initiativeId: number;
   taskStatuses: TaskStatusRead[];
-  userOptions: UserOption[];
   canEditTaskDetails: boolean;
   canWriteProject: boolean;
   projectIsArchived: boolean;
@@ -197,7 +192,6 @@ export const ProjectTasksSection = ({
   projectId,
   initiativeId,
   taskStatuses,
-  userOptions,
   canEditTaskDetails,
   canWriteProject,
   projectIsArchived,
@@ -251,37 +245,27 @@ export const ProjectTasksSection = ({
   // any dangling IDs and write the cleaned blob back, so future loads
   // don't have to re-pay for the diff.
   const tagsLoaded = tags !== undefined;
-  const userOptionsLoaded = userOptions.length > 0;
   useEffect(() => {
-    if (!filtersLoaded || !tagsLoaded || !userOptionsLoaded) return;
+    if (!filtersLoaded || !tagsLoaded) return;
     const tagIds = new Set(tags.map((tg) => tg.id));
     const statusIds = new Set(sortedTaskStatuses.map((s) => s.id));
-    const assigneeIdsSet = new Set(userOptions.map((u) => String(u.id)));
     const cleaned: StoredFilters = {
       ...filters,
       tagFilters: filters.tagFilters.filter((id) => tagIds.has(id)),
       statusFilters: filters.statusFilters.filter((id) => statusIds.has(id)),
-      assigneeFilters: filters.assigneeFilters.filter((id) => assigneeIdsSet.has(id)),
     };
     if (
       cleaned.tagFilters.length !== filters.tagFilters.length ||
-      cleaned.statusFilters.length !== filters.statusFilters.length ||
-      cleaned.assigneeFilters.length !== filters.assigneeFilters.length
+      cleaned.statusFilters.length !== filters.statusFilters.length
     ) {
       setStoredFilters(cleaned);
     }
-    // Property filter pruning lives in the property filter UI itself
-    // (it needs the property definitions, which aren't fetched here).
-  }, [
-    filtersLoaded,
-    tagsLoaded,
-    userOptionsLoaded,
-    tags,
-    sortedTaskStatuses,
-    userOptions,
-    filters,
-    setStoredFilters,
-  ]);
+    // Assignee filters are NOT pruned here — the full roster is no longer
+    // fetched (the picker searches server-side), and a dangling assignee id
+    // simply matches no tasks in the `assignee_ids in (...)` filter. Property
+    // filter pruning lives in the property filter UI itself (it needs the
+    // property definitions, which aren't fetched here).
+  }, [filtersLoaded, tagsLoaded, tags, sortedTaskStatuses, filters, setStoredFilters]);
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
   const [localOverride, setLocalOverride] = useState<TaskListRead[] | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(initialComposerOpen ?? false);
@@ -966,7 +950,7 @@ export const ProjectTasksSection = ({
           <CollapsibleContent forceMount className="mt-2 data-[state=closed]:hidden sm:mt-0">
             <ProjectTasksFilters
               taskStatuses={sortedTaskStatuses}
-              userOptions={userOptions}
+              projectId={projectId}
               tags={tags}
               assigneeFilters={assigneeFilters}
               dueFilter={dueFilter}
@@ -1113,7 +1097,7 @@ export const ProjectTasksSection = ({
               isArchived={projectIsArchived}
               isSubmitting={createTask.isPending}
               hasError={Boolean(createTask.isError)}
-              users={userOptions}
+              projectId={projectId}
               onTitleChange={setTitle}
               onDescriptionChange={setDescription}
               onPriorityChange={setPriority}
@@ -1155,7 +1139,7 @@ export const ProjectTasksSection = ({
             <TaskBulkEditDialog
               selectedTasks={selectedTasks}
               taskStatuses={sortedTaskStatuses}
-              userOptions={userOptions}
+              projectId={projectId}
               isSubmitting={bulkUpdateTasks.isPending}
               onApply={(changes) => {
                 bulkUpdateTasks.mutate({

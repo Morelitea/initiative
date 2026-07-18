@@ -196,6 +196,9 @@ async def test_restore_returns_needs_reassignment_when_owner_left_initiative(
 
     assert result.needs_reassignment is True
     assert result.valid_owner_ids == [pm.id]
+    # The reassign picker renders these directly (no roster fetch): id + name.
+    assert result.valid_owners is not None
+    assert [(c.id, c.full_name) for c in result.valid_owners] == [(pm.id, pm.full_name)]
 
     # Resubmit with the valid owner.
     refreshed_task = (

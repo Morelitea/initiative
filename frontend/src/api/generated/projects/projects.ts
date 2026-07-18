@@ -35,6 +35,8 @@ import type {
   ProjectUpdate,
   RecentViewWrite,
   ResourceGrantSchema,
+  SearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetParams,
+  UserSummaryListResponse,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -1825,6 +1827,244 @@ export const useDeleteProjectApiV1GGuildIdProjectsProjectIdDelete = <
     queryClient
   );
 };
+/**
+ * Slim, searchable roster of users assignable to this project's tasks.
+ *
+ * The assignable set is the project's **write/owner DAC set** — explicit
+ * per-user grants, members holding a write-access role, and every member
+ * when an all-initiative-members write grant exists — computed server-side
+ * via the shared permission engine. This replaces the client-side
+ * ``project.grants`` derivation the pickers used to run over the full guild
+ * roster. Requester needs read access to the project.
+ * @summary Search Project Members
+ */
+export const searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet = (
+  guildId: number,
+  projectId: number,
+  params?: SearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserSummaryListResponse>(
+    {
+      url: `/api/v1/g/${guildId}/projects/${projectId}/members/search`,
+      method: "GET",
+      params,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetQueryKey = (
+  guildId: number,
+  projectId: number,
+  params?: SearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetParams
+) => {
+  return [
+    `/api/v1/g/${guildId}/projects/${projectId}/members/search`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  projectId: number,
+  params?: SearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetQueryKey(
+      guildId,
+      projectId,
+      params
+    );
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>>
+  > = ({ signal }) =>
+    searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet(
+      guildId,
+      projectId,
+      params,
+      requestOptions,
+      signal
+    );
+
+  return {
+    queryKey,
+    queryFn,
+    enabled:
+      guildId !== null && guildId !== undefined && projectId !== null && projectId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type SearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetQueryResult =
+  NonNullable<
+    Awaited<ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>>
+  >;
+export type SearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet<
+  TData = Awaited<
+    ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  projectId: number,
+  params: undefined | SearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet<
+  TData = Awaited<
+    ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  projectId: number,
+  params?: SearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet<
+  TData = Awaited<
+    ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  projectId: number,
+  params?: SearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Search Project Members
+ */
+
+export function useSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet<
+  TData = Awaited<
+    ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  projectId: number,
+  params?: SearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetQueryOptions(
+      guildId,
+      projectId,
+      params,
+      options
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
 /**
  * @summary Attach Project Document
  */

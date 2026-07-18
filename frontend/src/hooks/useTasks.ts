@@ -9,6 +9,7 @@ import type {
   SubtaskReorderItem,
   TaskListRead,
   TaskListResponse,
+  TaskRead,
   TaskReorderRequest,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -50,12 +51,15 @@ import type { QueryOpts } from "@/types/query";
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
-export const useTask = (taskId: number | null, options?: QueryOpts<TaskListRead>) => {
+// Returns the full ``TaskRead`` (the detail endpoint's shape) — a superset of
+// the list row that additionally carries the ``creator`` summary the edit page
+// renders. The list hooks stay on ``TaskListRead``.
+export const useTask = (taskId: number | null, options?: QueryOpts<TaskRead>) => {
   const guildId = useActiveGuildId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
-  return useQuery<TaskListRead>({
+  return useQuery<TaskRead>({
     queryKey: getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey(guildId, taskId!),
-    queryFn: castQueryFn<TaskListRead>(() => readTaskApiV1GGuildIdTasksTaskIdGet(guildId, taskId!)),
+    queryFn: castQueryFn<TaskRead>(() => readTaskApiV1GGuildIdTasksTaskIdGet(guildId, taskId!)),
     enabled: taskId !== null && Number.isFinite(taskId) && userEnabled,
     ...rest,
   });
