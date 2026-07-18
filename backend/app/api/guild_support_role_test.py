@@ -219,9 +219,11 @@ async def test_guild_admin_can_promote_member_to_admin(
     system engine (the guild role holds no UPDATE on guild_memberships)."""
     admin = await acting_user(guild_role=GuildRole.admin)
     member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    guild_id = admin.guild.id
+    member_user_id = member.user.id
 
     resp = await client.patch(
-        f"/api/v1/guilds/{admin.guild.id}/members/{member.user.id}",
+        f"/api/v1/guilds/{guild_id}/members/{member_user_id}",
         headers=admin.headers,
         json={"role": "admin"},
     )
@@ -231,8 +233,8 @@ async def test_guild_admin_can_promote_member_to_admin(
     updated = (
         await session.exec(
             select(GuildMembership).where(
-                GuildMembership.guild_id == admin.guild.id,
-                GuildMembership.user_id == member.user.id,
+                GuildMembership.guild_id == guild_id,
+                GuildMembership.user_id == member_user_id,
             )
         )
     ).one()
