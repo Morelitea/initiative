@@ -126,6 +126,19 @@ async def test_non_https_issuer_rejected(client: AsyncClient, session: AsyncSess
     assert response.status_code == 422
 
 
+@pytest.mark.parametrize("slug", ["corp-", "-corp", "Corp", "a" * 65])
+async def test_malformed_slug_rejected(
+    client: AsyncClient, session: AsyncSession, slug: str
+):
+    """Slugs form the login URLs: lowercase alphanumerics and inner dashes
+    only, no leading/trailing dash."""
+    headers = await _owner_headers(session)
+    response = await client.post(
+        BASE, headers=headers, json={**_VALID_CREATE, "slug": slug}
+    )
+    assert response.status_code == 422, slug
+
+
 async def test_update_secret_semantics(client: AsyncClient, session: AsyncSession):
     """client_secret: absent = keep, empty = clear, value = replace."""
     headers = await _owner_headers(session)

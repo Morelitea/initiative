@@ -75,6 +75,16 @@ const EMPTY_FORM: ProviderFormState = {
   enabled: true,
 };
 
+// Mirrors the backend's validate_provider_slug: lowercase ASCII letters,
+// digits, and inner dashes; no leading/trailing dash.
+const SLUG_CHARS = new Set("abcdefghijklmnopqrstuvwxyz0123456789-");
+const isValidSlug = (value: string) =>
+  value.length >= 1 &&
+  value.length <= 64 &&
+  [...value].every((ch) => SLUG_CHARS.has(ch)) &&
+  !value.startsWith("-") &&
+  !value.endsWith("-");
+
 export const AuthProvidersSection = () => {
   const { t } = useTranslation("settings");
   const providersQuery = useAuthProviders();
@@ -83,6 +93,7 @@ export const AuthProvidersSection = () => {
   const [preset, setPreset] = useState<PresetKey>("custom");
   const [form, setForm] = useState<ProviderFormState>(EMPTY_FORM);
   const [clearSecret, setClearSecret] = useState(false);
+  const [slugError, setSlugError] = useState(false);
   const [deleting, setDeleting] = useState<AuthProviderAdminRead | null>(null);
 
   const closeDialog = () => {
@@ -152,6 +163,10 @@ export const AuthProvidersSection = () => {
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!editing && !isValidSlug(form.slug)) {
+      setSlugError(true);
+      return;
+    }
     if (editing) {
       updateProvider.mutate({
         providerId: editing.id,
@@ -284,12 +299,19 @@ export const AuthProvidersSection = () => {
               <Input
                 id="provider-slug"
                 value={form.slug}
-                onChange={(event) => setForm((prev) => ({ ...prev, slug: event.target.value }))}
-                pattern="[a-z0-9][a-z0-9-]{0,63}"
+                onChange={(event) => {
+                  setSlugError(false);
+                  setForm((prev) => ({ ...prev, slug: event.target.value }));
+                }}
+                maxLength={64}
                 disabled={Boolean(editing)}
                 required
               />
-              <p className="text-muted-foreground text-xs">{t("authProviders.slugHelp")}</p>
+              {slugError ? (
+                <p className="text-destructive text-xs">{t("authProviders.slugInvalid")}</p>
+              ) : (
+                <p className="text-muted-foreground text-xs">{t("authProviders.slugHelp")}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="provider-display-name">{t("authProviders.displayNameLabel")}</Label>
@@ -309,7 +331,7 @@ export const AuthProvidersSection = () => {
                 type="url"
                 value={form.issuer}
                 onChange={(event) => setForm((prev) => ({ ...prev, issuer: event.target.value }))}
-                placeholder="https://idp.example.com"
+                placeholder={t("authProviders.issuerPlaceholder")}
                 required
               />
               {preset === "microsoft" && !editing && (
