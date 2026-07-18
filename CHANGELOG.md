@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The sidebar "Edit tag" dialog is no longer visually broken — the name field now fills the row and the color picker sits beside it, instead of the color picker taking the full width and collapsing the name field to a sliver.
 - On mobile, opening the three-dot menu next to an initiative or project in the sidebar no longer dismisses the sidebar drawer.
 - Removed redundant spacing between icons and labels across buttons throughout the app; the button's built-in gap now handles it consistently.
+- The "My Tasks" page no longer returns a 500 error when filtered by a custom property. The cross-guild task views load property definitions per guild schema now, instead of querying a table that isn't visible on that request's connection.
 
 ## [0.57.0] - 2026-07-16
 

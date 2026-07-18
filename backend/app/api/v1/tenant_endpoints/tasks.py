@@ -1218,6 +1218,9 @@ class _TaskListQuery:
     guild_ids: Optional[list]
     property_value_conditions: list
     property_definitions: dict
+    # Every property_values leaf's definition id (nested groups included), so the
+    # deferred cross-guild loader resolves exactly what the limit check counted.
+    property_ids_needed: list[int]
 
 
 async def _parse_task_list_query(
@@ -1225,9 +1228,17 @@ async def _parse_task_list_query(
     conditions: Optional[str],
     sorting: Optional[str],
     tz: Optional[str],
+    *,
+    defer_property_definitions: bool = False,
 ) -> _TaskListQuery:
     """Validate + extract task list query params (conditions, sort, tz,
-    property-value filters). Raises 400 on malformed input."""
+    property-value filters). Raises 400 on malformed input.
+
+    ``defer_property_definitions`` leaves ``property_definitions`` empty for
+    the cross-guild ``/me`` paths, whose session runs in the ``public``
+    search_path and cannot see any guild's ``property_definitions`` table.
+    Those callers load the definitions per-guild afterwards via
+    :func:`_load_property_definitions_across_guilds`."""
     try:
         user_conditions = parse_conditions(conditions)
     except ValueError:
@@ -1272,10 +1283,13 @@ async def _parse_task_list_query(
         for cond in user_conditions
         if isinstance(cond, FilterCondition) and cond.field == "property_values"
     ]
-    property_definitions_map = await properties_service.load_definitions_by_ids(
-        session,
-        property_ids_needed,
-    )
+    if defer_property_definitions:
+        property_definitions_map: dict[int, PropertyDefinition] = {}
+    else:
+        property_definitions_map = await properties_service.load_definitions_by_ids(
+            session,
+            property_ids_needed,
+        )
 
     return _TaskListQuery(
         user_conditions=user_conditions,
@@ -1288,7 +1302,44 @@ async def _parse_task_list_query(
         guild_ids=extract_condition_value(user_conditions, "guild_ids"),
         property_value_conditions=property_value_conditions,
         property_definitions=property_definitions_map,
+        property_ids_needed=property_ids_needed,
     )
+
+
+async def _load_property_definitions_across_guilds(
+    session,
+    current_user: User,
+    q: _TaskListQuery,
+) -> dict[int, PropertyDefinition]:
+    """Load the property definitions a cross-guild ``/me`` list needs, routing
+    into each of the user's guild schemas.
+
+    The ``/me`` session runs in the ``public`` search_path and cannot see any
+    guild's ``property_definitions`` table, so the definitions must be loaded
+    under the same per-guild routing the aggregate list itself uses. A property
+    definition id is unique per guild schema; the compiled filter clause only
+    needs the definition's *type* (which typed column to compare), so the first
+    guild that resolves an id wins and its type is reused for every guild's
+    schema-local ``property_id`` predicate."""
+    needed = q.property_ids_needed
+    if not needed:
+        return {}
+
+    target_guilds = await member_guild_ids(
+        session, current_user.id, restrict_to=q.guild_ids
+    )
+
+    async def _fetch(guild_session, _guild_id: int):
+        defs = await properties_service.load_definitions_by_ids(guild_session, needed)
+        return list(defs.values())
+
+    definitions = await gather_across_guilds(
+        session, current_user.id, target_guilds, _fetch
+    )
+    merged: dict[int, PropertyDefinition] = {}
+    for defn in definitions:
+        merged.setdefault(defn.id, defn)
+    return merged
 
 
 async def _guild_task_query_builder(
@@ -1472,7 +1523,12 @@ async def list_my_tasks(
 
     An optional ``guild_ids`` conditions entry narrows to a subset of guilds.
     """
-    q = await _parse_task_list_query(session, conditions, sorting, tz)
+    q = await _parse_task_list_query(
+        session, conditions, sorting, tz, defer_property_definitions=True
+    )
+    q.property_definitions = await _load_property_definitions_across_guilds(
+        session, current_user, q
+    )
     items, total_count, actual_page = await _list_global_tasks(
         session,
         current_user,
@@ -1512,7 +1568,12 @@ async def list_my_created_tasks(
     tz: Optional[str] = Query(default=None),
 ) -> TaskListResponse:
     """Tasks created by the current user across every guild they belong to."""
-    q = await _parse_task_list_query(session, conditions, sorting, tz)
+    q = await _parse_task_list_query(
+        session, conditions, sorting, tz, defer_property_definitions=True
+    )
+    q.property_definitions = await _load_property_definitions_across_guilds(
+        session, current_user, q
+    )
     items, total_count, actual_page = await _list_global_created_tasks(
         session,
         current_user,
