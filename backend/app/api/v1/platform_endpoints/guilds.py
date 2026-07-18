@@ -524,15 +524,13 @@ async def update_guild_membership(
 ) -> Response:
     """Update a user's guild membership role. Guild admin only.
 
-    Runs on the system engine: assigning a guild role is a privileged
-    operation (like a platform-role change), so the guild role itself holds no
-    UPDATE on ``guild_memberships`` — the write happens here, after the
-    app-layer guild-admin check, and never under a request-path role.
-
     Restrictions:
     - Cannot change your own role
     - Cannot demote the last guild admin
     """
+    # Runs on the system engine (AdminSessionDep): the guild role holds no UPDATE
+    # on guild_memberships, so a role change happens only here, after the
+    # guild-admin check — never under a request-path role. See migration 0145.
     await _ensure_guild_admin(
         session,
         guild_id=guild_id,
