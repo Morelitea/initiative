@@ -344,7 +344,8 @@ async def restore_trash_entity(
         # default 200; the response_model on the route still describes the
         # body shape via the responses={} mapping above.
         payload_body = RestoreNeedsReassignmentResponse(
-            valid_owner_ids=result.valid_owner_ids or []
+            valid_owner_ids=result.valid_owner_ids or [],
+            valid_owners=result.valid_owners or [],
         )
         return JSONResponse(
             status_code=status.HTTP_409_CONFLICT,

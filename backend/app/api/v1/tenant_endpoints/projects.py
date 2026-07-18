@@ -53,7 +53,7 @@ from app.services.tenant import tags as tags_service
 from app.services.tenant import task_statuses as task_statuses_service
 from app.core.messages import ProjectMessages
 from app.core.config import settings as app_settings
-from app.db.query import page_has_next, paginate_sequence
+from app.db.query import clamp_page, page_has_next, paginate_sequence
 from app.core.pam_context import has_active_grant
 from app.services.realtime import broadcast_event
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
@@ -69,6 +69,7 @@ from app.schemas.tenant.project import (
     ProjectActivityEntry,
     ProjectActivityResponse,
 )
+from app.schemas.platform.user import UserSummary, UserSummaryListResponse
 from app.schemas.tenant.comment import CommentAuthor
 from app.schemas.tenant.initiative import serialize_initiative
 from app.schemas.tenant.document import (
@@ -1503,6 +1504,65 @@ async def read_project(
         session,
         current_user,
         project,
+    )
+
+
+@router.get("/{project_id}/members/search", response_model=UserSummaryListResponse)
+async def search_project_members(
+    project_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    search: Optional[str] = Query(
+        default=None,
+        description="Case-insensitive substring match on the member's name.",
+    ),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=0, le=100),
+) -> UserSummaryListResponse:
+    """Slim, searchable roster of users assignable to this project's tasks.
+
+    The assignable set is the project's **write/owner DAC set** — explicit
+    per-user grants, members holding a write-access role, and every member
+    when an all-initiative-members write grant exists — computed server-side
+    via the shared permission engine. This replaces the client-side
+    ``project.grants`` derivation the pickers used to run over the full guild
+    roster. Requester needs read access to the project.
+    """
+    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _require_project_membership(project, current_user, session, access="read")
+
+    # Candidate pool = the initiative's members. User-level grants are validated
+    # to reference initiative members when written (see replace_resource_grants),
+    # so the membership list is a complete superset of the assignable users.
+    members = getattr(project.initiative, "memberships", None) or []
+    assignable: list[User] = []
+    seen: set[int] = set()
+    for member in members:
+        user = member.user
+        if user is None or user.id in seen:
+            continue
+        if permissions_service.has_project_write_access(project, user):
+            assignable.append(user)
+            seen.add(user.id)
+
+    term = (search or "").strip().lower()
+    if term:
+        assignable = [u for u in assignable if term in (u.full_name or "").lower()]
+
+    assignable.sort(key=lambda u: ((u.full_name or "").lower(), u.id))
+
+    total_count = len(assignable)
+    actual_page = clamp_page(page, page_size, total_count)
+    page_items = paginate_sequence(assignable, actual_page, page_size)
+
+    return UserSummaryListResponse(
+        items=[UserSummary.model_validate(user) for user in page_items],
+        total_count=total_count,
+        page=actual_page,
+        page_size=page_size,
+        has_next=page_has_next(actual_page, page_size, total_count),
+        has_prev=actual_page > 1,
     )
 
 

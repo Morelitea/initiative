@@ -17,7 +17,7 @@ from sqlalchemy import (
 from sqlmodel import select
 
 from app.db.query import (
-    _clamp_page,
+    clamp_page,
     apply_filters,
     apply_sorting,
     apply_pagination,
@@ -922,7 +922,7 @@ class TestBuildPaginatedResponse:
 
 
 # ---------------------------------------------------------------------------
-# _clamp_page
+# clamp_page
 # ---------------------------------------------------------------------------
 
 
@@ -930,33 +930,33 @@ class TestClampPage:
     """Tests for page clamping when page overshoots results."""
 
     def test_valid_page_unchanged(self):
-        assert _clamp_page(2, 10, 50) == 2
+        assert clamp_page(2, 10, 50) == 2
 
     def test_page_beyond_total_resets_to_1(self):
         # 50 items, 20 per page = 3 pages. Page 5 is out of range.
-        assert _clamp_page(5, 20, 50) == 1
+        assert clamp_page(5, 20, 50) == 1
 
     def test_last_page_is_valid(self):
         # 50 items, 20 per page = 3 pages. Page 3 is valid.
-        assert _clamp_page(3, 20, 50) == 3
+        assert clamp_page(3, 20, 50) == 3
 
     def test_zero_total_resets_to_1(self):
-        assert _clamp_page(3, 20, 0) == 1
+        assert clamp_page(3, 20, 0) == 1
 
     def test_page_size_zero_clamps_against_windows(self, monkeypatch):
         """page_size=0 pages are validated against FETCH_ALL_WINDOW-sized
         windows: in-range window pages survive, overshoot resets to 1."""
         monkeypatch.setattr("app.db.query.FETCH_ALL_WINDOW", 10)
-        assert _clamp_page(5, 0, 100) == 5  # 10 windows of 10 — page 5 valid
-        assert _clamp_page(11, 0, 100) == 1  # beyond the last window
+        assert clamp_page(5, 0, 100) == 5  # 10 windows of 10 — page 5 valid
+        assert clamp_page(11, 0, 100) == 1  # beyond the last window
 
     def test_page_1_always_valid(self):
-        assert _clamp_page(1, 20, 1) == 1
+        assert clamp_page(1, 20, 1) == 1
 
     def test_exact_boundary(self):
         # 20 items, 20 per page = 1 page. Page 1 is valid, page 2 is not.
-        assert _clamp_page(1, 20, 20) == 1
-        assert _clamp_page(2, 20, 20) == 1
+        assert clamp_page(1, 20, 20) == 1
+        assert clamp_page(2, 20, 20) == 1
 
 
 # ---------------------------------------------------------------------------

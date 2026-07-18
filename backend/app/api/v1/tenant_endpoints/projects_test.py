@@ -89,6 +89,113 @@ async def test_list_projects_member_sees_initiative_projects(
 
 
 @pytest.mark.integration
+async def test_search_project_members_returns_write_access_set(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The assignable roster is the project's write/owner DAC set: the owner
+    and write-granted members, but not read-only members nor members with no
+    grant. Returns the slim UserSummary envelope."""
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    project = await create_project(
+        session, admin.initiative, admin.user, name="Assignable Project"
+    )
+
+    writer = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=admin.initiative,
+        initiative_role="member",
+        full_name="Wanda Writer",
+    )
+    reader = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=admin.initiative,
+        initiative_role="member",
+        full_name="Rob Reader",
+    )
+    # A member of the initiative with no grant at all.
+    await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=admin.initiative,
+        initiative_role="member",
+        full_name="Nora None",
+    )
+
+    session.add(
+        ResourceGrant(
+            resource_type="project",
+            resource_id=project.id,
+            user_id=writer.user.id,
+            level=ResourceAccessLevel.write,
+            guild_id=project.guild_id,
+            initiative_id=project.initiative_id,
+        )
+    )
+    session.add(
+        ResourceGrant(
+            resource_type="project",
+            resource_id=project.id,
+            user_id=reader.user.id,
+            level=ResourceAccessLevel.read,
+            guild_id=project.guild_id,
+            initiative_id=project.initiative_id,
+        )
+    )
+    await session.commit()
+
+    response = await client.get(
+        admin.g(f"/projects/{project.id}/members/search"), headers=admin.headers
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    names = {item["full_name"] for item in body["items"]}
+    # Owner (admin) + write-granted member are assignable.
+    assert admin.user.full_name in names
+    assert "Wanda Writer" in names
+    # Read-only and no-grant members are not.
+    assert "Rob Reader" not in names
+    assert "Nora None" not in names
+    # Slim projection shape.
+    assert set(body["items"][0].keys()) == {
+        "id",
+        "full_name",
+        "avatar_base64",
+        "avatar_url",
+        "status",
+    }
+
+    # Name filter.
+    response = await client.get(
+        admin.g(f"/projects/{project.id}/members/search"),
+        headers=admin.headers,
+        params={"search": "wanda"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert [item["full_name"] for item in body["items"]] == ["Wanda Writer"]
+
+
+@pytest.mark.integration
+async def test_search_project_members_requires_read_access(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A guild member with no access to the project (not in its initiative)
+    cannot read its assignable roster."""
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    project = await create_project(session, admin.initiative, admin.user)
+    outsider = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+
+    response = await client.get(
+        outsider.g(f"/projects/{project.id}/members/search"), headers=outsider.headers
+    )
+    # RLS hides the initiative's content from a non-member → 404.
+    assert response.status_code in (403, 404)
+
+
+@pytest.mark.integration
 async def test_list_projects_excludes_archived_by_default(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

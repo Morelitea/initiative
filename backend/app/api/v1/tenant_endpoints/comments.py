@@ -1,7 +1,7 @@
 from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
@@ -29,8 +29,10 @@ from app.schemas.tenant.comment import (
     CommentUpdate,
     MentionEntityType,
     MentionSuggestion,
+    MentionSuggestionListResponse,
     RecentActivityEntry,
 )
+from app.db.query import page_has_next, paginated_query
 from app.services.tenant import comments as comments_service
 from app.services.realtime import broadcast_event
 
@@ -320,7 +322,7 @@ async def delete_comment(
     )
 
 
-@router.get("/mentions/search", response_model=List[MentionSuggestion])
+@router.get("/mentions/search", response_model=MentionSuggestionListResponse)
 async def search_mentionables(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -328,12 +330,16 @@ async def search_mentionables(
     entity_type: MentionEntityType = Query(...),
     initiative_id: int = Query(..., gt=0),
     q: str = Query(default="", max_length=100),
-) -> List[MentionSuggestion]:
-    """Search for mentionable entities within an initiative."""
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=10, ge=0, le=100),
+) -> MentionSuggestionListResponse:
+    """Search for mentionable entities within an initiative.
+
+    Paginated, same envelope as the member search endpoints. ``user``
+    suggestions carry an avatar so the picker renders a face.
+    """
     guild_id = guild_context.guild_id
     query = q.strip().lower()
-    suggestions: List[MentionSuggestion] = []
-    limit = 10
 
     # Verify initiative belongs to guild
     init_stmt = select(Initiative).where(
@@ -348,9 +354,12 @@ async def search_mentionables(
             detail="Initiative not found",
         )
 
+    items: List[MentionSuggestion] = []
+    total_count = 0
+    actual_page = page
+
     if entity_type == MentionEntityType.user:
-        # Get users who are members of this initiative
-        stmt = (
+        base = (
             select(User)
             .join(InitiativeMember, InitiativeMember.user_id == User.id)
             .where(
@@ -359,24 +368,27 @@ async def search_mentionables(
             )
         )
         if query:
-            stmt = stmt.where(User.full_name.ilike(f"%{query}%"))
-        stmt = stmt.limit(limit)
-        result = await session.exec(stmt)
-        users = result.all()
-        for user in users:
+            base = base.where(User.full_name.ilike(f"%{query}%"))
+        count_stmt = select(func.count()).select_from(base.subquery())
+        data_stmt = base.order_by(User.full_name, User.id)
+        rows, total_count, actual_page = await paginated_query(
+            session, data_stmt, count_stmt, page=page, page_size=page_size
+        )
+        for user in rows:
             display = user.full_name or user.email
-            suggestions.append(
+            items.append(
                 MentionSuggestion(
                     type=MentionEntityType.user,
                     id=user.id,
                     display_text=display,
                     subtitle=user.email if user.full_name else None,
+                    avatar_url=user.avatar_url,
+                    avatar_base64=user.avatar_base64,
                 )
             )
 
     elif entity_type == MentionEntityType.task:
-        # Get tasks from projects in this initiative
-        stmt = (
+        base = (
             select(Task, Project.name)
             .join(Project, Project.id == Task.project_id)
             .where(
@@ -385,12 +397,14 @@ async def search_mentionables(
             )
         )
         if query:
-            stmt = stmt.where(Task.title.ilike(f"%{query}%"))
-        stmt = stmt.order_by(Task.updated_at.desc()).limit(limit)
-        result = await session.exec(stmt)
-        rows = result.all()
+            base = base.where(Task.title.ilike(f"%{query}%"))
+        count_stmt = select(func.count()).select_from(base.subquery())
+        data_stmt = base.order_by(Task.updated_at.desc())
+        rows, total_count, actual_page = await paginated_query(
+            session, data_stmt, count_stmt, page=page, page_size=page_size
+        )
         for task, project_name in rows:
-            suggestions.append(
+            items.append(
                 MentionSuggestion(
                     type=MentionEntityType.task,
                     id=task.id,
@@ -400,18 +414,19 @@ async def search_mentionables(
             )
 
     elif entity_type == MentionEntityType.doc:
-        # Get documents in this initiative
-        stmt = select(Document).where(
+        base = select(Document).where(
             Document.initiative_id == initiative_id,
             Document.is_template.is_(False),
         )
         if query:
-            stmt = stmt.where(Document.title.ilike(f"%{query}%"))
-        stmt = stmt.order_by(Document.updated_at.desc()).limit(limit)
-        result = await session.exec(stmt)
-        docs = result.all()
-        for doc in docs:
-            suggestions.append(
+            base = base.where(Document.title.ilike(f"%{query}%"))
+        count_stmt = select(func.count()).select_from(base.subquery())
+        data_stmt = base.order_by(Document.updated_at.desc())
+        rows, total_count, actual_page = await paginated_query(
+            session, data_stmt, count_stmt, page=page, page_size=page_size
+        )
+        for doc in rows:
+            items.append(
                 MentionSuggestion(
                     type=MentionEntityType.doc,
                     id=doc.id,
@@ -421,19 +436,20 @@ async def search_mentionables(
             )
 
     elif entity_type == MentionEntityType.project:
-        # Get projects in this initiative
-        stmt = select(Project).where(
+        base = select(Project).where(
             Project.initiative_id == initiative_id,
             Project.is_archived.is_(False),
             Project.is_template.is_(False),
         )
         if query:
-            stmt = stmt.where(Project.name.ilike(f"%{query}%"))
-        stmt = stmt.order_by(Project.updated_at.desc()).limit(limit)
-        result = await session.exec(stmt)
-        projects = result.all()
-        for project in projects:
-            suggestions.append(
+            base = base.where(Project.name.ilike(f"%{query}%"))
+        count_stmt = select(func.count()).select_from(base.subquery())
+        data_stmt = base.order_by(Project.updated_at.desc())
+        rows, total_count, actual_page = await paginated_query(
+            session, data_stmt, count_stmt, page=page, page_size=page_size
+        )
+        for project in rows:
+            items.append(
                 MentionSuggestion(
                     type=MentionEntityType.project,
                     id=project.id,
@@ -442,4 +458,11 @@ async def search_mentionables(
                 )
             )
 
-    return suggestions
+    return MentionSuggestionListResponse(
+        items=items,
+        total_count=total_count,
+        page=actual_page,
+        page_size=page_size,
+        has_next=page_has_next(actual_page, page_size, total_count),
+        has_prev=actual_page > 1,
+    )

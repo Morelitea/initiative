@@ -1918,6 +1918,21 @@ export interface MentionSuggestion {
   id: number;
   display_text: string;
   subtitle?: string | null;
+  avatar_url?: string | null;
+  avatar_base64?: string | null;
+}
+
+/**
+ * Paginated envelope for mention search — same shape as the member search
+ * responses (``UserSummaryListResponse`` et al.).
+ */
+export interface MentionSuggestionListResponse {
+  items: MentionSuggestion[];
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_prev: boolean;
 }
 
 /**
@@ -2631,13 +2646,24 @@ export interface ResourceGrantBulkResponse {
 }
 
 /**
+ * A user eligible to become the restored entity's owner. Carries the
+ * display name so the picker needn't fetch the whole guild roster.
+ */
+export interface RestoreOwnerCandidate {
+  id: number;
+  full_name?: string | null;
+}
+
+/**
  * 409 payload when the entity's owner is no longer an active member of
  * the relevant initiative. The client opens a picker seeded with
- * ``valid_owner_ids`` and resubmits with the chosen one.
+ * ``valid_owners`` and resubmits with the chosen one. ``valid_owner_ids``
+ * is retained as the bare-id form for validation/back-compat.
  */
 export interface RestoreNeedsReassignmentResponse {
   needs_reassignment?: true;
   valid_owner_ids: number[];
+  valid_owners?: RestoreOwnerCandidate[];
   detail?: string;
 }
 
@@ -3197,6 +3223,7 @@ export interface TaskRead {
   position: number;
   is_archived: boolean;
   created_by_id: number | null;
+  creator: UserPublic | null;
   assignees: UserPublic[];
   recurrence_occurrence_count: number;
   comment_count: number;
@@ -4023,6 +4050,22 @@ export type ProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetParams =
   page_size?: number;
 };
 
+export type SearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetParams = {
+  /**
+   * Case-insensitive substring match on the member's name.
+   */
+  search?: string | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  page_size?: number;
+};
+
 export type ListTasksApiV1GGuildIdTasksGetParams = {
   /**
    * JSON list of filter conditions, AND-ed together. Each object: {"field": "<column>", "op": "<operator>", "value": <val>}. Any Task column is valid plus virtual fields: status_category, assignee_ids, tag_ids, initiative_ids. An object with a "conditions" key is an AND/OR group: {"logic": "or", "conditions": [...]}.
@@ -4085,6 +4128,15 @@ export type SearchMentionablesApiV1GGuildIdCommentsMentionsSearchGetParams = {
    * @maxLength 100
    */
   q?: string;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  page_size?: number;
 };
 
 export type SearchInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersSearchGetParams = {

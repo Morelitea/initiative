@@ -9,8 +9,7 @@ import type {
   TaskRecurrenceOutput,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import { AssigneeSelector } from "@/components/projects/AssigneeSelector";
-import type { UserOption } from "@/components/projects/projectTasksConfig";
+import { MemberMultiSelect } from "@/components/members/MemberSearchSelect";
 import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
 import {
   Accordion,
@@ -50,7 +49,7 @@ export type TaskBulkUpdate = {
 interface TaskBulkEditDialogProps {
   selectedTasks: TaskListRead[];
   taskStatuses: TaskStatusRead[];
-  userOptions: UserOption[];
+  projectId: number;
   isSubmitting: boolean;
   onApply: (changes: Partial<TaskBulkUpdate>) => void;
   onCancel: () => void;
@@ -59,7 +58,7 @@ interface TaskBulkEditDialogProps {
 export const TaskBulkEditDialog = ({
   selectedTasks,
   taskStatuses,
-  userOptions,
+  projectId,
   isSubmitting,
   onApply,
   onCancel,
@@ -150,9 +149,9 @@ export const TaskBulkEditDialog = ({
             <AccordionContent className="space-y-4 pb-4">
               <div className="space-y-2">
                 <Label>{t("bulkEdit.assigneesLabel")}</Label>
-                <AssigneeSelector
+                <MemberMultiSelect
+                  scope={{ type: "project", projectId }}
                   selectedIds={assigneeIds}
-                  options={userOptions}
                   onChange={setAssigneeIds}
                   emptyMessage={t("bulkEdit.noUsersAvailable")}
                   currentUserId={currentUser?.id}

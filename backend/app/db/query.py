@@ -469,7 +469,7 @@ def paginate_sequence(items: list, page: int = 1, page_size: int = 20) -> list:
     return items[start : start + eff]
 
 
-def _clamp_page(page: int, page_size: int, total_count: int) -> int:
+def clamp_page(page: int, page_size: int, total_count: int) -> int:
     """Reset page to 1 if it overshoots the available results.
 
     This handles the case where filters/sort changed and the current page
@@ -499,7 +499,7 @@ async def paginated_query(
     """
     total_count = (await session.exec(count_stmt)).one()
 
-    page = _clamp_page(page, page_size, total_count)
+    page = clamp_page(page, page_size, total_count)
 
     data_stmt = apply_pagination(data_stmt, page, page_size)
     result = await session.exec(data_stmt)

@@ -11,7 +11,7 @@ from sqlalchemy import case, func, literal, text
 from sqlmodel import select, delete
 
 from app.db.query import (
-    _clamp_page,
+    clamp_page,
     apply_filters,
     apply_sorting,
     build_paginated_response,
@@ -687,6 +687,7 @@ async def _fetch_task(
             .selectinload(Project.initiative)
             .selectinload(Initiative.guild),
             selectinload(Task.assignees),
+            selectinload(Task.creator),
             selectinload(Task.task_status),
             selectinload(Task.tag_links).selectinload(TaskTag.tag),
             selectinload(Task.property_values).selectinload(
@@ -1070,7 +1071,7 @@ async def _gather_global_task_reads(
     # unordered, so this is where global ordering is established.
     items = _sort_global_task_reads(items, sort_fields)
     total_count = len(items)
-    actual_page = _clamp_page(page, page_size, total_count)
+    actual_page = clamp_page(page, page_size, total_count)
     # One slicing rule for every page_size, including the windowed
     # page_size<=0 "fetch all" protocol (bounded response, nothing
     # unreachable — the caller walks pages until has_next is false).

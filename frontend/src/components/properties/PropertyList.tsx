@@ -23,7 +23,27 @@ export interface PropertyListProps {
   properties: PropertySummary[];
   disabled?: boolean;
   className?: string;
+  /** Initiative that scopes any `user_reference` picker in the list. */
+  initiativeId?: number | null;
 }
+
+/** Pull the `{id, full_name}` the server returns for a user_reference value so
+ *  the picker can render the selected name without a search round-trip. */
+const userReferenceValue = (
+  property: PropertySummary
+): { id: number; full_name?: string | null } | null => {
+  if (property.type !== PropertyType.user_reference) return null;
+  const raw = property.value;
+  if (
+    raw &&
+    typeof raw === "object" &&
+    "id" in raw &&
+    typeof (raw as { id: unknown }).id === "number"
+  ) {
+    return raw as { id: number; full_name?: string | null };
+  }
+  return null;
+};
 
 const SAVE_DEBOUNCE_MS = 400;
 
@@ -90,6 +110,7 @@ export const PropertyList = ({
   properties,
   disabled = false,
   className,
+  initiativeId,
 }: PropertyListProps) => {
   const { t } = useTranslation(["properties", "common"]);
 
@@ -268,6 +289,8 @@ export const PropertyList = ({
                   value={draft}
                   onChange={(next) => handleChange(property.property_id, next)}
                   disabled={disabled}
+                  initiativeId={initiativeId}
+                  selectedUser={userReferenceValue(property)}
                 />
               </div>
               <Button

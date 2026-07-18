@@ -94,3 +94,21 @@ class MentionSuggestion(SanitizedBaseModel):
     id: int
     display_text: str
     subtitle: Optional[str] = None  # email for users, project name for tasks
+    # Populated for ``user`` suggestions so the picker can render a face
+    # (parity with the member typeaheads); ``None`` for non-user entities.
+    avatar_url: Optional[str] = None
+    avatar_base64: Optional[RawTextStr] = None
+
+
+class MentionSuggestionListResponse(SanitizedBaseModel):
+    """Paginated envelope for mention search — same shape as the member search
+    responses (``UserSummaryListResponse`` et al.)."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    items: list[MentionSuggestion]
+    total_count: int
+    page: int
+    page_size: int
+    has_next: bool
+    has_prev: bool

@@ -43,6 +43,7 @@ from app.models.tenant.counter import Counter, CounterGroup
 from app.models.tenant.queue import Queue, QueueItem
 from app.models.tenant.task import Task
 from app.models.platform.user import User, UserStatus
+from app.schemas.tenant.trash import RestoreOwnerCandidate
 
 
 # parent_model -> list of (child_model, fk_column_name)
@@ -173,22 +174,29 @@ async def soft_delete_entity(
 class RestoreResult:
     needs_reassignment: bool
     valid_owner_ids: Optional[list[int]] = None
+    valid_owners: Optional[list[RestoreOwnerCandidate]] = None
 
 
-async def _initiative_member_ids(
+async def _initiative_member_candidates(
     session: AsyncSession,
     *,
     initiative_id: int,
-) -> list[int]:
-    """Active user ids that are still members of the initiative."""
+) -> list[RestoreOwnerCandidate]:
+    """Active members of the initiative, as owner candidates (id + name) so
+    the reassign picker needn't fetch the whole guild roster."""
     stmt = (
-        select(User.id)
+        select(User.id, User.full_name)
         .join(InitiativeMember, InitiativeMember.user_id == User.id)
         .where(InitiativeMember.initiative_id == initiative_id)
         .where(User.status == UserStatus.active)
+        .order_by(User.full_name, User.id)
     )
     result = await session.exec(stmt)
-    return [uid for uid in result.all() if uid is not None]
+    return [
+        RestoreOwnerCandidate(id=uid, full_name=full_name)
+        for uid, full_name in result.all()
+        if uid is not None
+    ]
 
 
 async def _resolve_initiative_scope(
@@ -259,15 +267,21 @@ async def restore_entity(
         current_owner_id = getattr(entity, owner_field)
         scope_initiative_id = await _resolve_initiative_scope(session, entity)
         if scope_initiative_id is not None:
-            valid_ids = await _initiative_member_ids(
+            candidates = await _initiative_member_candidates(
                 session, initiative_id=scope_initiative_id
             )
+            valid_ids = [c.id for c in candidates]
+            valid_id_set = set(valid_ids)
             if new_owner_id is not None:
-                if new_owner_id not in valid_ids:
+                if new_owner_id not in valid_id_set:
                     raise ValueError("TRASH_INVALID_OWNER")
                 setattr(entity, owner_field, new_owner_id)
-            elif current_owner_id not in valid_ids:
-                return RestoreResult(needs_reassignment=True, valid_owner_ids=valid_ids)
+            elif current_owner_id not in valid_id_set:
+                return RestoreResult(
+                    needs_reassignment=True,
+                    valid_owner_ids=valid_ids,
+                    valid_owners=candidates,
+                )
 
     matching_deleted_at = entity.deleted_at
     entity.deleted_at = None

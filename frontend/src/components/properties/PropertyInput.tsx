@@ -8,6 +8,7 @@ import {
   type PropertySummary,
   PropertyType,
 } from "@/api/generated/initiativeAPI.schemas";
+import { type MemberLike, MemberSelect } from "@/components/members/MemberSearchSelect";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -22,10 +23,7 @@ import {
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { useAppendPropertyOption } from "@/hooks/useProperties";
-import { useUsers } from "@/hooks/useUsers";
-import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 
 type PropertyDefinitionLike = PropertyDefinitionRead | PropertySummary;
@@ -36,6 +34,15 @@ export interface PropertyInputProps {
   onChange: (value: unknown) => void;
   disabled?: boolean;
   className?: string;
+  /** Initiative that scopes the `user_reference` picker. Falls back to the
+   *  definition's own `initiative_id` when it carries one (a full
+   *  `PropertyDefinitionRead`); required via this prop when the definition
+   *  arrives as an embedded `PropertySummary`. */
+  initiativeId?: number | null;
+  /** Display info for a pre-set `user_reference` value so the picker shows a
+   *  name without a search round-trip (the server returns `{id, full_name}`
+   *  on reads). */
+  selectedUser?: MemberLike | null;
 }
 
 // ── Type guards / coercion helpers ──────────────────────────────────────────
@@ -106,11 +113,10 @@ export const PropertyInput = ({
   onChange,
   disabled = false,
   className,
+  initiativeId,
+  selectedUser,
 }: PropertyInputProps) => {
   const { t } = useTranslation(["properties", "common"]);
-  const { data: users = [] } = useUsers({
-    enabled: definition.type === PropertyType.user_reference,
-  });
 
   const options = useMemo<PropertyOption[]>(
     () => (definition.options ?? []) as PropertyOption[],
@@ -255,27 +261,17 @@ export const PropertyInput = ({
 
     case PropertyType.user_reference: {
       const currentId = coerceUserId(value);
-      // Drop anonymized users from the picker — they can't be assigned to
-      // anything new. Existing values referencing them still render via the
-      // shared display helper elsewhere.
-      const items = users
-        .filter((user) => user.status !== "anonymized")
-        .map((user) => ({
-          value: String(user.id),
-          label: getUserDisplayName(user),
-        }));
+      // Scope the picker to the property's initiative — the members who can be
+      // referenced. Prefer the explicit prop, falling back to the definition's
+      // own initiative when it carries one (full PropertyDefinitionRead).
+      const scopedInitiativeId =
+        initiativeId ?? ("initiative_id" in definition ? definition.initiative_id : null);
       return (
-        <SearchableCombobox
-          items={items}
-          value={currentId !== null ? String(currentId) : ""}
-          onValueChange={(next) => {
-            if (!next) {
-              onChange(null);
-              return;
-            }
-            const parsed = Number(next);
-            onChange(Number.isFinite(parsed) ? parsed : null);
-          }}
+        <MemberSelect
+          scope={{ type: "initiative", initiativeId: scopedInitiativeId }}
+          value={currentId}
+          onChange={(next) => onChange(next)}
+          selectedUser={selectedUser ?? null}
           placeholder={t("properties:input.userPlaceholder")}
           emptyMessage={t("properties:input.textPlaceholder")}
           disabled={disabled}

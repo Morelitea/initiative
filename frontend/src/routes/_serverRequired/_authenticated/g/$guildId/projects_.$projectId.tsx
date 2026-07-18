@@ -13,10 +13,6 @@ import {
   getListTasksApiV1GGuildIdTasksGetQueryKey,
   listTasksApiV1GGuildIdTasksGet,
 } from "@/api/generated/tasks/tasks";
-import {
-  getListUsersApiV1GGuildIdUsersGetQueryKey,
-  listUsersApiV1GGuildIdUsersGet,
-} from "@/api/generated/users/users";
 import { VIEW_PREFERENCES_QUERY_KEY } from "@/hooks/useViewPreference";
 import { fetchAllPages } from "@/lib/fetchAllPages";
 import { getItem } from "@/lib/storage";
@@ -109,11 +105,6 @@ export const Route = createFileRoute(
           ),
           queryFn: () =>
             listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet(guildId, projectId),
-          staleTime: 60_000,
-        }),
-        queryClient.ensureQueryData({
-          queryKey: getListUsersApiV1GGuildIdUsersGetQueryKey(guildId),
-          queryFn: () => listUsersApiV1GGuildIdUsersGet(guildId),
           staleTime: 60_000,
         }),
         queryClient.ensureQueryData({

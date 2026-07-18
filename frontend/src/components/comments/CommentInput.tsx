@@ -4,8 +4,12 @@ import { useTranslation } from "react-i18next";
 import type { MentionEntityType, MentionSuggestion } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { getCaretCoordinates } from "@/lib/caretCoordinates";
 
 import { MentionPopover } from "./MentionPopover";
+
+// Matches the popover width (w-64) so it can be clamped inside the field.
+const POPOVER_WIDTH = 256;
 
 interface MentionTrigger {
   type: MentionEntityType;
@@ -77,6 +81,28 @@ export const CommentInput = ({
   const resolvedSubmitLabel = submitLabel ?? t("comments.postComment");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [mentionTrigger, setMentionTrigger] = useState<MentionTrigger | null>(null);
+  // Pixel anchor (relative to the field) for the popover, at the trigger char.
+  const [mentionAnchor, setMentionAnchor] = useState<{ top: number; left: number } | null>(null);
+
+  // Detect a mention trigger and, when present, compute the caret anchor so the
+  // popover sits under the word being typed rather than under the whole field.
+  const syncMentionTrigger = useCallback(
+    (textarea: HTMLTextAreaElement, text: string, cursorPosition: number) => {
+      const trigger = detectMentionTrigger(text, cursorPosition);
+      setMentionTrigger(trigger);
+      if (trigger) {
+        const caret = getCaretCoordinates(textarea, trigger.startIndex);
+        const maxLeft = Math.max(0, textarea.offsetWidth - POPOVER_WIDTH);
+        setMentionAnchor({
+          top: caret.top + caret.height + 4,
+          left: Math.min(caret.left, maxLeft),
+        });
+      } else {
+        setMentionAnchor(null);
+      }
+    },
+    []
+  );
 
   // Handle text changes and detect mention triggers
   const handleChange = useCallback(
@@ -84,24 +110,17 @@ export const CommentInput = ({
       const newValue = e.target.value;
       onChange(newValue);
       onClearError?.();
-
-      // Detect mention trigger
-      const cursorPosition = e.target.selectionStart;
-      const trigger = detectMentionTrigger(newValue, cursorPosition);
-      setMentionTrigger(trigger);
+      syncMentionTrigger(e.target, newValue, e.target.selectionStart);
     },
-    [onChange, onClearError]
+    [onChange, onClearError, syncMentionTrigger]
   );
 
   // Handle selection/cursor changes
   const handleSelect = useCallback(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
-
-    const cursorPosition = textarea.selectionStart;
-    const trigger = detectMentionTrigger(value, cursorPosition);
-    setMentionTrigger(trigger);
-  }, [value]);
+    syncMentionTrigger(textarea, value, textarea.selectionStart);
+  }, [value, syncMentionTrigger]);
 
   // Handle mention selection
   const handleMentionSelect = useCallback(
@@ -208,6 +227,7 @@ export const CommentInput = ({
             type={mentionTrigger.type}
             query={mentionTrigger.query}
             initiativeId={initiativeId}
+            anchor={mentionAnchor}
             onSelect={handleMentionSelect}
             onClose={handleCloseMention}
           />

@@ -35,7 +35,6 @@ import { Loader2 } from "lucide-react";
 import { useMemo, useRef } from "react";
 import type * as Y from "yjs";
 
-import type { UserPublic } from "@/api/generated/initiativeAPI.schemas";
 import { EmojisExtension } from "@/components/ui/editor/extensions/emojis-extension";
 import { HeadingAnchorExtension } from "@/components/ui/editor/extensions/heading-anchor-extension";
 import { ImagesExtension } from "@/components/ui/editor/extensions/images-extension";
@@ -79,7 +78,6 @@ export interface EditorProps {
   readOnly?: boolean;
   showToolbar?: boolean;
   className?: string;
-  mentionableUsers?: UserPublic[];
   collaborative?: boolean;
   providerFactory?: ((id: string, yjsDocMap: Map<string, Y.Doc>) => CollaborationProvider) | null;
   trackChanges?: boolean;
@@ -97,7 +95,6 @@ export function Editor({
   readOnly = false,
   showToolbar = true,
   className,
-  mentionableUsers = [],
   collaborative = false,
   providerFactory,
   trackChanges,
@@ -212,7 +209,6 @@ export function Editor({
           <Plugins
             showToolbar={showToolbar}
             readOnly={readOnly}
-            mentionableUsers={mentionableUsers}
             collaborative={useCollaborativeMode}
             cursorsContainerRef={cursorsContainerRef}
             initiativeId={initiativeId}

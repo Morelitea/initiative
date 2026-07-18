@@ -1,5 +1,6 @@
 import type { UserStatus } from "@/api/generated/initiativeAPI.schemas";
 import { ANONYMIZED_INITIALS, getInitials } from "@/lib/initials";
+import { resolveUploadUrl } from "@/lib/uploadUrl";
 
 /**
  * The minimum shape of a user object needed to render a display name.
@@ -61,4 +62,22 @@ export const getInitialsForUser = (user: DisplayableUser | null | undefined): st
   if (!user) return getInitials(undefined);
   if (isAnonymizedUser(user)) return ANONYMIZED_INITIALS;
   return getInitials(user.full_name ?? undefined, user.email ?? undefined);
+};
+
+/** The minimum shape needed to resolve an avatar image source. */
+export interface AvatarSourceUser {
+  avatar_url?: string | null;
+  avatar_base64?: string | null;
+}
+
+/**
+ * The single source of truth for "what image src do we render for this user":
+ * a resolved upload URL when present, else the inline base64 blob, else
+ * undefined (the caller falls back to initials). Centralises the
+ * ``resolveUploadUrl(avatar_url) || avatar_base64`` idiom that was duplicated
+ * across the assignee picker, mentions, and task views.
+ */
+export const getAvatarSrc = (user: AvatarSourceUser | null | undefined): string | undefined => {
+  if (!user) return undefined;
+  return resolveUploadUrl(user.avatar_url ?? undefined) || user.avatar_base64 || undefined;
 };
