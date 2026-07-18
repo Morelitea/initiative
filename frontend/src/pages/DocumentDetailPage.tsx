@@ -411,10 +411,6 @@ export const DocumentDetailPage = () => {
     return myLevel === "owner" || myLevel === "write";
   }, [document, user]);
 
-  const mentionableUsers = useMemo(() => {
-    return document?.initiative?.members?.map((member) => member.user) ?? [];
-  }, [document?.initiative?.members]);
-
   // Check if user can create documents in this initiative
   const canCreateDocuments = useMemo(() => {
     if (!document?.initiative || !user) {
@@ -1454,7 +1450,6 @@ export const DocumentDetailPage = () => {
                   readOnly={!canEditDocument}
                   showToolbar={canEditDocument}
                   className={cn("max-h-[80vh]", isFullscreen && "h-full max-h-none min-h-0 flex-1")}
-                  mentionableUsers={mentionableUsers}
                   collaborative={collaborationEnabled && collaboration.isReady}
                   providerFactory={collaboration.providerFactory}
                   // Always track changes so contentState stays updated for periodic saves

@@ -26,7 +26,7 @@ import type {
   CommentUpdate,
   HTTPValidationError,
   ListCommentsApiV1GGuildIdCommentsGetParams,
-  MentionSuggestion,
+  MentionSuggestionListResponse,
   RecentActivityEntry,
   RecentCommentsApiV1GGuildIdCommentsRecentGetParams,
   SearchMentionablesApiV1GGuildIdCommentsMentionsSearchGetParams,
@@ -663,6 +663,9 @@ export const useDeleteCommentApiV1GGuildIdCommentsCommentIdDelete = <
 };
 /**
  * Search for mentionable entities within an initiative.
+ *
+ * Paginated, same envelope as the member search endpoints. ``user``
+ * suggestions carry an avatar so the picker renders a face.
  * @summary Search Mentionables
  */
 export const searchMentionablesApiV1GGuildIdCommentsMentionsSearchGet = (
@@ -671,7 +674,7 @@ export const searchMentionablesApiV1GGuildIdCommentsMentionsSearchGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<MentionSuggestion[]>(
+  return apiMutator<MentionSuggestionListResponse>(
     { url: `/api/v1/g/${guildId}/comments/mentions/search`, method: "GET", params, signal },
     options
   );

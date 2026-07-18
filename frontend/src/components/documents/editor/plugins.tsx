@@ -3,7 +3,6 @@ import { TabIndentationPlugin } from "@lexical/react/LexicalTabIndentationPlugin
 import { TablePlugin } from "@lexical/react/LexicalTablePlugin";
 import { type RefObject, useEffect, useState } from "react";
 
-import type { UserPublic } from "@/api/generated/initiativeAPI.schemas";
 import { ContentEditable } from "@/components/ui/editor/editor-ui/content-editable";
 import { MARKDOWN_TRANSFORMERS } from "@/components/ui/editor/extensions/markdown-shortcuts-extension";
 import { ActionsPlugin } from "@/components/ui/editor/plugins/actions/actions-plugin";
@@ -80,7 +79,6 @@ const placeholder = "Press / for commands...";
 export function Plugins({
   showToolbar = true,
   readOnly = false,
-  mentionableUsers = [],
   collaborative = false,
   cursorsContainerRef,
   initiativeId = null,
@@ -89,7 +87,6 @@ export function Plugins({
 }: {
   showToolbar?: boolean;
   readOnly?: boolean;
-  mentionableUsers?: UserPublic[];
   collaborative?: boolean;
   cursorsContainerRef?: RefObject<HTMLDivElement>;
   initiativeId?: number | null;
@@ -199,7 +196,7 @@ export function Plugins({
         <TableActionMenuPlugin anchorElem={floatingAnchorElem} readOnly={readOnly} />
         <TabIndentationPlugin />
 
-        <MentionsPlugin mentionableUsers={mentionableUsers} />
+        <MentionsPlugin initiativeId={initiativeId ?? undefined} />
         <WikilinksPlugin
           initiativeId={initiativeId}
           onNavigate={onWikilinkNavigate}

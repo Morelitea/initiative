@@ -9,12 +9,13 @@ import type { TextNode } from "lexical";
 import { type JSX, useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
-import type { UserPublic } from "@/api/generated/initiativeAPI.schemas";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { $createMentionNode } from "@/components/ui/editor/nodes/mention-node";
+import { useMentionSuggestions } from "@/hooks/useComments";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { getInitials } from "@/lib/initials";
-import { resolveUploadUrl } from "@/lib/uploadUrl";
+import { getAvatarSrc } from "@/lib/userDisplay";
 
 const PUNCTUATION = "\\.,\\+\\*\\?\\$\\@\\|#{}\\(\\)\\^\\-\\[\\]\\\\/!%'\"~=<>_:;";
 const NAME = "\\b[A-Z][^\\s" + PUNCTUATION + "]";
@@ -106,10 +107,6 @@ function getPossibleQueryMatch(text: string): MenuTextMatch | null {
   return checkForAtSignMentions(text, 0);
 }
 
-function getDisplayName(user: UserPublic): string {
-  return user.full_name?.trim() || user.email;
-}
-
 class MentionTypeaheadOption extends MenuOption {
   name: string;
   userId: number;
@@ -123,49 +120,44 @@ class MentionTypeaheadOption extends MenuOption {
   }
 }
 
-function useMentionLookupService(
-  queryString: string | null,
-  users: UserPublic[]
-): MentionTypeaheadOption[] {
-  return useMemo(() => {
-    if (queryString === null) {
-      return [];
-    }
-    const lowerQuery = queryString.toLowerCase();
-    return users
-      .filter((user) => user.status !== "anonymized")
-      .filter((user) => {
-        const name = getDisplayName(user).toLowerCase();
-        const email = user.email.toLowerCase();
-        return name.includes(lowerQuery) || email.includes(lowerQuery);
-      })
-      .slice(0, SUGGESTION_LIST_LENGTH_LIMIT)
-      .map((user) => {
-        const displayName = getDisplayName(user);
-        const avatarSrc = resolveUploadUrl(user.avatar_url) || user.avatar_base64 || undefined;
-        const initials = getInitials(displayName);
-        return new MentionTypeaheadOption(
-          displayName,
-          user.id,
-          <Avatar className="h-5 w-5 text-[10px]">
-            {avatarSrc ? <AvatarImage src={avatarSrc} alt={displayName} /> : null}
-            <AvatarFallback userId={user.id}>{initials}</AvatarFallback>
-          </Avatar>
-        );
-      });
-  }, [queryString, users]);
-}
-
 export interface MentionsPluginProps {
-  mentionableUsers?: UserPublic[];
+  /** Initiative the document belongs to — scopes the server-side member
+   *  search that backs mention suggestions. */
+  initiativeId?: number;
 }
 
-export function MentionsPlugin({ mentionableUsers = [] }: MentionsPluginProps): JSX.Element | null {
+export function MentionsPlugin({ initiativeId }: MentionsPluginProps): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
 
   const [queryString, setQueryString] = useState<string | null>(null);
+  const debouncedQuery = useDebouncedValue(queryString ?? "", 200);
 
-  const options = useMentionLookupService(queryString, mentionableUsers);
+  // Server-side member typeahead scoped to the document's initiative — no more
+  // loading the whole embedded member list into the editor.
+  const { data: suggestions = [] } = useMentionSuggestions(
+    "user",
+    initiativeId ?? 0,
+    debouncedQuery,
+    { enabled: (initiativeId ?? 0) > 0 && queryString !== null }
+  );
+
+  const options = useMemo(
+    () =>
+      suggestions.slice(0, SUGGESTION_LIST_LENGTH_LIMIT).map((suggestion) => {
+        const avatarSrc = getAvatarSrc(suggestion);
+        return new MentionTypeaheadOption(
+          suggestion.display_text,
+          suggestion.id,
+          <Avatar className="h-5 w-5 text-[10px]">
+            {avatarSrc ? <AvatarImage src={avatarSrc} alt={suggestion.display_text} /> : null}
+            <AvatarFallback userId={suggestion.id}>
+              {getInitials(suggestion.display_text)}
+            </AvatarFallback>
+          </Avatar>
+        );
+      }),
+    [suggestions]
+  );
 
   const checkForSlashTriggerMatch = useBasicTypeaheadTriggerMatch("/", {
     minLength: 0,
@@ -200,7 +192,7 @@ export function MentionsPlugin({ mentionableUsers = [] }: MentionsPluginProps): 
     [checkForSlashTriggerMatch, editor]
   );
 
-  if (mentionableUsers.length === 0) {
+  if (!initiativeId) {
     return null;
   }
 

@@ -1886,6 +1886,21 @@ export interface MentionSuggestion {
   id: number;
   display_text: string;
   subtitle?: string | null;
+  avatar_url?: string | null;
+  avatar_base64?: string | null;
+}
+
+/**
+ * Paginated envelope for mention search — same shape as the member search
+ * responses (``UserSummaryListResponse`` et al.).
+ */
+export interface MentionSuggestionListResponse {
+  items: MentionSuggestion[];
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_prev: boolean;
 }
 
 /**
@@ -4081,6 +4096,15 @@ export type SearchMentionablesApiV1GGuildIdCommentsMentionsSearchGetParams = {
    * @maxLength 100
    */
   q?: string;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  page_size?: number;
 };
 
 export type SearchInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersSearchGetParams = {

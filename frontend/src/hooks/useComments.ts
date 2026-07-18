@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   createCommentApiV1GGuildIdCommentsPost,
@@ -16,6 +16,7 @@ import type {
   ListCommentsApiV1GGuildIdCommentsGetParams,
   MentionEntityType,
   MentionSuggestion,
+  MentionSuggestionListResponse,
   RecentActivityEntry,
   RecentCommentsApiV1GGuildIdCommentsRecentGetParams,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -71,15 +72,21 @@ export const useMentionSuggestions = (
       initiative_id: initiativeId,
       q: query,
     }),
-    queryFn: castQueryFn<MentionSuggestion[]>(() =>
-      searchMentionablesApiV1GGuildIdCommentsMentionsSearchGet(guildId, {
+    // The endpoint returns a paginated envelope; the pickers only need the
+    // first page's items.
+    queryFn: async () => {
+      const res = (await searchMentionablesApiV1GGuildIdCommentsMentionsSearchGet(guildId, {
         entity_type: type,
         initiative_id: initiativeId,
         q: query,
-      })
-    ),
+      })) as unknown as MentionSuggestionListResponse;
+      return res.items ?? [];
+    },
     staleTime: 30_000,
     enabled: initiativeId > 0,
+    // Keep the prior page visible while the next keystroke's request is in
+    // flight so the dropdown doesn't flash empty on every character.
+    placeholderData: keepPreviousData,
     ...options,
   });
 };
