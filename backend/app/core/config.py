@@ -1,4 +1,4 @@
-import string
+import re
 from functools import lru_cache
 from urllib.parse import urlsplit
 
@@ -195,15 +195,16 @@ class Settings(BaseSettings):
     @classmethod
     def _validate_role_prefix(cls, value: str) -> str:
         # These prefixes are interpolated into Postgres ROLE-name DDL and into
-        # every request's SET ROLE. Pin them to identifier-safe characters once
-        # at load time (fail closed) so no name-builder or migration has to
-        # re-check — same charset the role migrations enforce. Empty is the
-        # production default.
-        allowed = frozenset(string.ascii_letters + string.digits + "_")
-        if value and not set(value) <= allowed:
+        # every request's SET ROLE. Pin them to an unquoted-identifier-safe
+        # shape once at load time (fail closed) so no name-builder or migration
+        # has to re-check: empty (the production default), or a leading letter/
+        # underscore followed by letters, digits, and underscores. A
+        # digit-leading prefix would yield a role name Postgres rejects.
+        if value and not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", value):
             raise ValueError(
-                "must contain only ASCII letters, digits, and underscore "
-                "(it becomes part of Postgres role names)"
+                "must be empty or start with a letter or underscore and contain "
+                "only ASCII letters, digits, and underscores (it becomes part of "
+                "Postgres role names)"
             )
         return value
 

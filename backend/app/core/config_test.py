@@ -22,12 +22,24 @@ def _settings(**overrides) -> Settings:
 @pytest.mark.parametrize("field", ["GUILD_ROLE_PREFIX", "PLATFORM_ROLE_PREFIX"])
 @pytest.mark.parametrize(
     "bad_prefix",
-    ["a; DROP ROLE app_admin", "x'", "p-1", "test prefix", "p.g", 'q"', "réle_"],
+    [
+        "a; DROP ROLE app_admin",
+        "x'",
+        "p-1",
+        "test prefix",
+        "p.g",
+        'q"',
+        "réle_",
+        # Digit-leading: valid characters but Postgres rejects it as an
+        # unquoted identifier, so the prefix must be refused at load.
+        "9prod_",
+        "0",
+    ],
 )
 def test_role_prefix_rejects_non_identifier_chars(field, bad_prefix):
     """The role-name prefixes are interpolated into Postgres ROLE DDL and into
-    every request's SET ROLE, so a prefix carrying anything outside
-    [A-Za-z0-9_] must fail closed at load rather than reach that sink."""
+    every request's SET ROLE, so a prefix that isn't a valid unquoted
+    identifier must fail closed at load rather than reach that sink."""
     with pytest.raises(ValidationError):
         _settings(**{field: bad_prefix})
 

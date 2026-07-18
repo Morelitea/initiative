@@ -230,7 +230,7 @@ def test_handoff_token_refuses_to_mint_without_private_key(monkeypatch):
 
 
 @pytest.mark.unit
-def test_handoff_token_always_signs_rs256_by_default(monkeypatch):
+def test_handoff_token_always_signs_rs256_by_default():
     """With a key configured (the deployment default once ADVANCED_TOOL_URL is
     on), the token is RS256 — never a symmetric algorithm."""
     token, _ = create_advanced_tool_handoff_token(
