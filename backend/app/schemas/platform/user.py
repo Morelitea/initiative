@@ -130,6 +130,41 @@ class UserGuildMember(UserPublic):
     initiative_roles: List["UserInitiativeRole"] = Field(default_factory=list)
 
 
+class UserSummary(SanitizedBaseModel):
+    """Slim user projection for typeahead and picker surfaces.
+
+    Drops the fields pickers never read — email, platform/guild role,
+    ``initiative_roles`` (an N+1 enrichment on the full roster), and
+    timestamps — while keeping the avatar so members still render with a
+    face. The payload is bounded by pagination on the endpoints that serve
+    it, not by dropping the avatar.
+    """
+
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
+
+    id: int
+    full_name: Optional[str] = None
+    # Response schema — uncapped for the same legacy-row reason as UserPublic.
+    avatar_base64: Optional[RawTextStr] = None
+    avatar_url: Optional[str] = None
+    status: UserStatus = UserStatus.active
+
+
+class UserSummaryListResponse(SanitizedBaseModel):
+    """Paginated envelope for the slim user search/typeahead endpoints."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    items: List[UserSummary]
+    total_count: int
+    page: int
+    page_size: int
+    has_next: bool
+    has_prev: bool
+
+
 class UserRead(UserBase):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True

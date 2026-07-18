@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Annotated, List, Optional, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from sqlalchemy import func
 from sqlmodel import select
 
 from app.api.deps import (
@@ -45,6 +46,8 @@ from app.schemas.platform.user import (
     UserGuildMember,
     UserRead,
     UserSelfUpdate,
+    UserSummary,
+    UserSummaryListResponse,
     UserUpdate,
     AccountDeletionRequest,
     AccountDeletionResponse,
@@ -73,6 +76,7 @@ from app.services.platform import csv_export
 from app.services.tenant import stats_service
 from app.services.platform import user_tokens as user_tokens_service
 from app.services.tenant import recent_views as recent_views_service
+from app.db.query import page_has_next, paginated_query
 
 # Allowed values for the optional "task completion visual feedback" effect.
 # Mirrored on the frontend in src/lib/taskCompletionVisualFeedback.ts; keep
@@ -165,6 +169,51 @@ async def list_users(
         member.initiative_roles = getattr(user, "initiative_roles", [])
         response.append(member)
     return response
+
+
+@guild_router.get("/search", response_model=UserSummaryListResponse)
+async def search_users(
+    session: RLSSessionDep,
+    _current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    search: Optional[str] = Query(
+        default=None,
+        description="Case-insensitive substring match on the member's name.",
+    ),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=0, le=100),
+) -> UserSummaryListResponse:
+    """Slim, searchable, paginated roster for typeahead/pickers.
+
+    Same authorization as the full member list (``RLSSessionDep`` +
+    ``GuildContextDep``, membership re-validated per request): the new params
+    are additive filters on an already-RLS-gated query, so they only ever
+    narrow the row set. Returns :class:`UserSummary` (no email, roles, or
+    ``initiative_roles`` enrichment) instead of the heavy ``UserGuildMember``.
+    """
+    base = (
+        select(User)
+        .join(GuildMembership, GuildMembership.user_id == User.id)
+        .where(GuildMembership.guild_id == guild_context.guild_id)
+    )
+    if search and (term := search.strip()):
+        base = base.where(User.full_name.ilike(f"%{term}%"))
+
+    count_stmt = select(func.count()).select_from(base.subquery())
+    data_stmt = base.order_by(User.full_name.asc(), User.id.asc())
+
+    users, total_count, actual_page = await paginated_query(
+        session, data_stmt, count_stmt, page=page, page_size=page_size
+    )
+
+    return UserSummaryListResponse(
+        items=[UserSummary.model_validate(user) for user in users],
+        total_count=total_count,
+        page=actual_page,
+        page_size=page_size,
+        has_next=page_has_next(actual_page, page_size, total_count),
+        has_prev=actual_page > 1,
+    )
 
 
 _GUILD_CSV_HEADERS = [

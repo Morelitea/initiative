@@ -3575,6 +3575,35 @@ export interface UserStatsResponse {
   guild_breakdown: GuildTaskBreakdown[];
 }
 
+/**
+ * Slim user projection for typeahead and picker surfaces.
+ *
+ * Drops the fields pickers never read — email, platform/guild role,
+ * ``initiative_roles`` (an N+1 enrichment on the full roster), and
+ * timestamps — while keeping the avatar so members still render with a
+ * face. The payload is bounded by pagination on the endpoints that serve
+ * it, not by dropping the avatar.
+ */
+export interface UserSummary {
+  id: number;
+  full_name: string | null;
+  avatar_base64: string | null;
+  avatar_url: string | null;
+  status: UserStatus;
+}
+
+/**
+ * Paginated envelope for the slim user search/typeahead endpoints.
+ */
+export interface UserSummaryListResponse {
+  items: UserSummary[];
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_prev: boolean;
+}
+
 export interface UserUpdate {
   full_name?: string | null;
   role?: UserRole | null;
@@ -4027,6 +4056,22 @@ export type SearchMentionablesApiV1GGuildIdCommentsMentionsSearchGetParams = {
   q?: string;
 };
 
+export type SearchInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersSearchGetParams = {
+  /**
+   * Case-insensitive substring match on the member's name.
+   */
+  search?: string | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  page_size?: number;
+};
+
 export type GetDocumentCountsApiV1GGuildIdDocumentsCountsGetParams = {
   initiative_id?: number | null;
   search?: string | null;
@@ -4370,6 +4415,22 @@ export type ListAdvancedToolsApiV1GGuildIdAdvancedToolsGetParams = {
 
 export type ListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGetParams = {
   initiative_id?: number | null;
+};
+
+export type SearchUsersApiV1GGuildIdUsersSearchGetParams = {
+  /**
+   * Case-insensitive substring match on the member's name.
+   */
+  search?: string | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  page_size?: number;
 };
 
 export type ExportUsersCsvApiV1GGuildIdUsersExportCsvGetParams = {

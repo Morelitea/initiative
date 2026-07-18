@@ -412,6 +412,77 @@ async def test_get_initiative_members(
 
 
 @pytest.mark.integration
+async def test_search_initiative_members_slim_and_filtered(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The slim members search returns a UserSummary envelope and filters by
+    name, with the same membership gate as the full roster."""
+    admin = await acting_user(guild_role=GuildRole.admin, full_name="Zed Admin")
+    initiative = await create_initiative(
+        session, admin.guild, admin.user, name="Search Initiative"
+    )
+    await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=initiative,
+        initiative_role="member",
+        email="alice@example.com",
+        full_name="Alice Wonderland",
+    )
+    await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=initiative,
+        initiative_role="member",
+        email="bob@example.com",
+        full_name="Bob Builder",
+    )
+
+    # Unfiltered: slim envelope over every member (creator + 2).
+    response = await client.get(
+        admin.g(f"/initiatives/{initiative.id}/members/search"),
+        headers=admin.headers,
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_count"] == 3
+    assert set(body["items"][0].keys()) == {
+        "id",
+        "full_name",
+        "avatar_base64",
+        "avatar_url",
+        "status",
+    }
+
+    # Filtered by name.
+    response = await client.get(
+        admin.g(f"/initiatives/{initiative.id}/members/search"),
+        headers=admin.headers,
+        params={"search": "wonder"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_count"] == 1
+    assert body["items"][0]["full_name"] == "Alice Wonderland"
+
+
+@pytest.mark.integration
+async def test_search_initiative_members_as_nonmember_forbidden(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A plain guild member outside the initiative is locked out of the slim
+    roster, mirroring the full members endpoint."""
+    creator = await acting_user(guild_role=GuildRole.member, initiative=True)
+    outsider = await acting_user(guild_role=GuildRole.member, guild=creator.guild)
+
+    response = await client.get(
+        outsider.g(f"/initiatives/{creator.initiative.id}/members/search"),
+        headers=outsider.headers,
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.integration
 async def test_get_initiative_members_as_nonmember_guild_admin(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

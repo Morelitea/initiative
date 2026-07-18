@@ -118,6 +118,90 @@ async def test_list_users_in_guild(client: AsyncClient, session: AsyncSession):
 
 
 @pytest.mark.integration
+async def test_search_users_returns_slim_paginated_envelope(
+    client: AsyncClient, session: AsyncSession
+):
+    """The slim search endpoint returns a UserSummary envelope (no email /
+    role / initiative_roles) and honours page_size."""
+    guild = await create_guild(session)
+    caller = await create_user(session, email="caller@example.com", full_name="Aaa")
+    other = await create_user(session, email="other@example.com", full_name="Bbb")
+    third = await create_user(session, email="third@example.com", full_name="Ccc")
+    for user in (caller, other, third):
+        await create_guild_membership(session, user=user, guild=guild)
+
+    headers = get_auth_headers(caller)
+
+    response = await client.get(
+        f"/api/v1/g/{guild.id}/users/search",
+        headers=headers,
+        params={"page_size": 2, "page": 1},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_count"] == 3
+    assert body["page"] == 1
+    assert body["page_size"] == 2
+    assert body["has_next"] is True
+    assert body["has_prev"] is False
+    assert len(body["items"]) == 2
+    # Ordered by full_name — the first two of Aaa/Bbb/Ccc.
+    assert [item["full_name"] for item in body["items"]] == ["Aaa", "Bbb"]
+    # Slim projection: no email, no platform role, no initiative_roles.
+    summary = body["items"][0]
+    assert set(summary.keys()) == {
+        "id",
+        "full_name",
+        "avatar_base64",
+        "avatar_url",
+        "status",
+    }
+
+
+@pytest.mark.integration
+async def test_search_users_filters_by_name(client: AsyncClient, session: AsyncSession):
+    """The `search` param is a case-insensitive substring match on the name."""
+    guild = await create_guild(session)
+    caller = await create_user(
+        session, email="caller@example.com", full_name="Alice Smith"
+    )
+    bob = await create_user(session, email="bob@example.com", full_name="Bob Jones")
+    for user in (caller, bob):
+        await create_guild_membership(session, user=user, guild=guild)
+
+    headers = get_auth_headers(caller)
+
+    response = await client.get(
+        f"/api/v1/g/{guild.id}/users/search",
+        headers=headers,
+        params={"search": "smith"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_count"] == 1
+    assert [item["full_name"] for item in body["items"]] == ["Alice Smith"]
+
+
+@pytest.mark.integration
+async def test_search_users_requires_membership(
+    client: AsyncClient, session: AsyncSession
+):
+    """A non-member cannot reach the guild's slim roster (path is a selector,
+    not a trust boundary)."""
+    guild = await create_guild(session)
+    outsider = await create_user(session, email="outsider@example.com")
+    # No guild membership for the outsider.
+
+    headers = get_auth_headers(outsider)
+
+    response = await client.get(f"/api/v1/g/{guild.id}/users/search", headers=headers)
+
+    assert response.status_code == 403
+
+
+@pytest.mark.integration
 async def test_update_user_by_id_as_admin(client: AsyncClient, session: AsyncSession):
     """Test that guild admin can update other users."""
     guild = await create_guild(session)
