@@ -519,7 +519,7 @@ async def update_guild_membership(
     guild_id: int,
     user_id: int,
     payload: GuildMembershipUpdate,
-    session: SessionDep,
+    session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> Response:
     """Update a user's guild membership role. Guild admin only.
@@ -528,12 +528,14 @@ async def update_guild_membership(
     - Cannot change your own role
     - Cannot demote the last guild admin
     """
+    # Runs on the system engine (AdminSessionDep): the guild role holds no UPDATE
+    # on guild_memberships, so a role change happens only here, after the
+    # guild-admin check — never under a request-path role. See migration 0145.
     await _ensure_guild_admin(
         session,
         guild_id=guild_id,
         user_id=current_user.id,
     )
-    await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
 
     if user_id == current_user.id:
         raise HTTPException(

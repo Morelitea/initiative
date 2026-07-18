@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Platform role assignment is now enforced at the database layer: the request-path database roles carry column-scoped grants on the user table that exclude the platform role column, so role changes can only happen through the dedicated operator/owner role-assignment endpoint. Unused write privileges the request-path roles held on the user table were revoked outright. No behavior change for any existing flow; this is defense in depth, verified by CI invariants against the live catalog.
+- Guild role assignment (promoting a member to guild admin) is now enforced at the database layer too. The endpoint runs on the system engine, and the shared guild database role no longer holds write access to change a membership's role — so a guild member cannot be elevated except through the guild-admin endpoint. Self-leave is scoped to your own membership, and request-path membership creation is pinned to a plain member. No behavior change for any existing flow; verified by CI invariants.
+- Cross-guild access grants (the time-bound PAM / break-glass rows) can now only be written by the system-engine endpoints that already gate them by capability; the request-path database roles keep read access but no longer hold write access to the grants table. Defense in depth, verified by CI invariants.
+
 ### Added
 
 - Multiple sign-in providers: the sign-in page now offers a button for every SSO provider the server has configured, not just one. Operators manage additional OIDC providers in Settings → Authentication — with presets for Google and Microsoft Entra, and a custom option for any OIDC identity provider (Keycloak, Authentik, Zitadel, …) — alongside the existing platform SSO form. Client secrets are write-only: set or replaced, never displayed.
