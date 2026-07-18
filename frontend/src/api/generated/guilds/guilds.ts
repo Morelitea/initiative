@@ -22,6 +22,8 @@ import type {
 
 import type {
   AdvancedToolHandoffResponse,
+  GuildAuthPolicyRead,
+  GuildAuthPolicyUpdate,
   GuildCreate,
   GuildDeletionRequest,
   GuildInviteAcceptRequest,
@@ -1033,6 +1035,271 @@ export const useCreateGuildAdvancedToolHandoffApiV1GuildsGuildIdAdvancedToolHand
     getCreateGuildAdvancedToolHandoffApiV1GuildsGuildIdAdvancedToolHandoffPostMutationOptions(
       options
     ),
+    queryClient
+  );
+};
+/**
+ * The guild's sign-in requirement. Guild admin only (the settings UI);
+ * a blocked session learns the required provider from the step-up 401's
+ * header, not from here.
+ * @summary Get Guild Auth Policy
+ */
+export const getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet = (
+  guildId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildAuthPolicyRead>(
+    { url: `/api/v1/guilds/${guildId}/auth-policy`, method: "GET", signal },
+    options
+  );
+};
+
+export const getGetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGetQueryKey = (guildId: number) => {
+  return [`/api/v1/guilds/${guildId}/auth-policy`] as const;
+};
+
+export const getGetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGetQueryKey(guildId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet>>
+  > = ({ signal }) =>
+    getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet(guildId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet>>
+>;
+export type GetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useGetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet<
+  TData = Awaited<ReturnType<typeof getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet>>,
+          TError,
+          Awaited<ReturnType<typeof getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet<
+  TData = Awaited<ReturnType<typeof getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet>>,
+          TError,
+          Awaited<ReturnType<typeof getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet<
+  TData = Awaited<ReturnType<typeof getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Guild Auth Policy
+ */
+
+export function useGetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet<
+  TData = Awaited<ReturnType<typeof getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGetQueryOptions(
+    guildId,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Set the guild's sign-in requirement. Guild admin only.
+ *
+ * ``open`` deletes the stored row (no row IS open). ``required`` names a
+ * login-ready operator-global provider — and the calling admin's own
+ * session must already satisfy it, which both proves the provider works
+ * end-to-end and keeps an admin from locking their guild (and themselves)
+ * behind a sign-in they haven't completed.
+ * @summary Set Guild Auth Policy
+ */
+export const setGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPut = (
+  guildId: number,
+  guildAuthPolicyUpdate: BodyType<GuildAuthPolicyUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildAuthPolicyRead>(
+    {
+      url: `/api/v1/guilds/${guildId}/auth-policy`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: guildAuthPolicyUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPut>>,
+    TError,
+    { guildId: number; data: BodyType<GuildAuthPolicyUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPut>>,
+  TError,
+  { guildId: number; data: BodyType<GuildAuthPolicyUpdate> },
+  TContext
+> => {
+  const mutationKey = ["setGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPut"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPut>>,
+    { guildId: number; data: BodyType<GuildAuthPolicyUpdate> }
+  > = (props) => {
+    const { guildId, data } = props ?? {};
+
+    return setGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPut(guildId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPut>>
+>;
+export type SetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPutMutationBody =
+  BodyType<GuildAuthPolicyUpdate>;
+export type SetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPutMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Set Guild Auth Policy
+ */
+export const useSetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof setGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPut>>,
+      TError,
+      { guildId: number; data: BodyType<GuildAuthPolicyUpdate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof setGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPut>>,
+  TError,
+  { guildId: number; data: BodyType<GuildAuthPolicyUpdate> },
+  TContext
+> => {
+  return useMutation(
+    getSetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPutMutationOptions(options),
     queryClient
   );
 };

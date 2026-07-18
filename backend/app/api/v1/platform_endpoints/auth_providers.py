@@ -17,12 +17,14 @@ import logging
 from typing import Annotated, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.platform_endpoints.admin import ConfigManageDep
 from app.core.encryption import SALT_OIDC_CLIENT_SECRET, encrypt_field
 from app.core.messages import AuthProviderMessages
+from app.db.errors import FOREIGN_KEY_VIOLATION_SQLSTATE, dbapi_sqlstate
 from app.db.session import get_admin_session
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.auth_provider_secret import AuthProviderSecret
@@ -202,11 +204,21 @@ async def delete_auth_provider(
 ) -> None:
     """Delete a provider. Its linked identities (and their stored refresh
     tokens) go with it via cascade — users who signed in through it keep their
-    accounts and any other sign-in methods."""
+    accounts and any other sign-in methods. A provider some guild's auth
+    policy requires is refused (409): drop or repoint the policy first."""
     row = await _editable_provider(session, provider_id)
     secret = await session.get(AuthProviderSecret, row.id)
     if secret is not None:
         await session.delete(secret)
     await session.delete(row)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError as exc:
+        await session.rollback()
+        if dbapi_sqlstate(exc) != FOREIGN_KEY_VIOLATION_SQLSTATE:
+            raise
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=AuthProviderMessages.IN_USE,
+        ) from exc
     logger.info("auth provider %s (%s) deleted", row.slug, provider_id)

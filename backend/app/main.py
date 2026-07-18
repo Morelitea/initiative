@@ -26,6 +26,7 @@ from app.core.messages import GuildMessages
 from app.core.rate_limit import limiter
 from app.core.config import API_V1_STR, PROJECT_NAME, settings
 from app.core.version import __version__
+from app.db.errors import INSUFFICIENT_PRIVILEGE_SQLSTATE, dbapi_sqlstate
 from app.db.session import AdminSessionLocal, get_admin_session, run_migrations
 from app.models.platform.user import User
 from app.services.platform import app_settings as app_settings_service
@@ -257,22 +258,6 @@ async def validation_exception_handler(
     )
 
 
-_INSUFFICIENT_PRIVILEGE_SQLSTATE = "42501"
-
-
-def _dbapi_sqlstate(exc: DBAPIError) -> str | None:
-    """Best-effort SQLSTATE off a wrapped DBAPI error (asyncpg adapter nests
-    the real exception one level down as ``orig.__cause__``)."""
-    orig = getattr(exc, "orig", None)
-    for candidate in (orig, getattr(orig, "__cause__", None)):
-        code = getattr(candidate, "sqlstate", None) or getattr(
-            candidate, "pgcode", None
-        )
-        if code:
-            return code
-    return None
-
-
 @app.exception_handler(DBAPIError)
 async def insufficient_privilege_handler(
     request: Request, exc: DBAPIError
@@ -292,7 +277,7 @@ async def insufficient_privilege_handler(
     grant, a misconfigured login role) must be findable in the logs — the
     client body is deliberately too generic to debug from.
     """
-    if _dbapi_sqlstate(exc) == _INSUFFICIENT_PRIVILEGE_SQLSTATE:
+    if dbapi_sqlstate(exc) == INSUFFICIENT_PRIVILEGE_SQLSTATE:
         logger.warning(
             "insufficient_privilege mapped to 403: %s %s orig=%s",
             request.method,

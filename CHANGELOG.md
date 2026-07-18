@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Guild sign-in requirements: a guild admin can require that members reach the guild only with a session signed in through a specific SSO provider (Settings API today; the guild-settings UI arrives next). A session that hasn't satisfied the requirement gets a clear step-up response naming the provider instead of losing its login, and the requirement binds everyone — members, admins, and platform support access alike. To prevent lockouts, an admin can only require a provider their own session has already signed in with, and a provider that a guild requires can't be deleted until the requirement is changed.
+
 ### Security
 
 - Platform role assignment is now enforced at the database layer: the request-path database roles carry column-scoped grants on the user table that exclude the platform role column, so role changes can only happen through the dedicated operator/owner role-assignment endpoint. Unused write privileges the request-path roles held on the user table were revoked outright. No behavior change for any existing flow; this is defense in depth, verified by CI invariants against the live catalog.
@@ -14,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cross-guild access grants (the time-bound PAM / break-glass rows) can now only be written by the system-engine endpoints that already gate them by capability; the request-path database roles keep read access but no longer hold write access to the grants table. Defense in depth, verified by CI invariants.
 - Advanced-tool handoff tokens are now always signed with RS256 (asymmetric), with no symmetric fallback: the embed backend verifies each token with the matching public key, so no secret is shared across that trust boundary. When `ADVANCED_TOOL_URL` is configured, `HANDOFF_SIGNING_PRIVATE_KEY_PEM` is now required — the app logs a warning at boot if it is missing and the handoff endpoints fail closed (503) until it is set. Deployments that don't use the advanced-tool embed are unaffected.
 - The per-guild and platform Postgres role-name prefixes (`GUILD_ROLE_PREFIX`, `PLATFORM_ROLE_PREFIX`) are now validated to identifier-safe characters at startup, so a misconfigured prefix fails closed at boot rather than reaching role-name DDL. Defense in depth (these come from operator config, not user input).
+- Guild sign-in requirements are enforced at the database layer, not just at the access gate: the row-security rule every piece of guild content defers to now also checks that the session satisfied the guild's required provider, so an unsatisfied session sees zero rows even if an application path missed the check. Background jobs that act on membership (digests, reminders, exports) are explicitly exempted through an auditable system marker.
 
 ### Added
 

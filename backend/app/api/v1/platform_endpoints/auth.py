@@ -87,6 +87,7 @@ from app.services.auth.platform_provider import (
     PLATFORM_OIDC_SLUG,
     ensure_platform_provider,
     get_platform_provider,
+    is_login_ready,
 )
 from app.services.auth.sessions import RefreshOutcome
 from app.services.platform import app_settings as app_settings_service
@@ -662,12 +663,6 @@ def _platform_oidc_active(app_settings: AppSetting) -> bool:
     )
 
 
-def _row_login_ready(row: AuthProvider) -> bool:
-    """Whether a registry row is offerable for login: enabled, OIDC, and
-    carrying the non-secret client config discovery needs."""
-    return bool(row.enabled and row.kind == "oidc" and row.issuer and row.client_id)
-
-
 async def _resolve_login_provider(
     app_settings: AppSetting, admin_session: AsyncSession, provider_slug: str
 ) -> AuthProvider:
@@ -702,7 +697,7 @@ async def _resolve_login_provider(
             )
         )
     ).one_or_none()
-    if row is None or not _row_login_ready(row):
+    if row is None or not is_login_ready(row):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
         )
@@ -796,9 +791,9 @@ async def list_login_providers(
             .order_by(AuthProvider.display_name)
         )
     ).all()
-    # _row_login_ready re-checks the same predicates and stays the single
+    # is_login_ready re-checks the same predicates and stays the single
     # authority (it also guards empty strings, which SQL NULL checks miss).
-    entries.extend(_login_entry(row) for row in rows if _row_login_ready(row))
+    entries.extend(_login_entry(row) for row in rows if is_login_ready(row))
     return LoginProvidersResponse(providers=entries)
 
 

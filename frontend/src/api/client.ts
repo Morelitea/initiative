@@ -186,11 +186,20 @@ interface RetriableRequestConfig extends AxiosRequestConfig {
   _sessionRefreshRetried?: boolean;
 }
 
+// A guild step-up 401 means "this guild requires another sign-in factor" —
+// the session itself is fine, so it must neither trigger a renewal nor the
+// signed-out toast; the page handles it.
+const isStepUpChallenge = (error: { response?: { data?: { detail?: unknown } } }): boolean =>
+  error.response?.data?.detail === "GUILD_AUTH_STEP_UP_REQUIRED";
+
 // Guild context lives in the request URL (/g/{guildId}/…), per tab — there is
 // no ambient guild context to guard a response against, so the only response
 // concern left is an expired session: try a silent renewal, then surface it.
 apiClient.interceptors.response.use(undefined, async (error) => {
   const config = error.config as RetriableRequestConfig | undefined;
+  if (isStepUpChallenge(error)) {
+    return Promise.reject(error);
+  }
   if (
     error.response?.status === 401 &&
     !Capacitor.isNativePlatform() &&

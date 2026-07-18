@@ -59,6 +59,7 @@ async def gather_across_guilds(
     user_id: int,
     guild_ids: Sequence[int],
     fetch: Callable[[AsyncSession, int], Awaitable[list[T]]],
+    satisfied_providers: Sequence[int] | str | None = None,
 ) -> list[T]:
     """Route into each guild's schema, call ``fetch(session, guild_id)``, and
     concatenate the results. The identity map is expunged between guilds because
@@ -109,6 +110,10 @@ async def gather_across_guilds(
                 # the SELECT-only guild_<id>_ro role, so an aggregate loop can
                 # never write into a frozen guild.
                 read_only=content_read_only,
+                # Feeds guild_auth_satisfied(): a request caller passes its
+                # session's sat, a membership-based job the system sentinel.
+                # Unset means a policy-gated guild contributes nothing here.
+                satisfied_providers=satisfied_providers,
             )
             # ... and the app-layer DAC engine agrees: my_permission_level and
             # write filters serialized from this guild's fetch report read.
