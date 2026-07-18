@@ -305,6 +305,43 @@ async def test_guild_membership_write_policies_are_tightened(engine):
     )
 
 
+async def test_access_grants_are_writable_only_by_the_system_engine(engine):
+    """Access grants are written only on the system engine (the capability-gated
+    endpoints). The request-path floors keep SELECT (a grantee reads their own
+    live grant) but hold no INSERT/UPDATE/DELETE; ``app_admin`` keeps the full
+    grant (migration 0146)."""
+    request_roles = ["app_guild_base", f"{settings.PLATFORM_ROLE_PREFIX}platform_base"]
+    async with engine.connect() as conn:
+        for role in request_roles:
+            select_, insert_, update_, delete_ = (
+                await conn.execute(
+                    text(
+                        "SELECT "
+                        "has_table_privilege(:r, 'public.access_grants', 'SELECT'), "
+                        "has_table_privilege(:r, 'public.access_grants', 'INSERT'), "
+                        "has_table_privilege(:r, 'public.access_grants', 'UPDATE'), "
+                        "has_table_privilege(:r, 'public.access_grants', 'DELETE')"
+                    ),
+                    {"r": role},
+                )
+            ).one()
+            assert select_, f"{role} should keep SELECT on access_grants"
+            assert not (insert_ or update_ or delete_), (
+                f"{role} must not write access_grants — grants are "
+                f"system-engine-only (INSERT={insert_} UPDATE={update_} "
+                f"DELETE={delete_})"
+            )
+        admin_writes = (
+            await conn.execute(
+                text(
+                    "SELECT has_table_privilege('app_admin', "
+                    "'public.access_grants', 'INSERT')"
+                )
+            )
+        ).scalar()
+        assert admin_writes, "app_admin must retain write on access_grants"
+
+
 async def test_rls_shared_tables_are_forced(engine):
     async with engine.connect() as conn:
         rows = (
