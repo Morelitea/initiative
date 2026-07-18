@@ -2,6 +2,7 @@ from typing import List, Literal, Optional
 
 from pydantic import ConfigDict, EmailStr, Field, field_validator
 
+from app.core.user_input_validators import validate_provider_slug
 from app.models.platform.app_setting import AuthScope
 from app.schemas.base import RawTextStr, SanitizedBaseModel
 
@@ -37,20 +38,23 @@ class AuthProviderAdminRead(SanitizedBaseModel):
     reserved: bool = False
 
 
-_SLUG_PATTERN = r"^[a-z0-9][a-z0-9-]{0,63}$"
+def _validate_https_issuer(value: str) -> str:
+    """https-only, matching discovery's rule — surfaced at write time instead
+    of as a stray error mid-login."""
+    if not value.startswith("https://") or len(value) <= len("https://"):
+        raise ValueError("issuer must be an https:// URL")
+    return value
 
 
 class AuthProviderCreate(SanitizedBaseModel):
     """A new operator-global login provider. Complete rows only — the login
     flow refuses config-incomplete providers, so the CRUD does too."""
 
-    slug: str = Field(pattern=_SLUG_PATTERN)
+    slug: str = Field(max_length=64)
     display_name: str = Field(min_length=1, max_length=128)
     kind: Literal["oidc"] = "oidc"
     enabled: bool = True
-    # https-only, matching discovery's rule — surfaced at write time instead
-    # of as a stray error mid-login.
-    issuer: str = Field(pattern=r"^https://.+")
+    issuer: str
     client_id: str = Field(min_length=1)
     client_secret: Optional[RawTextStr] = None  # None = public / PKCE-only
     scopes: Optional[str] = Field(default="openid email profile", max_length=512)
@@ -58,6 +62,16 @@ class AuthProviderCreate(SanitizedBaseModel):
     allow_jit: bool = True
     icon: Optional[str] = Field(default=None, max_length=64)
     button_style: Optional[str] = Field(default=None, max_length=64)
+
+    @field_validator("slug")
+    @classmethod
+    def _slug_shape(cls, value: str) -> str:
+        return validate_provider_slug(value)
+
+    @field_validator("issuer")
+    @classmethod
+    def _issuer_https(cls, value: str) -> str:
+        return _validate_https_issuer(value)
 
 
 class AuthProviderUpdate(SanitizedBaseModel):
@@ -67,7 +81,7 @@ class AuthProviderUpdate(SanitizedBaseModel):
 
     display_name: Optional[str] = Field(default=None, min_length=1, max_length=128)
     enabled: Optional[bool] = None
-    issuer: Optional[str] = Field(default=None, pattern=r"^https://.+")
+    issuer: Optional[str] = None
     client_id: Optional[str] = Field(default=None, min_length=1)
     client_secret: Optional[RawTextStr] = None
     scopes: Optional[str] = Field(default=None, max_length=512)
@@ -84,6 +98,11 @@ class AuthProviderUpdate(SanitizedBaseModel):
         if value is None:
             raise ValueError(f"{info.field_name} cannot be null")
         return value
+
+    @field_validator("issuer")
+    @classmethod
+    def _issuer_https(cls, value: Optional[str]) -> Optional[str]:
+        return _validate_https_issuer(value) if value is not None else value
 
 
 class OIDCSettingsResponse(SanitizedBaseModel):

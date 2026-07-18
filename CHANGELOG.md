@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Platform role assignment is now enforced at the database layer: the request-path database roles carry column-scoped grants on the user table that exclude the platform role column, so role changes can only happen through the dedicated operator/owner role-assignment endpoint. Unused write privileges the request-path roles held on the user table were revoked outright. No behavior change for any existing flow; this is defense in depth, verified by CI invariants against the live catalog.
+- Guild role assignment (promoting a member to guild admin) is now enforced at the database layer too. The endpoint runs on the system engine, and the shared guild database role no longer holds write access to change a membership's role — so a guild member cannot be elevated except through the guild-admin endpoint. Self-leave is scoped to your own membership, and request-path membership creation is pinned to a plain member. No behavior change for any existing flow; verified by CI invariants.
+- Cross-guild access grants (the time-bound PAM / break-glass rows) can now only be written by the system-engine endpoints that already gate them by capability; the request-path database roles keep read access but no longer hold write access to the grants table. Defense in depth, verified by CI invariants.
+
 ### Added
 
 - Member pickers no longer download the entire guild roster: new slim, searchable, paginated endpoints serve member typeaheads (guild-wide, per-initiative, and per-project — the last scoped to the project's assignable write-access members), each returning just id, name, avatar, and status for a bounded page of results instead of every member's full profile. The assignee pickers (task edit, inline composer, bulk edit) and the assignee filter now search server-side against the project's members, the user-reference property picker searches its initiative's members, and the project/task pages no longer prefetch the full membership — so opening a project with thousands of members no longer transfers megabytes of inline avatars to render a dropdown. The task detail now carries its author inline (so the "Created by …" chip needs no roster lookup) and the trash owner-reassign picker lists the eligible owners returned with the prompt, so both drop their full-roster fetch too. Event attendee pickers (create dialog and settings) now use the same initiative-scoped typeahead.

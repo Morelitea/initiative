@@ -117,7 +117,11 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
 # ``None``. The pre-routing / unauthenticated surface. Audited in migration
 # 20260702_0130.
 SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
-    "users": frozenset({"SELECT", "UPDATE"}),
+    # SELECT at the table level; UPDATE is column-scoped to every column except
+    # ``role`` (migration 0144) so it does not appear here (a column grant lives
+    # in the column ACL, not the table ACL). ``role`` is writable only by the
+    # system engine — see security_invariants_test.
+    "users": frozenset({"SELECT"}),
     "user_tokens": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     "user_api_keys": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     "auto_delegation_jti_blocklist": frozenset({"SELECT", "INSERT"}),

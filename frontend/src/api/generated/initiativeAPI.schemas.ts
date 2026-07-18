@@ -526,7 +526,7 @@ export interface AuthProviderAdminRead {
  * flow refuses config-incomplete providers, so the CRUD does too.
  */
 export interface AuthProviderCreate {
-  /** @pattern ^[a-z0-9][a-z0-9-]{0,63}$ */
+  /** @maxLength 64 */
   slug: string;
   /**
    * @minLength 1
@@ -535,7 +535,6 @@ export interface AuthProviderCreate {
   display_name: string;
   kind?: "oidc";
   enabled?: boolean;
-  /** @pattern ^https://.+ */
   issuer: string;
   /** @minLength 1 */
   client_id: string;
