@@ -31,8 +31,6 @@ down_revision = "20260717_0144"
 branch_labels = None
 depends_on = None
 
-_APP_GUILD_BASE = "app_guild_base"
-
 # NULLIF-guarded session-variable reads (see CLAUDE.md §5): an unset context
 # leaves the value empty, and a bare ''::int would fault every PERMISSIVE policy
 # on the table.
@@ -66,10 +64,10 @@ def upgrade() -> None:
     col_list = ", ".join(f'"{c}"' for c in _columns_except_role(conn))
 
     statements = [
-        f'REVOKE UPDATE ON TABLE public.guild_memberships FROM "{_APP_GUILD_BASE}"',
+        "REVOKE UPDATE ON TABLE public.guild_memberships FROM app_guild_base",
         f'REVOKE UPDATE ON TABLE public.guild_memberships FROM "{base}"',
         f"GRANT UPDATE ({col_list}) ON TABLE public.guild_memberships "
-        f'TO "{_APP_GUILD_BASE}"',
+        "TO app_guild_base",
         f'GRANT UPDATE ({col_list}) ON TABLE public.guild_memberships TO "{base}"',
         # Self-leave only: a member may delete their own membership row.
         "DROP POLICY IF EXISTS guild_memberships_delete ON public.guild_memberships",
@@ -88,7 +86,10 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    conn = op.get_bind()
     base = _platform_base()
+    col_list = ", ".join(f'"{c}"' for c in _columns_except_role(conn))
+
     statements = [
         "DROP POLICY IF EXISTS guild_memberships_request_insert_member_only "
         "ON public.guild_memberships",
@@ -96,9 +97,12 @@ def downgrade() -> None:
         "CREATE POLICY guild_memberships_delete ON public.guild_memberships "
         "FOR DELETE TO public "
         f"USING (guild_id = {_CURRENT_GUILD_ID})",
-        f'REVOKE UPDATE ON TABLE public.guild_memberships FROM "{_APP_GUILD_BASE}"',
-        f'REVOKE UPDATE ON TABLE public.guild_memberships FROM "{base}"',
-        f'GRANT UPDATE ON TABLE public.guild_memberships TO "{_APP_GUILD_BASE}"',
+        # Revoke the column-scoped UPDATE on the same column list, then restore
+        # the table-wide grant — no column ACLs left behind.
+        f"REVOKE UPDATE ({col_list}) ON TABLE public.guild_memberships "
+        "FROM app_guild_base",
+        f'REVOKE UPDATE ({col_list}) ON TABLE public.guild_memberships FROM "{base}"',
+        "GRANT UPDATE ON TABLE public.guild_memberships TO app_guild_base",
         f'GRANT UPDATE ON TABLE public.guild_memberships TO "{base}"',
     ]
     for statement in statements:

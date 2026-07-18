@@ -21,8 +21,6 @@ down_revision = "20260717_0145"
 branch_labels = None
 depends_on = None
 
-_APP_GUILD_BASE = "app_guild_base"
-
 
 def _platform_base() -> str:
     return f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
@@ -30,7 +28,7 @@ def _platform_base() -> str:
 
 def upgrade() -> None:
     base = _platform_base()
-    for role in (f'"{_APP_GUILD_BASE}"', f'"{base}"'):
+    for role in ("app_guild_base", f'"{base}"'):
         op.execute(
             f"REVOKE INSERT, UPDATE, DELETE ON TABLE public.access_grants FROM {role}"
         )
@@ -38,7 +36,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     base = _platform_base()
-    for role in (f'"{_APP_GUILD_BASE}"', f'"{base}"'):
+    for role in ("app_guild_base", f'"{base}"'):
         op.execute(
             f"GRANT INSERT, UPDATE, DELETE ON TABLE public.access_grants TO {role}"
         )

@@ -30,9 +30,6 @@ down_revision = "20260716_0143"
 branch_labels = None
 depends_on = None
 
-_APP_GUILD_BASE = "app_guild_base"
-_APP_USER = "app_user"
-
 
 def _platform_base() -> str:
     return f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
@@ -61,12 +58,12 @@ def upgrade() -> None:
     col_list = ", ".join(f'"{c}"' for c in _user_columns_except_role(conn))
 
     statements = [
-        f'REVOKE UPDATE, DELETE ON TABLE public.users FROM "{_APP_GUILD_BASE}"',
+        "REVOKE UPDATE, DELETE ON TABLE public.users FROM app_guild_base",
         f'REVOKE INSERT, UPDATE, DELETE ON TABLE public.users FROM "{base}"',
-        f'REVOKE UPDATE ON TABLE public.users FROM "{_APP_USER}"',
-        f'GRANT UPDATE ({col_list}) ON TABLE public.users TO "{_APP_GUILD_BASE}"',
+        "REVOKE UPDATE ON TABLE public.users FROM app_user",
+        f"GRANT UPDATE ({col_list}) ON TABLE public.users TO app_guild_base",
         f'GRANT UPDATE ({col_list}) ON TABLE public.users TO "{base}"',
-        f'GRANT UPDATE ({col_list}) ON TABLE public.users TO "{_APP_USER}"',
+        f"GRANT UPDATE ({col_list}) ON TABLE public.users TO app_user",
         "DROP POLICY IF EXISTS users_request_insert_member_only ON public.users",
         "CREATE POLICY users_request_insert_member_only ON public.users "
         "AS RESTRICTIVE FOR INSERT TO public WITH CHECK (role = 'member')",
@@ -76,15 +73,20 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    conn = op.get_bind()
     base = _platform_base()
+    col_list = ", ".join(f'"{c}"' for c in _user_columns_except_role(conn))
+
     statements = [
         "DROP POLICY IF EXISTS users_request_insert_member_only ON public.users",
-        f'REVOKE UPDATE ON TABLE public.users FROM "{_APP_GUILD_BASE}"',
-        f'REVOKE UPDATE ON TABLE public.users FROM "{base}"',
-        f'REVOKE UPDATE ON TABLE public.users FROM "{_APP_USER}"',
-        f'GRANT INSERT, UPDATE, DELETE ON TABLE public.users TO "{_APP_GUILD_BASE}"',
+        # Revoke the column-scoped UPDATE on the same column list it was granted
+        # on, then restore the table-wide grants — no column ACLs left behind.
+        f"REVOKE UPDATE ({col_list}) ON TABLE public.users FROM app_guild_base",
+        f'REVOKE UPDATE ({col_list}) ON TABLE public.users FROM "{base}"',
+        f"REVOKE UPDATE ({col_list}) ON TABLE public.users FROM app_user",
+        "GRANT INSERT, UPDATE, DELETE ON TABLE public.users TO app_guild_base",
         f'GRANT INSERT, UPDATE, DELETE ON TABLE public.users TO "{base}"',
-        f'GRANT UPDATE ON TABLE public.users TO "{_APP_USER}"',
+        "GRANT UPDATE ON TABLE public.users TO app_user",
     ]
     for statement in statements:
         op.execute(statement)
