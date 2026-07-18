@@ -35,6 +35,13 @@ logger = logging.getLogger(__name__)
 PLATFORM_OIDC_SLUG = "oidc"
 
 
+def is_login_ready(row: AuthProvider) -> bool:
+    """Whether a registry row can serve a login: enabled, OIDC, and carrying
+    the non-secret client config discovery needs. The single predicate behind
+    the login routes, the provider listing, and guild auth policies."""
+    return bool(row.enabled and row.kind == "oidc" and row.issuer and row.client_id)
+
+
 async def get_platform_provider(session: AsyncSession) -> AuthProvider | None:
     """The operator-global (``guild_id IS NULL``) platform provider row."""
     return (

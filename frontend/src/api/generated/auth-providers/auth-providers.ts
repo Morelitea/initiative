@@ -369,7 +369,8 @@ export const useUpdateAuthProviderApiV1SettingsAuthProvidersProviderIdPatch = <
 /**
  * Delete a provider. Its linked identities (and their stored refresh
  * tokens) go with it via cascade — users who signed in through it keep their
- * accounts and any other sign-in methods.
+ * accounts and any other sign-in methods. A provider some guild's auth
+ * policy requires is refused (409): drop or repoint the policy first.
  * @summary Delete Auth Provider
  */
 export const deleteAuthProviderApiV1SettingsAuthProvidersProviderIdDelete = (

@@ -4,7 +4,7 @@ import logging
 from contextlib import suppress
 from typing import Annotated, List
 
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import text
 
 from app.api.deps import SessionDep, UserSessionDep, get_current_active_user
@@ -17,6 +17,8 @@ from app.db.session import get_admin_session, set_rls_context
 from app.models.platform.guild import GuildRole, GuildMembership, Guild, GuildStatus
 from app.models.platform.user import User
 from app.schemas.platform.guild import (
+    GuildAuthPolicyRead,
+    GuildAuthPolicyUpdate,
     GuildCreate,
     GuildDeletionRequest,
     GuildMembershipUpdate,
@@ -32,7 +34,10 @@ from app.schemas.platform.guild import (
 )
 from app.schemas.platform.user import GuildRemovalProjectInfo, UserPublic
 from app.schemas.tenant.initiative import AdvancedToolHandoffResponse
+from app.models.platform.auth_provider import AuthProvider
+from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.services.auth.identity import has_federated_identity
+from app.services.auth.platform_provider import is_login_ready
 from app.services.platform import guilds as guilds_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services import rls as rls_service
@@ -356,6 +361,102 @@ async def create_guild_advanced_tool_handoff(
         scope="guild",
         initiative_id=None,
     )
+
+
+def _auth_policy_read(
+    policy_row, provider_display_name: str | None = None
+) -> GuildAuthPolicyRead:
+    if policy_row is None or policy_row.policy == "open":
+        return GuildAuthPolicyRead(policy="open")
+    return GuildAuthPolicyRead(
+        policy="required",
+        provider_id=policy_row.provider_id,
+        provider_slug=policy_row.provider_slug,
+        provider_display_name=provider_display_name,
+    )
+
+
+@router.get("/{guild_id}/auth-policy", response_model=GuildAuthPolicyRead)
+async def get_guild_auth_policy(
+    guild_id: int,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> GuildAuthPolicyRead:
+    """The guild's sign-in requirement. Guild admin only (the settings UI);
+    a blocked session learns the required provider from the step-up 401's
+    header, not from here."""
+    await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id)
+    policy_row = await admin_session.get(GuildAuthPolicy, guild_id)
+    display_name = None
+    if policy_row is not None and policy_row.provider_id is not None:
+        provider = await admin_session.get(AuthProvider, policy_row.provider_id)
+        display_name = provider.display_name if provider else None
+    return _auth_policy_read(policy_row, display_name)
+
+
+@router.put("/{guild_id}/auth-policy", response_model=GuildAuthPolicyRead)
+async def set_guild_auth_policy(
+    guild_id: int,
+    payload: GuildAuthPolicyUpdate,
+    http_request: Request,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> GuildAuthPolicyRead:
+    """Set the guild's sign-in requirement. Guild admin only.
+
+    ``open`` deletes the stored row (no row IS open). ``required`` names a
+    login-ready operator-global provider — and the calling admin's own
+    session must already satisfy it, which both proves the provider works
+    end-to-end and keeps an admin from locking their guild (and themselves)
+    behind a sign-in they haven't completed."""
+    await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id)
+
+    if payload.policy == "open":
+        policy_row = await admin_session.get(GuildAuthPolicy, guild_id)
+        if policy_row is not None:
+            await admin_session.delete(policy_row)
+            await admin_session.commit()
+        return GuildAuthPolicyRead(policy="open")
+
+    if payload.provider_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=GuildMessages.GUILD_AUTH_POLICY_INVALID_PROVIDER,
+        )
+    provider = await admin_session.get(AuthProvider, payload.provider_id)
+    if (
+        provider is None
+        or provider.guild_id is not None
+        or not is_login_ready(provider)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=GuildMessages.GUILD_AUTH_POLICY_INVALID_PROVIDER,
+        )
+    satisfied = getattr(http_request.state, "auth_satisfied", frozenset())
+    if provider.id not in satisfied:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,
+        )
+
+    policy_row = await admin_session.get(GuildAuthPolicy, guild_id)
+    if policy_row is None:
+        policy_row = GuildAuthPolicy(
+            guild_id=guild_id,
+            policy="required",
+            provider_id=provider.id,
+            provider_slug=provider.slug,
+        )
+    else:
+        policy_row.policy = "required"
+        policy_row.provider_id = provider.id
+        policy_row.provider_slug = provider.slug
+    admin_session.add(policy_row)
+    await admin_session.commit()
+    return _auth_policy_read(policy_row, provider.display_name)
 
 
 @router.delete(
