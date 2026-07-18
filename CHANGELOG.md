@@ -7,11 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Guild sign-in requirements: a guild admin can require that members reach the guild only with a session signed in through a specific SSO provider (Settings API today; the guild-settings UI arrives next). A session that hasn't satisfied the requirement gets a clear step-up response naming the provider instead of losing its login, and the requirement binds everyone — members, admins, and platform support access alike. To prevent lockouts, an admin can only require a provider their own session has already signed in with, and a provider that a guild requires can't be deleted until the requirement is changed.
+
 ### Security
 
 - Platform role assignment is now enforced at the database layer: the request-path database roles carry column-scoped grants on the user table that exclude the platform role column, so role changes can only happen through the dedicated operator/owner role-assignment endpoint. Unused write privileges the request-path roles held on the user table were revoked outright. No behavior change for any existing flow; this is defense in depth, verified by CI invariants against the live catalog.
 - Guild role assignment (promoting a member to guild admin) is now enforced at the database layer too. The endpoint runs on the system engine, and the shared guild database role no longer holds write access to change a membership's role — so a guild member cannot be elevated except through the guild-admin endpoint. Self-leave is scoped to your own membership, and request-path membership creation is pinned to a plain member. No behavior change for any existing flow; verified by CI invariants.
 - Cross-guild access grants (the time-bound PAM / break-glass rows) can now only be written by the system-engine endpoints that already gate them by capability; the request-path database roles keep read access but no longer hold write access to the grants table. Defense in depth, verified by CI invariants.
+- Guild sign-in requirements are enforced at the database layer, not just at the access gate: the row-security rule every piece of guild content defers to now also checks that the session satisfied the guild's required provider, so an unsatisfied session sees zero rows even if an application path missed the check. Background jobs that act on membership (digests, reminders, exports) are explicitly exempted through an auditable system marker.
 
 ### Added
 

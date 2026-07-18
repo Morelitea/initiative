@@ -51,6 +51,7 @@ from app.models.platform.auth_provider_secret import AuthProviderSecret
 from app.models.platform.auth_session import AuthSession
 from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.federated_identity_secret import FederatedIdentitySecret
+from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.user_token import UserToken
 from app.models.platform.push_token import PushToken
 from app.models.platform.auto_delegation_jti import AutoDelegationJti
@@ -70,6 +71,7 @@ __all__ = [
     "AuthSession",
     "FederatedIdentity",
     "FederatedIdentitySecret",
+    "GuildAuthPolicy",
     "ResourceGrant",
     "AdvancedTool",
     "ExportJob",

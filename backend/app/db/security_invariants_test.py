@@ -42,6 +42,7 @@ _RLS_SHARED_TABLES = {
     "billing_event_log",
     "federated_identities",
     "federated_identity_secrets",
+    "guild_auth_policies",
     "guild_invites",
     "guild_memberships",
     "guilds",

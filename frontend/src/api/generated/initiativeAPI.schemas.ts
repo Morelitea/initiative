@@ -1438,6 +1438,38 @@ export interface GuildAISettingsUpdate {
   clear_settings?: boolean;
 }
 
+export type GuildAuthPolicyReadPolicy =
+  (typeof GuildAuthPolicyReadPolicy)[keyof typeof GuildAuthPolicyReadPolicy];
+
+export const GuildAuthPolicyReadPolicy = {
+  open: "open",
+  required: "required",
+} as const;
+
+/**
+ * The guild's sign-in requirement. ``open`` is the default (no stored
+ * row); ``required`` names the provider a session must have satisfied.
+ */
+export interface GuildAuthPolicyRead {
+  policy: GuildAuthPolicyReadPolicy;
+  provider_id: number | null;
+  provider_slug: string | null;
+  provider_display_name: string | null;
+}
+
+export type GuildAuthPolicyUpdatePolicy =
+  (typeof GuildAuthPolicyUpdatePolicy)[keyof typeof GuildAuthPolicyUpdatePolicy];
+
+export const GuildAuthPolicyUpdatePolicy = {
+  open: "open",
+  required: "required",
+} as const;
+
+export interface GuildAuthPolicyUpdate {
+  policy: GuildAuthPolicyUpdatePolicy;
+  provider_id?: number | null;
+}
+
 export interface GuildCreate {
   name: string;
   description?: string | null;

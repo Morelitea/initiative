@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import ConfigDict, EmailStr, Field
 
@@ -144,6 +144,23 @@ class PlatformGuildStorageUpdate(SanitizedBaseModel):
     max_storage_bytes: Optional[int] = Field(default=None, ge=0)
     max_users: Optional[int] = Field(default=None, ge=1)
     status: Optional[GuildStatus] = None
+
+
+class GuildAuthPolicyRead(SanitizedBaseModel):
+    """The guild's sign-in requirement. ``open`` is the default (no stored
+    row); ``required`` names the provider a session must have satisfied."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    policy: Literal["open", "required"]
+    provider_id: Optional[int] = None
+    provider_slug: Optional[str] = None
+    provider_display_name: Optional[str] = None
+
+
+class GuildAuthPolicyUpdate(SanitizedBaseModel):
+    policy: Literal["open", "required"]
+    provider_id: Optional[int] = None
 
 
 class GuildDeletionRequest(SanitizedBaseModel):

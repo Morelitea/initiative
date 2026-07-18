@@ -110,6 +110,32 @@ describe("silent session renewal", () => {
     }
   });
 
+  it("passes a guild step-up 401 through without renewal or sign-out", async () => {
+    let refreshCalls = 0;
+    server.use(
+      http.get("/api/v1/g/1/projects/", () =>
+        HttpResponse.json({ detail: "GUILD_AUTH_STEP_UP_REQUIRED" }, { status: 401 })
+      ),
+      http.post("/api/v1/auth/refresh", () => {
+        refreshCalls += 1;
+        return HttpResponse.json({ access_token: "fresh" });
+      })
+    );
+    setHasActiveSession(true);
+    const onUnauthorized = vi.fn();
+    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
+
+    try {
+      await expect(apiClient.get("/g/1/projects/")).rejects.toMatchObject({
+        response: { status: 401 },
+      });
+      expect(refreshCalls).toBe(0);
+      expect(onUnauthorized).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
+    }
+  });
+
   it("does not renew for auth lifecycle endpoints", async () => {
     let refreshCalls = 0;
     server.use(
