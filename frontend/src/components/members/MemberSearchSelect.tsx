@@ -118,13 +118,23 @@ export const MemberMultiSelect = ({
   const resolvedPlaceholder = placeholder ?? t("projects:assignee.searchPlaceholder");
   const resolvedEmpty = emptyMessage ?? t("projects:assignee.emptyMessage");
 
-  // Current user first, then everyone else — the results are already name-sorted.
-  const orderedResults = useMemo(() => {
-    if (currentUserId == null) return results;
-    const mine = results.filter((u) => u.id === currentUserId);
-    const rest = results.filter((u) => u.id !== currentUserId);
+  // Always surface the currently-selected members, even when the active search
+  // doesn't return them — otherwise a selection the server no longer matches
+  // (a stale saved filter, or a member who lost access) could never be
+  // de-selected from the dropdown. They render checked (resolved via `seen`,
+  // falling back to "User #<id>") and toggling removes them. Then current user
+  // first, then everyone else (results are already name-sorted).
+  const orderedResults = useMemo<MemberLike[]>(() => {
+    const resultIds = new Set(results.map((u) => u.id));
+    const selectedNotInResults = selectedIds
+      .filter((id) => !resultIds.has(id))
+      .map((id): MemberLike => seen.get(id) ?? { id });
+    const merged: MemberLike[] = [...selectedNotInResults, ...results];
+    if (currentUserId == null) return merged;
+    const mine = merged.filter((u) => u.id === currentUserId);
+    const rest = merged.filter((u) => u.id !== currentUserId);
     return [...mine, ...rest];
-  }, [results, currentUserId]);
+  }, [results, selectedIds, seen, currentUserId]);
 
   const toggle = (id: number) => {
     if (!Number.isFinite(id)) return;

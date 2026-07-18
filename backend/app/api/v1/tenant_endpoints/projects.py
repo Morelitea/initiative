@@ -53,7 +53,7 @@ from app.services.tenant import tags as tags_service
 from app.services.tenant import task_statuses as task_statuses_service
 from app.core.messages import ProjectMessages
 from app.core.config import settings as app_settings
-from app.db.query import _clamp_page, page_has_next, paginate_sequence
+from app.db.query import clamp_page, page_has_next, paginate_sequence
 from app.core.pam_context import has_active_grant
 from app.services.realtime import broadcast_event
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
@@ -1553,7 +1553,7 @@ async def search_project_members(
     assignable.sort(key=lambda u: ((u.full_name or "").lower(), u.id))
 
     total_count = len(assignable)
-    actual_page = _clamp_page(page, page_size, total_count)
+    actual_page = clamp_page(page, page_size, total_count)
     page_items = paginate_sequence(assignable, actual_page, page_size)
 
     return UserSummaryListResponse(
