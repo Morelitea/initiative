@@ -24,6 +24,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.v1.platform_endpoints.admin import ConfigManageDep
 from app.core.encryption import SALT_OIDC_CLIENT_SECRET, encrypt_field
 from app.core.messages import AuthProviderMessages
+from app.db.errors import FOREIGN_KEY_VIOLATION_SQLSTATE, dbapi_sqlstate
 from app.db.session import get_admin_session
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.auth_provider_secret import AuthProviderSecret
@@ -214,6 +215,8 @@ async def delete_auth_provider(
         await session.commit()
     except IntegrityError as exc:
         await session.rollback()
+        if dbapi_sqlstate(exc) != FOREIGN_KEY_VIOLATION_SQLSTATE:
+            raise
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=AuthProviderMessages.IN_USE,

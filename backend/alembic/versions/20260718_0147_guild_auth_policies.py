@@ -142,7 +142,7 @@ def upgrade() -> None:
             "policy IN ('open', 'required')", name="ck_guild_auth_policies_policy"
         ),
         sa.CheckConstraint(
-            "policy = 'open' OR provider_id IS NOT NULL",
+            "policy = 'open' OR (provider_id IS NOT NULL AND provider_slug IS NOT NULL)",
             name="ck_guild_auth_policies_required_provider",
         ),
     )

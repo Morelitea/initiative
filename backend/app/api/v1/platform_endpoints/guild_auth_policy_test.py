@@ -3,6 +3,7 @@ session-satisfaction enforcement inside the guild RLS."""
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -205,6 +206,24 @@ async def test_provider_delete_refused_while_required(
     )
     assert response.status_code == 409
     assert response.json()["detail"] == "AUTH_PROVIDER_IN_USE"
+
+
+async def test_required_row_needs_provider_and_slug(session: AsyncSession):
+    """The check constraint: a required policy must carry both the provider id
+    and its denormalized slug — the step-up response depends on the slug."""
+    guild = await create_guild(session)
+    provider = await create_auth_provider(session, slug="corp")
+    session.add(
+        GuildAuthPolicy(
+            guild_id=guild.id,
+            policy="required",
+            provider_id=provider.id,
+            provider_slug=None,
+        )
+    )
+    with pytest.raises(IntegrityError):
+        await session.commit()
+    await session.rollback()
 
 
 async def test_db_layer_blocks_unsatisfied_session(session: AsyncSession, role_session):
