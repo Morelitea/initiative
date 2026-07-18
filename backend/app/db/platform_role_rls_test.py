@@ -96,16 +96,19 @@ async def test_support_cannot_update_others_but_moderator_can(session):
 
 
 async def test_no_tier_can_delete_users(session):
-    """``users_no_delete`` (RESTRICTIVE) keeps DELETE denied even for owner; user
-    deletion stays on the admin engine."""
+    """DELETE on ``public.users`` is revoked from every request-path floor
+    (migration 0144); user rows are removed only on the admin/system engine.
+    An owner-tier request-path DELETE is therefore denied at the grant level
+    (insufficient-privilege), not merely filtered to 0 rows."""
     actor = await create_user(session)
     target = await create_user(session)
     await _assume(session, "owner", actor.id)
-    res = await session.exec(
-        text("DELETE FROM users WHERE id = :id"), params={"id": target.id}
-    )
+    with pytest.raises(DBAPIError):
+        async with session.begin_nested():
+            await session.exec(
+                text("DELETE FROM users WHERE id = :id"), params={"id": target.id}
+            )
     await _reset(session)
-    assert res.rowcount == 0
 
 
 # --- access_grants --------------------------------------------------------
