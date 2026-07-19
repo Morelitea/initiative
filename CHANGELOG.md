@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- The sidebar and the initiatives landing page no longer download every document (and, on the landing page, every project) just to show per-initiative count badges. A new grouped-counts endpoint returns the per-initiative totals in one query, honoring the same visibility rules as the lists — so the badges stay accurate while large guilds stop transferring their whole corpus on every page.
+- The sidebar and the initiatives landing page no longer download every document (and, on the landing page, every project) just to show per-initiative count badges. New grouped-counts endpoints return the per-initiative totals in one query, honoring the same visibility rules as the lists — so the badges stay accurate while large guilds stop transferring their whole corpus on every page. The sidebar's queue and counter-group badges use the same endpoints now too, replacing capped list fetches that silently undercounted past 100 items and dragged each item's full sharing state along.
 - Sidebar rows use their full width: an initiative, project, or tool row's name and count now span the whole row until you hover it, at which point the settings/"+" button slides in and the name shrinks to make room (rather than the button permanently reserving space or overlapping the text). The reveal animation is skipped for users who prefer reduced motion.
 
 ### Fixed
