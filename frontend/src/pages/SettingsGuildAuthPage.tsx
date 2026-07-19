@@ -35,8 +35,17 @@ export const SettingsGuildAuthPage = () => {
   const { t } = useTranslation(["settings", "common"]);
   const guildId = useActiveGuildId();
 
-  const policyQuery = useGuildAuthPolicy(guildId);
-  const providersQuery = useLoginProviders();
+  // The whole page exists only when the platform has opted into per-guild
+  // auth; outside that posture the tab is hidden and a direct URL renders
+  // nothing (fail closed while the posture is still loading). The backend
+  // 404s the policy endpoints in the same case, so the queries stay off too.
+  const interfaceSettings = useInterfaceSettings();
+  const guildPostureActive = interfaceSettings.data?.auth_scope === "guild";
+
+  const policyQuery = useGuildAuthPolicy(guildId, {
+    enabled: guildId > 0 && guildPostureActive,
+  });
+  const providersQuery = useLoginProviders({ enabled: guildPostureActive });
   // Only registry-backed entries can be required (the policy stores the
   // provider's id); an id-less platform entry means it hasn't reconciled yet.
   const eligibleProviders = useMemo(
@@ -117,10 +126,9 @@ export const SettingsGuildAuthPage = () => {
     window.location.href = `${entry.login_url}?next=${encodeURIComponent(next)}`;
   };
 
-  // The per-guild provider registry is a separate, still-upcoming posture;
-  // its placeholder only shows on servers configured for per-guild login.
-  const interfaceSettings = useInterfaceSettings();
-  const guildPostureActive = interfaceSettings.data?.auth_scope === "guild";
+  if (!guildPostureActive) {
+    return null;
+  }
 
   return (
     <div className="space-y-6">
@@ -215,20 +223,18 @@ export const SettingsGuildAuthPage = () => {
         </CardContent>
       </Card>
 
-      {guildPostureActive && (
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              {t("guildAuth.title")}
-              <Badge variant="secondary">{t("guildAuth.comingSoon")}</Badge>
-            </CardTitle>
-            <CardDescription>{t("guildAuth.description")}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground text-sm">{t("guildAuth.body")}</p>
-          </CardContent>
-        </Card>
-      )}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            {t("guildAuth.title")}
+            <Badge variant="secondary">{t("guildAuth.comingSoon")}</Badge>
+          </CardTitle>
+          <CardDescription>{t("guildAuth.description")}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-muted-foreground text-sm">{t("guildAuth.body")}</p>
+        </CardContent>
+      </Card>
     </div>
   );
 };

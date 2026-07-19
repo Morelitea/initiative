@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useGuilds } from "@/hooks/useGuilds";
+import { useInterfaceSettings } from "@/hooks/useSettings";
 import { extractSubPath, guildPath, isGuildScopedPath } from "@/lib/guildUrl";
 
 export const GuildSettingsLayout = () => {
@@ -19,6 +20,11 @@ export const GuildSettingsLayout = () => {
   // tool URL configured; OSS instances without it never see this tab even
   // if a user is a guild admin.
   const { advancedTool } = useAppConfig();
+  // The Authentication tab exists only when the platform has opted into
+  // per-guild auth (non-secret posture info from the public interface
+  // settings) — guild-level sign-in configuration is a platform opt-in.
+  const interfaceSettings = useInterfaceSettings();
+  const guildAuthEnabled = interfaceSettings.data?.auth_scope === "guild";
 
   // Get guild ID from URL params or active guild
   const urlGuildId = params.guildId ? Number(params.guildId) : activeGuildId;
@@ -41,11 +47,15 @@ export const GuildSettingsLayout = () => {
         label: t("guildLayout.tabs.users"),
         path: urlGuildId ? guildPath(urlGuildId, "/settings/users") : "/settings/users",
       },
-      {
-        value: "auth",
-        label: t("guildLayout.tabs.auth"),
-        path: urlGuildId ? guildPath(urlGuildId, "/settings/auth") : "/settings/auth",
-      },
+      ...(guildAuthEnabled
+        ? [
+            {
+              value: "auth",
+              label: t("guildLayout.tabs.auth"),
+              path: urlGuildId ? guildPath(urlGuildId, "/settings/auth") : "/settings/auth",
+            },
+          ]
+        : []),
       {
         value: "initiatives",
         label: t("guildLayout.tabs.initiatives"),
@@ -82,7 +92,7 @@ export const GuildSettingsLayout = () => {
       path: urlGuildId ? guildPath(urlGuildId, "/settings/danger-zone") : "/settings/danger-zone",
     });
     return tabs;
-  }, [urlGuildId, t, advancedTool]);
+  }, [urlGuildId, t, advancedTool, guildAuthEnabled]);
 
   const canViewSettings = isGuildAdmin;
   // A suspended guild refuses every /g content endpoint, so tabs backed by

@@ -41,10 +41,12 @@ from app.schemas.platform.guild import (
 )
 from app.schemas.platform.user import GuildRemovalProjectInfo, UserPublic
 from app.schemas.tenant.initiative import AdvancedToolHandoffResponse
+from app.models.platform.app_setting import AuthScope
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.services.auth.identity import has_federated_identity
 from app.services.auth.platform_provider import is_login_ready
+from app.services.platform import app_settings as app_settings_service
 from app.services.platform import guilds as guilds_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services import rls as rls_service
@@ -418,6 +420,19 @@ async def create_guild_billing_handoff(
     )
 
 
+async def _require_guild_auth_scope(session: AsyncSession) -> None:
+    """The guild sign-in configuration surface exists only when the platform
+    posture is per-guild login; under platform posture it is absent (404),
+    the same way dormant login providers behave. Enforcement of an existing
+    policy row is deliberately not posture-gated — only its management is."""
+    app_settings = await app_settings_service.get_app_settings(session)
+    if app_settings.auth_scope != AuthScope.guild.value:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=GuildMessages.GUILD_AUTH_NOT_ENABLED,
+        )
+
+
 def _auth_policy_read(
     policy_row, provider_display_name: str | None = None
 ) -> GuildAuthPolicyRead:
@@ -440,7 +455,9 @@ async def get_guild_auth_policy(
 ) -> GuildAuthPolicyRead:
     """The guild's sign-in requirement. Guild admin only (the settings UI);
     a blocked session learns the required provider from the step-up 401's
-    header, not from here."""
+    header, not from here. Absent (404) unless the platform posture is
+    per-guild login."""
+    await _require_guild_auth_scope(session)
     await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id)
     policy_row = await admin_session.get(GuildAuthPolicy, guild_id)
     display_name = None
@@ -464,7 +481,9 @@ async def set_guild_auth_policy(
     login-ready operator-global provider — and the calling admin's own
     session must already satisfy it, which both proves the provider works
     end-to-end and keeps an admin from locking their guild (and themselves)
-    behind a sign-in they haven't completed."""
+    behind a sign-in they haven't completed. Absent (404) unless the platform
+    posture is per-guild login."""
+    await _require_guild_auth_scope(session)
     await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id)
 
     if payload.policy == "open":

@@ -73,6 +73,7 @@
   "GUILD_AUTH_STEP_UP_REQUIRED": "This guild requires signing in with its identity provider",
   "GUILD_AUTH_POLICY_INVALID_PROVIDER": "Pick an enabled sign-in provider for this requirement",
   "GUILD_AUTH_POLICY_SELF_UNSATISFIED": "Sign in with that provider yourself before requiring it for the guild",
+  "GUILD_AUTH_NOT_ENABLED": "Per-guild authentication is not enabled on this platform",
   "AUTH_PROVIDER_IN_USE": "A guild's sign-in requirement uses this provider; change that requirement first",
   "OIDC_EMAIL_UNVERIFIED": "Your identity provider did not confirm your email is verified, so we can't sign you in to an existing account. Verify your email with your provider and try again.",
   "SMTP_NOT_CONFIGURED": "SMTP settings are incomplete.",

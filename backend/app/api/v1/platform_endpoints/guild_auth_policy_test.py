@@ -10,6 +10,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import GuildAccessError, establish_guild_access
 from app.core.auth_context import satisfied_provider_ids
 from app.db.session import SYSTEM_SATISFIED, set_rls_context
+from app.models.platform.app_setting import AppSetting, AuthScope
 from app.models.platform.guild import GuildRole
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.tenant.project import Project
@@ -35,6 +36,15 @@ def _sat_headers(user, provider_ids: list[int]) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+async def _enable_guild_posture(session: AsyncSession) -> None:
+    """Flip the platform to per-guild login — the policy management endpoints
+    exist only in that posture."""
+    row = (await session.exec(select(AppSetting))).first() or AppSetting()
+    row.auth_scope = AuthScope.guild.value
+    session.add(row)
+    await session.commit()
+
+
 async def _require_provider(
     session: AsyncSession, guild_id: int, provider
 ) -> GuildAuthPolicy:
@@ -52,6 +62,7 @@ async def _require_provider(
 async def test_admin_sets_reads_and_clears_policy(
     client: AsyncClient, session: AsyncSession
 ):
+    await _enable_guild_posture(session)
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
@@ -90,6 +101,7 @@ async def test_admin_sets_reads_and_clears_policy(
 async def test_non_admin_cannot_manage_policy(
     client: AsyncClient, session: AsyncSession
 ):
+    await _enable_guild_posture(session)
     member = await create_user(session)
     guild = await create_guild(session)
     await create_guild_membership(
@@ -108,6 +120,7 @@ async def test_non_admin_cannot_manage_policy(
 async def test_policy_rejects_unusable_provider(
     client: AsyncClient, session: AsyncSession
 ):
+    await _enable_guild_posture(session)
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
@@ -137,6 +150,7 @@ async def test_policy_requires_admin_own_session_to_satisfy(
 ):
     """An admin can only require a provider their own session has satisfied —
     proving it works and keeping them from locking out their guild."""
+    await _enable_guild_posture(session)
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
@@ -151,6 +165,37 @@ async def test_policy_requires_admin_own_session_to_satisfy(
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "GUILD_AUTH_POLICY_SELF_UNSATISFIED"
+
+
+async def test_policy_endpoints_absent_in_platform_posture(
+    client: AsyncClient, session: AsyncSession
+):
+    """Under platform posture the guild sign-in surface does not exist:
+    both endpoints 404 even for a satisfied guild admin, and nothing is
+    written. (Enforcement of an existing row is a separate, ungated path —
+    covered by the step-up tests below.)"""
+    admin = await create_user(session)
+    guild = await create_guild(session, creator=admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    provider = await create_auth_provider(session, slug="corp")
+    headers = _sat_headers(admin, [provider.id])
+
+    got = await client.get(f"/api/v1/guilds/{guild.id}/auth-policy", headers=headers)
+    assert got.status_code == 404
+    assert got.json()["detail"] == "GUILD_AUTH_NOT_ENABLED"
+
+    guild_id = guild.id
+    put = await client.put(
+        f"/api/v1/guilds/{guild_id}/auth-policy",
+        headers=headers,
+        json={"policy": "required", "provider_id": provider.id},
+    )
+    assert put.status_code == 404
+    assert put.json()["detail"] == "GUILD_AUTH_NOT_ENABLED"
+    session.expire_all()
+    assert await session.get(GuildAuthPolicy, guild_id) is None
 
 
 async def test_required_guild_steps_up_unsatisfied_sessions(

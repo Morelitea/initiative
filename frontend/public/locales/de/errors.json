@@ -78,6 +78,7 @@
   "GUILD_AUTH_STEP_UP_REQUIRED": "Diese Gilde erfordert die Anmeldung über ihren Identitätsanbieter",
   "GUILD_AUTH_POLICY_INVALID_PROVIDER": "Wählen Sie einen aktivierten Anmeldeanbieter für diese Anforderung",
   "GUILD_AUTH_POLICY_SELF_UNSATISFIED": "Melden Sie sich selbst mit diesem Anbieter an, bevor Sie ihn für die Gilde verlangen",
+  "GUILD_AUTH_NOT_ENABLED": "Die gildenspezifische Anmeldung ist auf dieser Plattform nicht aktiviert",
   "AUTH_PROVIDER_IN_USE": "Die Anmeldeanforderung einer Gilde verwendet diesen Anbieter; ändern Sie zuerst diese Anforderung",
   "SMTP_NOT_CONFIGURED": "SMTP-Einstellungen sind unvollständig.",
   "INVALID_OR_EXPIRED_TOKEN": "Ungültiges oder abgelaufenes Token",
