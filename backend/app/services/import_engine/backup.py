@@ -37,6 +37,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.messages import ImportEngineMessages
+from app.db.session import SYSTEM_SATISFIED
 from app.models.platform.user import User
 from app.schemas.tenant.backup_export import (
     BACKUP_SCHEMA_VERSION,
@@ -213,7 +214,10 @@ async def apply_backup(
     from app.models.tenant.initiative import Initiative
 
     for mi in manifest.initiatives:
-        await establish_guild_access(session, user, guild_id)
+        # System sentinel: user-attributed job, gate passed at enqueue.
+        await establish_guild_access(
+            session, user, guild_id, satisfied_providers=SYSTEM_SATISFIED
+        )
         initiative = await initiatives_service.create_imported_initiative(
             session,
             guild_id=guild_id,
@@ -246,7 +250,9 @@ async def apply_backup(
             since_refresh += 1
             if since_refresh >= _REFRESH_EVERY:
                 await session.commit()
-                await establish_guild_access(session, user, guild_id)
+                await establish_guild_access(
+                    session, user, guild_id, satisfied_providers=SYSTEM_SATISFIED
+                )
                 # Re-load the initiative on the refreshed transaction.
                 initiative = (
                     await session.exec(

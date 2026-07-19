@@ -299,11 +299,15 @@ def test_handoff_token_claim_tamper_fails_public_key_verification():
 
 @pytest.mark.unit
 def test_upload_token_round_trips_to_user_id():
-    """A freshly minted upload token verifies back to the user it names."""
+    """A freshly minted upload token verifies back to the user it names,
+    carrying its minting session's satisfied-provider set (empty by default)."""
     token, seconds = create_upload_token(user_id=123)
     assert isinstance(token, str) and token.count(".") == 2
     assert seconds == int(UPLOAD_TOKEN_LIFETIME.total_seconds())
-    assert verify_upload_token(token) == 123
+    assert verify_upload_token(token) == (123, frozenset())
+
+    satisfied_token, _ = create_upload_token(user_id=123, satisfied_providers=[5, 2])
+    assert verify_upload_token(satisfied_token) == (123, frozenset({2, 5}))
 
 
 @pytest.mark.unit

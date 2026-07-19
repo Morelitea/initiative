@@ -25,7 +25,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.db import session as db_session
-from app.db.session import set_rls_context
+from app.db.session import SYSTEM_SATISFIED, set_rls_context
 from app.models.platform.guild import Guild, GuildStatus
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import User, UserStatus
@@ -162,8 +162,12 @@ async def _execute(session: AsyncSession, job: ExportJob, *, guild_id: int) -> s
 
     async with _open_user_session() as user_session:
         # Resolve membership/PAM and route the session as the creator; raises
-        # GuildAccessError (-> failed job) if their access is gone.
-        await establish_guild_access(user_session, user, guild_id)
+        # GuildAccessError (-> failed job) if their access is gone. The job is
+        # user-attributed system work — its enqueueing request already passed
+        # the guild auth-policy gate, so it carries the system sentinel.
+        await establish_guild_access(
+            user_session, user, guild_id, satisfied_providers=SYSTEM_SATISFIED
+        )
         request = await adapter.build(
             user_session,
             user=user,

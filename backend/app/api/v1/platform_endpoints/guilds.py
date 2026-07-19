@@ -4,10 +4,11 @@ import logging
 from contextlib import suppress
 from typing import Annotated, List
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import text
 
 from app.api.deps import SessionDep, UserSessionDep, get_current_active_user
+from app.core.auth_context import satisfied_provider_ids
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
 from app.core.messages import AdvancedToolMessages, GuildMessages
@@ -411,7 +412,6 @@ async def get_guild_auth_policy(
 async def set_guild_auth_policy(
     guild_id: int,
     payload: GuildAuthPolicyUpdate,
-    http_request: Request,
     session: SessionDep,
     admin_session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -447,8 +447,7 @@ async def set_guild_auth_policy(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=GuildMessages.GUILD_AUTH_POLICY_INVALID_PROVIDER,
         )
-    satisfied = getattr(http_request.state, "auth_satisfied", frozenset())
-    if provider.id not in satisfied:
+    if provider.id not in satisfied_provider_ids():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,

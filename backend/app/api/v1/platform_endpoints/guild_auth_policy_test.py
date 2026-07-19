@@ -7,18 +7,23 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.api.deps import GuildAccessError, establish_guild_access
+from app.core.auth_context import satisfied_provider_ids
 from app.db.session import SYSTEM_SATISFIED, set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.tenant.project import Project
+from app.services.platform.ws_auth import authenticate_ws_token
 from app.testing.factories import (
     create_auth_provider,
+    create_document,
     create_guild,
     create_guild_membership,
     create_initiative,
     create_project,
     create_user,
     get_auth_headers,
+    get_auth_token,
     get_new_access_token,
 )
 
@@ -206,6 +211,86 @@ async def test_provider_delete_refused_while_required(
     )
     assert response.status_code == 409
     assert response.json()["detail"] == "AUTH_PROVIDER_IN_USE"
+
+
+async def test_me_aggregate_includes_policy_guild_only_when_satisfied(
+    client: AsyncClient, session: AsyncSession
+):
+    """Cross-guild /me/* views carry the session's real ``sat``: a policy-gated
+    guild's content appears exactly when the session satisfies its provider —
+    and its RLS keeps an unsatisfied session's aggregate empty for that guild
+    without failing the whole request."""
+    user = await create_user(session)
+    open_guild = await create_guild(session, creator=user)
+    gated_guild = await create_guild(session, creator=user)
+    for g in (open_guild, gated_guild):
+        await create_guild_membership(session, user=user, guild=g)
+    provider = await create_auth_provider(session, slug="corp")
+
+    open_initiative = await create_initiative(session, open_guild, user)
+    gated_initiative = await create_initiative(session, gated_guild, user)
+    await create_document(session, open_initiative, user, title="open doc")
+    await create_document(session, gated_initiative, user, title="gated doc")
+    await _require_provider(session, gated_guild.id, provider)
+    provider_id = provider.id
+
+    # Legacy/unsatisfied session: only the open guild's document.
+    unsatisfied = await client.get(
+        "/api/v1/me/documents", headers=get_auth_headers(user)
+    )
+    assert unsatisfied.status_code == 200, unsatisfied.text
+    assert [d["title"] for d in unsatisfied.json()["items"]] == ["open doc"]
+
+    # A session that satisfied the provider sees both guilds' documents.
+    satisfied = await client.get(
+        "/api/v1/me/documents", headers=_sat_headers(user, [provider_id])
+    )
+    titles = {d["title"] for d in satisfied.json()["items"]}
+    assert titles == {"open doc", "gated doc"}
+
+
+async def test_ws_token_sat_gates_policy_guild(session: AsyncSession):
+    """The WebSocket join path: ``authenticate_ws_token`` records the token's
+    ``sat``, and the ``establish_guild_access`` that follows applies the guild
+    auth-policy gate to the socket exactly as REST would."""
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild)
+    provider = await create_auth_provider(session, slug="corp")
+    await _require_provider(session, guild.id, provider)
+    guild_id, provider_id = guild.id, provider.id
+
+    # Legacy session token: authenticates, but the policy gate refuses.
+    legacy_user = await authenticate_ws_token(get_auth_token(user), session)
+    assert legacy_user is not None
+    assert satisfied_provider_ids() == frozenset()
+    with pytest.raises(GuildAccessError):
+        await establish_guild_access(session, legacy_user, guild_id)
+
+    # A satisfied session token joins.
+    sat_user = await authenticate_ws_token(
+        get_new_access_token(user, satisfied_providers=[provider_id]), session
+    )
+    assert sat_user is not None
+    assert satisfied_provider_ids() == frozenset({provider_id})
+    ctx = await establish_guild_access(session, sat_user, guild_id)
+    assert ctx.guild_id == guild_id
+
+
+async def test_system_sentinel_passes_policy_gate(session: AsyncSession):
+    """User-attributed system work (export/import workers) passes the gate via
+    the explicit sentinel — its enqueueing request already satisfied it."""
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild)
+    provider = await create_auth_provider(session, slug="corp")
+    await _require_provider(session, guild.id, provider)
+    guild_id = guild.id
+
+    ctx = await establish_guild_access(
+        session, user, guild_id, satisfied_providers=SYSTEM_SATISFIED
+    )
+    assert ctx.guild_id == guild_id
 
 
 async def test_required_row_needs_provider_and_slug(session: AsyncSession):

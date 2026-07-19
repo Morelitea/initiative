@@ -65,6 +65,13 @@ async def websocket_updates(websocket: WebSocket, guild_id: int):
     belongs to (or holds a live PAM grant for) the path-addressed guild and
     only then registers the socket under it, so events never cross the tenancy
     boundary.
+
+    Authorization is connect-time only, by design: this stream carries
+    id-envelope pokes and never tooling content, so the client's refetch —
+    which re-runs every gate, including the guild auth policy — is the
+    authoritative decision point for anything a poke names. Content-bearing
+    channels (collaboration, counters, queues) ride the ``stream_authz``
+    spine with continuous re-authorization instead.
     """
     await websocket.accept()
 

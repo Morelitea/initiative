@@ -22,6 +22,7 @@ from app.api.deps import SessionDep, get_current_active_user, get_current_user_o
 from app.db.session import get_admin_session
 from app.core.config import API_V1_STR, settings
 from sqlmodel.ext.asyncio.session import AsyncSession
+from app.core import auth_context
 from app.core.rate_limit import get_inet_client_ip, limiter
 from app.core.encryption import (
     decrypt_field,
@@ -548,7 +549,16 @@ async def issue_upload_token(
     token is accepted only by the uploads/download routes and is useless as a
     general API credential.
     """
-    token, expires_in = create_upload_token(user_id=current_user.id)
+    # Copy the minting session's satisfied-provider set into the scoped token
+    # so media loads and the sync-content keepalive pass a policy-gated guild
+    # exactly when the session itself would.
+    satisfied = auth_context.satisfied_providers()
+    token, expires_in = create_upload_token(
+        user_id=current_user.id,
+        satisfied_providers=sorted(satisfied)
+        if isinstance(satisfied, frozenset)
+        else (),
+    )
     return UploadTokenResponse(upload_token=token, expires_in=expires_in)
 
 
