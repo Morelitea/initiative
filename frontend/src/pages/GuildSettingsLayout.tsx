@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useGuilds } from "@/hooks/useGuilds";
-import { useInterfaceSettings } from "@/hooks/useSettings";
 import { extractSubPath, guildPath, isGuildScopedPath } from "@/lib/guildUrl";
 
 export const GuildSettingsLayout = () => {
@@ -20,10 +19,6 @@ export const GuildSettingsLayout = () => {
   // tool URL configured; OSS instances without it never see this tab even
   // if a user is a guild admin.
   const { advancedTool } = useAppConfig();
-  // The Authentication tab exists only in the guild-scoped login posture
-  // (non-secret posture info from the public interface settings).
-  const interfaceSettings = useInterfaceSettings();
-  const guildAuthEnabled = interfaceSettings.data?.auth_scope === "guild";
 
   // Get guild ID from URL params or active guild
   const urlGuildId = params.guildId ? Number(params.guildId) : activeGuildId;
@@ -46,15 +41,11 @@ export const GuildSettingsLayout = () => {
         label: t("guildLayout.tabs.users"),
         path: urlGuildId ? guildPath(urlGuildId, "/settings/users") : "/settings/users",
       },
-      ...(guildAuthEnabled
-        ? [
-            {
-              value: "auth",
-              label: t("guildLayout.tabs.auth"),
-              path: urlGuildId ? guildPath(urlGuildId, "/settings/auth") : "/settings/auth",
-            },
-          ]
-        : []),
+      {
+        value: "auth",
+        label: t("guildLayout.tabs.auth"),
+        path: urlGuildId ? guildPath(urlGuildId, "/settings/auth") : "/settings/auth",
+      },
       {
         value: "initiatives",
         label: t("guildLayout.tabs.initiatives"),
@@ -91,7 +82,7 @@ export const GuildSettingsLayout = () => {
       path: urlGuildId ? guildPath(urlGuildId, "/settings/danger-zone") : "/settings/danger-zone",
     });
     return tabs;
-  }, [urlGuildId, t, advancedTool, guildAuthEnabled]);
+  }, [urlGuildId, t, advancedTool]);
 
   const canViewSettings = isGuildAdmin;
   // A suspended guild refuses every /g content endpoint, so tabs backed by
@@ -124,6 +115,7 @@ export const GuildSettingsLayout = () => {
     { value: "guild", subPath: "/settings" },
     { value: "ai", subPath: "/settings/ai" },
     { value: "users", subPath: "/settings/users" },
+    { value: "auth", subPath: "/settings/auth" },
     { value: "initiatives", subPath: "/settings/initiatives" },
     { value: "trash", subPath: "/settings/trash" },
     { value: "data", subPath: "/settings/data" },

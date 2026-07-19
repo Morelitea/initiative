@@ -11,6 +11,9 @@ class LoginProviderEntry(SanitizedBaseModel):
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
+    # Registry row id — what the guild auth-policy endpoints identify a
+    # provider by. None only for a platform entry not yet reconciled to a row.
+    id: Optional[int] = None
     slug: str
     display_name: str
     kind: str

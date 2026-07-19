@@ -67,6 +67,12 @@ export const setApiBaseUrl = (url: string) => {
 };
 
 export const AUTH_UNAUTHORIZED_EVENT = "initiative:auth:unauthorized";
+export const AUTH_STEP_UP_EVENT = "initiative:auth:step-up";
+
+export interface StepUpEventDetail {
+  /** Slug of the provider the guild requires (X-Auth-Step-Up header). */
+  providerSlug: string;
+}
 
 let authToken: string | null = null;
 let isDeviceToken = false;
@@ -198,6 +204,15 @@ const isStepUpChallenge = (error: { response?: { data?: { detail?: unknown } } }
 apiClient.interceptors.response.use(undefined, async (error) => {
   const config = error.config as RetriableRequestConfig | undefined;
   if (isStepUpChallenge(error)) {
+    // Announce the challenge so the global step-up dialog can offer the
+    // required provider's sign-in; the request itself still rejects (pages
+    // render their error state, nothing retries).
+    const providerSlug = error.response?.headers?.["x-auth-step-up"];
+    if (typeof providerSlug === "string" && providerSlug && typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent<StepUpEventDetail>(AUTH_STEP_UP_EVENT, { detail: { providerSlug } })
+      );
+    }
     return Promise.reject(error);
   }
   if (

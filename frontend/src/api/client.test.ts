@@ -3,7 +3,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { server } from "@/__tests__/helpers/msw-server";
 
-import { AUTH_UNAUTHORIZED_EVENT, apiClient, setAuthToken, setHasActiveSession } from "./client";
+import {
+  AUTH_STEP_UP_EVENT,
+  AUTH_UNAUTHORIZED_EVENT,
+  apiClient,
+  setAuthToken,
+  setHasActiveSession,
+} from "./client";
 
 // The silent-renewal interceptor: a 401 gets one POST /auth/refresh and a
 // retry before it surfaces as a signed-out state (web only — the refresh
@@ -114,7 +120,10 @@ describe("silent session renewal", () => {
     let refreshCalls = 0;
     server.use(
       http.get("/api/v1/g/1/projects/", () =>
-        HttpResponse.json({ detail: "GUILD_AUTH_STEP_UP_REQUIRED" }, { status: 401 })
+        HttpResponse.json(
+          { detail: "GUILD_AUTH_STEP_UP_REQUIRED" },
+          { status: 401, headers: { "X-Auth-Step-Up": "corp" } }
+        )
       ),
       http.post("/api/v1/auth/refresh", () => {
         refreshCalls += 1;
@@ -123,7 +132,9 @@ describe("silent session renewal", () => {
     );
     setHasActiveSession(true);
     const onUnauthorized = vi.fn();
+    const onStepUp = vi.fn();
     window.addEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
+    window.addEventListener(AUTH_STEP_UP_EVENT, onStepUp);
 
     try {
       await expect(apiClient.get("/g/1/projects/")).rejects.toMatchObject({
@@ -131,8 +142,15 @@ describe("silent session renewal", () => {
       });
       expect(refreshCalls).toBe(0);
       expect(onUnauthorized).not.toHaveBeenCalled();
+      // The challenge is announced (with the provider to step up with) so the
+      // global dialog can offer the sign-in.
+      expect(onStepUp).toHaveBeenCalledTimes(1);
+      expect((onStepUp.mock.calls[0][0] as CustomEvent).detail).toEqual({
+        providerSlug: "corp",
+      });
     } finally {
       window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
+      window.removeEventListener(AUTH_STEP_UP_EVENT, onStepUp);
     }
   });
 

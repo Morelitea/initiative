@@ -873,7 +873,21 @@
     "title": "Authentication",
     "comingSoon": "Coming soon",
     "description": "Sign-in configuration for this guild.",
-    "body": "This server uses per-guild login. Soon, guild admins will configure single sign-on and membership rules for this guild here."
+    "body": "This server uses per-guild login. Soon, guild admins will configure single sign-on and membership rules for this guild here.",
+    "policy": {
+      "title": "Sign-in requirement",
+      "description": "Control which sign-in a session must have used before it can access this guild.",
+      "openLabel": "Open",
+      "openHelp": "Any signed-in member can access this guild.",
+      "requiredLabel": "Require single sign-on",
+      "requiredHelp": "Members can only access this guild after signing in with the selected provider.",
+      "providerPlaceholder": "Choose a provider…",
+      "noProviders": "No sign-on providers are available. A platform operator can add them under platform settings.",
+      "saved": "Sign-in requirement saved",
+      "error": "Could not save the sign-in requirement",
+      "selfUnsatisfied": "Your current session hasn't signed in with {{providerName}} yet. Sign in with it once to confirm it works before requiring it.",
+      "signInWith": "Sign in with {{providerName}}"
+    }
   },
   "authProviders": {
     "title": "Additional sign-in providers",

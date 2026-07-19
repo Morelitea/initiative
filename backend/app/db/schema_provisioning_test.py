@@ -971,6 +971,30 @@ async def test_shared_grants_probe_detects_partial_grant(engine, monkeypatch):
         await _drop_probe_table(engine)
 
 
+async def test_shared_grants_tolerate_lazily_created_table(engine, monkeypatch):
+    import app.db.session as db_session
+
+    # A registry entry may name a table that is created lazily at runtime
+    # (NON_MODEL_SHARED_TABLES — storage_backfill_state). Before the table
+    # first materializes, both the boot heal and the effective-privilege
+    # verification must treat it as nothing-to-check, not fault the probe.
+    await _drop_probe_table(engine)
+    _point_registry_at_probe(
+        monkeypatch, sys_verbs={"SELECT", "INSERT"}, user_verbs={"SELECT"}
+    )
+
+    await schema_provisioning.ensure_shared_table_grants()  # must not raise
+
+    expected = schema_provisioning._expected_shared_table_grants()
+    async with db_session.provisioning_engine.connect() as conn:
+        intact = await schema_provisioning._shared_grants_intact(conn, expected)
+        assert intact is True
+        missing = await schema_provisioning._effective_missing_grants(
+            conn, {_PROBE_TABLE: frozenset({"SELECT"})}
+        )
+    assert missing == []
+
+
 # --- verify_engine_identities / verify_effective_shared_grants ---------------
 #
 # The heals above repair the canonical roles; these boot checks pin the wiring

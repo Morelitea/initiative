@@ -127,3 +127,19 @@ def is_valid_provider_slug(value: str) -> bool:
     except ValueError:
         return False
     return True
+
+
+# Post-login return paths must stay inside the SPA: a single-slash-rooted
+# relative path with no scheme, host, or backslash forms.
+NEXT_PATH_MAX_LENGTH = 512
+
+
+def is_safe_next_path(value: str) -> bool:
+    """Whether ``value`` is a same-origin SPA path a login flow may return to."""
+    if not value or len(value) > NEXT_PATH_MAX_LENGTH:
+        return False
+    if not value.startswith("/") or value.startswith("//"):
+        return False
+    if "\\" in value:
+        return False
+    return all(ord(ch) >= 0x20 for ch in value)

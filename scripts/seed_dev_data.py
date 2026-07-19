@@ -327,6 +327,18 @@ async def _create_users(
     """
     users: dict[str, User] = {}
     for ud in user_defs:
+        # A prior interrupted seed run may have committed this user (users
+        # commit before the later steps): reuse the existing row so a re-run
+        # resumes instead of violating the unique email constraint.
+        existing = (
+            await session.exec(
+                select(User).where(User.email_hash == hash_email(ud["email"]))
+            )
+        ).one_or_none()
+        if existing is not None:
+            ids.add("users", existing.id)
+            users[ud["full_name"]] = existing
+            continue
         user = User(
             email_hash=hash_email(ud["email"]),
             email_encrypted=encrypt_field(ud["email"], SALT_EMAIL),
@@ -411,6 +423,10 @@ async def _add_guild_members(
     admin_users: list[User] | None = None,
 ) -> None:
     """Add users to a guild as members (or admins if specified)."""
+    # Membership rows carrying a role are a system-engine write (request-path
+    # inserts are pinned to plain members): reset any guild routing left from
+    # seeding a previous guild's content so the BYPASSRLS baseline applies.
+    await set_rls_context(session)
     admin_ids = {u.id for u in (admin_users or [])}
     for user in users:
         role = GuildRole.admin if user.id in admin_ids else GuildRole.member
@@ -1652,23 +1668,27 @@ async def seed() -> None:
         g1 = primary_guild
         g1_id = g1.id
 
-        # Commit the shared rows (users) so far, then route into the primary
-        # guild's schema (search_path + SET ROLE) so all of its guild-scoped data
-        # — initiatives, projects, tasks, ... — is created there, not in public.
+        # Commit the shared rows (users) so far.
         await session.commit()
-        await set_rls_context(
-            session, user_id=admin_user.id, guild_id=g1_id, guild_role="admin"
-        )
 
-        # Add members to primary guild (incl. a couple of platform-role users).
-        # admin1/admin4 are the guild admins; dm stays a REGULAR member but is
-        # PM of two initiatives below (PM-full-access path without admin).
-        # kael joins the guild but no G1 initiative — his view of guild 1 must
-        # be empty (initiative RLS hides everything; content 404s, not 403s).
+        # Add members to primary guild (incl. a couple of platform-role users) —
+        # a shared-table system-engine write, so it happens BEFORE routing into
+        # the guild schema. admin1/admin4 are the guild admins; dm stays a
+        # REGULAR member but is PM of two initiatives below (PM-full-access path
+        # without admin). kael joins the guild but no G1 initiative — his view
+        # of guild 1 must be empty (initiative RLS hides everything; content
+        # 404s, not 403s).
         await _add_guild_members(
             session, ids, g1,
             [admin1, admin4, dm, thorn, elara, vex, sera, kael, p_operator, p_support],
             admin_users=[admin1, admin4],
+        )
+
+        # Route into the primary guild's schema (search_path + SET ROLE) so all
+        # of its guild-scoped data — initiatives, projects, tasks, ... — is
+        # created there, not in public.
+        await set_rls_context(
+            session, user_id=admin_user.id, guild_id=g1_id, guild_role="admin"
         )
 
         # Look up the primary guild's "Default Initiative", creating it if it
@@ -2572,20 +2592,24 @@ async def seed() -> None:
         g2_id = g2.id
 
         # Commit the new guild's shared rows (also flushes guild 1's data), then
-        # provision its schema and route into it before creating its content.
+        # provision its schema.
         await session.commit()
         _expunge_guild_scoped(session)  # clear guild 1's per-schema ids from the identity map
         await provision_guild(g2_id)
-        await set_rls_context(
-            session, user_id=admin_user.id, guild_id=g2_id, guild_role="admin"
-        )
 
-        # admin2 is the (only added) guild admin; finley is a regular member
-        # who is PM of the Side Missions initiative below.
+        # Memberships are a shared-table system-engine write — add them before
+        # routing into the guild schema. admin2 is the (only added) guild
+        # admin; finley is a regular member who is PM of the Side Missions
+        # initiative below.
         await _add_guild_members(
             session, ids, g2,
             [admin2, finley, kael, aurelia, vex, elara, p_moderator, p_member],
             admin_users=[admin2],
+        )
+
+        # Route into the guild before creating its content.
+        await set_rls_context(
+            session, user_id=admin_user.id, guild_id=g2_id, guild_role="admin"
         )
 
         # Default initiative for g2
@@ -3227,18 +3251,20 @@ async def seed() -> None:
         )
         g3_id = g3.id
 
-        # Commit guild 2's data + guild 3's shared rows, then provision + route.
+        # Commit guild 2's data + guild 3's shared rows, then provision.
         await session.commit()
         _expunge_guild_scoped(session)  # clear guild 2's per-schema ids from the identity map
         await provision_guild(g3_id)
-        await set_rls_context(
-            session, user_id=admin3.id, guild_id=g3_id, guild_role="admin"
-        )
 
+        # Shared-table membership writes before routing into the guild.
         await _add_guild_members(
             session, ids, g3,
             [admin4, admin_user, finley, dm, thorn, kael, aurelia, sera, p_owner, p_operator],
             admin_users=[admin4],
+        )
+
+        await set_rls_context(
+            session, user_id=admin3.id, guild_id=g3_id, guild_role="admin"
         )
 
         # Default initiative (admin3, the guild creator, becomes its PM)

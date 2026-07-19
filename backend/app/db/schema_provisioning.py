@@ -697,10 +697,16 @@ async def _shared_grants_intact(
         for role, table, verbs in expected
         for verb in verbs
     )
+    # A registry table may not exist yet: lazily-created tables (see
+    # NON_MODEL_SHARED_TABLES in app.db.system_grants) appear only after their
+    # service first runs. ``to_regclass`` skips those instead of faulting the
+    # whole probe; once the table exists, its grants are checked like any other.
     intact = (
         await conn.execute(
             text(
-                "SELECT bool_and(has_table_privilege(role, tbl, priv)) "
+                "SELECT bool_and("
+                "  to_regclass(tbl) IS NULL OR has_table_privilege(role, tbl, priv)"
+                ") "
                 f"FROM (VALUES {values}) AS t(role, tbl, priv)"
             )
         )
@@ -723,6 +729,16 @@ async def _reassert_shared_grants(
             # Unreachable: _expected_shared_table_grants already drops None/empty
             # entries. The guard makes that invariant explicit and narrows
             # grant_sql's `str | None` to `str` (no `GRANT None …` can render).
+            continue
+        exists = (
+            await conn.execute(
+                text("SELECT to_regclass(:tbl) IS NOT NULL"),
+                {"tbl": f"public.{table}"},
+            )
+        ).scalar()
+        if not exists:
+            # Lazily-created table not present yet — its creator applies the
+            # registry grants when it first materializes.
             continue
         await conn.execute(
             text(f'GRANT {verb_list} ON TABLE public."{table}" TO "{role}"')
@@ -924,7 +940,10 @@ async def _effective_missing_grants(
             text(
                 "SELECT t.tbl, t.priv "
                 f"FROM (VALUES {values}) AS t(tbl, priv) "
-                "WHERE NOT has_table_privilege(session_user, t.tbl, t.priv)"
+                # Lazily-created registry tables (NON_MODEL_SHARED_TABLES) may
+                # not exist yet; there is no grant to verify until they do.
+                "WHERE to_regclass(t.tbl) IS NOT NULL "
+                "  AND NOT has_table_privilege(session_user, t.tbl, t.priv)"
             )
         )
     ).all()

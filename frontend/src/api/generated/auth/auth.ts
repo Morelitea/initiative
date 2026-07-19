@@ -1114,6 +1114,11 @@ export function useListLoginProvidersApiV1AuthProvidersGet<
  * Begin the relying-party flow for one provider. The platform provider's
  * slug is ``oidc``, so the pre-generalization ``/auth/oidc/login`` URL is
  * this same route.
+ *
+ * ``next`` is an optional SPA path to return to after the web callback
+ * (e.g. the guild page a step-up started from). Only a validated relative
+ * path is accepted; it rides a short-lived cookie to the callback, which
+ * passes it to the SPA's ``/oidc/callback`` page as a query param.
  * @summary Provider Login
  */
 export const providerLoginApiV1AuthProviderSlugLoginGet = (
