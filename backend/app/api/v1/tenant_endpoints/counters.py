@@ -43,6 +43,7 @@ from app.models.tenant.initiative import (
 )
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.platform.user import User
+from app.schemas.tenant.initiative import InitiativeGroupedCountsResponse
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.counter import (
     CounterCreate,
@@ -294,6 +295,42 @@ async def list_counter_groups(
         page=page,
         page_size=page_size,
         has_next=has_next,
+    )
+
+
+@router.get("/counts/by-initiative", response_model=InitiativeGroupedCountsResponse)
+async def get_counter_group_counts_by_initiative(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> InitiativeGroupedCountsResponse:
+    """Visible counter-group counts grouped by initiative.
+
+    Lightweight endpoint for the sidebar badges — same visibility rules
+    as the counter-group list (counters-enabled initiatives, DAC), one
+    GROUP BY instead of a capped list page.
+    """
+    conditions = [
+        CounterGroup.guild_id == guild_context.guild_id,
+        CounterGroup.initiative_id.in_(
+            select(Initiative.id).where(Initiative.counter_groups_enabled == True)  # noqa: E712
+        ),
+    ]
+    if not rls_service.is_guild_admin(guild_context.role) and not guild_context.is_pam:
+        conditions.append(
+            CounterGroup.id.in_(
+                counters_service.visible_counter_group_ids_subquery(current_user.id)
+            )
+        )
+
+    statement = (
+        select(CounterGroup.initiative_id, func.count(CounterGroup.id))
+        .where(*conditions)
+        .group_by(CounterGroup.initiative_id)
+    )
+    rows = (await session.exec(statement)).all()
+    return InitiativeGroupedCountsResponse(
+        counts={initiative_id: count for initiative_id, count in rows}
     )
 
 

@@ -45,6 +45,7 @@ from app.models.tenant.initiative import (
 )
 from app.models.platform.user import User
 from app.core.messages import QueueMessages, InitiativeMessages
+from app.schemas.tenant.initiative import InitiativeGroupedCountsResponse
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.queue import (
     QueueCreate,
@@ -296,6 +297,40 @@ async def list_queues(
         page=page,
         page_size=page_size,
         has_next=has_next,
+    )
+
+
+@router.get("/counts/by-initiative", response_model=InitiativeGroupedCountsResponse)
+async def get_queue_counts_by_initiative(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> InitiativeGroupedCountsResponse:
+    """Visible-queue counts grouped by initiative.
+
+    Lightweight endpoint for the sidebar badges — same visibility rules
+    as the queue list (queues-enabled initiatives, DAC), one GROUP BY
+    instead of a capped list page.
+    """
+    conditions = [
+        Queue.guild_id == guild_context.guild_id,
+        Queue.initiative_id.in_(
+            select(Initiative.id).where(Initiative.queues_enabled == True)  # noqa: E712
+        ),
+    ]
+    if not rls_service.is_guild_admin(guild_context.role) and not guild_context.is_pam:
+        conditions.append(
+            Queue.id.in_(queues_service.visible_queue_ids_subquery(current_user.id))
+        )
+
+    statement = (
+        select(Queue.initiative_id, func.count(Queue.id))
+        .where(*conditions)
+        .group_by(Queue.initiative_id)
+    )
+    rows = (await session.exec(statement)).all()
+    return InitiativeGroupedCountsResponse(
+        counts={initiative_id: count for initiative_id, count in rows}
     )
 
 

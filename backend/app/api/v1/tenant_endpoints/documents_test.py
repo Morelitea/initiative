@@ -964,3 +964,41 @@ async def test_autocomplete_documents_honors_limit(
 
     assert response.status_code == 200
     assert len(response.json()) == 2
+
+
+@pytest.mark.integration
+async def test_document_counts_by_initiative(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Grouped counts follow the same visibility rules as the document list."""
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=admin.initiative,
+        initiative_role="member",
+    )
+    other_initiative = await create_initiative(session, admin.guild, admin.user)
+
+    await create_document(session, admin.initiative, member.user)
+    await create_document(session, admin.initiative, member.user)
+    await create_document(session, admin.initiative, admin.user)
+    await create_document(session, other_initiative, admin.user)
+
+    # Guild admin sees every document, grouped by initiative.
+    response = await client.get(
+        admin.g("/documents/counts/by-initiative"), headers=admin.headers
+    )
+    assert response.status_code == 200
+    assert response.json()["counts"] == {
+        str(admin.initiative.id): 3,
+        str(other_initiative.id): 1,
+    }
+
+    # A member counts only documents shared with them, and gets no entry
+    # at all for initiatives they are not in.
+    response = await client.get(
+        member.g("/documents/counts/by-initiative"), headers=member.headers
+    )
+    assert response.status_code == 200
+    assert response.json()["counts"] == {str(admin.initiative.id): 2}

@@ -37,11 +37,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
-import { useDocumentsList } from "@/hooks/useDocuments";
+import { useDocumentCountsByInitiative } from "@/hooks/useDocuments";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useCreateInitiative, useInitiatives } from "@/hooks/useInitiatives";
-import { useProjects } from "@/hooks/useProjects";
+import { useProjectCountsByInitiative } from "@/hooks/useProjects";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
@@ -67,12 +67,15 @@ export const InitiativesPage = () => {
 
   const initiativesQuery = useInitiatives({ enabled: Boolean(activeGuild) });
 
-  const projectsQuery = useProjects(undefined, {
+  const projectCountsQuery = useProjectCountsByInitiative({
     enabled: Boolean(activeGuild),
     staleTime: 30_000,
   });
 
-  const documentsListQuery = useDocumentsList({ page_size: 0 });
+  const documentCountsQuery = useDocumentCountsByInitiative({
+    enabled: Boolean(activeGuild),
+    staleTime: 30_000,
+  });
 
   const visibleInitiatives = useMemo(
     () => filterVisible(initiativesQuery.data),
@@ -81,21 +84,19 @@ export const InitiativesPage = () => {
 
   const projectCounts = useMemo(() => {
     const counts = new Map<number, number>();
-    const projects = projectsQuery.data?.items ?? [];
-    projects.forEach((project) => {
-      counts.set(project.initiative_id, (counts.get(project.initiative_id) ?? 0) + 1);
+    Object.entries(projectCountsQuery.data?.counts ?? {}).forEach(([initiativeId, count]) => {
+      counts.set(Number(initiativeId), count);
     });
     return counts;
-  }, [projectsQuery.data]);
+  }, [projectCountsQuery.data]);
 
   const documentCounts = useMemo(() => {
     const counts = new Map<number, number>();
-    const documents = documentsListQuery.data?.items ?? [];
-    documents.forEach((document) => {
-      counts.set(document.initiative_id, (counts.get(document.initiative_id) ?? 0) + 1);
+    Object.entries(documentCountsQuery.data?.counts ?? {}).forEach(([initiativeId, count]) => {
+      counts.set(Number(initiativeId), count);
     });
     return counts;
-  }, [documentsListQuery.data]);
+  }, [documentCountsQuery.data]);
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newName, setNewName] = useState("");
@@ -223,13 +224,15 @@ export const InitiativesPage = () => {
                       <p>
                         {t("projectsLabel")}{" "}
                         <span className="font-semibold">
-                          {projectsQuery.isLoading ? "…" : (projectCounts.get(initiative.id) ?? 0)}
+                          {projectCountsQuery.isLoading
+                            ? "…"
+                            : (projectCounts.get(initiative.id) ?? 0)}
                         </span>
                       </p>
                       <p>
                         {t("documentsLabel")}{" "}
                         <span className="font-semibold">
-                          {documentsListQuery.isLoading
+                          {documentCountsQuery.isLoading
                             ? "…"
                             : (documentCounts.get(initiative.id) ?? 0)}
                         </span>

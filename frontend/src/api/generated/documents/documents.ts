@@ -38,6 +38,7 @@ import type {
   GenerateDocumentSummaryResponse,
   GetDocumentCountsApiV1GGuildIdDocumentsCountsGetParams,
   HTTPValidationError,
+  InitiativeGroupedCountsResponse,
   ListDocumentsApiV1GGuildIdDocumentsGetParams,
   ListMyDocumentsApiV1MeDocumentsGetParams,
   PropertyValuesSetRequest,
@@ -219,6 +220,235 @@ export function useGetDocumentCountsApiV1GGuildIdDocumentsCountsGet<
     params,
     options
   );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Visible-document counts grouped by initiative.
+ *
+ * Lightweight endpoint for the sidebar and initiative landing-card
+ * badges — same visibility filters as the document list, one GROUP BY
+ * instead of walking the full corpus.
+ * @summary Get Document Counts By Initiative
+ */
+export const getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet = (
+  guildId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<InitiativeGroupedCountsResponse>(
+    { url: `/api/v1/g/${guildId}/documents/counts/by-initiative`, method: "GET", signal },
+    options
+  );
+};
+
+export const getGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGetQueryKey = (
+  guildId: number
+) => {
+  return [`/api/v1/g/${guildId}/documents/counts/by-initiative`] as const;
+};
+
+export const getGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGetQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet>
+    >,
+    TError = ErrorType<HTTPValidationError>,
+  >(
+    guildId: number,
+    options?: {
+      query?: Partial<
+        UseQueryOptions<
+          Awaited<
+            ReturnType<
+              typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet
+            >
+          >,
+          TError,
+          TData
+        >
+      >;
+      request?: SecondParameter<typeof apiMutator>;
+    }
+  ) => {
+    const { query: queryOptions, request: requestOptions } = options ?? {};
+
+    const queryKey =
+      queryOptions?.queryKey ??
+      getGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGetQueryKey(guildId);
+
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet>
+      >
+    > = ({ signal }) =>
+      getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet(
+        guildId,
+        requestOptions,
+        signal
+      );
+
+    return {
+      queryKey,
+      queryFn,
+      enabled: guildId !== null && guildId !== undefined,
+      ...queryOptions,
+    } as UseQueryOptions<
+      Awaited<
+        ReturnType<typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet>
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
+
+export type GetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGetQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet>
+    >
+  >;
+export type GetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet<
+  TData = Awaited<
+    ReturnType<typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet
+            >
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet<
+  TData = Awaited<
+    ReturnType<typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet
+            >
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet<
+  TData = Awaited<
+    ReturnType<typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Document Counts By Initiative
+ */
+
+export function useGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet<
+  TData = Awaited<
+    ReturnType<typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGetQueryOptions(
+      guildId,
+      options
+    );
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
