@@ -44,7 +44,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAutoCloseSidebar } from "@/hooks/useAutoCloseSidebar";
 import { useCounterGroupsList } from "@/hooks/useCounters";
 import { compareVersions, useDockerHubVersion } from "@/hooks/useDockerHubVersion";
-import { useAllDocumentIds } from "@/hooks/useDocuments";
+import { useDocumentCountsByInitiative } from "@/hooks/useDocuments";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
@@ -111,7 +111,10 @@ export const AppSidebar = () => {
     staleTime: 60_000,
   });
 
-  const documentsQuery = useAllDocumentIds({ enabled: guildTreeEnabled, staleTime: 60_000 });
+  const documentCountsQuery = useDocumentCountsByInitiative({
+    enabled: guildTreeEnabled,
+    staleTime: 60_000,
+  });
 
   const projectsByInitiative = useMemo(() => {
     const map = new Map<number, ProjectRead[]>();
@@ -127,13 +130,11 @@ export const AppSidebar = () => {
 
   const documentCountsByInitiative = useMemo(() => {
     const map = new Map<number, number>();
-    const documents = Array.isArray(documentsQuery.data) ? documentsQuery.data : [];
-    documents.forEach((doc) => {
-      const count = map.get(doc.initiative_id) ?? 0;
-      map.set(doc.initiative_id, count + 1);
+    Object.entries(documentCountsQuery.data?.counts ?? {}).forEach(([initiativeId, count]) => {
+      map.set(Number(initiativeId), count);
     });
     return map;
-  }, [documentsQuery.data]);
+  }, [documentCountsQuery.data]);
 
   // Fetch queues for counts (lightweight list query)
   const queuesQuery = useQueuesList(

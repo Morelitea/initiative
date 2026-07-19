@@ -10,8 +10,10 @@ import {
   generateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPost,
   getBacklinksApiV1GGuildIdDocumentsDocumentIdBacklinksGet,
   getDocumentCountsApiV1GGuildIdDocumentsCountsGet,
+  getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet,
   getGetBacklinksApiV1GGuildIdDocumentsDocumentIdBacklinksGetQueryKey,
   getGetDocumentCountsApiV1GGuildIdDocumentsCountsGetQueryKey,
+  getGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGetQueryKey,
   getListDocumentsApiV1GGuildIdDocumentsGetQueryKey,
   getListDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGetQueryKey,
   getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryKey,
@@ -36,6 +38,7 @@ import type {
   DocumentUpdate,
   GenerateDocumentSummaryResponse,
   GetDocumentCountsApiV1GGuildIdDocumentsCountsGetParams,
+  InitiativeGroupedCountsResponse,
   ListDocumentsApiV1GGuildIdDocumentsGetParams,
   ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -97,6 +100,21 @@ export const useDocumentCounts = (
         guildId,
         params
       ) as unknown as Promise<DocumentCountsResponse>,
+    ...options,
+  });
+};
+
+export const useDocumentCountsByInitiative = (
+  options?: QueryOpts<InitiativeGroupedCountsResponse>
+) => {
+  const guildId = useActiveGuildId();
+  return useQuery<InitiativeGroupedCountsResponse>({
+    queryKey:
+      getGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGetQueryKey(guildId),
+    queryFn: () =>
+      getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet(
+        guildId
+      ) as unknown as Promise<InitiativeGroupedCountsResponse>,
     ...options,
   });
 };

@@ -71,7 +71,10 @@ from app.schemas.tenant.project import (
 )
 from app.schemas.platform.user import UserSummary, UserSummaryListResponse
 from app.schemas.tenant.comment import CommentAuthor
-from app.schemas.tenant.initiative import serialize_initiative
+from app.schemas.tenant.initiative import (
+    InitiativeGroupedCountsResponse,
+    serialize_initiative,
+)
 from app.schemas.tenant.document import (
     ProjectDocumentSummary,
     serialize_project_document_link,
@@ -905,6 +908,44 @@ async def list_writable_projects(
         session,
         current_user,
         writable_projects,
+    )
+
+
+@router.get("/counts/by-initiative", response_model=InitiativeGroupedCountsResponse)
+async def get_project_counts_by_initiative(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> InitiativeGroupedCountsResponse:
+    """Visible-project counts grouped by initiative.
+
+    Lightweight endpoint for initiative landing-card badges — same
+    visibility rules as the default project list (non-archived,
+    non-template), one GROUP BY instead of walking the full corpus.
+    """
+    conditions = [
+        Initiative.guild_id == guild_context.guild_id,
+        Project.is_archived.is_(False),
+        Project.is_template.is_(False),
+    ]
+    if not has_active_grant(
+        guild_context.guild_id
+    ) and not permissions_service.is_request_guild_admin(guild_context.guild_id):
+        conditions.append(
+            Project.id.in_(
+                permissions_service.visible_project_ids_subquery(current_user.id)
+            )
+        )
+
+    statement = (
+        select(Project.initiative_id, func.count(Project.id))
+        .join(Project.initiative)
+        .where(*conditions)
+        .group_by(Project.initiative_id)
+    )
+    rows = (await session.exec(statement)).all()
+    return InitiativeGroupedCountsResponse(
+        counts={initiative_id: count for initiative_id, count in rows}
     )
 
 
