@@ -1897,6 +1897,7 @@ export interface LeaveGuildRequest {
  * One sign-in provider offered on the login page (non-secret metadata).
  */
 export interface LoginProviderEntry {
+  id: number | null;
   slug: string;
   display_name: string;
   kind: string;
@@ -3958,6 +3959,7 @@ export type BootstrapStatusApiV1AuthBootstrapGet200 = { [key: string]: boolean }
 export type ProviderLoginApiV1AuthProviderSlugLoginGetParams = {
   mobile?: boolean;
   device_name?: string;
+  next?: string;
 };
 
 export type ProviderCallbackApiV1AuthProviderSlugCallbackGetParams = {

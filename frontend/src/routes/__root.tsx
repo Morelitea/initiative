@@ -2,6 +2,7 @@ import { createRootRouteWithContext, Outlet } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { lazy, Suspense } from "react";
 
+import { StepUpDialog } from "@/components/auth/StepUpDialog";
 import { useColorTheme } from "@/hooks/useColorTheme";
 import { useDeepLinks } from "@/hooks/useDeepLinks";
 import { useInterfaceColors } from "@/hooks/useInterfaceColors";
@@ -40,6 +41,7 @@ const RootComponent = () => {
       <Suspense fallback={<PageLoader />}>
         <Outlet />
       </Suspense>
+      <StepUpDialog />
       <Suspense>
         <TanStackRouterDevtools position="bottom-right" />
       </Suspense>

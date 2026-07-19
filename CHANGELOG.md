@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Guild sign-in requirements: a guild admin can require that members reach the guild only with a session signed in through a specific SSO provider (Settings API today; the guild-settings UI arrives next). A session that hasn't satisfied the requirement gets a clear step-up response naming the provider instead of losing its login, and the requirement binds everyone — members, admins, and platform support access alike. To prevent lockouts, an admin can only require a provider their own session has already signed in with, and a provider that a guild requires can't be deleted until the requirement is changed.
+- Guild sign-in requirements now have their UI. Guild admins get an Authentication tab in guild settings to set the requirement (Open, or Require a specific SSO provider) — including a guided "sign in with it first" prompt when their own session hasn't used that provider yet. When a member hits a guild that requires a sign-in their session hasn't done, a dialog offers that provider's sign-in and returns them to the exact page they were on afterwards, instead of a bare error.
 
 ### Security
 

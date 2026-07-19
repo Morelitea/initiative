@@ -43,8 +43,13 @@ from app.core.security import (
     password_needs_rehash,
     verify_password,
 )
-from app.core.user_input_validators import is_valid_provider_slug, normalize_timezone
+from app.core.user_input_validators import (
+    is_safe_next_path,
+    is_valid_provider_slug,
+    normalize_timezone,
+)
 from app.api.v1.platform_endpoints.session_cookies import (
+    REFRESH_COOKIE_PATH,
     clear_refresh_cookie,
     set_refresh_cookie,
     set_session_cookie,
@@ -659,6 +664,13 @@ def _frontend_redirect_uri() -> str:
     return f"{base}/oidc/callback"
 
 
+# Carries a validated SPA return path from /auth/{slug}/login to the web
+# callback (e.g. the guild page a step-up started from). Scoped to the auth
+# routes and short-lived — it only needs to survive one IdP round trip.
+OIDC_NEXT_COOKIE = "oidc_next"
+OIDC_NEXT_COOKIE_MAX_AGE = 600
+
+
 def _platform_oidc_active(app_settings: AppSetting) -> bool:
     """The platform OIDC login is offered only when the platform posture is
     live AND the provider is enabled + fully configured. In guild scope the
@@ -745,6 +757,7 @@ async def _build_row_oidc_provider(
 
 def _login_entry(row: AuthProvider) -> LoginProviderEntry:
     return LoginProviderEntry(
+        id=row.id,
         slug=row.slug,
         display_name=row.display_name,
         kind=row.kind,
@@ -778,6 +791,10 @@ async def list_login_providers(
         platform_row = await get_platform_provider(admin_session)
         entries.append(
             LoginProviderEntry(
+                # None until the platform row's first reconcile (login/boot);
+                # consumers that need a registry id (the guild auth-policy
+                # picker) skip id-less entries.
+                id=platform_row.id if platform_row else None,
                 slug=PLATFORM_OIDC_SLUG,
                 display_name=app_settings.oidc_provider_name or "SSO",
                 kind="oidc",
@@ -816,10 +833,16 @@ async def provider_login(
     provider_slug: str,
     mobile: bool = Query(default=False),
     device_name: str = Query(default="Mobile Device"),
+    next_path: str = Query(default="", alias="next"),
 ) -> RedirectResponse:
     """Begin the relying-party flow for one provider. The platform provider's
     slug is ``oidc``, so the pre-generalization ``/auth/oidc/login`` URL is
-    this same route."""
+    this same route.
+
+    ``next`` is an optional SPA path to return to after the web callback
+    (e.g. the guild page a step-up started from). Only a validated relative
+    path is accepted; it rides a short-lived cookie to the callback, which
+    passes it to the SPA's ``/oidc/callback`` page as a query param."""
     app_settings = await app_settings_service.get_app_settings(session)
     provider_row = await _resolve_login_provider(
         app_settings, admin_session, provider_slug
@@ -838,7 +861,18 @@ async def provider_login(
     # Discovery validated the authorization endpoint as an absolute https URL
     # (see app.services.auth.oidc.discovery), so a malformed or tampered
     # discovery document cannot send the user to a non-TLS location.
-    return RedirectResponse(begun.authorization_url)
+    response = RedirectResponse(begun.authorization_url)
+    if not mobile and is_safe_next_path(next_path):
+        response.set_cookie(
+            key=OIDC_NEXT_COOKIE,
+            value=next_path,
+            max_age=OIDC_NEXT_COOKIE_MAX_AGE,
+            httponly=True,
+            secure=settings.cookie_secure,
+            samesite="lax",
+            path=REFRESH_COOKIE_PATH,
+        )
+    return response
 
 
 def _mobile_redirect_uri() -> str:
@@ -1044,7 +1078,16 @@ async def provider_callback(
     # path never touches the ORM object again.
     user_id, token_version = user.id, user.token_version
     provider_id, provider_slug = provider_row.id, provider_row.slug
-    oidc_response = RedirectResponse(_frontend_redirect_uri())
+    # Return the browser to where the login started (a step-up hands the
+    # guild page it interrupted): the login route stored a validated SPA
+    # path in the short-lived cookie; re-validate before echoing it, and
+    # clear the cookie either way.
+    next_path = request.cookies.get(OIDC_NEXT_COOKIE, "")
+    frontend_uri = _frontend_redirect_uri()
+    if is_safe_next_path(next_path):
+        frontend_uri = f"{frontend_uri}?{urlencode({'next': next_path})}"
+    oidc_response = RedirectResponse(frontend_uri)
+    oidc_response.delete_cookie(key=OIDC_NEXT_COOKIE, path=REFRESH_COOKIE_PATH)
     try:
         issued = await session_service.create_session(
             admin_session,

@@ -1178,6 +1178,11 @@ async def test_login_providers_listing(client: AsyncClient, session: AsyncSessio
     ]
     assert providers[0]["display_name"] == "Test IdP"
     assert providers[1]["kind"] == "oidc"
+    # Registry ids ride along — the guild auth-policy picker stores them.
+    corp_row = (
+        await session.exec(select(AuthProvider).where(AuthProvider.slug == "corp"))
+    ).one()
+    assert providers[1]["id"] == corp_row.id
 
 
 @pytest.mark.integration
@@ -1192,6 +1197,62 @@ async def test_login_providers_empty_in_guild_posture_or_unconfigured(
     await create_auth_provider(session, slug="corp")
     response = await client.get("/api/v1/auth/providers")
     assert response.json()["providers"] == []  # dormant in guild posture
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_oidc_next_returns_browser_to_requested_page(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """A validated ``next`` path given to /login rides the flow and comes back
+    on the frontend callback redirect, so a step-up returns the browser to the
+    page it interrupted."""
+    await _enable_platform_oidc(session)
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims={"email": "stepup@example.com", "email_verified": True},
+        login_params={"next": "/g/5/projects/3"},
+    )
+    assert response.status_code in (302, 307)
+    assert response.headers["location"].endswith(
+        "/oidc/callback?next=%2Fg%2F5%2Fprojects%2F3"
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_oidc_next_rejects_non_relative_paths(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """Only a rooted relative path is carried: absolute URLs, protocol-relative
+    forms, and unrooted strings never set the cookie — and a tampered cookie is
+    dropped at the callback rather than echoed."""
+    await _enable_platform_oidc(session)
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    for bad in ("https://evil.example/x", "//evil.example", "relative", "/a\\b"):
+        response = await client.get(
+            "/api/v1/auth/oidc/login",
+            params={"next": bad},
+            follow_redirects=False,
+        )
+        assert response.status_code in (302, 307)
+        assert "oidc_next" not in response.cookies, bad
+
+    # Cookie tampered between login and callback: the callback re-validates
+    # and redirects without any next parameter.
+    client.cookies.set("oidc_next", "https://evil.example/x")
+    response = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims={"email": "tamper@example.com", "email_verified": True},
+    )
+    assert response.headers["location"].endswith("/oidc/callback")
 
 
 @pytest.mark.integration

@@ -13,6 +13,7 @@ export const OidcCallbackPage = () => {
     token?: string;
     token_type?: string;
     error?: string;
+    next?: string;
   };
   const router = useRouter();
   const { completeOidcLogin } = useAuth();
@@ -37,7 +38,11 @@ export const OidcCallbackPage = () => {
             // Browser may already be closed, ignore
           }
         }
-        router.navigate({ to: "/", replace: true });
+        // A step-up sign-in returns to the page it interrupted; the backend
+        // already validated `next` as a relative SPA path, re-checked here.
+        const next = searchParams.next;
+        const returnTo = next?.startsWith("/") && !next.startsWith("//") ? next : "/";
+        router.navigate({ to: returnTo, replace: true });
       } catch (err) {
         console.error(err);
         setStatus(t("oidcCallback.error"));

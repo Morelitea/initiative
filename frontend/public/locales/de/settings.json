@@ -873,7 +873,21 @@
     "title": "Authentifizierung",
     "comingSoon": "Demnächst",
     "description": "Anmeldekonfiguration für diese Gilde.",
-    "body": "Dieser Server verwendet die Anmeldung pro Gilde. Bald können Gilden-Admins hier Single Sign-on und Mitgliedschaftsregeln für diese Gilde konfigurieren."
+    "body": "Dieser Server verwendet die Anmeldung pro Gilde. Bald können Gilden-Admins hier Single Sign-on und Mitgliedschaftsregeln für diese Gilde konfigurieren.",
+    "policy": {
+      "title": "Anmeldeanforderung",
+      "description": "Lege fest, mit welcher Anmeldung eine Sitzung erfolgt sein muss, bevor sie auf diese Gilde zugreifen kann.",
+      "openLabel": "Offen",
+      "openHelp": "Jedes angemeldete Mitglied kann auf diese Gilde zugreifen.",
+      "requiredLabel": "Single Sign-on erforderlich",
+      "requiredHelp": "Mitglieder können erst nach der Anmeldung über den ausgewählten Anbieter auf diese Gilde zugreifen.",
+      "providerPlaceholder": "Anbieter auswählen …",
+      "noProviders": "Es sind keine Anmeldeanbieter verfügbar. Ein Plattform-Operator kann sie in den Plattformeinstellungen hinzufügen.",
+      "saved": "Anmeldeanforderung gespeichert",
+      "error": "Anmeldeanforderung konnte nicht gespeichert werden",
+      "selfUnsatisfied": "Deine aktuelle Sitzung hat sich noch nicht über {{providerName}} angemeldet. Melde dich einmal damit an, um zu bestätigen, dass es funktioniert, bevor du es verpflichtend machst.",
+      "signInWith": "Mit {{providerName}} anmelden"
+    }
   },
   "authProviders": {
     "title": "Weitere Anmeldeanbieter",
