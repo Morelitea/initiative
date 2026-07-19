@@ -47,7 +47,12 @@ __all__ = [
 # Public tables that carry no SQLModel (so they're absent from ``SHARED_TABLES``,
 # which derives from model metadata) yet still exist in ``public`` and so still
 # need an explicit "grant it nothing" decision for the login roles.
-NON_MODEL_SHARED_TABLES: frozenset[str] = frozenset({"alembic_version"})
+# ``storage_backfill_state`` is created lazily at runtime (see
+# app.services.storage_backfill), not by a migration; its entry below is what
+# the service's own GRANT renders from.
+NON_MODEL_SHARED_TABLES: frozenset[str] = frozenset(
+    {"alembic_version", "storage_backfill_state"}
+)
 
 # Every ``public`` table that requires a per-role grant decision.
 GRANTABLE_SHARED_TABLES: frozenset[str] = SHARED_TABLES | NON_MODEL_SHARED_TABLES
@@ -113,6 +118,11 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     "billing_jti_blocklist": frozenset({"SELECT", "DELETE"}),
     # migrations-only bookkeeping (the provisioning role owns it)
     "alembic_version": None,
+    # lazily-created UNLOGGED backfill status singleton: read, seeded idle, and
+    # claimed/updated on the system engine; rows are never deleted (the claim
+    # UPDATE recycles the singleton). The service grants exactly this set at
+    # table creation (app.services.storage_backfill._ensure_table).
+    "storage_backfill_state": frozenset({"SELECT", "INSERT", "UPDATE"}),
 }
 
 
@@ -156,6 +166,8 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     "billing_event_log": None,
     "billing_jti_blocklist": None,
     "alembic_version": None,
+    # system-engine-only status singleton; no request role reads it
+    "storage_backfill_state": None,
 }
 
 
