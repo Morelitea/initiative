@@ -251,27 +251,5 @@
     "selected_other": "{{count}} tasks selected",
     "editTags": "Edit Tags",
     "archiving": "Archiving…"
-  },
-  "export": {
-    "button": "Export",
-    "preparing": "Exporting…",
-    "queued": "Export started — the download will begin when it's ready.",
-    "success": "Export downloaded.",
-    "failed": "The export failed. Try again or narrow the filter.",
-    "error": "Could not export. Please try again.",
-    "selected": "Export Selected",
-    "formatPdf": "PDF document",
-    "formatPdfDetailed": "PDF (detailed)",
-    "formatCsv": "CSV",
-    "formatXlsx": "Excel (XLSX)",
-    "formatMd": "Markdown table",
-    "formatMdChecklist": "Markdown task list",
-    "formatJson": "JSON",
-    "formatOriginal": "Original file",
-    "formatMarkdown": "Markdown",
-    "formatPng": "PNG image",
-    "formatSvg": "SVG image",
-    "formatDocx": "Word (DOCX)",
-    "formatIcs": "iCalendar (.ics)"
   }
 }

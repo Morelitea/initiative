@@ -27,7 +27,7 @@ export function DocumentExportMenu({
   title,
   whiteboardScene,
 }: DocumentExportMenuProps) {
-  const { t } = useTranslation("tasks");
+  const { t } = useTranslation("exports");
   const stem = exportFilenameStem(title, "document");
   // Engine entries are debounced by ExportButton's busy state; the
   // client-side renders need their own in-flight guard.
