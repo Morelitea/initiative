@@ -68,6 +68,16 @@ CREATE UNLOGGED TABLE IF NOT EXISTS storage_backfill_state (
 # lazily-created table follows the same "decide it explicitly" discipline as the
 # migrated ones (security_invariants_test compares the live catalog to it).
 _ADMIN_GRANT = grant_sql(SHARED_TABLE_SYSTEM_GRANTS["storage_backfill_state"])
+if _ADMIN_GRANT is None:
+    # Every read/write in this module runs on the system engine; a registry
+    # entry of "no access" would leave the service unable to operate at all,
+    # so fail at import with a pointer to the decision rather than emitting a
+    # malformed GRANT at first use.
+    raise RuntimeError(
+        "app.db.system_grants gives the system engine no access to "
+        "storage_backfill_state; the storage backfill service requires "
+        "SELECT/INSERT/UPDATE"
+    )
 
 _table_lock = asyncio.Lock()
 _table_ready = False

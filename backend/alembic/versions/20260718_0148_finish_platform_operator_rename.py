@@ -92,9 +92,13 @@ def upgrade() -> None:
         return
 
     # Both roles exist: re-point this database's policies at the operator role.
+    # OID 0 in polroles is the PUBLIC pseudo-role (no pg_roles row), so it is
+    # carried as a separate flag and re-emitted as the keyword — resolving names
+    # alone would silently drop it from the rebound TO list.
     bindings = connection.execute(
         text(
             "SELECT n.nspname AS sch, c.relname AS tbl, p.polname AS pol, "
+            "0 = ANY(p.polroles) AS has_public, "
             "ARRAY(SELECT r.rolname FROM pg_roles r "
             "      WHERE r.oid = ANY(p.polroles)) AS roles "
             "FROM pg_policy p "
@@ -104,13 +108,16 @@ def upgrade() -> None:
         ),
         {"oid": old_oid},
     ).all()
-    for sch, tbl, pol, roles in bindings:
+    for sch, tbl, pol, has_public, roles in bindings:
         rebound: list[str] = []
         for role in roles:
             target = new if role == old else role
             if target not in rebound:
                 rebound.append(target)
-        to_clause = ", ".join(f'"{_safe_ident(r)}"' for r in rebound)
+        parts = [f'"{_safe_ident(r)}"' for r in rebound]
+        if has_public:
+            parts.append("PUBLIC")
+        to_clause = ", ".join(parts)
         connection.execute(
             text(
                 f'ALTER POLICY "{_safe_ident(pol)}" '
