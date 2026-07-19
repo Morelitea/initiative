@@ -1,7 +1,7 @@
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Sequence
 
 import bcrypt
 import jwt
@@ -210,6 +210,7 @@ class UploadTokenError(Exception):
 def create_upload_token(
     *,
     user_id: int,
+    satisfied_providers: Sequence[int] = (),
     expires_in: timedelta = UPLOAD_TOKEN_LIFETIME,
 ) -> tuple[str, int]:
     """Mint a short-lived, uploads-scoped JWT for ``user_id``.
@@ -218,12 +219,17 @@ def create_upload_token(
     before the token lapses. Signed with the same HS256 JWT key as the session
     JWT but distinguished by its ``aud``/``scope`` claims and the absence of
     ``ver`` — the general auth path will not accept it.
+
+    ``satisfied_providers`` copies the minting session's ``sat`` claim so a
+    download/keepalive in a policy-gated guild carries the same satisfaction
+    as the session that requested it (bounded by this token's short lifetime).
     """
     now = datetime.now(timezone.utc)
     payload: dict[str, Any] = {
         "sub": str(user_id),
         "aud": UPLOAD_TOKEN_AUDIENCE,
         "scope": UPLOAD_TOKEN_SCOPE,
+        "sat": [int(pid) for pid in satisfied_providers],
         "iat": int(now.timestamp()),
         "exp": now + expires_in,
     }
@@ -231,8 +237,8 @@ def create_upload_token(
     return token, int(expires_in.total_seconds())
 
 
-def verify_upload_token(token: str) -> int:
-    """Verify a scoped upload token and return the user id it names.
+def verify_upload_token(token: str) -> tuple[int, frozenset[int]]:
+    """Verify a scoped upload token; return the user id and satisfied set.
 
     Raises :class:`UploadTokenError` on any failure (bad signature, expired,
     wrong audience, missing/extra-scoped claims). The caller treats that as
@@ -255,9 +261,14 @@ def verify_upload_token(token: str) -> int:
 
     sub = payload.get("sub")
     try:
-        return int(sub)
+        user_id = int(sub)
     except (TypeError, ValueError) as exc:
         raise UploadTokenError("sub must be a numeric user id") from exc
+    try:
+        satisfied = frozenset(int(pid) for pid in payload.get("sat") or ())
+    except (TypeError, ValueError) as exc:
+        raise UploadTokenError("sat must be a list of provider ids") from exc
+    return user_id, satisfied
 
 
 # Audience claim for tokens minted for the embedded advanced-tool iframe.

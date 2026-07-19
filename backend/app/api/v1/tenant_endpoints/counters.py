@@ -20,6 +20,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
+from app.core.auth_context import satisfied_provider_ids
 from app.api.deps import (
     RLSSessionDep,
     establish_guild_access,
@@ -978,6 +979,7 @@ async def websocket_counter_group(
         resource_type="counter_group",
         resource_id=group_id,
         authorize=_authorize,
+        satisfied_providers=satisfied_provider_ids(),
     )
 
     try:

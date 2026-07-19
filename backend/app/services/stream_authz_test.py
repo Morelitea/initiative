@@ -55,6 +55,7 @@ async def _join(
     resource_id,
     user=USER,
     authorize=None,
+    satisfied_providers=frozenset(),
 ):
     async def _ok(_session, _user):
         return True
@@ -67,6 +68,7 @@ async def _join(
         resource_type=resource_type,
         resource_id=resource_id,
         authorize=authorize or _ok,
+        satisfied_providers=satisfied_providers,
     )
 
 
@@ -135,7 +137,10 @@ def _patch_recheck(monkeypatch, *, establish_ok: bool, authorized: bool):
         async def exec(self, *_a, **_k):
             return None
 
-    async def fake_establish(_session, _user, _guild_id):
+    seen_satisfied: list = []
+
+    async def fake_establish(_session, _user, _guild_id, satisfied_providers=None):
+        seen_satisfied.append(satisfied_providers)
         if not establish_ok:
             raise GuildAccessError()
 
@@ -145,14 +150,14 @@ def _patch_recheck(monkeypatch, *, establish_ok: bool, authorized: bool):
     async def authorize(_session, _user):
         return authorized
 
-    return authorize
+    return authorize, seen_satisfied
 
 
 @pytest.mark.unit
 async def test_revoke_keeps_socket_when_still_authorized(
     authority, monkeypatch
 ) -> None:
-    authorize = _patch_recheck(monkeypatch, establish_ok=True, authorized=True)
+    authorize, _ = _patch_recheck(monkeypatch, establish_ok=True, authorized=True)
     ws = FakeWebSocket()
     await _join(
         authority,
@@ -175,7 +180,7 @@ async def test_revoke_disconnects_when_dac_or_initiative_lost(
 ) -> None:
     # Guild access is intact (establish succeeds) but the resource-level authorize
     # fails — initiative removed (RLS hides the resource) or DAC revoked.
-    authorize = _patch_recheck(monkeypatch, establish_ok=True, authorized=False)
+    authorize, _ = _patch_recheck(monkeypatch, establish_ok=True, authorized=False)
     ws = FakeWebSocket()
     await _join(
         authority,
@@ -199,7 +204,7 @@ async def test_revoke_disconnects_when_guild_access_lost(
     # establish_guild_access raises (guild membership / PAM gone) — disconnect even
     # though the adapter authorize would pass. Proves the guild-level gate is
     # re-enforced, not just DAC.
-    authorize = _patch_recheck(monkeypatch, establish_ok=False, authorized=True)
+    authorize, _ = _patch_recheck(monkeypatch, establish_ok=False, authorized=True)
     ws = FakeWebSocket()
     await _join(
         authority,
@@ -216,10 +221,35 @@ async def test_revoke_disconnects_when_guild_access_lost(
 
 
 @pytest.mark.unit
+async def test_recheck_replays_join_time_satisfied_providers(
+    authority, monkeypatch
+) -> None:
+    # The re-check must present the SAME satisfied-provider set the socket's
+    # session proved at join — so a guild auth policy added mid-connection is
+    # judged against the real session, and a satisfied session isn't dropped.
+    authorize, seen = _patch_recheck(monkeypatch, establish_ok=True, authorized=True)
+    ws = FakeWebSocket()
+    await _join(
+        authority,
+        ws,
+        guild_id=1,
+        resource_type="document",
+        resource_id=3,
+        authorize=authorize,
+        satisfied_providers=frozenset({42}),
+    )
+
+    await authority.revoke_user(1, USER.id)
+
+    assert seen == [frozenset({42})]
+    assert ws.closed is None
+
+
+@pytest.mark.unit
 async def test_revoke_is_scoped_to_guild_and_user(authority, monkeypatch) -> None:
     # A revoke for (guild 1, user 1) must not touch a different user or guild, even
     # when the re-check would deny everyone.
-    authorize = _patch_recheck(monkeypatch, establish_ok=False, authorized=False)
+    authorize, _ = _patch_recheck(monkeypatch, establish_ok=False, authorized=False)
     target = FakeWebSocket()
     other_user = FakeWebSocket()
     other_guild = FakeWebSocket()

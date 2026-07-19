@@ -32,6 +32,7 @@ from app.core.security import (
     create_access_token,
     create_upload_token,
     get_password_hash,
+    verify_upload_token,
 )
 from app.models.platform.app_setting import AppSetting, AuthScope
 from app.models.platform.auth_provider import AuthProvider
@@ -685,6 +686,34 @@ async def test_scoped_upload_token_rejected_on_session_path(
         headers={"Authorization": f"Bearer {upload_token}"},
     )
     assert response.status_code == 401
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_upload_token_copies_session_satisfied_providers(
+    client: AsyncClient, session: AsyncSession
+):
+    """POST /auth/upload-token mirrors the minting session's ``sat`` claim into
+    the scoped token, so native media loads and the sync-content keepalive pass
+    a policy-gated guild exactly when the session itself would — and a legacy
+    session mints an empty (fail-closed) set."""
+    user = await create_user(session)
+
+    satisfied = await client.post(
+        "/api/v1/auth/upload-token",
+        headers={
+            "Authorization": f"Bearer {get_new_access_token(user, satisfied_providers=[7, 3])}"
+        },
+    )
+    assert satisfied.status_code == 200, satisfied.text
+    _, sat = verify_upload_token(satisfied.json()["upload_token"])
+    assert sat == frozenset({3, 7})
+
+    legacy = await client.post(
+        "/api/v1/auth/upload-token", headers=get_auth_headers(user)
+    )
+    _, sat = verify_upload_token(legacy.json()["upload_token"])
+    assert sat == frozenset()
 
 
 @pytest.mark.integration

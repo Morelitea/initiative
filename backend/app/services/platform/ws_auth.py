@@ -24,6 +24,7 @@ import jwt
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.auth_context import set_satisfied_providers
 from app.core.security import decode_session_token
 from app.models.platform.user import User, UserStatus
 from app.schemas.platform.token import TokenPayload
@@ -42,7 +43,14 @@ async def authenticate_ws_token(token: str, session: AsyncSession) -> Optional[U
     revoke realtime sockets too. Device tokens are revoked separately
     (consumed / expired in the database) and are validated by
     ``user_tokens.get_device_token``.
+
+    Like the HTTP validators, this records the credential's satisfied-provider
+    set in ``app.core.auth_context`` (empty for device tokens and legacy JWTs),
+    so the ``establish_guild_access`` call that follows applies the guild
+    auth-policy gate to the socket exactly as REST would.
     """
+    set_satisfied_providers(None)
+
     # First try JWT validation.
     try:
         payload = decode_session_token(token)
@@ -57,6 +65,7 @@ async def authenticate_ws_token(token: str, session: AsyncSession) -> Optional[U
                 and token_data.ver is not None
                 and token_data.ver == user.token_version
             ):
+                set_satisfied_providers(frozenset(token_data.sat or ()))
                 return user
         # Any string that decodes as one of our JWTs is a session token. A
         # revoked one (stale/absent ``ver``), an unknown/inactive user, or a

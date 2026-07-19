@@ -12,6 +12,7 @@ from typing import Awaitable, Callable, Optional, Sequence, TypeVar
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import auth_context
 from app.core.role_context import (
     set_active_role,
     set_content_read_only_guild,
@@ -70,9 +71,19 @@ async def gather_across_guilds(
     that guild's content — exactly like a ``/g/{guild_id}`` request. Without the
     role the admin leg never fires and these cross-guild views would hide content
     in initiatives the user isn't a *member* of (e.g. a task assigned to an admin
-    who was never added to its initiative)."""
+    who was never added to its initiative).
+
+    ``satisfied_providers`` defaults to the ambient ``auth_context`` — the
+    session's ``sat`` on a request path — so a policy-gated guild contributes
+    exactly when the caller's session satisfies its policy (the guild's own
+    RLS enforces that via ``guild_auth_satisfied()``; unsatisfied guilds just
+    yield nothing here). User-attributed system jobs pass ``SYSTEM_SATISFIED``
+    explicitly."""
     if not guild_ids:
         return []
+    if satisfied_providers is None:
+        ambient = auth_context.satisfied_providers()
+        satisfied_providers = ambient if isinstance(ambient, str) else sorted(ambient)
     # One shared-table read for every guild's role (own rows) AND lifecycle
     # status, under the user-only context, before we start routing into schemas.
     await set_rls_context(session, user_id=user_id)
@@ -110,9 +121,10 @@ async def gather_across_guilds(
                 # the SELECT-only guild_<id>_ro role, so an aggregate loop can
                 # never write into a frozen guild.
                 read_only=content_read_only,
-                # Feeds guild_auth_satisfied(): a request caller passes its
-                # session's sat, a membership-based job the system sentinel.
-                # Unset means a policy-gated guild contributes nothing here.
+                # Feeds guild_auth_satisfied(): the caller's session sat
+                # (resolved from auth_context above when not passed) or a
+                # job's system sentinel. An unsatisfied policy-gated guild
+                # contributes nothing here.
                 satisfied_providers=satisfied_providers,
             )
             # ... and the app-layer DAC engine agrees: my_permission_level and

@@ -428,8 +428,14 @@ class _ScopeBuilder:
         if not force and self._since_refresh < _REFRESH_EVERY:
             return
         from app.api.deps import establish_guild_access
+        from app.db.session import SYSTEM_SATISFIED
 
-        await establish_guild_access(self.session, self.user, self.guild_id)
+        await establish_guild_access(
+            self.session,
+            self.user,
+            self.guild_id,
+            satisfied_providers=SYSTEM_SATISFIED,
+        )
         self._since_refresh = 0
 
     async def add_initiative(self, initiative) -> None:

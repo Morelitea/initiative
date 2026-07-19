@@ -25,6 +25,7 @@ from fastapi import (
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
+from app.core.auth_context import satisfied_provider_ids
 from app.api.deps import (
     RLSSessionDep,
     SessionDep,
@@ -261,6 +262,7 @@ async def websocket_collaborate(
         resource_type="document",
         resource_id=document_id,
         authorize=_authorize,
+        satisfied_providers=satisfied_provider_ids(),
     )
 
     try:
