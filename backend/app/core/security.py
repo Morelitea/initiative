@@ -294,20 +294,19 @@ class HandoffSigningNotConfiguredError(RuntimeError):
 def _resolve_handoff_signing_material() -> tuple[str, str, str | None]:
     """Return (private_key_pem, "RS256", kid) for signing handoff JWTs.
 
-    Handoff tokens cross a trust boundary: the advanced-tool embed verifies
-    them with the public half of this key, so they are always RS256 — never
-    a symmetric scheme that would force sharing a secret across that boundary.
-    Set HANDOFF_SIGNING_KEY_ID for a stable ``kid`` so the embed can pick the
-    right verifying key out of a JWKS during rotation.
+    Handoff tokens cross a trust boundary: the receiving service verifies them
+    with the public half of this key, so they are always RS256 — never a
+    symmetric scheme that would force sharing a secret across that boundary.
+    Set HANDOFF_SIGNING_KEY_ID for a stable ``kid`` so the receiver can pick
+    the right verifying key out of a JWKS during rotation.
 
-    Fails closed (raises) when no key is configured: a deployment that turns
-    on ADVANCED_TOOL_URL must also supply HANDOFF_SIGNING_PRIVATE_KEY_PEM.
+    Fails closed (raises) when no key is configured: a deployment that links a
+    companion service must also supply HANDOFF_SIGNING_PRIVATE_KEY_PEM.
     """
     private_pem = settings.HANDOFF_SIGNING_PRIVATE_KEY_PEM
     if not private_pem:
         raise HandoffSigningNotConfiguredError(
-            "HANDOFF_SIGNING_PRIVATE_KEY_PEM is required to mint advanced-tool "
-            "handoff tokens"
+            "HANDOFF_SIGNING_PRIVATE_KEY_PEM is required to mint handoff tokens"
         )
     return private_pem, "RS256", settings.HANDOFF_SIGNING_KEY_ID
 
@@ -374,6 +373,34 @@ def create_advanced_tool_handoff_token(
     if initiative_id is not None:
         payload["initiative_id"] = initiative_id
 
+    key, algorithm, kid = _resolve_handoff_signing_material()
+    headers: dict[str, Any] | None = {"kid": kid} if kid else None
+    token = jwt.encode(payload, key, algorithm=algorithm, headers=headers)
+    return token, int(expires_in.total_seconds())
+
+
+BILLING_PORTAL_AUDIENCE = "initiative:billing-portal"
+
+
+def create_billing_portal_handoff_token(
+    *,
+    user_id: int,
+    guild_id: int,
+    guild_role: str,
+    expires_in: timedelta = ADVANCED_TOOL_HANDOFF_LIFETIME,
+) -> tuple[str, int]:
+    """Mint the billing-portal handoff token (RS256; raises if unconfigured)."""
+    now = datetime.now(timezone.utc)
+    payload: dict[str, Any] = {
+        "jti": str(uuid.uuid4()),
+        "sub": str(user_id),
+        "aud": BILLING_PORTAL_AUDIENCE,
+        "iss": "initiative",
+        "iat": int(now.timestamp()),
+        "exp": now + expires_in,
+        "guild_id": guild_id,
+        "guild_role": guild_role,
+    }
     key, algorithm, kid = _resolve_handoff_signing_material()
     headers: dict[str, Any] | None = {"kid": kid} if kid else None
     token = jwt.encode(payload, key, algorithm=algorithm, headers=headers)

@@ -11,16 +11,18 @@ from app.api.deps import SessionDep, UserSessionDep, get_current_active_user
 from app.core.auth_context import satisfied_provider_ids
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
-from app.core.messages import AdvancedToolMessages, GuildMessages
+from app.core.messages import AdvancedToolMessages, BillingMessages, GuildMessages
 from app.core.security import (
     HandoffSigningNotConfiguredError,
     create_advanced_tool_handoff_token,
+    create_billing_portal_handoff_token,
     verify_password,
 )
 from app.db.schema_provisioning import deprovision_guild
 from app.db.session import get_admin_session, set_rls_context
 from app.models.platform.guild import GuildRole, GuildMembership, Guild, GuildStatus
 from app.models.platform.user import User
+from app.schemas.platform.billing import BillingPortalHandoffResponse
 from app.schemas.platform.guild import (
     GuildAuthPolicyRead,
     GuildAuthPolicyUpdate,
@@ -373,6 +375,46 @@ async def create_guild_advanced_tool_handoff(
         iframe_url=settings.ADVANCED_TOOL_URL,
         scope="guild",
         initiative_id=None,
+    )
+
+
+@router.post(
+    "/{guild_id}/billing/handoff",
+    response_model=BillingPortalHandoffResponse,
+)
+async def create_guild_billing_handoff(
+    guild_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> BillingPortalHandoffResponse:
+    """Mint a billing-portal handoff for a guild admin. Guild admin only."""
+    if not settings.BILLING_URL:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=BillingMessages.PORTAL_NOT_CONFIGURED,
+        )
+
+    await _ensure_guild_admin(
+        session,
+        guild_id=guild_id,
+        user_id=current_user.id,
+    )
+
+    try:
+        token, expires_in_seconds = create_billing_portal_handoff_token(
+            user_id=current_user.id,
+            guild_id=guild_id,
+            guild_role=GuildRole.admin.value,
+        )
+    except HandoffSigningNotConfiguredError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=BillingMessages.PORTAL_SIGNING_NOT_CONFIGURED,
+        ) from exc
+
+    return BillingPortalHandoffResponse(
+        handoff_token=token,
+        expires_in_seconds=expires_in_seconds,
     )
 
 

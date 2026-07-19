@@ -607,6 +607,14 @@ export interface BackupEstimate {
   max_upload_bytes?: number;
 }
 
+/**
+ * Billing-portal handoff token and its lifetime in seconds.
+ */
+export interface BillingPortalHandoffResponse {
+  handoff_token: string;
+  expires_in_seconds: number;
+}
+
 export interface BodyLoginAccessTokenApiV1AuthTokenPost {
   grant_type?: string | null;
   username: string;

@@ -1,4 +1,5 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildGuild } from "@/__tests__/factories";
@@ -23,6 +24,10 @@ vi.mock("@/hooks/useAppConfig", () => ({
 vi.mock("@/api/generated/storage/storage", () => ({
   useReadStorageUsageApiV1GGuildIdStorageUsageGet: () => ({ data: state.usage }),
 }));
+const mintMock = vi.hoisted(() => vi.fn());
+vi.mock("@/api/generated/guilds/guilds", () => ({
+  createGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPost: mintMock,
+}));
 
 import { GuildUsagePanel } from "./GuildUsagePanel";
 
@@ -37,6 +42,7 @@ describe("GuildUsagePanel", () => {
     });
     state.billing = null;
     state.usage = { usage_bytes: 500 };
+    mintMock.mockReset();
   });
 
   it("renders storage and member usage against caps (FOSS, billing absent)", () => {
@@ -65,10 +71,11 @@ describe("GuildUsagePanel", () => {
     expect(screen.getAllByText(/Unlimited/).length).toBeGreaterThan(0);
   });
 
-  it("shows tier + working upgrade/manage link-outs when billing is configured", () => {
+  it("member: anonymous upgrade link, no manage button", () => {
     state.billing = { url: "https://billing.example.com" };
     state.guild = buildGuild({
       id: 42,
+      role: "member",
       max_storage_bytes: 1000,
       max_users: 10,
       member_count: 4,
@@ -77,14 +84,50 @@ describe("GuildUsagePanel", () => {
     renderWithProviders(<GuildUsagePanel />);
 
     expect(screen.getByText("gold")).toBeInTheDocument();
-
     const upgrade = screen.getByText("Upgrade").closest("a");
     expect(upgrade).toHaveAttribute("href", "https://billing.example.com/upgrade?guild=42&lang=en");
+    expect(screen.queryByText("Manage billing")).not.toBeInTheDocument();
+  });
 
-    const manage = screen.getByText("Manage billing").closest("a");
-    expect(manage).toHaveAttribute(
-      "href",
-      "https://billing.example.com/checkout?guild=42&plan=gold&lang=en"
+  it("admin: opens the portal with the minted token in the URL fragment", async () => {
+    state.billing = { url: "https://billing.example.com" };
+    state.guild = buildGuild({
+      id: 42,
+      role: "admin",
+      max_storage_bytes: 1000,
+      max_users: 10,
+      member_count: 4,
+      tier_name: "gold",
+    });
+    mintMock.mockResolvedValue({ handoff_token: "TOK", expires_in_seconds: 60 });
+    const tab = { location: { href: "" }, opener: {} as unknown };
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+
+    renderWithProviders(<GuildUsagePanel />);
+    await userEvent.click(screen.getByText("Manage billing"));
+
+    expect(mintMock).toHaveBeenCalledWith(42);
+    await waitFor(() =>
+      expect(tab.location.href).toBe(
+        "https://billing.example.com/manage?guild=42&lang=en#handoff=TOK"
+      )
     );
+    openSpy.mockRestore();
+  });
+
+  it("admin: falls back to the anonymous link if the mint fails", async () => {
+    state.billing = { url: "https://billing.example.com" };
+    state.guild = buildGuild({ id: 42, role: "admin", member_count: 1 });
+    mintMock.mockRejectedValue(new Error("nope"));
+    const tab = { location: { href: "" }, opener: {} as unknown };
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+
+    renderWithProviders(<GuildUsagePanel />);
+    await userEvent.click(screen.getByText("Upgrade"));
+
+    await waitFor(() =>
+      expect(tab.location.href).toBe("https://billing.example.com/upgrade?guild=42&lang=en")
+    );
+    openSpy.mockRestore();
   });
 });

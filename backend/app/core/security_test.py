@@ -292,6 +292,35 @@ def test_handoff_token_claim_tamper_fails_public_key_verification():
         )
 
 
+@pytest.mark.unit
+def test_billing_portal_handoff_carries_admin_claims_and_distinct_audience():
+    """Claims present; audience distinct from the advanced-tool token."""
+    token, seconds = security.create_billing_portal_handoff_token(
+        user_id=42, guild_id=7, guild_role="admin"
+    )
+    assert seconds == int(ADVANCED_TOOL_HANDOFF_LIFETIME.total_seconds())
+    assert jwt.get_unverified_header(token)["alg"] == "RS256"
+
+    payload = _decode_unverified(token)
+    assert payload["aud"] == security.BILLING_PORTAL_AUDIENCE
+    assert payload["aud"] != ADVANCED_TOOL_AUDIENCE
+    assert payload["iss"] == "initiative"
+    assert payload["sub"] == "42"
+    assert payload["guild_id"] == 7
+    assert payload["guild_role"] == "admin"
+    assert payload["jti"] and isinstance(payload["jti"], str)
+
+
+@pytest.mark.unit
+def test_billing_portal_handoff_refuses_to_mint_without_private_key(monkeypatch):
+    """No RS256 key configured -> mint fails closed."""
+    monkeypatch.setattr(security.settings, "HANDOFF_SIGNING_PRIVATE_KEY_PEM", None)
+    with pytest.raises(HandoffSigningNotConfiguredError):
+        security.create_billing_portal_handoff_token(
+            user_id=1, guild_id=2, guild_role="admin"
+        )
+
+
 # ──────────────────────────────────────────────────────────────────────────
 # Scoped upload tokens (SEC-12)
 # ──────────────────────────────────────────────────────────────────────────
