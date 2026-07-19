@@ -1141,3 +1141,47 @@ async def test_project_shows_all_members_document_to_member(
     assert r.status_code == 200, r.text
     doc_ids = [d["document_id"] for d in r.json()["documents"]]
     assert doc.id in doc_ids
+
+
+@pytest.mark.integration
+async def test_project_counts_by_initiative(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Grouped counts mirror the default list: visible, non-archived,
+    non-template projects only, with no entry for unjoined initiatives."""
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=admin.initiative,
+        initiative_role="member",
+    )
+    other_initiative = await create_initiative(session, admin.guild, admin.user)
+
+    await create_project(session, admin.initiative, member.user, name="Member project")
+    await create_project(session, admin.initiative, admin.user, name="Admin project")
+    await create_project(
+        session, admin.initiative, admin.user, name="Archived", is_archived=True
+    )
+    await create_project(
+        session, admin.initiative, admin.user, name="Template", is_template=True
+    )
+    await create_project(session, other_initiative, admin.user, name="Other project")
+
+    # Guild admin: every non-archived, non-template project, grouped.
+    response = await client.get(
+        admin.g("/projects/counts/by-initiative"), headers=admin.headers
+    )
+    assert response.status_code == 200
+    assert response.json()["counts"] == {
+        str(admin.initiative.id): 2,
+        str(other_initiative.id): 1,
+    }
+
+    # Member: only projects shared with them, and no entry for
+    # initiatives they are not in.
+    response = await client.get(
+        member.g("/projects/counts/by-initiative"), headers=member.headers
+    )
+    assert response.status_code == 200
+    assert response.json()["counts"] == {str(admin.initiative.id): 1}

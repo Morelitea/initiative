@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type {
+  InitiativeGroupedCountsResponse,
   ListMyProjectsApiV1MeProjectsGetParams,
   ListProjectsApiV1GGuildIdProjectsGetParams,
   ProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetParams,
@@ -24,10 +25,12 @@ import {
   favoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePost,
   favoriteProjectsApiV1GGuildIdProjectsFavoritesGet,
   getFavoriteProjectsApiV1GGuildIdProjectsFavoritesGetQueryKey,
+  getGetProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGetQueryKey,
   getListMyProjectsApiV1MeProjectsGetQueryKey,
   getListProjectsApiV1GGuildIdProjectsGetQueryKey,
   getListWritableProjectsApiV1GGuildIdProjectsWritableGetQueryKey,
   getProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetQueryKey,
+  getProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGet,
   getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey,
   listMyProjectsApiV1MeProjectsGet,
   listProjectsApiV1GGuildIdProjectsGet,
@@ -76,6 +79,21 @@ export const useProjects = (
         guildId,
         params
       ) as unknown as Promise<ProjectListResponse>,
+    ...options,
+  });
+};
+
+export const useProjectCountsByInitiative = (
+  options?: QueryOpts<InitiativeGroupedCountsResponse>
+) => {
+  const guildId = useActiveGuildId();
+  return useQuery<InitiativeGroupedCountsResponse>({
+    queryKey:
+      getGetProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGetQueryKey(guildId),
+    queryFn: () =>
+      getProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGet(
+        guildId
+      ) as unknown as Promise<InitiativeGroupedCountsResponse>,
     ...options,
   });
 };

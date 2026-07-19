@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-query";
 
 import type {
+  InitiativeGroupedCountsResponse,
   ListQueuesApiV1GGuildIdQueuesGetParams,
   QueueCreate,
   QueueItemCreate,
@@ -24,7 +25,9 @@ import {
   createQueueApiV1GGuildIdQueuesPost,
   deleteQueueApiV1GGuildIdQueuesQueueIdDelete,
   deleteQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdDelete,
+  getGetQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGetQueryKey,
   getListQueuesApiV1GGuildIdQueuesGetQueryKey,
+  getQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGet,
   getReadQueueApiV1GGuildIdQueuesQueueIdGetQueryKey,
   holdCurrentTurnApiV1GGuildIdQueuesQueueIdHoldPost,
   listQueuesApiV1GGuildIdQueuesGet,
@@ -62,6 +65,21 @@ export const useQueuesList = (
     queryFn: () =>
       listQueuesApiV1GGuildIdQueuesGet(guildId, params) as unknown as Promise<QueueListResponse>,
     placeholderData: keepPreviousData,
+    ...options,
+  });
+};
+
+export const useQueueCountsByInitiative = (
+  options?: QueryOpts<InitiativeGroupedCountsResponse>
+) => {
+  const guildId = useActiveGuildId();
+  return useQuery<InitiativeGroupedCountsResponse>({
+    queryKey:
+      getGetQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGetQueryKey(guildId),
+    queryFn: () =>
+      getQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGet(
+        guildId
+      ) as unknown as Promise<InitiativeGroupedCountsResponse>,
     ...options,
   });
 };

@@ -22,6 +22,7 @@ import type {
 
 import type {
   HTTPValidationError,
+  InitiativeGroupedCountsResponse,
   ListQueuesApiV1GGuildIdQueuesGetParams,
   QueueCreate,
   QueueItemCreate,
@@ -284,6 +285,210 @@ export const useCreateQueueApiV1GGuildIdQueuesPost = <
 > => {
   return useMutation(getCreateQueueApiV1GGuildIdQueuesPostMutationOptions(options), queryClient);
 };
+/**
+ * Visible-queue counts grouped by initiative.
+ *
+ * Lightweight endpoint for the sidebar badges — same visibility rules
+ * as the queue list (queues-enabled initiatives, DAC), one GROUP BY
+ * instead of a capped list page.
+ * @summary Get Queue Counts By Initiative
+ */
+export const getQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGet = (
+  guildId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<InitiativeGroupedCountsResponse>(
+    { url: `/api/v1/g/${guildId}/queues/counts/by-initiative`, method: "GET", signal },
+    options
+  );
+};
+
+export const getGetQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGetQueryKey = (
+  guildId: number
+) => {
+  return [`/api/v1/g/${guildId}/queues/counts/by-initiative`] as const;
+};
+
+export const getGetQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGetQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof getQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGetQueryKey(guildId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGet>>
+  > = ({ signal }) =>
+    getQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGet(
+      guildId,
+      requestOptions,
+      signal
+    );
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGetQueryResult =
+  NonNullable<
+    Awaited<ReturnType<typeof getQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGet>>
+  >;
+export type GetQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useGetQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGet<
+  TData = Awaited<
+    ReturnType<typeof getQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof getQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGet>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof getQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGet>
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGet<
+  TData = Awaited<
+    ReturnType<typeof getQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof getQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGet>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof getQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGet>
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGet<
+  TData = Awaited<
+    ReturnType<typeof getQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Queue Counts By Initiative
+ */
+
+export function useGetQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGet<
+  TData = Awaited<
+    ReturnType<typeof getQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getGetQueueCountsByInitiativeApiV1GGuildIdQueuesCountsByInitiativeGetQueryOptions(
+      guildId,
+      options
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
 /**
  * Get a queue; access enforced by resource_dependency before the body runs.
  * @summary Read Queue

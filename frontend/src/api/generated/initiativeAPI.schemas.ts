@@ -1759,6 +1759,18 @@ export interface InitiativeCreate {
   color?: string | null;
 }
 
+export type InitiativeGroupedCountsResponseCounts = { [key: string]: number };
+
+/**
+ * Per-initiative resource counts (initiative_id -> visible count).
+ *
+ * Shared response shape for the documents/projects grouped-count
+ * endpoints that back sidebar and landing-card badges.
+ */
+export interface InitiativeGroupedCountsResponse {
+  counts: InitiativeGroupedCountsResponseCounts;
+}
+
 /**
  * Add a member to an initiative.
  */

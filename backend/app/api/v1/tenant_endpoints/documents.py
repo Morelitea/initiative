@@ -78,6 +78,7 @@ from app.schemas.tenant.document import (
     serialize_document_file_versions,
     serialize_document_summary,
 )
+from app.schemas.tenant.initiative import InitiativeGroupedCountsResponse
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.ai_generation import GenerateDocumentSummaryResponse
 from app.schemas.tenant.property import PropertyValuesSetRequest
@@ -567,6 +568,31 @@ async def get_document_counts(
         total_count=total_count,
         untagged_count=untagged_count,
         tag_counts=tag_counts,
+    )
+
+
+@router.get("/counts/by-initiative", response_model=InitiativeGroupedCountsResponse)
+async def get_document_counts_by_initiative(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> InitiativeGroupedCountsResponse:
+    """Visible-document counts grouped by initiative.
+
+    Lightweight endpoint for the sidebar and initiative landing-card
+    badges — same visibility filters as the document list, one GROUP BY
+    instead of walking the full corpus.
+    """
+    conditions = _build_visible_docs_filters(guild_context.guild_id, current_user.id)
+    statement = (
+        select(Document.initiative_id, func.count(Document.id))
+        .join(Document.initiative)
+        .where(*conditions)
+        .group_by(Document.initiative_id)
+    )
+    rows = (await session.exec(statement)).all()
+    return InitiativeGroupedCountsResponse(
+        counts={initiative_id: count for initiative_id, count in rows}
     )
 
 

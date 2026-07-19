@@ -42,14 +42,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
 import { useAutoCloseSidebar } from "@/hooks/useAutoCloseSidebar";
-import { useCounterGroupsList } from "@/hooks/useCounters";
+import { useCounterGroupCountsByInitiative } from "@/hooks/useCounters";
 import { compareVersions, useDockerHubVersion } from "@/hooks/useDockerHubVersion";
-import { useAllDocumentIds } from "@/hooks/useDocuments";
+import { useDocumentCountsByInitiative } from "@/hooks/useDocuments";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useFavoriteProjects, useProjects } from "@/hooks/useProjects";
-import { useQueuesList } from "@/hooks/useQueues";
+import { useQueueCountsByInitiative } from "@/hooks/useQueues";
 import { useTags } from "@/hooks/useTags";
 import { guildPath } from "@/lib/guildUrl";
 import { getInitials } from "@/lib/initials";
@@ -111,7 +111,10 @@ export const AppSidebar = () => {
     staleTime: 60_000,
   });
 
-  const documentsQuery = useAllDocumentIds({ enabled: guildTreeEnabled, staleTime: 60_000 });
+  const documentCountsQuery = useDocumentCountsByInitiative({
+    enabled: guildTreeEnabled,
+    staleTime: 60_000,
+  });
 
   const projectsByInitiative = useMemo(() => {
     const map = new Map<number, ProjectRead[]>();
@@ -127,44 +130,36 @@ export const AppSidebar = () => {
 
   const documentCountsByInitiative = useMemo(() => {
     const map = new Map<number, number>();
-    const documents = Array.isArray(documentsQuery.data) ? documentsQuery.data : [];
-    documents.forEach((doc) => {
-      const count = map.get(doc.initiative_id) ?? 0;
-      map.set(doc.initiative_id, count + 1);
+    Object.entries(documentCountsQuery.data?.counts ?? {}).forEach(([initiativeId, count]) => {
+      map.set(Number(initiativeId), count);
     });
     return map;
-  }, [documentsQuery.data]);
+  }, [documentCountsQuery.data]);
 
-  // Fetch queues for counts (lightweight list query)
-  const queuesQuery = useQueuesList(
-    { page: 1, page_size: 100 },
-    { enabled: guildTreeEnabled, staleTime: 60_000 }
-  );
+  const queueCountsQuery = useQueueCountsByInitiative({
+    enabled: guildTreeEnabled,
+    staleTime: 60_000,
+  });
 
   const queueCountsByInitiative = useMemo(() => {
     const map = new Map<number, number>();
-    const queues = queuesQuery.data?.items ?? [];
-    queues.forEach((queue) => {
-      const count = map.get(queue.initiative_id) ?? 0;
-      map.set(queue.initiative_id, count + 1);
+    Object.entries(queueCountsQuery.data?.counts ?? {}).forEach(([initiativeId, count]) => {
+      map.set(Number(initiativeId), count);
     });
     return map;
-  }, [queuesQuery.data]);
+  }, [queueCountsQuery.data]);
 
-  // Fetch counter groups for counts
-  const counterGroupsQuery = useCounterGroupsList(
-    { page: 1, page_size: 100 },
-    { enabled: guildTreeEnabled, staleTime: 60_000 }
-  );
+  const counterGroupCountsQuery = useCounterGroupCountsByInitiative({
+    enabled: guildTreeEnabled,
+    staleTime: 60_000,
+  });
   const counterGroupCountsByInitiative = useMemo(() => {
     const map = new Map<number, number>();
-    const groups = counterGroupsQuery.data?.items ?? [];
-    groups.forEach((group) => {
-      const count = map.get(group.initiative_id) ?? 0;
-      map.set(group.initiative_id, count + 1);
+    Object.entries(counterGroupCountsQuery.data?.counts ?? {}).forEach(([initiativeId, count]) => {
+      map.set(Number(initiativeId), count);
     });
     return map;
-  }, [counterGroupsQuery.data]);
+  }, [counterGroupCountsQuery.data]);
 
   const visibleInitiatives = useMemo(
     () => filterVisible(Array.isArray(initiativesQuery.data) ? initiativesQuery.data : []),

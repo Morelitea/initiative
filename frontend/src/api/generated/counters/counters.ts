@@ -32,6 +32,7 @@ import type {
   CounterSortRequest,
   CounterUpdate,
   HTTPValidationError,
+  InitiativeGroupedCountsResponse,
   ListCounterGroupsApiV1GGuildIdCounterGroupsGetParams,
   RecentViewWrite,
   ResourceGrantSchema,
@@ -308,6 +309,252 @@ export const useCreateCounterGroupApiV1GGuildIdCounterGroupsPost = <
     queryClient
   );
 };
+/**
+ * Visible counter-group counts grouped by initiative.
+ *
+ * Lightweight endpoint for the sidebar badges — same visibility rules
+ * as the counter-group list (counters-enabled initiatives, DAC), one
+ * GROUP BY instead of a capped list page.
+ * @summary Get Counter Group Counts By Initiative
+ */
+export const getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet = (
+  guildId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<InitiativeGroupedCountsResponse>(
+    { url: `/api/v1/g/${guildId}/counter-groups/counts/by-initiative`, method: "GET", signal },
+    options
+  );
+};
+
+export const getGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGetQueryKey =
+  (guildId: number) => {
+    return [`/api/v1/g/${guildId}/counter-groups/counts/by-initiative`] as const;
+  };
+
+export const getGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGetQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<
+        typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+      >
+    >,
+    TError = ErrorType<HTTPValidationError>,
+  >(
+    guildId: number,
+    options?: {
+      query?: Partial<
+        UseQueryOptions<
+          Awaited<
+            ReturnType<
+              typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+            >
+          >,
+          TError,
+          TData
+        >
+      >;
+      request?: SecondParameter<typeof apiMutator>;
+    }
+  ) => {
+    const { query: queryOptions, request: requestOptions } = options ?? {};
+
+    const queryKey =
+      queryOptions?.queryKey ??
+      getGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGetQueryKey(
+        guildId
+      );
+
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<
+          typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+        >
+      >
+    > = ({ signal }) =>
+      getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet(
+        guildId,
+        requestOptions,
+        signal
+      );
+
+    return {
+      queryKey,
+      queryFn,
+      enabled: guildId !== null && guildId !== undefined,
+      ...queryOptions,
+    } as UseQueryOptions<
+      Awaited<
+        ReturnType<
+          typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+        >
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
+
+export type GetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGetQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+      >
+    >
+  >;
+export type GetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet<
+  TData = Awaited<
+    ReturnType<
+      typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+    >
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+            >
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet<
+  TData = Awaited<
+    ReturnType<
+      typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+    >
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+            >
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet<
+  TData = Awaited<
+    ReturnType<
+      typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+    >
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Counter Group Counts By Initiative
+ */
+
+export function useGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet<
+  TData = Awaited<
+    ReturnType<
+      typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+    >
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGetQueryOptions(
+      guildId,
+      options
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
 /**
  * Access enforced by resource_dependency before the body runs.
  * @summary Read Counter Group

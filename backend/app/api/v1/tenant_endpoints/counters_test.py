@@ -6,7 +6,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
-from app.testing import Actor
+from app.testing import Actor, create_counter_group, create_initiative
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -787,3 +787,45 @@ async def test_delete_counter_group_still_emits_group_deleted(
     resp = await client.delete(a.g(f"/counter-groups/{group['id']}"), headers=a.headers)
     assert resp.status_code == 204, resp.text
     assert (a.guild.id, "counter_group", group["id"], "group_deleted") in emitted
+
+
+@pytest.mark.integration
+async def test_counter_group_counts_by_initiative(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Grouped counts mirror the list: DAC-visible groups in counters-enabled
+    initiatives only, with no entry for unjoined initiatives."""
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=admin.initiative,
+        initiative_role="member",
+    )
+    other_initiative = await create_initiative(session, admin.guild, admin.user)
+    disabled_initiative = await create_initiative(
+        session, admin.guild, admin.user, counter_groups_enabled=False
+    )
+
+    await create_counter_group(session, admin.initiative, member.user)
+    await create_counter_group(session, admin.initiative, admin.user)
+    await create_counter_group(session, other_initiative, admin.user)
+    await create_counter_group(session, disabled_initiative, admin.user)
+
+    # Guild admin: every group in counters-enabled initiatives, grouped.
+    response = await client.get(
+        admin.g("/counter-groups/counts/by-initiative"), headers=admin.headers
+    )
+    assert response.status_code == 200
+    assert response.json()["counts"] == {
+        str(admin.initiative.id): 2,
+        str(other_initiative.id): 1,
+    }
+
+    # Member: only groups shared with them, and no entry for initiatives
+    # they are not in.
+    response = await client.get(
+        member.g("/counter-groups/counts/by-initiative"), headers=member.headers
+    )
+    assert response.status_code == 200
+    assert response.json()["counts"] == {str(admin.initiative.id): 1}
