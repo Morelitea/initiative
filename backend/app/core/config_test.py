@@ -2,6 +2,7 @@
 
 import pytest
 from pydantic import ValidationError
+from pydantic_settings import SettingsConfigDict
 
 from app.core.config import CAPACITOR_NATIVE_ORIGINS, Settings
 
@@ -9,14 +10,18 @@ from app.core.config import CAPACITOR_NATIVE_ORIGINS, Settings
 TEST_SECRET_KEY = "f2d8a1c4b7e90365d4a2f8c1b6e3079a5c8d2e4f6a1b3c5d7e9f0a2b4c6d8e1f"
 
 
+class _HermeticSettings(Settings):
+    """``Settings`` without the dotenv source: keeps these unit tests hermetic —
+    otherwise a developer's real backend/.env (e.g. a legitimately-set
+    JWT_SIGNING_KEY) leaks into every field the test didn't override."""
+
+    model_config = SettingsConfigDict(env_file=None)
+
+
 def _settings(**overrides) -> Settings:
     overrides.setdefault("APP_URL", "https://app.example.com")
     overrides.setdefault("SECRET_KEY", TEST_SECRET_KEY)
-    # _env_file=None keeps these unit tests hermetic: without it, a developer's
-    # real backend/.env (e.g. a legitimately-set JWT_SIGNING_KEY) leaks into
-    # every Settings field the test didn't explicitly override.
-    return Settings(
-        _env_file=None,
+    return _HermeticSettings(
         DATABASE_URL_APP="postgresql+asyncpg://app:app@localhost/app",
         DATABASE_URL_ADMIN="postgresql+asyncpg://admin:admin@localhost/app",
         **overrides,
