@@ -92,6 +92,20 @@ export const SettingsGuildAuthPage = () => {
     );
   };
 
+  // The self-unsatisfied challenge is bound to the selection that produced
+  // it: any change of policy or provider invalidates it (otherwise the
+  // alert's button could name one provider while targeting another).
+  const changePolicy = (value: "open" | "required") => {
+    setPolicy(value);
+    setSelfUnsatisfiedSlug(null);
+    setError(null);
+  };
+  const changeProvider = (id: number) => {
+    setProviderId(id);
+    setSelfUnsatisfiedSlug(null);
+    setError(null);
+  };
+
   // Completing the required provider's sign-in updates this admin session's
   // satisfied set, after which saving the requirement succeeds.
   const signInWithRequiredProvider = () => {
@@ -118,7 +132,7 @@ export const SettingsGuildAuthPage = () => {
         <CardContent className="space-y-4">
           <RadioGroup
             value={policy}
-            onValueChange={(value) => setPolicy(value as "open" | "required")}
+            onValueChange={(value) => changePolicy(value as "open" | "required")}
             className="gap-3"
           >
             <div className="flex items-start gap-3 rounded-md border px-3 py-3">
@@ -152,7 +166,7 @@ export const SettingsGuildAuthPage = () => {
                   policy === "required" && (
                     <Select
                       value={providerId != null ? String(providerId) : undefined}
-                      onValueChange={(value) => setProviderId(Number(value))}
+                      onValueChange={(value) => changeProvider(Number(value))}
                     >
                       <SelectTrigger className="w-full sm:w-72">
                         <SelectValue placeholder={t("guildAuth.policy.providerPlaceholder")} />
