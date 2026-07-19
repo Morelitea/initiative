@@ -47,9 +47,22 @@ _RLS_SHARED_TABLES = {
     "guild_memberships",
     "guilds",
     "oidc_claim_mappings",
+    "storage_backfill_state",
     "user_view_preferences",
     "users",
 }
+
+
+@pytest.fixture(autouse=True)
+async def _materialize_lazy_shared_tables():
+    """``storage_backfill_state`` is created lazily at runtime, not by a
+    migration — without this the catalog assertions below would depend on
+    whether a storage test happened to run first. Creating it here also
+    converges a table left behind by an earlier build on the current grant
+    set (the create path is revoke-then-grant, idempotent)."""
+    from app.services.storage_backfill import _ensure_table
+
+    await _ensure_table()
 
 
 def _app_role_family() -> list[str]:
