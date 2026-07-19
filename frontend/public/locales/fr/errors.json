@@ -76,6 +76,7 @@
   "GUILD_AUTH_STEP_UP_REQUIRED": "Cette guilde exige une connexion via son fournisseur d'identité",
   "GUILD_AUTH_POLICY_INVALID_PROVIDER": "Choisissez un fournisseur de connexion activé pour cette exigence",
   "GUILD_AUTH_POLICY_SELF_UNSATISFIED": "Connectez-vous vous-même avec ce fournisseur avant de l'exiger pour la guilde",
+  "GUILD_AUTH_NOT_ENABLED": "L'authentification par guilde n'est pas activée sur cette plateforme",
   "AUTH_PROVIDER_IN_USE": "L'exigence de connexion d'une guilde utilise ce fournisseur ; modifiez d'abord cette exigence",
   "SMTP_NOT_CONFIGURED": "Les paramètres SMTP sont incomplets.",
   "INVALID_OR_EXPIRED_TOKEN": "Jeton invalide ou expiré",
