@@ -97,6 +97,14 @@ async def lifespan(app: FastAPI):
     # GRANTs when a deployment's URLs connect as other logins.
     await verify_effective_shared_grants()
     await warn_if_privileged_database_url()
+    if settings.ADVANCED_TOOL_URL and not settings.HANDOFF_SIGNING_PRIVATE_KEY_PEM:
+        # The advanced-tool embed verifies handoff tokens by RS256 public key;
+        # without the private key the handoff endpoints fail closed (503).
+        logger.warning(
+            "ADVANCED_TOOL_URL is set but HANDOFF_SIGNING_PRIVATE_KEY_PEM is not; "
+            "advanced-tool handoffs will fail closed until an RS256 signing key "
+            "is configured."
+        )
     backfill = await backfill_guild_schemas()
     if backfill.failed:
         # WARNING so partial failure survives INFO-filtered logs (per-guild

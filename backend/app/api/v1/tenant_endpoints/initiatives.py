@@ -19,7 +19,10 @@ from app.core.messages import (
     GuildMessages,
     InitiativeMessages,
 )
-from app.core.security import create_advanced_tool_handoff_token
+from app.core.security import (
+    HandoffSigningNotConfiguredError,
+    create_advanced_tool_handoff_token,
+)
 from app.core.config import settings
 from app.core.tools import CORE_TOOLS, TOGGLEABLE_TOOLS, Tool
 from app.models.platform.access_grant import AccessLevel
@@ -821,17 +824,23 @@ async def create_advanced_tool_handoff(
             detail=AdvancedToolMessages.NOT_ENABLED,
         )
 
-    token, expires_in_seconds = create_advanced_tool_handoff_token(
-        user_id=current_user.id,
-        guild_id=guild_context.guild_id,
-        initiative_id=initiative_id,
-        guild_role=guild_context.role.value
-        if hasattr(guild_context.role, "value")
-        else str(guild_context.role),
-        is_manager=is_manager,
-        can_create=can_create,
-        scope="initiative",
-    )
+    try:
+        token, expires_in_seconds = create_advanced_tool_handoff_token(
+            user_id=current_user.id,
+            guild_id=guild_context.guild_id,
+            initiative_id=initiative_id,
+            guild_role=guild_context.role.value,
+            is_manager=is_manager,
+            can_create=can_create,
+            scope="initiative",
+        )
+    except HandoffSigningNotConfiguredError as exc:
+        # ADVANCED_TOOL_URL is on but no RS256 signing key — fail closed
+        # (retryable once the operator configures the key).
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=AdvancedToolMessages.SIGNING_NOT_CONFIGURED,
+        ) from exc
 
     return AdvancedToolHandoffResponse(
         handoff_token=token,
