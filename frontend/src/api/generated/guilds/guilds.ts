@@ -22,6 +22,7 @@ import type {
 
 import type {
   AdvancedToolHandoffResponse,
+  BillingPortalHandoffResponse,
   GuildAuthPolicyRead,
   GuildAuthPolicyUpdate,
   GuildCreate,
@@ -1035,6 +1036,93 @@ export const useCreateGuildAdvancedToolHandoffApiV1GuildsGuildIdAdvancedToolHand
     getCreateGuildAdvancedToolHandoffApiV1GuildsGuildIdAdvancedToolHandoffPostMutationOptions(
       options
     ),
+    queryClient
+  );
+};
+/**
+ * Mint a billing-portal handoff for a guild admin. Guild admin only.
+ * @summary Create Guild Billing Handoff
+ */
+export const createGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPost = (
+  guildId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<BillingPortalHandoffResponse>(
+    { url: `/api/v1/guilds/${guildId}/billing/handoff`, method: "POST", signal },
+    options
+  );
+};
+
+export const getCreateGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPost>>,
+    TError,
+    { guildId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPost>>,
+  TError,
+  { guildId: number },
+  TContext
+> => {
+  const mutationKey = ["createGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPost>>,
+    { guildId: number }
+  > = (props) => {
+    const { guildId } = props ?? {};
+
+    return createGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPost(guildId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof createGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPost>>
+  >;
+
+export type CreateGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Create Guild Billing Handoff
+ */
+export const useCreateGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof createGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPost>>,
+      TError,
+      { guildId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof createGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPost>>,
+  TError,
+  { guildId: number },
+  TContext
+> => {
+  return useMutation(
+    getCreateGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPostMutationOptions(options),
     queryClient
   );
 };

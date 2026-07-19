@@ -104,3 +104,10 @@ class BillingUsageRead(SanitizedBaseModel):
 
     guild_id: int
     usage_bytes: int
+
+
+class BillingPortalHandoffResponse(SanitizedBaseModel):
+    """Billing-portal handoff token and its lifetime in seconds."""
+
+    handoff_token: str
+    expires_in_seconds: int

@@ -856,6 +856,144 @@ async def test_guild_advanced_tool_handoff_requires_authentication(
     assert response.status_code == 401
 
 
+# --- Billing-portal handoff endpoint --------------------------------------
+
+
+@pytest.mark.integration
+async def test_guild_billing_handoff_returns_404_when_billing_url_unset(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """No BILLING_URL configured -> 404."""
+    from app.core.config import settings as app_settings
+
+    monkeypatch.setattr(app_settings, "BILLING_URL", None)
+
+    admin = await create_user(session, email="admin@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+
+    response = await client.post(
+        f"/api/v1/guilds/{guild.id}/billing/handoff", headers=get_auth_headers(admin)
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "BILLING_PORTAL_NOT_CONFIGURED"
+
+
+@pytest.mark.integration
+async def test_guild_billing_handoff_rejects_non_admin(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """A plain member is refused (admin only)."""
+    from app.core.config import settings as app_settings
+
+    monkeypatch.setattr(app_settings, "BILLING_URL", "https://billing.example.com")
+
+    member = await create_user(session, email="member@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(
+        session, user=member, guild=guild, role=GuildRole.member
+    )
+
+    response = await client.post(
+        f"/api/v1/guilds/{guild.id}/billing/handoff", headers=get_auth_headers(member)
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.integration
+async def test_guild_billing_handoff_rejects_non_member(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """A user can't mint a billing token for a guild they don't belong to."""
+    from app.core.config import settings as app_settings
+
+    monkeypatch.setattr(app_settings, "BILLING_URL", "https://billing.example.com")
+
+    outsider = await create_user(session, email="outsider@example.com")
+    other_guild = await create_guild(session, name="Other guild")
+    await create_guild_membership(
+        session, user=outsider, guild=other_guild, role=GuildRole.admin
+    )
+    target_guild = await create_guild(session, name="Target guild")
+
+    response = await client.post(
+        f"/api/v1/guilds/{target_guild.id}/billing/handoff",
+        headers=get_auth_headers(outsider),
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.integration
+async def test_guild_billing_handoff_succeeds_for_admin(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """Admin gets an RS256 token with the billing-portal audience and role."""
+    from app.core.config import settings as app_settings
+    from app.core.security import BILLING_PORTAL_AUDIENCE
+    import jwt
+
+    monkeypatch.setattr(app_settings, "BILLING_URL", "https://billing.example.com")
+
+    admin = await create_user(session, email="admin@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+
+    response = await client.post(
+        f"/api/v1/guilds/{guild.id}/billing/handoff", headers=get_auth_headers(admin)
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["expires_in_seconds"] > 0
+
+    assert jwt.get_unverified_header(body["handoff_token"])["alg"] == "RS256"
+    payload = jwt.decode(body["handoff_token"], options={"verify_signature": False})
+    assert payload["aud"] == BILLING_PORTAL_AUDIENCE
+    assert payload["iss"] == "initiative"
+    assert payload["sub"] == str(admin.id)
+    assert payload["guild_id"] == guild.id
+    assert payload["guild_role"] == "admin"
+
+
+@pytest.mark.integration
+async def test_guild_billing_handoff_requires_authentication(
+    client: AsyncClient, monkeypatch
+):
+    """Unauthenticated -> 401."""
+    from app.core.config import settings as app_settings
+
+    monkeypatch.setattr(app_settings, "BILLING_URL", "https://billing.example.com")
+
+    response = await client.post("/api/v1/guilds/1/billing/handoff")
+    assert response.status_code == 401
+
+
+@pytest.mark.integration
+async def test_guild_billing_handoff_503_when_signing_key_unset(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """BILLING_URL set but no signing key -> 503."""
+    from app.core.config import settings as app_settings
+
+    monkeypatch.setattr(app_settings, "BILLING_URL", "https://billing.example.com")
+    monkeypatch.setattr(app_settings, "HANDOFF_SIGNING_PRIVATE_KEY_PEM", None)
+
+    admin = await create_user(session, email="admin@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+
+    response = await client.post(
+        f"/api/v1/guilds/{guild.id}/billing/handoff", headers=get_auth_headers(admin)
+    )
+    assert response.status_code == 503
+    assert response.json()["detail"] == "BILLING_PORTAL_SIGNING_NOT_CONFIGURED"
+
+
 # --- Leave guild: project-orphan protection -------------------------------
 
 
