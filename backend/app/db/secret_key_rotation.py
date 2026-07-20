@@ -72,10 +72,8 @@ logger = logging.getLogger(__name__)
 # left under the old key is fine — it holds stale secrets, not live content.
 _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
     ("users", "ai_api_key_encrypted", SALT_AI_API_KEY),
-    ("users", "oidc_refresh_token_encrypted", SALT_OIDC_REFRESH_TOKEN),
-    # Successor home for the IdP refresh token (same salt → ciphertext moves
-    # verbatim). Both rows are rotated during the transition; users.oidc_* is
-    # dropped in Phase 4.
+    # The IdP refresh token lives on the identity link (the legacy
+    # users.oidc_refresh_token_encrypted column is dropped).
     ("federated_identity_secrets", "refresh_token_encrypted", SALT_OIDC_REFRESH_TOKEN),
     ("app_settings", "oidc_client_secret_encrypted", SALT_OIDC_CLIENT_SECRET),
     # Successor home for the OIDC client secret (same salt → ciphertext moves
