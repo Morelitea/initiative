@@ -499,6 +499,32 @@ async def test_operator_toggles_guild_auth_enabled(
 
 
 @pytest.mark.integration
+async def test_guild_auth_enabled_null_is_noop(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """An explicit JSON null for guild_auth_enabled is meaningless for a boolean
+    entitlement and must not silently disable it — Pydantic keeps the null in
+    model_fields_set, so a naive provided-flag would coerce it to False. A
+    sibling field in the same PATCH still applies, proving the null is a no-op,
+    not a poisoned request."""
+    owner = await create_user(
+        session, email="owner-gauth-null@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner, guild_auth_enabled=True)
+    headers = get_auth_headers(owner)
+
+    resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"guild_auth_enabled": None, "max_users": 5},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["guild_auth_enabled"] is True
+    assert resp.json()["max_users"] == 5
+
+
+@pytest.mark.integration
 async def test_guild_auth_enabled_is_operator_only(
     client: AsyncClient,
     session: AsyncSession,

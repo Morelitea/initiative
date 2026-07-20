@@ -449,7 +449,6 @@ async def update_platform_guild_storage(
             max_users=payload.max_users,
             max_users_provided="max_users" in provided,
             guild_auth_enabled=payload.guild_auth_enabled,
-            guild_auth_enabled_provided="guild_auth_enabled" in provided,
         )
         if payload.status is not None and guild.status != payload.status.value:
             logger.info(

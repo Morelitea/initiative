@@ -435,7 +435,6 @@ async def update_guild(
     max_users: int | None = None,
     max_users_provided: bool = False,
     guild_auth_enabled: bool | None = None,
-    guild_auth_enabled_provided: bool = False,
 ) -> Guild:
     guild = await get_guild(session, guild_id=guild_id)
     updated = False
@@ -456,8 +455,17 @@ async def update_guild(
     if max_users_provided and guild.max_users != max_users:
         guild.max_users = max_users
         updated = True
-    if guild_auth_enabled_provided and guild.guild_auth_enabled != guild_auth_enabled:
-        guild.guild_auth_enabled = bool(guild_auth_enabled)
+    # An explicit ``null`` is meaningless for a boolean entitlement (unlike the
+    # caps, where null resets to unlimited), so guard on ``is not None`` and
+    # treat null/omitted alike as a no-op — mirroring how the operator endpoint
+    # guards ``status``. Pydantic keeps an explicit null in ``model_fields_set``,
+    # so a plain "provided" flag would let ``{"guild_auth_enabled": null}``
+    # silently disable the entitlement.
+    if (
+        guild_auth_enabled is not None
+        and guild.guild_auth_enabled != guild_auth_enabled
+    ):
+        guild.guild_auth_enabled = guild_auth_enabled
         updated = True
     if updated:
         guild.updated_at = datetime.now(timezone.utc)
