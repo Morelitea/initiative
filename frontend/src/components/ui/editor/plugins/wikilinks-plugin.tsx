@@ -118,12 +118,11 @@ function useWikilinkSearch(
     const fetchDocuments = async () => {
       setIsLoading(true);
       try {
-        const docs = await autocompleteDocuments(
-          guildId,
-          initiativeId,
-          queryString,
-          SUGGESTION_LIST_LENGTH_LIMIT
-        );
+        const docs = await autocompleteDocuments(guildId, {
+          initiative_id: initiativeId,
+          q: queryString,
+          limit: SUGGESTION_LIST_LENGTH_LIMIT,
+        });
         if (!cancelled) {
           setResults(docs);
         }
