@@ -870,10 +870,11 @@
     }
   },
   "guildAuth": {
-    "title": "Autenticación",
-    "comingSoon": "Próximamente",
-    "description": "Configuración de inicio de sesión para este gremio.",
-    "body": "Este servidor usa inicio de sesión por gremio. Pronto, los administradores del gremio podrán configurar aquí el inicio de sesión único y las reglas de membresía de este gremio.",
+    "registry": {
+      "title": "Proveedores de identidad",
+      "description": "Los proveedores de inicio de sesión único con los que se autentican los miembros de este gremio. Los configuran los administradores de este gremio y solo se aplican aquí.",
+      "dialogDescription": "Detalles OpenID Connect del proveedor de identidad de este gremio."
+    },
     "policy": {
       "title": "Requisito de inicio de sesión",
       "description": "Controla con qué inicio de sesión debe haberse autenticado una sesión antes de poder acceder a este gremio.",
@@ -882,11 +883,10 @@
       "requiredLabel": "Requerir inicio de sesión único",
       "requiredHelp": "Los miembros solo pueden acceder a este gremio tras iniciar sesión con el proveedor seleccionado.",
       "providerPlaceholder": "Elige un proveedor…",
-      "noProviders": "No hay proveedores de inicio de sesión disponibles. Un operador de la plataforma puede añadirlos en la configuración de la plataforma.",
+      "noProviders": "Aún no hay proveedores configurados. Añade uno en Proveedores de identidad más abajo y luego exígelo aquí.",
       "saved": "Requisito de inicio de sesión guardado",
       "error": "No se pudo guardar el requisito de inicio de sesión",
-      "selfUnsatisfied": "Tu sesión actual aún no ha iniciado sesión con {{providerName}}. Inicia sesión con él una vez para confirmar que funciona antes de exigirlo.",
-      "signInWith": "Iniciar sesión con {{providerName}}"
+      "selfUnsatisfied": "Tu sesión actual aún no ha iniciado sesión con {{providerName}}. Inicia sesión con él una vez para confirmar que funciona antes de exigirlo."
     }
   },
   "authProviders": {

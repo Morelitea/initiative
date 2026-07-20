@@ -477,8 +477,8 @@ async def set_guild_auth_policy(
 ) -> GuildAuthPolicyRead:
     """Set the guild's sign-in requirement. Guild admin only.
 
-    ``open`` deletes the stored row (no row IS open). ``required`` names a
-    login-ready operator-global provider — and the calling admin's own
+    ``open`` deletes the stored row (no row IS open). ``required`` names one
+    of the guild's own login-ready providers — and the calling admin's own
     session must already satisfy it, which both proves the provider works
     end-to-end and keeps an admin from locking their guild (and themselves)
     behind a sign-in they haven't completed. Absent (404) unless the platform
@@ -501,7 +501,7 @@ async def set_guild_auth_policy(
     provider = await admin_session.get(AuthProvider, payload.provider_id)
     if (
         provider is None
-        or provider.guild_id is not None
+        or provider.guild_id != guild_id
         or not is_login_ready(provider)
     ):
         raise HTTPException(

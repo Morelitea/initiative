@@ -1125,6 +1125,19 @@ async def create_upload(
     return upload
 
 
+async def set_auth_scope(session: AsyncSession, scope: str = "guild") -> None:
+    """Set the platform auth posture (``app_settings.auth_scope``); defaults
+    to per-guild, the posture the guild auth surface requires."""
+    from sqlmodel import select as _select
+
+    from app.models.platform.app_setting import AppSetting
+
+    row = (await session.exec(_select(AppSetting))).first() or AppSetting()
+    row.auth_scope = scope
+    session.add(row)
+    await session.commit()
+
+
 async def create_auth_provider(
     session: AsyncSession,
     commit: bool = True,
