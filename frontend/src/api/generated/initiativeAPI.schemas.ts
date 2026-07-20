@@ -1099,12 +1099,26 @@ export interface DeviceTokenResponse {
 }
 
 /**
+ * Discriminator for document type.
+ */
+export type DocumentType = (typeof DocumentType)[keyof typeof DocumentType];
+
+export const DocumentType = {
+  native: "native",
+  file: "file",
+  whiteboard: "whiteboard",
+  smart_link: "smart_link",
+  spreadsheet: "spreadsheet",
+} as const;
+
+/**
  * Lightweight document info for autocomplete/wikilinks.
  */
 export interface DocumentAutocomplete {
   id: number;
   title: string;
   updated_at: string;
+  document_type: DocumentType;
 }
 
 /**
@@ -4207,6 +4221,14 @@ export type ListDocumentsApiV1GGuildIdDocumentsGetParams = {
    */
   untagged?: boolean | null;
   /**
+   * Filter to template (or non-template) documents
+   */
+  is_template?: boolean | null;
+  /**
+   * Filter by document type
+   */
+  document_type?: DocumentType | null;
+  /**
    * JSON-encoded list of property-value filters, e.g. `[{"property_id": 12, "op": "eq", "value": "live"}]`. Maximum 5 conditions per request.
    */
   property_filters?: string | null;
@@ -4224,8 +4246,19 @@ export type ListDocumentsApiV1GGuildIdDocumentsGetParams = {
 };
 
 export type AutocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGetParams = {
-  initiative_id: number;
+  /**
+   * Restrict to one initiative. Omit to search the whole guild — templates are picked guild-wide.
+   */
+  initiative_id?: number | null;
   q?: string;
+  /**
+   * Filter to template (or non-template) documents
+   */
+  is_template?: boolean | null;
+  /**
+   * Filter by document type
+   */
+  document_type?: DocumentType | null;
   /**
    * @maximum 20
    */

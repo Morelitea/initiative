@@ -74,6 +74,7 @@ class DocumentAutocomplete(SanitizedBaseModel):
     id: int
     title: str
     updated_at: datetime
+    document_type: DocumentType
 
 
 class DocumentBacklink(SanitizedBaseModel):

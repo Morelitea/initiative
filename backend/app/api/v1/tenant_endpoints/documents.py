@@ -338,6 +338,8 @@ def _build_visible_docs_filters(
     search: Optional[str] = None,
     tag_ids: Optional[List[int]] = None,
     untagged: Optional[bool] = None,
+    is_template: Optional[bool] = None,
+    document_type: Optional[DocumentType] = None,
 ):
     """Build common WHERE conditions for visible-document queries."""
     # A guild admin (full access to all guild data) or a live PAM grant sees all
@@ -357,6 +359,12 @@ def _build_visible_docs_filters(
 
     if ids is not None:
         conditions.append(Document.id.in_(tuple(ids)))
+
+    if is_template is not None:
+        conditions.append(Document.is_template == is_template)
+
+    if document_type is not None:
+        conditions.append(Document.document_type == document_type)
 
     if search:
         normalized = search.strip().lower()
@@ -650,6 +658,12 @@ async def list_documents(
     untagged: Optional[bool] = Query(
         default=None, description="Filter to documents with no tags"
     ),
+    is_template: Optional[bool] = Query(
+        default=None, description="Filter to template (or non-template) documents"
+    ),
+    document_type: Optional[DocumentType] = Query(
+        default=None, description="Filter by document type"
+    ),
     property_filters: Optional[str] = Query(
         default=None,
         description=(
@@ -692,6 +706,8 @@ async def list_documents(
         search=search,
         tag_ids=tag_ids,
         untagged=untagged,
+        is_template=is_template,
+        document_type=document_type,
     )
 
     # Parse + apply property filters (capped at MAX_PROPERTY_FILTERS).
@@ -777,37 +793,51 @@ async def autocomplete_documents(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-    initiative_id: int = Query(...),
+    initiative_id: Optional[int] = Query(
+        default=None,
+        description=(
+            "Restrict to one initiative. Omit to search the whole guild — "
+            "templates are picked guild-wide."
+        ),
+    ),
     q: str = Query(default=""),
+    is_template: Optional[bool] = Query(
+        default=None, description="Filter to template (or non-template) documents"
+    ),
+    document_type: Optional[DocumentType] = Query(
+        default=None, description="Filter by document type"
+    ),
     limit: int = Query(default=10, le=20),
 ) -> List[DocumentAutocomplete]:
-    """Search documents by title within an initiative for autocomplete/wikilinks.
+    """Search documents by title for autocomplete/wikilinks and pickers.
 
-    Returns lightweight document info (id, title, updated_at) for typeahead.
-    Only returns documents the user has permission to access.
+    Returns lightweight document info (id, title, updated_at, document_type)
+    for typeahead. Scoped to one initiative when ``initiative_id`` is given,
+    otherwise to the whole guild. Visibility matches the document list —
+    only documents the caller can access come back.
 
     An empty ``q`` matches everything, so a picker that opens before the user
     types gets the most recently updated documents rather than an error. The
     result is bounded by ``limit`` either way.
     """
-    await _get_initiative_or_404(
-        session, initiative_id=initiative_id, guild_id=guild_context.guild_id
+    if initiative_id is not None:
+        await _get_initiative_or_404(
+            session, initiative_id=initiative_id, guild_id=guild_context.guild_id
+        )
+
+    conditions = _build_visible_docs_filters(
+        guild_context.guild_id,
+        current_user.id,
+        initiative_id=initiative_id,
+        search=q,
+        is_template=is_template,
+        document_type=document_type,
     )
 
-    has_permission_subq = permissions_service.visible_document_ids_subquery(
-        current_user.id
-    )
-
-    normalized = q.strip().lower()
     stmt = (
         select(Document)
         .join(Document.initiative)
-        .where(
-            Document.initiative_id == initiative_id,
-            Initiative.guild_id == guild_context.guild_id,
-            Document.id.in_(has_permission_subq),
-            func.lower(Document.title).contains(normalized),
-        )
+        .where(*conditions)
         .order_by(Document.updated_at.desc())
         .limit(limit)
     )
@@ -820,6 +850,7 @@ async def autocomplete_documents(
             id=doc.id,
             title=doc.title,
             updated_at=doc.updated_at,
+            document_type=doc.document_type,
         )
         for doc in documents
     ]

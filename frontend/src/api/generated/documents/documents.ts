@@ -728,10 +728,12 @@ export const useCreateDocumentApiV1GGuildIdDocumentsPost = <
   );
 };
 /**
- * Search documents by title within an initiative for autocomplete/wikilinks.
+ * Search documents by title for autocomplete/wikilinks and pickers.
  *
- * Returns lightweight document info (id, title, updated_at) for typeahead.
- * Only returns documents the user has permission to access.
+ * Returns lightweight document info (id, title, updated_at, document_type)
+ * for typeahead. Scoped to one initiative when ``initiative_id`` is given,
+ * otherwise to the whole guild. Visibility matches the document list —
+ * only documents the caller can access come back.
  *
  * An empty ``q`` matches everything, so a picker that opens before the user
  * types gets the most recently updated documents rather than an error. The
@@ -740,7 +742,7 @@ export const useCreateDocumentApiV1GGuildIdDocumentsPost = <
  */
 export const autocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGet = (
   guildId: number,
-  params: AutocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGetParams,
+  params?: AutocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -762,7 +764,7 @@ export const getAutocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGetQueryO
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: AutocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGetParams,
+  params?: AutocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -813,7 +815,7 @@ export function useAutocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: AutocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGetParams,
+  params: undefined | AutocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -839,7 +841,7 @@ export function useAutocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: AutocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGetParams,
+  params?: AutocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -865,7 +867,7 @@ export function useAutocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: AutocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGetParams,
+  params?: AutocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -887,7 +889,7 @@ export function useAutocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: AutocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGetParams,
+  params?: AutocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<

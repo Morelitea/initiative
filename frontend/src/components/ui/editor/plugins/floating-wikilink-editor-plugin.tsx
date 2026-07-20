@@ -151,7 +151,11 @@ function FloatingWikilinkEditor({
     const search = async () => {
       setIsSearching(true);
       try {
-        const results = await autocompleteDocuments(guildId, initiativeId, searchQuery, 5);
+        const results = await autocompleteDocuments(guildId, {
+          initiative_id: initiativeId,
+          q: searchQuery,
+          limit: 5,
+        });
         if (!cancelled) {
           setSearchResults(results);
         }
