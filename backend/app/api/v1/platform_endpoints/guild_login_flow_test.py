@@ -259,3 +259,59 @@ async def test_step_up_unions_satisfied_providers(
 
     prior = await session.get(AuthSession, prior_id)
     assert prior is not None and prior.revoked_at is not None
+
+
+async def test_step_up_revokes_racing_rotation_child(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """A /auth/refresh that rotates the presented session between the
+    callback's read and its write must not leave the rotation child running
+    beside the stepped-up session: the replacement chain-revokes. Simulated
+    by rotating for real and pinning the callback's read to the original
+    row (the pre-rotation interleaving)."""
+    import app.api.v1.platform_endpoints.auth as auth_module
+
+    guild, provider = await _guild_provider(session)
+    user = await create_user(session)
+    await create_federated_identity(
+        session, user, subject="idp-subject-1", provider=provider
+    )
+    issued = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[41414]
+    )
+    await session.commit()
+    prior_id = issued.session.id
+    provider_id = provider.id
+
+    rotation = await session_service.rotate_session(
+        session, raw_refresh_token=issued.refresh_token
+    )
+    await session.commit()
+    assert rotation.ok and rotation.issued is not None
+    child_id = rotation.issued.session.id
+
+    async def _read_prior(admin_session, raw):
+        return await admin_session.get(AuthSession, prior_id)
+
+    monkeypatch.setattr(
+        auth_module.session_service, "get_live_session_by_refresh_token", _read_prior
+    )
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    client.cookies.set(REFRESH_COOKIE_NAME, issued.refresh_token)
+    try:
+        response = await _run_guild_flow(client, idp, guild.id)
+    finally:
+        client.cookies.delete(REFRESH_COOKIE_NAME)
+    assert response.status_code in (302, 307), response.text
+    assert "error=" not in response.headers["location"]
+
+    row = await _latest_session(session)
+    assert row is not None
+    assert row.id not in (prior_id, child_id)
+    assert row.satisfied_providers == sorted([41414, provider_id])
+    assert row.revoked_at is None
+
+    child = await session.get(AuthSession, child_id)
+    assert child is not None and child.revoked_at is not None

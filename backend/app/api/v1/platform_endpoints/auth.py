@@ -1236,7 +1236,12 @@ async def _complete_provider_login(
             ip=get_inet_client_ip(request),
         )
         if prior is not None:
-            await session_service.revoke_session(admin_session, session_id=prior.id)
+            # Chain-revoke, not single-revoke: a concurrent /auth/refresh may
+            # have rotated the presented session between our read and this
+            # write, and the replacement must not leave that rotation child
+            # running beside the stepped-up session. The new session is a
+            # fresh chain root, so the walk never touches it.
+            await session_service.revoke_chain(admin_session, session_id=prior.id)
         await admin_session.commit()
     except Exception:
         await admin_session.rollback()
