@@ -1292,6 +1292,23 @@ async def test_autocomplete_tasks_accepts_command_palette_limit(
 
 
 @pytest.mark.integration
+async def test_autocomplete_tasks_rejects_non_positive_limit(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """``limit`` is bounded at 1 — a negative value is rejected at validation
+    rather than reaching Postgres (which errors on a negative LIMIT)."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+
+    response = await client.get(
+        a.g("/tasks/autocomplete"),
+        headers=a.headers,
+        params={"q": "", "limit": -1},
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.integration
 async def test_autocomplete_tasks_excludes_archived(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

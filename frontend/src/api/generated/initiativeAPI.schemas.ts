@@ -4163,6 +4163,7 @@ export type AutocompleteTasksApiV1GGuildIdTasksAutocompleteGetParams = {
   initiative_id?: number | null;
   q?: string;
   /**
+   * @minimum 1
    * @maximum 50
    */
   limit?: number;

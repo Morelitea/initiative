@@ -1706,7 +1706,7 @@ async def autocomplete_tasks(
         description="Restrict to one initiative. Omit to search the whole guild.",
     ),
     q: str = Query(default=""),
-    limit: int = Query(default=10, le=50),
+    limit: int = Query(default=10, ge=1, le=50),
 ) -> List[TaskAutocomplete]:
     """Search tasks by title for autocomplete/pickers.
 
