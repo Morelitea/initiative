@@ -55,16 +55,18 @@ export function CreateWikilinkDocumentDialog({
     enabled: open && canCreate,
   });
 
-  const templateItems = useMemo(
-    () => [
-      { value: BLANK_TEMPLATE, label: t("wikilink.blankDocument") },
-      ...(templateDocumentsQuery.data ?? []).map((doc) => ({
-        value: String(doc.id),
-        label: doc.title,
-      })),
-    ],
-    [templateDocumentsQuery.data, t]
-  );
+  const templateItems = useMemo(() => {
+    const templates = (templateDocumentsQuery.data ?? []).map((doc) => ({
+      value: String(doc.id),
+      label: doc.title,
+    }));
+    // "Blank document" is the default choice, not a search result: offer it
+    // only in the unsearched list, so a query matching no template leaves the
+    // list genuinely empty and the picker can say so.
+    return templateSearch
+      ? templates
+      : [{ value: BLANK_TEMPLATE, label: t("wikilink.blankDocument") }, ...templates];
+  }, [templateDocumentsQuery.data, templateSearch, t]);
 
   // Reset template selection when dialog closes
   const handleOpenChange = (newOpen: boolean) => {
