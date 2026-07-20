@@ -668,18 +668,15 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     user.email_hash = hash_email(sentinel_email)
     user.email_encrypted = encrypt_field(sentinel_email, SALT_EMAIL)
 
-    # Unguessable random password hash — matches the SYSTEM_USER pattern.
-    user.hashed_password = get_password_hash(secrets.token_urlsafe(32))
+    # No password: a NULL hash never verifies, so the husk cannot authenticate.
+    user.hashed_password = None
 
     # Strip the rest of the PII surface. The IdP subject and refresh token
-    # live on the identity links now — remove the links themselves; the
-    # legacy users.oidc_* columns are still cleared while they exist.
+    # live on the identity links — remove the links themselves.
     await identity_service.delete_user_identities(session, user_id=user_id)
     user.full_name = None
     user.avatar_base64 = None
     user.avatar_url = None
-    user.oidc_sub = None
-    user.oidc_refresh_token_encrypted = None
     user.ai_api_key_encrypted = None
 
     # Reset notification + interface preferences to defaults so the row

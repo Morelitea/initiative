@@ -159,6 +159,9 @@ async def test_unknown_user_is_provisioned_and_linked(session):
     assert user.status == UserStatus.active
     assert user.email_verified is True
     assert user.full_name == "Alice"
+    # SSO-only: no password is set — a NULL hash never verifies, so this
+    # account signs in exclusively through its provider.
+    assert user.hashed_password is None
     assert result.identity.subject == "sub-1"
 
     # The very next login resolves via the link.

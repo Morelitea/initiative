@@ -321,7 +321,8 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession):
     assert anonymized.full_name is None
     assert anonymized.avatar_url is None
     assert anonymized.avatar_base64 is None
-    assert anonymized.oidc_sub is None
+    # No password: the husk can never authenticate again.
+    assert anonymized.hashed_password is None
     # The SSO link and its stored refresh token are gone.
     remaining_identities = (
         await session.exec(

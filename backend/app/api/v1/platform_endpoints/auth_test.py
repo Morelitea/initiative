@@ -421,6 +421,35 @@ async def test_login_wrong_password(client: AsyncClient, session: AsyncSession):
     assert "incorrect" in response.json()["detail"].lower()
 
 
+async def test_login_refused_for_account_without_password(
+    client: AsyncClient, session: AsyncSession
+):
+    """An SSO-only account (NULL hashed_password) can never password-login —
+    any password yields the same incorrect-credentials refusal, with no 500
+    from verifying against a missing hash."""
+    user = User(
+        email_hash=hash_email("sso-only@example.com"),
+        email_encrypted=encrypt_field("sso-only@example.com", SALT_EMAIL),
+        full_name="SSO Only",
+        hashed_password=None,
+        status=UserStatus.active,
+        email_verified=True,
+    )
+    session.add(user)
+    await session.commit()
+
+    response = await client.post(
+        "/api/v1/auth/token",
+        data={
+            "username": "sso-only@example.com",
+            "password": "anything-at-all",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "INCORRECT_CREDENTIALS"
+
+
 @pytest.mark.integration
 @pytest.mark.auth
 async def test_login_inactive_user(client: AsyncClient, session: AsyncSession):
@@ -1007,9 +1036,9 @@ async def test_oidc_callback_provisions_new_user_and_sets_cookie(
     ).one()
     assert user.full_name == "New User"
     assert user.email_verified is True
-    # The legacy users.oidc_* columns are no longer written — the identity
-    # link carries the subject, sync stamp, and (companion) refresh token.
-    assert user.oidc_sub is None
+    # SSO-only account: no password hash — the identity link carries the
+    # subject, sync stamp, and (companion) refresh token.
+    assert user.hashed_password is None
     identities = await _federated_identities(session)
     assert [(i.user_id, i.subject) for i in identities] == [(user.id, "idp-subject-1")]
     identity = identities[0]

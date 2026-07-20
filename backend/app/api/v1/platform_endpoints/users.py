@@ -800,11 +800,10 @@ async def delete_own_account(
             detail=UserMessages.CANNOT_DELETE_LAST_ADMIN,
         )
 
-    # Verify password — skipped for SSO-only users, who were created
-    # with a random ``hashed_password`` they were never shown
-    # (auth.py provisioning flow). Without this exemption an SSO-only
-    # account would have no way to satisfy the gate and could only be
-    # removed by an admin.
+    # Verify password — skipped for SSO-only users, who have no password
+    # (NULL ``hashed_password``; identity provisioning flow). Without this
+    # exemption an SSO-only account would have no way to satisfy the gate
+    # and could only be removed by an admin.
     if not await has_federated_identity(session, user_id=current_user.id):
         if not verify_password(request.password, current_user.hashed_password):
             # 400 (not 401): the user IS authenticated — they passed

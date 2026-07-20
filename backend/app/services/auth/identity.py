@@ -23,7 +23,6 @@ service: no raise-with-uncommitted-writes).
 from __future__ import annotations
 
 import logging
-import secrets
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
@@ -34,7 +33,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.encryption import SALT_EMAIL, encrypt_field, encrypt_token, hash_email
-from app.core.security import get_password_hash
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.guild import Guild
@@ -280,9 +278,9 @@ async def _provision(
         email_hash=hash_email(normalized),
         email_encrypted=encrypt_field(normalized, SALT_EMAIL),
         full_name=full_name or normalized,
-        # No usable password: random throwaway until hashed_password turns
-        # nullable in the final cutover phase.
-        hashed_password=get_password_hash(secrets.token_urlsafe(32)),
+        # SSO-only account: no password. Verification treats a NULL hash as
+        # never-a-match, so this account signs in only through its provider.
+        hashed_password=None,
         role=UserRole.member,
         status=UserStatus.active,
         avatar_url=avatar_url,

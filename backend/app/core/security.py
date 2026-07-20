@@ -31,13 +31,18 @@ def get_password_hash(password: str) -> str:
     return _argon2_hasher.hash(password)
 
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
+def verify_password(plain_password: str, hashed_password: str | None) -> bool:
     """Verify a plaintext password against either an argon2id or legacy bcrypt hash.
 
-    Existing users still have bcrypt hashes from the passlib era; those are
-    verified directly with the bcrypt library. The login flow rehashes them
-    as argon2id on next successful login (see ``password_needs_rehash``).
+    A ``None`` hash means the account has no password (SSO-only) — never a
+    match, so every caller gets uniform "incorrect credentials" behavior
+    without a separate check. Existing users still have bcrypt hashes from the
+    passlib era; those are verified directly with the bcrypt library. The login
+    flow rehashes them as argon2id on next successful login (see
+    ``password_needs_rehash``).
     """
+    if hashed_password is None:
+        return False
     if hashed_password.startswith("$argon2"):
         try:
             _argon2_hasher.verify(hashed_password, plain_password)
@@ -55,12 +60,15 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return False
 
 
-def password_needs_rehash(hashed_password: str) -> bool:
+def password_needs_rehash(hashed_password: str | None) -> bool:
     """Return True if the stored hash should be rewritten on next successful login.
 
     Triggers for legacy bcrypt hashes and for argon2 hashes whose parameters
-    have drifted from the current PasswordHasher defaults.
+    have drifted from the current PasswordHasher defaults. ``None`` (no
+    password set) has nothing to rehash.
     """
+    if hashed_password is None:
+        return False
     if not hashed_password.startswith("$argon2"):
         return True
     try:
