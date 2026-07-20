@@ -1574,6 +1574,7 @@ export interface GuildRead {
   tier_name: string | null;
   status: GuildStatus | null;
   content_read_only: boolean;
+  guild_auth_enabled: boolean | null;
 }
 
 /**
@@ -2146,6 +2147,7 @@ export interface PlatformGuildStorageRead {
   max_users: number | null;
   status: GuildStatus;
   status_changed_at: string | null;
+  guild_auth_enabled: boolean;
 }
 
 /**
@@ -2161,6 +2163,7 @@ export interface PlatformGuildStorageUpdate {
   max_storage_bytes?: number | null;
   max_users?: number | null;
   status?: GuildStatus | null;
+  guild_auth_enabled?: boolean | null;
 }
 
 /**

@@ -793,6 +793,9 @@
     "statusInputLabel": "Status für {{name}}",
     "statusSaved": "Status für {{name}} aktualisiert.",
     "statusSaveError": "Der Gildenstatus konnte nicht aktualisiert werden. Bitte versuche es erneut.",
+    "guildAuthInputLabel": "Gildenspezifische Anmeldung für {{name}}",
+    "guildAuthOn": "Gildenspezifische Anmeldung für {{name}} aktiviert.",
+    "guildAuthOff": "Gildenspezifische Anmeldung für {{name}} deaktiviert. Bestehende Mitglieder melden sich weiterhin an; es werden keine neuen Konten angelegt.",
     "status": {
       "active": "Aktiv",
       "read_only": "Schreibgeschützt",
@@ -809,6 +812,7 @@
       "members": "Mitglieder",
       "users": "Benutzer",
       "storageLimit": "Speicherlimit",
+      "guildAuth": "Gildenanmeldung",
       "status": "Status"
     }
   },

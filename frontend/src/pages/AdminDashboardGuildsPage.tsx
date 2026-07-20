@@ -15,8 +15,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
-import { usePlatformGuilds, useUpdateGuildStorage } from "@/hooks/useSettings";
+import {
+  useInterfaceSettings,
+  usePlatformGuilds,
+  useUpdateGuildStorage,
+} from "@/hooks/useSettings";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { Capability, hasCapability } from "@/lib/permissions";
@@ -260,12 +265,51 @@ const GuildStatusCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
   );
 };
 
+/**
+ * Per-guild sign-in entitlement toggle. Flipping it on lets the guild configure
+ * its own login providers and onboard new accounts through them; flipping it off
+ * closes that config surface and stops new-account onboarding, but never deletes
+ * providers or signs existing members out. Only meaningful (and only rendered)
+ * under the per-guild AUTH_SCOPE posture.
+ */
+const GuildAuthCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
+  const { t } = useTranslation("settings");
+
+  const update = useUpdateGuildStorage({
+    onSuccess: (row) => {
+      toast.success(
+        row.guild_auth_enabled
+          ? t("guilds.guildAuthOn", { name: row.name })
+          : t("guilds.guildAuthOff", { name: row.name })
+      );
+    },
+    onError: (err) => {
+      toast.error(getErrorMessage(err, "settings:guilds.saveError"));
+    },
+  });
+
+  return (
+    <Switch
+      checked={guild.guild_auth_enabled}
+      onCheckedChange={(checked) =>
+        update.mutate({ guildId: guild.id, data: { guild_auth_enabled: Boolean(checked) } })
+      }
+      disabled={update.isPending}
+      aria-label={t("guilds.guildAuthInputLabel", { name: guild.name })}
+    />
+  );
+};
+
 export const AdminDashboardGuildsPage = () => {
   const { t } = useTranslation("settings");
   const { user } = useAuth();
   const canManageGuilds = hasCapability(user, Capability.guildsManage);
 
   const guildsQuery = usePlatformGuilds({ enabled: canManageGuilds });
+  // The guild-auth column is only meaningful when the instance runs per-guild
+  // sign-in; under platform posture the toggle would do nothing, so hide it.
+  const interfaceSettings = useInterfaceSettings();
+  const guildAuthPosture = interfaceSettings.data?.auth_scope === "guild";
 
   const columns: ColumnDef<PlatformGuildStorageRead>[] = [
     {
@@ -291,6 +335,16 @@ export const AdminDashboardGuildsPage = () => {
       enableSorting: false,
       cell: ({ row }) => <GuildStorageCell guild={row.original} />,
     },
+    ...(guildAuthPosture
+      ? [
+          {
+            id: "guildAuth",
+            header: t("guilds.columns.guildAuth"),
+            enableSorting: false,
+            cell: ({ row }) => <GuildAuthCell guild={row.original} />,
+          } satisfies ColumnDef<PlatformGuildStorageRead>,
+        ]
+      : []),
     {
       id: "status",
       header: t("guilds.columns.status"),

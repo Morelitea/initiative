@@ -31,13 +31,16 @@ from app.testing.oidc import ISSUER as OIDC_ISSUER, FakeIdp, mint_id_token
 pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 
-async def _guild_provider(session: AsyncSession, **overrides):
+async def _guild_provider(
+    session: AsyncSession, *, guild_auth_enabled: bool = True, **overrides
+):
     """A login-ready guild-scoped provider in a fresh guild, with the platform
-    flipped to per-guild posture."""
+    flipped to per-guild posture. ``guild_auth_enabled=False`` models a guild
+    the operator has not enabled sign-in for."""
     from app.testing.factories import create_guild
 
     set_auth_scope()
-    guild = await create_guild(session)
+    guild = await create_guild(session, guild_auth_enabled=guild_auth_enabled)
     provider = await create_auth_provider(
         session, slug="corp", guild_id=guild.id, **overrides
     )
@@ -338,6 +341,68 @@ async def test_guild_callback_refuses_unknown_user_when_jit_off(
     assert response.status_code in (302, 307)
     assert "error=OIDC_REGISTRATION_DISABLED" in response.headers["location"]
     assert await _latest_session(session) is None
+
+
+async def test_guild_callback_refuses_new_user_when_guild_auth_disabled(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """A guild the operator has not enabled sign-in for onboards no NEW
+    accounts: the provider still authenticates, but JIT is refused and nothing
+    is left behind. (Existing members are covered by the next test.)"""
+    guild, _provider = await _guild_provider(session, guild_auth_enabled=False)
+    guild_id = guild.id
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await _run_guild_flow(
+        client,
+        idp,
+        guild_id,
+        id_token_claims={
+            "sub": "new-hire",
+            "email": "new@example.com",
+            "email_verified": True,
+        },
+    )
+    assert response.status_code in (302, 307)
+    assert "error=OIDC_REGISTRATION_DISABLED" in response.headers["location"]
+    assert await _latest_session(session) is None
+    assert (
+        await session.exec(
+            select(GuildMembership).where(GuildMembership.guild_id == guild_id)
+        )
+    ).all() == []
+    session.expire_all()
+    assert (
+        await session.exec(
+            select(User).where(User.email_hash == hash_email("new@example.com"))
+        )
+    ).one_or_none() is None
+
+
+async def test_guild_callback_signs_in_existing_member_when_guild_auth_disabled(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """Disabling a guild's sign-in never revokes existing members' login: a
+    linked identity still completes the flow and gets a session."""
+    guild, provider = await _guild_provider(session, guild_auth_enabled=False)
+    user = await create_user(session)
+    await create_federated_identity(
+        session, user, subject="idp-subject-1", provider=provider
+    )
+    user_id, provider_id = user.id, provider.id
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await _run_guild_flow(client, idp, guild.id)
+    assert response.status_code in (302, 307), response.text
+    assert "error=" not in response.headers["location"]
+    assert REFRESH_COOKIE_NAME in response.headers.get("set-cookie", "")
+
+    row = await _latest_session(session)
+    assert row is not None
+    assert row.user_id == user_id
+    assert row.satisfied_providers == [provider_id]
 
 
 async def test_state_bound_to_one_guilds_provider(

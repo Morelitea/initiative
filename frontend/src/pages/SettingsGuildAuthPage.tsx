@@ -21,6 +21,7 @@ import {
   useGuildLoginProviders,
   useUpdateGuildAuthPolicy,
 } from "@/hooks/useGuildAuthPolicy";
+import { useGuilds } from "@/hooks/useGuilds";
 import { useServer } from "@/hooks/useServer";
 import { useInterfaceSettings } from "@/hooks/useSettings";
 import { toast } from "@/lib/chesterToast";
@@ -36,12 +37,15 @@ export const SettingsGuildAuthPage = () => {
   const { t } = useTranslation(["settings", "common"]);
   const guildId = useActiveGuildId();
 
-  // The whole page exists only when the platform has opted into per-guild
-  // auth; outside that posture the tab is hidden and a direct URL renders
-  // nothing (fail closed while the posture is still loading). The backend
-  // 404s the policy endpoints in the same case, so the queries stay off too.
+  // The whole page exists only when the platform has opted into per-guild auth
+  // AND an operator has enabled sign-in for this guild; outside that the tab is
+  // hidden and a direct URL renders nothing (fail closed while still loading).
+  // The backend 404s the policy/provider endpoints in the same case, so the
+  // queries stay off too.
   const interfaceSettings = useInterfaceSettings();
-  const guildPostureActive = interfaceSettings.data?.auth_scope === "guild";
+  const { activeGuild } = useGuilds();
+  const guildPostureActive =
+    interfaceSettings.data?.auth_scope === "guild" && activeGuild?.guild_auth_enabled === true;
 
   const policyQuery = useGuildAuthPolicy(guildId, {
     enabled: guildId > 0 && guildPostureActive,

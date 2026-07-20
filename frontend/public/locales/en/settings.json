@@ -784,6 +784,9 @@
     "statusInputLabel": "Status for {{name}}",
     "statusSaved": "Updated status for {{name}}.",
     "statusSaveError": "Could not update the guild status. Please try again.",
+    "guildAuthInputLabel": "Per-guild sign-in for {{name}}",
+    "guildAuthOn": "Enabled per-guild sign-in for {{name}}.",
+    "guildAuthOff": "Disabled per-guild sign-in for {{name}}. Existing members keep signing in; no new accounts onboard.",
     "status": {
       "active": "Active",
       "read_only": "Read-only",
@@ -800,6 +803,7 @@
       "members": "Members",
       "users": "Users",
       "storageLimit": "Storage limit",
+      "guildAuth": "Per-guild sign-in",
       "status": "Status"
     }
   },
