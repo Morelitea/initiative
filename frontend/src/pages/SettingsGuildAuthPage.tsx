@@ -18,6 +18,7 @@ import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import {
   useGuildAuthPolicy,
   useGuildAuthProviders,
+  useGuildLoginProviders,
   useUpdateGuildAuthPolicy,
 } from "@/hooks/useGuildAuthPolicy";
 import { useInterfaceSettings } from "@/hooks/useSettings";
@@ -116,6 +117,26 @@ export const SettingsGuildAuthPage = () => {
     setError(null);
   };
 
+  // The public listing carries the guild-addressed login URLs the
+  // self-unsatisfied prompt sends the admin through.
+  const loginProvidersQuery = useGuildLoginProviders(guildId, {
+    enabled: guildId > 0 && guildPostureActive,
+  });
+
+  // Completing the required provider's sign-in updates this admin session's
+  // satisfied set, after which saving the requirement succeeds.
+  const signInWithRequiredProvider = () => {
+    const entry = loginProvidersQuery.data?.providers.find((e) => e.slug === selfUnsatisfiedSlug);
+    if (!entry) {
+      return;
+    }
+    const next = `${window.location.pathname}${window.location.search}`;
+    window.location.href = `${entry.login_url}?next=${encodeURIComponent(next)}`;
+  };
+  const canSignInWithRequired =
+    selfUnsatisfiedSlug != null &&
+    loginProvidersQuery.data?.providers.some((e) => e.slug === selfUnsatisfiedSlug);
+
   if (!guildPostureActive) {
     return null;
   }
@@ -185,10 +206,19 @@ export const SettingsGuildAuthPage = () => {
 
           {selfUnsatisfiedSlug && (
             <Alert>
-              <AlertDescription>
-                {t("guildAuth.policy.selfUnsatisfied", {
-                  providerName: selectedProvider?.display_name ?? selfUnsatisfiedSlug,
-                })}
+              <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <span>
+                  {t("guildAuth.policy.selfUnsatisfied", {
+                    providerName: selectedProvider?.display_name ?? selfUnsatisfiedSlug,
+                  })}
+                </span>
+                {canSignInWithRequired && (
+                  <Button size="sm" onClick={signInWithRequiredProvider}>
+                    {t("guildAuth.policy.signInWith", {
+                      providerName: selectedProvider?.display_name ?? selfUnsatisfiedSlug,
+                    })}
+                  </Button>
+                )}
               </AlertDescription>
             </Alert>
           )}

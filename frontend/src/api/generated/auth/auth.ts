@@ -26,6 +26,8 @@ import type {
   DeviceTokenInfo,
   DeviceTokenRequest,
   DeviceTokenResponse,
+  GuildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGetParams,
+  GuildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGetParams,
   HTTPValidationError,
   LoginProvidersResponse,
   PasswordResetRequest,
@@ -1111,14 +1113,376 @@ export function useListLoginProvidersApiV1AuthProvidersGet<
 }
 
 /**
- * Begin the relying-party flow for one provider. The platform provider's
- * slug is ``oidc``, so the pre-generalization ``/auth/oidc/login`` URL is
- * this same route.
- *
- * ``next`` is an optional SPA path to return to after the web callback
- * (e.g. the guild page a step-up started from). Only a validated relative
- * path is accepted; it rides a short-lived cookie to the callback, which
- * passes it to the SPA's ``/oidc/callback`` page as a query param.
+ * One guild's sign-in providers — non-secret metadata only, with
+ * guild-addressed login URLs. Empty outside per-guild auth posture and for
+ * a guild with no login-ready providers; an unknown guild id is
+ * indistinguishable from an empty registry.
+ * @summary List Guild Login Providers
+ */
+export const listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet = (
+  guildId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<LoginProvidersResponse>(
+    { url: `/api/v1/auth/g/${guildId}/providers`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListGuildLoginProvidersApiV1AuthGGuildIdProvidersGetQueryKey = (
+  guildId: number
+) => {
+  return [`/api/v1/auth/g/${guildId}/providers`] as const;
+};
+
+export const getListGuildLoginProvidersApiV1AuthGGuildIdProvidersGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getListGuildLoginProvidersApiV1AuthGGuildIdProvidersGetQueryKey(guildId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>
+  > = ({ signal }) =>
+    listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet(guildId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListGuildLoginProvidersApiV1AuthGGuildIdProvidersGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>
+>;
+export type ListGuildLoginProvidersApiV1AuthGGuildIdProvidersGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useListGuildLoginProvidersApiV1AuthGGuildIdProvidersGet<
+  TData = Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>,
+          TError,
+          Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListGuildLoginProvidersApiV1AuthGGuildIdProvidersGet<
+  TData = Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>,
+          TError,
+          Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListGuildLoginProvidersApiV1AuthGGuildIdProvidersGet<
+  TData = Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Guild Login Providers
+ */
+
+export function useListGuildLoginProvidersApiV1AuthGGuildIdProvidersGet<
+  TData = Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListGuildLoginProvidersApiV1AuthGGuildIdProvidersGetQueryOptions(
+    guildId,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Begin the relying-party flow for one of a guild's own providers.
+ * Web only for now — native guild step-up arrives with native session
+ * tokens, so there is no ``mobile`` variant of this route.
+ * @summary Guild Provider Login
+ */
+export const guildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGet = (
+  guildId: number,
+  providerSlug: string,
+  params?: GuildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<unknown>(
+    { url: `/api/v1/auth/g/${guildId}/${providerSlug}/login`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getGuildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGetQueryKey = (
+  guildId: number,
+  providerSlug: string,
+  params?: GuildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGetParams
+) => {
+  return [`/api/v1/auth/g/${guildId}/${providerSlug}/login`, ...(params ? [params] : [])] as const;
+};
+
+export const getGuildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof guildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  providerSlug: string,
+  params?: GuildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof guildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGuildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGetQueryKey(
+      guildId,
+      providerSlug,
+      params
+    );
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof guildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGet>>
+  > = ({ signal }) =>
+    guildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGet(
+      guildId,
+      providerSlug,
+      params,
+      requestOptions,
+      signal
+    );
+
+  return {
+    queryKey,
+    queryFn,
+    enabled:
+      guildId !== null &&
+      guildId !== undefined &&
+      providerSlug !== null &&
+      providerSlug !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof guildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GuildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof guildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGet>>
+>;
+export type GuildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useGuildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGet<
+  TData = Awaited<ReturnType<typeof guildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  providerSlug: string,
+  params: undefined | GuildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof guildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof guildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGet>>,
+          TError,
+          Awaited<ReturnType<typeof guildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGuildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGet<
+  TData = Awaited<ReturnType<typeof guildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  providerSlug: string,
+  params?: GuildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof guildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof guildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGet>>,
+          TError,
+          Awaited<ReturnType<typeof guildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGuildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGet<
+  TData = Awaited<ReturnType<typeof guildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  providerSlug: string,
+  params?: GuildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof guildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Guild Provider Login
+ */
+
+export function useGuildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGet<
+  TData = Awaited<ReturnType<typeof guildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  providerSlug: string,
+  params?: GuildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof guildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGuildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGetQueryOptions(
+    guildId,
+    providerSlug,
+    params,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Begin the relying-party flow for one operator-global provider. The
+ * platform provider's slug is ``oidc``, so the pre-generalization
+ * ``/auth/oidc/login`` URL is this same route.
  * @summary Provider Login
  */
 export const providerLoginApiV1AuthProviderSlugLoginGet = (
@@ -1291,9 +1655,209 @@ export function useProviderLoginApiV1AuthProviderSlugLoginGet<
 }
 
 /**
- * Complete the relying-party flow for one provider (see provider_login:
- * the platform provider's slug is ``oidc``, so the URL operators registered
- * at their IdP is this same route).
+ * Complete the relying-party flow for one of a guild's own providers —
+ * the guild-addressed URL registered at the guild's IdP.
+ * @summary Guild Provider Callback
+ */
+export const guildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGet = (
+  guildId: number,
+  providerSlug: string,
+  params?: GuildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<unknown>(
+    { url: `/api/v1/auth/g/${guildId}/${providerSlug}/callback`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getGuildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGetQueryKey = (
+  guildId: number,
+  providerSlug: string,
+  params?: GuildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGetParams
+) => {
+  return [
+    `/api/v1/auth/g/${guildId}/${providerSlug}/callback`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGuildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof guildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  providerSlug: string,
+  params?: GuildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof guildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGuildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGetQueryKey(
+      guildId,
+      providerSlug,
+      params
+    );
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof guildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGet>>
+  > = ({ signal }) =>
+    guildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGet(
+      guildId,
+      providerSlug,
+      params,
+      requestOptions,
+      signal
+    );
+
+  return {
+    queryKey,
+    queryFn,
+    enabled:
+      guildId !== null &&
+      guildId !== undefined &&
+      providerSlug !== null &&
+      providerSlug !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof guildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GuildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof guildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGet>>
+>;
+export type GuildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useGuildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGet<
+  TData = Awaited<ReturnType<typeof guildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  providerSlug: string,
+  params: undefined | GuildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof guildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof guildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGet>>,
+          TError,
+          Awaited<ReturnType<typeof guildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGuildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGet<
+  TData = Awaited<ReturnType<typeof guildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  providerSlug: string,
+  params?: GuildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof guildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof guildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGet>>,
+          TError,
+          Awaited<ReturnType<typeof guildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGuildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGet<
+  TData = Awaited<ReturnType<typeof guildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  providerSlug: string,
+  params?: GuildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof guildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Guild Provider Callback
+ */
+
+export function useGuildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGet<
+  TData = Awaited<ReturnType<typeof guildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  providerSlug: string,
+  params?: GuildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof guildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGuildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGetQueryOptions(
+    guildId,
+    providerSlug,
+    params,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Complete the relying-party flow for one operator-global provider (see
+ * provider_login: the platform provider's slug is ``oidc``, so the URL
+ * operators registered at their IdP is this same route).
  * @summary Provider Callback
  */
 export const providerCallbackApiV1AuthProviderSlugCallbackGet = (

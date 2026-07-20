@@ -873,7 +873,7 @@
     "registry": {
       "title": "Identity providers",
       "description": "The single sign-on providers this guild's members sign in with. Configured by this guild's admins and applying only here.",
-      "dialogDescription": "OpenID Connect provider details for this guild's identity provider."
+      "dialogDescription": "OpenID Connect provider details. The callback URL for your IdP is /api/v1/auth/g/{{guildId}}/{slug}/callback on this server."
     },
     "policy": {
       "title": "Sign-in requirement",
@@ -886,7 +886,8 @@
       "noProviders": "No providers are configured yet. Add one under Identity providers below, then require it here.",
       "saved": "Sign-in requirement saved",
       "error": "Could not save the sign-in requirement",
-      "selfUnsatisfied": "Your current session hasn't signed in with {{providerName}} yet. Sign in with it once to confirm it works before requiring it."
+      "selfUnsatisfied": "Your current session hasn't signed in with {{providerName}} yet. Sign in with it once to confirm it works before requiring it.",
+      "signInWith": "Sign in with {{providerName}}"
     }
   },
   "authProviders": {

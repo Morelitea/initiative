@@ -364,11 +364,15 @@ class GuildAccessError(Exception):
         detail: str = GuildMessages.GUILD_ACCESS_DENIED,
         *,
         step_up_provider_slug: str | None = None,
+        step_up_guild_id: int | None = None,
     ) -> None:
         self.detail = detail
         # Set for GUILD_AUTH_STEP_UP_REQUIRED: which provider the session must
-        # satisfy; the REST mapping surfaces it as the X-Auth-Step-Up header.
+        # satisfy (X-Auth-Step-Up) and which guild's login flow serves it
+        # (X-Auth-Step-Up-Guild) — guild-scoped providers resolve their login
+        # URL through the guild, not a global slug.
         self.step_up_provider_slug = step_up_provider_slug
+        self.step_up_guild_id = step_up_guild_id
         super().__init__(detail)
 
 
@@ -403,6 +407,7 @@ async def _enforce_guild_auth_policy(
         raise GuildAccessError(
             detail=GuildMessages.GUILD_AUTH_STEP_UP_REQUIRED,
             step_up_provider_slug=policy.provider_slug,
+            step_up_guild_id=guild_id,
         )
 
 
@@ -559,7 +564,14 @@ async def get_guild_membership(
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=exc.detail,
-                headers={"X-Auth-Step-Up": exc.step_up_provider_slug or ""},
+                headers={
+                    "X-Auth-Step-Up": exc.step_up_provider_slug or "",
+                    "X-Auth-Step-Up-Guild": (
+                        str(exc.step_up_guild_id)
+                        if exc.step_up_guild_id is not None
+                        else ""
+                    ),
+                },
             ) from exc
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=exc.detail

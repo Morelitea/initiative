@@ -70,13 +70,16 @@ async def resolve_oidc_identity(
     email_verified: bool,
     full_name: str | None = None,
     avatar_url: str | None = None,
+    jit: bool = True,
 ) -> IdentityResolution:
     """Resolve ``(provider, subject)`` to a user.
 
     ``email`` is the IdP-asserted address (``None`` when the IdP returns no
     email claim — a synthetic ``{subject}@oidc.local`` address is used for
     provisioning, mirroring the existing flow). Account-status checks (active,
-    deactivated) stay with the caller, as they do today.
+    deactivated) stay with the caller, as they do today. ``jit=False`` limits
+    resolution to existing users regardless of the provider's ``allow_jit``
+    (a caller whose flow can't finish onboarding a brand-new user yet).
     """
     identity = await _find_identity(session, provider_id=provider.id, subject=subject)
     if identity is not None:
@@ -127,8 +130,9 @@ async def resolve_oidc_identity(
                 outcome=ResolutionOutcome.EMAIL_MATCH, user=existing
             )
 
-    # Unknown user: JIT-provision if the provider and the instance allow it.
-    if not provider.allow_jit:
+    # Unknown user: JIT-provision if the caller, the provider, and the
+    # instance all allow it.
+    if not (jit and provider.allow_jit):
         return IdentityResolution(outcome=ResolutionOutcome.JIT_DISABLED)
     if not await _registration_open(session):
         return IdentityResolution(outcome=ResolutionOutcome.REGISTRATION_DISABLED)

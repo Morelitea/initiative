@@ -873,7 +873,7 @@
     "registry": {
       "title": "Identitätsanbieter",
       "description": "Die Single-Sign-on-Anbieter, mit denen sich die Mitglieder dieser Gilde anmelden. Werden von den Admins dieser Gilde konfiguriert und gelten nur hier.",
-      "dialogDescription": "OpenID-Connect-Details für den Identitätsanbieter dieser Gilde."
+      "dialogDescription": "OpenID-Connect-Details. Die Callback-URL beim IdP ist /api/v1/auth/g/{{guildId}}/{slug}/callback auf diesem Server."
     },
     "policy": {
       "title": "Anmeldeanforderung",
@@ -886,7 +886,8 @@
       "noProviders": "Es sind noch keine Anbieter konfiguriert. Füge unten unter Identitätsanbieter einen hinzu und mache ihn dann hier verpflichtend.",
       "saved": "Anmeldeanforderung gespeichert",
       "error": "Anmeldeanforderung konnte nicht gespeichert werden",
-      "selfUnsatisfied": "Deine aktuelle Sitzung hat sich noch nicht über {{providerName}} angemeldet. Melde dich einmal damit an, um zu bestätigen, dass es funktioniert, bevor du es verpflichtend machst."
+      "selfUnsatisfied": "Deine aktuelle Sitzung hat sich noch nicht über {{providerName}} angemeldet. Melde dich einmal damit an, um zu bestätigen, dass es funktioniert, bevor du es verpflichtend machst.",
+      "signInWith": "Mit {{providerName}} anmelden"
     }
   },
   "authProviders": {

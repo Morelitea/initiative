@@ -72,6 +72,11 @@ export const AUTH_STEP_UP_EVENT = "initiative:auth:step-up";
 export interface StepUpEventDetail {
   /** Slug of the provider the guild requires (X-Auth-Step-Up header). */
   providerSlug: string;
+  /**
+   * Guild whose login flow serves that provider (X-Auth-Step-Up-Guild
+   * header); null on servers that predate guild-addressed login URLs.
+   */
+  guildId: number | null;
 }
 
 let authToken: string | null = null;
@@ -208,9 +213,14 @@ apiClient.interceptors.response.use(undefined, async (error) => {
     // required provider's sign-in; the request itself still rejects (pages
     // render their error state, nothing retries).
     const providerSlug = error.response?.headers?.["x-auth-step-up"];
+    const rawGuildId = error.response?.headers?.["x-auth-step-up-guild"];
+    const guildId =
+      typeof rawGuildId === "string" && /^\d+$/.test(rawGuildId) ? Number(rawGuildId) : null;
     if (typeof providerSlug === "string" && providerSlug && typeof window !== "undefined") {
       window.dispatchEvent(
-        new CustomEvent<StepUpEventDetail>(AUTH_STEP_UP_EVENT, { detail: { providerSlug } })
+        new CustomEvent<StepUpEventDetail>(AUTH_STEP_UP_EVENT, {
+          detail: { providerSlug, guildId },
+        })
       );
     }
     return Promise.reject(error);

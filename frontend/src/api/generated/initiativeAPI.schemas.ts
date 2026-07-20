@@ -3968,10 +3968,19 @@ export type RegisterUserApiV1AuthRegisterPostParams = {
 
 export type BootstrapStatusApiV1AuthBootstrapGet200 = { [key: string]: boolean };
 
+export type GuildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGetParams = {
+  next?: string;
+};
+
 export type ProviderLoginApiV1AuthProviderSlugLoginGetParams = {
   mobile?: boolean;
   device_name?: string;
   next?: string;
+};
+
+export type GuildProviderCallbackApiV1AuthGGuildIdProviderSlugCallbackGetParams = {
+  code?: string | null;
+  state?: string | null;
 };
 
 export type ProviderCallbackApiV1AuthProviderSlugCallbackGetParams = {

@@ -651,12 +651,26 @@ async def revoke_device_token(
         )
 
 
-def _provider_redirect_uri(provider_slug: str) -> str:
+def _provider_redirect_uri(provider_slug: str, guild_id: int | None = None) -> str:
     """Per-provider callback URL. For the platform slug this is the same
     ``/auth/oidc/callback`` operators registered at their IdP before the
-    routes were generalized — the slug is literally ``oidc``."""
+    routes were generalized — the slug is literally ``oidc``. Guild-scoped
+    providers get a guild-addressed callback (their slug is only unique
+    within the guild)."""
     base = settings.APP_URL.rstrip("/")
+    if guild_id is not None:
+        return f"{base}{API_V1_STR}/auth/g/{guild_id}/{provider_slug}/callback"
     return f"{base}{API_V1_STR}/auth/{provider_slug}/callback"
+
+
+def _provider_state_key(row: AuthProvider) -> str:
+    """The identity a login-flow state binds to. Operator-global rows keep the
+    bare slug (states minted before guild providers stay valid); guild rows
+    are namespaced so a state begun with one guild's provider can't complete
+    against another guild's provider of the same slug."""
+    if row.guild_id is not None:
+        return f"g{row.guild_id}:{row.slug}"
+    return row.slug
 
 
 def _frontend_redirect_uri() -> str:
@@ -726,6 +740,39 @@ async def _resolve_login_provider(
     return row
 
 
+async def _resolve_guild_login_provider(
+    app_settings: AppSetting,
+    admin_session: AsyncSession,
+    guild_id: int,
+    provider_slug: str,
+) -> AuthProvider:
+    """The login-ready guild-scoped provider row for one (guild, slug), or
+    404. Guild providers serve logins only under per-guild auth posture —
+    the mirror image of ``_resolve_login_provider``'s operator-global gate.
+    An unknown guild, slug, or config-incomplete row all look identical."""
+    if not is_valid_provider_slug(provider_slug):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
+        )
+    if app_settings.auth_scope != AuthScope.guild.value:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
+        )
+    row = (
+        await admin_session.exec(
+            select(AuthProvider).where(
+                AuthProvider.slug == provider_slug,
+                AuthProvider.guild_id == guild_id,
+            )
+        )
+    ).one_or_none()
+    if row is None or not is_login_ready(row):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
+        )
+    return row
+
+
 async def _build_row_oidc_provider(
     admin_session: AsyncSession, row: AuthProvider
 ) -> OidcProvider:
@@ -745,10 +792,10 @@ async def _build_row_oidc_provider(
         OidcClientConfig(
             issuer=row.issuer,
             client_id=row.client_id,
-            redirect_uri=_provider_redirect_uri(row.slug),
+            redirect_uri=_provider_redirect_uri(row.slug, row.guild_id),
             client_secret=client_secret,
             scopes=row.scopes or "openid",
-            provider_slug=row.slug,
+            provider_slug=_provider_state_key(row),
         ),
         discovery=_oidc_discovery,
         jwks=_oidc_jwks,
@@ -756,12 +803,17 @@ async def _build_row_oidc_provider(
 
 
 def _login_entry(row: AuthProvider) -> LoginProviderEntry:
+    login_url = (
+        f"{API_V1_STR}/auth/g/{row.guild_id}/{row.slug}/login"
+        if row.guild_id is not None
+        else f"{API_V1_STR}/auth/{row.slug}/login"
+    )
     return LoginProviderEntry(
         id=row.id,
         slug=row.slug,
         display_name=row.display_name,
         kind=row.kind,
-        login_url=f"{API_V1_STR}/auth/{row.slug}/login",
+        login_url=login_url,
         icon=row.icon,
         button_style=row.button_style,
     )
@@ -824,29 +876,21 @@ async def list_login_providers(
     return LoginProvidersResponse(providers=entries)
 
 
-@router.get("/{provider_slug}/login")
-@limiter.limit("20/minute")
-async def provider_login(
-    request: Request,
-    session: SessionDep,
-    admin_session: AdminSessionDep,
-    provider_slug: str,
-    mobile: bool = Query(default=False),
-    device_name: str = Query(default="Mobile Device"),
-    next_path: str = Query(default="", alias="next"),
+async def _begin_provider_login(
+    admin_session: AsyncSession,
+    provider_row: AuthProvider,
+    *,
+    mobile: bool,
+    device_name: str,
+    next_path: str,
 ) -> RedirectResponse:
-    """Begin the relying-party flow for one provider. The platform provider's
-    slug is ``oidc``, so the pre-generalization ``/auth/oidc/login`` URL is
-    this same route.
+    """Begin the relying-party flow for a resolved provider row — shared by
+    the operator-global and guild-addressed login routes.
 
-    ``next`` is an optional SPA path to return to after the web callback
+    ``next_path`` is an optional SPA path to return to after the web callback
     (e.g. the guild page a step-up started from). Only a validated relative
     path is accepted; it rides a short-lived cookie to the callback, which
     passes it to the SPA's ``/oidc/callback`` page as a query param."""
-    app_settings = await app_settings_service.get_app_settings(session)
-    provider_row = await _resolve_login_provider(
-        app_settings, admin_session, provider_slug
-    )
     provider = await _build_row_oidc_provider(admin_session, provider_row)
     try:
         begun = await provider.begin(
@@ -875,6 +919,78 @@ async def provider_login(
     return response
 
 
+@router.get("/g/{guild_id}/providers", response_model=LoginProvidersResponse)
+async def list_guild_login_providers(
+    session: SessionDep, admin_session: AdminSessionDep, guild_id: int
+) -> LoginProvidersResponse:
+    """One guild's sign-in providers — non-secret metadata only, with
+    guild-addressed login URLs. Empty outside per-guild auth posture and for
+    a guild with no login-ready providers; an unknown guild id is
+    indistinguishable from an empty registry."""
+    app_settings = await app_settings_service.get_app_settings(session)
+    if app_settings.auth_scope != AuthScope.guild.value:
+        return LoginProvidersResponse(providers=[])
+    rows = (
+        await admin_session.exec(
+            select(AuthProvider)
+            .where(AuthProvider.guild_id == guild_id)
+            .order_by(AuthProvider.display_name)
+        )
+    ).all()
+    return LoginProvidersResponse(
+        providers=[_login_entry(row) for row in rows if is_login_ready(row)]
+    )
+
+
+@router.get("/g/{guild_id}/{provider_slug}/login")
+@limiter.limit("20/minute")
+async def guild_provider_login(
+    request: Request,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    guild_id: int,
+    provider_slug: str,
+    next_path: str = Query(default="", alias="next"),
+) -> RedirectResponse:
+    """Begin the relying-party flow for one of a guild's own providers.
+    Web only for now — native guild step-up arrives with native session
+    tokens, so there is no ``mobile`` variant of this route."""
+    app_settings = await app_settings_service.get_app_settings(session)
+    provider_row = await _resolve_guild_login_provider(
+        app_settings, admin_session, guild_id, provider_slug
+    )
+    return await _begin_provider_login(
+        admin_session, provider_row, mobile=False, device_name="", next_path=next_path
+    )
+
+
+@router.get("/{provider_slug}/login")
+@limiter.limit("20/minute")
+async def provider_login(
+    request: Request,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    provider_slug: str,
+    mobile: bool = Query(default=False),
+    device_name: str = Query(default="Mobile Device"),
+    next_path: str = Query(default="", alias="next"),
+) -> RedirectResponse:
+    """Begin the relying-party flow for one operator-global provider. The
+    platform provider's slug is ``oidc``, so the pre-generalization
+    ``/auth/oidc/login`` URL is this same route."""
+    app_settings = await app_settings_service.get_app_settings(session)
+    provider_row = await _resolve_login_provider(
+        app_settings, admin_session, provider_slug
+    )
+    return await _begin_provider_login(
+        admin_session,
+        provider_row,
+        mobile=mobile,
+        device_name=device_name,
+        next_path=next_path,
+    )
+
+
 def _mobile_redirect_uri() -> str:
     return "initiative://oidc/callback"
 
@@ -889,24 +1005,20 @@ def _error_redirect(is_mobile: bool | None, error: str) -> RedirectResponse:
     return RedirectResponse(url)
 
 
-@router.get("/{provider_slug}/callback")
-@limiter.limit("20/minute")
-async def provider_callback(
+async def _complete_provider_login(
     request: Request,
-    session: SessionDep,
-    admin_session: AdminSessionDep,
-    provider_slug: str,
-    code: str | None = Query(default=None),
-    state: str | None = Query(default=None),
+    session: AsyncSession,
+    admin_session: AsyncSession,
+    provider_row: AuthProvider,
+    code: str | None,
+    state: str | None,
 ):
-    """Complete the relying-party flow for one provider (see provider_login:
-    the platform provider's slug is ``oidc``, so the URL operators registered
-    at their IdP is this same route)."""
-    app_settings = await app_settings_service.get_app_settings(session)
-    provider_row = await _resolve_login_provider(
-        app_settings, admin_session, provider_slug
-    )
-
+    """Complete the relying-party flow for a resolved provider row — shared
+    by the operator-global and guild-addressed callback routes. Guild rows
+    differ in three ways: identity resolution is limited to existing users
+    (guild-first onboarding arrives with its own flow), the operator claim-
+    to-role sync doesn't run, and mobile flows can't reach here (the guild
+    login route doesn't offer one)."""
     # Best-effort mobile flag so even early failures land on the right surface
     # (app vs. web); ``complete()`` re-validates the state authoritatively.
     is_mobile: bool | None = None
@@ -968,6 +1080,10 @@ async def provider_callback(
         email_verified=email_verified,
         full_name=full_name,
         avatar_url=avatar_url,
+        # Guild providers resolve existing users only for now: a JIT'd user
+        # without a membership would land nowhere, so provisioning waits for
+        # the guild-first onboarding flow.
+        jit=provider_row.guild_id is None,
     )
 
     if resolution.user is None:
@@ -1030,8 +1146,12 @@ async def provider_callback(
     await admin_session.refresh(user)
 
     # OIDC claim-to-role sync (the id_token claims are verified upstream now).
+    # Operator-global providers only: the mapping registry is platform-level
+    # configuration; per-guild claim mappings are their own later feature.
     try:
-        claim_path = provider_row.role_claim_path
+        claim_path = (
+            provider_row.role_claim_path if provider_row.guild_id is None else None
+        )
         if claim_path:
             claim_values = extract_claim_values(
                 userinfo or {}, completion.claims, claim_path
@@ -1088,15 +1208,35 @@ async def provider_callback(
         frontend_uri = f"{frontend_uri}?{urlencode({'next': next_path})}"
     oidc_response = RedirectResponse(frontend_uri)
     oidc_response.delete_cookie(key=OIDC_NEXT_COOKIE, path=REFRESH_COOKIE_PATH)
+    # A step-up upgrades the session it interrupted rather than starting
+    # over: the live session's factors carry forward (union) and the old
+    # session is revoked, replaced by the new one — satisfying one guild's
+    # requirement never un-satisfies another's. Only the same user's session
+    # merges; anything else is a fresh login.
+    amr = [f"oidc:{provider_slug}"]
+    satisfied = [provider_id]
+    prior = None
+    prior_raw = request.cookies.get(REFRESH_COOKIE_NAME)
+    if prior_raw:
+        prior = await session_service.get_live_session_by_refresh_token(
+            admin_session, prior_raw
+        )
+        if prior is not None and prior.user_id == user_id:
+            amr = sorted(set(prior.amr) | set(amr))
+            satisfied = sorted(set(prior.satisfied_providers) | set(satisfied))
+        else:
+            prior = None
     try:
         issued = await session_service.create_session(
             admin_session,
             user_id=user_id,
-            amr=[f"oidc:{provider_slug}"],
-            satisfied_providers=[provider_id],
+            amr=amr,
+            satisfied_providers=satisfied,
             user_agent=request.headers.get("user-agent"),
             ip=get_inet_client_ip(request),
         )
+        if prior is not None:
+            await session_service.revoke_session(admin_session, session_id=prior.id)
         await admin_session.commit()
     except Exception:
         await admin_session.rollback()
@@ -1128,6 +1268,50 @@ async def provider_callback(
     set_session_cookie(oidc_response, app_token, max_age=access_max_age)
     set_refresh_cookie(oidc_response, issued.refresh_token)
     return oidc_response
+
+
+@router.get("/g/{guild_id}/{provider_slug}/callback")
+@limiter.limit("20/minute")
+async def guild_provider_callback(
+    request: Request,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    guild_id: int,
+    provider_slug: str,
+    code: str | None = Query(default=None),
+    state: str | None = Query(default=None),
+):
+    """Complete the relying-party flow for one of a guild's own providers —
+    the guild-addressed URL registered at the guild's IdP."""
+    app_settings = await app_settings_service.get_app_settings(session)
+    provider_row = await _resolve_guild_login_provider(
+        app_settings, admin_session, guild_id, provider_slug
+    )
+    return await _complete_provider_login(
+        request, session, admin_session, provider_row, code, state
+    )
+
+
+@router.get("/{provider_slug}/callback")
+@limiter.limit("20/minute")
+async def provider_callback(
+    request: Request,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    provider_slug: str,
+    code: str | None = Query(default=None),
+    state: str | None = Query(default=None),
+):
+    """Complete the relying-party flow for one operator-global provider (see
+    provider_login: the platform provider's slug is ``oidc``, so the URL
+    operators registered at their IdP is this same route)."""
+    app_settings = await app_settings_service.get_app_settings(session)
+    provider_row = await _resolve_login_provider(
+        app_settings, admin_session, provider_slug
+    )
+    return await _complete_provider_login(
+        request, session, admin_session, provider_row, code, state
+    )
 
 
 @router.post("/verification/send", response_model=VerificationSendResponse)
