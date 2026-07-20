@@ -578,14 +578,8 @@
     "loadingOidcMappings": "Chargement des correspondances OIDC…",
     "oidcMappingsLoadError": "Impossible de charger les correspondances OIDC.",
     "scope": {
-      "title": "Configuration de connexion",
-      "description": "Choisissez où la connexion est configurée pour ce serveur.",
-      "platformLabel": "À l'échelle de la plateforme",
-      "platformHelp": "La connexion est configurée une seule fois, ici, pour tout le serveur. Toutes les guildes l'utilisent. Idéal pour une organisation unique gérant sa propre instance.",
-      "guildLabel": "Par guilde",
-      "guildHelp": "Chaque guilde configure sa propre connexion et ses règles d'adhésion dans ses paramètres de guilde. Idéal pour un serveur hébergeant plusieurs organisations indépendantes.",
-      "comingSoon": "Bientôt disponible",
-      "passwordNote": "La connexion par mot de passe reste disponible dans les deux modes."
+      "platformLabel": "Connexion à l'échelle de la plateforme",
+      "guildLabel": "Connexion par guilde"
     }
   },
   "platformUsers": {

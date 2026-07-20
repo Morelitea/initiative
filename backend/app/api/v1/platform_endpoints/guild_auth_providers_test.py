@@ -38,7 +38,7 @@ async def _guild_admin(session: AsyncSession):
 
 
 async def test_guild_admin_full_crud(client: AsyncClient, session: AsyncSession):
-    await set_auth_scope(session)
+    set_auth_scope()
     admin, guild = await _guild_admin(session)
     headers = get_auth_headers(admin)
     base = f"/api/v1/guilds/{guild.id}/auth/providers"
@@ -90,7 +90,7 @@ async def test_crud_absent_in_platform_posture(
 
 
 async def test_member_and_non_member_denied(client: AsyncClient, session: AsyncSession):
-    await set_auth_scope(session)
+    set_auth_scope()
     _admin, guild = await _guild_admin(session)
     member = await create_user(session)
     await create_guild_membership(
@@ -112,7 +112,7 @@ async def test_slug_unique_per_guild_not_across_namespaces(
 ):
     """A slug is taken only within its own namespace: the same slug can exist
     operator-globally, in guild A, and in guild B at once."""
-    await set_auth_scope(session)
+    set_auth_scope()
     await create_auth_provider(session, slug="corp")  # operator-global
     admin_a, guild_a = await _guild_admin(session)
     admin_b, guild_b = await _guild_admin(session)
@@ -141,7 +141,7 @@ async def test_slug_unique_per_guild_not_across_namespaces(
 
 
 async def test_platform_slug_reserved(client: AsyncClient, session: AsyncSession):
-    await set_auth_scope(session)
+    set_auth_scope()
     admin, guild = await _guild_admin(session)
 
     response = await client.post(
@@ -158,7 +158,7 @@ async def test_other_namespace_rows_unreachable(
 ):
     """An operator-global row or another guild's row is a 404 through this
     guild's CRUD, for both update and delete."""
-    await set_auth_scope(session)
+    set_auth_scope()
     admin, guild = await _guild_admin(session)
     _admin_b, guild_b = await _guild_admin(session)
     global_row = await create_auth_provider(session, slug="corp")
@@ -179,7 +179,7 @@ async def test_other_namespace_rows_unreachable(
 async def test_delete_refused_while_policy_requires(
     client: AsyncClient, session: AsyncSession
 ):
-    await set_auth_scope(session)
+    set_auth_scope()
     admin, guild = await _guild_admin(session)
     provider = await create_auth_provider(session, slug="corp", guild_id=guild.id)
     session.add(

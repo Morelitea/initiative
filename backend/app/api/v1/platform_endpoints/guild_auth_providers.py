@@ -42,7 +42,7 @@ async def _require_guild_provider_admin(
 ) -> None:
     """The shared gate for every route here: per-guild auth posture, then
     guild admin."""
-    await _require_guild_auth_scope(session)
+    _require_guild_auth_scope()
     await _ensure_guild_admin(session, guild_id=guild_id, user_id=user_id)
 
 

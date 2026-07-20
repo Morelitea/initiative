@@ -1,9 +1,27 @@
 import re
+from enum import Enum
 from functools import lru_cache
 from urllib.parse import urlsplit
 
 from pydantic import AliasChoices, EmailStr, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class AuthScope(str, Enum):
+    """Where login is configured — a **deploy-time** posture, set once at boot
+    via the ``AUTH_SCOPE`` env value, never toggled at runtime.
+
+    ``platform`` — sign-in is configured once for the whole instance
+    (operator-global providers). ``guild`` — each guild configures its own
+    sign-in and may require it. The two are mutually exclusive; an instance is
+    built one way. Switching is non-destructive (it never deletes users,
+    memberships, or providers), but a deployment that has granted access via
+    guild auth does not switch back.
+    """
+
+    platform = "platform"
+    guild = "guild"
+
 
 # App identity/shape — deliberately constants, not settings: the SPA, the
 # docs-CSP route, and the OpenAPI export all assume this prefix, so making it
@@ -357,6 +375,10 @@ class Settings(BaseSettings):
                 "frame-ancestors": ["'none'"],
             }
         )
+
+    # Deploy-time login posture (see AuthScope). Read directly from the
+    # environment; there is no runtime setter.
+    AUTH_SCOPE: AuthScope = AuthScope.platform
 
     OIDC_ENABLED: bool = False
     OIDC_ISSUER: str | None = None

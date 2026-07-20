@@ -578,14 +578,8 @@
     "loadingOidcMappings": "Loading OIDC mappings…",
     "oidcMappingsLoadError": "Unable to load OIDC mappings.",
     "scope": {
-      "title": "Login configuration",
-      "description": "Choose where sign-in is configured for this server.",
-      "platformLabel": "Platform-wide",
-      "platformHelp": "Sign-in is configured once, here, for the entire server. Every guild uses it. Best for a single organization running its own instance.",
-      "guildLabel": "Per-guild",
-      "guildHelp": "Each guild configures its own sign-in and membership rules in its guild settings. Best for a server hosting multiple independent organizations.",
-      "comingSoon": "Coming soon",
-      "passwordNote": "Password sign-in stays available in both modes."
+      "platformLabel": "Platform-wide sign-in",
+      "guildLabel": "Per-guild sign-in"
     }
   },
   "platformUsers": {

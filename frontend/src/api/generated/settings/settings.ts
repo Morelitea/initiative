@@ -21,7 +21,6 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
-  AuthScopeUpdate,
   EmailSettingsResponse,
   EmailSettingsUpdate,
   EmailTestRequest,
@@ -278,101 +277,6 @@ export const useUpdateOidcSettingsApiV1SettingsAuthPut = <
 > => {
   return useMutation(
     getUpdateOidcSettingsApiV1SettingsAuthPutMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Switch where login is configured (platform-wide vs per-guild).
- *
- * Non-destructive: the dormant posture's provider configuration is kept, so
- * switching back restores it exactly. Enforcement is server-side — the OIDC
- * login endpoints refuse when the platform posture isn't active.
- * @summary Update Auth Scope
- */
-export const updateAuthScopeApiV1SettingsAuthScopePut = (
-  authScopeUpdate: BodyType<AuthScopeUpdate>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<OIDCSettingsResponse>(
-    {
-      url: `/api/v1/settings/auth-scope`,
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      data: authScopeUpdate,
-      signal,
-    },
-    options
-  );
-};
-
-export const getUpdateAuthScopeApiV1SettingsAuthScopePutMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateAuthScopeApiV1SettingsAuthScopePut>>,
-    TError,
-    { data: BodyType<AuthScopeUpdate> },
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof updateAuthScopeApiV1SettingsAuthScopePut>>,
-  TError,
-  { data: BodyType<AuthScopeUpdate> },
-  TContext
-> => {
-  const mutationKey = ["updateAuthScopeApiV1SettingsAuthScopePut"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateAuthScopeApiV1SettingsAuthScopePut>>,
-    { data: BodyType<AuthScopeUpdate> }
-  > = (props) => {
-    const { data } = props ?? {};
-
-    return updateAuthScopeApiV1SettingsAuthScopePut(data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type UpdateAuthScopeApiV1SettingsAuthScopePutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateAuthScopeApiV1SettingsAuthScopePut>>
->;
-export type UpdateAuthScopeApiV1SettingsAuthScopePutMutationBody = BodyType<AuthScopeUpdate>;
-export type UpdateAuthScopeApiV1SettingsAuthScopePutMutationError = ErrorType<HTTPValidationError>;
-
-/**
- * @summary Update Auth Scope
- */
-export const useUpdateAuthScopeApiV1SettingsAuthScopePut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateAuthScopeApiV1SettingsAuthScopePut>>,
-      TError,
-      { data: BodyType<AuthScopeUpdate> },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof updateAuthScopeApiV1SettingsAuthScopePut>>,
-  TError,
-  { data: BodyType<AuthScopeUpdate> },
-  TContext
-> => {
-  return useMutation(
-    getUpdateAuthScopeApiV1SettingsAuthScopePutMutationOptions(options),
     queryClient
   );
 };

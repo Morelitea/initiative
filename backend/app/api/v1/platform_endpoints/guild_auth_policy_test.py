@@ -36,12 +36,6 @@ def _sat_headers(user, provider_ids: list[int]) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-async def _enable_guild_posture(session: AsyncSession) -> None:
-    """Flip the platform to per-guild login — the policy management endpoints
-    exist only in that posture."""
-    await set_auth_scope(session)
-
-
 async def _require_provider(
     session: AsyncSession, guild_id: int, provider
 ) -> GuildAuthPolicy:
@@ -59,7 +53,7 @@ async def _require_provider(
 async def test_admin_sets_reads_and_clears_policy(
     client: AsyncClient, session: AsyncSession
 ):
-    await _enable_guild_posture(session)
+    set_auth_scope()
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
@@ -98,7 +92,7 @@ async def test_admin_sets_reads_and_clears_policy(
 async def test_non_admin_cannot_manage_policy(
     client: AsyncClient, session: AsyncSession
 ):
-    await _enable_guild_posture(session)
+    set_auth_scope()
     member = await create_user(session)
     guild = await create_guild(session)
     await create_guild_membership(
@@ -117,7 +111,7 @@ async def test_non_admin_cannot_manage_policy(
 async def test_policy_rejects_unusable_provider(
     client: AsyncClient, session: AsyncSession
 ):
-    await _enable_guild_posture(session)
+    set_auth_scope()
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
@@ -149,7 +143,7 @@ async def test_policy_rejects_other_namespace_providers(
 ):
     """A requirement can only name one of the guild's own providers — never an
     operator-global row (dormant under per-guild auth) or another guild's."""
-    await _enable_guild_posture(session)
+    set_auth_scope()
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
@@ -176,7 +170,7 @@ async def test_policy_requires_admin_own_session_to_satisfy(
 ):
     """An admin can only require a provider their own session has satisfied —
     proving it works and keeping them from locking out their guild."""
-    await _enable_guild_posture(session)
+    set_auth_scope()
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
