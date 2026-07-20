@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import case, func
+from sqlalchemy import and_, case, func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -53,7 +53,12 @@ from app.services.tenant import tags as tags_service
 from app.services.tenant import task_statuses as task_statuses_service
 from app.core.messages import ProjectMessages
 from app.core.config import settings as app_settings
-from app.db.query import clamp_page, page_has_next, paginate_sequence
+from app.db.query import (
+    apply_pagination,
+    clamp_page,
+    page_has_next,
+    paginate_sequence,
+)
 from app.core.pam_context import has_active_grant
 from app.services.realtime import broadcast_event
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
@@ -413,18 +418,80 @@ async def _duplicate_template_tasks(
         )
 
 
-def _matches_filters(
-    project: Project, *, archived: Optional[bool], template: Optional[bool]
-) -> bool:
+def _full_project_load_options() -> list:
+    """Eager loads for a fully-serialized ``ProjectRead`` (owner, nested
+    initiative + memberships, linked documents with their DAC, tags, grants)."""
+    return [
+        selectinload(Project.grants).selectinload(ResourceGrant.role),
+        selectinload(Project.owner),
+        selectinload(Project.initiative)
+        .selectinload(Initiative.memberships)
+        .options(
+            selectinload(InitiativeMember.user),
+            selectinload(InitiativeMember.role_ref).selectinload(
+                InitiativeRoleModel.permissions
+            ),
+        ),
+        selectinload(Project.document_links)
+        .selectinload(ProjectDocument.document)
+        .options(
+            selectinload(Document.grants).selectinload(ResourceGrant.role),
+            # Linked-doc visibility defers to the shared document DAC, which
+            # reads the doc's own initiative memberships (all-members grants).
+            selectinload(Document.initiative).selectinload(Initiative.memberships),
+        ),
+        selectinload(Project.tag_links).selectinload(ProjectTag.tag),
+    ]
+
+
+def _slim_project_load_options() -> list:
+    """Minimal eager loads for the slim projection: only what
+    ``compute_project_permission`` needs (own/role/all-members grants and the
+    initiative's memberships) — no owner, documents, tags, or nested roles."""
+    return [
+        selectinload(Project.grants),
+        selectinload(Project.initiative).selectinload(Initiative.memberships),
+    ]
+
+
+def _visible_project_conditions(
+    user_id: int,
+    *,
+    guild_id: int,
+    archived: Optional[bool],
+    template: Optional[bool],
+    search: Optional[str] = None,
+) -> list:
+    """WHERE clauses for the guild's DAC-visible projects.
+
+    ``archived``/``template``/``search`` are pushed into SQL (mirroring the old
+    ``_matches_filters``: ``None`` means "exclude" for the boolean flags). DAC
+    scoping is preserved exactly — a guild admin or a live PAM grant sees every
+    project in the guild; otherwise the set is narrowed to the user's
+    explicit/role-granted projects via ``visible_project_ids_subquery``.
+    """
+    conditions = [Initiative.guild_id == guild_id]
+    if not has_active_grant(
+        guild_id
+    ) and not permissions_service.is_request_guild_admin(guild_id):
+        conditions.append(
+            Project.id.in_(permissions_service.visible_project_ids_subquery(user_id))
+        )
+
     if template is None:
-        if project.is_template:
-            return False
-    elif project.is_template != template:
-        return False
+        conditions.append(Project.is_template.is_(False))
+    else:
+        conditions.append(Project.is_template.is_(template))
 
     if archived is None:
-        return not project.is_archived
-    return project.is_archived == archived
+        conditions.append(Project.is_archived.is_(False))
+    else:
+        conditions.append(Project.is_archived.is_(archived))
+
+    if search and search.strip():
+        conditions.append(func.lower(Project.name).contains(search.strip().lower()))
+
+    return conditions
 
 
 async def _visible_projects(
@@ -435,58 +502,21 @@ async def _visible_projects(
     archived: Optional[bool],
     template: Optional[bool],
 ) -> List[Project]:
-    """Get projects visible to the user.
+    """Get projects visible to the user (filtered in SQL).
 
     DAC: Projects with explicit ProjectPermission OR role-based permission.
     """
-    # A guild admin (full access to all guild data) or a live PAM grant (acts
-    # like a member of every initiative) sees all of the guild's projects in one
-    # bulk, guild-scoped query; otherwise narrow to projects the user has
-    # explicit/role permission for. The guild scope + RLS apply either way.
-    conditions = [Initiative.guild_id == guild_id]
-    if not has_active_grant(
-        guild_id
-    ) and not permissions_service.is_request_guild_admin(guild_id):
-        conditions.append(
-            Project.id.in_(
-                permissions_service.visible_project_ids_subquery(current_user.id)
-            )
-        )
-
+    conditions = _visible_project_conditions(
+        current_user.id, guild_id=guild_id, archived=archived, template=template
+    )
     base_statement = (
         select(Project)
         .join(Project.initiative)
         .where(*conditions)
-        .options(
-            selectinload(Project.grants).selectinload(ResourceGrant.role),
-            selectinload(Project.owner),
-            selectinload(Project.initiative)
-            .selectinload(Initiative.memberships)
-            .options(
-                selectinload(InitiativeMember.user),
-                selectinload(InitiativeMember.role_ref).selectinload(
-                    InitiativeRoleModel.permissions
-                ),
-            ),
-            selectinload(Project.document_links)
-            .selectinload(ProjectDocument.document)
-            .options(
-                selectinload(Document.grants).selectinload(ResourceGrant.role),
-                # Linked-doc visibility defers to the shared document DAC, which
-                # reads the doc's own initiative memberships (all-members grants).
-                selectinload(Document.initiative).selectinload(Initiative.memberships),
-            ),
-            selectinload(Project.tag_links).selectinload(ProjectTag.tag),
-        )
+        .options(*_full_project_load_options())
     )
     result = await session.exec(base_statement)
-    all_projects = result.all()
-
-    return [
-        project
-        for project in all_projects
-        if _matches_filters(project, archived=archived, template=template)
-    ]
+    return list(result.all())
 
 
 async def _project_reads_with_order(
@@ -538,6 +568,38 @@ async def _project_reads_with_order(
             )
         )
     return payloads
+
+
+def _slim_project_reads(projects: List[Project], user_id: int) -> List[ProjectRead]:
+    """Build lightweight ``ProjectRead`` rows for the slim projection.
+
+    Carries only ``{id, name, icon, initiative_id, my_permission_level}`` plus
+    the cheap scalar flags; documents/grants/tags/owner/nested initiative are
+    left at their defaults so no heavy relationship is serialized. ``description``
+    is dropped too (it would run rich-text sanitization for no picker benefit).
+    """
+    reads: List[ProjectRead] = []
+    for project in projects:
+        reads.append(
+            ProjectRead(
+                id=project.id or 0,
+                name=project.name,
+                description=None,
+                icon=project.icon,
+                owner_id=project.owner_id,
+                initiative_id=project.initiative_id,
+                created_at=project.created_at,
+                updated_at=project.updated_at,
+                is_archived=project.is_archived,
+                is_template=project.is_template,
+                archived_at=project.archived_at,
+                pinned_at=project.pinned_at,
+                my_permission_level=permissions_service.compute_project_permission(
+                    project, user_id
+                ),
+            )
+        )
+    return reads
 
 
 async def _project_meta_for_user(
@@ -857,32 +919,78 @@ async def list_projects(
     guild_context: GuildContextDep,
     archived: Optional[bool] = Query(default=None),
     template: Optional[bool] = Query(default=None),
+    search: Optional[str] = Query(
+        default=None, description="Case-insensitive substring match on name."
+    ),
+    slim: bool = Query(
+        default=False,
+        description=(
+            "Return a lightweight projection (id, name, icon, initiative_id, "
+            "my_permission_level) without documents, grants, tags, or the nested "
+            "initiative. For project pickers and other list-only callers."
+        ),
+    ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=0, ge=0, le=100),
 ) -> ProjectListResponse:
-    projects = await _visible_projects(
-        session,
-        current_user,
+    # Filtering, ordering, and pagination all happen in SQL: the DAC scope
+    # (guild admin / PAM see all, else visible-project-ids) plus archived/
+    # template/search go into the WHERE, and the per-user manual order
+    # (project_orders, NULLS last) drives ORDER BY so LIMIT/OFFSET can page the
+    # rows instead of loading the whole visible graph.
+    conditions = _visible_project_conditions(
+        current_user.id,
         guild_id=guild_context.guild_id,
         archived=archived,
         template=template,
+        search=search,
     )
-    all_reads = await _project_reads_with_order(
-        session,
-        current_user,
-        projects,
+
+    count_stmt = (
+        select(func.count())
+        .select_from(Project)
+        .join(Project.initiative)
+        .where(*conditions)
     )
-    total_count = len(all_reads)
+    total_count = int((await session.exec(count_stmt)).one())
+    page = clamp_page(page, page_size, total_count)
+
+    load_options = (
+        _slim_project_load_options() if slim else _full_project_load_options()
+    )
+    data_stmt = (
+        select(Project)
+        .join(Project.initiative)
+        .outerjoin(
+            ProjectOrder,
+            and_(
+                ProjectOrder.project_id == Project.id,
+                ProjectOrder.user_id == current_user.id,
+            ),
+        )
+        .where(*conditions)
+        .order_by(ProjectOrder.sort_order.asc().nulls_last(), Project.id.asc())
+        .options(*load_options)
+    )
     # page_size<=0 serves FETCH_ALL_WINDOW-sized pages (bounded response,
     # SEC-14) that honor ``page`` — has_next tells the caller to keep walking.
-    items = paginate_sequence(all_reads, page, page_size)
-    has_next = page_has_next(page, page_size, total_count)
+    data_stmt = apply_pagination(data_stmt, page, page_size)
+    projects = list((await session.exec(data_stmt)).all())
+
+    if slim:
+        items = _slim_project_reads(projects, current_user.id)
+    else:
+        # Order is already applied in SQL; preserve it through serialization.
+        items = await _project_reads_with_order(
+            session, current_user, projects, preserve_order=True
+        )
+
     return ProjectListResponse(
         items=items,
         total_count=total_count,
         page=page,
         page_size=page_size,
-        has_next=has_next,
+        has_next=page_has_next(page, page_size, total_count),
     )
 
 

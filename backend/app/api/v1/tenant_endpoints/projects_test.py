@@ -238,6 +238,116 @@ async def test_list_projects_with_archived_filter(
 
 
 @pytest.mark.integration
+async def test_list_projects_search_filters_by_name(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The ``search`` param does a case-insensitive substring match on name."""
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    alpha = await create_project(session, admin.initiative, admin.user, name="Alpha")
+    await create_project(session, admin.initiative, admin.user, name="Beta")
+
+    response = await client.get(
+        admin.g("/projects/?search=alph"), headers=admin.headers
+    )
+
+    assert response.status_code == 200
+    data = response.json()["items"]
+    names = {p["name"] for p in data}
+    assert names == {"Alpha"}
+    assert data[0]["id"] == alpha.id
+
+
+@pytest.mark.integration
+async def test_list_projects_paginates_in_sql(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """total_count reflects the full matching set even when a page truncates it."""
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    for i in range(3):
+        await create_project(session, admin.initiative, admin.user, name=f"P{i}")
+
+    response = await client.get(
+        admin.g("/projects/?page=1&page_size=2"), headers=admin.headers
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["items"]) == 2
+    assert body["total_count"] >= 3
+    assert body["has_next"] is True
+
+    page2 = await client.get(
+        admin.g("/projects/?page=2&page_size=2"), headers=admin.headers
+    )
+    assert page2.status_code == 200
+    # Pages don't overlap.
+    ids_p1 = {p["id"] for p in body["items"]}
+    ids_p2 = {p["id"] for p in page2.json()["items"]}
+    assert ids_p1.isdisjoint(ids_p2)
+
+
+@pytest.mark.integration
+async def test_list_projects_slim_projection(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """slim=true keeps id/name/initiative/my_permission_level but drops the
+    heavy relationships (documents, grants, nested initiative)."""
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    project = await create_project(
+        session, admin.initiative, admin.user, name="Slim One"
+    )
+
+    response = await client.get(admin.g("/projects/?slim=true"), headers=admin.headers)
+
+    assert response.status_code == 200
+    item = next(p for p in response.json()["items"] if p["id"] == project.id)
+    assert item["name"] == "Slim One"
+    assert item["initiative_id"] == admin.initiative.id
+    # Guild admin resolves to owner-level on every project.
+    assert item["my_permission_level"] == "owner"
+    # Heavy fields collapse to their empty defaults in slim mode.
+    assert item["documents"] == []
+    assert item["grants"] == []
+    assert item["tags"] == []
+    assert item["initiative"] is None
+
+
+@pytest.mark.integration
+async def test_list_projects_slim_permission_for_member(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Slim projection computes my_permission_level from DAC grants, not just
+    the guild-admin shortcut."""
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=admin.initiative,
+        initiative_role="member",
+    )
+    project = await create_project(session, admin.initiative, admin.user)
+    session.add(
+        ResourceGrant(
+            resource_type="project",
+            resource_id=project.id,
+            user_id=member.user.id,
+            level=ResourceAccessLevel.write,
+            guild_id=project.guild_id,
+            initiative_id=project.initiative_id,
+        )
+    )
+    await session.commit()
+
+    response = await client.get(
+        member.g("/projects/?slim=true"), headers=member.headers
+    )
+
+    assert response.status_code == 200
+    item = next(p for p in response.json()["items"] if p["id"] == project.id)
+    assert item["my_permission_level"] == "write"
+
+
+@pytest.mark.integration
 async def test_create_project(client: AsyncClient, acting_user):
     """Test creating a new project."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
