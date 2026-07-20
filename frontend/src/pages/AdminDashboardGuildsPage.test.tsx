@@ -22,6 +22,7 @@ const guildsData = [
     max_users: 10,
     status: "active",
     status_changed_at: null,
+    guild_auth_enabled: false,
   },
   {
     id: 8,
@@ -31,6 +32,7 @@ const guildsData = [
     max_users: null,
     status: "active",
     status_changed_at: null,
+    guild_auth_enabled: true,
   },
   {
     id: 9,
@@ -40,12 +42,18 @@ const guildsData = [
     max_users: 10,
     status: "suspended",
     status_changed_at: "2026-07-05T00:00:00Z",
+    guild_auth_enabled: false,
   },
 ];
+
+// The guild-auth toggle column only renders under per-guild posture; flip this
+// before a render to exercise both cases.
+let authScope: "platform" | "guild" = "platform";
 
 vi.mock("@/hooks/useSettings", () => ({
   usePlatformGuilds: () => ({ data: guildsData, isLoading: false, isError: false }),
   useUpdateGuildStorage: () => ({ mutate, isPending: false }),
+  useInterfaceSettings: () => ({ data: { auth_scope: authScope } }),
 }));
 
 import { AdminDashboardGuildsPage } from "./AdminDashboardGuildsPage";
@@ -63,6 +71,7 @@ const userLimitInput = (guildName: string) =>
 describe("AdminDashboardGuildsPage", () => {
   beforeEach(() => {
     mutate.mockClear();
+    authScope = "platform";
   });
 
   describe("storage limits", () => {
@@ -224,6 +233,45 @@ describe("AdminDashboardGuildsPage", () => {
 
       await user.click(screen.getByRole("button", { name: "Suspend guild" }));
       expect(mutate).toHaveBeenCalledWith({ guildId: 7, data: { status: "suspended" } });
+    });
+  });
+
+  describe("per-guild sign-in toggle", () => {
+    const authToggle = (guildName: string) =>
+      screen.getByLabelText(`Per-guild sign-in for ${guildName}`);
+
+    it("is hidden under platform posture", async () => {
+      renderPage(); // authScope defaults to "platform"
+
+      expect(await screen.findByText("Capped Guild")).toBeInTheDocument();
+      expect(screen.queryByLabelText("Per-guild sign-in for Capped Guild")).toBeNull();
+    });
+
+    it("renders each guild's entitlement under guild posture", async () => {
+      authScope = "guild";
+      renderPage();
+
+      expect(await screen.findByText("Capped Guild")).toBeInTheDocument();
+      expect(authToggle("Capped Guild")).toHaveAttribute("aria-checked", "false");
+      expect(authToggle("Open Guild")).toHaveAttribute("aria-checked", "true");
+    });
+
+    it("turns the entitlement on", async () => {
+      authScope = "guild";
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.click(authToggle("Capped Guild"));
+      expect(mutate).toHaveBeenCalledWith({ guildId: 7, data: { guild_auth_enabled: true } });
+    });
+
+    it("turns the entitlement off", async () => {
+      authScope = "guild";
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.click(authToggle("Open Guild"));
+      expect(mutate).toHaveBeenCalledWith({ guildId: 8, data: { guild_auth_enabled: false } });
     });
   });
 });

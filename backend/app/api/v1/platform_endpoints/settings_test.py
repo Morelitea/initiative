@@ -14,7 +14,7 @@ from httpx import AsyncClient
 from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole, GuildStatus
+from app.models.platform.guild import Guild, GuildRole, GuildStatus
 from app.models.platform.user import UserRole
 from app.services import email as email_service
 from app.testing import (
@@ -461,6 +461,68 @@ async def test_operator_sets_and_clears_guild_status(
     )
     assert resp.status_code == 200
     assert resp.json()["status"] == "active"
+
+
+@pytest.mark.integration
+async def test_operator_toggles_guild_auth_enabled(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """An operator turns a guild's per-guild sign-in entitlement on and off from
+    the Guilds tab; the flag round-trips through list + patch."""
+    owner = await create_user(
+        session, email="owner-gauth@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner, guild_auth_enabled=False)
+    headers = get_auth_headers(owner)
+
+    listed = await client.get("/api/v1/settings/guilds", headers=headers)
+    assert listed.status_code == 200
+    row = {r["name"]: r for r in listed.json()}[guild.name]
+    assert row["guild_auth_enabled"] is False
+
+    on = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"guild_auth_enabled": True},
+        headers=headers,
+    )
+    assert on.status_code == 200, on.text
+    assert on.json()["guild_auth_enabled"] is True
+
+    off = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"guild_auth_enabled": False},
+        headers=headers,
+    )
+    assert off.status_code == 200
+    assert off.json()["guild_auth_enabled"] is False
+
+
+@pytest.mark.integration
+async def test_guild_auth_enabled_is_operator_only(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """A guild's own admin cannot flip the entitlement through the guild-facing
+    PATCH — it is an operator field (like caps and status). The guild-admin
+    endpoint simply doesn't accept it, leaving the flag untouched."""
+    admin = await create_user(session, email="gauth-admin@example.com")
+    guild = await create_guild(session, creator=admin, guild_auth_enabled=False)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    guild_id = guild.id
+
+    resp = await client.patch(
+        f"/api/v1/guilds/{guild_id}",
+        json={"guild_auth_enabled": True},
+        headers=get_auth_headers(admin),
+    )
+    # The guild-admin schema ignores unknown fields; the flag stays off.
+    assert resp.status_code == 200, resp.text
+    session.expire_all()
+    refreshed = await session.get(Guild, guild_id)
+    assert refreshed.guild_auth_enabled is False
 
 
 @pytest.mark.integration

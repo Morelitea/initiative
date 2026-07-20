@@ -90,6 +90,10 @@ def _serialize_guild(
         # already fail at the DB role level) so the UI can drop write
         # affordances — without disclosing the status itself.
         content_read_only=(guild.status == GuildStatus.read_only.value),
+        # Admins only: lets their settings UI show/hide the Authentication tab.
+        guild_auth_enabled=(
+            guild.guild_auth_enabled if membership.role == GuildRole.admin else None
+        ),
     )
 
 
@@ -432,6 +436,23 @@ def _require_guild_auth_scope() -> None:
         )
 
 
+async def _require_guild_auth_enabled(
+    admin_session: AsyncSession, guild_id: int
+) -> None:
+    """The per-guild sign-in *configuration* surface exists only when an
+    operator has enabled guild auth for this guild (the Guilds-dashboard
+    toggle); absent (404) otherwise — the same shape as the posture gate above.
+    Like that gate, this bounds *management* only: turning the toggle back off
+    never deletes providers, keeps existing members signing in through them, and
+    leaves any existing sign-in requirement enforced (see the Guild model)."""
+    guild = await admin_session.get(Guild, guild_id)
+    if guild is None or not guild.guild_auth_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=GuildMessages.GUILD_AUTH_NOT_ENABLED,
+        )
+
+
 def _auth_policy_read(
     policy_row, provider_display_name: str | None = None
 ) -> GuildAuthPolicyRead:
@@ -457,6 +478,7 @@ async def get_guild_auth_policy(
     header, not from here. Absent (404) unless the platform posture is
     per-guild login."""
     _require_guild_auth_scope()
+    await _require_guild_auth_enabled(admin_session, guild_id)
     await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id)
     policy_row = await admin_session.get(GuildAuthPolicy, guild_id)
     display_name = None
@@ -483,6 +505,7 @@ async def set_guild_auth_policy(
     behind a sign-in they haven't completed. Absent (404) unless the platform
     posture is per-guild login."""
     _require_guild_auth_scope()
+    await _require_guild_auth_enabled(admin_session, guild_id)
     await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id)
 
     if payload.policy == "open":

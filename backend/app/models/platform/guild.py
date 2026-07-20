@@ -80,6 +80,20 @@ class Guild(SQLModel, table=True):
     status_changed_at: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
+    # Operator entitlement: may this guild configure its own per-guild sign-in?
+    # Set from the platform Guilds dashboard (operator-only — the guild's own
+    # admins can't write it; migration 0138's column-scoped UPDATE grant on
+    # public.guilds omits it). Default off: turning it ON opens the guild's
+    # auth-config surface and lets new accounts onboard through its IdP.
+    # Turning it OFF never deletes providers or signs existing members out — it
+    # only closes the config surface and stops NEW-account provisioning;
+    # members with a linked identity keep signing in and any existing sign-in
+    # requirement stays enforced. Irrelevant under platform AUTH_SCOPE (the
+    # whole guild-auth surface is dormant then).
+    guild_auth_enabled: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
 
     members: List["GuildMembership"] = Relationship(
         back_populates="guild",

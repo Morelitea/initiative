@@ -74,6 +74,40 @@ async def test_guild_admin_full_crud(client: AsyncClient, session: AsyncSession)
     assert await session.get(AuthProviderSecret, provider_id) is None
 
 
+async def test_provider_crud_404_when_guild_auth_disabled(
+    client: AsyncClient, session: AsyncSession
+):
+    """With the operator toggle off, the whole config surface 404s
+    (GUILD_AUTH_NOT_ENABLED) — and the guild's existing provider rows are left
+    intact, so existing members keep signing in through them."""
+    set_auth_scope()
+    admin = await create_user(session)
+    guild = await create_guild(session, creator=admin, guild_auth_enabled=False)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    # Seed a provider directly (the surface that would create it is closed).
+    provider = await create_auth_provider(session, slug="corp", guild_id=guild.id)
+    provider_id = provider.id
+    headers = get_auth_headers(admin)
+    base = f"/api/v1/guilds/{guild.id}/auth/providers"
+
+    for response in (
+        await client.get(base, headers=headers),
+        await client.post(base, headers=headers, json=PROVIDER_BODY),
+        await client.patch(
+            f"{base}/{provider_id}", headers=headers, json={"display_name": "x"}
+        ),
+        await client.delete(f"{base}/{provider_id}", headers=headers),
+    ):
+        assert response.status_code == 404, response.text
+        assert response.json()["detail"] == "GUILD_AUTH_NOT_ENABLED"
+
+    # The provider row survives — maintained, not deleted.
+    session.expire_all()
+    assert await session.get(AuthProvider, provider_id) is not None
+
+
 async def test_crud_absent_in_platform_posture(
     client: AsyncClient, session: AsyncSession
 ):

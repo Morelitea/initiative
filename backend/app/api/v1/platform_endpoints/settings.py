@@ -415,6 +415,7 @@ async def list_platform_guild_storage(
             max_users=g.max_users,
             status=GuildStatus(g.status),
             status_changed_at=g.status_changed_at,
+            guild_auth_enabled=g.guild_auth_enabled,
         )
         for g in guilds
     ]
@@ -447,6 +448,8 @@ async def update_platform_guild_storage(
             max_storage_bytes_provided="max_storage_bytes" in provided,
             max_users=payload.max_users,
             max_users_provided="max_users" in provided,
+            guild_auth_enabled=payload.guild_auth_enabled,
+            guild_auth_enabled_provided="guild_auth_enabled" in provided,
         )
         if payload.status is not None and guild.status != payload.status.value:
             logger.info(
@@ -480,6 +483,7 @@ async def update_platform_guild_storage(
         max_users=guild.max_users,
         status=GuildStatus(guild.status),
         status_changed_at=guild.status_changed_at,
+        guild_auth_enabled=guild.guild_auth_enabled,
     )
 
 

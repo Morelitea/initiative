@@ -218,6 +218,70 @@ async def test_policy_endpoints_absent_in_platform_posture(
     assert await session.get(GuildAuthPolicy, guild_id) is None
 
 
+async def test_policy_surface_404_when_guild_auth_disabled(
+    client: AsyncClient, session: AsyncSession
+):
+    """With the operator toggle off, the policy config surface 404s for the
+    guild admin — the same GUILD_AUTH_NOT_ENABLED shape as platform posture,
+    and nothing is written."""
+    set_auth_scope()
+    admin = await create_user(session)
+    guild = await create_guild(session, creator=admin, guild_auth_enabled=False)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    provider = await create_auth_provider(session, slug="corp", guild_id=guild.id)
+    headers = _sat_headers(admin, [provider.id])
+    guild_id = guild.id
+
+    got = await client.get(f"/api/v1/guilds/{guild_id}/auth-policy", headers=headers)
+    assert got.status_code == 404
+    assert got.json()["detail"] == "GUILD_AUTH_NOT_ENABLED"
+
+    put = await client.put(
+        f"/api/v1/guilds/{guild_id}/auth-policy",
+        headers=headers,
+        json={"policy": "required", "provider_id": provider.id},
+    )
+    assert put.status_code == 404
+    assert put.json()["detail"] == "GUILD_AUTH_NOT_ENABLED"
+    session.expire_all()
+    assert await session.get(GuildAuthPolicy, guild_id) is None
+
+
+async def test_disabling_guild_auth_keeps_existing_requirement_enforced(
+    client: AsyncClient, session: AsyncSession
+):
+    """Turning the operator toggle OFF closes the config surface but never
+    un-enforces an already-set requirement — unsatisfied sessions still step up
+    (parity with the posture gate: management is gated, enforcement is not)."""
+    member = await create_user(session)
+    guild = await create_guild(session)
+    await create_guild_membership(
+        session, user=member, guild=guild, role=GuildRole.member
+    )
+    provider = await create_auth_provider(session, slug="corp")
+    await _require_provider(session, guild.id, provider)
+
+    # Operator turns per-guild sign-in off after the requirement was set.
+    guild.guild_auth_enabled = False
+    session.add(guild)
+    await session.commit()
+
+    blocked = await client.get(
+        f"/api/v1/g/{guild.id}/initiatives/", headers=get_auth_headers(member)
+    )
+    assert blocked.status_code == 401
+    assert blocked.json()["detail"] == "GUILD_AUTH_STEP_UP_REQUIRED"
+    assert blocked.headers["X-Auth-Step-Up"] == "corp"
+
+    allowed = await client.get(
+        f"/api/v1/g/{guild.id}/initiatives/",
+        headers=_sat_headers(member, [provider.id]),
+    )
+    assert allowed.status_code == 200
+
+
 async def test_required_guild_steps_up_unsatisfied_sessions(
     client: AsyncClient, session: AsyncSession
 ):

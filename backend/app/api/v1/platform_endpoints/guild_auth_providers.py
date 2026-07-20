@@ -21,6 +21,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import SessionDep, get_current_active_user
 from app.api.v1.platform_endpoints.guilds import (
     _ensure_guild_admin,
+    _require_guild_auth_enabled,
     _require_guild_auth_scope,
 )
 from app.db.session import get_admin_session
@@ -38,11 +39,18 @@ CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 
 
 async def _require_guild_provider_admin(
-    session: AsyncSession, *, guild_id: int, user_id: int
+    session: AsyncSession,
+    admin_session: AsyncSession,
+    *,
+    guild_id: int,
+    user_id: int,
 ) -> None:
-    """The shared gate for every route here: per-guild auth posture, then
-    guild admin."""
+    """The shared gate for every route here: per-guild auth posture, the
+    per-guild enablement toggle, then guild admin. When the toggle is off the
+    surface 404s but the guild's provider rows are left intact — existing
+    members keep signing in through them."""
     _require_guild_auth_scope()
+    await _require_guild_auth_enabled(admin_session, guild_id)
     await _ensure_guild_admin(session, guild_id=guild_id, user_id=user_id)
 
 
@@ -54,7 +62,7 @@ async def list_guild_auth_providers(
     current_user: CurrentUserDep,
 ) -> List[AuthProviderAdminRead]:
     await _require_guild_provider_admin(
-        session, guild_id=guild_id, user_id=current_user.id
+        session, admin_session, guild_id=guild_id, user_id=current_user.id
     )
     return await provider_registry.list_providers(admin_session, guild_id=guild_id)
 
@@ -72,7 +80,7 @@ async def create_guild_auth_provider(
     current_user: CurrentUserDep,
 ) -> AuthProviderAdminRead:
     await _require_guild_provider_admin(
-        session, guild_id=guild_id, user_id=current_user.id
+        session, admin_session, guild_id=guild_id, user_id=current_user.id
     )
     return await provider_registry.create_provider(
         admin_session, provider_in, guild_id=guild_id
@@ -91,7 +99,7 @@ async def update_guild_auth_provider(
     current_user: CurrentUserDep,
 ) -> AuthProviderAdminRead:
     await _require_guild_provider_admin(
-        session, guild_id=guild_id, user_id=current_user.id
+        session, admin_session, guild_id=guild_id, user_id=current_user.id
     )
     return await provider_registry.update_provider(
         admin_session, provider_id, provider_in, guild_id=guild_id
@@ -113,7 +121,7 @@ async def delete_guild_auth_provider(
     a provider the guild's auth policy requires is refused (409) — change the
     policy first."""
     await _require_guild_provider_admin(
-        session, guild_id=guild_id, user_id=current_user.id
+        session, admin_session, guild_id=guild_id, user_id=current_user.id
     )
     await provider_registry.delete_provider(
         admin_session, provider_id, guild_id=guild_id

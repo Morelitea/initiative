@@ -793,6 +793,9 @@
     "statusInputLabel": "Estado de {{name}}",
     "statusSaved": "Estado de {{name}} actualizado.",
     "statusSaveError": "No se pudo actualizar el estado del gremio. Inténtalo de nuevo.",
+    "guildAuthInputLabel": "Inicio de sesión por gremio para {{name}}",
+    "guildAuthOn": "Inicio de sesión por gremio habilitado para {{name}}.",
+    "guildAuthOff": "Inicio de sesión por gremio deshabilitado para {{name}}. Los miembros existentes siguen iniciando sesión; no se crean cuentas nuevas.",
     "status": {
       "active": "Activo",
       "read_only": "Solo lectura",
@@ -809,6 +812,7 @@
       "members": "Miembros",
       "users": "Usuarios",
       "storageLimit": "Límite de almacenamiento",
+      "guildAuth": "Inicio de sesión por gremio",
       "status": "Estado"
     }
   },

@@ -157,6 +157,11 @@ async def create_guild(
         "name": f"Test Guild {datetime.now(timezone.utc).timestamp()}",
         "description": "A test guild for integration testing",
         "created_by_user_id": creator.id,
+        # Test guilds are sign-in-enabled by default so the guild-auth surface is
+        # exercisable without extra setup; production guilds default off (the
+        # operator opts each guild in from the Guilds dashboard). Pass
+        # guild_auth_enabled=False to exercise the disabled paths.
+        "guild_auth_enabled": True,
     }
 
     guild_data = {**defaults, **overrides}

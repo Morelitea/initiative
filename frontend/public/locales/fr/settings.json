@@ -793,6 +793,9 @@
     "statusInputLabel": "Statut de {{name}}",
     "statusSaved": "Statut de {{name}} mis à jour.",
     "statusSaveError": "Impossible de mettre à jour le statut du groupe. Veuillez réessayer.",
+    "guildAuthInputLabel": "Connexion par groupe pour {{name}}",
+    "guildAuthOn": "Connexion par groupe activée pour {{name}}.",
+    "guildAuthOff": "Connexion par groupe désactivée pour {{name}}. Les membres existants continuent de se connecter ; aucun nouveau compte n'est créé.",
     "status": {
       "active": "Actif",
       "read_only": "Lecture seule",
@@ -809,6 +812,7 @@
       "members": "Membres",
       "users": "Utilisateurs",
       "storageLimit": "Limite de stockage",
+      "guildAuth": "Connexion par groupe",
       "status": "Statut"
     }
   },
