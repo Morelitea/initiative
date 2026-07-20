@@ -578,14 +578,8 @@
     "loadingOidcMappings": "OIDC-Zuordnungen werden geladen…",
     "oidcMappingsLoadError": "OIDC-Zuordnungen konnten nicht geladen werden.",
     "scope": {
-      "title": "Anmeldekonfiguration",
-      "description": "Lege fest, wo die Anmeldung für diesen Server konfiguriert wird.",
-      "platformLabel": "Plattformweit",
-      "platformHelp": "Die Anmeldung wird einmal, hier, für den gesamten Server konfiguriert. Alle Gilden verwenden sie. Ideal für eine einzelne Organisation mit eigener Instanz.",
-      "guildLabel": "Pro Gilde",
-      "guildHelp": "Jede Gilde konfiguriert ihre Anmeldung und Mitgliedschaftsregeln in ihren Gildeneinstellungen. Ideal für einen Server mit mehreren unabhängigen Organisationen.",
-      "comingSoon": "Demnächst",
-      "passwordNote": "Die Passwort-Anmeldung bleibt in beiden Modi verfügbar."
+      "platformLabel": "Plattformweite Anmeldung",
+      "guildLabel": "Anmeldung pro Gilde"
     }
   },
   "platformUsers": {

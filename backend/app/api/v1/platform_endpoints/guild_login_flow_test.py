@@ -36,7 +36,7 @@ async def _guild_provider(session: AsyncSession, **overrides):
     flipped to per-guild posture."""
     from app.testing.factories import create_guild
 
-    await set_auth_scope(session)
+    set_auth_scope()
     guild = await create_guild(session)
     provider = await create_auth_provider(
         session, slug="corp", guild_id=guild.id, **overrides
@@ -122,7 +122,7 @@ async def test_guild_listing_empty_in_platform_posture(
     client: AsyncClient, session: AsyncSession
 ):
     guild, _provider = await _guild_provider(session)
-    await set_auth_scope(session, scope="platform")
+    set_auth_scope("platform")
 
     response = await client.get(f"/api/v1/auth/g/{guild.id}/providers")
     assert response.json()["providers"] == []
@@ -148,7 +148,7 @@ async def test_guild_login_absent_in_platform_posture(
     client: AsyncClient, session: AsyncSession
 ):
     guild, _provider = await _guild_provider(session)
-    await set_auth_scope(session, scope="platform")
+    set_auth_scope("platform")
 
     response = await client.get(
         f"/api/v1/auth/g/{guild.id}/corp/login", follow_redirects=False

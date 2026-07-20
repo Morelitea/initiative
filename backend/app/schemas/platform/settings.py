@@ -2,15 +2,9 @@ from typing import List, Literal, Optional
 
 from pydantic import ConfigDict, EmailStr, Field, field_validator
 
+from app.core.config import AuthScope
 from app.core.user_input_validators import validate_provider_slug
-from app.models.platform.app_setting import AuthScope
 from app.schemas.base import RawTextStr, SanitizedBaseModel
-
-
-class AuthScopeUpdate(SanitizedBaseModel):
-    """Switch where login is configured (platform-wide vs per-guild)."""
-
-    scope: AuthScope
 
 
 class AuthProviderAdminRead(SanitizedBaseModel):

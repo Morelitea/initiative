@@ -12,7 +12,6 @@ import logging
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import text
-from sqlalchemy.exc import DBAPIError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole, GuildStatus
@@ -24,6 +23,7 @@ from app.testing import (
     create_initiative,
     create_user,
     get_auth_headers,
+    set_auth_scope,
 )
 
 
@@ -1023,11 +1023,12 @@ async def test_auth_scope_defaults_to_platform(
 
 
 @pytest.mark.integration
-async def test_auth_scope_switch_is_non_destructive(
+async def test_guild_posture_keeps_platform_oidc_dormant(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    """Switching postures never touches the dormant side's configuration —
-    switching back restores platform OIDC exactly."""
+    """Under guild posture the platform OIDC provider is dormant — not offered
+    on the login page and refused server-side — while its stored configuration
+    is left untouched (posture never deletes config)."""
     owner = await create_user(session, role=UserRole.owner)
     headers = get_auth_headers(owner)
     await _configure_platform_oidc(client, headers)
@@ -1038,84 +1039,15 @@ async def test_auth_scope_switch_is_non_destructive(
 
     assert await _login_offered() is True
 
-    # Switch to guild scope: OIDC config is retained but the login goes dormant.
-    resp = await client.put(
-        "/api/v1/settings/auth-scope", json={"scope": "guild"}, headers=headers
-    )
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["auth_scope"] == "guild"
-    assert body["enabled"] is True  # stored config untouched...
-    assert body["issuer"] == "https://idp.example.com"
-    assert await _login_offered() is False  # ...but not offered
+    set_auth_scope("guild")
 
-    # Switch back: everything as before.
-    resp = await client.put(
-        "/api/v1/settings/auth-scope", json={"scope": "platform"}, headers=headers
-    )
-    assert resp.status_code == 200
-    assert resp.json()["auth_scope"] == "platform"
-    assert await _login_offered() is True
-
-
-@pytest.mark.integration
-async def test_guild_scope_refuses_platform_oidc_login(
-    client: AsyncClient, session: AsyncSession
-) -> None:
-    """Server-side enforcement: in guild scope the dormant platform provider
-    must not authenticate anyone, regardless of what a client requests."""
-    owner = await create_user(session, role=UserRole.owner)
-    headers = get_auth_headers(owner)
-    await _configure_platform_oidc(client, headers)
-    resp = await client.put(
-        "/api/v1/settings/auth-scope", json={"scope": "guild"}, headers=headers
-    )
-    assert resp.status_code == 200
-
+    # Config retained...
+    resp = await client.get("/api/v1/settings/auth", headers=headers)
+    assert resp.json()["auth_scope"] == "guild"
+    assert resp.json()["enabled"] is True
+    assert resp.json()["issuer"] == "https://idp.example.com"
+    # ...but the provider is neither offered nor usable.
+    assert await _login_offered() is False
     login_resp = await client.get("/api/v1/auth/oidc/login")
     assert login_resp.status_code == 404
     assert login_resp.json()["detail"] == "OIDC_NOT_ENABLED"
-
-
-@pytest.mark.integration
-async def test_auth_scope_rejects_unknown_value(
-    client: AsyncClient, session: AsyncSession
-) -> None:
-    owner = await create_user(session, role=UserRole.owner)
-    resp = await client.put(
-        "/api/v1/settings/auth-scope",
-        json={"scope": "both"},
-        headers=get_auth_headers(owner),
-    )
-    assert resp.status_code == 422
-
-
-@pytest.mark.integration
-async def test_auth_scope_requires_config_manage(
-    client: AsyncClient, session: AsyncSession
-) -> None:
-    member = await create_user(session, role=UserRole.member)
-    resp = await client.put(
-        "/api/v1/settings/auth-scope",
-        json={"scope": "guild"},
-        headers=get_auth_headers(member),
-    )
-    assert resp.status_code == 403
-
-
-@pytest.mark.integration
-async def test_auth_scope_check_constraint_rejects_garbage(
-    session: AsyncSession,
-) -> None:
-    """The posture gate compares literally, so an out-of-vocabulary value would
-    silently disable login — the DB CHECK refuses it even for a privileged
-    writer that bypasses the API schema. (INSERT, not UPDATE: the settings
-    singleton may not exist yet, and a zero-row UPDATE never fires the check.)"""
-    with pytest.raises(DBAPIError):
-        async with session.begin_nested():
-            await session.exec(
-                text(
-                    "INSERT INTO app_settings (id, oidc_enabled, auth_scope) "
-                    "VALUES (999, false, 'both')"
-                )
-            )

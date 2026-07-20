@@ -565,11 +565,15 @@ export interface AuthProviderUpdate {
 }
 
 /**
- * Where login is configured: once for the whole platform, or per guild.
+ * Where login is configured — a **deploy-time** posture, set once at boot
+ * via the ``AUTH_SCOPE`` env value, never toggled at runtime.
  *
- * Mutually exclusive postures (see the auth-settings-scope design doc): the
- * inactive side's provider configuration stays stored but dormant — switching
- * is non-destructive and reversible.
+ * ``platform`` — sign-in is configured once for the whole instance
+ * (operator-global providers). ``guild`` — each guild configures its own
+ * sign-in and may require it. The two are mutually exclusive; an instance is
+ * built one way. Switching is non-destructive (it never deletes users,
+ * memberships, or providers), but a deployment that has granted access via
+ * guild auth does not switch back.
  */
 export type AuthScope = (typeof AuthScope)[keyof typeof AuthScope];
 
@@ -577,13 +581,6 @@ export const AuthScope = {
   platform: "platform",
   guild: "guild",
 } as const;
-
-/**
- * Switch where login is configured (platform-wide vs per-guild).
- */
-export interface AuthScopeUpdate {
-  scope: AuthScope;
-}
 
 export interface BackupToolEstimate {
   count?: number;

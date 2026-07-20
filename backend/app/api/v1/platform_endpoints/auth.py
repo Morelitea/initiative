@@ -54,7 +54,8 @@ from app.api.v1.platform_endpoints.session_cookies import (
     set_refresh_cookie,
     set_session_cookie,
 )
-from app.models.platform.app_setting import AppSetting, AuthScope
+from app.core.config import AuthScope
+from app.models.platform.app_setting import AppSetting
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.auth_provider_secret import AuthProviderSecret
 from app.models.platform.user import User, UserRole, UserStatus
@@ -691,7 +692,7 @@ def _platform_oidc_active(app_settings: AppSetting) -> bool:
     platform provider is dormant (kept, not deleted) and must not authenticate
     anyone — enforced here, server-side, not just hidden in the UI."""
     return bool(
-        app_settings.auth_scope == AuthScope.platform.value
+        settings.AUTH_SCOPE == AuthScope.platform
         and app_settings.oidc_enabled
         and app_settings.oidc_issuer
         and app_settings.oidc_client_id
@@ -714,7 +715,7 @@ async def _resolve_login_provider(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
         )
-    if app_settings.auth_scope != AuthScope.platform.value:
+    if settings.AUTH_SCOPE != AuthScope.platform:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
         )
@@ -741,7 +742,6 @@ async def _resolve_login_provider(
 
 
 async def _resolve_guild_login_provider(
-    app_settings: AppSetting,
     admin_session: AsyncSession,
     guild_id: int,
     provider_slug: str,
@@ -754,7 +754,7 @@ async def _resolve_guild_login_provider(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
         )
-    if app_settings.auth_scope != AuthScope.guild.value:
+    if settings.AUTH_SCOPE != AuthScope.guild:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
         )
@@ -833,7 +833,7 @@ async def list_login_providers(
     Registry rows are read on the system engine (``auth_providers`` carries no
     request-path grant)."""
     app_settings = await app_settings_service.get_app_settings(session)
-    if app_settings.auth_scope != AuthScope.platform.value:
+    if settings.AUTH_SCOPE != AuthScope.platform:
         return LoginProvidersResponse(providers=[])
 
     entries: list[LoginProviderEntry] = []
@@ -928,8 +928,7 @@ async def list_guild_login_providers(
     page. Empty (and nameless) outside per-guild auth posture and for a
     guild with no login-ready providers; an unknown guild id is
     indistinguishable from an empty registry."""
-    app_settings = await app_settings_service.get_app_settings(session)
-    if app_settings.auth_scope != AuthScope.guild.value:
+    if settings.AUTH_SCOPE != AuthScope.guild:
         return LoginProvidersResponse(providers=[])
     rows = (
         await admin_session.exec(
@@ -959,9 +958,8 @@ async def guild_provider_login(
     """Begin the relying-party flow for one of a guild's own providers.
     Web only for now — native guild step-up arrives with native session
     tokens, so there is no ``mobile`` variant of this route."""
-    app_settings = await app_settings_service.get_app_settings(session)
     provider_row = await _resolve_guild_login_provider(
-        app_settings, admin_session, guild_id, provider_slug
+        admin_session, guild_id, provider_slug
     )
     return await _begin_provider_login(
         admin_session, provider_row, mobile=False, device_name="", next_path=next_path
@@ -1332,9 +1330,8 @@ async def guild_provider_callback(
 ):
     """Complete the relying-party flow for one of a guild's own providers —
     the guild-addressed URL registered at the guild's IdP."""
-    app_settings = await app_settings_service.get_app_settings(session)
     provider_row = await _resolve_guild_login_provider(
-        app_settings, admin_session, guild_id, provider_slug
+        admin_session, guild_id, provider_slug
     )
     return await _complete_provider_login(
         request, session, admin_session, provider_row, code, state

@@ -216,18 +216,6 @@ async def get_app_settings(
     return await _ensure_app_settings(session)
 
 
-async def update_auth_scope(session: AsyncSession, *, scope: str) -> AppSetting:
-    """Switch the login-configuration posture. Non-destructive by design: only
-    the scope value changes — the dormant side's provider configuration
-    (``oidc_*``, ``auth_providers`` rows) is left untouched."""
-    settings_row = await _ensure_app_settings(session)
-    settings_row.auth_scope = scope
-    session.add(settings_row)
-    await session.commit()
-    await session.refresh(settings_row)
-    return settings_row
-
-
 async def update_oidc_settings(
     session: AsyncSession,
     *,

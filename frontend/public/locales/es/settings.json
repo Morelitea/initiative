@@ -578,14 +578,8 @@
     "loadingOidcMappings": "Cargando mapeos OIDC…",
     "oidcMappingsLoadError": "No se pudieron cargar los mapeos OIDC.",
     "scope": {
-      "title": "Configuración de inicio de sesión",
-      "description": "Elige dónde se configura el inicio de sesión para este servidor.",
-      "platformLabel": "Para toda la plataforma",
-      "platformHelp": "El inicio de sesión se configura una sola vez, aquí, para todo el servidor. Todos los gremios lo usan. Ideal para una sola organización con su propia instancia.",
-      "guildLabel": "Por gremio",
-      "guildHelp": "Cada gremio configura su propio inicio de sesión y sus reglas de membresía en los ajustes del gremio. Ideal para un servidor que aloja varias organizaciones independientes.",
-      "comingSoon": "Próximamente",
-      "passwordNote": "El inicio de sesión con contraseña sigue disponible en ambos modos."
+      "platformLabel": "Inicio de sesión para toda la plataforma",
+      "guildLabel": "Inicio de sesión por gremio"
     }
   },
   "platformUsers": {

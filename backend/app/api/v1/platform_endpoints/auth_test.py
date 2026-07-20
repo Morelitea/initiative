@@ -34,7 +34,7 @@ from app.core.security import (
     get_password_hash,
     verify_upload_token,
 )
-from app.models.platform.app_setting import AppSetting, AuthScope
+from app.models.platform.app_setting import AppSetting
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.auth_session import AuthSession
 from app.models.platform.federated_identity import FederatedIdentity
@@ -48,6 +48,7 @@ from app.testing.factories import (
     get_auth_headers,
     get_auth_token,
     get_new_access_token,
+    set_auth_scope,
 )
 from app.testing.oidc import (
     CLIENT_ID as OIDC_CLIENT_ID,
@@ -821,13 +822,14 @@ def _wire_fake_idp(monkeypatch, idp: FakeIdp) -> None:
 
 
 async def _enable_platform_oidc(session: AsyncSession, **overrides) -> None:
-    """Configure a live platform OIDC posture in app_settings (the real gate
-    the endpoints check)."""
+    """Configure a live platform OIDC provider in app_settings. Posture
+    (``settings.AUTH_SCOPE``) is a deploy-time value — set it with
+    ``set_auth_scope`` where a test needs a non-default posture; it defaults to
+    ``platform``, which is what these tests assume."""
     row = (await session.exec(select(AppSetting))).first()
     if row is None:
         row = AppSetting()
     values = {
-        "auth_scope": AuthScope.platform.value,
         "oidc_enabled": True,
         "oidc_issuer": OIDC_ISSUER,
         "oidc_client_id": OIDC_CLIENT_ID,
@@ -899,7 +901,8 @@ async def test_oidc_login_requires_configured_platform_posture(
     assert response.status_code == 404
     assert response.json()["detail"] == "OIDC_NOT_ENABLED"
 
-    await _enable_platform_oidc(session, auth_scope=AuthScope.guild.value)
+    await _enable_platform_oidc(session)
+    set_auth_scope("guild")
     response = await client.get("/api/v1/auth/oidc/login", follow_redirects=False)
     assert response.status_code == 404
     assert response.json()["detail"] == "OIDC_NOT_ENABLED"
@@ -910,7 +913,8 @@ async def test_oidc_login_requires_configured_platform_posture(
 async def test_oidc_callback_gated_like_login(
     client: AsyncClient, session: AsyncSession
 ):
-    await _enable_platform_oidc(session, auth_scope=AuthScope.guild.value)
+    await _enable_platform_oidc(session)
+    set_auth_scope("guild")
     response = await client.get(
         "/api/v1/auth/oidc/callback",
         params={"code": "c", "state": "s"},
@@ -1193,7 +1197,8 @@ async def test_login_providers_empty_in_guild_posture_or_unconfigured(
     response = await client.get("/api/v1/auth/providers")
     assert response.json()["providers"] == []  # nothing configured
 
-    await _enable_platform_oidc(session, auth_scope=AuthScope.guild.value)
+    await _enable_platform_oidc(session)
+    set_auth_scope("guild")
     await create_auth_provider(session, slug="corp")
     response = await client.get("/api/v1/auth/providers")
     assert response.json()["providers"] == []  # dormant in guild posture
