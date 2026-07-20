@@ -23,7 +23,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import SALT_OIDC_CLIENT_SECRET, encrypt_field
 from app.core.messages import AuthProviderMessages
-from app.db.errors import FOREIGN_KEY_VIOLATION_SQLSTATE, dbapi_sqlstate
+from app.db.errors import (
+    FOREIGN_KEY_VIOLATION_SQLSTATE,
+    UNIQUE_VIOLATION_SQLSTATE,
+    dbapi_sqlstate,
+)
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.auth_provider_secret import AuthProviderSecret
 from app.schemas.platform.settings import (
@@ -176,7 +180,18 @@ async def create_provider(
         guild_id=guild_id,
     )
     session.add(row)
-    await session.flush()
+    # The namespace's unique constraints back the check above; a concurrent
+    # create that slips between them still gets the promised 409.
+    try:
+        await session.flush()
+    except IntegrityError as exc:
+        await session.rollback()
+        if dbapi_sqlstate(exc) != UNIQUE_VIOLATION_SQLSTATE:
+            raise
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=AuthProviderMessages.SLUG_TAKEN,
+        ) from exc
     await set_provider_secret(session, row.id, provider_in.client_secret)
     await session.commit()
     await session.refresh(row)

@@ -4,6 +4,7 @@ from sqlalchemy.exc import DBAPIError
 
 INSUFFICIENT_PRIVILEGE_SQLSTATE = "42501"
 FOREIGN_KEY_VIOLATION_SQLSTATE = "23503"
+UNIQUE_VIOLATION_SQLSTATE = "23505"
 
 
 def dbapi_sqlstate(exc: DBAPIError) -> str | None:
