@@ -86,6 +86,10 @@ ALLOWED_DYNAMIC_SQL: dict[str, str] = {
     "app/services/storage_backfill.py::_persist": (
         "SET clause joined from literal 'col = :bind' fragments; all values bound"
     ),
+    "app/services/storage_backfill.py::_ensure_table": (
+        "admin DDL job; GRANT verb list is a module constant from the "
+        "SHARED_TABLE_SYSTEM_GRANTS registry (fixed vocabulary), never request data"
+    ),
 }
 
 

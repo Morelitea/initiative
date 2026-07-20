@@ -1017,6 +1017,23 @@ async def test_autocomplete_documents_honors_limit(
 
 
 @pytest.mark.integration
+async def test_autocomplete_documents_rejects_non_positive_limit(
+    client: AsyncClient, session, acting_user
+):
+    """``limit`` is bounded at 1 — a negative value is rejected at validation
+    rather than reaching Postgres (which errors on a negative LIMIT)."""
+    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+
+    response = await client.get(
+        actor.g("/documents/autocomplete"),
+        headers=actor.headers,
+        params={"initiative_id": actor.initiative.id, "q": "", "limit": -1},
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.integration
 async def test_autocomplete_documents_guild_wide_template_search(
     client: AsyncClient, session, acting_user
 ):

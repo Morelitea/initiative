@@ -9,6 +9,12 @@ export const taskHandlers = [
     return HttpResponse.json(buildTaskListResponse());
   }),
 
+  guildHttp.get("/tasks/autocomplete", () => {
+    return HttpResponse.json(
+      buildTaskListResponse().items.map((task) => ({ id: task.id, title: task.title }))
+    );
+  }),
+
   guildHttp.patch("/tasks/:id", () => {
     return HttpResponse.json(buildTask());
   }),

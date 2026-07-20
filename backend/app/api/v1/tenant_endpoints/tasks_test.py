@@ -23,6 +23,7 @@ from app.models.platform.guild import GuildRole
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
+    create_initiative,
     create_project,
     create_user,
 )
@@ -1190,3 +1191,188 @@ async def test_read_task_includes_creator_summary(
     assert body["creator"] is not None
     assert body["creator"]["id"] == a.user.id
     assert body["creator"]["full_name"] == "Ada C."
+
+
+@pytest.mark.integration
+async def test_autocomplete_tasks_empty_query_returns_recent(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """An empty ``q`` is the picker's opening state — it lists tasks (id +
+    title), not 422. Without this a typeahead shows nothing until the user
+    types."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task1 = await _create_task(session, a.project, "Alpha Task")
+    task2 = await _create_task(session, a.project, "Beta Task")
+
+    response = await client.get(
+        a.g("/tasks/autocomplete"),
+        headers=a.headers,
+        params={"q": "", "limit": 20},
+    )
+
+    assert response.status_code == 200
+    items = response.json()
+    # Slim projection — only id + title, none of the heavy list-row fields.
+    assert all(set(item.keys()) == {"id", "title"} for item in items)
+    assert {item["title"] for item in items} == {"Alpha Task", "Beta Task"}
+    assert {item["id"] for item in items} == {task1.id, task2.id}
+
+
+@pytest.mark.integration
+async def test_autocomplete_tasks_filters_by_query(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await _create_task(session, a.project, "Alpha Task")
+    await _create_task(session, a.project, "Beta Task")
+
+    response = await client.get(
+        a.g("/tasks/autocomplete"),
+        headers=a.headers,
+        params={"q": "beta", "limit": 20},
+    )
+
+    assert response.status_code == 200
+    assert [item["title"] for item in response.json()] == ["Beta Task"]
+
+
+@pytest.mark.integration
+async def test_autocomplete_tasks_escapes_like_wildcards(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A literal ``%`` in the query matches itself, not every title."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await _create_task(session, a.project, "Plain Task")
+    await _create_task(session, a.project, "50% Done")
+
+    response = await client.get(
+        a.g("/tasks/autocomplete"),
+        headers=a.headers,
+        params={"q": "%", "limit": 20},
+    )
+
+    assert response.status_code == 200
+    assert [item["title"] for item in response.json()] == ["50% Done"]
+
+
+@pytest.mark.integration
+async def test_autocomplete_tasks_honors_limit(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    for i in range(5):
+        await _create_task(session, a.project, f"Task {i}")
+
+    response = await client.get(
+        a.g("/tasks/autocomplete"),
+        headers=a.headers,
+        params={"q": "", "limit": 2},
+    )
+
+    assert response.status_code == 200
+    assert len(response.json()) == 2
+
+
+@pytest.mark.integration
+async def test_autocomplete_tasks_accepts_command_palette_limit(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The command palette requests limit=25 — the cap must accommodate it
+    (regression: a lower cap 422'd the palette's task search)."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await _create_task(session, a.project, "Task A")
+
+    response = await client.get(
+        a.g("/tasks/autocomplete"),
+        headers=a.headers,
+        params={"q": "", "limit": 25},
+    )
+
+    assert response.status_code == 200
+
+
+@pytest.mark.integration
+async def test_autocomplete_tasks_rejects_non_positive_limit(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """``limit`` is bounded at 1 — a negative value is rejected at validation
+    rather than reaching Postgres (which errors on a negative LIMIT)."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+
+    response = await client.get(
+        a.g("/tasks/autocomplete"),
+        headers=a.headers,
+        params={"q": "", "limit": -1},
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.integration
+async def test_autocomplete_tasks_excludes_archived(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    live = await _create_task(session, a.project, "Live Task")
+    archived = await _create_task(session, a.project, "Archived Task")
+    archived.is_archived = True
+    session.add(archived)
+    await session.commit()
+
+    response = await client.get(
+        a.g("/tasks/autocomplete"),
+        headers=a.headers,
+        params={"q": "", "limit": 20},
+    )
+
+    assert response.status_code == 200
+    ids = {item["id"] for item in response.json()}
+    assert live.id in ids
+    assert archived.id not in ids
+
+
+@pytest.mark.integration
+async def test_autocomplete_tasks_respects_initiative_isolation(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A guild member who isn't in the owning initiative must not see its tasks
+    surface in autocomplete — RLS hides the row (the hard isolation boundary)."""
+    owner = await acting_user(
+        guild_role=GuildRole.member, initiative=True, project=True
+    )
+    outsider = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
+    hidden = await _create_task(session, owner.project, "Hidden Task")
+
+    response = await client.get(
+        outsider.g("/tasks/autocomplete"),
+        headers=outsider.headers,
+        params={"q": "", "limit": 20},
+    )
+
+    assert response.status_code == 200
+    assert hidden.id not in {item["id"] for item in response.json()}
+
+
+@pytest.mark.integration
+async def test_autocomplete_tasks_scopes_to_initiative(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """``initiative_id`` narrows the typeahead to one initiative's tasks — the
+    queue picker scopes to the initiative that owns the queue."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    here = await _create_task(session, a.project, "Here Task")
+
+    other_initiative = await create_initiative(session, a.guild, a.user)
+    other_project = await create_project(session, other_initiative, a.user)
+    there = await _create_task(session, other_project, "There Task")
+
+    response = await client.get(
+        a.g("/tasks/autocomplete"),
+        headers=a.headers,
+        params={"initiative_id": a.initiative.id, "q": "", "limit": 20},
+    )
+
+    assert response.status_code == 200
+    ids = {item["id"] for item in response.json()}
+    assert here.id in ids
+    assert there.id not in ids

@@ -2924,6 +2924,14 @@ export interface TaskAssigneeSummary {
   status: UserStatus;
 }
 
+/**
+ * Lightweight task info for autocomplete/pickers (id + title only).
+ */
+export interface TaskAutocomplete {
+  id: number;
+  title: string;
+}
+
 export type TaskCreateRecurrenceStrategy =
   (typeof TaskCreateRecurrenceStrategy)[keyof typeof TaskCreateRecurrenceStrategy];
 
@@ -4148,6 +4156,19 @@ export type ListTasksApiV1GGuildIdTasksGetParams = {
   tz?: string | null;
 };
 
+export type AutocompleteTasksApiV1GGuildIdTasksAutocompleteGetParams = {
+  /**
+   * Restrict to one initiative. Omit to search the whole guild.
+   */
+  initiative_id?: number | null;
+  q?: string;
+  /**
+   * @minimum 1
+   * @maximum 50
+   */
+  limit?: number;
+};
+
 export type ArchiveDoneTasksApiV1GGuildIdTasksArchiveDonePostParams = {
   /**
    * Project to archive done tasks from
@@ -4269,6 +4290,7 @@ export type AutocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGetParams = {
    */
   document_type?: DocumentType | null;
   /**
+   * @minimum 1
    * @maximum 20
    */
   limit?: number;
