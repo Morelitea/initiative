@@ -52,6 +52,7 @@ from app.models.tenant.comment import Comment
 from pydantic import BaseModel, ValidationError
 
 from app.schemas.tenant.task import (
+    TaskAutocomplete,
     TaskCreate,
     TaskListRead,
     TaskListResponse,
@@ -1693,6 +1694,55 @@ async def list_tasks(
             sorting=sorting,
         )
     )
+
+
+@router.get("/autocomplete", response_model=List[TaskAutocomplete])
+async def autocomplete_tasks(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    initiative_id: Optional[int] = Query(
+        default=None,
+        description="Restrict to one initiative. Omit to search the whole guild.",
+    ),
+    q: str = Query(default=""),
+    limit: int = Query(default=10, le=50),
+) -> List[TaskAutocomplete]:
+    """Search tasks by title for autocomplete/pickers.
+
+    Returns lightweight task info (id, title) for typeahead — it skips the
+    eager-load chains and per-page annotation query the full list endpoint
+    runs. Visibility matches the task list: only tasks in projects the caller
+    can access come back (RLS hides content of initiatives the caller isn't in).
+
+    An empty ``q`` matches everything, so a picker that opens before the user
+    types gets the most recently updated tasks. Archived tasks are excluded.
+    """
+    q_parsed = await _parse_task_list_query(session, None, None, None)
+    build = await _guild_task_query_builder(
+        session,
+        current_user,
+        guild_context.guild_id,
+        q=q_parsed,
+        include_archived=False,
+    )
+    if build is None:
+        return []
+
+    stmt = build(select(Task.id, Task.title))
+    if initiative_id is not None:
+        stmt = stmt.where(Project.initiative_id == initiative_id)
+    normalized = q.strip().lower()
+    if normalized:
+        # autoescape so a literal % or _ in the query matches itself rather
+        # than acting as a wildcard.
+        stmt = stmt.where(func.lower(Task.title).contains(normalized, autoescape=True))
+    stmt = stmt.order_by(Task.updated_at.desc()).limit(limit)
+
+    result = await session.exec(stmt)
+    return [
+        TaskAutocomplete(id=task_id, title=title) for task_id, title in result.all()
+    ]
 
 
 @router.post("/", response_model=TaskRead, status_code=status.HTTP_201_CREATED)

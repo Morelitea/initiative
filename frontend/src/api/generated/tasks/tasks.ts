@@ -23,6 +23,7 @@ import type {
 import type {
   ArchiveDoneResponse,
   ArchiveDoneTasksApiV1GGuildIdTasksArchiveDonePostParams,
+  AutocompleteTasksApiV1GGuildIdTasksAutocompleteGetParams,
   GenerateDescriptionResponse,
   GenerateSubtasksResponse,
   HTTPValidationError,
@@ -35,6 +36,7 @@ import type {
   SubtaskRead,
   SubtaskReorderRequest,
   TagSetRequest,
+  TaskAutocomplete,
   TaskCreate,
   TaskListResponse,
   TaskMoveRequest,
@@ -282,6 +284,188 @@ export const useCreateTaskApiV1GGuildIdTasksPost = <
 > => {
   return useMutation(getCreateTaskApiV1GGuildIdTasksPostMutationOptions(options), queryClient);
 };
+/**
+ * Search tasks by title for autocomplete/pickers.
+ *
+ * Returns lightweight task info (id, title) for typeahead — it skips the
+ * eager-load chains and per-page annotation query the full list endpoint
+ * runs. Visibility matches the task list: only tasks in projects the caller
+ * can access come back (RLS hides content of initiatives the caller isn't in).
+ *
+ * An empty ``q`` matches everything, so a picker that opens before the user
+ * types gets the most recently updated tasks. Archived tasks are excluded.
+ * @summary Autocomplete Tasks
+ */
+export const autocompleteTasksApiV1GGuildIdTasksAutocompleteGet = (
+  guildId: number,
+  params?: AutocompleteTasksApiV1GGuildIdTasksAutocompleteGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<TaskAutocomplete[]>(
+    { url: `/api/v1/g/${guildId}/tasks/autocomplete`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getAutocompleteTasksApiV1GGuildIdTasksAutocompleteGetQueryKey = (
+  guildId: number,
+  params?: AutocompleteTasksApiV1GGuildIdTasksAutocompleteGetParams
+) => {
+  return [`/api/v1/g/${guildId}/tasks/autocomplete`, ...(params ? [params] : [])] as const;
+};
+
+export const getAutocompleteTasksApiV1GGuildIdTasksAutocompleteGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof autocompleteTasksApiV1GGuildIdTasksAutocompleteGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: AutocompleteTasksApiV1GGuildIdTasksAutocompleteGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof autocompleteTasksApiV1GGuildIdTasksAutocompleteGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getAutocompleteTasksApiV1GGuildIdTasksAutocompleteGetQueryKey(guildId, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof autocompleteTasksApiV1GGuildIdTasksAutocompleteGet>>
+  > = ({ signal }) =>
+    autocompleteTasksApiV1GGuildIdTasksAutocompleteGet(guildId, params, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof autocompleteTasksApiV1GGuildIdTasksAutocompleteGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type AutocompleteTasksApiV1GGuildIdTasksAutocompleteGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof autocompleteTasksApiV1GGuildIdTasksAutocompleteGet>>
+>;
+export type AutocompleteTasksApiV1GGuildIdTasksAutocompleteGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useAutocompleteTasksApiV1GGuildIdTasksAutocompleteGet<
+  TData = Awaited<ReturnType<typeof autocompleteTasksApiV1GGuildIdTasksAutocompleteGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: undefined | AutocompleteTasksApiV1GGuildIdTasksAutocompleteGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof autocompleteTasksApiV1GGuildIdTasksAutocompleteGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof autocompleteTasksApiV1GGuildIdTasksAutocompleteGet>>,
+          TError,
+          Awaited<ReturnType<typeof autocompleteTasksApiV1GGuildIdTasksAutocompleteGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useAutocompleteTasksApiV1GGuildIdTasksAutocompleteGet<
+  TData = Awaited<ReturnType<typeof autocompleteTasksApiV1GGuildIdTasksAutocompleteGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: AutocompleteTasksApiV1GGuildIdTasksAutocompleteGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof autocompleteTasksApiV1GGuildIdTasksAutocompleteGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof autocompleteTasksApiV1GGuildIdTasksAutocompleteGet>>,
+          TError,
+          Awaited<ReturnType<typeof autocompleteTasksApiV1GGuildIdTasksAutocompleteGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useAutocompleteTasksApiV1GGuildIdTasksAutocompleteGet<
+  TData = Awaited<ReturnType<typeof autocompleteTasksApiV1GGuildIdTasksAutocompleteGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: AutocompleteTasksApiV1GGuildIdTasksAutocompleteGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof autocompleteTasksApiV1GGuildIdTasksAutocompleteGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Autocomplete Tasks
+ */
+
+export function useAutocompleteTasksApiV1GGuildIdTasksAutocompleteGet<
+  TData = Awaited<ReturnType<typeof autocompleteTasksApiV1GGuildIdTasksAutocompleteGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: AutocompleteTasksApiV1GGuildIdTasksAutocompleteGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof autocompleteTasksApiV1GGuildIdTasksAutocompleteGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getAutocompleteTasksApiV1GGuildIdTasksAutocompleteGetQueryOptions(
+    guildId,
+    params,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
 /**
  * @summary Read Task
  */

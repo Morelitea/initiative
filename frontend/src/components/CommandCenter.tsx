@@ -30,7 +30,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useRecents } from "@/hooks/useRecents";
-import { useTasks } from "@/hooks/useTasks";
+import { useTaskAutocomplete, useTasks } from "@/hooks/useTasks";
 import { commandFilter } from "@/lib/fuzzyMatch";
 import { guildPath, useGuildPath } from "@/lib/guildUrl";
 import { canAccessAdminDashboard, canManagePlatformConfig } from "@/lib/permissions";
@@ -103,38 +103,57 @@ export function CommandCenter() {
 
   // Data hooks — all use existing cached data except tasks which fetches when dialog opens
   const recentQuery = useRecents({ staleTime: 30_000 });
-  // Two modes for the tasks query:
-  //  - Idle: surface tasks the user is actively working on (assigned to them,
-  //    not done, most recently updated). The default backend sort
-  //    (``position`` asc) returns the top of every project's kanban which
-  //    is rarely what's relevant "in the moment".
-  //  - Searching: drop the "my tasks" / "not done" lenses and let the user
-  //    find any task in the active guild whose title matches. The ``ilike``
-  //    op on ``title`` is wrapped server-side as ``%query%``.
-  const tasksQuery = useTasks(
+  // Two modes for the tasks source:
+  //  - Searching: a slim id+title typeahead over the active guild's tasks (the
+  //    hot, per-keystroke path). The palette only renders the title and
+  //    navigates by id, so the heavy list row was pure overfetch here.
+  const searchTasksQuery = useTaskAutocomplete(effectiveSearch, {
+    enabled: open && !!user && isSearching,
+    limit: 25,
+    staleTime: 30_000,
+  });
+  //  - Browsing (palette just opened): the user's own not-done tasks, most
+  //    recently updated — surfacing what they're actively working on. Fired
+  //    once on open, so the full list row is fine.
+  const browseTasksQuery = useTasks(
     {
       page_size: 25,
       conditions: user
-        ? isSearching
-          ? [{ field: "title", op: "ilike" as const, value: effectiveSearch }]
-          : [
-              { field: "assignee_ids", op: "in_" as const, value: [user.id] },
-              {
-                field: "status_category",
-                op: "in_" as const,
-                value: ["backlog", "todo", "in_progress"],
-              },
-            ]
+        ? [
+            { field: "assignee_ids", op: "in_" as const, value: [user.id] },
+            {
+              field: "status_category",
+              op: "in_" as const,
+              value: ["backlog", "todo", "in_progress"],
+            },
+          ]
         : [],
       sorting: [{ field: "updated_at", dir: "desc" as const }],
     },
-    { enabled: open && !!user, staleTime: 30_000 }
+    { enabled: open && !!user && !isSearching, staleTime: 30_000 }
   );
 
   // Suggested = mixed-type recent items, ordered by ``last_viewed_at`` desc
   // (same payload that backs the layout tabs bar).
   const recentItems = recentQuery.data ?? [];
-  const tasks = tasksQuery.data?.items ?? [];
+  // Normalize both sources to the id/title/guild the palette actually renders.
+  // Search rows come from the guild-scoped autocomplete (active guild); browse
+  // rows carry their own guild_id.
+  const tasks = useMemo(
+    () =>
+      isSearching
+        ? (searchTasksQuery.data ?? []).map((task) => ({
+            id: task.id,
+            title: task.title,
+            guildId: activeGuildId,
+          }))
+        : (browseTasksQuery.data?.items ?? []).map((task) => ({
+            id: task.id,
+            title: task.title,
+            guildId: task.guild_id ?? activeGuildId,
+          })),
+    [isSearching, searchTasksQuery.data, browseTasksQuery.data, activeGuildId]
+  );
 
   const isGuildAdmin = activeGuild?.role === "admin";
   const showPlatformSettings = canManagePlatformConfig(user);
@@ -285,17 +304,9 @@ export function CommandCenter() {
             <CommandItem
               key={`task-${task.id}`}
               value={`task-${task.id}-${task.title}`}
-              keywords={[
-                task.description ?? "",
-                task.project_name ?? "",
-                task.initiative_name ?? "",
-                ...(task.tags?.map((tag) => tag.name) ?? []),
-              ]}
               onSelect={() =>
                 handleSelect(
-                  task.guild_id
-                    ? guildPath(task.guild_id, `/tasks/${task.id}`)
-                    : `/tasks/${task.id}`
+                  task.guildId ? guildPath(task.guildId, `/tasks/${task.id}`) : `/tasks/${task.id}`
                 )
               }
             >

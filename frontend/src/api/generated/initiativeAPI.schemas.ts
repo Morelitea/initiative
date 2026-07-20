@@ -2924,6 +2924,14 @@ export interface TaskAssigneeSummary {
   status: UserStatus;
 }
 
+/**
+ * Lightweight task info for autocomplete/pickers (id + title only).
+ */
+export interface TaskAutocomplete {
+  id: number;
+  title: string;
+}
+
 export type TaskCreateRecurrenceStrategy =
   (typeof TaskCreateRecurrenceStrategy)[keyof typeof TaskCreateRecurrenceStrategy];
 
@@ -4146,6 +4154,18 @@ export type ListTasksApiV1GGuildIdTasksGetParams = {
    * IANA timezone name (e.g. America/Los_Angeles) for date_group calculation
    */
   tz?: string | null;
+};
+
+export type AutocompleteTasksApiV1GGuildIdTasksAutocompleteGetParams = {
+  /**
+   * Restrict to one initiative. Omit to search the whole guild.
+   */
+  initiative_id?: number | null;
+  q?: string;
+  /**
+   * @maximum 50
+   */
+  limit?: number;
 };
 
 export type ArchiveDoneTasksApiV1GGuildIdTasksArchiveDonePostParams = {

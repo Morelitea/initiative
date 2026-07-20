@@ -243,6 +243,15 @@ class TaskListResponse(SanitizedBaseModel):
     sorting: Optional[str] = None
 
 
+class TaskAutocomplete(SanitizedBaseModel):
+    """Lightweight task info for autocomplete/pickers (id + title only)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+
+
 class TaskReorderItem(SanitizedBaseModel):
     id: int
     task_status_id: int
