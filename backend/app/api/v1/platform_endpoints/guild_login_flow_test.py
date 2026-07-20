@@ -14,9 +14,11 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.platform_endpoints.auth_test import _wire_fake_idp
+from app.core.encryption import hash_email
 from app.core.security import REFRESH_COOKIE_NAME
 from app.models.platform.auth_session import AuthSession
 from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.user import User
 from app.services.auth import sessions as session_service
 from app.testing.factories import (
     create_auth_provider,
@@ -253,9 +255,12 @@ async def test_guild_callback_admits_existing_user_to_guild(
     assert membership.role == GuildRole.member
 
 
-async def test_guild_callback_refused_when_guild_full(
+async def test_guild_callback_refused_when_guild_full_discards_provisioned_user(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
+    """A brand-new user refused at a full guild leaves nothing behind — no
+    session, no membership, and no orphaned account (they belong to no other
+    guild, so a usable-nowhere row would just accumulate)."""
     guild, provider = await _guild_provider(session)
     guild.max_users = 0
     session.add(guild)
@@ -282,6 +287,37 @@ async def test_guild_callback_refused_when_guild_full(
             select(GuildMembership).where(GuildMembership.guild_id == guild_id)
         )
     ).all() == []
+    session.expire_all()
+    assert (
+        await session.exec(
+            select(User).where(User.email_hash == hash_email("late@example.com"))
+        )
+    ).one_or_none() is None
+
+
+async def test_guild_full_keeps_existing_user_account(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """An already-existing user refused at a full guild keeps their account —
+    only a user provisioned by this very sign-in is discarded."""
+    guild, provider = await _guild_provider(session)
+    user = await create_user(session)
+    await create_federated_identity(
+        session, user, subject="idp-subject-1", provider=provider
+    )
+    guild.max_users = 0
+    session.add(guild)
+    await session.commit()
+    guild_id, user_id = guild.id, user.id
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await _run_guild_flow(client, idp, guild_id)
+    assert response.status_code in (302, 307)
+    assert "error=GUILD_USER_LIMIT_REACHED" in response.headers["location"]
+    assert await _latest_session(session) is None
+    session.expire_all()
+    assert await session.get(User, user_id) is not None
 
 
 async def test_guild_callback_refuses_unknown_user_when_jit_off(

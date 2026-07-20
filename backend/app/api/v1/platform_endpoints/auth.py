@@ -1009,6 +1009,18 @@ def _error_redirect(is_mobile: bool | None, error: str) -> RedirectResponse:
     return RedirectResponse(url)
 
 
+async def _discard_provisioned_user(
+    admin_session: AsyncSession, *, user_id: int
+) -> None:
+    """Delete a user JIT-provisioned earlier in this same request that we then
+    couldn't admit to any guild. The federated-identity link and its secret
+    cascade off the row (ON DELETE CASCADE)."""
+    user = await admin_session.get(User, user_id)
+    if user is not None:
+        await admin_session.delete(user)
+        await admin_session.commit()
+
+
 async def _complete_provider_login(
     request: Request,
     session: AsyncSession,
@@ -1151,15 +1163,29 @@ async def _complete_provider_login(
         # successful authentication doubles as admission: get-or-create the
         # membership, always as plain member (roles are assigned in the app),
         # honoring the guild's member capacity.
+        #
+        # ``resolve_oidc_identity`` has already committed a JIT-provisioned
+        # user, so plain values are captured up front — the rollback below
+        # expires the ORM object.
+        onboarding_user_id = user.id
+        was_provisioned = resolution.outcome is ResolutionOutcome.PROVISIONED
         try:
             await guilds_service.ensure_membership(
                 admin_session,
                 guild_id=provider_row.guild_id,
-                user_id=user.id,
+                user_id=onboarding_user_id,
             )
             await admin_session.commit()
         except guilds_service.GuildCapacityError:
             await admin_session.rollback()
+            # A user provisioned by THIS sign-in belongs to no other guild, so
+            # a full guild would strand a usable-nowhere account. Undo it (the
+            # federated-identity link and its secret cascade). An account that
+            # already existed keeps whatever access it had.
+            if was_provisioned:
+                await _discard_provisioned_user(
+                    admin_session, user_id=onboarding_user_id
+                )
             return _error_redirect(is_mobile, GuildMessages.GUILD_USER_LIMIT_REACHED)
         await admin_session.refresh(user)
 
