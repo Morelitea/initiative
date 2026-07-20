@@ -122,7 +122,10 @@ describe("silent session renewal", () => {
       http.get("/api/v1/g/1/projects/", () =>
         HttpResponse.json(
           { detail: "GUILD_AUTH_STEP_UP_REQUIRED" },
-          { status: 401, headers: { "X-Auth-Step-Up": "corp" } }
+          {
+            status: 401,
+            headers: { "X-Auth-Step-Up": "corp", "X-Auth-Step-Up-Guild": "1" },
+          }
         )
       ),
       http.post("/api/v1/auth/refresh", () => {
@@ -142,11 +145,13 @@ describe("silent session renewal", () => {
       });
       expect(refreshCalls).toBe(0);
       expect(onUnauthorized).not.toHaveBeenCalled();
-      // The challenge is announced (with the provider to step up with) so the
-      // global dialog can offer the sign-in.
+      // The challenge is announced (with the provider to step up with and
+      // the guild whose login flow serves it) so the global dialog can offer
+      // the sign-in.
       expect(onStepUp).toHaveBeenCalledTimes(1);
       expect((onStepUp.mock.calls[0][0] as CustomEvent).detail).toEqual({
         providerSlug: "corp",
+        guildId: 1,
       });
     } finally {
       window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);

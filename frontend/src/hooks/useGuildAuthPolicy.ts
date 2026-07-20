@@ -104,10 +104,18 @@ export const useGuildAuthProviders = (
 
 const useInvalidateGuildAuthProviders = (guildId: number) => {
   const queryClient = useQueryClient();
-  return () =>
+  // Registry mutations refresh both consumers of provider data: the admin
+  // CRUD list and the public login listing (which feeds the policy page's
+  // "sign in with it first" prompt and the step-up dialog) — otherwise a
+  // freshly created provider can't be required until the cache expires.
+  return () => {
     void queryClient.invalidateQueries({
       queryKey: getListGuildAuthProvidersApiV1GuildsGuildIdAuthProvidersGetQueryKey(guildId),
     });
+    void queryClient.invalidateQueries({
+      queryKey: getListGuildLoginProvidersApiV1AuthGGuildIdProvidersGetQueryKey(guildId),
+    });
+  };
 };
 
 export const useCreateGuildAuthProvider = (guildId: number) => {
