@@ -873,7 +873,7 @@
     "registry": {
       "title": "Fournisseurs d'identité",
       "description": "Les fournisseurs d'authentification unique avec lesquels les membres de cette guilde se connectent. Configurés par les admins de cette guilde et appliqués uniquement ici.",
-      "dialogDescription": "Détails OpenID Connect du fournisseur d'identité de cette guilde."
+      "dialogDescription": "Détails OpenID Connect. L'URL de callback pour votre IdP est /api/v1/auth/g/{{guildId}}/{slug}/callback sur ce serveur."
     },
     "policy": {
       "title": "Exigence de connexion",
@@ -886,7 +886,8 @@
       "noProviders": "Aucun fournisseur n'est configuré pour l'instant. Ajoutez-en un dans Fournisseurs d'identité ci-dessous, puis exigez-le ici.",
       "saved": "Exigence de connexion enregistrée",
       "error": "Impossible d'enregistrer l'exigence de connexion",
-      "selfUnsatisfied": "Votre session actuelle ne s'est pas encore connectée avec {{providerName}}. Connectez-vous une fois avec pour confirmer son fonctionnement avant de l'exiger."
+      "selfUnsatisfied": "Votre session actuelle ne s'est pas encore connectée avec {{providerName}}. Connectez-vous une fois avec pour confirmer son fonctionnement avant de l'exiger.",
+      "signInWith": "Se connecter avec {{providerName}}"
     }
   },
   "authProviders": {

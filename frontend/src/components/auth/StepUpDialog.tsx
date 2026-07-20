@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useLoginProviders } from "@/hooks/useGuildAuthPolicy";
+import { useGuildLoginProviders, useLoginProviders } from "@/hooks/useGuildAuthPolicy";
 
 /** The path the sign-in should return to: where the challenge happened. */
 const currentSpaPath = (): string => `${window.location.pathname}${window.location.search}`;
@@ -30,8 +30,8 @@ const currentSpaPath = (): string => `${window.location.pathname}${window.locati
  */
 export const StepUpDialog = () => {
   const { t } = useTranslation("auth");
-  const [providerSlug, setProviderSlug] = useState<string | null>(null);
-  const open = providerSlug !== null;
+  const [challenge, setChallenge] = useState<StepUpEventDetail | null>(null);
+  const open = challenge !== null;
 
   useEffect(() => {
     if (Capacitor.isNativePlatform()) {
@@ -42,35 +42,44 @@ export const StepUpDialog = () => {
       if (detail?.providerSlug) {
         // First challenge wins; concurrent 401s from one page all name the
         // same provider.
-        setProviderSlug((current) => current ?? detail.providerSlug);
+        setChallenge((current) => current ?? detail);
       }
     };
     window.addEventListener(AUTH_STEP_UP_EVENT, onStepUp);
     return () => window.removeEventListener(AUTH_STEP_UP_EVENT, onStepUp);
   }, []);
 
-  const providersQuery = useLoginProviders({ enabled: open });
-  const provider = providersQuery.data?.providers.find((entry) => entry.slug === providerSlug);
+  // A guild-scoped provider resolves its login URL through the guild's own
+  // listing; the operator-global listing serves platform-posture servers.
+  const guildId = challenge?.guildId ?? 0;
+  const guildProvidersQuery = useGuildLoginProviders(guildId, { enabled: open && guildId > 0 });
+  const platformProvidersQuery = useLoginProviders({ enabled: open && guildId <= 0 });
+  const providerSlug = challenge?.providerSlug ?? null;
+  const listing = guildId > 0 ? guildProvidersQuery.data : platformProvidersQuery.data;
+  const provider = listing?.providers.find((entry) => entry.slug === providerSlug);
   const providerName = provider?.display_name ?? providerSlug ?? "";
 
   const beginStepUp = () => {
     if (!providerSlug) {
       return;
     }
-    const loginUrl =
-      provider?.login_url ?? `/api/v1/auth/${encodeURIComponent(providerSlug)}/login`;
+    const fallbackUrl =
+      guildId > 0
+        ? `/api/v1/auth/g/${guildId}/${encodeURIComponent(providerSlug)}/login`
+        : `/api/v1/auth/${encodeURIComponent(providerSlug)}/login`;
+    const loginUrl = provider?.login_url ?? fallbackUrl;
     window.location.href = `${loginUrl}?next=${encodeURIComponent(currentSpaPath())}`;
   };
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && setProviderSlug(null)}>
+    <Dialog open={open} onOpenChange={(next) => !next && setChallenge(null)}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t("stepUp.title")}</DialogTitle>
           <DialogDescription>{t("stepUp.description", { providerName })}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setProviderSlug(null)}>
+          <Button variant="outline" onClick={() => setChallenge(null)}>
             {t("stepUp.dismiss")}
           </Button>
           <Button onClick={beginStepUp}>{t("stepUp.continue", { providerName })}</Button>

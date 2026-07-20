@@ -873,7 +873,7 @@
     "registry": {
       "title": "Proveedores de identidad",
       "description": "Los proveedores de inicio de sesión único con los que se autentican los miembros de este gremio. Los configuran los administradores de este gremio y solo se aplican aquí.",
-      "dialogDescription": "Detalles OpenID Connect del proveedor de identidad de este gremio."
+      "dialogDescription": "Detalles OpenID Connect. La URL de callback para tu IdP es /api/v1/auth/g/{{guildId}}/{slug}/callback en este servidor."
     },
     "policy": {
       "title": "Requisito de inicio de sesión",
@@ -886,7 +886,8 @@
       "noProviders": "Aún no hay proveedores configurados. Añade uno en Proveedores de identidad más abajo y luego exígelo aquí.",
       "saved": "Requisito de inicio de sesión guardado",
       "error": "No se pudo guardar el requisito de inicio de sesión",
-      "selfUnsatisfied": "Tu sesión actual aún no ha iniciado sesión con {{providerName}}. Inicia sesión con él una vez para confirmar que funciona antes de exigirlo."
+      "selfUnsatisfied": "Tu sesión actual aún no ha iniciado sesión con {{providerName}}. Inicia sesión con él una vez para confirmar que funciona antes de exigirlo.",
+      "signInWith": "Iniciar sesión con {{providerName}}"
     }
   },
   "authProviders": {

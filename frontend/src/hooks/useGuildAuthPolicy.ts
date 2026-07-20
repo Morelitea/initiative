@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
+  getListGuildLoginProvidersApiV1AuthGGuildIdProvidersGetQueryKey,
   getListLoginProvidersApiV1AuthProvidersGetQueryKey,
+  listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet,
   listLoginProvidersApiV1AuthProvidersGet,
 } from "@/api/generated/auth/auth";
 import {
@@ -33,6 +35,26 @@ export const useLoginProviders = (options?: QueryOpts<LoginProvidersResponse>) =
     queryFn: () =>
       listLoginProvidersApiV1AuthProvidersGet() as unknown as Promise<LoginProvidersResponse>,
     staleTime: 60_000,
+    ...options,
+  });
+};
+
+/**
+ * One guild's public sign-in providers (non-secret metadata with
+ * guild-addressed login URLs; empty outside per-guild auth posture).
+ */
+export const useGuildLoginProviders = (
+  guildId: number,
+  options?: QueryOpts<LoginProvidersResponse>
+) => {
+  return useQuery<LoginProvidersResponse>({
+    queryKey: getListGuildLoginProvidersApiV1AuthGGuildIdProvidersGetQueryKey(guildId),
+    queryFn: () =>
+      listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet(
+        guildId
+      ) as unknown as Promise<LoginProvidersResponse>,
+    staleTime: 60_000,
+    enabled: guildId > 0,
     ...options,
   });
 };
@@ -82,10 +104,18 @@ export const useGuildAuthProviders = (
 
 const useInvalidateGuildAuthProviders = (guildId: number) => {
   const queryClient = useQueryClient();
-  return () =>
+  // Registry mutations refresh both consumers of provider data: the admin
+  // CRUD list and the public login listing (which feeds the policy page's
+  // "sign in with it first" prompt and the step-up dialog) — otherwise a
+  // freshly created provider can't be required until the cache expires.
+  return () => {
     void queryClient.invalidateQueries({
       queryKey: getListGuildAuthProvidersApiV1GuildsGuildIdAuthProvidersGetQueryKey(guildId),
     });
+    void queryClient.invalidateQueries({
+      queryKey: getListGuildLoginProvidersApiV1AuthGGuildIdProvidersGetQueryKey(guildId),
+    });
+  };
 };
 
 export const useCreateGuildAuthProvider = (guildId: number) => {

@@ -20,7 +20,7 @@ export const GuildAuthProvidersSection = ({ guildId }: { guildId: number }) => {
     <ProviderRegistrySection
       title={t("guildAuth.registry.title")}
       description={t("guildAuth.registry.description")}
-      dialogDescription={t("guildAuth.registry.dialogDescription")}
+      dialogDescription={t("guildAuth.registry.dialogDescription", { guildId })}
       providers={providersQuery.data}
       isLoading={providersQuery.isLoading}
       createProvider={createProvider}
