@@ -31,7 +31,7 @@ from app.core.encryption import (
     SALT_EMAIL,
     SALT_OIDC_CLIENT_SECRET,
 )
-from app.core.messages import AuthMessages, OidcMessages
+from app.core.messages import AuthMessages, GuildMessages, OidcMessages
 from app.core.password_policy import enforce_password_policy
 from app.core.security import (
     REFRESH_COOKIE_NAME,
@@ -924,8 +924,9 @@ async def list_guild_login_providers(
     session: SessionDep, admin_session: AdminSessionDep, guild_id: int
 ) -> LoginProvidersResponse:
     """One guild's sign-in providers — non-secret metadata only, with
-    guild-addressed login URLs. Empty outside per-guild auth posture and for
-    a guild with no login-ready providers; an unknown guild id is
+    guild-addressed login URLs and the guild's display name for its login
+    page. Empty (and nameless) outside per-guild auth posture and for a
+    guild with no login-ready providers; an unknown guild id is
     indistinguishable from an empty registry."""
     app_settings = await app_settings_service.get_app_settings(session)
     if app_settings.auth_scope != AuthScope.guild.value:
@@ -937,9 +938,12 @@ async def list_guild_login_providers(
             .order_by(AuthProvider.display_name)
         )
     ).all()
-    return LoginProvidersResponse(
-        providers=[_login_entry(row) for row in rows if is_login_ready(row)]
-    )
+    entries = [_login_entry(row) for row in rows if is_login_ready(row)]
+    guild_name = None
+    if entries:
+        guild = await admin_session.get(Guild, guild_id)
+        guild_name = guild.name if guild else None
+    return LoginProvidersResponse(providers=entries, guild_name=guild_name)
 
 
 @router.get("/g/{guild_id}/{provider_slug}/login")
@@ -1005,6 +1009,18 @@ def _error_redirect(is_mobile: bool | None, error: str) -> RedirectResponse:
     return RedirectResponse(url)
 
 
+async def _discard_provisioned_user(
+    admin_session: AsyncSession, *, user_id: int
+) -> None:
+    """Delete a user JIT-provisioned earlier in this same request that we then
+    couldn't admit to any guild. The federated-identity link and its secret
+    cascade off the row (ON DELETE CASCADE)."""
+    user = await admin_session.get(User, user_id)
+    if user is not None:
+        await admin_session.delete(user)
+        await admin_session.commit()
+
+
 async def _complete_provider_login(
     request: Request,
     session: AsyncSession,
@@ -1015,10 +1031,11 @@ async def _complete_provider_login(
 ):
     """Complete the relying-party flow for a resolved provider row — shared
     by the operator-global and guild-addressed callback routes. Guild rows
-    differ in three ways: identity resolution is limited to existing users
-    (guild-first onboarding arrives with its own flow), the operator claim-
-    to-role sync doesn't run, and mobile flows can't reach here (the guild
-    login route doesn't offer one)."""
+    differ in three ways: a successful sign-in also admits the user to the
+    provider's guild (JIT-provisioning unknown users when the provider allows
+    it, always as plain member, capacity-enforced), the operator claim-to-role
+    sync doesn't run, and mobile flows can't reach here (the guild login route
+    doesn't offer one)."""
     # Best-effort mobile flag so even early failures land on the right surface
     # (app vs. web); ``complete()`` re-validates the state authoritatively.
     is_mobile: bool | None = None
@@ -1080,10 +1097,6 @@ async def _complete_provider_login(
         email_verified=email_verified,
         full_name=full_name,
         avatar_url=avatar_url,
-        # Guild providers resolve existing users only for now: a JIT'd user
-        # without a membership would land nowhere, so provisioning waits for
-        # the guild-first onboarding flow.
-        jit=provider_row.guild_id is None,
     )
 
     if resolution.user is None:
@@ -1144,6 +1157,37 @@ async def _complete_provider_login(
     admin_session.add(user)
     await admin_session.commit()
     await admin_session.refresh(user)
+
+    if provider_row.guild_id is not None:
+        # The guild's own IdP is its configured identity source, so a
+        # successful authentication doubles as admission: get-or-create the
+        # membership, always as plain member (roles are assigned in the app),
+        # honoring the guild's member capacity.
+        #
+        # ``resolve_oidc_identity`` has already committed a JIT-provisioned
+        # user, so plain values are captured up front — the rollback below
+        # expires the ORM object.
+        onboarding_user_id = user.id
+        was_provisioned = resolution.outcome is ResolutionOutcome.PROVISIONED
+        try:
+            await guilds_service.ensure_membership(
+                admin_session,
+                guild_id=provider_row.guild_id,
+                user_id=onboarding_user_id,
+            )
+            await admin_session.commit()
+        except guilds_service.GuildCapacityError:
+            await admin_session.rollback()
+            # A user provisioned by THIS sign-in belongs to no other guild, so
+            # a full guild would strand a usable-nowhere account. Undo it (the
+            # federated-identity link and its secret cascade). An account that
+            # already existed keeps whatever access it had.
+            if was_provisioned:
+                await _discard_provisioned_user(
+                    admin_session, user_id=onboarding_user_id
+                )
+            return _error_redirect(is_mobile, GuildMessages.GUILD_USER_LIMIT_REACHED)
+        await admin_session.refresh(user)
 
     # OIDC claim-to-role sync (the id_token claims are verified upstream now).
     # Operator-global providers only: the mapping registry is platform-level

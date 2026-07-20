@@ -26,6 +26,10 @@ class LoginProvidersResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     providers: List[LoginProviderEntry]
+    # Guild-addressed listings only: the guild's display name for its login
+    # page. Set exactly when the listing is non-empty, so a guild without
+    # login-ready providers stays indistinguishable from an unknown id.
+    guild_name: Optional[str] = None
 
 
 class VerificationSendResponse(SanitizedBaseModel):

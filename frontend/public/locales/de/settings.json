@@ -875,6 +875,12 @@
       "description": "Die Single-Sign-on-Anbieter, mit denen sich die Mitglieder dieser Gilde anmelden. Werden von den Admins dieser Gilde konfiguriert und gelten nur hier.",
       "dialogDescription": "OpenID-Connect-Details. Die Callback-URL beim IdP ist /api/v1/auth/g/{{guildId}}/{slug}/callback auf diesem Server."
     },
+    "shareUrl": {
+      "title": "Anmeldelink für Mitglieder",
+      "description": "Teile diesen Link mit Mitgliedern — er bietet die Anmeldeanbieter dieser Gilde an und führt sie direkt in die Gilde.",
+      "copy": "Link kopieren",
+      "copied": "Anmeldelink kopiert"
+    },
     "policy": {
       "title": "Anmeldeanforderung",
       "description": "Lege fest, mit welcher Anmeldung eine Sitzung erfolgt sein muss, bevor sie auf diese Gilde zugreifen kann.",

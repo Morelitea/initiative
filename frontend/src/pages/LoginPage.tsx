@@ -31,8 +31,14 @@ export const LoginPage = () => {
   const router = useRouter();
   const searchParams = useSearch({ strict: false }) as { invite_code?: string };
   const { login } = useAuth();
-  const { isNativePlatform, isServerConfigured, getServerHostname, clearServerUrl, serverUrl } =
-    useServer();
+  const {
+    isNativePlatform,
+    isServerConfigured,
+    getServerHostname,
+    getServerOrigin,
+    clearServerUrl,
+    serverUrl,
+  } = useServer();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -64,7 +70,7 @@ export const LoginPage = () => {
   const handleProviderLogin = async (provider: LoginProviderEntry) => {
     if (isNativePlatform && serverUrl) {
       // On mobile, open in system browser with mobile flag and device name
-      const baseUrl = serverUrl.replace(/\/api\/v1\/?(\?.*)?$/, "");
+      const baseUrl = getServerOrigin() ?? serverUrl;
       let deviceName = "Mobile Device";
       try {
         const info = await Device.getInfo();

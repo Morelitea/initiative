@@ -875,6 +875,12 @@
       "description": "Los proveedores de inicio de sesión único con los que se autentican los miembros de este gremio. Los configuran los administradores de este gremio y solo se aplican aquí.",
       "dialogDescription": "Detalles OpenID Connect. La URL de callback para tu IdP es /api/v1/auth/g/{{guildId}}/{slug}/callback en este servidor."
     },
+    "shareUrl": {
+      "title": "Enlace de inicio de sesión para miembros",
+      "description": "Comparte este enlace con los miembros: ofrece los proveedores de inicio de sesión de este gremio y los lleva directamente al gremio.",
+      "copy": "Copiar enlace",
+      "copied": "Enlace de inicio de sesión copiado"
+    },
     "policy": {
       "title": "Requisito de inicio de sesión",
       "description": "Controla con qué inicio de sesión debe haberse autenticado una sesión antes de poder acceder a este gremio.",

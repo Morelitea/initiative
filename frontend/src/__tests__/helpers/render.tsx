@@ -107,6 +107,7 @@ function buildDefaultServer(): React.ComponentProps<typeof ServerContext.Provide
     clearServerUrl: vi.fn(),
     testServerConnection: vi.fn(),
     getServerHostname: vi.fn().mockReturnValue(null),
+    getServerOrigin: vi.fn().mockReturnValue("http://localhost"),
   };
 }
 
