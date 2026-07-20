@@ -7,7 +7,6 @@ import { getItem } from "@/lib/storage";
 
 type MyTasksSearchParams = {
   page?: number;
-  authenticated?: string;
 };
 
 const STORAGE_KEY = "initiative-my-tasks-filters";
@@ -66,7 +65,6 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/")({
         : typeof search.page === "string" && Number(search.page) >= 1
           ? Number(search.page)
           : undefined,
-    authenticated: typeof search.authenticated === "string" ? search.authenticated : undefined,
   }),
   loader: async ({ context }) => {
     const { queryClient } = context;

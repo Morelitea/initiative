@@ -9,6 +9,7 @@ import {
   setHasActiveSession,
 } from "@/api/client";
 import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
+import { clearJustSignedIn, markJustSignedIn } from "@/lib/authTransition";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { queryClient } from "@/lib/queryClient";
@@ -155,6 +156,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setIsDeviceToken(false);
         await refreshUser();
       }
+      markJustSignedIn();
     } catch (error) {
       throw new Error(getErrorMessage(error, "auth:login.defaultError"));
     }
@@ -192,6 +194,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Web: cookie was already set by the backend redirect — just fetch the user
     const me = await apiClient.get<UserRead>("/users/me");
     setUser(me.data);
+    markJustSignedIn();
   };
 
   const logout = useCallback(async () => {
@@ -205,6 +208,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // the cookie is already expired), preventing re-entry into this
     // same handler.
     setHasActiveSession(false);
+    clearJustSignedIn();
     try {
       await apiClient.post("/auth/logout");
     } catch {

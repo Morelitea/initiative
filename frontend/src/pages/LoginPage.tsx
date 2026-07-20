@@ -117,11 +117,10 @@ export const LoginPage = () => {
         router.navigate({
           to: "/invite/$code",
           params: { code: encodeURIComponent(inviteCodeParam) },
-          search: { authenticated: "1" },
           replace: true,
         });
       } else {
-        router.navigate({ to: "/", search: { authenticated: "1" }, replace: true });
+        router.navigate({ to: "/", replace: true });
       }
     } catch (err) {
       console.error(err);
