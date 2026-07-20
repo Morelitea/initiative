@@ -138,13 +138,10 @@ export const SettingsGuildAuthPage = () => {
     selfUnsatisfiedSlug != null &&
     loginProvidersQuery.data?.providers.some((e) => e.slug === selfUnsatisfiedSlug);
 
-  // The guild's shareable sign-in URL. On native the app's own origin isn't
-  // the server, so derive the base from the configured server URL instead.
-  const { isNativePlatform, serverUrl } = useServer();
-  const urlBase =
-    isNativePlatform && serverUrl
-      ? serverUrl.replace(/\/api\/v1\/?(\?.*)?$/, "")
-      : window.location.origin;
+  // The guild's shareable sign-in URL, built on the server's origin (which is
+  // the app's own origin on web, or the configured server on native).
+  const { getServerOrigin } = useServer();
+  const urlBase = getServerOrigin() ?? window.location.origin;
   const memberLoginUrl = `${urlBase}/guild/${guildId}/login`;
   const copyMemberLoginUrl = async () => {
     try {
