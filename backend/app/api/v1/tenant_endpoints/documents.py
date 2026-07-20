@@ -807,7 +807,7 @@ async def autocomplete_documents(
     document_type: Optional[DocumentType] = Query(
         default=None, description="Filter by document type"
     ),
-    limit: int = Query(default=10, le=20),
+    limit: int = Query(default=10, ge=1, le=20),
 ) -> List[DocumentAutocomplete]:
     """Search documents by title for autocomplete/wikilinks and pickers.
 

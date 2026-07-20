@@ -4290,6 +4290,7 @@ export type AutocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGetParams = {
    */
   document_type?: DocumentType | null;
   /**
+   * @minimum 1
    * @maximum 20
    */
   limit?: number;
