@@ -4074,6 +4074,14 @@ export type ListProjectsApiV1GGuildIdProjectsGetParams = {
   archived?: boolean | null;
   template?: boolean | null;
   /**
+   * Case-insensitive substring match on name.
+   */
+  search?: string | null;
+  /**
+   * Return a lightweight projection (id, name, icon, initiative_id, my_permission_level) without documents, grants, tags, or the nested initiative. For project pickers and other list-only callers.
+   */
+  slim?: boolean;
+  /**
    * @minimum 1
    */
   page?: number;

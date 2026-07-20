@@ -1,6 +1,6 @@
+import { Check } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 
 interface SelectableGridItemProps {
@@ -43,11 +43,18 @@ export function SelectableGridItem({
           selected ? "bg-primary/5 ring-2 ring-primary" : "hover:bg-muted/20"
         )}
       >
-        <span className="absolute top-3 left-3">
-          <Checkbox
-            checked={selected}
-            className="pointer-events-none border-2 bg-background shadow"
-          />
+        {/* Purely decorative — the overlay button carries the pressed state and
+            label. A real checkbox here would nest a <button> inside a <button>. */}
+        <span
+          aria-hidden="true"
+          className={cn(
+            "absolute top-3 left-3 grid h-4 w-4 shrink-0 place-content-center rounded-sm border-2 shadow",
+            selected
+              ? "border-primary bg-primary text-primary-foreground"
+              : "border-primary bg-background"
+          )}
+        >
+          {selected ? <Check className="h-4 w-4" /> : null}
         </span>
       </button>
     </div>
