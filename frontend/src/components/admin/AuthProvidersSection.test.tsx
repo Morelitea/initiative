@@ -156,6 +156,7 @@ describe("AuthProvidersSection", () => {
     const dialog = await screen.findByRole("alertdialog");
     fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
 
-    expect(deleteMutate).toHaveBeenCalledWith(2);
+    expect(deleteMutate).toHaveBeenCalledTimes(1);
+    expect(deleteMutate.mock.calls[0][0]).toBe(2);
   });
 });

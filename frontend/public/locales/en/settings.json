@@ -870,10 +870,11 @@
     }
   },
   "guildAuth": {
-    "title": "Authentication",
-    "comingSoon": "Coming soon",
-    "description": "Sign-in configuration for this guild.",
-    "body": "This server uses per-guild login. Soon, guild admins will configure single sign-on and membership rules for this guild here.",
+    "registry": {
+      "title": "Identity providers",
+      "description": "The single sign-on providers this guild's members sign in with. Configured by this guild's admins and applying only here.",
+      "dialogDescription": "OpenID Connect provider details for this guild's identity provider."
+    },
     "policy": {
       "title": "Sign-in requirement",
       "description": "Control which sign-in a session must have used before it can access this guild.",
@@ -882,11 +883,10 @@
       "requiredLabel": "Require single sign-on",
       "requiredHelp": "Members can only access this guild after signing in with the selected provider.",
       "providerPlaceholder": "Choose a provider…",
-      "noProviders": "No sign-on providers are available. A platform operator can add them under platform settings.",
+      "noProviders": "No providers are configured yet. Add one under Identity providers below, then require it here.",
       "saved": "Sign-in requirement saved",
       "error": "Could not save the sign-in requirement",
-      "selfUnsatisfied": "Your current session hasn't signed in with {{providerName}} yet. Sign in with it once to confirm it works before requiring it.",
-      "signInWith": "Sign in with {{providerName}}"
+      "selfUnsatisfied": "Your current session hasn't signed in with {{providerName}} yet. Sign in with it once to confirm it works before requiring it."
     }
   },
   "authProviders": {

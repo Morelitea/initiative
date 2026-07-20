@@ -870,10 +870,11 @@
     }
   },
   "guildAuth": {
-    "title": "Authentification",
-    "comingSoon": "Bientôt disponible",
-    "description": "Configuration de connexion pour cette guilde.",
-    "body": "Ce serveur utilise la connexion par guilde. Bientôt, les admins de guilde configureront ici l'authentification unique et les règles d'adhésion de cette guilde.",
+    "registry": {
+      "title": "Fournisseurs d'identité",
+      "description": "Les fournisseurs d'authentification unique avec lesquels les membres de cette guilde se connectent. Configurés par les admins de cette guilde et appliqués uniquement ici.",
+      "dialogDescription": "Détails OpenID Connect du fournisseur d'identité de cette guilde."
+    },
     "policy": {
       "title": "Exigence de connexion",
       "description": "Contrôlez avec quelle connexion une session doit s'être authentifiée avant de pouvoir accéder à cette guilde.",
@@ -882,11 +883,10 @@
       "requiredLabel": "Exiger l'authentification unique",
       "requiredHelp": "Les membres ne peuvent accéder à cette guilde qu'après s'être connectés avec le fournisseur sélectionné.",
       "providerPlaceholder": "Choisir un fournisseur…",
-      "noProviders": "Aucun fournisseur de connexion n'est disponible. Un opérateur de la plateforme peut les ajouter dans les paramètres de la plateforme.",
+      "noProviders": "Aucun fournisseur n'est configuré pour l'instant. Ajoutez-en un dans Fournisseurs d'identité ci-dessous, puis exigez-le ici.",
       "saved": "Exigence de connexion enregistrée",
       "error": "Impossible d'enregistrer l'exigence de connexion",
-      "selfUnsatisfied": "Votre session actuelle ne s'est pas encore connectée avec {{providerName}}. Connectez-vous une fois avec pour confirmer son fonctionnement avant de l'exiger.",
-      "signInWith": "Se connecter avec {{providerName}}"
+      "selfUnsatisfied": "Votre session actuelle ne s'est pas encore connectée avec {{providerName}}. Connectez-vous une fois avec pour confirmer son fonctionnement avant de l'exiger."
     }
   },
   "authProviders": {

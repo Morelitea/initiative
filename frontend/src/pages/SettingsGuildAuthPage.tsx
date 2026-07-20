@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { GuildAuthProvidersSection } from "@/components/auth/GuildAuthProvidersSection";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -17,7 +17,7 @@ import {
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import {
   useGuildAuthPolicy,
-  useLoginProviders,
+  useGuildAuthProviders,
   useUpdateGuildAuthPolicy,
 } from "@/hooks/useGuildAuthPolicy";
 import { useInterfaceSettings } from "@/hooks/useSettings";
@@ -25,11 +25,10 @@ import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 
 /**
- * Guild sign-in requirement (Settings → Authentication). A guild admin can
- * require that sessions reach this guild only after signing in through one
- * specific SSO provider; `open` (the default) admits any signed-in session.
- * The provider list is the operator-global login registry — only entries the
- * login page itself would offer are eligible.
+ * Guild sign-in configuration (Settings → Authentication): the guild's own
+ * identity provider registry, and the sign-in requirement a guild admin can
+ * set against it — sessions reach this guild only after signing in through
+ * one specific provider; `open` (the default) admits any signed-in session.
  */
 export const SettingsGuildAuthPage = () => {
   const { t } = useTranslation(["settings", "common"]);
@@ -45,11 +44,13 @@ export const SettingsGuildAuthPage = () => {
   const policyQuery = useGuildAuthPolicy(guildId, {
     enabled: guildId > 0 && guildPostureActive,
   });
-  const providersQuery = useLoginProviders({ enabled: guildPostureActive });
-  // Only registry-backed entries can be required (the policy stores the
-  // provider's id); an id-less platform entry means it hasn't reconciled yet.
+  const providersQuery = useGuildAuthProviders(guildId, {
+    enabled: guildId > 0 && guildPostureActive,
+  });
+  // Only the guild's enabled providers can be required — a disabled row can't
+  // serve a sign-in, so requiring it would lock the guild.
   const eligibleProviders = useMemo(
-    () => (providersQuery.data?.providers ?? []).filter((entry) => entry.id != null),
+    () => (providersQuery.data ?? []).filter((entry) => entry.enabled),
     [providersQuery.data]
   );
 
@@ -113,17 +114,6 @@ export const SettingsGuildAuthPage = () => {
     setProviderId(id);
     setSelfUnsatisfiedSlug(null);
     setError(null);
-  };
-
-  // Completing the required provider's sign-in updates this admin session's
-  // satisfied set, after which saving the requirement succeeds.
-  const signInWithRequiredProvider = () => {
-    const entry = eligibleProviders.find((e) => e.slug === selfUnsatisfiedSlug);
-    if (!entry) {
-      return;
-    }
-    const next = `${window.location.pathname}${window.location.search}`;
-    window.location.href = `${entry.login_url}?next=${encodeURIComponent(next)}`;
   };
 
   if (!guildPostureActive) {
@@ -195,17 +185,10 @@ export const SettingsGuildAuthPage = () => {
 
           {selfUnsatisfiedSlug && (
             <Alert>
-              <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <span>
-                  {t("guildAuth.policy.selfUnsatisfied", {
-                    providerName: selectedProvider?.display_name ?? selfUnsatisfiedSlug,
-                  })}
-                </span>
-                <Button size="sm" onClick={signInWithRequiredProvider}>
-                  {t("guildAuth.policy.signInWith", {
-                    providerName: selectedProvider?.display_name ?? selfUnsatisfiedSlug,
-                  })}
-                </Button>
+              <AlertDescription>
+                {t("guildAuth.policy.selfUnsatisfied", {
+                  providerName: selectedProvider?.display_name ?? selfUnsatisfiedSlug,
+                })}
               </AlertDescription>
             </Alert>
           )}
@@ -223,18 +206,7 @@ export const SettingsGuildAuthPage = () => {
         </CardContent>
       </Card>
 
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            {t("guildAuth.title")}
-            <Badge variant="secondary">{t("guildAuth.comingSoon")}</Badge>
-          </CardTitle>
-          <CardDescription>{t("guildAuth.description")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground text-sm">{t("guildAuth.body")}</p>
-        </CardContent>
-      </Card>
+      <GuildAuthProvidersSection guildId={guildId} />
     </div>
   );
 };

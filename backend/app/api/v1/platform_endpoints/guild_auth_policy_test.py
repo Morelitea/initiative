@@ -10,7 +10,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import GuildAccessError, establish_guild_access
 from app.core.auth_context import satisfied_provider_ids
 from app.db.session import SYSTEM_SATISFIED, set_rls_context
-from app.models.platform.app_setting import AppSetting, AuthScope
 from app.models.platform.guild import GuildRole
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.tenant.project import Project
@@ -26,6 +25,7 @@ from app.testing.factories import (
     get_auth_headers,
     get_auth_token,
     get_new_access_token,
+    set_auth_scope,
 )
 
 pytestmark = [pytest.mark.integration, pytest.mark.auth]
@@ -39,10 +39,7 @@ def _sat_headers(user, provider_ids: list[int]) -> dict[str, str]:
 async def _enable_guild_posture(session: AsyncSession) -> None:
     """Flip the platform to per-guild login — the policy management endpoints
     exist only in that posture."""
-    row = (await session.exec(select(AppSetting))).first() or AppSetting()
-    row.auth_scope = AuthScope.guild.value
-    session.add(row)
-    await session.commit()
+    await set_auth_scope(session)
 
 
 async def _require_provider(
@@ -68,7 +65,7 @@ async def test_admin_sets_reads_and_clears_policy(
     await create_guild_membership(
         session, user=admin, guild=guild, role=GuildRole.admin
     )
-    provider = await create_auth_provider(session, slug="corp")
+    provider = await create_auth_provider(session, slug="corp", guild_id=guild.id)
     headers = _sat_headers(admin, [provider.id])
 
     put = await client.put(
@@ -126,7 +123,9 @@ async def test_policy_rejects_unusable_provider(
     await create_guild_membership(
         session, user=admin, guild=guild, role=GuildRole.admin
     )
-    disabled = await create_auth_provider(session, slug="off", enabled=False)
+    disabled = await create_auth_provider(
+        session, slug="off", enabled=False, guild_id=guild.id
+    )
     headers = _sat_headers(admin, [disabled.id])
 
     response = await client.put(
@@ -145,6 +144,33 @@ async def test_policy_rejects_unusable_provider(
     assert missing.status_code == 400
 
 
+async def test_policy_rejects_other_namespace_providers(
+    client: AsyncClient, session: AsyncSession
+):
+    """A requirement can only name one of the guild's own providers — never an
+    operator-global row (dormant under per-guild auth) or another guild's."""
+    await _enable_guild_posture(session)
+    admin = await create_user(session)
+    guild = await create_guild(session, creator=admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    other_guild = await create_guild(session)
+    global_row = await create_auth_provider(session, slug="corp")
+    foreign_row = await create_auth_provider(
+        session, slug="corp", guild_id=other_guild.id
+    )
+
+    for provider in (global_row, foreign_row):
+        response = await client.put(
+            f"/api/v1/guilds/{guild.id}/auth-policy",
+            headers=_sat_headers(admin, [provider.id]),
+            json={"policy": "required", "provider_id": provider.id},
+        )
+        assert response.status_code == 400
+        assert response.json()["detail"] == "GUILD_AUTH_POLICY_INVALID_PROVIDER"
+
+
 async def test_policy_requires_admin_own_session_to_satisfy(
     client: AsyncClient, session: AsyncSession
 ):
@@ -156,7 +182,7 @@ async def test_policy_requires_admin_own_session_to_satisfy(
     await create_guild_membership(
         session, user=admin, guild=guild, role=GuildRole.admin
     )
-    provider = await create_auth_provider(session, slug="corp")
+    provider = await create_auth_provider(session, slug="corp", guild_id=guild.id)
 
     response = await client.put(
         f"/api/v1/guilds/{guild.id}/auth-policy",

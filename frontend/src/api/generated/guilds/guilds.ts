@@ -1129,7 +1129,8 @@ export const useCreateGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPost = 
 /**
  * The guild's sign-in requirement. Guild admin only (the settings UI);
  * a blocked session learns the required provider from the step-up 401's
- * header, not from here.
+ * header, not from here. Absent (404) unless the platform posture is
+ * per-guild login.
  * @summary Get Guild Auth Policy
  */
 export const getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet = (
@@ -1294,11 +1295,12 @@ export function useGetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet<
 /**
  * Set the guild's sign-in requirement. Guild admin only.
  *
- * ``open`` deletes the stored row (no row IS open). ``required`` names a
- * login-ready operator-global provider — and the calling admin's own
+ * ``open`` deletes the stored row (no row IS open). ``required`` names one
+ * of the guild's own login-ready providers — and the calling admin's own
  * session must already satisfy it, which both proves the provider works
  * end-to-end and keeps an admin from locking their guild (and themselves)
- * behind a sign-in they haven't completed.
+ * behind a sign-in they haven't completed. Absent (404) unless the platform
+ * posture is per-guild login.
  * @summary Set Guild Auth Policy
  */
 export const setGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyPut = (
