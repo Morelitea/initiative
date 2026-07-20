@@ -1275,9 +1275,6 @@ export const DocumentDetailPage = () => {
                             ) : null}
                           </div>
                         ) : null}
-                        <p className="text-muted-foreground text-xs">
-                          {t("detail.uploadHelpText")}
-                        </p>
                       </div>
                     </div>
                   </div>
