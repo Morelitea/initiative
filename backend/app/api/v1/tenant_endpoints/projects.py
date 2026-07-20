@@ -489,7 +489,11 @@ def _visible_project_conditions(
         conditions.append(Project.is_archived.is_(archived))
 
     if search and search.strip():
-        conditions.append(func.lower(Project.name).contains(search.strip().lower()))
+        # autoescape so a literal % or _ in the query is matched as itself, not
+        # as a LIKE wildcard — keeps the documented substring semantics.
+        conditions.append(
+            func.lower(Project.name).contains(search.strip().lower(), autoescape=True)
+        )
 
     return conditions
 
@@ -870,7 +874,9 @@ async def _list_global_projects(
         Project.id.in_(has_permission_subq),
     ]
     if search:
-        conditions.append(func.lower(Project.name).contains(search.strip().lower()))
+        conditions.append(
+            func.lower(Project.name).contains(search.strip().lower(), autoescape=True)
+        )
 
     async def _fetch(guild_session: AsyncSession, _guild_id: int) -> list[ProjectRead]:
         statement = (

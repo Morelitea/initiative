@@ -258,6 +258,26 @@ async def test_list_projects_search_filters_by_name(
 
 
 @pytest.mark.integration
+async def test_list_projects_search_treats_wildcards_literally(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A LIKE metacharacter in ``search`` matches itself, not any character."""
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    percent = await create_project(
+        session, admin.initiative, admin.user, name="50% done"
+    )
+    await create_project(session, admin.initiative, admin.user, name="Beta")
+
+    response = await client.get(admin.g("/projects/?search=%25"), headers=admin.headers)
+
+    assert response.status_code == 200
+    names = {p["name"] for p in response.json()["items"]}
+    # "%" is literal: only the project whose name contains it matches.
+    assert names == {"50% done"}
+    assert response.json()["items"][0]["id"] == percent.id
+
+
+@pytest.mark.integration
 async def test_list_projects_paginates_in_sql(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
