@@ -875,6 +875,12 @@
       "description": "The single sign-on providers this guild's members sign in with. Configured by this guild's admins and applying only here.",
       "dialogDescription": "OpenID Connect provider details. The callback URL for your IdP is /api/v1/auth/g/{{guildId}}/{slug}/callback on this server."
     },
+    "shareUrl": {
+      "title": "Member sign-in link",
+      "description": "Share this link with members — it offers this guild's sign-in providers and brings them straight into the guild.",
+      "copy": "Copy link",
+      "copied": "Sign-in link copied"
+    },
     "policy": {
       "title": "Sign-in requirement",
       "description": "Control which sign-in a session must have used before it can access this guild.",

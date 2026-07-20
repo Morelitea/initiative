@@ -34,6 +34,7 @@ import { Route as ServerRequiredAuthenticatedInitiativesRouteImport } from './ro
 import { Route as ServerRequiredAuthenticatedDocumentsRouteImport } from './routes/_serverRequired/_authenticated/documents'
 import { Route as ServerRequiredAuthenticatedCreatedTasksRouteImport } from './routes/_serverRequired/_authenticated/created-tasks'
 import { Route as ServerRequiredAuthenticatedProfileIndexRouteImport } from './routes/_serverRequired/_authenticated/profile/index'
+import { Route as ServerRequiredGuildGuildIdLoginRouteImport } from './routes/_serverRequired/guild.$guildId.login'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformRouteImport } from './routes/_serverRequired/_authenticated/settings/platform'
 import { Route as ServerRequiredAuthenticatedSettingsGuildRouteImport } from './routes/_serverRequired/_authenticated/settings/guild'
 import { Route as ServerRequiredAuthenticatedSettingsAdminRouteImport } from './routes/_serverRequired/_authenticated/settings/admin'
@@ -238,6 +239,12 @@ const ServerRequiredAuthenticatedProfileIndexRoute =
     id: '/',
     path: '/',
     getParentRoute: () => ServerRequiredAuthenticatedProfileRoute,
+  } as any)
+const ServerRequiredGuildGuildIdLoginRoute =
+  ServerRequiredGuildGuildIdLoginRouteImport.update({
+    id: '/guild/$guildId/login',
+    path: '/guild/$guildId/login',
+    getParentRoute: () => ServerRequiredRoute,
   } as any)
 const ServerRequiredAuthenticatedSettingsPlatformRoute =
   ServerRequiredAuthenticatedSettingsPlatformRouteImport.update({
@@ -654,6 +661,7 @@ export interface FileRoutesByFullPath {
   '/settings/admin': typeof ServerRequiredAuthenticatedSettingsAdminRouteWithChildren
   '/settings/guild': typeof ServerRequiredAuthenticatedSettingsGuildRouteWithChildren
   '/settings/platform': typeof ServerRequiredAuthenticatedSettingsPlatformRouteWithChildren
+  '/guild/$guildId/login': typeof ServerRequiredGuildGuildIdLoginRoute
   '/profile/': typeof ServerRequiredAuthenticatedProfileIndexRoute
   '/g/$guildId/calendar-events': typeof ServerRequiredAuthenticatedGGuildIdCalendarEventsRoute
   '/g/$guildId/counter-groups': typeof ServerRequiredAuthenticatedGGuildIdCounterGroupsRoute
@@ -735,6 +743,7 @@ export interface FileRoutesByTo {
   '/profile/notifications': typeof ServerRequiredAuthenticatedProfileNotificationsRoute
   '/profile/security': typeof ServerRequiredAuthenticatedProfileSecurityRoute
   '/profile/trash': typeof ServerRequiredAuthenticatedProfileTrashRoute
+  '/guild/$guildId/login': typeof ServerRequiredGuildGuildIdLoginRoute
   '/profile': typeof ServerRequiredAuthenticatedProfileIndexRoute
   '/g/$guildId/calendar-events': typeof ServerRequiredAuthenticatedGGuildIdCalendarEventsRoute
   '/g/$guildId/counter-groups': typeof ServerRequiredAuthenticatedGGuildIdCounterGroupsRoute
@@ -823,6 +832,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/settings/admin': typeof ServerRequiredAuthenticatedSettingsAdminRouteWithChildren
   '/_serverRequired/_authenticated/settings/guild': typeof ServerRequiredAuthenticatedSettingsGuildRouteWithChildren
   '/_serverRequired/_authenticated/settings/platform': typeof ServerRequiredAuthenticatedSettingsPlatformRouteWithChildren
+  '/_serverRequired/guild/$guildId/login': typeof ServerRequiredGuildGuildIdLoginRoute
   '/_serverRequired/_authenticated/profile/': typeof ServerRequiredAuthenticatedProfileIndexRoute
   '/_serverRequired/_authenticated/g/$guildId/calendar-events': typeof ServerRequiredAuthenticatedGGuildIdCalendarEventsRoute
   '/_serverRequired/_authenticated/g/$guildId/counter-groups': typeof ServerRequiredAuthenticatedGGuildIdCounterGroupsRoute
@@ -911,6 +921,7 @@ export interface FileRouteTypes {
     | '/settings/admin'
     | '/settings/guild'
     | '/settings/platform'
+    | '/guild/$guildId/login'
     | '/profile/'
     | '/g/$guildId/calendar-events'
     | '/g/$guildId/counter-groups'
@@ -992,6 +1003,7 @@ export interface FileRouteTypes {
     | '/profile/notifications'
     | '/profile/security'
     | '/profile/trash'
+    | '/guild/$guildId/login'
     | '/profile'
     | '/g/$guildId/calendar-events'
     | '/g/$guildId/counter-groups'
@@ -1079,6 +1091,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/settings/admin'
     | '/_serverRequired/_authenticated/settings/guild'
     | '/_serverRequired/_authenticated/settings/platform'
+    | '/_serverRequired/guild/$guildId/login'
     | '/_serverRequired/_authenticated/profile/'
     | '/_serverRequired/_authenticated/g/$guildId/calendar-events'
     | '/_serverRequired/_authenticated/g/$guildId/counter-groups'
@@ -1313,6 +1326,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/profile/'
       preLoaderRoute: typeof ServerRequiredAuthenticatedProfileIndexRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedProfileRoute
+    }
+    '/_serverRequired/guild/$guildId/login': {
+      id: '/_serverRequired/guild/$guildId/login'
+      path: '/guild/$guildId/login'
+      fullPath: '/guild/$guildId/login'
+      preLoaderRoute: typeof ServerRequiredGuildGuildIdLoginRouteImport
+      parentRoute: typeof ServerRequiredRoute
     }
     '/_serverRequired/_authenticated/settings/platform': {
       id: '/_serverRequired/_authenticated/settings/platform'
@@ -2075,6 +2095,7 @@ interface ServerRequiredRouteChildren {
   ServerRequiredWelcomeRoute: typeof ServerRequiredWelcomeRoute
   ServerRequiredInviteCodeRoute: typeof ServerRequiredInviteCodeRoute
   ServerRequiredOidcCallbackRoute: typeof ServerRequiredOidcCallbackRoute
+  ServerRequiredGuildGuildIdLoginRoute: typeof ServerRequiredGuildGuildIdLoginRoute
 }
 
 const ServerRequiredRouteChildren: ServerRequiredRouteChildren = {
@@ -2088,6 +2109,7 @@ const ServerRequiredRouteChildren: ServerRequiredRouteChildren = {
   ServerRequiredWelcomeRoute: ServerRequiredWelcomeRoute,
   ServerRequiredInviteCodeRoute: ServerRequiredInviteCodeRoute,
   ServerRequiredOidcCallbackRoute: ServerRequiredOidcCallbackRoute,
+  ServerRequiredGuildGuildIdLoginRoute: ServerRequiredGuildGuildIdLoginRoute,
 }
 
 const ServerRequiredRouteWithChildren = ServerRequiredRoute._addFileChildren(

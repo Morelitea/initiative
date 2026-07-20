@@ -21,6 +21,7 @@ import {
   useGuildLoginProviders,
   useUpdateGuildAuthPolicy,
 } from "@/hooks/useGuildAuthPolicy";
+import { useServer } from "@/hooks/useServer";
 import { useInterfaceSettings } from "@/hooks/useSettings";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -137,6 +138,23 @@ export const SettingsGuildAuthPage = () => {
     selfUnsatisfiedSlug != null &&
     loginProvidersQuery.data?.providers.some((e) => e.slug === selfUnsatisfiedSlug);
 
+  // The guild's shareable sign-in URL. On native the app's own origin isn't
+  // the server, so derive the base from the configured server URL instead.
+  const { isNativePlatform, serverUrl } = useServer();
+  const urlBase =
+    isNativePlatform && serverUrl
+      ? serverUrl.replace(/\/api\/v1\/?(\?.*)?$/, "")
+      : window.location.origin;
+  const memberLoginUrl = `${urlBase}/guild/${guildId}/login`;
+  const copyMemberLoginUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(memberLoginUrl);
+      toast.success(t("guildAuth.shareUrl.copied"));
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   if (!guildPostureActive) {
     return null;
   }
@@ -237,6 +255,26 @@ export const SettingsGuildAuthPage = () => {
       </Card>
 
       <GuildAuthProvidersSection guildId={guildId} />
+
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>{t("guildAuth.shareUrl.title")}</CardTitle>
+          <CardDescription>{t("guildAuth.shareUrl.description")}</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1.5 text-sm">
+            {memberLoginUrl}
+          </code>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void copyMemberLoginUrl()}
+          >
+            {t("guildAuth.shareUrl.copy")}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 };

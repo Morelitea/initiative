@@ -1920,6 +1920,7 @@ export interface LoginProviderEntry {
 
 export interface LoginProvidersResponse {
   providers: LoginProviderEntry[];
+  guild_name: string | null;
 }
 
 export type MentionEntityType = (typeof MentionEntityType)[keyof typeof MentionEntityType];

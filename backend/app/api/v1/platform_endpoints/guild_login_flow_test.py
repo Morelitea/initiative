@@ -16,6 +16,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.v1.platform_endpoints.auth_test import _wire_fake_idp
 from app.core.security import REFRESH_COOKIE_NAME
 from app.models.platform.auth_session import AuthSession
+from app.models.platform.guild import GuildMembership, GuildRole
 from app.services.auth import sessions as session_service
 from app.testing.factories import (
     create_auth_provider,
@@ -98,16 +99,21 @@ async def test_guild_listing_serves_guild_login_urls(
     guild, provider = await _guild_provider(session)
     await create_auth_provider(session, slug="off", enabled=False, guild_id=guild.id)
 
+    guild_name = guild.name
     response = await client.get(f"/api/v1/auth/g/{guild.id}/providers")
     assert response.status_code == 200
-    entries = response.json()["providers"]
+    body = response.json()
+    entries = body["providers"]
     assert [e["slug"] for e in entries] == ["corp"]
     assert entries[0]["id"] == provider.id
     assert entries[0]["login_url"] == f"/api/v1/auth/g/{guild.id}/corp/login"
+    # The guild's display name rides along exactly when providers do — its
+    # login page is meant to be shared.
+    assert body["guild_name"] == guild_name
 
     # An unknown guild is indistinguishable from an empty registry.
     empty = await client.get("/api/v1/auth/g/999999/providers")
-    assert empty.json()["providers"] == []
+    assert empty.json() == {"providers": [], "guild_name": None}
 
 
 async def test_guild_listing_empty_in_platform_posture(
@@ -174,13 +180,116 @@ async def test_guild_callback_signs_in_linked_user_with_sat(
     assert f"oidc:{provider_slug}" in row.amr
 
 
-async def test_guild_callback_refuses_unknown_user(
+async def test_guild_callback_jit_provisions_user_and_membership(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
-    """Guild providers resolve existing users only for now — a subject and
-    email nobody owns is refused even with ``allow_jit`` on (the default)."""
+    """An unknown user completing a guild-provider login is JIT-provisioned
+    AND admitted to the guild — under ``allow_jit`` alone, independent of the
+    platform's registration setting (the guild's IdP is the invitation)."""
+    from app.core.config import settings as app_config
+
+    monkeypatch.setattr(app_config, "ENABLE_PUBLIC_REGISTRATION", False)
     guild, provider = await _guild_provider(session)
-    assert provider.allow_jit is True
+    guild_id, provider_id = guild.id, provider.id
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await _run_guild_flow(
+        client,
+        idp,
+        guild_id,
+        id_token_claims={
+            "sub": "new-hire",
+            "email": "new@example.com",
+            "email_verified": True,
+        },
+    )
+    assert response.status_code in (302, 307), response.text
+    assert "error=" not in response.headers["location"]
+
+    row = await _latest_session(session)
+    assert row is not None
+    assert row.satisfied_providers == [provider_id]
+    membership = (
+        await session.exec(
+            select(GuildMembership).where(
+                GuildMembership.guild_id == guild_id,
+                GuildMembership.user_id == row.user_id,
+            )
+        )
+    ).one_or_none()
+    assert membership is not None
+    assert membership.role == GuildRole.member
+
+
+async def test_guild_callback_admits_existing_user_to_guild(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """A linked existing user who isn't yet a member gains a plain-member
+    membership by signing in through the guild's provider."""
+    guild, provider = await _guild_provider(session)
+    user = await create_user(session)
+    await create_federated_identity(
+        session, user, subject="idp-subject-1", provider=provider
+    )
+    guild_id, user_id = guild.id, user.id
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await _run_guild_flow(client, idp, guild_id)
+    assert response.status_code in (302, 307), response.text
+    assert "error=" not in response.headers["location"]
+
+    session.expire_all()
+    membership = (
+        await session.exec(
+            select(GuildMembership).where(
+                GuildMembership.guild_id == guild_id,
+                GuildMembership.user_id == user_id,
+            )
+        )
+    ).one_or_none()
+    assert membership is not None
+    assert membership.role == GuildRole.member
+
+
+async def test_guild_callback_refused_when_guild_full(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    guild, provider = await _guild_provider(session)
+    guild.max_users = 0
+    session.add(guild)
+    await session.commit()
+    guild_id = guild.id
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await _run_guild_flow(
+        client,
+        idp,
+        guild_id,
+        id_token_claims={
+            "sub": "late-arrival",
+            "email": "late@example.com",
+            "email_verified": True,
+        },
+    )
+    assert response.status_code in (302, 307)
+    assert "error=GUILD_USER_LIMIT_REACHED" in response.headers["location"]
+    assert await _latest_session(session) is None
+    assert (
+        await session.exec(
+            select(GuildMembership).where(GuildMembership.guild_id == guild_id)
+        )
+    ).all() == []
+
+
+async def test_guild_callback_refuses_unknown_user_when_jit_off(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """With the provider's JIT switch off, an unknown user is refused —
+    existing accounts only."""
+    guild, _provider = await _guild_provider(session, allow_jit=False)
     idp = FakeIdp()
     _wire_fake_idp(monkeypatch, idp)
 

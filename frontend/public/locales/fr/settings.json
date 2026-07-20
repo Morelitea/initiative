@@ -875,6 +875,12 @@
       "description": "Les fournisseurs d'authentification unique avec lesquels les membres de cette guilde se connectent. Configurés par les admins de cette guilde et appliqués uniquement ici.",
       "dialogDescription": "Détails OpenID Connect. L'URL de callback pour votre IdP est /api/v1/auth/g/{{guildId}}/{slug}/callback sur ce serveur."
     },
+    "shareUrl": {
+      "title": "Lien de connexion des membres",
+      "description": "Partagez ce lien avec les membres — il propose les fournisseurs de connexion de cette guilde et les amène directement dans la guilde.",
+      "copy": "Copier le lien",
+      "copied": "Lien de connexion copié"
+    },
     "policy": {
       "title": "Exigence de connexion",
       "description": "Contrôlez avec quelle connexion une session doit s'être authentifiée avant de pouvoir accéder à cette guilde.",
