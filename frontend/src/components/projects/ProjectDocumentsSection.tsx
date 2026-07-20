@@ -242,7 +242,7 @@ export const ProjectDocumentsSection = ({
                   >
                     <div className="space-y-2">
                       <div className="relative">
-                        <DocumentCard document={summary} hideInitiative />
+                        <DocumentCard document={summary} />
                         {canAttach ? (
                           <Button
                             variant="secondary"

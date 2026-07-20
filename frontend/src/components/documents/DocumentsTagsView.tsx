@@ -105,7 +105,7 @@ export const DocumentsTagsView = ({
                   onToggle={() => onToggleDocument?.(document)}
                   label={document.title}
                 >
-                  <DocumentCard document={document} hideInitiative />
+                  <DocumentCard document={document} />
                 </SelectableGridItem>
               ))}
             </div>
