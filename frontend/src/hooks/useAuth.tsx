@@ -182,20 +182,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return response.data;
   };
 
-  const completeOidcLogin = async (accessToken?: string, isDevice = false) => {
-    if (isDevice && accessToken) {
-      // Native: store device token in persistent storage
-      setAuthToken(accessToken, true);
-      setItem(TOKEN_STORAGE_KEY, accessToken);
-      setItem(DEVICE_TOKEN_KEY, "true");
-      setTokenState(accessToken);
-      setIsDeviceToken(true);
-    }
-    // Web: cookie was already set by the backend redirect — just fetch the user
-    const me = await apiClient.get<UserRead>("/users/me");
-    setUser(me.data);
-    markJustSignedIn();
-  };
+  // Memoized: the OIDC callback page calls this from an effect, and this
+  // function also sets the user it depends on. An unstable identity would make
+  // that effect re-run on every render it causes — an endless /users/me loop.
+  const completeOidcLogin = useCallback(
+    async (accessToken?: string, isDevice = false) => {
+      if (isDevice && accessToken) {
+        // Native: store device token in persistent storage
+        setAuthToken(accessToken, true);
+        setItem(TOKEN_STORAGE_KEY, accessToken);
+        setItem(DEVICE_TOKEN_KEY, "true");
+        setTokenState(accessToken);
+        setIsDeviceToken(true);
+      }
+      // Web: cookie was already set by the backend redirect — just fetch the user
+      const me = await apiClient.get<UserRead>("/users/me");
+      setUser(me.data);
+      markJustSignedIn();
+    },
+    [setUser]
+  );
 
   const logout = useCallback(async () => {
     // Fire the POST *first*, while the bearer token and cookie are still

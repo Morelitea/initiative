@@ -135,6 +135,11 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
   // a module var is per-JS-context (see query-keys.ts).
   setInvalidationGuild(activeGuildId);
 
+  // Key guild loading on the user's *id*, not the user object: `refreshUser()`
+  // always returns a fresh object, so an object-identity dep would refetch the
+  // guild list and access grants on every profile refresh.
+  const userId = user?.id ?? null;
+
   const canCreateGuilds = user?.can_create_guilds ?? true;
 
   // Persist this tab's guild as the fresh-tab default (read once at mount).
@@ -165,7 +170,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const refreshGuilds = useCallback(async () => {
-    if (!user) {
+    if (userId === null) {
       setGuilds([]);
       setActiveGuildId(null);
       setError(null);
@@ -215,7 +220,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setLoading(false);
     }
-  }, [user, applyGuildState]);
+  }, [userId, applyGuildState]);
 
   const flushPendingOrder = useCallback(async () => {
     if (!pendingOrderRef.current) {
@@ -265,7 +270,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
   }, [flushPendingOrder]);
 
   useEffect(() => {
-    if (!user) {
+    if (userId === null) {
       setGuilds([]);
       setActiveGuildId(null);
       setError(null);
@@ -274,7 +279,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     void refreshGuilds();
-  }, [user, refreshGuilds]);
+  }, [userId, refreshGuilds]);
 
   const switchGuild = useCallback(
     async (guildId: number) => {
@@ -282,14 +287,14 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       // route layout calls syncGuildFromUrl. Here we just move this tab's local
       // state and drop the previous guild's now-wrong cached query data. No
       // server context — per-tab only, so two tabs can hold different guilds.
-      if (!user || guildId === activeGuildIdRef.current) {
+      if (userId === null || guildId === activeGuildIdRef.current) {
         return;
       }
       setActiveGuildId(guildId);
       await resetGuildScopedQueries();
       await Promise.all([refreshGuilds(), refreshUser()]);
     },
-    [user, refreshGuilds, refreshUser]
+    [userId, refreshGuilds, refreshUser]
   );
 
   /**
@@ -356,7 +361,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
 
   const createGuild = useCallback(
     async ({ name, description }: { name: string; description?: string }) => {
-      if (!user) {
+      if (userId === null) {
         throw new Error("You must be signed in to create a guild.");
       }
       if (!canCreateGuilds) {
@@ -377,7 +382,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
 
       return response.data;
     },
-    [user, canCreateGuilds, refreshGuilds, refreshUser]
+    [userId, canCreateGuilds, refreshGuilds, refreshUser]
   );
 
   const updateGuildInState = useCallback((guild: GuildRead) => {

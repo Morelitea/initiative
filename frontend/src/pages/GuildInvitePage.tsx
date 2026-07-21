@@ -9,6 +9,7 @@ import { LogoIcon } from "@/components/LogoIcon";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
+import { useGuilds } from "@/hooks/useGuilds";
 import { getErrorMessage } from "@/lib/errorMessage";
 
 export const GuildInvitePage = () => {
@@ -19,6 +20,7 @@ export const GuildInvitePage = () => {
     [normalizedCode]
   );
   const { user, refreshUser } = useAuth();
+  const { refreshGuilds } = useGuilds();
   const { t } = useTranslation(["guilds", "common"]);
   const [status, setStatus] = useState<GuildInviteStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -74,7 +76,11 @@ export const GuildInvitePage = () => {
     try {
       await apiClient.post("/guilds/invite/accept", { code: normalizedCode });
       setAccepted(true);
-      await refreshUser();
+      // Refresh both explicitly: joining changes the user's guild list, and the
+      // switcher only reloads when asked to. (It deliberately does not key off
+      // the user object's identity — refreshUser() always returns a fresh one,
+      // which would refetch every guild on any profile change.)
+      await Promise.all([refreshUser(), refreshGuilds()]);
     } catch (err) {
       setAcceptError(getErrorMessage(err, "guilds:invite.unableToAccept"));
     } finally {
