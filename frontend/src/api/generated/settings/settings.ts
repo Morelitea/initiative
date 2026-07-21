@@ -52,6 +52,9 @@ import type { ErrorType, BodyType } from "../../mutator";
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 /**
+ * Platform OIDC config — read straight from the provider registry row
+ * (its source of truth). System engine: ``auth_providers`` carries no
+ * request-path grant; the capability gate stays ``config.manage``.
  * @summary Get Oidc Settings
  */
 export const getOidcSettingsApiV1SettingsAuthGet = (
@@ -191,6 +194,9 @@ export function useGetOidcSettingsApiV1SettingsAuthGet<
 }
 
 /**
+ * Write the platform provider row directly (create-on-first-save).
+ * ``client_secret`` keeps its write-only convention: omitted keeps the
+ * stored secret, empty clears it, a value replaces it.
  * @summary Update Oidc Settings
  */
 export const updateOidcSettingsApiV1SettingsAuthPut = (

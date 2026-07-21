@@ -1,8 +1,9 @@
-"""Tests for the settings→provider reconcile the login path depends on.
+"""Tests for the registry-native platform provider service.
 
-Pins that the provider row always reflects ``app_settings`` at the moment of
-use: created on first need, drift folded in on later calls, and the secret
-ciphertext mirrored verbatim (including rotation and clearing).
+Pins that the ``auth_providers`` row with the platform slug is the single
+source of truth: the settings upsert creates and updates it (write-only
+secret semantics included), the claim-path setter targets it, and the env
+seed creates it exactly once on a fresh install.
 """
 
 from __future__ import annotations
@@ -10,49 +11,42 @@ from __future__ import annotations
 import pytest
 from sqlmodel import select
 
-from app.models.platform.app_setting import AppSetting
+from app.core.encryption import SALT_OIDC_CLIENT_SECRET, decrypt_field
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.auth_provider_secret import AuthProviderSecret
 from app.services.auth.platform_provider import (
     PLATFORM_OIDC_SLUG,
-    ensure_platform_provider,
+    get_platform_provider,
+    seed_platform_provider_from_env,
+    set_platform_claim_path,
+    upsert_platform_provider,
 )
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 
-async def _settings(session, **overrides) -> AppSetting:
-    row = (await session.exec(select(AppSetting))).first()
-    if row is None:
-        row = AppSetting()
-        session.add(row)
+async def _upsert(session, **overrides) -> AuthProvider:
     values = {
-        "oidc_enabled": True,
-        "oidc_issuer": "https://idp.example.com",
-        "oidc_client_id": "client-123",
-        "oidc_client_secret_encrypted": "ct-1",
-        "oidc_scopes": ["openid", "email"],
-        "oidc_provider_name": "Test IdP",
-        "oidc_role_claim_path": None,
+        "enabled": True,
+        "issuer": "https://idp.example.com",
+        "client_id": "client-123",
+        "provider_name": "Test IdP",
+        "scopes": ["openid", "email"],
+        "client_secret": "s3cret-1",
     }
     values.update(overrides)
-    for field, value in values.items():
-        setattr(row, field, value)
-    session.add(row)
-    await session.commit()
-    await session.refresh(row)
-    return row
+    return await upsert_platform_provider(session, **values)
 
 
-async def _secret_ciphertext(session, provider: AuthProvider) -> str | None:
+async def _secret_plaintext(session, provider: AuthProvider) -> str | None:
     row = await session.get(AuthProviderSecret, provider.id)
-    return row.client_secret_encrypted if row else None
+    if row is None or not row.client_secret_encrypted:
+        return None
+    return decrypt_field(row.client_secret_encrypted, SALT_OIDC_CLIENT_SECRET)
 
 
-async def test_creates_provider_and_secret_from_settings(session):
-    settings_row = await _settings(session)
-
-    provider = await ensure_platform_provider(session, settings_row)
+async def test_upsert_creates_provider_and_secret(session):
+    provider = await _upsert(session)
 
     assert provider.slug == PLATFORM_OIDC_SLUG
     assert provider.guild_id is None
@@ -62,17 +56,13 @@ async def test_creates_provider_and_secret_from_settings(session):
     assert provider.scopes == "openid email"
     assert provider.display_name == "Test IdP"
     assert provider.allow_jit is True
-    assert await _secret_ciphertext(session, provider) == "ct-1"
+    assert await _secret_plaintext(session, provider) == "s3cret-1"
 
 
-async def test_reuses_and_reconciles_existing_row(session):
-    settings_row = await _settings(session)
-    first = await ensure_platform_provider(session, settings_row)
+async def test_upsert_updates_existing_row_in_place(session):
+    first = await _upsert(session)
 
-    settings_row = await _settings(
-        session, oidc_client_id="client-456", oidc_enabled=False
-    )
-    second = await ensure_platform_provider(session, settings_row)
+    second = await _upsert(session, client_id="client-456", enabled=False)
 
     assert second.id == first.id
     assert second.client_id == "client-456"
@@ -85,26 +75,135 @@ async def test_reuses_and_reconciles_existing_row(session):
     assert len(providers) == 1
 
 
-async def test_secret_rotation_is_mirrored(session):
-    settings_row = await _settings(session)
-    provider = await ensure_platform_provider(session, settings_row)
-    assert await _secret_ciphertext(session, provider) == "ct-1"
+async def test_secret_write_only_semantics(session):
+    """None keeps the stored secret, empty clears it, a value replaces it."""
+    provider = await _upsert(session)
+    assert await _secret_plaintext(session, provider) == "s3cret-1"
 
-    settings_row = await _settings(session, oidc_client_secret_encrypted="ct-2")
-    provider = await ensure_platform_provider(session, settings_row)
-    assert await _secret_ciphertext(session, provider) == "ct-2"
+    provider = await _upsert(session, client_secret=None)
+    assert await _secret_plaintext(session, provider) == "s3cret-1"
 
+    provider = await _upsert(session, client_secret="s3cret-2")
+    assert await _secret_plaintext(session, provider) == "s3cret-2"
 
-async def test_cleared_secret_clears_companion_row(session):
-    settings_row = await _settings(session)
-    provider = await ensure_platform_provider(session, settings_row)
-
-    settings_row = await _settings(session, oidc_client_secret_encrypted=None)
-    provider = await ensure_platform_provider(session, settings_row)
-    assert await _secret_ciphertext(session, provider) is None
+    provider = await _upsert(session, client_secret="")
+    assert await _secret_plaintext(session, provider) is None
 
 
-async def test_no_secret_creates_no_secret_row(session):
-    settings_row = await _settings(session, oidc_client_secret_encrypted=None)
-    provider = await ensure_platform_provider(session, settings_row)
-    assert await session.get(AuthProviderSecret, provider.id) is None
+async def test_empty_provider_name_falls_back(session):
+    provider = await _upsert(session, provider_name="  ")
+    assert provider.display_name == "SSO"
+
+
+async def test_claim_path_targets_provider_row(session):
+    await _upsert(session)
+
+    assert await set_platform_claim_path(session, " groups ") == "groups"
+    provider = await get_platform_provider(session)
+    assert provider.role_claim_path == "groups"
+
+    assert await set_platform_claim_path(session, None) is None
+    provider = await get_platform_provider(session)
+    assert provider.role_claim_path is None
+
+
+async def test_claim_path_creates_dormant_skeleton(session):
+    """Setting a claim path before the provider is configured creates a
+    disabled skeleton row to carry it — dormant until configured."""
+    assert await get_platform_provider(session) is None
+
+    assert await set_platform_claim_path(session, "roles") == "roles"
+
+    provider = await get_platform_provider(session)
+    assert provider is not None
+    assert provider.enabled is False
+    assert provider.issuer is None
+    assert provider.role_claim_path == "roles"
+
+
+async def test_upsert_lands_payload_after_lost_creation_race(session, monkeypatch):
+    """A lost concurrent-creation race must not discard the caller's payload:
+    the race resolves to the winner's row, and the desired fields are applied
+    to it."""
+    from app.services.auth import platform_provider as svc
+
+    winner = await _upsert(session, provider_name="Winner", client_id="winner-client")
+    real_get = svc.get_platform_provider
+    calls = {"n": 0}
+
+    async def racy_get(s):
+        # First read misses the winner (the race window); later reads are real.
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return None
+        return await real_get(s)
+
+    monkeypatch.setattr(svc, "get_platform_provider", racy_get)
+    provider = await upsert_platform_provider(
+        session,
+        enabled=True,
+        issuer="https://idp.example.com",
+        client_id="late-client",
+        provider_name="Late Writer",
+        scopes=["openid"],
+        client_secret=None,
+    )
+    assert provider.id == winner.id
+    assert provider.client_id == "late-client"
+    assert provider.display_name == "Late Writer"
+
+
+async def test_claim_path_lands_after_lost_creation_race(session, monkeypatch):
+    from app.services.auth import platform_provider as svc
+
+    winner = await _upsert(session)
+    real_get = svc.get_platform_provider
+    calls = {"n": 0}
+
+    async def racy_get(s):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return None
+        return await real_get(s)
+
+    monkeypatch.setattr(svc, "get_platform_provider", racy_get)
+    assert await set_platform_claim_path(session, "groups") == "groups"
+    provider = await get_platform_provider(session)
+    assert provider.id == winner.id
+    assert provider.role_claim_path == "groups"
+
+
+async def test_env_seed_creates_row_once(session, monkeypatch):
+    from app.core.config import settings as app_config
+
+    monkeypatch.setattr(app_config, "OIDC_ISSUER", "https://env-idp.example.com")
+    monkeypatch.setattr(app_config, "OIDC_CLIENT_ID", "env-client")
+    monkeypatch.setattr(app_config, "OIDC_CLIENT_SECRET", "env-secret")
+    monkeypatch.setattr(app_config, "OIDC_ENABLED", True)
+    monkeypatch.setattr(app_config, "OIDC_PROVIDER_NAME", "Env SSO")
+    monkeypatch.setattr(app_config, "OIDC_SCOPES", ["openid", "profile"])
+
+    assert await seed_platform_provider_from_env(session) is True
+    provider = await get_platform_provider(session)
+    assert provider.issuer == "https://env-idp.example.com"
+    assert provider.client_id == "env-client"
+    assert provider.enabled is True
+    assert provider.display_name == "Env SSO"
+    assert provider.scopes == "openid profile"
+    assert await _secret_plaintext(session, provider) == "env-secret"
+
+    # Second boot: the row exists — the env never overwrites it.
+    monkeypatch.setattr(app_config, "OIDC_CLIENT_ID", "changed-client")
+    assert await seed_platform_provider_from_env(session) is False
+    provider = await get_platform_provider(session)
+    assert provider.client_id == "env-client"
+
+
+async def test_env_seed_noop_without_config(session, monkeypatch):
+    from app.core.config import settings as app_config
+
+    monkeypatch.setattr(app_config, "OIDC_ISSUER", None)
+    monkeypatch.setattr(app_config, "OIDC_CLIENT_ID", None)
+
+    assert await seed_platform_provider_from_env(session) is False
+    assert await get_platform_provider(session) is None

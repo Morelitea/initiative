@@ -964,12 +964,10 @@ export const useRevokeDeviceTokenApiV1AuthDeviceTokensTokenIdDelete = <
  * The sign-in providers the login page offers — non-secret metadata only.
  *
  * Empty in guild posture (operator-global providers are dormant there) and
- * on instances with no SSO configured. Strictly read-only: an
- * unauthenticated GET must not trigger writes, so the platform entry is
- * built from ``app_settings`` (its config surface) rather than the
- * write-capable reconcile — that runs in the login flow and at boot.
- * Registry rows are read on the system engine (``auth_providers`` carries no
- * request-path grant).
+ * on instances with no SSO configured. Strictly read-only: the platform
+ * entry, like every other, is its registry row (the source of truth) — no
+ * write path is reachable from here. Registry rows are read on the system
+ * engine (``auth_providers`` carries no request-path grant).
  * @summary List Login Providers
  */
 export const listLoginProvidersApiV1AuthProvidersGet = (

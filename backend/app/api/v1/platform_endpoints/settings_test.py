@@ -188,6 +188,49 @@ _NON_OWNER_ROLES = [
 
 
 @pytest.mark.integration
+async def test_claim_path_persists_before_provider_configured(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """Setting the claim path through the real request path with NO platform
+    provider row yet must persist a dormant skeleton row — and survive into an
+    independent follow-up request (not just the writing request's session)."""
+    from app.models.platform.auth_provider import AuthProvider
+    from sqlmodel import select as sql_select
+
+    owner = await create_user(
+        session, email="owner-claimpath@example.com", role=UserRole.owner
+    )
+    headers = get_auth_headers(owner)
+
+    put = await client.put(
+        "/api/v1/settings/oidc-mappings/claim-path",
+        headers=headers,
+        json={"claim_path": "groups"},
+    )
+    assert put.status_code == 200, put.text
+    assert put.json()["claim_path"] == "groups"
+
+    # Independent DB read: the skeleton row landed and is dormant.
+    session.expire_all()
+    row = (
+        await session.exec(
+            sql_select(AuthProvider).where(
+                AuthProvider.slug == "oidc", AuthProvider.guild_id.is_(None)
+            )
+        )
+    ).one()
+    assert row.role_claim_path == "groups"
+    assert row.enabled is False
+    assert row.issuer is None
+
+    # And a second real request reads it back.
+    got = await client.get("/api/v1/settings/oidc-mappings", headers=headers)
+    assert got.status_code == 200
+    assert got.json()["claim_path"] == "groups"
+
+
+@pytest.mark.integration
 @pytest.mark.parametrize("role", _NON_OWNER_ROLES)
 async def test_oidc_mapping_endpoints_reject_non_owner(
     client: AsyncClient,

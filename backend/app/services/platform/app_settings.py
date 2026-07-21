@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
 
 from sqlalchemy import text
 from sqlmodel import select
@@ -9,7 +8,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings as app_config
 from app.core.encryption import (
     encrypt_field,
-    SALT_OIDC_CLIENT_SECRET,
     SALT_S3_SECRET_KEY,
     SALT_SMTP_PASSWORD,
 )
@@ -27,17 +25,6 @@ def _normalize_optional_string(value: str | None) -> str | None:
         return None
     cleaned = value.strip()
     return cleaned or None
-
-
-def _normalize_scopes(scopes: Iterable[str]) -> list[str]:
-    seen: set[str] = set()
-    normalized: list[str] = []
-    for scope in scopes:
-        cleaned = scope.strip()
-        if cleaned and cleaned not in seen:
-            seen.add(cleaned)
-            normalized.append(cleaned)
-    return normalized or ["openid", "profile", "email", "offline_access"]
 
 
 async def _ensure_guild_setting(session: AsyncSession, guild_id: int) -> GuildSetting:
@@ -72,23 +59,10 @@ def _build_default_app_settings() -> AppSetting:
     Shared by the create path (persisted by a writer) and the privilege-tolerant
     read fallback (returned transient to a non-owner caller).
     """
-    _oidc_secret = _normalize_optional_string(app_config.OIDC_CLIENT_SECRET)
     _smtp_pw = _normalize_optional_string(app_config.SMTP_PASSWORD)
     _s3_secret = _normalize_optional_string(app_config.S3_SECRET_ACCESS_KEY)
     return AppSetting(
         id=GLOBAL_SETTINGS_ID,
-        oidc_enabled=bool(app_config.OIDC_ENABLED),
-        oidc_issuer=_normalize_optional_string(app_config.OIDC_ISSUER),
-        oidc_client_id=_normalize_optional_string(app_config.OIDC_CLIENT_ID),
-        oidc_client_secret_encrypted=encrypt_field(
-            _oidc_secret, SALT_OIDC_CLIENT_SECRET
-        )
-        if _oidc_secret
-        else None,
-        oidc_provider_name=_normalize_optional_string(app_config.OIDC_PROVIDER_NAME),
-        oidc_scopes=_normalize_scopes(
-            app_config.OIDC_SCOPES or ["openid", "profile", "email", "offline_access"]
-        ),
         light_accent_color="#2563eb",
         dark_accent_color="#60a5fa",
         smtp_host=_normalize_optional_string(app_config.SMTP_HOST),
@@ -146,58 +120,11 @@ async def _ensure_app_settings(session: AsyncSession) -> AppSetting:
     result = await session.exec(stmt)
     settings_row = result.one_or_none()
     if settings_row:
-        # Collect env values for fields the row hasn't got yet (no mutation until
-        # we know we can persist — see _session_can_write_app_settings).
-        # NOTE: oidc_enabled is intentionally NOT re-seeded here. It is set from
-        # the env var on first creation only, so an admin can disable OIDC via the
-        # UI without the env var forcing it back on every read.
-        env_updates: dict[str, object] = {}
-        if not settings_row.oidc_issuer and app_config.OIDC_ISSUER:
-            env_updates["oidc_issuer"] = _normalize_optional_string(
-                app_config.OIDC_ISSUER
-            )
-        if not settings_row.oidc_client_id and app_config.OIDC_CLIENT_ID:
-            env_updates["oidc_client_id"] = _normalize_optional_string(
-                app_config.OIDC_CLIENT_ID
-            )
-        if (
-            not settings_row.oidc_client_secret_encrypted
-            and app_config.OIDC_CLIENT_SECRET
-        ):
-            v = _normalize_optional_string(app_config.OIDC_CLIENT_SECRET)
-            env_updates["oidc_client_secret_encrypted"] = (
-                encrypt_field(v, SALT_OIDC_CLIENT_SECRET) if v else None
-            )
-        if not settings_row.oidc_provider_name and app_config.OIDC_PROVIDER_NAME:
-            env_updates["oidc_provider_name"] = _normalize_optional_string(
-                app_config.OIDC_PROVIDER_NAME
-            )
-        env_scopes = _normalize_scopes(app_config.OIDC_SCOPES or [])
-        if env_scopes and not settings_row.oidc_scopes:
-            env_updates["oidc_scopes"] = env_scopes
-        # NOTE: storage (storage_backend / s3_*) is intentionally NOT env-backfilled
-        # on read. Env seeds a *new* row once (_build_default_app_settings) and an
-        # existing row once (the storage migration's data step); after that the DB is
-        # authoritative. Re-seeding empty fields here would silently revert a value an
-        # owner just *cleared* in the Storage tab back to the still-set env var.
-        if not env_updates:
-            return settings_row
-        if await _session_can_write_app_settings(session):
-            for field, value in env_updates.items():
-                setattr(settings_row, field, value)
-            await _write_app_settings(session, settings_row)
-            return settings_row
-        # Non-writer (e.g. unauthenticated OIDC login as app_user): serve an
-        # env-correct *transient* without touching the tracked row — we neither
-        # persist nor leave a dirty instance a later commit would fault on. The
-        # env value is persisted later by an owner write or the next startup
-        # ensure_defaults (app_admin).
-        merged = {
-            col.name: getattr(settings_row, col.name)
-            for col in AppSetting.__table__.columns
-        }
-        merged.update(env_updates)
-        return AppSetting(**merged)
+        # NOTE: an existing row is served as-is — env values seed a *new* row
+        # once (_build_default_app_settings); after that the DB is
+        # authoritative. (The OIDC env values now seed the platform provider
+        # registry row instead — see platform_provider.seed_platform_provider_from_env.)
+        return settings_row
     app_settings = _build_default_app_settings()
     if await _session_can_write_app_settings(session):
         await _write_app_settings(session, app_settings)
@@ -214,33 +141,6 @@ async def get_app_settings(
         if row:
             return row
     return await _ensure_app_settings(session)
-
-
-async def update_oidc_settings(
-    session: AsyncSession,
-    *,
-    enabled: bool,
-    issuer: str | None,
-    client_id: str | None,
-    client_secret: str | None,
-    provider_name: str | None,
-    scopes: Iterable[str],
-) -> AppSetting:
-    settings_row = await _ensure_app_settings(session)
-    settings_row.oidc_enabled = enabled
-    settings_row.oidc_issuer = _normalize_optional_string(issuer)
-    settings_row.oidc_client_id = _normalize_optional_string(client_id)
-    if client_secret is not None:
-        normalized = _normalize_optional_string(client_secret)
-        settings_row.oidc_client_secret_encrypted = (
-            encrypt_field(normalized, SALT_OIDC_CLIENT_SECRET) if normalized else None
-        )
-    settings_row.oidc_provider_name = _normalize_optional_string(provider_name)
-    settings_row.oidc_scopes = _normalize_scopes(scopes)
-    session.add(settings_row)
-    await session.commit()
-    await session.refresh(settings_row)
-    return settings_row
 
 
 async def update_interface_colors(

@@ -155,6 +155,18 @@ async def lifespan(app: FastAPI):
         from app.services import storage_config
 
         await storage_config.refresh_storage_config(session)
+    # First-boot seed: create the platform OIDC provider row from OIDC_* env
+    # values (issuer + client id required; no-op once the row exists — after
+    # that the settings UI owns it). Runs on the system engine because the
+    # provider registry carries no request-path grants.
+    from app.services.auth.platform_provider import seed_platform_provider_from_env
+
+    try:
+        async with AdminSessionLocal() as seed_session:
+            await seed_platform_provider_from_env(seed_session)
+    except Exception:
+        logger.exception("Platform OIDC env seed failed; configure via settings UI")
+
     app.state.notification_tasks = background_tasks_service.start_background_tasks()
 
     try:
