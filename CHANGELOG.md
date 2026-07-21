@@ -43,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed redundant spacing between icons and labels across buttons throughout the app; the button's built-in gap now handles it consistently.
 - The "My Tasks" page no longer returns a 500 error when filtered by a custom property. The cross-guild task views load property definitions per guild schema now, instead of querying a table that isn't visible on that request's connection.
 - The dashboard's "Upcoming tasks" list no longer sorts urgent tasks last. It sorted by a hand-rolled priority map that omitted `urgent` (and invented unused `critical`/`none` keys), so every urgent task fell into the fallback bucket and sorted after lower-priority ones. Priority ordering now flows from a single source of truth in `lib/sorting.ts`, derived from the backend `TaskPriority` enum, that every priority-list UI shares — so it can't drift again.
+- The "My Documents" page's data fetching now routes through the shared API client wrapper like its sibling "My Projects"/"My Calendar" views, instead of a hand-rolled fetcher that bypassed it — so native (Capacitor) base-URL rewriting and request handling apply consistently.
 
 ## [0.57.0] - 2026-07-16
 
