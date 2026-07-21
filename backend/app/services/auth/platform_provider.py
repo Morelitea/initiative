@@ -129,14 +129,17 @@ async def upsert_platform_provider(
     }
     if provider is None:
         provider = await _create_platform_row(session, **desired)
-    else:
-        changed = False
-        for field, value in desired.items():
-            if getattr(provider, field) != value:
-                setattr(provider, field, value)
-                changed = True
-        if changed:
-            session.add(provider)
+    # Apply the desired state regardless of which branch produced the row: a
+    # freshly created row already matches (no-op), but a row returned from a
+    # lost concurrent-creation race carries the winner's fields — this
+    # caller's payload must still land.
+    changed = False
+    for field, value in desired.items():
+        if getattr(provider, field) != value:
+            setattr(provider, field, value)
+            changed = True
+    if changed:
+        session.add(provider)
     if client_secret is not None:
         await set_provider_secret(session, provider.id, client_secret)
     await session.commit()
@@ -159,7 +162,9 @@ async def set_platform_claim_path(
         provider = await _create_platform_row(
             session, display_name="SSO", enabled=False, role_claim_path=cleaned
         )
-        return provider.role_claim_path
+    # Falls through in both branches: a fresh skeleton already carries the
+    # path (no-op), while a row from a lost concurrent-creation race carries
+    # the winner's — this caller's value must still land.
     if provider.role_claim_path != cleaned:
         provider.role_claim_path = cleaned
         session.add(provider)

@@ -121,6 +121,58 @@ async def test_claim_path_creates_dormant_skeleton(session):
     assert provider.role_claim_path == "roles"
 
 
+async def test_upsert_lands_payload_after_lost_creation_race(session, monkeypatch):
+    """A lost concurrent-creation race must not discard the caller's payload:
+    the race resolves to the winner's row, and the desired fields are applied
+    to it."""
+    from app.services.auth import platform_provider as svc
+
+    winner = await _upsert(session, provider_name="Winner", client_id="winner-client")
+    real_get = svc.get_platform_provider
+    calls = {"n": 0}
+
+    async def racy_get(s):
+        # First read misses the winner (the race window); later reads are real.
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return None
+        return await real_get(s)
+
+    monkeypatch.setattr(svc, "get_platform_provider", racy_get)
+    provider = await upsert_platform_provider(
+        session,
+        enabled=True,
+        issuer="https://idp.example.com",
+        client_id="late-client",
+        provider_name="Late Writer",
+        scopes=["openid"],
+        client_secret=None,
+    )
+    assert provider.id == winner.id
+    assert provider.client_id == "late-client"
+    assert provider.display_name == "Late Writer"
+
+
+async def test_claim_path_lands_after_lost_creation_race(session, monkeypatch):
+    from app.services.auth import platform_provider as svc
+
+    winner = await _upsert(session)
+    real_get = svc.get_platform_provider
+    calls = {"n": 0}
+
+    async def racy_get(s):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return None
+        return await real_get(s)
+
+    monkeypatch.setattr(svc, "get_platform_provider", racy_get)
+    assert await set_platform_claim_path(session, "groups") == "groups"
+    provider = await get_platform_provider(session)
+    assert provider.id == winner.id
+    assert provider.role_claim_path == "groups"
+
+
 async def test_env_seed_creates_row_once(session, monkeypatch):
     from app.core.config import settings as app_config
 
