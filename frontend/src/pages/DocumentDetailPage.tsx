@@ -46,7 +46,7 @@ import { useComments, useCommentsCache } from "@/hooks/useComments";
 import { useDocument, useSetDocumentCache, useUpdateDocument } from "@/hooks/useDocuments";
 import { useSetDocumentProperties } from "@/hooks/useProperties";
 import { useRecordRecentView } from "@/hooks/useRecents";
-import { useSetDocumentTags } from "@/hooks/useTags";
+import { useSetToolTags } from "@/hooks/useToolTags";
 import { toast } from "@/lib/chesterToast";
 import { createEmptyEditorState, normalizeEditorState } from "@/lib/editorState";
 
@@ -85,6 +85,7 @@ import type {
   PropertySummary,
   TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import type { SmartLinkContent } from "@/components/documents/SmartLinkDocumentViewer";
 import type { SpreadsheetContent } from "@/components/documents/SpreadsheetDocumentEditor";
 import type { WhiteboardScene } from "@/components/documents/WhiteboardDocumentEditor";
@@ -135,7 +136,7 @@ export const DocumentDetailPage = () => {
   const gp = useGuildPath();
   const sidePanel = useDocumentSidePanel();
   const { isEnabled: isAIEnabled } = useAIEnabled();
-  const setDocumentTagsMutation = useSetDocumentTags();
+  const setDocumentTagsMutation = useSetToolTags(Tool.document);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [featuredImageUrl, setFeaturedImageUrl] = useState<string | null>(null);
   const [tags, setTags] = useState<TagSummary[]>([]);
@@ -409,10 +410,6 @@ export const DocumentDetailPage = () => {
     const myLevel = document.my_permission_level;
     return myLevel === "owner" || myLevel === "write";
   }, [document, user]);
-
-  const mentionableUsers = useMemo(() => {
-    return document?.initiative?.members?.map((member) => member.user) ?? [];
-  }, [document?.initiative?.members]);
 
   // Check if user can create documents in this initiative
   const canCreateDocuments = useMemo(() => {
@@ -946,7 +943,7 @@ export const DocumentDetailPage = () => {
       setTags(newTags);
       // Immediately save tag changes to the server
       setDocumentTagsMutation.mutate({
-        documentId: parsedId,
+        id: parsedId,
         tagIds: newTags.map((tg) => tg.id),
       });
     },
@@ -1244,12 +1241,12 @@ export const DocumentDetailPage = () => {
                             >
                               {isUploadingFeaturedImage ? (
                                 <>
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  <Loader2 className="h-4 w-4 animate-spin" />
                                   {t("detail.uploading")}
                                 </>
                               ) : (
                                 <>
-                                  <ImagePlus className="mr-2 h-4 w-4" />
+                                  <ImagePlus className="h-4 w-4" />
                                   {t("detail.uploadImage")}
                                 </>
                               )}
@@ -1272,15 +1269,12 @@ export const DocumentDetailPage = () => {
                                 }}
                                 disabled={isUploadingFeaturedImage}
                               >
-                                <X className="mr-2 h-4 w-4" />
+                                <X className="h-4 w-4" />
                                 {t("detail.removeImage")}
                               </Button>
                             ) : null}
                           </div>
                         ) : null}
-                        <p className="text-muted-foreground text-xs">
-                          {t("detail.uploadHelpText")}
-                        </p>
                       </div>
                     </div>
                   </div>
@@ -1305,6 +1299,7 @@ export const DocumentDetailPage = () => {
                     entityId={parsedId}
                     properties={combinedProperties}
                     disabled={!canEditDocument}
+                    initiativeId={document.initiative_id}
                   />
                   <AddPropertyButton
                     initiativeId={document.initiative_id}
@@ -1366,7 +1361,7 @@ export const DocumentDetailPage = () => {
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    <ExternalLink className="mr-2 h-4 w-4" />
+                    <ExternalLink className="h-4 w-4" />
                     {t("smartLink.openInNewTab")}
                   </a>
                 </Button>
@@ -1380,9 +1375,9 @@ export const DocumentDetailPage = () => {
                 className={cn(document.document_type !== "smart_link" && "ml-auto")}
               >
                 {isFullscreen ? (
-                  <Minimize2 className="mr-2 h-4 w-4" />
+                  <Minimize2 className="h-4 w-4" />
                 ) : (
-                  <Maximize2 className="mr-2 h-4 w-4" />
+                  <Maximize2 className="h-4 w-4" />
                 )}
                 {t(isFullscreen ? "detail.exitFullscreen" : "detail.enterFullscreen")}
               </Button>
@@ -1452,7 +1447,6 @@ export const DocumentDetailPage = () => {
                   readOnly={!canEditDocument}
                   showToolbar={canEditDocument}
                   className={cn("max-h-[80vh]", isFullscreen && "h-full max-h-none min-h-0 flex-1")}
-                  mentionableUsers={mentionableUsers}
                   collaborative={collaborationEnabled && collaboration.isReady}
                   providerFactory={collaboration.providerFactory}
                   // Always track changes so contentState stays updated for periodic saves
@@ -1493,7 +1487,7 @@ export const DocumentDetailPage = () => {
                       >
                         {saveDocument.isPending ? (
                           <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            <Loader2 className="h-4 w-4 animate-spin" />
                             {t("detail.saving")}
                           </>
                         ) : (

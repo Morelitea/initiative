@@ -38,6 +38,7 @@ __all__ = [
     "RefreshOutcome",
     "RotationResult",
     "create_session",
+    "get_live_session_by_refresh_token",
     "rotate_session",
     "revoke_session",
     "revoke_chain",
@@ -263,6 +264,29 @@ async def rotate_session(
         RefreshOutcome.ROTATED,
         issued=IssuedSession(session=child, refresh_token=raw),
     )
+
+
+async def get_live_session_by_refresh_token(
+    session: AsyncSession,
+    raw_refresh_token: str,
+    *,
+    now: datetime | None = None,
+) -> AuthSession | None:
+    """The live (unrevoked, unexpired) session a presented refresh token
+    belongs to, or ``None`` — a read-only lookup with none of ``rotate``'s
+    side effects. Used by a completing provider login to carry the current
+    session's satisfied set forward into the replacement session."""
+    row = (
+        await session.exec(
+            select(AuthSession).where(
+                AuthSession.refresh_token_hash == _hash_refresh_token(raw_refresh_token)
+            )
+        )
+    ).one_or_none()
+    current = now or _now()
+    if row is None or row.revoked_at is not None or row.expires_at <= current:
+        return None
+    return row
 
 
 async def revoke_session(

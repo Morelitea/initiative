@@ -44,7 +44,10 @@ class User(SQLModel, table=True):
     email_hash: str = Field(sa_column=Column(String(64), unique=True, nullable=False))
     email_encrypted: str = Field(sa_column=Column(String(2000), nullable=False))
     full_name: Optional[str] = Field(default=None)
-    hashed_password: str
+    # NULL = no password set (SSO-only account) — password verification treats
+    # a missing hash as "never a match", so such an account can only sign in
+    # through its identity provider until it explicitly sets a password.
+    hashed_password: Optional[str] = Field(default=None)
     role: UserRole = Field(
         default=UserRole.member,
         sa_column=Column(
@@ -187,21 +190,6 @@ class User(SQLModel, table=True):
     )
     ai_model: Optional[str] = Field(
         default=None, sa_column=Column(String(500), nullable=True)
-    )
-
-    # UI Preferences
-    # OIDC refresh token sync
-    oidc_refresh_token_encrypted: Optional[str] = Field(
-        default=None,
-        sa_column=Column(Text, nullable=True),
-    )
-    oidc_last_synced_at: Optional[datetime] = Field(
-        default=None,
-        sa_column=Column(DateTime(timezone=True), nullable=True),
-    )
-    oidc_sub: Optional[str] = Field(
-        default=None,
-        sa_column=Column(String(255), nullable=True),
     )
 
     # Locale

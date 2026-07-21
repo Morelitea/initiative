@@ -23,6 +23,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
+from app.core.auth_context import satisfied_provider_ids
 from app.api.deps import (
     RLSSessionDep,
     establish_guild_access,
@@ -44,6 +45,7 @@ from app.models.tenant.initiative import (
 )
 from app.models.platform.user import User
 from app.core.messages import QueueMessages, InitiativeMessages
+from app.schemas.tenant.initiative import InitiativeGroupedCountsResponse
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.queue import (
     QueueCreate,
@@ -298,6 +300,40 @@ async def list_queues(
     )
 
 
+@router.get("/counts/by-initiative", response_model=InitiativeGroupedCountsResponse)
+async def get_queue_counts_by_initiative(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> InitiativeGroupedCountsResponse:
+    """Visible-queue counts grouped by initiative.
+
+    Lightweight endpoint for the sidebar badges — same visibility rules
+    as the queue list (queues-enabled initiatives, DAC), one GROUP BY
+    instead of a capped list page.
+    """
+    conditions = [
+        Queue.guild_id == guild_context.guild_id,
+        Queue.initiative_id.in_(
+            select(Initiative.id).where(Initiative.queues_enabled == True)  # noqa: E712
+        ),
+    ]
+    if not rls_service.is_guild_admin(guild_context.role) and not guild_context.is_pam:
+        conditions.append(
+            Queue.id.in_(queues_service.visible_queue_ids_subquery(current_user.id))
+        )
+
+    statement = (
+        select(Queue.initiative_id, func.count(Queue.id))
+        .where(*conditions)
+        .group_by(Queue.initiative_id)
+    )
+    rows = (await session.exec(statement)).all()
+    return InitiativeGroupedCountsResponse(
+        counts={initiative_id: count for initiative_id, count in rows}
+    )
+
+
 @router.get("/{queue_id}", response_model=QueueRead)
 async def read_queue(
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -422,42 +458,6 @@ async def update_queue(
         await _emit_queue(
             session, queue_id, "queue_updated", result.model_dump(mode="json")
         )
-    return result
-
-
-@router.put("/{queue_id}/tags", response_model=QueueRead)
-async def set_queue_tags(
-    queue_id: int,
-    tags_in: TagSetRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> QueueRead:
-    """Set tags on a queue. Replaces all existing tags. Requires write access."""
-    queue = await _get_queue_with_access(
-        session, queue_id, current_user, guild_context, access="write"
-    )
-    await tags_service.set_entity_tags(
-        session,
-        tags_service.TOOL_TAG_LINKS[Tool.queue],
-        guild_id=guild_context.guild_id,
-        entity_id=queue.id,
-        tag_ids=tags_in.tag_ids,
-    )
-    queue.updated_at = datetime.now(timezone.utc)
-    session.add(queue)
-    await session.commit()
-
-    hydrated = await _refetch_queue(session, queue_id)
-    result = serialize_queue(
-        hydrated,
-        my_permission_level=_compute_my_permission(
-            hydrated, current_user, guild_context
-        ),
-    )
-    await _emit_queue(
-        session, queue_id, "queue_updated", result.model_dump(mode="json")
-    )
     return result
 
 
@@ -1208,6 +1208,7 @@ async def websocket_queue(
         resource_type="queue",
         resource_id=queue_id,
         authorize=_authorize,
+        satisfied_providers=satisfied_provider_ids(),
     )
 
     try:

@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { GripVertical } from "lucide-react";
 import type { HTMLAttributes } from "react";
 import { useTranslation } from "react-i18next";
@@ -13,6 +13,7 @@ import { ProgressCircle } from "@/components/ui/progress-circle";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useGuildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot, resolveInitiativeColor } from "@/lib/initiativeColors";
+import { cn } from "@/lib/utils";
 
 interface ProjectLinkProps {
   project: ProjectRead;
@@ -90,7 +91,7 @@ export const ProjectCardLink = ({ project, dragHandleProps, userId }: ProjectLin
           <CardFooter className="flex flex-col gap-3 text-muted-foreground text-sm">
             <div className="flex w-full justify-between gap-6">
               <div>
-                <InitiativeLabel initiative={initiative} />
+                <InitiativeLabel initiative={initiative} nested />
                 <p>
                   {t("preview.updated", {
                     date: new Date(project.updated_at).toLocaleDateString(undefined),
@@ -173,7 +174,7 @@ export const ProjectRowLink = ({ project, dragHandleProps, userId }: ProjectLink
                         date: new Date(project.updated_at).toLocaleDateString(undefined),
                       })}
                     </p>
-                    <InitiativeLabel initiative={project.initiative} />
+                    <InitiativeLabel initiative={project.initiative} nested />
                   </div>
                   {project.tags && project.tags.length > 0 ? (
                     <div className="mt-2 flex flex-wrap gap-1">
@@ -206,16 +207,52 @@ export const ProjectRowLink = ({ project, dragHandleProps, userId }: ProjectLink
   );
 };
 
-export const InitiativeLabel = ({ initiative }: { initiative?: InitiativeRead | null }) => {
+export const InitiativeLabel = ({
+  initiative,
+  nested = false,
+}: {
+  initiative?: InitiativeRead | null;
+  /** Set when rendered inside a wrapping link (card-as-anchor): navigates
+   * programmatically instead of nesting an `<a>` in an `<a>`, and stops the
+   * click from also triggering the outer link. */
+  nested?: boolean;
+}) => {
   const gp = useGuildPath();
+  const navigate = useNavigate();
   if (!initiative) {
     return null;
   }
+  const to = gp(`/initiatives/${initiative.id}`);
+  const className = "flex items-center gap-2 font-medium text-muted-foreground text-xs";
+
+  if (nested) {
+    return (
+      // biome-ignore lint/a11y/useSemanticElements: must not be a <button>/<a> — it renders inside the card's wrapping <a>, where interactive content is invalid
+      <span
+        role="button"
+        tabIndex={0}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          void navigate({ to });
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            e.stopPropagation();
+            void navigate({ to });
+          }
+        }}
+        className={cn(className, "cursor-pointer hover:underline")}
+      >
+        <InitiativeColorDot color={initiative.color} />
+        {initiative.name}
+      </span>
+    );
+  }
+
   return (
-    <Link
-      to={gp(`/initiatives/${initiative.id}`)}
-      className="flex items-center gap-2 font-medium text-muted-foreground text-xs"
-    >
+    <Link to={to} className={className}>
       <InitiativeColorDot color={initiative.color} />
       {initiative.name}
     </Link>

@@ -136,6 +136,18 @@ class MyInitiativePermissions(SanitizedBaseModel):
     advanced_tools_enabled: bool = False
 
 
+class InitiativeGroupedCountsResponse(SanitizedBaseModel):
+    """Per-initiative resource counts (initiative_id -> visible count).
+
+    Shared response shape for the documents/projects grouped-count
+    endpoints that back sidebar and landing-card badges.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    counts: Dict[int, int] = Field(default_factory=dict)
+
+
 # Member schemas - updated to work with role_id
 class InitiativeMemberAdd(SanitizedBaseModel):
     """Add a member to an initiative."""

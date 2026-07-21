@@ -2,7 +2,7 @@ import asyncio
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncGenerator, Optional
+from typing import Any, AsyncGenerator, Optional, Sequence
 
 from alembic import command
 from alembic.config import Config
@@ -100,6 +100,12 @@ def clear_rls_context(session: AsyncSession) -> None:
 RLS_CONTEXT_MAX_AGE_SECONDS = 60
 
 _RLS_PARAMS_INFO_KEY = "rls_params"
+
+# Sentinel for ``satisfied_providers``: user-attributed system work (e.g. a
+# background export running as its creator) whose enqueueing request already
+# passed the guild-access gate. public.guild_auth_satisfied() treats it as
+# satisfied; only grep-auditable system-engine code paths may set it.
+SYSTEM_SATISFIED = "system"
 _RLS_ESTABLISHED_INFO_KEY = "rls_established_at"
 
 
@@ -119,6 +125,7 @@ _CONTEXT_SQL = (
     "set_config('app.pam_guild_id', :pgid, true), "
     "set_config('app.pam_read', :pr, true), "
     "set_config('app.pam_write', :pw, true), "
+    "set_config('app.satisfied_providers', :satp, true), "
     "set_config('app.billing_guild_id', :bgid, true), "
     "set_config('search_path', :sp, true), "
     "set_config('role', :role, true)"
@@ -154,6 +161,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
             "pgid": "",
             "pr": "false",
             "pw": "false",
+            "satp": "",
             "bgid": str(int(billing_guild_id)),
             "sp": "public",
             "role": billing_role_name(),
@@ -205,6 +213,14 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
             name_fn = guild_role_name
         role_target = name_fn(route_guild)
 
+    satisfied = params.get("satisfied_providers")
+    if satisfied == SYSTEM_SATISFIED:
+        satp = SYSTEM_SATISFIED
+    elif satisfied:
+        satp = ",".join(str(int(pid)) for pid in satisfied)
+    else:
+        satp = ""
+
     return {
         "uid": str(int(user_id)) if user_id is not None else "",
         "gid": str(int(guild_id)) if guild_id is not None else "",
@@ -212,6 +228,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         "pgid": str(int(pam_guild_id)) if pam_guild_id is not None else "",
         "pr": "true" if pam_read else "false",
         "pw": "true" if pam_write else "false",
+        "satp": satp,
         "bgid": "",
         "sp": sp,
         "role": role_target,
@@ -260,6 +277,7 @@ async def set_rls_context(
     pam_write: bool = False,
     platform_role: Optional[str] = None,
     read_only: bool = False,
+    satisfied_providers: Optional[Sequence[int] | str] = None,
 ) -> None:
     """Set PostgreSQL context for RLS policy evaluation — transaction-local.
 
@@ -299,6 +317,12 @@ async def set_rls_context(
     _VALID_ROLES = {"admin", "member"}
     if guild_role is not None and guild_role not in _VALID_ROLES:
         raise ValueError(f"Invalid guild_role: {guild_role!r}")
+    # ``satisfied_providers`` feeds public.guild_auth_satisfied(): the ids the
+    # session's token proved (its ``sat`` claim), or the SYSTEM_SATISFIED
+    # sentinel for user-attributed system work whose enqueueing request
+    # already passed the guild-access gate. Anything else must be ints.
+    if isinstance(satisfied_providers, str) and satisfied_providers != SYSTEM_SATISFIED:
+        raise ValueError(f"Invalid satisfied_providers: {satisfied_providers!r}")
     # Validate the tier before it reaches the SET ROLE name sink. The value comes
     # from the ``users.role`` enum, but treat the privileged role-name injection
     # point as untrusted: reject anything not on the known ladder.
@@ -320,6 +344,7 @@ async def set_rls_context(
         "pam_write": pam_write,
         "platform_role": platform_role,
         "read_only": read_only,
+        "satisfied_providers": satisfied_providers,
     }
     session.info[_RLS_ESTABLISHED_INFO_KEY] = time.monotonic()
 

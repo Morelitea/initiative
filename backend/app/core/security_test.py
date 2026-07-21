@@ -7,6 +7,8 @@ The HTTP-level gating is covered separately in the endpoint tests.
 
 from __future__ import annotations
 
+import base64
+import json
 import time
 import uuid
 
@@ -24,6 +26,7 @@ from app.core.security import (
     ADVANCED_TOOL_HANDOFF_LIFETIME,
     AUTH_ACCESS_AUDIENCE,
     AUTH_TOKEN_ISSUER,
+    HandoffSigningNotConfiguredError,
     JWT_ALGORITHM,
     UPLOAD_TOKEN_AUDIENCE,
     UPLOAD_TOKEN_LIFETIME,
@@ -45,6 +48,14 @@ def _decode_unverified(token: str) -> dict:
     separately in the RS256 round-trip test.
     """
     return jwt.decode(token, options={"verify_signature": False})
+
+
+def _b64url_decode(seg: str) -> bytes:
+    return base64.urlsafe_b64decode(seg + "=" * (-len(seg) % 4))
+
+
+def _b64url_encode(raw: bytes) -> str:
+    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
 
 
 @pytest.mark.unit
@@ -200,13 +211,28 @@ def test_handoff_token_signs_with_rs256_when_private_key_configured(monkeypatch)
 
 
 @pytest.mark.unit
-def test_handoff_token_falls_back_to_hs256_without_private_key(monkeypatch):
-    """OSS deployments shouldn't have to set up a keypair. With no
-    private key configured, the token signs with HS256 keyed off
-    ``SECRET_KEY`` so existing single-process deployments keep working."""
+def test_handoff_token_refuses_to_mint_without_private_key(monkeypatch):
+    """Handoff tokens are verified across a trust boundary, so there is no
+    symmetric fallback: with no RS256 private key configured the mint fails
+    closed rather than emit a token the embed can't verify by public key."""
     monkeypatch.setattr(security.settings, "HANDOFF_SIGNING_PRIVATE_KEY_PEM", None)
     monkeypatch.setattr(security.settings, "HANDOFF_SIGNING_KEY_ID", None)
 
+    with pytest.raises(HandoffSigningNotConfiguredError):
+        create_advanced_tool_handoff_token(
+            user_id=1,
+            guild_id=2,
+            guild_role="admin",
+            is_manager=True,
+            can_create=True,
+            scope="guild",
+        )
+
+
+@pytest.mark.unit
+def test_handoff_token_always_signs_rs256_by_default():
+    """With a key configured (the deployment default once ADVANCED_TOOL_URL is
+    on), the token is RS256 — never a symmetric algorithm."""
     token, _ = create_advanced_tool_handoff_token(
         user_id=1,
         guild_id=2,
@@ -217,8 +243,82 @@ def test_handoff_token_falls_back_to_hs256_without_private_key(monkeypatch):
     )
 
     header = jwt.get_unverified_header(token)
-    assert header["alg"] == "HS256"
-    assert "kid" not in header
+    assert header["alg"] == "RS256"
+
+
+@pytest.mark.unit
+def test_handoff_token_claim_tamper_fails_public_key_verification():
+    """The embed authorizes off the signed ``guild_role`` claim. Flipping it
+    (a member forging "admin") invalidates the RS256 signature, so public-key
+    verification rejects the token — the claim can't be altered in transit
+    without the private key, which the client never holds."""
+    token, _ = create_advanced_tool_handoff_token(
+        user_id=1,
+        guild_id=2,
+        initiative_id=5,
+        guild_role="member",
+        is_manager=False,
+        can_create=False,
+        scope="initiative",
+    )
+    public_pem = (
+        serialization.load_pem_private_key(
+            security.settings.HANDOFF_SIGNING_PRIVATE_KEY_PEM.encode("ascii"),
+            password=None,
+        )
+        .public_key()
+        .public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+    )
+
+    # Sanity: the untampered token verifies with the public key.
+    assert (
+        jwt.decode(
+            token, public_pem, algorithms=["RS256"], audience=ADVANCED_TOOL_AUDIENCE
+        )["guild_role"]
+        == "member"
+    )
+
+    header_b64, payload_b64, sig_b64 = token.split(".")
+    claims = json.loads(_b64url_decode(payload_b64))
+    claims["guild_role"] = "admin"  # privilege-forgery attempt
+    forged = f"{header_b64}.{_b64url_encode(json.dumps(claims).encode())}.{sig_b64}"
+
+    with pytest.raises(jwt.InvalidSignatureError):
+        jwt.decode(
+            forged, public_pem, algorithms=["RS256"], audience=ADVANCED_TOOL_AUDIENCE
+        )
+
+
+@pytest.mark.unit
+def test_billing_portal_handoff_carries_admin_claims_and_distinct_audience():
+    """Claims present; audience distinct from the advanced-tool token."""
+    token, seconds = security.create_billing_portal_handoff_token(
+        user_id=42, guild_id=7, guild_role="admin"
+    )
+    assert seconds == int(ADVANCED_TOOL_HANDOFF_LIFETIME.total_seconds())
+    assert jwt.get_unverified_header(token)["alg"] == "RS256"
+
+    payload = _decode_unverified(token)
+    assert payload["aud"] == security.BILLING_PORTAL_AUDIENCE
+    assert payload["aud"] != ADVANCED_TOOL_AUDIENCE
+    assert payload["iss"] == "initiative"
+    assert payload["sub"] == "42"
+    assert payload["guild_id"] == 7
+    assert payload["guild_role"] == "admin"
+    assert payload["jti"] and isinstance(payload["jti"], str)
+
+
+@pytest.mark.unit
+def test_billing_portal_handoff_refuses_to_mint_without_private_key(monkeypatch):
+    """No RS256 key configured -> mint fails closed."""
+    monkeypatch.setattr(security.settings, "HANDOFF_SIGNING_PRIVATE_KEY_PEM", None)
+    with pytest.raises(HandoffSigningNotConfiguredError):
+        security.create_billing_portal_handoff_token(
+            user_id=1, guild_id=2, guild_role="admin"
+        )
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -228,11 +328,15 @@ def test_handoff_token_falls_back_to_hs256_without_private_key(monkeypatch):
 
 @pytest.mark.unit
 def test_upload_token_round_trips_to_user_id():
-    """A freshly minted upload token verifies back to the user it names."""
+    """A freshly minted upload token verifies back to the user it names,
+    carrying its minting session's satisfied-provider set (empty by default)."""
     token, seconds = create_upload_token(user_id=123)
     assert isinstance(token, str) and token.count(".") == 2
     assert seconds == int(UPLOAD_TOKEN_LIFETIME.total_seconds())
-    assert verify_upload_token(token) == 123
+    assert verify_upload_token(token) == (123, frozenset())
+
+    satisfied_token, _ = create_upload_token(user_id=123, satisfied_providers=[5, 2])
+    assert verify_upload_token(satisfied_token) == (123, frozenset({2, 5}))
 
 
 @pytest.mark.unit

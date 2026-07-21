@@ -49,11 +49,11 @@ export const InitiativeSettingsDangerTab = ({
                 disabled={isArchiving}
               >
                 {isArchiving ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 ) : isArchived ? (
-                  <ArchiveRestore className="mr-2 h-4 w-4" />
+                  <ArchiveRestore className="h-4 w-4" />
                 ) : (
-                  <Archive className="mr-2 h-4 w-4" />
+                  <Archive className="h-4 w-4" />
                 )}
                 {isArchived ? t("settings.unarchiveInitiative") : t("settings.archiveInitiative")}
               </Button>
@@ -69,12 +69,12 @@ export const InitiativeSettingsDangerTab = ({
             >
               {isDeleting ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   {t("settings.deletingInitiative")}
                 </>
               ) : (
                 <>
-                  <Trash2 className="mr-2 h-4 w-4" />
+                  <Trash2 className="h-4 w-4" />
                   {t("settings.deleteInitiative")}
                 </>
               )}

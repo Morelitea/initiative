@@ -78,10 +78,10 @@ from app.schemas.tenant.document import (
     serialize_document_file_versions,
     serialize_document_summary,
 )
+from app.schemas.tenant.initiative import InitiativeGroupedCountsResponse
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.ai_generation import GenerateDocumentSummaryResponse
 from app.schemas.tenant.property import PropertyValuesSetRequest
-from app.schemas.tenant.tag import TagSetRequest
 from app.services.tenant import attachments as attachments_service
 from app.services import storage_config
 from app.services.storage import build_upload_response, get_guild_storage
@@ -93,7 +93,6 @@ from app.services import notifications as notifications_service
 from app.services import permissions as permissions_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import recent_views as recent_views_service
-from app.services.tenant import tags as tags_service
 from app.services import rls as rls_service
 from app.schemas.tenant.recent_view import RecentViewWrite
 from app.services.ai_generation import AIGenerationError, generate_document_summary
@@ -339,6 +338,8 @@ def _build_visible_docs_filters(
     search: Optional[str] = None,
     tag_ids: Optional[List[int]] = None,
     untagged: Optional[bool] = None,
+    is_template: Optional[bool] = None,
+    document_type: Optional[DocumentType] = None,
 ):
     """Build common WHERE conditions for visible-document queries."""
     # A guild admin (full access to all guild data) or a live PAM grant sees all
@@ -358,6 +359,12 @@ def _build_visible_docs_filters(
 
     if ids is not None:
         conditions.append(Document.id.in_(tuple(ids)))
+
+    if is_template is not None:
+        conditions.append(Document.is_template == is_template)
+
+    if document_type is not None:
+        conditions.append(Document.document_type == document_type)
 
     if search:
         normalized = search.strip().lower()
@@ -572,6 +579,31 @@ async def get_document_counts(
     )
 
 
+@router.get("/counts/by-initiative", response_model=InitiativeGroupedCountsResponse)
+async def get_document_counts_by_initiative(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> InitiativeGroupedCountsResponse:
+    """Visible-document counts grouped by initiative.
+
+    Lightweight endpoint for the sidebar and initiative landing-card
+    badges — same visibility filters as the document list, one GROUP BY
+    instead of walking the full corpus.
+    """
+    conditions = _build_visible_docs_filters(guild_context.guild_id, current_user.id)
+    statement = (
+        select(Document.initiative_id, func.count(Document.id))
+        .join(Document.initiative)
+        .where(*conditions)
+        .group_by(Document.initiative_id)
+    )
+    rows = (await session.exec(statement)).all()
+    return InitiativeGroupedCountsResponse(
+        counts={initiative_id: count for initiative_id, count in rows}
+    )
+
+
 @me_router.get("/documents", response_model=DocumentListResponse)
 async def list_my_documents(
     session: UserSessionDep,
@@ -626,6 +658,12 @@ async def list_documents(
     untagged: Optional[bool] = Query(
         default=None, description="Filter to documents with no tags"
     ),
+    is_template: Optional[bool] = Query(
+        default=None, description="Filter to template (or non-template) documents"
+    ),
+    document_type: Optional[DocumentType] = Query(
+        default=None, description="Filter by document type"
+    ),
     property_filters: Optional[str] = Query(
         default=None,
         description=(
@@ -668,6 +706,8 @@ async def list_documents(
         search=search,
         tag_ids=tag_ids,
         untagged=untagged,
+        is_template=is_template,
+        document_type=document_type,
     )
 
     # Parse + apply property filters (capped at MAX_PROPERTY_FILTERS).
@@ -753,37 +793,51 @@ async def autocomplete_documents(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-    initiative_id: int = Query(...),
+    initiative_id: Optional[int] = Query(
+        default=None,
+        description=(
+            "Restrict to one initiative. Omit to search the whole guild — "
+            "templates are picked guild-wide."
+        ),
+    ),
     q: str = Query(default=""),
-    limit: int = Query(default=10, le=20),
+    is_template: Optional[bool] = Query(
+        default=None, description="Filter to template (or non-template) documents"
+    ),
+    document_type: Optional[DocumentType] = Query(
+        default=None, description="Filter by document type"
+    ),
+    limit: int = Query(default=10, ge=1, le=20),
 ) -> List[DocumentAutocomplete]:
-    """Search documents by title within an initiative for autocomplete/wikilinks.
+    """Search documents by title for autocomplete/wikilinks and pickers.
 
-    Returns lightweight document info (id, title, updated_at) for typeahead.
-    Only returns documents the user has permission to access.
+    Returns lightweight document info (id, title, updated_at, document_type)
+    for typeahead. Scoped to one initiative when ``initiative_id`` is given,
+    otherwise to the whole guild. Visibility matches the document list —
+    only documents the caller can access come back.
 
     An empty ``q`` matches everything, so a picker that opens before the user
     types gets the most recently updated documents rather than an error. The
     result is bounded by ``limit`` either way.
     """
-    await _get_initiative_or_404(
-        session, initiative_id=initiative_id, guild_id=guild_context.guild_id
+    if initiative_id is not None:
+        await _get_initiative_or_404(
+            session, initiative_id=initiative_id, guild_id=guild_context.guild_id
+        )
+
+    conditions = _build_visible_docs_filters(
+        guild_context.guild_id,
+        current_user.id,
+        initiative_id=initiative_id,
+        search=q,
+        is_template=is_template,
+        document_type=document_type,
     )
 
-    has_permission_subq = permissions_service.visible_document_ids_subquery(
-        current_user.id
-    )
-
-    normalized = q.strip().lower()
     stmt = (
         select(Document)
         .join(Document.initiative)
-        .where(
-            Document.initiative_id == initiative_id,
-            Initiative.guild_id == guild_context.guild_id,
-            Document.id.in_(has_permission_subq),
-            func.lower(Document.title).contains(normalized),
-        )
+        .where(*conditions)
         .order_by(Document.updated_at.desc())
         .limit(limit)
     )
@@ -796,6 +850,7 @@ async def autocomplete_documents(
             id=doc.id,
             title=doc.title,
             updated_at=doc.updated_at,
+            document_type=doc.document_type,
         )
         for doc in documents
     ]
@@ -1738,61 +1793,6 @@ async def generate_summary(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.put("/{document_id}/tags", response_model=DocumentRead)
-async def set_document_tags(
-    document_id: int,
-    tags_in: TagSetRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> DocumentRead:
-    """Set tags on a document. Replaces all existing tags with the provided list."""
-    document = await _get_document_or_404(
-        session, document_id=document_id, guild_id=guild_context.guild_id
-    )
-    _require_document_access(document, current_user, access="write")
-
-    await tags_service.set_entity_tags(
-        session,
-        tags_service.TOOL_TAG_LINKS[Tool.document],
-        guild_id=guild_context.guild_id,
-        entity_id=document_id,
-        tag_ids=tags_in.tag_ids,
-    )
-
-    # Fetch fresh document to avoid issues with deleted relationship objects
-    doc_stmt = (
-        select(Document)
-        .where(Document.id == document_id)
-        .options(
-            selectinload(Document.initiative),
-            selectinload(Document.grants).selectinload(ResourceGrant.role),
-            selectinload(Document.tag_links).selectinload(DocumentTag.tag),
-            selectinload(Document.property_values).selectinload(
-                DocumentPropertyValue.property_definition
-            ),
-            selectinload(Document.property_values).selectinload(
-                DocumentPropertyValue.value_user
-            ),
-        )
-        # Refresh the identity-mapped document's tag_links (the pre-write
-        # collection survives the commit under expire_on_commit=False).
-        .execution_options(populate_existing=True)
-    )
-    result = await session.exec(doc_stmt)
-    doc = result.one()
-    doc.updated_at = datetime.now(timezone.utc)
-    await session.commit()
-
-    return serialize_document(
-        doc,
-        my_permission_level=_compute_my_doc_permission_level(
-            doc,
-            current_user.id,
-        ),
-    )
-
-
 @router.put("/{document_id}/properties", response_model=DocumentRead)
 async def set_document_properties(
     document_id: int,
@@ -1803,9 +1803,8 @@ async def set_document_properties(
 ) -> DocumentRead:
     """Replace the custom property values on a document.
 
-    Requires document write access (same gate as PUT /tags). Values are
-    validated server-side against each property definition's type and
-    options.
+    Requires document write access. Values are validated server-side against
+    each property definition's type and options.
     """
     document = await _get_document_or_404(
         session, document_id=document_id, guild_id=guild_context.guild_id

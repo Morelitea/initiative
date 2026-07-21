@@ -25,7 +25,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import ImportEngineMessages
 from app.db import session as db_session
-from app.db.session import set_rls_context
+from app.db.session import SYSTEM_SATISFIED, set_rls_context
 from app.models.platform.guild import Guild, GuildStatus
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import User, UserStatus
@@ -187,8 +187,12 @@ async def _execute(session: AsyncSession, job: ImportJob, *, guild_id: int) -> d
 
         async with _open_user_session() as user_session:
             # Route as the creator; apply_backup re-verifies REAL guild
-            # adminship and owns its own per-chunk commits + refreshes.
-            await establish_guild_access(user_session, user, guild_id)
+            # adminship and owns its own per-chunk commits + refreshes. As
+            # user-attributed system work whose enqueueing request already
+            # passed the guild auth-policy gate, it carries the system sentinel.
+            await establish_guild_access(
+                user_session, user, guild_id, satisfied_providers=SYSTEM_SATISFIED
+            )
             backup_result = await backup_service.apply_backup(
                 user_session,
                 user=user,
@@ -205,8 +209,11 @@ async def _execute(session: AsyncSession, job: ImportJob, *, guild_id: int) -> d
         # Resolve membership/PAM and route the session as the creator; raises
         # GuildAccessError (-> failed job) if their access is gone. The target
         # and create permission are re-checked too — authorization is a
-        # property of apply time, not enqueue time.
-        await establish_guild_access(user_session, user, guild_id)
+        # property of apply time, not enqueue time. (System sentinel: the
+        # enqueueing request already passed the guild auth-policy gate.)
+        await establish_guild_access(
+            user_session, user, guild_id, satisfied_providers=SYSTEM_SATISFIED
+        )
         initiative = await import_engine.load_target_initiative(
             user_session,
             guild_id=guild_id,

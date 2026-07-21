@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { AdvancedToolRead, TagSummary } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { TagPicker } from "@/components/tags";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,7 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { useSetAdvancedToolTags } from "@/hooks/useToolTags";
+import { useSetToolTags } from "@/hooks/useToolTags";
 import type { DialogProps } from "@/types/dialog";
 
 type EditAdvancedToolTagsDialogProps = DialogProps & {
@@ -38,7 +39,7 @@ export const EditAdvancedToolTagsDialog = ({
     if (open) setSelectedTags(tool.tags);
   }, [open, tool.tags]);
 
-  const setTags = useSetAdvancedToolTags();
+  const setTags = useSetToolTags(Tool.advanced_tool);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -54,7 +55,7 @@ export const EditAdvancedToolTagsDialog = ({
             onChange={(newTags) => {
               setSelectedTags(newTags);
               setTags.mutate({
-                advancedToolId: tool.id,
+                id: tool.id,
                 tagIds: newTags.map((tag) => tag.id),
               });
             }}

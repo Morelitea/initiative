@@ -13,12 +13,13 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from httpx import AsyncClient
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import _load_guild_context
 from app.core.messages import GuildMessages
 from app.models.platform.access_grant import AccessGrant
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.platform.user import UserRole
 from app.testing import (
     create_guild,
@@ -204,3 +205,55 @@ async def test_platform_admin_cannot_assign_support_role(
     )
     assert resp.status_code == 400
     assert resp.json()["detail"] == GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE
+
+
+# ---------------------------------------------------------------------------
+# guild role changes: admin-only, and the write runs on the system engine
+# ---------------------------------------------------------------------------
+
+
+async def test_guild_admin_can_promote_member_to_admin(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A guild admin still promotes a member — the role write now runs on the
+    system engine (the guild role holds no UPDATE on guild_memberships)."""
+    admin = await acting_user(guild_role=GuildRole.admin)
+    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    guild_id = admin.guild.id
+    member_user_id = member.user.id
+
+    resp = await client.patch(
+        f"/api/v1/guilds/{guild_id}/members/{member_user_id}",
+        headers=admin.headers,
+        json={"role": "admin"},
+    )
+    assert resp.status_code == 204
+
+    session.expire_all()
+    updated = (
+        await session.exec(
+            select(GuildMembership).where(
+                GuildMembership.guild_id == guild_id,
+                GuildMembership.user_id == member_user_id,
+            )
+        )
+    ).one()
+    assert updated.role == GuildRole.admin
+
+
+async def test_plain_member_cannot_change_guild_roles(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A plain member cannot promote anyone — the guild-admin gate holds, and the
+    shared guild role no longer has a DB write to fall back on."""
+    admin = await acting_user(guild_role=GuildRole.admin)
+    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    other = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+
+    resp = await client.patch(
+        f"/api/v1/guilds/{admin.guild.id}/members/{other.user.id}",
+        headers=member.headers,
+        json={"role": "admin"},
+    )
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == GuildMessages.GUILD_ADMIN_REQUIRED

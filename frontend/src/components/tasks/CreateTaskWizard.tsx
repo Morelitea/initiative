@@ -313,7 +313,7 @@ export const CreateTaskWizard = () => {
         {/* Back button */}
         {step !== "select-guild" && (
           <Button variant="ghost" size="sm" className="w-fit" onClick={handleBack}>
-            <ChevronLeft className="mr-1 h-4 w-4" />
+            <ChevronLeft className="h-4 w-4" />
             {t("createWizard.back")}
           </Button>
         )}
@@ -423,9 +423,7 @@ export const CreateTaskWizard = () => {
                     onClick={() => setProjectPage((p) => p + 1)}
                     disabled={projectsQuery.isFetching}
                   >
-                    {projectsQuery.isFetching ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : null}
+                    {projectsQuery.isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                     {t("createWizard.loadMore")}
                   </Button>
                 )}

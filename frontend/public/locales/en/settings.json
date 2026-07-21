@@ -578,14 +578,8 @@
     "loadingOidcMappings": "Loading OIDC mappings…",
     "oidcMappingsLoadError": "Unable to load OIDC mappings.",
     "scope": {
-      "title": "Login configuration",
-      "description": "Choose where sign-in is configured for this server.",
-      "platformLabel": "Platform-wide",
-      "platformHelp": "Sign-in is configured once, here, for the entire server. Every guild uses it. Best for a single organization running its own instance.",
-      "guildLabel": "Per-guild",
-      "guildHelp": "Each guild configures its own sign-in and membership rules in its guild settings. Best for a server hosting multiple independent organizations.",
-      "comingSoon": "Coming soon",
-      "passwordNote": "Password sign-in stays available in both modes."
+      "platformLabel": "Platform-wide sign-in",
+      "guildLabel": "Per-guild sign-in"
     }
   },
   "platformUsers": {
@@ -790,6 +784,9 @@
     "statusInputLabel": "Status for {{name}}",
     "statusSaved": "Updated status for {{name}}.",
     "statusSaveError": "Could not update the guild status. Please try again.",
+    "guildAuthInputLabel": "Per-guild sign-in for {{name}}",
+    "guildAuthOn": "Enabled per-guild sign-in for {{name}}.",
+    "guildAuthOff": "Disabled per-guild sign-in for {{name}}. Existing members keep signing in; no new accounts onboard.",
     "status": {
       "active": "Active",
       "read_only": "Read-only",
@@ -806,6 +803,7 @@
       "members": "Members",
       "users": "Users",
       "storageLimit": "Storage limit",
+      "guildAuth": "Per-guild sign-in",
       "status": "Status"
     }
   },
@@ -870,9 +868,73 @@
     }
   },
   "guildAuth": {
-    "title": "Authentication",
-    "comingSoon": "Coming soon",
-    "description": "Sign-in configuration for this guild.",
-    "body": "This server uses per-guild login. Soon, guild admins will configure single sign-on and membership rules for this guild here."
+    "registry": {
+      "title": "Identity providers",
+      "description": "The single sign-on providers this guild's members sign in with. Configured by this guild's admins and applying only here.",
+      "dialogDescription": "OpenID Connect provider details. The callback URL for your IdP is /api/v1/auth/g/{{guildId}}/{slug}/callback on this server."
+    },
+    "shareUrl": {
+      "title": "Member sign-in link",
+      "description": "Share this link with members — it offers this guild's sign-in providers and brings them straight into the guild.",
+      "copy": "Copy link",
+      "copied": "Sign-in link copied"
+    },
+    "policy": {
+      "title": "Sign-in requirement",
+      "description": "Control which sign-in a session must have used before it can access this guild.",
+      "openLabel": "Open",
+      "openHelp": "Any signed-in member can access this guild.",
+      "requiredLabel": "Require single sign-on",
+      "requiredHelp": "Members can only access this guild after signing in with the selected provider.",
+      "providerPlaceholder": "Choose a provider…",
+      "noProviders": "No providers are configured yet. Add one under Identity providers below, then require it here.",
+      "saved": "Sign-in requirement saved",
+      "error": "Could not save the sign-in requirement",
+      "selfUnsatisfied": "Your current session hasn't signed in with {{providerName}} yet. Sign in with it once to confirm it works before requiring it.",
+      "signInWith": "Sign in with {{providerName}}"
+    }
+  },
+  "authProviders": {
+    "title": "Additional sign-in providers",
+    "description": "Offer more ways to sign in alongside the platform single sign-on above. Each provider gets its own button on the sign-in page.",
+    "addProvider": "Add provider",
+    "loading": "Loading providers…",
+    "empty": "No additional providers configured.",
+    "reservedBadge": "Platform SSO",
+    "reservedHelp": "Managed in the single sign-on settings above",
+    "disabledBadge": "Disabled",
+    "createTitle": "Add sign-in provider",
+    "editTitle": "Edit sign-in provider",
+    "dialogDescription": "OpenID Connect provider details. The callback URL for your IdP is /api/v1/auth/{slug}/callback on this server.",
+    "presetLabel": "Preset",
+    "presetCustom": "Custom (any OIDC provider)",
+    "slugLabel": "Slug",
+    "slugHelp": "Lowercase letters, numbers, and dashes. Fixed after creation — it forms the sign-in URLs.",
+    "slugInvalid": "Use lowercase letters, numbers, and dashes; no leading or trailing dash.",
+    "displayNameLabel": "Display name",
+    "issuerLabel": "Issuer URL",
+    "issuerPlaceholder": "https://idp.example.com",
+    "tenantHelp": "Replace {tenant} with your Entra tenant ID.",
+    "clientIdLabel": "Client ID",
+    "clientSecretLabel": "Client secret",
+    "secretPlaceholder": "Leave blank for a public (PKCE-only) client",
+    "secretKeepPlaceholder": "Leave blank to keep the current secret",
+    "clearSecret": "Remove the stored secret",
+    "scopesLabel": "Scopes",
+    "allowJitLabel": "Create accounts on first sign-in",
+    "allowJitHelp": "When off, only existing accounts can sign in with this provider.",
+    "enabledLabel": "Enabled",
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleteTitle": "Delete {{name}}?",
+    "deleteDescription": "Accounts keep their other sign-in methods, but links to this provider are removed permanently.",
+    "created": "Provider added",
+    "saved": "Provider saved",
+    "deleted": "Provider deleted",
+    "saveError": "Could not save the provider",
+    "deleteError": "Could not delete the provider"
   }
 }

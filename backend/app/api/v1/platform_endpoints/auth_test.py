@@ -19,12 +19,10 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import (
-    decrypt_field,
     decrypt_token,
     encrypt_field,
     hash_email,
     SALT_EMAIL,
-    SALT_OIDC_CLIENT_SECRET,
 )
 from app.core.messages import OidcMessages
 from app.core.security import (
@@ -33,8 +31,8 @@ from app.core.security import (
     create_access_token,
     create_upload_token,
     get_password_hash,
+    verify_upload_token,
 )
-from app.models.platform.app_setting import AppSetting, AuthScope
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.auth_session import AuthSession
 from app.models.platform.federated_identity import FederatedIdentity
@@ -43,10 +41,12 @@ from app.models.platform.user import User, UserStatus
 from app.services.auth.oidc.provider import OidcClientConfig, OidcProvider
 from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
 from app.testing.factories import (
+    create_auth_provider,
     create_user,
     get_auth_headers,
     get_auth_token,
     get_new_access_token,
+    set_auth_scope,
 )
 from app.testing.oidc import (
     CLIENT_ID as OIDC_CLIENT_ID,
@@ -419,6 +419,35 @@ async def test_login_wrong_password(client: AsyncClient, session: AsyncSession):
     assert "incorrect" in response.json()["detail"].lower()
 
 
+async def test_login_refused_for_account_without_password(
+    client: AsyncClient, session: AsyncSession
+):
+    """An SSO-only account (NULL hashed_password) can never password-login —
+    any password yields the same incorrect-credentials refusal, with no 500
+    from verifying against a missing hash."""
+    user = User(
+        email_hash=hash_email("sso-only@example.com"),
+        email_encrypted=encrypt_field("sso-only@example.com", SALT_EMAIL),
+        full_name="SSO Only",
+        hashed_password=None,
+        status=UserStatus.active,
+        email_verified=True,
+    )
+    session.add(user)
+    await session.commit()
+
+    response = await client.post(
+        "/api/v1/auth/token",
+        data={
+            "username": "sso-only@example.com",
+            "password": "anything-at-all",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "INCORRECT_CREDENTIALS"
+
+
 @pytest.mark.integration
 @pytest.mark.auth
 async def test_login_inactive_user(client: AsyncClient, session: AsyncSession):
@@ -689,6 +718,34 @@ async def test_scoped_upload_token_rejected_on_session_path(
 
 @pytest.mark.integration
 @pytest.mark.auth
+async def test_upload_token_copies_session_satisfied_providers(
+    client: AsyncClient, session: AsyncSession
+):
+    """POST /auth/upload-token mirrors the minting session's ``sat`` claim into
+    the scoped token, so native media loads and the sync-content keepalive pass
+    a policy-gated guild exactly when the session itself would — and a legacy
+    session mints an empty (fail-closed) set."""
+    user = await create_user(session)
+
+    satisfied = await client.post(
+        "/api/v1/auth/upload-token",
+        headers={
+            "Authorization": f"Bearer {get_new_access_token(user, satisfied_providers=[7, 3])}"
+        },
+    )
+    assert satisfied.status_code == 200, satisfied.text
+    _, sat = verify_upload_token(satisfied.json()["upload_token"])
+    assert sat == frozenset({3, 7})
+
+    legacy = await client.post(
+        "/api/v1/auth/upload-token", headers=get_auth_headers(user)
+    )
+    _, sat = verify_upload_token(legacy.json()["upload_token"])
+    assert sat == frozenset()
+
+
+@pytest.mark.integration
+@pytest.mark.auth
 async def test_logout_persists_token_version_bump(
     client: AsyncClient, session: AsyncSession
 ):
@@ -766,60 +823,49 @@ async def test_logout_clears_session_cookie(client: AsyncClient, session: AsyncS
 
 
 def _wire_fake_idp(monkeypatch, idp: FakeIdp) -> None:
-    """Point the endpoints' provider builder at the fake IdP's transport.
+    """Point the (single) provider-client builder at the fake IdP's transport.
 
-    Same client configuration the real builder derives from app_settings, but
-    every OIDC HTTP call (discovery, JWKS, token, userinfo) is routed through
-    the fake — skipping the module-level discovery/JWKS caches keeps tests
-    isolated from each other.
+    Same client configuration the real builder derives from the resolved
+    registry row, but every OIDC HTTP call (discovery, JWKS, token, userinfo)
+    is routed through the fake — skipping the module-level discovery/JWKS
+    caches keeps tests isolated from each other.
     """
     import app.api.v1.platform_endpoints.auth as auth_module
 
-    def _builder(app_settings):
-        secret = (
-            decrypt_field(
-                app_settings.oidc_client_secret_encrypted, SALT_OIDC_CLIENT_SECRET
-            )
-            if app_settings.oidc_client_secret_encrypted
-            else None
-        )
+    async def _builder(admin_session, row):
         return OidcProvider(
             OidcClientConfig(
-                issuer=app_settings.oidc_issuer,
-                client_id=app_settings.oidc_client_id,
-                redirect_uri=auth_module._backend_redirect_uri(),
-                client_secret=secret,
-                scopes=" ".join(app_settings.oidc_scopes or ["openid"]),
+                issuer=row.issuer,
+                client_id=row.client_id,
+                redirect_uri=auth_module._provider_redirect_uri(row.slug, row.guild_id),
+                client_secret="s3cret",
+                scopes=row.scopes or "openid",
+                provider_slug=auth_module._provider_state_key(row),
             ),
             client_factory=idp.client_factory(),
         )
 
-    monkeypatch.setattr(auth_module, "_build_oidc_provider", _builder)
+    monkeypatch.setattr(auth_module, "_build_row_oidc_provider", _builder)
 
 
 async def _enable_platform_oidc(session: AsyncSession, **overrides) -> None:
-    """Configure a live platform OIDC posture in app_settings (the real gate
-    the endpoints check)."""
-    row = (await session.exec(select(AppSetting))).first()
-    if row is None:
-        row = AppSetting()
+    """Configure a live platform OIDC provider — a registry row with the
+    platform slug plus its client secret (the row is the source of truth).
+    Posture (``settings.AUTH_SCOPE``) is a deploy-time value — set it with
+    ``set_auth_scope`` where a test needs a non-default posture; it defaults to
+    ``platform``, which is what these tests assume."""
+    from app.services.auth.platform_provider import upsert_platform_provider
+
     values = {
-        "auth_scope": AuthScope.platform.value,
-        "oidc_enabled": True,
-        "oidc_issuer": OIDC_ISSUER,
-        "oidc_client_id": OIDC_CLIENT_ID,
-        "oidc_client_secret_encrypted": encrypt_field(
-            "s3cret", SALT_OIDC_CLIENT_SECRET
-        ),
-        "oidc_scopes": ["openid", "email", "profile"],
-        "oidc_provider_name": "Test IdP",
-        "oidc_role_claim_path": None,
+        "enabled": True,
+        "issuer": OIDC_ISSUER,
+        "client_id": OIDC_CLIENT_ID,
+        "client_secret": "s3cret",
+        "scopes": ["openid", "email", "profile"],
+        "provider_name": "Test IdP",
     }
     values.update(overrides)
-    for field, value in values.items():
-        setattr(row, field, value)
-    session.add(row)
-    await session.commit()
+    await upsert_platform_provider(session, **values)
 
 
 async def _begin_login(
@@ -876,7 +922,8 @@ async def test_oidc_login_requires_configured_platform_posture(
     assert response.status_code == 404
     assert response.json()["detail"] == "OIDC_NOT_ENABLED"
 
-    await _enable_platform_oidc(session, auth_scope=AuthScope.guild.value)
+    await _enable_platform_oidc(session)
+    set_auth_scope("guild")
     response = await client.get("/api/v1/auth/oidc/login", follow_redirects=False)
     assert response.status_code == 404
     assert response.json()["detail"] == "OIDC_NOT_ENABLED"
@@ -887,7 +934,8 @@ async def test_oidc_login_requires_configured_platform_posture(
 async def test_oidc_callback_gated_like_login(
     client: AsyncClient, session: AsyncSession
 ):
-    await _enable_platform_oidc(session, auth_scope=AuthScope.guild.value)
+    await _enable_platform_oidc(session)
+    set_auth_scope("guild")
     response = await client.get(
         "/api/v1/auth/oidc/callback",
         params={"code": "c", "state": "s"},
@@ -980,9 +1028,9 @@ async def test_oidc_callback_provisions_new_user_and_sets_cookie(
     ).one()
     assert user.full_name == "New User"
     assert user.email_verified is True
-    # The legacy users.oidc_* columns are no longer written — the identity
-    # link carries the subject, sync stamp, and (companion) refresh token.
-    assert user.oidc_sub is None
+    # SSO-only account: no password hash — the identity link carries the
+    # subject, sync stamp, and (companion) refresh token.
+    assert user.hashed_password is None
     identities = await _federated_identities(session)
     assert [(i.user_id, i.subject) for i in identities] == [(user.id, "idp-subject-1")]
     identity = identities[0]
@@ -997,9 +1045,11 @@ async def test_oidc_callback_provisions_new_user_and_sets_cookie(
 async def test_oidc_callback_establishes_refresh_session(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
-    """The web callback additively opens a server-side session recording which
-    provider satisfied the login (amr/sat) and issues the rotating refresh
-    cookie — parity with the password login path (additive-first)."""
+    """The web callback opens a server-side session recording which provider
+    satisfied the login (amr/sat), mints the new-model access token from it,
+    and issues the rotating refresh cookie — parity with password login."""
+    import jwt as pyjwt
+
     await _enable_platform_oidc(session)
     idp = FakeIdp()
     _wire_fake_idp(monkeypatch, idp)
@@ -1011,7 +1061,7 @@ async def test_oidc_callback_establishes_refresh_session(
     )
     assert response.status_code in (302, 307)
     assert response.cookies.get(REFRESH_COOKIE_NAME)
-    assert SESSION_COOKIE_NAME in response.cookies  # legacy cookie unchanged
+    assert SESSION_COOKIE_NAME in response.cookies
 
     provider = (
         await session.exec(
@@ -1028,6 +1078,14 @@ async def test_oidc_callback_establishes_refresh_session(
     ).one()
     assert auth_session.amr == [f"oidc:{PLATFORM_OIDC_SLUG}"]
     assert auth_session.satisfied_providers == [provider.id]
+
+    # The cookie carries the new-model access token minted from that session.
+    claims = pyjwt.decode(
+        response.cookies[SESSION_COOKIE_NAME], options={"verify_signature": False}
+    )
+    assert claims["sid"] == str(auth_session.id)
+    assert claims["amr"] == [f"oidc:{PLATFORM_OIDC_SLUG}"]
+    assert claims["sat"] == [provider.id]
 
 
 @pytest.mark.integration
@@ -1056,6 +1114,13 @@ async def test_oidc_callback_survives_session_store_failure(
     assert response.headers["location"].endswith("/oidc/callback")
     assert SESSION_COOKIE_NAME in response.cookies
     assert response.cookies.get(REFRESH_COOKIE_NAME) is None
+    # The fallback cookie is a legacy (session-less) token.
+    import jwt as pyjwt
+
+    claims = pyjwt.decode(
+        response.cookies[SESSION_COOKIE_NAME], options={"verify_signature": False}
+    )
+    assert "sid" not in claims
 
     user = (
         await session.exec(
@@ -1098,6 +1163,203 @@ async def test_oidc_refresh_cookie_rotates_into_access_token(
     )
     assert me.status_code == 200
     assert me.json()["email"] == "sso-rotate@example.com"
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_provider_login_unknown_or_unready_slug_is_404(
+    client: AsyncClient, session: AsyncSession
+):
+    """A slug with no registry row — or a row that is disabled or missing its
+    client config — must not begin a login."""
+    await _enable_platform_oidc(session)
+    await create_auth_provider(session, slug="off", enabled=False)
+    await create_auth_provider(session, slug="bare", issuer=None)
+
+    for slug in ("nope", "off", "bare"):
+        response = await client.get(
+            f"/api/v1/auth/{slug}/login", follow_redirects=False
+        )
+        assert response.status_code == 404, slug
+        assert response.json()["detail"] == "OIDC_NOT_ENABLED"
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_login_providers_listing(client: AsyncClient, session: AsyncSession):
+    """/auth/providers lists the platform provider plus login-ready registry
+    rows — and only those."""
+    await _enable_platform_oidc(session)
+    await create_auth_provider(session, slug="corp", display_name="Corp SSO")
+    await create_auth_provider(session, slug="off", enabled=False)
+    await create_auth_provider(session, slug="bare", issuer=None)
+
+    response = await client.get("/api/v1/auth/providers")
+    assert response.status_code == 200
+    providers = response.json()["providers"]
+    assert [(p["slug"], p["login_url"]) for p in providers] == [
+        ("oidc", "/api/v1/auth/oidc/login"),
+        ("corp", "/api/v1/auth/corp/login"),
+    ]
+    assert providers[0]["display_name"] == "Test IdP"
+    assert providers[1]["kind"] == "oidc"
+    # Registry ids ride along — the guild auth-policy picker stores them.
+    corp_row = (
+        await session.exec(select(AuthProvider).where(AuthProvider.slug == "corp"))
+    ).one()
+    assert providers[1]["id"] == corp_row.id
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_login_providers_empty_in_guild_posture_or_unconfigured(
+    client: AsyncClient, session: AsyncSession
+):
+    response = await client.get("/api/v1/auth/providers")
+    assert response.json()["providers"] == []  # nothing configured
+
+    await _enable_platform_oidc(session)
+    set_auth_scope("guild")
+    await create_auth_provider(session, slug="corp")
+    response = await client.get("/api/v1/auth/providers")
+    assert response.json()["providers"] == []  # dormant in guild posture
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_oidc_next_returns_browser_to_requested_page(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """A validated ``next`` path given to /login rides the flow and comes back
+    on the frontend callback redirect, so a step-up returns the browser to the
+    page it interrupted."""
+    await _enable_platform_oidc(session)
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims={"email": "stepup@example.com", "email_verified": True},
+        login_params={"next": "/g/5/projects/3"},
+    )
+    assert response.status_code in (302, 307)
+    assert response.headers["location"].endswith(
+        "/oidc/callback?next=%2Fg%2F5%2Fprojects%2F3"
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_oidc_next_rejects_non_relative_paths(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """Only a rooted relative path is carried: absolute URLs, protocol-relative
+    forms, and unrooted strings never set the cookie — and a tampered cookie is
+    dropped at the callback rather than echoed."""
+    await _enable_platform_oidc(session)
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    for bad in ("https://evil.example/x", "//evil.example", "relative", "/a\\b"):
+        response = await client.get(
+            "/api/v1/auth/oidc/login",
+            params={"next": bad},
+            follow_redirects=False,
+        )
+        assert response.status_code in (302, 307)
+        assert "oidc_next" not in response.cookies, bad
+
+    # Cookie tampered between login and callback: the callback re-validates
+    # and redirects without any next parameter.
+    client.cookies.set("oidc_next", "https://evil.example/x")
+    response = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims={"email": "tamper@example.com", "email_verified": True},
+    )
+    assert response.headers["location"].endswith("/oidc/callback")
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_state_from_one_provider_rejected_by_another(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """A flow state begun with one provider must not complete against another
+    — the state carries the slug it was minted for."""
+    await _enable_platform_oidc(session)
+    await create_auth_provider(session, slug="corp")
+    _wire_fake_idp(monkeypatch, FakeIdp())
+
+    state, _nonce = await _begin_login(client)  # begun with the platform slug
+    response = await client.get(
+        "/api/v1/auth/corp/callback",
+        params={"code": "code-1", "state": state},
+        follow_redirects=False,
+    )
+    assert response.status_code in (302, 307)
+    assert "invalid_state" in response.headers["location"]
+    assert "session_token" not in response.cookies
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_row_provider_full_login_flow(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """End-to-end against a registry-managed provider row: begin at the
+    per-slug login URL, complete at its callback, and the provisioned identity
+    and session belong to THAT provider (not the platform one)."""
+    await _enable_platform_oidc(session)
+    row = await create_auth_provider(session, slug="corp")
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    begin = await client.get("/api/v1/auth/corp/login", follow_redirects=False)
+    assert begin.status_code in (302, 307)
+    location = begin.headers["location"]
+    assert location.startswith(f"{OIDC_ISSUER}/authorize?")
+    query = {k: v[0] for k, v in parse_qs(urlsplit(location).query).items()}
+    assert query["redirect_uri"].endswith("/api/v1/auth/corp/callback")
+
+    idp.token_response = httpx.Response(
+        200,
+        json={
+            "access_token": "at-corp",
+            "refresh_token": "rt-corp",
+            "id_token": mint_id_token(
+                nonce=query["nonce"],
+                email="corp-user@example.com",
+                email_verified=True,
+            ),
+            "token_type": "Bearer",
+        },
+    )
+    response = await client.get(
+        "/api/v1/auth/corp/callback",
+        params={"code": "code-corp", "state": query["state"]},
+        follow_redirects=False,
+    )
+    assert response.status_code in (302, 307)
+    assert SESSION_COOKIE_NAME in response.cookies
+
+    user = (
+        await session.exec(
+            select(User).where(User.email_hash == hash_email("corp-user@example.com"))
+        )
+    ).one()
+    identity = (
+        await session.exec(
+            select(FederatedIdentity).where(FederatedIdentity.user_id == user.id)
+        )
+    ).one()
+    assert identity.provider_id == row.id
+    auth_session = (
+        await session.exec(select(AuthSession).where(AuthSession.user_id == user.id))
+    ).one()
+    assert auth_session.amr == ["oidc:corp"]
+    assert auth_session.satisfied_providers == [row.id]
 
 
 @pytest.mark.integration
@@ -1633,6 +1895,72 @@ async def test_login_sets_refresh_cookie(client: AsyncClient, session: AsyncSess
     assert resp.status_code == 200
     assert resp.cookies.get("refresh_token")
     assert resp.cookies.get("session_token")  # legacy cookie unchanged
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_login_issues_session_access_token(
+    client: AsyncClient, session: AsyncSession
+):
+    """Login mints the new-model access token: short-lived (AUTH_ACCESS_TTL),
+    carrying the server-side session id and satisfied factors (sid/amr/sat)."""
+    import jwt as pyjwt
+
+    from app.core.config import settings as app_settings
+
+    _, password = await _make_login_user(session, "newmodel@example.com")
+    resp = await _login(client, "newmodel@example.com", password)
+    assert resp.status_code == 200
+
+    claims = pyjwt.decode(
+        resp.json()["access_token"], options={"verify_signature": False}
+    )
+    assert claims["amr"] == ["pwd"]
+    assert claims["sat"] == []
+    assert claims["sid"]
+    assert resp.cookies.get(REFRESH_COOKIE_NAME)
+    set_cookies = resp.headers.get_list("set-cookie")
+    expected_age = f"Max-Age={app_settings.AUTH_ACCESS_TTL_MINUTES * 60}"
+    assert any(
+        c.startswith(f"{SESSION_COOKIE_NAME}=") and expected_age in c
+        for c in set_cookies
+    ), set_cookies
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_login_session_store_failure_falls_back_to_legacy(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """A session-store failure must not block sign-in: login falls back to a
+    legacy long-lived token (no refresh cookie) that still authenticates."""
+    import jwt as pyjwt
+
+    _, password = await _make_login_user(session, "fallback@example.com")
+
+    async def _boom(*args, **kwargs):
+        raise RuntimeError("session store down")
+
+    monkeypatch.setattr("app.services.auth.sessions.create_session", _boom)
+
+    resp = await _login(client, "fallback@example.com", password)
+    assert resp.status_code == 200
+    token = resp.json()["access_token"]
+    claims = pyjwt.decode(token, options={"verify_signature": False})
+    assert "sid" not in claims
+    assert resp.cookies.get(REFRESH_COOKIE_NAME) is None
+    # Any leftover refresh cookie is actively cleared so it can't ride the
+    # new login into a later silent renewal.
+    set_cookies = resp.headers.get_list("set-cookie")
+    assert any(
+        c.startswith(f"{REFRESH_COOKIE_NAME}=") and ("Max-Age=0" in c or "1970" in c)
+        for c in set_cookies
+    ), set_cookies
+
+    me = await client.get(
+        "/api/v1/users/me", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert me.status_code == 200
 
 
 @pytest.mark.integration

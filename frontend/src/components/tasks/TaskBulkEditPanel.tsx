@@ -26,7 +26,7 @@ export const TaskBulkEditPanel = ({
   isArchiving,
   exportParams,
 }: TaskBulkEditPanelProps) => {
-  const { t } = useTranslation(["tasks", "common"]);
+  const { t } = useTranslation(["tasks", "common", "exports"]);
   return (
     <div className="flex items-center justify-between rounded-md border border-primary bg-primary/5 p-4">
       <div className="font-medium text-sm">
@@ -34,7 +34,9 @@ export const TaskBulkEditPanel = ({
       </div>
 
       <div className="flex items-center gap-2">
-        {exportParams && <ExportTasksButton params={exportParams} label={t("export.selected")} />}
+        {exportParams && (
+          <ExportTasksButton params={exportParams} label={t("exports:export.selected")} />
+        )}
         <Button variant="outline" size="sm" onClick={onEditTags}>
           <Tags className="h-4 w-4" />
           {t("bulkEdit.editTags")}

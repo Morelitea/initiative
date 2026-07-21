@@ -191,12 +191,12 @@ export const SettingsInitiativesPage = () => {
             >
               {initiative.is_archived ? (
                 <>
-                  <ArchiveRestore className="mr-1.5 h-4 w-4" />
+                  <ArchiveRestore className="h-4 w-4" />
                   {t("manage.unarchive")}
                 </>
               ) : (
                 <>
-                  <Archive className="mr-1.5 h-4 w-4" />
+                  <Archive className="h-4 w-4" />
                   {t("manage.archive")}
                 </>
               )}
@@ -209,7 +209,7 @@ export const SettingsInitiativesPage = () => {
               disabled={initiative.is_default}
               title={initiative.is_default ? t("manage.deleteDefaultHint") : undefined}
             >
-              <Trash2 className="mr-1.5 h-4 w-4" />
+              <Trash2 className="h-4 w-4" />
               {t("manage.delete")}
             </Button>
           </div>

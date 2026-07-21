@@ -67,6 +67,17 @@ export const setApiBaseUrl = (url: string) => {
 };
 
 export const AUTH_UNAUTHORIZED_EVENT = "initiative:auth:unauthorized";
+export const AUTH_STEP_UP_EVENT = "initiative:auth:step-up";
+
+export interface StepUpEventDetail {
+  /** Slug of the provider the guild requires (X-Auth-Step-Up header). */
+  providerSlug: string;
+  /**
+   * Guild whose login flow serves that provider (X-Auth-Step-Up-Guild
+   * header); null on servers that predate guild-addressed login URLs.
+   */
+  guildId: number | null;
+}
 
 let authToken: string | null = null;
 let isDeviceToken = false;
@@ -186,11 +197,34 @@ interface RetriableRequestConfig extends AxiosRequestConfig {
   _sessionRefreshRetried?: boolean;
 }
 
+// A guild step-up 401 means "this guild requires another sign-in factor" —
+// the session itself is fine, so it must neither trigger a renewal nor the
+// signed-out toast; the page handles it.
+const isStepUpChallenge = (error: { response?: { data?: { detail?: unknown } } }): boolean =>
+  error.response?.data?.detail === "GUILD_AUTH_STEP_UP_REQUIRED";
+
 // Guild context lives in the request URL (/g/{guildId}/…), per tab — there is
 // no ambient guild context to guard a response against, so the only response
 // concern left is an expired session: try a silent renewal, then surface it.
 apiClient.interceptors.response.use(undefined, async (error) => {
   const config = error.config as RetriableRequestConfig | undefined;
+  if (isStepUpChallenge(error)) {
+    // Announce the challenge so the global step-up dialog can offer the
+    // required provider's sign-in; the request itself still rejects (pages
+    // render their error state, nothing retries).
+    const providerSlug = error.response?.headers?.["x-auth-step-up"];
+    const rawGuildId = error.response?.headers?.["x-auth-step-up-guild"];
+    const guildId =
+      typeof rawGuildId === "string" && /^\d+$/.test(rawGuildId) ? Number(rawGuildId) : null;
+    if (typeof providerSlug === "string" && providerSlug && typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent<StepUpEventDetail>(AUTH_STEP_UP_EVENT, {
+          detail: { providerSlug, guildId },
+        })
+      );
+    }
+    return Promise.reject(error);
+  }
   if (
     error.response?.status === 401 &&
     !Capacitor.isNativePlatform() &&

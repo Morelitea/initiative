@@ -39,8 +39,8 @@ class AuthProvider(SQLModel, table=True):
 
     Replaces the single ``app_settings.oidc_*`` config with a registry that can
     hold many providers. ``guild_id IS NULL`` is an **operator-global** provider
-    (platform-level login); a set ``guild_id`` is a **guild-scoped** enterprise
-    IdP (only used when ``ENTERPRISE_GUILD_SSO`` is on).
+    (platform-level login); a set ``guild_id`` is a **guild-scoped** IdP,
+    managed by that guild's admins when the platform runs per-guild auth.
 
     Metadata only — the client *secret* lives in a separate, ``app_admin``-only
     companion table added with the OIDC-login phase; nothing here is sensitive

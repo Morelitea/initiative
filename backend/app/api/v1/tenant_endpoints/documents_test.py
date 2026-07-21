@@ -896,6 +896,56 @@ async def test_list_documents_ids_filter_respects_visibility(
 
 
 @pytest.mark.integration
+async def test_list_documents_filters_by_template_and_type(
+    client: AsyncClient, session, acting_user
+):
+    """``is_template``/``document_type`` narrow the listing in SQL so the
+    template picker doesn't walk the whole corpus."""
+    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+
+    native_template = await create_document(
+        session, actor.initiative, actor.user, is_template=True
+    )
+    whiteboard_template = await create_document(
+        session,
+        actor.initiative,
+        actor.user,
+        is_template=True,
+        document_type=DocumentType.whiteboard,
+    )
+    plain = await create_document(session, actor.initiative, actor.user)
+
+    response = await client.get(
+        actor.g("/documents/"),
+        headers=actor.headers,
+        params={"is_template": True},
+    )
+    assert response.status_code == 200
+    assert {item["id"] for item in response.json()["items"]} == {
+        native_template.id,
+        whiteboard_template.id,
+    }
+
+    response = await client.get(
+        actor.g("/documents/"),
+        headers=actor.headers,
+        params={"is_template": True, "document_type": "native"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert [item["id"] for item in data["items"]] == [native_template.id]
+    assert data["total_count"] == 1
+
+    response = await client.get(
+        actor.g("/documents/"),
+        headers=actor.headers,
+        params={"is_template": False},
+    )
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()["items"]] == [plain.id]
+
+
+@pytest.mark.integration
 async def test_list_documents_rejects_too_many_ids(client: AsyncClient, acting_user):
     actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
 
@@ -964,3 +1014,134 @@ async def test_autocomplete_documents_honors_limit(
 
     assert response.status_code == 200
     assert len(response.json()) == 2
+
+
+@pytest.mark.integration
+async def test_autocomplete_documents_rejects_non_positive_limit(
+    client: AsyncClient, session, acting_user
+):
+    """``limit`` is bounded at 1 — a negative value is rejected at validation
+    rather than reaching Postgres (which errors on a negative LIMIT)."""
+    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+
+    response = await client.get(
+        actor.g("/documents/autocomplete"),
+        headers=actor.headers,
+        params={"initiative_id": actor.initiative.id, "q": "", "limit": -1},
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.integration
+async def test_autocomplete_documents_guild_wide_template_search(
+    client: AsyncClient, session, acting_user
+):
+    """Templates are picked guild-wide, so omitting ``initiative_id`` searches
+    every initiative the caller can see — narrowed to templates of one type."""
+    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    other_initiative = await create_initiative(session, actor.guild, actor.user)
+
+    here = await create_document(
+        session, actor.initiative, actor.user, title="Meeting Notes", is_template=True
+    )
+    there = await create_document(
+        session, other_initiative, actor.user, title="Meeting Agenda", is_template=True
+    )
+    board = await create_document(
+        session,
+        other_initiative,
+        actor.user,
+        title="Meeting Board",
+        is_template=True,
+        document_type=DocumentType.whiteboard,
+    )
+    await create_document(session, actor.initiative, actor.user, title="Meeting Recap")
+
+    response = await client.get(
+        actor.g("/documents/autocomplete"),
+        headers=actor.headers,
+        params={"q": "meeting", "is_template": True, "limit": 20},
+    )
+    assert response.status_code == 200
+    assert {item["id"] for item in response.json()} == {here.id, there.id, board.id}
+
+    response = await client.get(
+        actor.g("/documents/autocomplete"),
+        headers=actor.headers,
+        params={"is_template": True, "document_type": "native", "limit": 20},
+    )
+    assert response.status_code == 200
+    items = response.json()
+    assert {item["id"] for item in items} == {here.id, there.id}
+    assert all(item["document_type"] == "native" for item in items)
+
+
+@pytest.mark.integration
+async def test_autocomplete_guild_wide_respects_document_dac(
+    client: AsyncClient, session, acting_user
+):
+    """A guild-wide search is a wider net, not a looser one — a template the
+    caller holds no grant on stays invisible."""
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    private_template = await create_document(
+        session,
+        owner.initiative,
+        owner.user,
+        title="Private Template",
+        is_template=True,
+    )
+
+    other = await acting_user(
+        guild_role=GuildRole.member,
+        guild=owner.guild,
+        initiative=owner.initiative,
+        initiative_role="member",
+    )
+
+    response = await client.get(
+        other.g("/documents/autocomplete"),
+        headers=other.headers,
+        params={"is_template": True, "limit": 20},
+    )
+
+    assert response.status_code == 200
+    assert private_template.id not in {item["id"] for item in response.json()}
+
+
+@pytest.mark.integration
+async def test_document_counts_by_initiative(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Grouped counts follow the same visibility rules as the document list."""
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=admin.initiative,
+        initiative_role="member",
+    )
+    other_initiative = await create_initiative(session, admin.guild, admin.user)
+
+    await create_document(session, admin.initiative, member.user)
+    await create_document(session, admin.initiative, member.user)
+    await create_document(session, admin.initiative, admin.user)
+    await create_document(session, other_initiative, admin.user)
+
+    # Guild admin sees every document, grouped by initiative.
+    response = await client.get(
+        admin.g("/documents/counts/by-initiative"), headers=admin.headers
+    )
+    assert response.status_code == 200
+    assert response.json()["counts"] == {
+        str(admin.initiative.id): 3,
+        str(other_initiative.id): 1,
+    }
+
+    # A member counts only documents shared with them, and gets no entry
+    # at all for initiatives they are not in.
+    response = await client.get(
+        member.g("/documents/counts/by-initiative"), headers=member.headers
+    )
+    assert response.status_code == 200
+    assert response.json()["counts"] == {str(admin.initiative.id): 2}

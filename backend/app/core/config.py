@@ -1,8 +1,27 @@
+import re
+from enum import Enum
 from functools import lru_cache
 from urllib.parse import urlsplit
 
 from pydantic import AliasChoices, EmailStr, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class AuthScope(str, Enum):
+    """Where login is configured — a **deploy-time** posture, set once at boot
+    via the ``AUTH_SCOPE`` env value, never toggled at runtime.
+
+    ``platform`` — sign-in is configured once for the whole instance
+    (operator-global providers). ``guild`` — each guild configures its own
+    sign-in and may require it. The two are mutually exclusive; an instance is
+    built one way. Switching is non-destructive (it never deletes users,
+    memberships, or providers), but a deployment that has granted access via
+    guild auth does not switch back.
+    """
+
+    platform = "platform"
+    guild = "guild"
+
 
 # App identity/shape — deliberately constants, not settings: the SPA, the
 # docs-CSP route, and the OpenAPI export all assume this prefix, so making it
@@ -190,6 +209,23 @@ class Settings(BaseSettings):
             return None
         return _validate_strong_key(value, "JWT_SIGNING_KEY", rotation_hint=False)
 
+    @field_validator("GUILD_ROLE_PREFIX", "PLATFORM_ROLE_PREFIX")
+    @classmethod
+    def _validate_role_prefix(cls, value: str) -> str:
+        # These prefixes are interpolated into Postgres ROLE-name DDL and into
+        # every request's SET ROLE. Pin them to an unquoted-identifier-safe
+        # shape once at load time (fail closed) so no name-builder or migration
+        # has to re-check: empty (the production default), or a leading letter/
+        # underscore followed by letters, digits, and underscores. A
+        # digit-leading prefix would yield a role name Postgres rejects.
+        if value and not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", value):
+            raise ValueError(
+                "must be empty or start with a letter or underscore and contain "
+                "only ASCII letters, digits, and underscores (it becomes part of "
+                "Postgres role names)"
+            )
+        return value
+
     @property
     def jwt_signing_key(self) -> str:
         """Key used to sign/verify JWTs. Prefers the dedicated JWT_SIGNING_KEY so it
@@ -339,6 +375,10 @@ class Settings(BaseSettings):
                 "frame-ancestors": ["'none'"],
             }
         )
+
+    # Deploy-time login posture (see AuthScope). Read directly from the
+    # environment; there is no runtime setter.
+    AUTH_SCOPE: AuthScope = AuthScope.platform
 
     OIDC_ENABLED: bool = False
     OIDC_ISSUER: str | None = None
@@ -526,13 +566,14 @@ class Settings(BaseSettings):
     # ADVANCED_TOOL_URL. Defaults to the ADVANCED_TOOL_URL origin if unset.
     ADVANCED_TOOL_ALLOWED_ORIGINS: list[str] | str | None = None
 
-    # Optional asymmetric key material for signing advanced-tool handoff
-    # JWTs with RS256 instead of HS256. When set, the proprietary embed
-    # backend verifies tokens using the matching public key only — no
-    # secret has to be shared between FOSS and the embed service. Falls
-    # back to HS256 with SECRET_KEY when unset, so OSS deployments work
-    # out of the box. Generate a 2048-bit RSA keypair with
-    # ``openssl genrsa -out private.pem 2048`` and feed the PEM here.
+    # RSA private key (PEM) for signing advanced-tool handoff JWTs. Handoff
+    # tokens cross a trust boundary — the proprietary embed backend verifies
+    # them with the matching public key — so signing is always RS256 and no
+    # secret is shared across that boundary. REQUIRED whenever
+    # ADVANCED_TOOL_URL is set: with the URL on and this unset, the handoff
+    # endpoints fail closed (503) and the app logs a warning at boot.
+    # Generate a 2048-bit keypair with ``openssl genrsa -out private.pem 2048``
+    # and feed the PEM here.
     HANDOFF_SIGNING_PRIVATE_KEY_PEM: str | None = None
     # Key id stamped on the JWT header. The proprietary side reads ``kid``
     # to pick the right verifying key — useful when rotating.

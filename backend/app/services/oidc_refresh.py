@@ -17,11 +17,11 @@ from app.core.encryption import (
     SALT_OIDC_CLIENT_SECRET,
 )
 from app.db.session import AdminSessionLocal
+from app.models.platform.auth_provider_secret import AuthProviderSecret
 from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.federated_identity_secret import FederatedIdentitySecret
 from app.models.platform.user import User
 from app.services.auth.platform_provider import get_platform_provider
-from app.services.platform import app_settings as app_settings_service
 from app.services.oidc_sync import extract_claim_values, sync_oidc_assignments
 
 logger = logging.getLogger(__name__)
@@ -163,22 +163,23 @@ async def _refresh_and_sync_identity(
 
 async def process_oidc_refresh_sync() -> None:
     async with AdminSessionLocal() as session:
-        app_settings = await app_settings_service.get_app_settings(session)
-
-        if not app_settings.oidc_enabled:
+        # The platform provider registry row is the config's source of truth;
+        # its client secret lives in the auth_provider_secrets companion.
+        provider = await get_platform_provider(session)
+        if provider is None or not provider.enabled:
             return
-        claim_path = getattr(app_settings, "oidc_role_claim_path", None)
+        claim_path = provider.role_claim_path
         if not claim_path:
             return
-        if not (
-            app_settings.oidc_issuer
-            and app_settings.oidc_client_id
-            and app_settings.oidc_client_secret_encrypted
-        ):
+        if not (provider.issuer and provider.client_id):
+            return
+        secret_row = await session.get(AuthProviderSecret, provider.id)
+        secret_ciphertext = secret_row.client_secret_encrypted if secret_row else None
+        if not secret_ciphertext:
             return
 
         try:
-            metadata = await _fetch_oidc_metadata(app_settings.oidc_issuer)
+            metadata = await _fetch_oidc_metadata(provider.issuer)
         except Exception:
             logger.exception("Failed to fetch OIDC metadata for background sync")
             return
@@ -189,12 +190,6 @@ async def process_oidc_refresh_sync() -> None:
             logger.warning(
                 "OIDC metadata missing token/userinfo endpoint; skipping sync"
             )
-            return
-
-        provider = await get_platform_provider(session)
-        if provider is None:
-            # Created by the boot backfill / first login; nothing to sweep yet.
-            logger.debug("oidc-refresh-sync: no platform provider row")
             return
 
         cutoff = datetime.now(timezone.utc) - _SYNC_INTERVAL
@@ -229,10 +224,8 @@ async def process_oidc_refresh_sync() -> None:
                 user=user,
                 token_endpoint=token_endpoint,
                 userinfo_endpoint=userinfo_endpoint,
-                client_id=app_settings.oidc_client_id,
-                client_secret=decrypt_field(
-                    app_settings.oidc_client_secret_encrypted, SALT_OIDC_CLIENT_SECRET
-                ),
+                client_id=provider.client_id,
+                client_secret=decrypt_field(secret_ciphertext, SALT_OIDC_CLIENT_SECRET),
                 claim_path=claim_path,
             )
             if ok:

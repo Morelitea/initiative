@@ -412,6 +412,77 @@ async def test_get_initiative_members(
 
 
 @pytest.mark.integration
+async def test_search_initiative_members_slim_and_filtered(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The slim members search returns a UserSummary envelope and filters by
+    name, with the same membership gate as the full roster."""
+    admin = await acting_user(guild_role=GuildRole.admin, full_name="Zed Admin")
+    initiative = await create_initiative(
+        session, admin.guild, admin.user, name="Search Initiative"
+    )
+    await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=initiative,
+        initiative_role="member",
+        email="alice@example.com",
+        full_name="Alice Wonderland",
+    )
+    await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=initiative,
+        initiative_role="member",
+        email="bob@example.com",
+        full_name="Bob Builder",
+    )
+
+    # Unfiltered: slim envelope over every member (creator + 2).
+    response = await client.get(
+        admin.g(f"/initiatives/{initiative.id}/members/search"),
+        headers=admin.headers,
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_count"] == 3
+    assert set(body["items"][0].keys()) == {
+        "id",
+        "full_name",
+        "avatar_base64",
+        "avatar_url",
+        "status",
+    }
+
+    # Filtered by name.
+    response = await client.get(
+        admin.g(f"/initiatives/{initiative.id}/members/search"),
+        headers=admin.headers,
+        params={"search": "wonder"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_count"] == 1
+    assert body["items"][0]["full_name"] == "Alice Wonderland"
+
+
+@pytest.mark.integration
+async def test_search_initiative_members_as_nonmember_forbidden(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A plain guild member outside the initiative is locked out of the slim
+    roster, mirroring the full members endpoint."""
+    creator = await acting_user(guild_role=GuildRole.member, initiative=True)
+    outsider = await acting_user(guild_role=GuildRole.member, guild=creator.guild)
+
+    response = await client.get(
+        outsider.g(f"/initiatives/{creator.initiative.id}/members/search"),
+        headers=outsider.headers,
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.integration
 async def test_get_initiative_members_as_nonmember_guild_admin(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -879,17 +950,12 @@ async def test_advanced_tool_handoff_succeeds_for_initiative_manager(
     assert body["iframe_url"] == "https://embed.example.com"
     assert body["expires_in_seconds"] > 0
 
-    payload = jwt.decode(
-        body["handoff_token"],
-        app_settings.jwt_signing_key,
-        # Hardcoded HS256 (not JWT_ALGORITHM) — the handoff signing
-        # path explicitly uses HS256 in its no-private-key fallback, so
-        # tests must assert against that algorithm directly. Decoupling
-        # from JWT_ALGORITHM keeps these tests stable if the global
-        # session-token algorithm is ever changed.
-        algorithms=["HS256"],
-        audience=ADVANCED_TOOL_AUDIENCE,
-    )
+    # The handoff signs RS256 across the trust boundary; assert the algorithm
+    # and read the claims (the full signature round-trip is covered in
+    # security_test.py).
+    assert jwt.get_unverified_header(body["handoff_token"])["alg"] == "RS256"
+    payload = jwt.decode(body["handoff_token"], options={"verify_signature": False})
+    assert payload["aud"] == ADVANCED_TOOL_AUDIENCE
     assert payload["sub"] == str(pm.user.id)
     assert payload["scope"] == "initiative"
     assert payload["initiative_id"] == initiative.id
@@ -959,19 +1025,16 @@ async def test_advanced_tool_handoff_can_create_false_for_view_only_role(
     )
 
     assert response.status_code == 200
-    payload = jwt.decode(
-        response.json()["handoff_token"],
-        app_settings.jwt_signing_key,
-        # Hardcoded HS256 (not JWT_ALGORITHM) — the handoff signing
-        # path explicitly uses HS256 in its no-private-key fallback, so
-        # tests must assert against that algorithm directly. Decoupling
-        # from JWT_ALGORITHM keeps these tests stable if the global
-        # session-token algorithm is ever changed.
-        algorithms=["HS256"],
-        audience=ADVANCED_TOOL_AUDIENCE,
-    )
+    token = response.json()["handoff_token"]
+    assert jwt.get_unverified_header(token)["alg"] == "RS256"
+    payload = jwt.decode(token, options={"verify_signature": False})
+    assert payload["aud"] == ADVANCED_TOOL_AUDIENCE
     assert payload["is_manager"] is False
     assert payload["can_create"] is False
+    # The claim the embed trusts is the server-resolved role: a plain member's
+    # token says "member", never an elevated role. There is no request field
+    # that could change it (it comes from guild_context.role).
+    assert payload["guild_role"] == "member"
 
 
 @pytest.mark.integration

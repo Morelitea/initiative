@@ -26,6 +26,7 @@ from app.core.messages import GuildMessages
 from app.core.rate_limit import limiter
 from app.core.config import API_V1_STR, PROJECT_NAME, settings
 from app.core.version import __version__
+from app.db.errors import INSUFFICIENT_PRIVILEGE_SQLSTATE, dbapi_sqlstate
 from app.db.session import AdminSessionLocal, get_admin_session, run_migrations
 from app.models.platform.user import User
 from app.services.platform import app_settings as app_settings_service
@@ -96,6 +97,14 @@ async def lifespan(app: FastAPI):
     # GRANTs when a deployment's URLs connect as other logins.
     await verify_effective_shared_grants()
     await warn_if_privileged_database_url()
+    if settings.ADVANCED_TOOL_URL and not settings.HANDOFF_SIGNING_PRIVATE_KEY_PEM:
+        # The advanced-tool embed verifies handoff tokens by RS256 public key;
+        # without the private key the handoff endpoints fail closed (503).
+        logger.warning(
+            "ADVANCED_TOOL_URL is set but HANDOFF_SIGNING_PRIVATE_KEY_PEM is not; "
+            "advanced-tool handoffs will fail closed until an RS256 signing key "
+            "is configured."
+        )
     backfill = await backfill_guild_schemas()
     if backfill.failed:
         # WARNING so partial failure survives INFO-filtered logs (per-guild
@@ -146,30 +155,18 @@ async def lifespan(app: FastAPI):
         from app.services import storage_config
 
         await storage_config.refresh_storage_config(session)
-    # Migrate the single platform OIDC config into the provider registry +
-    # identity links, and copy the per-user refresh token + sync stamp onto
-    # those links (operator-global; idempotent, self-healing). Runs after
-    # ensure_defaults so the settings singleton exists. Additive — the legacy
-    # app_settings.oidc_* / users.oidc_* columns stay (unread) until the final
-    # cutover phase drops them.
-    from app.services.auth.oidc_backfill import backfill_oidc_identity
+    # First-boot seed: create the platform OIDC provider row from OIDC_* env
+    # values (issuer + client id required; no-op once the row exists — after
+    # that the settings UI owns it). Runs on the system engine because the
+    # provider registry carries no request-path grants.
+    from app.services.auth.platform_provider import seed_platform_provider_from_env
 
-    oidc = await backfill_oidc_identity()
-    if (
-        oidc.provider_created
-        or oidc.identities_linked
-        or oidc.secret_migrated
-        or oidc.refresh_tokens_copied
-    ):
-        logger.info(
-            "OIDC identity back-fill: provider %s, %d identities linked (of %d), "
-            "%d refresh token(s) copied, secret %s",
-            "created" if oidc.provider_created else "existing",
-            oidc.identities_linked,
-            oidc.oidc_users,
-            oidc.refresh_tokens_copied,
-            "migrated" if oidc.secret_migrated else "unchanged",
-        )
+    try:
+        async with AdminSessionLocal() as seed_session:
+            await seed_platform_provider_from_env(seed_session)
+    except Exception:
+        logger.exception("Platform OIDC env seed failed; configure via settings UI")
+
     app.state.notification_tasks = background_tasks_service.start_background_tasks()
 
     try:
@@ -249,22 +246,6 @@ async def validation_exception_handler(
     )
 
 
-_INSUFFICIENT_PRIVILEGE_SQLSTATE = "42501"
-
-
-def _dbapi_sqlstate(exc: DBAPIError) -> str | None:
-    """Best-effort SQLSTATE off a wrapped DBAPI error (asyncpg adapter nests
-    the real exception one level down as ``orig.__cause__``)."""
-    orig = getattr(exc, "orig", None)
-    for candidate in (orig, getattr(orig, "__cause__", None)):
-        code = getattr(candidate, "sqlstate", None) or getattr(
-            candidate, "pgcode", None
-        )
-        if code:
-            return code
-    return None
-
-
 @app.exception_handler(DBAPIError)
 async def insufficient_privilege_handler(
     request: Request, exc: DBAPIError
@@ -284,7 +265,7 @@ async def insufficient_privilege_handler(
     grant, a misconfigured login role) must be findable in the logs — the
     client body is deliberately too generic to debug from.
     """
-    if _dbapi_sqlstate(exc) == _INSUFFICIENT_PRIVILEGE_SQLSTATE:
+    if dbapi_sqlstate(exc) == INSUFFICIENT_PRIVILEGE_SQLSTATE:
         logger.warning(
             "insufficient_privilege mapped to 403: %s %s orig=%s",
             request.method,

@@ -159,6 +159,9 @@ async def test_unknown_user_is_provisioned_and_linked(session):
     assert user.status == UserStatus.active
     assert user.email_verified is True
     assert user.full_name == "Alice"
+    # SSO-only: no password is set — a NULL hash never verifies, so this
+    # account signs in exclusively through its provider.
+    assert user.hashed_password is None
     assert result.identity.subject == "sub-1"
 
     # The very next login resolves via the link.
@@ -183,6 +186,67 @@ async def test_missing_email_claim_uses_synthetic_address(session):
     assert result.user.email_hash == hash_email("opaque-7@oidc.local")
     # A synthetic address is not a mailbox; it is never marked verified.
     assert result.user.email_verified is False
+
+
+async def _create_guild_provider(session, *, guild_auth_enabled: bool):
+    """A JIT-capable guild-scoped provider whose guild's sign-in entitlement is
+    set to ``guild_auth_enabled``."""
+    from app.testing.factories import create_guild
+
+    guild = await create_guild(session, guild_auth_enabled=guild_auth_enabled)
+    provider = AuthProvider(
+        slug=f"idp-{secrets.token_hex(4)}",
+        display_name="Guild IdP",
+        kind=AuthProviderKind.oidc.value,
+        enabled=True,
+        guild_id=guild.id,
+        issuer="https://idp.example.com",
+        client_id="client-123",
+        allow_jit=True,
+    )
+    session.add(provider)
+    await session.commit()
+    await session.refresh(provider)
+    return guild, provider
+
+
+async def test_guild_provider_jit_refused_when_guild_auth_disabled(session):
+    """A guild-scoped provider whose guild has sign-in disabled refuses an
+    unknown user — no new account — even though the provider allows JIT."""
+    _guild, provider = await _create_guild_provider(session, guild_auth_enabled=False)
+
+    result = await _resolve(
+        session, provider, subject="unknown-sub", email="stranger@example.com"
+    )
+    assert result.outcome is ResolutionOutcome.JIT_DISABLED
+    assert result.user is None
+    assert await _identities_for(session, provider) == []
+
+
+async def test_guild_provider_jit_allowed_when_guild_auth_enabled(session):
+    """The mirror: an enabled guild JIT-provisions a new user (allow_jit alone,
+    independent of instance registration)."""
+    _guild, provider = await _create_guild_provider(session, guild_auth_enabled=True)
+
+    result = await _resolve(
+        session, provider, subject="new-sub", email="new@example.com"
+    )
+    assert result.outcome is ResolutionOutcome.PROVISIONED
+    assert result.user is not None
+
+
+async def test_disabled_guild_still_resolves_existing_linked_identity(session):
+    """The gate is on NEW accounts only: an existing (provider, subject) link
+    still resolves to its user even when the guild's sign-in is disabled."""
+    _guild, provider = await _create_guild_provider(session, guild_auth_enabled=False)
+    user = await create_user(session)
+    await link_identity(
+        session, user=user, provider=provider, subject="sub-1", email_verified=True
+    )
+
+    result = await _resolve(session, provider, subject="sub-1")
+    assert result.outcome is ResolutionOutcome.LINKED
+    assert result.user.id == user.id
 
 
 async def test_jit_disabled_provider_refuses_unknown_user(session):

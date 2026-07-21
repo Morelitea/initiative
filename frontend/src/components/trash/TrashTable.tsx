@@ -2,7 +2,11 @@ import { formatDistanceToNow } from "date-fns";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { TrashItem, TrashItemEntityType } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  RestoreOwnerCandidate,
+  TrashItem,
+  TrashItemEntityType,
+} from "@/api/generated/initiativeAPI.schemas";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -62,7 +66,7 @@ export const TrashTable = ({ variant, showPurgeAction }: TrashTableProps) => {
         guildId: number;
         entityType: TrashItemEntityType;
         entityId: number;
-        validOwnerIds: number[];
+        validOwners: RestoreOwnerCandidate[];
       }
   >({ open: false });
 
@@ -88,7 +92,7 @@ export const TrashTable = ({ variant, showPurgeAction }: TrashTableProps) => {
           guildId: variables.guildId,
           entityType: variables.entityType,
           entityId: variables.entityId,
-          validOwnerIds: data.valid_owner_ids,
+          validOwners: data.valid_owners ?? [],
         });
       }
     },
@@ -216,9 +220,8 @@ export const TrashTable = ({ variant, showPurgeAction }: TrashTableProps) => {
         <ReassignOwnerDialog
           open={reassignState.open}
           onOpenChange={(open) => !open && setReassignState({ open: false })}
-          guildId={reassignState.guildId}
           entityType={reassignState.entityType}
-          validOwnerIds={reassignState.validOwnerIds}
+          validOwners={reassignState.validOwners}
           onConfirm={handleReassignConfirm}
           isPending={restoreMutation.isPending}
         />

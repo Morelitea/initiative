@@ -6,6 +6,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useExportJob } from "@/hooks/useExportJob";
@@ -13,7 +15,7 @@ import { useExportJob } from "@/hooks/useExportJob";
 export interface ExportFormatOption {
   /** The ``format`` query value ("pdf", "csv", "xlsx", "md", "json"). */
   format: string;
-  /** tasks-namespace key for the menu entry. */
+  /** exports-namespace key for the menu entry. */
   labelKey: string;
   /** Extra query params for this entry (e.g. ``{ layout: "checklist" }``). */
   extraParams?: Record<string, string>;
@@ -53,7 +55,7 @@ export function ExportButton({
   variant = "outline",
   extraActions = [],
 }: ExportButtonProps) {
-  const { t } = useTranslation("tasks");
+  const { t } = useTranslation("exports");
   const { busy, start } = useExportJob({ resumePending });
 
   const handleExport = (option: ExportFormatOption) =>
@@ -86,20 +88,42 @@ export function ExportButton({
   if (!menuMode) {
     return trigger(false);
   }
+  // The menu is organized by intent: the JSON envelope is the importable
+  // backup; every other format (and the client-side extras) is a report
+  // rendering of the content.
+  const backupFormats = formats.filter((option) => option.format === "json");
+  const reportFormats = formats.filter((option) => option.format !== "json");
+  const hasReports = reportFormats.length > 0 || extraActions.length > 0;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{trigger(true)}</DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {formats.map((option) => (
-          <DropdownMenuItem key={option.labelKey} onSelect={() => void handleExport(option)}>
-            {t(option.labelKey as never)}
-          </DropdownMenuItem>
-        ))}
-        {extraActions.map((action) => (
-          <DropdownMenuItem key={action.labelKey} onSelect={action.onSelect}>
-            {t(action.labelKey as never)}
-          </DropdownMenuItem>
-        ))}
+        {backupFormats.length > 0 && (
+          <>
+            <DropdownMenuLabel>{t("export.headingBackup")}</DropdownMenuLabel>
+            {backupFormats.map((option) => (
+              <DropdownMenuItem key={option.labelKey} onSelect={() => void handleExport(option)}>
+                {t(option.labelKey as never)}
+              </DropdownMenuItem>
+            ))}
+          </>
+        )}
+        {backupFormats.length > 0 && hasReports && <DropdownMenuSeparator />}
+        {hasReports && (
+          <>
+            <DropdownMenuLabel>{t("export.headingReport")}</DropdownMenuLabel>
+            {reportFormats.map((option) => (
+              <DropdownMenuItem key={option.labelKey} onSelect={() => void handleExport(option)}>
+                {t(option.labelKey as never)}
+              </DropdownMenuItem>
+            ))}
+            {extraActions.map((action) => (
+              <DropdownMenuItem key={action.labelKey} onSelect={action.onSelect}>
+                {t(action.labelKey as never)}
+              </DropdownMenuItem>
+            ))}
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

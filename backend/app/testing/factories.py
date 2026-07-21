@@ -157,6 +157,11 @@ async def create_guild(
         "name": f"Test Guild {datetime.now(timezone.utc).timestamp()}",
         "description": "A test guild for integration testing",
         "created_by_user_id": creator.id,
+        # Test guilds are sign-in-enabled by default so the guild-auth surface is
+        # exercisable without extra setup; production guilds default off (the
+        # operator opts each guild in from the Guilds dashboard). Pass
+        # guild_auth_enabled=False to exercise the disabled paths.
+        "guild_auth_enabled": True,
     }
 
     guild_data = {**defaults, **overrides}
@@ -1123,6 +1128,49 @@ async def create_upload(
         await session.refresh(upload)
 
     return upload
+
+
+def set_auth_scope(scope: str = "guild") -> None:
+    """Set the deploy-time login posture (``settings.AUTH_SCOPE``) for the
+    current test; defaults to per-guild, the posture the guild auth surface
+    requires. The ``_reset_auth_scope`` autouse fixture (conftest) restores the
+    default after each test."""
+    from app.core.config import AuthScope, settings
+
+    settings.AUTH_SCOPE = AuthScope(scope)
+
+
+async def create_auth_provider(
+    session: AsyncSession,
+    commit: bool = True,
+    **overrides: Any,
+) -> AuthProvider:
+    """Create an operator-global auth provider registry row.
+
+    Defaults to a login-ready OIDC row pointing at the test IdP constants
+    (``app.testing.oidc``), so a fake-IdP flow verifies against it as-is.
+    """
+    from app.testing.oidc import CLIENT_ID as _TEST_CLIENT_ID, ISSUER as _TEST_ISSUER
+
+    defaults = {
+        "slug": "corp",
+        "display_name": "Corp SSO",
+        "kind": AuthProviderKind.oidc.value,
+        "enabled": True,
+        "guild_id": None,
+        "issuer": _TEST_ISSUER,
+        "client_id": _TEST_CLIENT_ID,
+        "scopes": "openid email",
+        "allow_jit": True,
+    }
+    provider = AuthProvider(**{**defaults, **overrides})
+    session.add(provider)
+
+    if commit:
+        await session.commit()
+        await session.refresh(provider)
+
+    return provider
 
 
 async def create_federated_identity(

@@ -47,7 +47,12 @@ __all__ = [
 # Public tables that carry no SQLModel (so they're absent from ``SHARED_TABLES``,
 # which derives from model metadata) yet still exist in ``public`` and so still
 # need an explicit "grant it nothing" decision for the login roles.
-NON_MODEL_SHARED_TABLES: frozenset[str] = frozenset({"alembic_version"})
+# ``storage_backfill_state`` is created lazily at runtime (see
+# app.services.storage_backfill), not by a migration; its entry below is what
+# the service's own GRANT renders from.
+NON_MODEL_SHARED_TABLES: frozenset[str] = frozenset(
+    {"alembic_version", "storage_backfill_state"}
+)
 
 # Every ``public`` table that requires a per-role grant decision.
 GRANTABLE_SHARED_TABLES: frozenset[str] = SHARED_TABLES | NON_MODEL_SHARED_TABLES
@@ -88,6 +93,9 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # IdP refresh token per identity link — read/rotated only by the system
     # engine (login + background group re-sync)
     "federated_identity_secrets": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # per-guild sign-in requirement — written via the guild-admin endpoint
+    # (provider validation happens on the system engine)
+    "guild_auth_policies": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # session/refresh store — validated pre-auth by refresh-token hash (user
     # unknown), so all session ops run on the system engine; request path revoked
     "auth_sessions": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
@@ -110,6 +118,11 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     "billing_jti_blocklist": frozenset({"SELECT", "DELETE"}),
     # migrations-only bookkeeping (the provisioning role owns it)
     "alembic_version": None,
+    # lazily-created UNLOGGED backfill status singleton: read, seeded idle, and
+    # claimed/updated on the system engine; rows are never deleted (the claim
+    # UPDATE recycles the singleton). The service grants exactly this set at
+    # table creation (app.services.storage_backfill._ensure_table).
+    "storage_backfill_state": frozenset({"SELECT", "INSERT", "UPDATE"}),
 }
 
 
@@ -117,7 +130,11 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
 # ``None``. The pre-routing / unauthenticated surface. Audited in migration
 # 20260702_0130.
 SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
-    "users": frozenset({"SELECT", "UPDATE"}),
+    # SELECT at the table level; UPDATE is column-scoped to every column except
+    # ``role`` (migration 0144) so it does not appear here (a column grant lives
+    # in the column ACL, not the table ACL). ``role`` is writable only by the
+    # system engine — see security_invariants_test.
+    "users": frozenset({"SELECT"}),
     "user_tokens": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     "user_api_keys": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     "auto_delegation_jti_blocklist": frozenset({"SELECT", "INSERT"}),
@@ -136,6 +153,8 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     "federated_identities": None,
     # IdP refresh tokens are system-engine-only; no request role ever reads them
     "federated_identity_secrets": None,
+    # the guild-access gate reads the policy on the bare login role, pre-routing
+    "guild_auth_policies": frozenset({"SELECT"}),
     # sessions are system-engine-only; the bare login role never touches them
     "auth_sessions": None,
     "notifications": None,
@@ -147,6 +166,8 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     "billing_event_log": None,
     "billing_jti_blocklist": None,
     "alembic_version": None,
+    # system-engine-only status singleton; no request role reads it
+    "storage_backfill_state": None,
 }
 
 

@@ -1,6 +1,6 @@
-from typing import Annotated, List, Sequence
+from typing import Annotated, List, Optional, Sequence
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select, delete
@@ -19,7 +19,10 @@ from app.core.messages import (
     GuildMessages,
     InitiativeMessages,
 )
-from app.core.security import create_advanced_tool_handoff_token
+from app.core.security import (
+    HandoffSigningNotConfiguredError,
+    create_advanced_tool_handoff_token,
+)
 from app.core.config import settings
 from app.core.tools import CORE_TOOLS, TOGGLEABLE_TOOLS, Tool
 from app.models.platform.access_grant import AccessLevel
@@ -49,7 +52,12 @@ from app.schemas.tenant.initiative import (
     serialize_initiative,
     serialize_role,
 )
-from app.schemas.platform.user import UserPublic
+from app.schemas.platform.user import (
+    UserPublic,
+    UserSummary,
+    UserSummaryListResponse,
+)
+from app.db.query import page_has_next, paginated_query
 from app.services import notifications as notifications_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.platform import guilds as guilds_service
@@ -816,17 +824,23 @@ async def create_advanced_tool_handoff(
             detail=AdvancedToolMessages.NOT_ENABLED,
         )
 
-    token, expires_in_seconds = create_advanced_tool_handoff_token(
-        user_id=current_user.id,
-        guild_id=guild_context.guild_id,
-        initiative_id=initiative_id,
-        guild_role=guild_context.role.value
-        if hasattr(guild_context.role, "value")
-        else str(guild_context.role),
-        is_manager=is_manager,
-        can_create=can_create,
-        scope="initiative",
-    )
+    try:
+        token, expires_in_seconds = create_advanced_tool_handoff_token(
+            user_id=current_user.id,
+            guild_id=guild_context.guild_id,
+            initiative_id=initiative_id,
+            guild_role=guild_context.role.value,
+            is_manager=is_manager,
+            can_create=can_create,
+            scope="initiative",
+        )
+    except HandoffSigningNotConfiguredError as exc:
+        # ADVANCED_TOOL_URL is on but no RS256 signing key — fail closed
+        # (retryable once the operator configures the key).
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=AdvancedToolMessages.SIGNING_NOT_CONFIGURED,
+        ) from exc
 
     return AdvancedToolHandoffResponse(
         handoff_token=token,
@@ -884,6 +898,69 @@ async def get_initiative_members(
     )
     result = await session.exec(stmt)
     return result.all()
+
+
+@router.get("/{initiative_id}/members/search", response_model=UserSummaryListResponse)
+async def search_initiative_members(
+    initiative_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+    search: Optional[str] = Query(
+        default=None,
+        description="Case-insensitive substring match on the member's name.",
+    ),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=0, le=100),
+) -> UserSummaryListResponse:
+    """Slim, searchable, paginated roster of an initiative's members.
+
+    Same authorization as :func:`get_initiative_members` (member, guild
+    admin, or PAM/break-glass grantee); the search/pagination params are
+    additive filters on the already-RLS-gated query. Returns
+    :class:`UserSummary` for typeahead/picker surfaces instead of the full
+    ``UserPublic`` roster.
+    """
+    await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
+
+    membership = await initiatives_service.get_initiative_membership(
+        session,
+        initiative_id=initiative_id,
+        user_id=current_user.id,
+    )
+    if (
+        not membership
+        and not guild_context.is_pam
+        and not rls_service.is_guild_admin(guild_context.role)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=InitiativeMessages.NOT_A_MEMBER,
+        )
+
+    base = (
+        select(User)
+        .join(InitiativeMember, InitiativeMember.user_id == User.id)
+        .where(InitiativeMember.initiative_id == initiative_id)
+    )
+    if search and (term := search.strip()):
+        base = base.where(User.full_name.ilike(f"%{term}%"))
+
+    count_stmt = select(func.count()).select_from(base.subquery())
+    data_stmt = base.order_by(User.full_name.asc(), User.id.asc())
+
+    users, total_count, actual_page = await paginated_query(
+        session, data_stmt, count_stmt, page=page, page_size=page_size
+    )
+
+    return UserSummaryListResponse(
+        items=[UserSummary.model_validate(user) for user in users],
+        total_count=total_count,
+        page=actual_page,
+        page_size=page_size,
+        has_next=page_has_next(actual_page, page_size, total_count),
+        has_prev=actual_page > 1,
+    )
 
 
 @router.post(

@@ -12,10 +12,9 @@ import logging
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import text
-from sqlalchemy.exc import DBAPIError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole, GuildStatus
+from app.models.platform.guild import Guild, GuildRole, GuildStatus
 from app.models.platform.user import UserRole
 from app.services import email as email_service
 from app.testing import (
@@ -24,6 +23,7 @@ from app.testing import (
     create_initiative,
     create_user,
     get_auth_headers,
+    set_auth_scope,
 )
 
 
@@ -185,6 +185,49 @@ _NON_OWNER_ROLES = [
     UserRole.moderator,
     UserRole.operator,
 ]
+
+
+@pytest.mark.integration
+async def test_claim_path_persists_before_provider_configured(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """Setting the claim path through the real request path with NO platform
+    provider row yet must persist a dormant skeleton row — and survive into an
+    independent follow-up request (not just the writing request's session)."""
+    from app.models.platform.auth_provider import AuthProvider
+    from sqlmodel import select as sql_select
+
+    owner = await create_user(
+        session, email="owner-claimpath@example.com", role=UserRole.owner
+    )
+    headers = get_auth_headers(owner)
+
+    put = await client.put(
+        "/api/v1/settings/oidc-mappings/claim-path",
+        headers=headers,
+        json={"claim_path": "groups"},
+    )
+    assert put.status_code == 200, put.text
+    assert put.json()["claim_path"] == "groups"
+
+    # Independent DB read: the skeleton row landed and is dormant.
+    session.expire_all()
+    row = (
+        await session.exec(
+            sql_select(AuthProvider).where(
+                AuthProvider.slug == "oidc", AuthProvider.guild_id.is_(None)
+            )
+        )
+    ).one()
+    assert row.role_claim_path == "groups"
+    assert row.enabled is False
+    assert row.issuer is None
+
+    # And a second real request reads it back.
+    got = await client.get("/api/v1/settings/oidc-mappings", headers=headers)
+    assert got.status_code == 200
+    assert got.json()["claim_path"] == "groups"
 
 
 @pytest.mark.integration
@@ -461,6 +504,94 @@ async def test_operator_sets_and_clears_guild_status(
     )
     assert resp.status_code == 200
     assert resp.json()["status"] == "active"
+
+
+@pytest.mark.integration
+async def test_operator_toggles_guild_auth_enabled(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """An operator turns a guild's per-guild sign-in entitlement on and off from
+    the Guilds tab; the flag round-trips through list + patch."""
+    owner = await create_user(
+        session, email="owner-gauth@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner, guild_auth_enabled=False)
+    headers = get_auth_headers(owner)
+
+    listed = await client.get("/api/v1/settings/guilds", headers=headers)
+    assert listed.status_code == 200
+    row = {r["name"]: r for r in listed.json()}[guild.name]
+    assert row["guild_auth_enabled"] is False
+
+    on = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"guild_auth_enabled": True},
+        headers=headers,
+    )
+    assert on.status_code == 200, on.text
+    assert on.json()["guild_auth_enabled"] is True
+
+    off = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"guild_auth_enabled": False},
+        headers=headers,
+    )
+    assert off.status_code == 200
+    assert off.json()["guild_auth_enabled"] is False
+
+
+@pytest.mark.integration
+async def test_guild_auth_enabled_null_is_noop(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """An explicit JSON null for guild_auth_enabled is meaningless for a boolean
+    entitlement and must not silently disable it — Pydantic keeps the null in
+    model_fields_set, so a naive provided-flag would coerce it to False. A
+    sibling field in the same PATCH still applies, proving the null is a no-op,
+    not a poisoned request."""
+    owner = await create_user(
+        session, email="owner-gauth-null@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner, guild_auth_enabled=True)
+    headers = get_auth_headers(owner)
+
+    resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"guild_auth_enabled": None, "max_users": 5},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["guild_auth_enabled"] is True
+    assert resp.json()["max_users"] == 5
+
+
+@pytest.mark.integration
+async def test_guild_auth_enabled_is_operator_only(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """A guild's own admin cannot flip the entitlement through the guild-facing
+    PATCH — it is an operator field (like caps and status). The guild-admin
+    endpoint simply doesn't accept it, leaving the flag untouched."""
+    admin = await create_user(session, email="gauth-admin@example.com")
+    guild = await create_guild(session, creator=admin, guild_auth_enabled=False)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    guild_id = guild.id
+
+    resp = await client.patch(
+        f"/api/v1/guilds/{guild_id}",
+        json={"guild_auth_enabled": True},
+        headers=get_auth_headers(admin),
+    )
+    # The guild-admin schema ignores unknown fields; the flag stays off.
+    assert resp.status_code == 200, resp.text
+    session.expire_all()
+    refreshed = await session.get(Guild, guild_id)
+    assert refreshed.guild_auth_enabled is False
 
 
 @pytest.mark.integration
@@ -1023,98 +1154,31 @@ async def test_auth_scope_defaults_to_platform(
 
 
 @pytest.mark.integration
-async def test_auth_scope_switch_is_non_destructive(
+async def test_guild_posture_keeps_platform_oidc_dormant(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    """Switching postures never touches the dormant side's configuration —
-    switching back restores platform OIDC exactly."""
+    """Under guild posture the platform OIDC provider is dormant — not offered
+    on the login page and refused server-side — while its stored configuration
+    is left untouched (posture never deletes config)."""
     owner = await create_user(session, role=UserRole.owner)
     headers = get_auth_headers(owner)
     await _configure_platform_oidc(client, headers)
 
-    status_resp = await client.get("/api/v1/auth/oidc/status")
-    assert status_resp.json()["enabled"] is True
+    async def _login_offered() -> bool:
+        listing = await client.get("/api/v1/auth/providers")
+        return any(p["slug"] == "oidc" for p in listing.json()["providers"])
 
-    # Switch to guild scope: OIDC config is retained but the login goes dormant.
-    resp = await client.put(
-        "/api/v1/settings/auth-scope", json={"scope": "guild"}, headers=headers
-    )
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["auth_scope"] == "guild"
-    assert body["enabled"] is True  # stored config untouched...
-    assert body["issuer"] == "https://idp.example.com"
-    status_resp = await client.get("/api/v1/auth/oidc/status")
-    assert status_resp.json()["enabled"] is False  # ...but not offered
+    assert await _login_offered() is True
 
-    # Switch back: everything as before.
-    resp = await client.put(
-        "/api/v1/settings/auth-scope", json={"scope": "platform"}, headers=headers
-    )
-    assert resp.status_code == 200
-    assert resp.json()["auth_scope"] == "platform"
-    status_resp = await client.get("/api/v1/auth/oidc/status")
-    assert status_resp.json()["enabled"] is True
+    set_auth_scope("guild")
 
-
-@pytest.mark.integration
-async def test_guild_scope_refuses_platform_oidc_login(
-    client: AsyncClient, session: AsyncSession
-) -> None:
-    """Server-side enforcement: in guild scope the dormant platform provider
-    must not authenticate anyone, regardless of what a client requests."""
-    owner = await create_user(session, role=UserRole.owner)
-    headers = get_auth_headers(owner)
-    await _configure_platform_oidc(client, headers)
-    resp = await client.put(
-        "/api/v1/settings/auth-scope", json={"scope": "guild"}, headers=headers
-    )
-    assert resp.status_code == 200
-
+    # Config retained...
+    resp = await client.get("/api/v1/settings/auth", headers=headers)
+    assert resp.json()["auth_scope"] == "guild"
+    assert resp.json()["enabled"] is True
+    assert resp.json()["issuer"] == "https://idp.example.com"
+    # ...but the provider is neither offered nor usable.
+    assert await _login_offered() is False
     login_resp = await client.get("/api/v1/auth/oidc/login")
     assert login_resp.status_code == 404
     assert login_resp.json()["detail"] == "OIDC_NOT_ENABLED"
-
-
-@pytest.mark.integration
-async def test_auth_scope_rejects_unknown_value(
-    client: AsyncClient, session: AsyncSession
-) -> None:
-    owner = await create_user(session, role=UserRole.owner)
-    resp = await client.put(
-        "/api/v1/settings/auth-scope",
-        json={"scope": "both"},
-        headers=get_auth_headers(owner),
-    )
-    assert resp.status_code == 422
-
-
-@pytest.mark.integration
-async def test_auth_scope_requires_config_manage(
-    client: AsyncClient, session: AsyncSession
-) -> None:
-    member = await create_user(session, role=UserRole.member)
-    resp = await client.put(
-        "/api/v1/settings/auth-scope",
-        json={"scope": "guild"},
-        headers=get_auth_headers(member),
-    )
-    assert resp.status_code == 403
-
-
-@pytest.mark.integration
-async def test_auth_scope_check_constraint_rejects_garbage(
-    session: AsyncSession,
-) -> None:
-    """The posture gate compares literally, so an out-of-vocabulary value would
-    silently disable login — the DB CHECK refuses it even for a privileged
-    writer that bypasses the API schema. (INSERT, not UPDATE: the settings
-    singleton may not exist yet, and a zero-row UPDATE never fires the check.)"""
-    with pytest.raises(DBAPIError):
-        async with session.begin_nested():
-            await session.exec(
-                text(
-                    "INSERT INTO app_settings (id, oidc_enabled, auth_scope) "
-                    "VALUES (999, false, 'both')"
-                )
-            )

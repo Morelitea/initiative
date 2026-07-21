@@ -218,7 +218,7 @@ export const TagBrowser = ({
   return (
     <div className="space-y-1">
       {editMode && (
-        <div className="flex items-center justify-between gap-1 px-2">
+        <div className="flex items-center justify-between gap-1">
           <Checkbox
             checked={allSelected ? true : selectedCount > 0 ? "indeterminate" : false}
             onCheckedChange={toggleSelectAll}
@@ -270,12 +270,13 @@ export const TagBrowser = ({
                 }
               }}
               autoFocus
+              className="min-w-0 flex-1"
             />
             <ColorPickerPopover
               value={editColor}
               onChange={setEditColor}
               triggerLabel={t("manage.color")}
-              className="h-9 shrink-0"
+              className="h-9 w-auto shrink-0"
             />
           </div>
           <DialogFooter>

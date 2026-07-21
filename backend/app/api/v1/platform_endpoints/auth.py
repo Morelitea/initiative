@@ -1,10 +1,17 @@
 from datetime import datetime, timezone
-import ipaddress
 import logging
 from typing import Any, Annotated
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    status,
+)
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import func
@@ -15,7 +22,8 @@ from app.api.deps import SessionDep, get_current_active_user, get_current_user_o
 from app.db.session import get_admin_session
 from app.core.config import API_V1_STR, settings
 from sqlmodel.ext.asyncio.session import AsyncSession
-from app.core.rate_limit import get_real_client_ip, limiter
+from app.core import auth_context
+from app.core.rate_limit import get_inet_client_ip, limiter
 from app.core.encryption import (
     decrypt_field,
     encrypt_field,
@@ -23,7 +31,7 @@ from app.core.encryption import (
     SALT_EMAIL,
     SALT_OIDC_CLIENT_SECRET,
 )
-from app.core.messages import AuthMessages, OidcMessages
+from app.core.messages import AuthMessages, GuildMessages, OidcMessages
 from app.core.password_policy import enforce_password_policy
 from app.core.security import (
     REFRESH_COOKIE_NAME,
@@ -35,8 +43,20 @@ from app.core.security import (
     password_needs_rehash,
     verify_password,
 )
-from app.core.user_input_validators import normalize_timezone
-from app.models.platform.app_setting import AuthScope
+from app.core.user_input_validators import (
+    is_safe_next_path,
+    is_valid_provider_slug,
+    normalize_timezone,
+)
+from app.api.v1.platform_endpoints.session_cookies import (
+    REFRESH_COOKIE_PATH,
+    clear_refresh_cookie,
+    set_refresh_cookie,
+    set_session_cookie,
+)
+from app.core.config import AuthScope
+from app.models.platform.auth_provider import AuthProvider
+from app.models.platform.auth_provider_secret import AuthProviderSecret
 from app.models.platform.user import User, UserRole, UserStatus
 from app.models.platform.guild import Guild, GuildRole
 from app.schemas.platform.token import Token
@@ -44,6 +64,8 @@ from app.schemas.platform.auth import (
     DeviceTokenInfo,
     DeviceTokenRequest,
     DeviceTokenResponse,
+    LoginProviderEntry,
+    LoginProvidersResponse,
     PasswordResetRequest,
     PasswordResetSubmit,
     UploadTokenResponse,
@@ -67,7 +89,12 @@ from app.services.auth.oidc.provider import (
     OidcFlowError,
     OidcProvider,
 )
-from app.services.auth.platform_provider import ensure_platform_provider
+from app.services.auth import provider_registry
+from app.services.auth.platform_provider import (
+    PLATFORM_OIDC_SLUG,
+    get_platform_provider,
+    is_login_ready,
+)
 from app.services.auth.sessions import RefreshOutcome
 from app.services.platform import app_settings as app_settings_service
 from app.services import email as email_service
@@ -86,58 +113,6 @@ logger = logging.getLogger(__name__)
 _oidc_discovery = OidcDiscovery()
 _oidc_jwks = JwksResolver()
 
-# The refresh cookie is scoped to the auth routes so it never rides along on
-# ordinary API requests — it is only presented to /auth/refresh and /auth/logout.
-REFRESH_COOKIE_PATH = f"{API_V1_STR}/auth"
-
-
-def _client_ip(request: Request) -> str | None:
-    """The client IP as a value the INET ``auth_sessions.ip`` column accepts, or
-    ``None`` when it isn't a parseable address (e.g. the ``testclient`` peer).
-    Guards the login/refresh path from faulting on a non-IP host string."""
-    try:
-        ipaddress.ip_address(get_real_client_ip(request))
-    except ValueError:
-        return None
-    return get_real_client_ip(request)
-
-
-def _set_session_cookie(response: Response, token: str, *, max_age: int) -> None:
-    """Set the session-auth cookie (read by ``get_current_user``). During the
-    cutover this holds a legacy JWT at login and a new-model access token after
-    the first refresh — the verifier accepts either."""
-    response.set_cookie(
-        key=SESSION_COOKIE_NAME,
-        value=token,
-        httponly=True,
-        samesite="lax",
-        secure=settings.cookie_secure,
-        max_age=max_age,
-        path="/",
-    )
-
-
-def _set_refresh_cookie(response: Response, token: str) -> None:
-    response.set_cookie(
-        key=REFRESH_COOKIE_NAME,
-        value=token,
-        httponly=True,
-        samesite="lax",
-        secure=settings.cookie_secure,
-        max_age=settings.AUTH_REFRESH_TTL_DAYS * 86400,
-        path=REFRESH_COOKIE_PATH,
-    )
-
-
-def _clear_refresh_cookie(response: Response) -> None:
-    response.delete_cookie(
-        key=REFRESH_COOKIE_NAME,
-        path=REFRESH_COOKIE_PATH,
-        httponly=True,
-        secure=settings.cookie_secure,
-        samesite="lax",
-    )
-
 
 def _refresh_rejected(detail: str) -> JSONResponse:
     """A 401 for a failed refresh that also clears the stale auth cookies.
@@ -152,7 +127,7 @@ def _refresh_rejected(detail: str) -> JSONResponse:
         content={"detail": detail},
         headers={"WWW-Authenticate": "Bearer"},
     )
-    _clear_refresh_cookie(response)
+    clear_refresh_cookie(response)
     response.delete_cookie(key=SESSION_COOKIE_NAME, path="/")
     return response
 
@@ -408,23 +383,15 @@ async def login_access_token(
             await session.rollback()
             logger.exception("Failed to upgrade password hash for user %s", user.id)
 
-    access_token = create_access_token(
-        subject=str(user.id), token_version=user.token_version
-    )
-    _set_session_cookie(
-        response, access_token, max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
-    )
-
-    # Additively establish a server-side session + rotating refresh cookie (the
-    # new login model, history/auth-detailed-design.md §3). The legacy session
-    # cookie above is untouched, so existing clients are unaffected; the refresh
-    # cookie only matters once a client calls /auth/refresh. Session writes run
-    # on the system engine (auth_sessions is app_admin-only).
+    # The new login model end-to-end (history/auth-detailed-design.md §3): the
+    # server-side session is load-bearing — the access token carries sid/amr/sat
+    # and lives AUTH_ACCESS_TTL_MINUTES; the rotating refresh cookie carries the
+    # session (the SPA renews silently). Session writes run on the system engine
+    # (auth_sessions is app_admin-only).
     #
-    # Best-effort: this is additive and not yet load-bearing, so a transient DB
-    # error establishing the session must NOT turn a successful password auth
-    # into a 500 (same rule as the hash-upgrade above) — legacy clients that
-    # never touch the refresh cookie would otherwise be broken by it.
+    # Fallback: a transient session-store failure must not block sign-in — issue
+    # a legacy long-lived token instead (the dual-verify window accepts both);
+    # that session just can't renew silently.
     try:
         issued = await session_service.create_session(
             admin_session,
@@ -432,14 +399,37 @@ async def login_access_token(
             amr=["pwd"],
             satisfied_providers=[],
             user_agent=request.headers.get("user-agent"),
-            ip=_client_ip(request),
+            ip=get_inet_client_ip(request),
         )
         await admin_session.commit()
-        _set_refresh_cookie(response, issued.refresh_token)
     except Exception:
         await admin_session.rollback()
-        logger.exception("Failed to establish refresh session for user %s", user.id)
+        logger.exception(
+            "Failed to establish refresh session for user %s; "
+            "falling back to a legacy access token",
+            user.id,
+        )
+        access_token = create_access_token(
+            subject=str(user.id), token_version=user.token_version
+        )
+        set_session_cookie(
+            response, access_token, max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        )
+        # A leftover refresh cookie from an earlier session (possibly another
+        # account on this browser) must not ride the new login — clear it so a
+        # later silent renewal can't swap the session out from under the user.
+        clear_refresh_cookie(response)
+        return Token(access_token=access_token)
 
+    access_token, access_max_age = mint_access_token(
+        user_id=user.id,
+        token_version=user.token_version,
+        session_id=issued.session.id,
+        amr=issued.session.amr,
+        satisfied_providers=issued.session.satisfied_providers,
+    )
+    set_session_cookie(response, access_token, max_age=access_max_age)
+    set_refresh_cookie(response, issued.refresh_token)
     return Token(access_token=access_token)
 
 
@@ -471,7 +461,7 @@ async def refresh_access_token(
         admin_session,
         raw_refresh_token=raw,
         user_agent=request.headers.get("user-agent"),
-        ip=_client_ip(request),
+        ip=get_inet_client_ip(request),
     )
     # Commit BEFORE branching: one commit persists the rotation (ROTATED) or the
     # theft-revocation (REUSED), so a rejection can't leave the chain kill
@@ -499,8 +489,8 @@ async def refresh_access_token(
         amr=issued.session.amr,
         satisfied_providers=issued.session.satisfied_providers,
     )
-    _set_session_cookie(response, access_token, max_age=access_max_age)
-    _set_refresh_cookie(response, issued.refresh_token)
+    set_session_cookie(response, access_token, max_age=access_max_age)
+    set_refresh_cookie(response, issued.refresh_token)
     return Token(access_token=access_token)
 
 
@@ -547,7 +537,7 @@ async def logout(
         secure=settings.cookie_secure,
         samesite="lax",
     )
-    _clear_refresh_cookie(response)
+    clear_refresh_cookie(response)
 
 
 @router.post("/upload-token", response_model=UploadTokenResponse)
@@ -564,7 +554,16 @@ async def issue_upload_token(
     token is accepted only by the uploads/download routes and is useless as a
     general API credential.
     """
-    token, expires_in = create_upload_token(user_id=current_user.id)
+    # Copy the minting session's satisfied-provider set into the scoped token
+    # so media loads and the sync-content keepalive pass a policy-gated guild
+    # exactly when the session itself would.
+    satisfied = auth_context.satisfied_providers()
+    token, expires_in = create_upload_token(
+        user_id=current_user.id,
+        satisfied_providers=sorted(satisfied)
+        if isinstance(satisfied, frozenset)
+        else (),
+    )
     return UploadTokenResponse(upload_token=token, expires_in=expires_in)
 
 
@@ -652,9 +651,26 @@ async def revoke_device_token(
         )
 
 
-def _backend_redirect_uri() -> str:
+def _provider_redirect_uri(provider_slug: str, guild_id: int | None = None) -> str:
+    """Per-provider callback URL. For the platform slug this is the same
+    ``/auth/oidc/callback`` operators registered at their IdP before the
+    routes were generalized — the slug is literally ``oidc``. Guild-scoped
+    providers get a guild-addressed callback (their slug is only unique
+    within the guild)."""
     base = settings.APP_URL.rstrip("/")
-    return f"{base}{API_V1_STR}/auth/oidc/callback"
+    if guild_id is not None:
+        return f"{base}{API_V1_STR}/auth/g/{guild_id}/{provider_slug}/callback"
+    return f"{base}{API_V1_STR}/auth/{provider_slug}/callback"
+
+
+def _provider_state_key(row: AuthProvider) -> str:
+    """The identity a login-flow state binds to. Operator-global rows keep the
+    bare slug (states minted before guild providers stay valid); guild rows
+    are namespaced so a state begun with one guild's provider can't complete
+    against another guild's provider of the same slug."""
+    if row.guild_id is not None:
+        return f"g{row.guild_id}:{row.slug}"
+    return row.slug
 
 
 def _frontend_redirect_uri() -> str:
@@ -662,78 +678,217 @@ def _frontend_redirect_uri() -> str:
     return f"{base}/oidc/callback"
 
 
-def _platform_oidc_active(app_settings: Any) -> bool:
-    """The platform OIDC login is offered only when the platform posture is
-    live AND the provider is enabled + fully configured. In guild scope the
-    platform provider is dormant (kept, not deleted) and must not authenticate
-    anyone — enforced here, server-side, not just hidden in the UI."""
-    return bool(
-        app_settings.auth_scope == AuthScope.platform.value
-        and app_settings.oidc_enabled
-        and app_settings.oidc_issuer
-        and app_settings.oidc_client_id
-        and app_settings.oidc_client_secret_encrypted
-    )
+# Carries a validated SPA return path from /auth/{slug}/login to the web
+# callback (e.g. the guild page a step-up started from). Scoped to the auth
+# routes and short-lived — it only needs to survive one IdP round trip.
+OIDC_NEXT_COOKIE = "oidc_next"
+OIDC_NEXT_COOKIE_MAX_AGE = 600
 
 
-async def _require_platform_oidc(session: AsyncSession) -> Any:
-    """The app settings row, or 404 when platform OIDC login is not live."""
-    app_settings = await app_settings_service.get_app_settings(session)
-    if not _platform_oidc_active(app_settings):
+async def _active_platform_provider(
+    admin_session: AsyncSession,
+) -> AuthProvider | None:
+    """The platform provider row when its login is actually offerable —
+    platform posture, enabled, issuer + client id, AND a stored client secret
+    (the platform flow has always required one; PKCE-only stays a guild-provider
+    affordance). In guild scope the platform provider is dormant (kept, not
+    deleted) and must not authenticate anyone — enforced here, server-side,
+    not just hidden in the UI. Returns None when any condition fails."""
+    if settings.AUTH_SCOPE != AuthScope.platform:
+        return None
+    row = await get_platform_provider(admin_session)
+    if row is None or not is_login_ready(row):
+        return None
+    if not await provider_registry.secret_is_set(admin_session, row.id):
+        return None
+    return row
+
+
+async def _resolve_login_provider(
+    admin_session: AsyncSession, provider_slug: str
+) -> AuthProvider:
+    """The enabled operator-global provider row for one login slug, or 404.
+
+    The scope gate comes first: in guild posture every operator-global provider
+    is dormant and must not authenticate anyone — enforced server-side, not
+    just hidden in the UI. Every slug — the platform ``oidc`` slug included —
+    resolves to its registry row directly (the row is the source of truth; the
+    old reconcile-from-settings shim is gone). A malformed slug is treated like
+    an unknown one (no registry row can carry it)."""
+    if not is_valid_provider_slug(provider_slug):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
         )
-    return app_settings
-
-
-def _build_oidc_provider(app_settings: Any) -> OidcProvider:
-    """The relying-party client for the platform provider, configured from
-    ``app_settings`` (still the operator's config surface until the provider
-    registry gets its own CRUD). Tests monkeypatch this builder to point the
-    flow at a fake IdP."""
-    scopes = app_settings.oidc_scopes or ["openid"]
-    client_secret = (
-        decrypt_field(
-            app_settings.oidc_client_secret_encrypted, SALT_OIDC_CLIENT_SECRET
+    if settings.AUTH_SCOPE != AuthScope.platform:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
         )
-        if app_settings.oidc_client_secret_encrypted
+    if provider_slug == PLATFORM_OIDC_SLUG:
+        row = await _active_platform_provider(admin_session)
+        if row is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=OidcMessages.OIDC_NOT_ENABLED,
+            )
+        return row
+    row = (
+        await admin_session.exec(
+            select(AuthProvider).where(
+                AuthProvider.slug == provider_slug,
+                AuthProvider.guild_id.is_(None),
+            )
+        )
+    ).one_or_none()
+    if row is None or not is_login_ready(row):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
+        )
+    return row
+
+
+async def _resolve_guild_login_provider(
+    admin_session: AsyncSession,
+    guild_id: int,
+    provider_slug: str,
+) -> AuthProvider:
+    """The login-ready guild-scoped provider row for one (guild, slug), or
+    404. Guild providers serve logins only under per-guild auth posture —
+    the mirror image of ``_resolve_login_provider``'s operator-global gate.
+    An unknown guild, slug, or config-incomplete row all look identical."""
+    if not is_valid_provider_slug(provider_slug):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
+        )
+    if settings.AUTH_SCOPE != AuthScope.guild:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
+        )
+    row = (
+        await admin_session.exec(
+            select(AuthProvider).where(
+                AuthProvider.slug == provider_slug,
+                AuthProvider.guild_id == guild_id,
+            )
+        )
+    ).one_or_none()
+    if row is None or not is_login_ready(row):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
+        )
+    return row
+
+
+async def _build_row_oidc_provider(
+    admin_session: AsyncSession, row: AuthProvider
+) -> OidcProvider:
+    """The relying-party client for one provider row — the single builder for
+    every slug. The platform row is reconciled from ``app_settings`` (config
+    AND secret) by ``_resolve_login_provider`` before it gets here, so the
+    registry row is always the client's source of truth. The secret comes from
+    the app_admin-only companion table; ``None`` (public / PKCE-only client)
+    is valid. Tests monkeypatch this builder to point flows at a fake IdP."""
+    secret_row = await admin_session.get(AuthProviderSecret, row.id)
+    client_secret = (
+        decrypt_field(secret_row.client_secret_encrypted, SALT_OIDC_CLIENT_SECRET)
+        if secret_row and secret_row.client_secret_encrypted
         else None
     )
     return OidcProvider(
         OidcClientConfig(
-            issuer=app_settings.oidc_issuer,
-            client_id=app_settings.oidc_client_id,
-            redirect_uri=_backend_redirect_uri(),
+            issuer=row.issuer,
+            client_id=row.client_id,
+            redirect_uri=_provider_redirect_uri(row.slug, row.guild_id),
             client_secret=client_secret,
-            scopes=" ".join(scopes),
+            scopes=row.scopes or "openid",
+            provider_slug=_provider_state_key(row),
         ),
         discovery=_oidc_discovery,
         jwks=_oidc_jwks,
     )
 
 
-@router.get("/oidc/status")
-async def oidc_status(request: Request, session: SessionDep) -> dict[str, Any]:
-    app_settings = await app_settings_service.get_app_settings(session)
-    enabled = _platform_oidc_active(app_settings)
-    login_url = None
-    provider_name = None
-    if enabled:
-        login_url = f"{API_V1_STR}/auth/oidc/login"
-        provider_name = app_settings.oidc_provider_name
-    return {"enabled": enabled, "login_url": login_url, "provider_name": provider_name}
+def _login_entry(row: AuthProvider) -> LoginProviderEntry:
+    login_url = (
+        f"{API_V1_STR}/auth/g/{row.guild_id}/{row.slug}/login"
+        if row.guild_id is not None
+        else f"{API_V1_STR}/auth/{row.slug}/login"
+    )
+    return LoginProviderEntry(
+        id=row.id,
+        slug=row.slug,
+        display_name=row.display_name,
+        kind=row.kind,
+        login_url=login_url,
+        icon=row.icon,
+        button_style=row.button_style,
+    )
 
 
-@router.get("/oidc/login")
-@limiter.limit("20/minute")
-async def oidc_login(
-    request: Request,
-    session: SessionDep,
-    mobile: bool = Query(default=False),
-    device_name: str = Query(default="Mobile Device"),
+@router.get("/providers", response_model=LoginProvidersResponse)
+async def list_login_providers(
+    session: SessionDep, admin_session: AdminSessionDep
+) -> LoginProvidersResponse:
+    """The sign-in providers the login page offers — non-secret metadata only.
+
+    Empty in guild posture (operator-global providers are dormant there) and
+    on instances with no SSO configured. Strictly read-only: the platform
+    entry, like every other, is its registry row (the source of truth) — no
+    write path is reachable from here. Registry rows are read on the system
+    engine (``auth_providers`` carries no request-path grant)."""
+    if settings.AUTH_SCOPE != AuthScope.platform:
+        return LoginProvidersResponse(providers=[])
+
+    entries: list[LoginProviderEntry] = []
+    platform_row = await _active_platform_provider(admin_session)
+    if platform_row is not None:
+        entries.append(
+            LoginProviderEntry(
+                id=platform_row.id,
+                slug=PLATFORM_OIDC_SLUG,
+                display_name=platform_row.display_name,
+                kind="oidc",
+                login_url=f"{API_V1_STR}/auth/{PLATFORM_OIDC_SLUG}/login",
+                icon=platform_row.icon,
+                button_style=platform_row.button_style,
+            )
+        )
+
+    rows = (
+        await admin_session.exec(
+            select(AuthProvider)
+            .where(
+                AuthProvider.guild_id.is_(None),
+                AuthProvider.slug != PLATFORM_OIDC_SLUG,
+                AuthProvider.enabled.is_(True),
+                AuthProvider.kind == "oidc",
+                AuthProvider.issuer.is_not(None),
+                AuthProvider.client_id.is_not(None),
+            )
+            .order_by(AuthProvider.display_name)
+        )
+    ).all()
+    # is_login_ready re-checks the same predicates and stays the single
+    # authority (it also guards empty strings, which SQL NULL checks miss).
+    entries.extend(_login_entry(row) for row in rows if is_login_ready(row))
+    return LoginProvidersResponse(providers=entries)
+
+
+async def _begin_provider_login(
+    admin_session: AsyncSession,
+    provider_row: AuthProvider,
+    *,
+    mobile: bool,
+    device_name: str,
+    next_path: str,
 ) -> RedirectResponse:
-    app_settings = await _require_platform_oidc(session)
-    provider = _build_oidc_provider(app_settings)
+    """Begin the relying-party flow for a resolved provider row — shared by
+    the operator-global and guild-addressed login routes.
+
+    ``next_path`` is an optional SPA path to return to after the web callback
+    (e.g. the guild page a step-up started from). Only a validated relative
+    path is accepted; it rides a short-lived cookie to the callback, which
+    passes it to the SPA's ``/oidc/callback`` page as a query param."""
+    provider = await _build_row_oidc_provider(admin_session, provider_row)
     try:
         begun = await provider.begin(
             mobile=mobile, device_name=device_name if mobile else ""
@@ -747,7 +902,89 @@ async def oidc_login(
     # Discovery validated the authorization endpoint as an absolute https URL
     # (see app.services.auth.oidc.discovery), so a malformed or tampered
     # discovery document cannot send the user to a non-TLS location.
-    return RedirectResponse(begun.authorization_url)
+    response = RedirectResponse(begun.authorization_url)
+    if not mobile and is_safe_next_path(next_path):
+        response.set_cookie(
+            key=OIDC_NEXT_COOKIE,
+            value=next_path,
+            max_age=OIDC_NEXT_COOKIE_MAX_AGE,
+            httponly=True,
+            secure=settings.cookie_secure,
+            samesite="lax",
+            path=REFRESH_COOKIE_PATH,
+        )
+    return response
+
+
+@router.get("/g/{guild_id}/providers", response_model=LoginProvidersResponse)
+async def list_guild_login_providers(
+    session: SessionDep, admin_session: AdminSessionDep, guild_id: int
+) -> LoginProvidersResponse:
+    """One guild's sign-in providers — non-secret metadata only, with
+    guild-addressed login URLs and the guild's display name for its login
+    page. Empty (and nameless) outside per-guild auth posture and for a
+    guild with no login-ready providers; an unknown guild id is
+    indistinguishable from an empty registry."""
+    if settings.AUTH_SCOPE != AuthScope.guild:
+        return LoginProvidersResponse(providers=[])
+    rows = (
+        await admin_session.exec(
+            select(AuthProvider)
+            .where(AuthProvider.guild_id == guild_id)
+            .order_by(AuthProvider.display_name)
+        )
+    ).all()
+    entries = [_login_entry(row) for row in rows if is_login_ready(row)]
+    guild_name = None
+    if entries:
+        guild = await admin_session.get(Guild, guild_id)
+        guild_name = guild.name if guild else None
+    return LoginProvidersResponse(providers=entries, guild_name=guild_name)
+
+
+@router.get("/g/{guild_id}/{provider_slug}/login")
+@limiter.limit("20/minute")
+async def guild_provider_login(
+    request: Request,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    guild_id: int,
+    provider_slug: str,
+    next_path: str = Query(default="", alias="next"),
+) -> RedirectResponse:
+    """Begin the relying-party flow for one of a guild's own providers.
+    Web only for now — native guild step-up arrives with native session
+    tokens, so there is no ``mobile`` variant of this route."""
+    provider_row = await _resolve_guild_login_provider(
+        admin_session, guild_id, provider_slug
+    )
+    return await _begin_provider_login(
+        admin_session, provider_row, mobile=False, device_name="", next_path=next_path
+    )
+
+
+@router.get("/{provider_slug}/login")
+@limiter.limit("20/minute")
+async def provider_login(
+    request: Request,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    provider_slug: str,
+    mobile: bool = Query(default=False),
+    device_name: str = Query(default="Mobile Device"),
+    next_path: str = Query(default="", alias="next"),
+) -> RedirectResponse:
+    """Begin the relying-party flow for one operator-global provider. The
+    platform provider's slug is ``oidc``, so the pre-generalization
+    ``/auth/oidc/login`` URL is this same route."""
+    provider_row = await _resolve_login_provider(admin_session, provider_slug)
+    return await _begin_provider_login(
+        admin_session,
+        provider_row,
+        mobile=mobile,
+        device_name=device_name,
+        next_path=next_path,
+    )
 
 
 def _mobile_redirect_uri() -> str:
@@ -764,17 +1001,33 @@ def _error_redirect(is_mobile: bool | None, error: str) -> RedirectResponse:
     return RedirectResponse(url)
 
 
-@router.get("/oidc/callback")
-@limiter.limit("20/minute")
-async def oidc_callback(
-    request: Request,
-    session: SessionDep,
-    admin_session: AdminSessionDep,
-    code: str | None = Query(default=None),
-    state: str | None = Query(default=None),
-):
-    app_settings = await _require_platform_oidc(session)
+async def _discard_provisioned_user(
+    admin_session: AsyncSession, *, user_id: int
+) -> None:
+    """Delete a user JIT-provisioned earlier in this same request that we then
+    couldn't admit to any guild. The federated-identity link and its secret
+    cascade off the row (ON DELETE CASCADE)."""
+    user = await admin_session.get(User, user_id)
+    if user is not None:
+        await admin_session.delete(user)
+        await admin_session.commit()
 
+
+async def _complete_provider_login(
+    request: Request,
+    session: AsyncSession,
+    admin_session: AsyncSession,
+    provider_row: AuthProvider,
+    code: str | None,
+    state: str | None,
+):
+    """Complete the relying-party flow for a resolved provider row — shared
+    by the operator-global and guild-addressed callback routes. Guild rows
+    differ in three ways: a successful sign-in also admits the user to the
+    provider's guild (JIT-provisioning unknown users when the provider allows
+    it, always as plain member, capacity-enforced), the operator claim-to-role
+    sync doesn't run, and mobile flows can't reach here (the guild login route
+    doesn't offer one)."""
     # Best-effort mobile flag so even early failures land on the right surface
     # (app vs. web); ``complete()`` re-validates the state authoritatively.
     is_mobile: bool | None = None
@@ -784,7 +1037,7 @@ async def oidc_callback(
         except FlowStateError:
             is_mobile = None
 
-    provider = _build_oidc_provider(app_settings)
+    provider = await _build_row_oidc_provider(admin_session, provider_row)
     try:
         completion = await provider.complete(code=code or "", state=state or "")
     except OidcFlowError as exc:
@@ -828,7 +1081,6 @@ async def oidc_callback(
         picture_claim if isinstance(picture_claim, str) and picture_claim else None
     )
 
-    provider_row = await ensure_platform_provider(admin_session, app_settings)
     resolution = await resolve_oidc_identity(
         admin_session,
         provider=provider_row,
@@ -898,9 +1150,44 @@ async def oidc_callback(
     await admin_session.commit()
     await admin_session.refresh(user)
 
+    if provider_row.guild_id is not None:
+        # The guild's own IdP is its configured identity source, so a
+        # successful authentication doubles as admission: get-or-create the
+        # membership, always as plain member (roles are assigned in the app),
+        # honoring the guild's member capacity.
+        #
+        # ``resolve_oidc_identity`` has already committed a JIT-provisioned
+        # user, so plain values are captured up front — the rollback below
+        # expires the ORM object.
+        onboarding_user_id = user.id
+        was_provisioned = resolution.outcome is ResolutionOutcome.PROVISIONED
+        try:
+            await guilds_service.ensure_membership(
+                admin_session,
+                guild_id=provider_row.guild_id,
+                user_id=onboarding_user_id,
+            )
+            await admin_session.commit()
+        except guilds_service.GuildCapacityError:
+            await admin_session.rollback()
+            # A user provisioned by THIS sign-in belongs to no other guild, so
+            # a full guild would strand a usable-nowhere account. Undo it (the
+            # federated-identity link and its secret cascade). An account that
+            # already existed keeps whatever access it had.
+            if was_provisioned:
+                await _discard_provisioned_user(
+                    admin_session, user_id=onboarding_user_id
+                )
+            return _error_redirect(is_mobile, GuildMessages.GUILD_USER_LIMIT_REACHED)
+        await admin_session.refresh(user)
+
     # OIDC claim-to-role sync (the id_token claims are verified upstream now).
+    # Operator-global providers only: the mapping registry is platform-level
+    # configuration; per-guild claim mappings are their own later feature.
     try:
-        claim_path = getattr(app_settings, "oidc_role_claim_path", None)
+        claim_path = (
+            provider_row.role_claim_path if provider_row.guild_id is None else None
+        )
         if claim_path:
             claim_values = extract_claim_values(
                 userinfo or {}, completion.claims, claim_path
@@ -933,48 +1220,135 @@ async def oidc_callback(
         redirect_params = {"token": device_token, "token_type": "device_token"}
         redirect_url = f"{_mobile_redirect_uri()}?{urlencode(redirect_params)}"
         return RedirectResponse(redirect_url)
-    app_token = create_access_token(
-        subject=str(user.id), token_version=user.token_version
-    )
-    oidc_response = RedirectResponse(_frontend_redirect_uri())
-    oidc_response.set_cookie(
-        key=SESSION_COOKIE_NAME,
-        value=app_token,
-        httponly=True,
-        samesite="lax",
-        secure=settings.cookie_secure,
-        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        path="/",
-    )
-
-    # Additively establish the server-side session + rotating refresh cookie,
-    # mirroring the password login path (history/auth-detailed-design.md §3).
-    # The session records which provider satisfied this login (amr/sat) — the
-    # inputs the per-guild auth-policy gate and step-up read later.
+    # The new login model, mirroring the password path (§3): the session is
+    # load-bearing — the access token carries sid/amr/sat (the inputs the
+    # per-guild auth-policy gate and step-up read later) and the rotating
+    # refresh cookie carries the session.
     #
-    # Best-effort: this is additive and not yet load-bearing, so a transient DB
-    # error here must not turn a successful SSO login into a failure — the
-    # legacy session cookie above already authenticates the user.
+    # Fallback: a transient session-store failure must not fail a successful
+    # SSO login — issue a legacy long-lived token instead (dual-verify window);
+    # that session just can't renew silently.
     #
     # ``user`` is attached to ``admin_session``, so the rollback below expires
-    # its attributes; the plain ints are captured up front so the failure path
-    # never touches the ORM object again.
-    user_id, provider_id, provider_slug = user.id, provider_row.id, provider_row.slug
+    # its attributes; the plain values are captured up front so the failure
+    # path never touches the ORM object again.
+    user_id, token_version = user.id, user.token_version
+    provider_id, provider_slug = provider_row.id, provider_row.slug
+    # Return the browser to where the login started (a step-up hands the
+    # guild page it interrupted): the login route stored a validated SPA
+    # path in the short-lived cookie; re-validate before echoing it, and
+    # clear the cookie either way.
+    next_path = request.cookies.get(OIDC_NEXT_COOKIE, "")
+    frontend_uri = _frontend_redirect_uri()
+    if is_safe_next_path(next_path):
+        frontend_uri = f"{frontend_uri}?{urlencode({'next': next_path})}"
+    oidc_response = RedirectResponse(frontend_uri)
+    oidc_response.delete_cookie(key=OIDC_NEXT_COOKIE, path=REFRESH_COOKIE_PATH)
+    # A step-up upgrades the session it interrupted rather than starting
+    # over: the live session's factors carry forward (union) and the old
+    # session is revoked, replaced by the new one — satisfying one guild's
+    # requirement never un-satisfies another's. Only the same user's session
+    # merges; anything else is a fresh login.
+    amr = [f"oidc:{provider_slug}"]
+    satisfied = [provider_id]
+    prior = None
+    prior_raw = request.cookies.get(REFRESH_COOKIE_NAME)
+    if prior_raw:
+        prior = await session_service.get_live_session_by_refresh_token(
+            admin_session, prior_raw
+        )
+        if prior is not None and prior.user_id == user_id:
+            amr = sorted(set(prior.amr) | set(amr))
+            satisfied = sorted(set(prior.satisfied_providers) | set(satisfied))
+        else:
+            prior = None
     try:
         issued = await session_service.create_session(
             admin_session,
             user_id=user_id,
-            amr=[f"oidc:{provider_slug}"],
-            satisfied_providers=[provider_id],
+            amr=amr,
+            satisfied_providers=satisfied,
             user_agent=request.headers.get("user-agent"),
-            ip=_client_ip(request),
+            ip=get_inet_client_ip(request),
         )
+        if prior is not None:
+            # Chain-revoke, not single-revoke: a concurrent /auth/refresh may
+            # have rotated the presented session between our read and this
+            # write, and the replacement must not leave that rotation child
+            # running beside the stepped-up session. The new session is a
+            # fresh chain root, so the walk never touches it.
+            await session_service.revoke_chain(admin_session, session_id=prior.id)
         await admin_session.commit()
-        _set_refresh_cookie(oidc_response, issued.refresh_token)
     except Exception:
         await admin_session.rollback()
-        logger.exception("Failed to establish refresh session for user %s", user_id)
+        logger.exception(
+            "Failed to establish refresh session for user %s; "
+            "falling back to a legacy access token",
+            user_id,
+        )
+        legacy_token = create_access_token(
+            subject=str(user_id), token_version=token_version
+        )
+        set_session_cookie(
+            oidc_response,
+            legacy_token,
+            max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        )
+        # Same rule as the password-login fallback: a leftover refresh cookie
+        # must not ride the new login.
+        clear_refresh_cookie(oidc_response)
+        return oidc_response
+
+    app_token, access_max_age = mint_access_token(
+        user_id=user_id,
+        token_version=token_version,
+        session_id=issued.session.id,
+        amr=issued.session.amr,
+        satisfied_providers=issued.session.satisfied_providers,
+    )
+    set_session_cookie(oidc_response, app_token, max_age=access_max_age)
+    set_refresh_cookie(oidc_response, issued.refresh_token)
     return oidc_response
+
+
+@router.get("/g/{guild_id}/{provider_slug}/callback")
+@limiter.limit("20/minute")
+async def guild_provider_callback(
+    request: Request,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    guild_id: int,
+    provider_slug: str,
+    code: str | None = Query(default=None),
+    state: str | None = Query(default=None),
+):
+    """Complete the relying-party flow for one of a guild's own providers —
+    the guild-addressed URL registered at the guild's IdP."""
+    provider_row = await _resolve_guild_login_provider(
+        admin_session, guild_id, provider_slug
+    )
+    return await _complete_provider_login(
+        request, session, admin_session, provider_row, code, state
+    )
+
+
+@router.get("/{provider_slug}/callback")
+@limiter.limit("20/minute")
+async def provider_callback(
+    request: Request,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    provider_slug: str,
+    code: str | None = Query(default=None),
+    state: str | None = Query(default=None),
+):
+    """Complete the relying-party flow for one operator-global provider (see
+    provider_login: the platform provider's slug is ``oidc``, so the URL
+    operators registered at their IdP is this same route)."""
+    provider_row = await _resolve_login_provider(admin_session, provider_slug)
+    return await _complete_provider_login(
+        request, session, admin_session, provider_row, code, state
+    )
 
 
 @router.post("/verification/send", response_model=VerificationSendResponse)

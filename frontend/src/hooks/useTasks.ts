@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type {
   ArchiveDoneResponse,
@@ -7,8 +7,10 @@ import type {
   ListTasksApiV1GGuildIdTasksGetParams,
   SubtaskRead,
   SubtaskReorderItem,
+  TaskAutocomplete,
   TaskListRead,
   TaskListResponse,
+  TaskRead,
   TaskReorderRequest,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -45,17 +47,21 @@ import { getErrorMessage } from "@/lib/errorMessage";
 import { fetchAllPages } from "@/lib/fetchAllPages";
 import { castQueryFn } from "@/lib/query-utils";
 import { fireTaskCompletionFeedback } from "@/lib/taskCompletionFeedback";
+import { autocompleteTasks } from "@/lib/taskUtils";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
-export const useTask = (taskId: number | null, options?: QueryOpts<TaskListRead>) => {
+// Returns the full ``TaskRead`` (the detail endpoint's shape) — a superset of
+// the list row that additionally carries the ``creator`` summary the edit page
+// renders. The list hooks stay on ``TaskListRead``.
+export const useTask = (taskId: number | null, options?: QueryOpts<TaskRead>) => {
   const guildId = useActiveGuildId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
-  return useQuery<TaskListRead>({
+  return useQuery<TaskRead>({
     queryKey: getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey(guildId, taskId!),
-    queryFn: castQueryFn<TaskListRead>(() => readTaskApiV1GGuildIdTasksTaskIdGet(guildId, taskId!)),
+    queryFn: castQueryFn<TaskRead>(() => readTaskApiV1GGuildIdTasksTaskIdGet(guildId, taskId!)),
     enabled: taskId !== null && Number.isFinite(taskId) && userEnabled,
     ...rest,
   });
@@ -84,6 +90,35 @@ export const usePrefetchTasks = () => {
       staleTime: 30_000,
     });
   };
+};
+
+/**
+ * Title typeahead over tasks, for the queue/link pickers.
+ *
+ * Returns the slim ``TaskAutocomplete`` (id + title) from the dedicated
+ * autocomplete endpoint — no eager-load chains or annotation query. It fetches
+ * a bounded, server-filtered page rather than walking the guild's tasks, so a
+ * picker's cost tracks what the user typed. Pass ``initiativeId`` to scope to
+ * one initiative, or omit it to search the whole guild. Pass ``enabled: false``
+ * until the picker is open.
+ */
+export const useTaskAutocomplete = (
+  query: string,
+  options?: QueryOpts<TaskAutocomplete[]> & { limit?: number; initiativeId?: number }
+) => {
+  const guildId = useActiveGuildId();
+  const { limit = 20, initiativeId, ...queryOptions } = options ?? {};
+  return useQuery<TaskAutocomplete[]>({
+    queryKey: ["tasks", "autocomplete", guildId, initiativeId ?? null, query, limit],
+    queryFn: () =>
+      autocompleteTasks(guildId, {
+        q: query,
+        limit,
+        ...(initiativeId != null ? { initiative_id: initiativeId } : {}),
+      }),
+    placeholderData: keepPreviousData,
+    ...queryOptions,
+  });
 };
 
 export const useSubtasks = (taskId: number, options?: QueryOpts<SubtaskRead[]>) => {

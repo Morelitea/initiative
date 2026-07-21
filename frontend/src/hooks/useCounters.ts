@@ -8,6 +8,8 @@ import {
   deleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdDelete,
   deleteCounterGroupApiV1GGuildIdCounterGroupsGroupIdDelete,
   duplicateCounterGroupApiV1GGuildIdCounterGroupsGroupIdDuplicatePost,
+  getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet,
+  getGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGetQueryKey,
   getListCounterGroupsApiV1GGuildIdCounterGroupsGetQueryKey,
   getReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetQueryKey,
   incrementCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost,
@@ -32,6 +34,7 @@ import type {
   CounterSetCountRequest,
   CounterSortRequest,
   CounterUpdate,
+  InitiativeGroupedCountsResponse,
   ListCounterGroupsApiV1GGuildIdCounterGroupsGetParams,
   ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -104,6 +107,23 @@ export const useCounterGroupsList = (
         params
       ) as unknown as Promise<CounterGroupListResponse>,
     placeholderData: keepPreviousData,
+    ...options,
+  });
+};
+
+export const useCounterGroupCountsByInitiative = (
+  options?: QueryOpts<InitiativeGroupedCountsResponse>
+) => {
+  const guildId = useActiveGuildId();
+  return useQuery<InitiativeGroupedCountsResponse>({
+    queryKey:
+      getGetCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGetQueryKey(
+        guildId
+      ),
+    queryFn: () =>
+      getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet(
+        guildId
+      ) as unknown as Promise<InitiativeGroupedCountsResponse>,
     ...options,
   });
 };

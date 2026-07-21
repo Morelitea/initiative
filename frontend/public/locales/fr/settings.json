@@ -578,14 +578,8 @@
     "loadingOidcMappings": "Chargement des correspondances OIDC…",
     "oidcMappingsLoadError": "Impossible de charger les correspondances OIDC.",
     "scope": {
-      "title": "Configuration de connexion",
-      "description": "Choisissez où la connexion est configurée pour ce serveur.",
-      "platformLabel": "À l'échelle de la plateforme",
-      "platformHelp": "La connexion est configurée une seule fois, ici, pour tout le serveur. Toutes les guildes l'utilisent. Idéal pour une organisation unique gérant sa propre instance.",
-      "guildLabel": "Par guilde",
-      "guildHelp": "Chaque guilde configure sa propre connexion et ses règles d'adhésion dans ses paramètres de guilde. Idéal pour un serveur hébergeant plusieurs organisations indépendantes.",
-      "comingSoon": "Bientôt disponible",
-      "passwordNote": "La connexion par mot de passe reste disponible dans les deux modes."
+      "platformLabel": "Connexion à l'échelle de la plateforme",
+      "guildLabel": "Connexion par guilde"
     }
   },
   "platformUsers": {
@@ -799,6 +793,9 @@
     "statusInputLabel": "Statut de {{name}}",
     "statusSaved": "Statut de {{name}} mis à jour.",
     "statusSaveError": "Impossible de mettre à jour le statut du groupe. Veuillez réessayer.",
+    "guildAuthInputLabel": "Connexion par groupe pour {{name}}",
+    "guildAuthOn": "Connexion par groupe activée pour {{name}}.",
+    "guildAuthOff": "Connexion par groupe désactivée pour {{name}}. Les membres existants continuent de se connecter ; aucun nouveau compte n'est créé.",
     "status": {
       "active": "Actif",
       "read_only": "Lecture seule",
@@ -815,6 +812,7 @@
       "members": "Membres",
       "users": "Utilisateurs",
       "storageLimit": "Limite de stockage",
+      "guildAuth": "Connexion par groupe",
       "status": "Statut"
     }
   },
@@ -870,9 +868,73 @@
     }
   },
   "guildAuth": {
-    "title": "Authentification",
-    "comingSoon": "Bientôt disponible",
-    "description": "Configuration de connexion pour cette guilde.",
-    "body": "Ce serveur utilise la connexion par guilde. Bientôt, les admins de guilde configureront ici l'authentification unique et les règles d'adhésion de cette guilde."
+    "registry": {
+      "title": "Fournisseurs d'identité",
+      "description": "Les fournisseurs d'authentification unique avec lesquels les membres de cette guilde se connectent. Configurés par les admins de cette guilde et appliqués uniquement ici.",
+      "dialogDescription": "Détails OpenID Connect. L'URL de callback pour votre IdP est /api/v1/auth/g/{{guildId}}/{slug}/callback sur ce serveur."
+    },
+    "shareUrl": {
+      "title": "Lien de connexion des membres",
+      "description": "Partagez ce lien avec les membres — il propose les fournisseurs de connexion de cette guilde et les amène directement dans la guilde.",
+      "copy": "Copier le lien",
+      "copied": "Lien de connexion copié"
+    },
+    "policy": {
+      "title": "Exigence de connexion",
+      "description": "Contrôlez avec quelle connexion une session doit s'être authentifiée avant de pouvoir accéder à cette guilde.",
+      "openLabel": "Ouvert",
+      "openHelp": "Tout membre connecté peut accéder à cette guilde.",
+      "requiredLabel": "Exiger l'authentification unique",
+      "requiredHelp": "Les membres ne peuvent accéder à cette guilde qu'après s'être connectés avec le fournisseur sélectionné.",
+      "providerPlaceholder": "Choisir un fournisseur…",
+      "noProviders": "Aucun fournisseur n'est configuré pour l'instant. Ajoutez-en un dans Fournisseurs d'identité ci-dessous, puis exigez-le ici.",
+      "saved": "Exigence de connexion enregistrée",
+      "error": "Impossible d'enregistrer l'exigence de connexion",
+      "selfUnsatisfied": "Votre session actuelle ne s'est pas encore connectée avec {{providerName}}. Connectez-vous une fois avec pour confirmer son fonctionnement avant de l'exiger.",
+      "signInWith": "Se connecter avec {{providerName}}"
+    }
+  },
+  "authProviders": {
+    "title": "Fournisseurs de connexion supplémentaires",
+    "description": "Proposez d'autres moyens de se connecter en plus de l'authentification unique ci-dessus. Chaque fournisseur dispose de son propre bouton sur la page de connexion.",
+    "addProvider": "Ajouter un fournisseur",
+    "loading": "Chargement des fournisseurs…",
+    "empty": "Aucun fournisseur supplémentaire configuré.",
+    "reservedBadge": "SSO de la plateforme",
+    "reservedHelp": "Géré dans les paramètres d'authentification unique ci-dessus",
+    "disabledBadge": "Désactivé",
+    "createTitle": "Ajouter un fournisseur de connexion",
+    "editTitle": "Modifier le fournisseur de connexion",
+    "dialogDescription": "Détails du fournisseur OpenID Connect. L'URL de callback pour votre IdP est /api/v1/auth/{slug}/callback sur ce serveur.",
+    "presetLabel": "Modèle",
+    "presetCustom": "Personnalisé (tout fournisseur OIDC)",
+    "slugLabel": "Identifiant",
+    "slugHelp": "Minuscules, chiffres et tirets. Fixe après la création — il forme les URL de connexion.",
+    "slugInvalid": "Utilisez des minuscules, des chiffres et des tirets ; pas de tiret au début ni à la fin.",
+    "displayNameLabel": "Nom affiché",
+    "issuerLabel": "URL de l'émetteur",
+    "issuerPlaceholder": "https://idp.example.com",
+    "tenantHelp": "Remplacez {tenant} par l'ID de votre locataire Entra.",
+    "clientIdLabel": "ID client",
+    "clientSecretLabel": "Secret client",
+    "secretPlaceholder": "Laissez vide pour un client public (PKCE uniquement)",
+    "secretKeepPlaceholder": "Laissez vide pour conserver le secret actuel",
+    "clearSecret": "Supprimer le secret enregistré",
+    "scopesLabel": "Scopes",
+    "allowJitLabel": "Créer les comptes à la première connexion",
+    "allowJitHelp": "Si désactivé, seuls les comptes existants peuvent se connecter avec ce fournisseur.",
+    "enabledLabel": "Activé",
+    "save": "Enregistrer",
+    "saving": "Enregistrement…",
+    "cancel": "Annuler",
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "deleteTitle": "Supprimer {{name}} ?",
+    "deleteDescription": "Les comptes conservent leurs autres méthodes de connexion, mais les liens avec ce fournisseur sont supprimés définitivement.",
+    "created": "Fournisseur ajouté",
+    "saved": "Fournisseur enregistré",
+    "deleted": "Fournisseur supprimé",
+    "saveError": "Impossible d'enregistrer le fournisseur",
+    "deleteError": "Impossible de supprimer le fournisseur"
   }
 }

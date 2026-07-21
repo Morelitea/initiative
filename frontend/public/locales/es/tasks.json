@@ -251,27 +251,5 @@
     "selected_other": "{{count}} tareas seleccionadas",
     "editTags": "Editar etiquetas",
     "archiving": "Archivando…"
-  },
-  "export": {
-    "button": "Exportar",
-    "preparing": "Exportando…",
-    "queued": "Exportación iniciada: la descarga comenzará cuando esté lista.",
-    "success": "Exportación descargada.",
-    "failed": "La exportación falló. Inténtalo de nuevo o reduce el filtro.",
-    "error": "No se pudo exportar. Inténtalo de nuevo.",
-    "selected": "Exportar selección",
-    "formatPdf": "Documento PDF",
-    "formatPdfDetailed": "PDF (detallado)",
-    "formatCsv": "CSV",
-    "formatXlsx": "Excel (XLSX)",
-    "formatMd": "Tabla Markdown",
-    "formatMdChecklist": "Lista de tareas Markdown",
-    "formatJson": "JSON",
-    "formatOriginal": "Archivo original",
-    "formatMarkdown": "Markdown",
-    "formatPng": "Imagen PNG",
-    "formatSvg": "Imagen SVG",
-    "formatDocx": "Word (DOCX)",
-    "formatIcs": "iCalendar (.ics)"
   }
 }

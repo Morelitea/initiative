@@ -13,8 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
-
-const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
+import { PRIORITY_ORDER } from "@/lib/sorting";
 
 interface GlobalTaskFiltersProps {
   statusFilters: TaskStatusCategory[];
@@ -66,7 +65,7 @@ export const GlobalTaskFilters = ({
           <Button variant="ghost" size="sm" className="h-8 px-3">
             {filtersOpen ? t("filters.hide") : t("filters.show")}
             <ChevronDown
-              className={`ml-1 h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
+              className={`h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
             />
           </Button>
         </CollapsibleTrigger>
@@ -101,7 +100,7 @@ export const GlobalTaskFilters = ({
               </Label>
               <MultiSelect
                 selectedValues={priorityFilters}
-                options={priorityOrder.map((priority) => ({
+                options={PRIORITY_ORDER.map((priority) => ({
                   value: priority,
                   label: t(`priority.${priority}` as never),
                 }))}

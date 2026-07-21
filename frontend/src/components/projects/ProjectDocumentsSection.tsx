@@ -155,7 +155,7 @@ export const ProjectDocumentsSection = ({
           <div className="flex items-center gap-2">
             {canCreate && (
               <Button type="button" size="sm" onClick={() => setCreateDialogOpen(true)}>
-                <FilePlus className="mr-2 h-4 w-4" />
+                <FilePlus className="h-4 w-4" />
                 {t("documents.newDocument")}
               </Button>
             )}
@@ -163,7 +163,7 @@ export const ProjectDocumentsSection = ({
               <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogTrigger asChild>
                   <Button type="button" size="sm" variant="outline">
-                    <Link className="mr-2 h-4 w-4" />
+                    <Link className="h-4 w-4" />
                     {t("documents.attachExisting")}
                   </Button>
                 </DialogTrigger>
@@ -201,7 +201,7 @@ export const ProjectDocumentsSection = ({
                     >
                       {attachMutation.isPending ? (
                         <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          <Loader2 className="h-4 w-4 animate-spin" />
                           {t("documents.attaching")}
                         </>
                       ) : (
@@ -242,7 +242,7 @@ export const ProjectDocumentsSection = ({
                   >
                     <div className="space-y-2">
                       <div className="relative">
-                        <DocumentCard document={summary} hideInitiative />
+                        <DocumentCard document={summary} />
                         {canAttach ? (
                           <Button
                             variant="secondary"

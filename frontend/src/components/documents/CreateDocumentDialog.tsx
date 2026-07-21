@@ -10,7 +10,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
@@ -25,6 +25,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { AsyncCombobox } from "@/components/ui/async-combobox";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -45,7 +46,11 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAllDocumentIds, useCreateDocument, useUploadDocument } from "@/hooks/useDocuments";
+import {
+  useCreateDocument,
+  useTemplateAutocomplete,
+  useUploadDocument,
+} from "@/hooks/useDocuments";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { toast } from "@/lib/chesterToast";
 import { formatBytes, getFileTypeLabel } from "@/lib/fileUtils";
@@ -82,6 +87,10 @@ export const CreateDocumentDialog = ({
     defaultInitiativeId ? String(defaultInitiativeId) : ""
   );
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  // Server search only returns matches for the live query, so the picker can't
+  // look the selected template's title up from the current page — remember it.
+  const [selectedTemplateLabel, setSelectedTemplateLabel] = useState<string | null>(null);
+  const [templateSearch, setTemplateSearch] = useState("");
   const [isTemplateDocument, setIsTemplateDocument] = useState(false);
   const [newDocumentType, setNewDocumentType] = useState<"native" | "whiteboard" | "spreadsheet">(
     "native"
@@ -110,18 +119,28 @@ export const CreateDocumentDialog = ({
 
   const lockedInitiative = lockedInitiativeFromList ?? initiativeQuery.data ?? null;
 
-  // Query templates
-  const templateDocumentsQuery = useAllDocumentIds({ enabled: open });
+  // Template picker — a guild-wide server typeahead, only while the dialog is
+  // open. Scoped in SQL to templates of the currently selected document type so
+  // we don't let users copy a Lexical template into a whiteboard slot (or vice
+  // versa); the backend enforces access control via RLS.
+  const templateDocumentsQuery = useTemplateAutocomplete(templateSearch, {
+    documentType: newDocumentType,
+    enabled: open && !isTemplateDocument,
+  });
 
-  // Filter templates — backend already enforces access control via RLS.
-  // Also filter by the currently selected document type so we don't let users
-  // copy a Lexical template into a whiteboard slot (or vice versa).
-  const manageableTemplates = useMemo(() => {
-    if (!templateDocumentsQuery.data || !Array.isArray(templateDocumentsQuery.data)) return [];
-    return templateDocumentsQuery.data.filter(
-      (doc) => doc.is_template && doc.document_type === newDocumentType
-    );
-  }, [templateDocumentsQuery.data, newDocumentType]);
+  const templateItems = useMemo(
+    () =>
+      (templateDocumentsQuery.data ?? []).map((doc) => ({
+        value: String(doc.id),
+        label: doc.title,
+      })),
+    [templateDocumentsQuery.data]
+  );
+
+  const clearTemplate = useCallback(() => {
+    setSelectedTemplateId("");
+    setSelectedTemplateLabel(null);
+  }, []);
 
   // Reset form when dialog closes, or set default initiative when dialog opens
   useEffect(() => {
@@ -134,7 +153,7 @@ export const CreateDocumentDialog = ({
       // When dialog closes, reset the form
       setNewTitle("");
       setSelectedInitiativeId(defaultInitiativeId ? String(defaultInitiativeId) : "");
-      setSelectedTemplateId("");
+      clearTemplate();
       setIsTemplateDocument(false);
       setNewDocumentType("native");
       setSelectedFile(null);
@@ -147,22 +166,15 @@ export const CreateDocumentDialog = ({
   // Clear template when "save as template" is toggled on
   useEffect(() => {
     if (isTemplateDocument && selectedTemplateId) {
-      setSelectedTemplateId("");
+      clearTemplate();
     }
   }, [isTemplateDocument, selectedTemplateId]);
 
   // Clear template when the document type changes so we don't accidentally
   // copy a native template into a whiteboard (or vice versa).
   useEffect(() => {
-    setSelectedTemplateId("");
+    clearTemplate();
   }, [newDocumentType]);
-
-  // Validate selected template still exists
-  useEffect(() => {
-    if (!selectedTemplateId) return;
-    const isValid = manageableTemplates.some((doc) => String(doc.id) === selectedTemplateId);
-    if (!isValid) setSelectedTemplateId("");
-  }, [manageableTemplates, selectedTemplateId]);
 
   const createDocument = useCreateDocument({
     onSuccess: (document) => {
@@ -300,48 +312,38 @@ export const CreateDocumentDialog = ({
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="create-doc-template">{t("create.templateLabel")}</Label>
+                <Label>{t("create.templateLabel")}</Label>
                 {selectedTemplateId && (
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
                     className="h-auto px-2 py-1 text-xs"
-                    onClick={() => setSelectedTemplateId("")}
+                    onClick={clearTemplate}
                   >
-                    <X className="mr-1 h-3 w-3" />
+                    <X className="h-3 w-3" />
                     {t("create.clear")}
                   </Button>
                 )}
               </div>
-              <Select
-                value={selectedTemplateId || undefined}
-                onValueChange={setSelectedTemplateId}
-                disabled={
-                  templateDocumentsQuery.isLoading ||
-                  manageableTemplates.length === 0 ||
-                  isTemplateDocument
-                }
-              >
-                <SelectTrigger id="create-doc-template">
-                  <SelectValue
-                    placeholder={
-                      templateDocumentsQuery.isLoading
-                        ? t("create.loadingTemplates")
-                        : manageableTemplates.length > 0
-                          ? t("create.selectTemplate")
-                          : t("create.noTemplates")
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {manageableTemplates.map((template) => (
-                    <SelectItem key={template.id} value={String(template.id)}>
-                      {template.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <AsyncCombobox
+                items={templateItems}
+                value={selectedTemplateId || null}
+                selectedLabel={selectedTemplateLabel}
+                onValueChange={(value) => {
+                  setSelectedTemplateId(value);
+                  setSelectedTemplateLabel(
+                    templateItems.find((item) => item.value === value)?.label ?? null
+                  );
+                }}
+                onSearchChange={setTemplateSearch}
+                loading={templateDocumentsQuery.isFetching}
+                disabled={isTemplateDocument}
+                placeholder={t("create.selectTemplate")}
+                searchPlaceholder={t("create.searchTemplates")}
+                emptyMessage={t("create.noTemplates")}
+                aria-label={t("create.templateLabel")}
+              />
             </div>
             <div className="flex flex-col gap-2 rounded-lg border bg-muted/40 p-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -411,7 +413,7 @@ export const CreateDocumentDialog = ({
                   className="w-full"
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  <Upload className="mr-2 h-4 w-4" />
+                  <Upload className="h-4 w-4" />
                   {t("create.chooseFile")}
                 </Button>
               )}
@@ -513,7 +515,7 @@ export const CreateDocumentDialog = ({
             >
               {createDocument.isPending ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   {t("create.creating")}
                 </>
               ) : (
@@ -539,7 +541,7 @@ export const CreateDocumentDialog = ({
             >
               {uploadDocument.isPending ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   {t("create.uploadingFile")}
                 </>
               ) : (
@@ -566,7 +568,7 @@ export const CreateDocumentDialog = ({
             >
               {createDocument.isPending ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   {t("create.creating")}
                 </>
               ) : (

@@ -5,7 +5,6 @@ import {
   Outlet,
   redirect,
   useLocation,
-  useSearch,
 } from "@tanstack/react-router";
 import { Loader2, LogOut, Plus, Search, Settings, Ticket, UserCog } from "lucide-react";
 import { Suspense, useMemo, useState } from "react";
@@ -40,6 +39,7 @@ import {
 } from "@/hooks/useRecents";
 import { useServer } from "@/hooks/useServer";
 import { useVersionCheck } from "@/hooks/useVersionCheck";
+import { isJustSignedIn } from "@/lib/authTransition";
 import { chooseNoGuildLayout } from "@/lib/noGuildLayout";
 import { canAccessPlatformAdmin } from "@/lib/permissions";
 import { getActiveRecentKey } from "@/lib/recentRoute";
@@ -63,14 +63,15 @@ const FullScreenLoader = () => (
 );
 
 export const Route = createFileRoute("/_serverRequired/_authenticated")({
-  beforeLoad: ({ context, search }) => {
+  beforeLoad: ({ context }) => {
     const { auth, server } = context;
-    const justAuthenticated = (search as { authenticated?: string })?.authenticated === "1";
 
     // If auth state is already determined and user is not authenticated,
-    // redirect immediately (this handles direct navigation when auth is cached)
-    // Skip if we just authenticated (search param indicates state is updating)
-    if (!justAuthenticated && !auth?.loading && !auth?.user) {
+    // redirect immediately (this handles direct navigation when auth is
+    // cached). Skip during the brief just-signed-in window, when the auth
+    // context hasn't committed the new user yet; logout clears the marker,
+    // so a signed-out session always redirects.
+    if (!isJustSignedIn() && !auth?.loading && !auth?.user) {
       const redirectTo = server?.isNativePlatform ? "/login" : "/welcome";
       throw redirect({ to: redirectTo });
     }
@@ -90,9 +91,6 @@ function AppLayout() {
   const shortcutLabel = isMac ? "\u2318K" : "Ctrl+K";
   const { guilds, loading: guildsLoading, canCreateGuilds, createGuild } = useGuilds();
   const location = useLocation();
-  const search = useSearch({ strict: false }) as { authenticated?: string };
-  // Check if we just authenticated (search param passed via navigation)
-  const justAuthenticated = search?.authenticated === "1";
   const { updateAvailable, closeDialog } = useVersionCheck();
 
   useRealtimeUpdates();
@@ -118,8 +116,10 @@ function AppLayout() {
     return <FullScreenLoader />;
   }
 
-  // Redirect to login/welcome if not authenticated (and we didn't just authenticate)
-  if (!user && !justAuthenticated) {
+  // Redirect to login/welcome if not authenticated. The just-signed-in
+  // window covers the render before the auth context commits the new user;
+  // logout clears it, so signing out always leaves the authenticated shell.
+  if (!user && !isJustSignedIn()) {
     const redirectTo = isNativePlatform ? "/login" : "/welcome";
     return <Navigate to={redirectTo} replace />;
   }

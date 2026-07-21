@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 
+import { createGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPost } from "@/api/generated/guilds/guilds";
 import { useReadStorageUsageApiV1GGuildIdStorageUsageGet } from "@/api/generated/storage/storage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,13 +15,7 @@ import { formatBytes } from "@/lib/fileUtils";
 const ratioPct = (used: number, max: number | null): number | null =>
   max && max > 0 ? Math.min(100, Math.round((used / max) * 100)) : null;
 
-/**
- * Guild usage against its caps. Storage used vs `max_storage_bytes` and
- * members vs `max_users` are operator-set numbers, so this renders on every
- * deployment. The tier label and the Upgrade / Manage-billing link-outs
- * appear only when an external billing URL is configured
- * (`/config` → `billing.url`); with it unset none of that UI exists.
- */
+/** Guild usage against its storage and member caps. */
 export const GuildUsagePanel = () => {
   const { t, i18n } = useTranslation(["guilds", "common"]);
   const { activeGuild } = useGuilds();
@@ -41,22 +36,31 @@ export const GuildUsagePanel = () => {
   const maxUsers = activeGuild.max_users; // null = unlimited
   const storagePct = ratioPct(usedBytes, maxBytes);
   const memberPct = ratioPct(members, maxUsers);
-  // tier_name is echoed verbatim — the app never invents a plan name. When
-  // unset, the neutral app-owned label is "Self-hosted".
   const tierLabel = activeGuild.tier_name ?? t("usagePanel.selfHosted");
 
-  // The portal renders its own UI in the user's language when told which one;
-  // resolvedLanguage is the base tag i18next actually loaded (e.g. "fr", not
-  // "fr-CA"), matching the portal's supported set.
   const lang = i18n.resolvedLanguage ?? i18n.language;
-  const upgradeUrl = billing
+  const isAdmin = activeGuild.role === "admin";
+  const anonUpgradeUrl = billing
     ? `${billing.url}/upgrade?guild=${activeGuild.id}&lang=${encodeURIComponent(lang)}`
     : null;
-  const manageUrl = billing
-    ? `${billing.url}/checkout?guild=${activeGuild.id}${
-        activeGuild.tier_name ? `&plan=${encodeURIComponent(activeGuild.tier_name)}` : ""
-      }&lang=${encodeURIComponent(lang)}`
-    : null;
+
+  const openPortal = async (page: "manage" | "upgrade") => {
+    if (!billing) return;
+    const base = `${billing.url}/${page}?guild=${activeGuild.id}&lang=${encodeURIComponent(lang)}`;
+    const tab = window.open("about:blank", "_blank");
+    if (tab) tab.opener = null;
+    try {
+      const { handoff_token } = await createGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPost(
+        activeGuild.id
+      );
+      const url = `${base}#handoff=${encodeURIComponent(handoff_token)}`;
+      if (tab) tab.location.href = url;
+      else window.open(url, "_blank", "noopener,noreferrer");
+    } catch {
+      if (tab) tab.location.href = base;
+      else window.open(base, "_blank", "noopener,noreferrer");
+    }
+  };
 
   return (
     <Card>
@@ -100,16 +104,22 @@ export const GuildUsagePanel = () => {
                 <span className="font-semibold">{tierLabel}</span>
               </p>
               <div className="flex gap-2">
-                <Button asChild size="sm">
-                  <a href={upgradeUrl ?? "#"} target="_blank" rel="noopener noreferrer">
-                    {t("usagePanel.upgrade")}
-                  </a>
-                </Button>
-                <Button asChild size="sm" variant="outline">
-                  <a href={manageUrl ?? "#"} target="_blank" rel="noopener noreferrer">
-                    {t("usagePanel.manageBilling")}
-                  </a>
-                </Button>
+                {isAdmin ? (
+                  <>
+                    <Button size="sm" onClick={() => openPortal("upgrade")}>
+                      {t("usagePanel.upgrade")}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => openPortal("manage")}>
+                      {t("usagePanel.manageBilling")}
+                    </Button>
+                  </>
+                ) : (
+                  <Button asChild size="sm">
+                    <a href={anonUpgradeUrl ?? "#"} target="_blank" rel="noopener noreferrer">
+                      {t("usagePanel.upgrade")}
+                    </a>
+                  </Button>
+                )}
               </div>
             </div>
           </>

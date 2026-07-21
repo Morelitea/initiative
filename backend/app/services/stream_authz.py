@@ -72,6 +72,11 @@ class _StreamMember:
     initiative_id: int
     room: RoomKey
     authorize: Authorizer
+    # The satisfied-provider set of the session that opened the socket,
+    # captured at join. Replayed on every re-check so a guild auth policy
+    # added mid-connection disconnects sockets whose session doesn't satisfy
+    # it — same continuous-authorization rule as every other gate.
+    satisfied_providers: frozenset[int] = frozenset()
 
 
 class StreamAuthority:
@@ -97,12 +102,15 @@ class StreamAuthority:
         resource_type: str,
         resource_id: int,
         authorize: Authorizer,
+        satisfied_providers: frozenset[int] = frozenset(),
     ) -> None:
         """Register an already-authorized content socket: add it to its fan-out
         room and govern it for continuous re-auth.
 
         The caller must have run the full join check (``establish_guild_access`` +
         the adapter load + DAC) at connect; the socket is governed from here on.
+        ``satisfied_providers`` is the joining session's satisfied set — the
+        re-checks replay it against the guild's (possibly changed) auth policy.
         """
         room: RoomKey = (guild_id, resource_type, resource_id)
         async with self._lock:
@@ -113,6 +121,7 @@ class StreamAuthority:
                 initiative_id=initiative_id,
                 room=room,
                 authorize=authorize,
+                satisfied_providers=satisfied_providers,
             )
             self._rooms.setdefault(room, set()).add(websocket)
         self._ensure_loop()
@@ -191,9 +200,14 @@ class StreamAuthority:
                     )
                 )
                 try:
-                    await establish_guild_access(session, member.user, member.guild_id)
+                    await establish_guild_access(
+                        session,
+                        member.user,
+                        member.guild_id,
+                        satisfied_providers=member.satisfied_providers,
+                    )
                 except GuildAccessError:
-                    return False  # guild membership / PAM / break-glass revoked
+                    return False  # guild access or auth-policy satisfaction revoked
                 # Initiative boundary (RLS resource load) + DAC, inside the adapter.
                 return await member.authorize(session, member.user)
         except Exception:

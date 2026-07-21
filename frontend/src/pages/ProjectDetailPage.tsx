@@ -1,6 +1,6 @@
 import { Link, useParams, useRouter, useSearch } from "@tanstack/react-router";
 import { AlertCircle, SearchX, Settings, ShieldAlert } from "lucide-react";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -26,11 +26,9 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { useProject, useProjectTaskStatuses } from "@/hooks/useProjects";
 import { useRecordRecentView } from "@/hooks/useRecents";
-import { useUsers } from "@/hooks/useUsers";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { Capability, hasCapability } from "@/lib/permissions";
-import { getUserDisplayName } from "@/lib/userDisplay";
 
 export const ProjectDetailPage = () => {
   const { t } = useTranslation("projects");
@@ -74,8 +72,6 @@ export const ProjectDetailPage = () => {
     Number.isFinite(parsedProjectId) ? parsedProjectId : null
   );
 
-  const usersQuery = useUsers();
-
   const recordViewMutation = useRecordRecentView("project", Number(guildId));
   const viewedProjectId = projectQuery.data?.id;
   useEffect(() => {
@@ -84,64 +80,6 @@ export const ProjectDetailPage = () => {
     }
     recordViewMutation.mutate(viewedProjectId);
   }, [viewedProjectId, recordViewMutation.mutate]);
-
-  // Pure DAC: only users with write access (owner or write level) can be assigned tasks
-  // Includes both explicit user permissions and role-based permissions
-  const userOptions = useMemo(() => {
-    const project = projectQuery.data;
-    const allUsers = usersQuery.data ?? [];
-    if (!project) {
-      return allUsers.map((item) => ({
-        id: item.id,
-        label: getUserDisplayName(item),
-        avatarUrl: item.avatar_url,
-        avatarBase64: item.avatar_base64,
-      }));
-    }
-
-    const allowed = new Set<number>();
-    // Explicit per-user grants
-    project?.grants?.forEach((grant) => {
-      if (grant.user_id != null && (grant.level === "owner" || grant.level === "write")) {
-        allowed.add(grant.user_id);
-      }
-    });
-
-    // Role-based grants: find roles with write access,
-    // then include initiative members with those roles
-    const writeRoleIds = new Set(
-      project.grants
-        ?.filter((grant) => grant.role_id != null && grant.level === "write")
-        .map((grant) => grant.role_id as number) ?? []
-    );
-    if (writeRoleIds.size > 0) {
-      project.initiative?.members?.forEach((member) => {
-        if (member.role_id && writeRoleIds.has(member.role_id)) {
-          allowed.add(member.user.id);
-        }
-      });
-    }
-
-    // All-initiative-members grant with write: every initiative member is assignable
-    const allMembersWritable = project.grants?.some(
-      (grant) =>
-        grant.all_initiative_members && (grant.level === "owner" || grant.level === "write")
-    );
-    if (allMembersWritable) {
-      project.initiative?.members?.forEach((member) => {
-        allowed.add(member.user.id);
-      });
-    }
-
-    return allUsers
-      .filter((item) => allowed.has(item.id))
-      .map((item) => ({
-        id: item.id,
-        label: getUserDisplayName(item),
-        avatarUrl: item.avatar_url,
-        avatarBase64: item.avatar_base64,
-      }));
-  }, [usersQuery.data, projectQuery.data]);
 
   const project = projectQuery.data;
   const projectName = project?.name;
@@ -286,7 +224,6 @@ export const ProjectDetailPage = () => {
           projectId={project.id}
           initiativeId={project.initiative_id}
           taskStatuses={taskStatusesQuery.data ?? []}
-          userOptions={userOptions}
           canEditTaskDetails={canEditTaskDetails}
           canWriteProject={Boolean(canWriteProject)}
           projectIsArchived={projectIsArchived}

@@ -1,6 +1,6 @@
 import { Browser } from "@capacitor/browser";
 import { useRouter, useSearch } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,11 +13,16 @@ export const OidcCallbackPage = () => {
     token?: string;
     token_type?: string;
     error?: string;
+    next?: string;
   };
   const router = useRouter();
   const { completeOidcLogin } = useAuth();
   const { isNativePlatform } = useServer();
   const [status, setStatus] = useState(t("oidcCallback.finishing"));
+  // The exchange is a one-shot side effect that also changes auth state, which
+  // re-renders this page. Guard it so the callback is only ever consumed once,
+  // however the effect's dependencies churn.
+  const startedRef = useRef(false);
 
   useEffect(() => {
     const error = searchParams.error;
@@ -25,6 +30,10 @@ export const OidcCallbackPage = () => {
       setStatus(t("oidcCallback.failedWithError", { error }));
       return;
     }
+    if (startedRef.current) {
+      return;
+    }
+    startedRef.current = true;
     const run = async () => {
       try {
         // token is present for native (device_token); undefined for web (cookie was set by backend)
@@ -37,7 +46,11 @@ export const OidcCallbackPage = () => {
             // Browser may already be closed, ignore
           }
         }
-        router.navigate({ to: "/", replace: true });
+        // A step-up sign-in returns to the page it interrupted; the backend
+        // already validated `next` as a relative SPA path, re-checked here.
+        const next = searchParams.next;
+        const returnTo = next?.startsWith("/") && !next.startsWith("//") ? next : "/";
+        router.navigate({ to: returnTo, replace: true });
       } catch (err) {
         console.error(err);
         setStatus(t("oidcCallback.error"));

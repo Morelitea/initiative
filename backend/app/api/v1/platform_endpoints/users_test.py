@@ -118,6 +118,90 @@ async def test_list_users_in_guild(client: AsyncClient, session: AsyncSession):
 
 
 @pytest.mark.integration
+async def test_search_users_returns_slim_paginated_envelope(
+    client: AsyncClient, session: AsyncSession
+):
+    """The slim search endpoint returns a UserSummary envelope (no email /
+    role / initiative_roles) and honours page_size."""
+    guild = await create_guild(session)
+    caller = await create_user(session, email="caller@example.com", full_name="Aaa")
+    other = await create_user(session, email="other@example.com", full_name="Bbb")
+    third = await create_user(session, email="third@example.com", full_name="Ccc")
+    for user in (caller, other, third):
+        await create_guild_membership(session, user=user, guild=guild)
+
+    headers = get_auth_headers(caller)
+
+    response = await client.get(
+        f"/api/v1/g/{guild.id}/users/search",
+        headers=headers,
+        params={"page_size": 2, "page": 1},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_count"] == 3
+    assert body["page"] == 1
+    assert body["page_size"] == 2
+    assert body["has_next"] is True
+    assert body["has_prev"] is False
+    assert len(body["items"]) == 2
+    # Ordered by full_name — the first two of Aaa/Bbb/Ccc.
+    assert [item["full_name"] for item in body["items"]] == ["Aaa", "Bbb"]
+    # Slim projection: no email, no platform role, no initiative_roles.
+    summary = body["items"][0]
+    assert set(summary.keys()) == {
+        "id",
+        "full_name",
+        "avatar_base64",
+        "avatar_url",
+        "status",
+    }
+
+
+@pytest.mark.integration
+async def test_search_users_filters_by_name(client: AsyncClient, session: AsyncSession):
+    """The `search` param is a case-insensitive substring match on the name."""
+    guild = await create_guild(session)
+    caller = await create_user(
+        session, email="caller@example.com", full_name="Alice Smith"
+    )
+    bob = await create_user(session, email="bob@example.com", full_name="Bob Jones")
+    for user in (caller, bob):
+        await create_guild_membership(session, user=user, guild=guild)
+
+    headers = get_auth_headers(caller)
+
+    response = await client.get(
+        f"/api/v1/g/{guild.id}/users/search",
+        headers=headers,
+        params={"search": "smith"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_count"] == 1
+    assert [item["full_name"] for item in body["items"]] == ["Alice Smith"]
+
+
+@pytest.mark.integration
+async def test_search_users_requires_membership(
+    client: AsyncClient, session: AsyncSession
+):
+    """A non-member cannot reach the guild's slim roster (path is a selector,
+    not a trust boundary)."""
+    guild = await create_guild(session)
+    outsider = await create_user(session, email="outsider@example.com")
+    # No guild membership for the outsider.
+
+    headers = get_auth_headers(outsider)
+
+    response = await client.get(f"/api/v1/g/{guild.id}/users/search", headers=headers)
+
+    assert response.status_code == 403
+
+
+@pytest.mark.integration
 async def test_update_user_by_id_as_admin(client: AsyncClient, session: AsyncSession):
     """Test that guild admin can update other users."""
     guild = await create_guild(session)
@@ -966,6 +1050,71 @@ async def test_export_users_csv_user_outside_guild(
     )
 
     assert response.status_code == 404
+
+
+@pytest.mark.integration
+async def test_password_change_keeps_this_device_signed_in(
+    client: AsyncClient, session: AsyncSession
+):
+    """Changing the password revokes every other session, but THIS device gets
+    a fresh server-side session: both cookies are re-issued and the new
+    refresh chain rotates."""
+    await create_user(session, email="pwkeep@example.com")
+
+    login = await client.post(
+        "/api/v1/auth/token",
+        data={"username": "pwkeep@example.com", "password": "testpassword123"},
+    )
+    assert login.status_code == 200
+
+    change = await client.patch(
+        "/api/v1/users/me",
+        json={"password": "newpassword456", "current_password": "testpassword123"},
+    )
+    assert change.status_code == 200
+    assert change.cookies.get("refresh_token")  # fresh chain for this device
+
+    rotated = await client.post("/api/v1/auth/refresh")
+    assert rotated.status_code == 200
+    me = await client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"Bearer {rotated.json()['access_token']}"},
+    )
+    assert me.status_code == 200
+
+
+@pytest.mark.integration
+async def test_password_change_fallback_clears_dead_refresh_cookie(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """If the session store fails right after the global revocation, the
+    legacy re-issue must also clear the (now revoked) refresh cookie so the
+    SPA doesn't resend a dead token on its next silent renewal."""
+    await create_user(session, email="pwfall@example.com")
+
+    login = await client.post(
+        "/api/v1/auth/token",
+        data={"username": "pwfall@example.com", "password": "testpassword123"},
+    )
+    assert login.status_code == 200
+    assert login.cookies.get("refresh_token")
+
+    async def _boom(*args, **kwargs):
+        raise RuntimeError("session store down")
+
+    monkeypatch.setattr("app.services.auth.sessions.create_session", _boom)
+
+    change = await client.patch(
+        "/api/v1/users/me",
+        json={"password": "newpassword456", "current_password": "testpassword123"},
+    )
+    assert change.status_code == 200
+    set_cookies = change.headers.get_list("set-cookie")
+    assert any(
+        c.startswith("refresh_token=") and ("Max-Age=0" in c or "1970" in c)
+        for c in set_cookies
+    ), set_cookies
+    assert any(c.startswith("session_token=") for c in set_cookies)
 
 
 @pytest.mark.integration

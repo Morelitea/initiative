@@ -156,7 +156,7 @@ const OptionListEditor = ({ options, onChange, disabled }: OptionListEditorProps
         ))}
       </ul>
       <Button type="button" variant="outline" size="sm" onClick={handleAdd} disabled={disabled}>
-        <Plus className="mr-1 h-4 w-4" />
+        <Plus className="h-4 w-4" />
         {t("properties:manager.addOption")}
       </Button>
     </div>
@@ -311,7 +311,7 @@ export const InitiativeSettingsPropertiesTab = ({ initiativeId }: { initiativeId
             <CardDescription>{t("properties:manager.description")}</CardDescription>
           </div>
           <Button onClick={handleOpenCreate}>
-            <Plus className="mr-1 h-4 w-4" />
+            <Plus className="h-4 w-4" />
             {t("properties:manager.newDefinition")}
           </Button>
         </CardHeader>

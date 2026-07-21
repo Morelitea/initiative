@@ -3,7 +3,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { TagRead, TagSummary } from "@/api/generated/initiativeAPI.schemas";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import {
   Command,
@@ -152,18 +152,29 @@ export function TagPicker({
             <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </button>
         ) : (
-          <Button
-            variant="outline"
+          // Rendered as a div, not a button: the selected tags carry their own
+          // "remove" buttons, which may not be nested inside a <button>.
+          <div
             role="combobox"
+            tabIndex={disabled ? -1 : 0}
             aria-expanded={open}
-            disabled={disabled}
+            aria-disabled={disabled}
+            onKeyDown={(e) => {
+              if (e.target !== e.currentTarget) return;
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                if (!disabled) setOpen((prev) => !prev);
+              }
+            }}
             className={cn(
-              "h-auto min-h-10 w-full justify-start",
+              buttonVariants({ variant: "outline" }),
+              "h-auto min-h-10 w-full cursor-pointer justify-start",
+              disabled && "pointer-events-none opacity-50",
               selectedTags.length === 0 && "text-muted-foreground",
               className
             )}
           >
-            <TagIcon className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+            <TagIcon className="h-4 w-4 shrink-0 opacity-50" />
             {selectedTags.length > 0 ? (
               <div className="flex flex-wrap gap-1">
                 {selectedTags.map((tag) => (
@@ -178,7 +189,7 @@ export function TagPicker({
             ) : (
               <span>{resolvedPlaceholder}</span>
             )}
-          </Button>
+          </div>
         )}
       </PopoverTrigger>
       <PopoverContent className="w-72 p-0" align="start">

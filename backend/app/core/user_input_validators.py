@@ -101,3 +101,45 @@ def normalize_week_starts_on(value: int | str | None) -> int | None:
             detail=UserMessages.INVALID_WEEK_START,
         )
     return number
+
+
+# Provider slugs form the login URLs (/auth/{slug}/login), so the alphabet is
+# fixed: lowercase ASCII letters, digits, and inner dashes.
+PROVIDER_SLUG_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789-")
+PROVIDER_SLUG_MAX_LENGTH = 64
+
+
+def validate_provider_slug(value: str) -> str:
+    """Return ``value`` if it is a well-formed provider slug, else raise
+    :class:`ValueError` naming the violated rule."""
+    if not 1 <= len(value) <= PROVIDER_SLUG_MAX_LENGTH:
+        raise ValueError(f"slug must be 1-{PROVIDER_SLUG_MAX_LENGTH} characters")
+    if not set(value) <= PROVIDER_SLUG_CHARS:
+        raise ValueError("slug may contain only lowercase letters, digits, and dashes")
+    if value.startswith("-") or value.endswith("-"):
+        raise ValueError("slug may not start or end with a dash")
+    return value
+
+
+def is_valid_provider_slug(value: str) -> bool:
+    try:
+        validate_provider_slug(value)
+    except ValueError:
+        return False
+    return True
+
+
+# Post-login return paths must stay inside the SPA: a single-slash-rooted
+# relative path with no scheme, host, or backslash forms.
+NEXT_PATH_MAX_LENGTH = 512
+
+
+def is_safe_next_path(value: str) -> bool:
+    """Whether ``value`` is a same-origin SPA path a login flow may return to."""
+    if not value or len(value) > NEXT_PATH_MAX_LENGTH:
+        return False
+    if not value.startswith("/") or value.startswith("//"):
+        return False
+    if "\\" in value:
+        return False
+    return all(ord(ch) >= 0x20 for ch in value)

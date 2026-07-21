@@ -4,19 +4,28 @@ import logging
 from contextlib import suppress
 from typing import Annotated, List
 
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import text
 
 from app.api.deps import SessionDep, UserSessionDep, get_current_active_user
+from app.core.auth_context import satisfied_provider_ids
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
-from app.core.messages import AdvancedToolMessages, GuildMessages
-from app.core.security import create_advanced_tool_handoff_token, verify_password
+from app.core.messages import AdvancedToolMessages, BillingMessages, GuildMessages
+from app.core.security import (
+    HandoffSigningNotConfiguredError,
+    create_advanced_tool_handoff_token,
+    create_billing_portal_handoff_token,
+    verify_password,
+)
 from app.db.schema_provisioning import deprovision_guild
 from app.db.session import get_admin_session, set_rls_context
 from app.models.platform.guild import GuildRole, GuildMembership, Guild, GuildStatus
 from app.models.platform.user import User
+from app.schemas.platform.billing import BillingPortalHandoffResponse
 from app.schemas.platform.guild import (
+    GuildAuthPolicyRead,
+    GuildAuthPolicyUpdate,
     GuildCreate,
     GuildDeletionRequest,
     GuildMembershipUpdate,
@@ -32,7 +41,11 @@ from app.schemas.platform.guild import (
 )
 from app.schemas.platform.user import GuildRemovalProjectInfo, UserPublic
 from app.schemas.tenant.initiative import AdvancedToolHandoffResponse
+from app.core.config import AuthScope
+from app.models.platform.auth_provider import AuthProvider
+from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.services.auth.identity import has_federated_identity
+from app.services.auth.platform_provider import is_login_ready
 from app.services.platform import guilds as guilds_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services import rls as rls_service
@@ -77,6 +90,10 @@ def _serialize_guild(
         # already fail at the DB role level) so the UI can drop write
         # affordances — without disclosing the status itself.
         content_read_only=(guild.status == GuildStatus.read_only.value),
+        # Admins only: lets their settings UI show/hide the Authentication tab.
+        guild_auth_enabled=(
+            guild.guild_auth_enabled if membership.role == GuildRole.admin else None
+        ),
     )
 
 
@@ -338,16 +355,24 @@ async def create_guild_advanced_tool_handoff(
         user_id=current_user.id,
     )
 
-    token, expires_in_seconds = create_advanced_tool_handoff_token(
-        user_id=current_user.id,
-        guild_id=guild_id,
-        guild_role=GuildRole.admin.value,
-        # Guild admins are managers by definition for this scope.
-        is_manager=True,
-        # Admins always have create permission at the guild level.
-        can_create=True,
-        scope="guild",
-    )
+    try:
+        token, expires_in_seconds = create_advanced_tool_handoff_token(
+            user_id=current_user.id,
+            guild_id=guild_id,
+            guild_role=GuildRole.admin.value,
+            # Guild admins are managers by definition for this scope.
+            is_manager=True,
+            # Admins always have create permission at the guild level.
+            can_create=True,
+            scope="guild",
+        )
+    except HandoffSigningNotConfiguredError as exc:
+        # ADVANCED_TOOL_URL is on but no RS256 signing key — fail closed
+        # (retryable once the operator configures the key).
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=AdvancedToolMessages.SIGNING_NOT_CONFIGURED,
+        ) from exc
 
     return AdvancedToolHandoffResponse(
         handoff_token=token,
@@ -356,6 +381,176 @@ async def create_guild_advanced_tool_handoff(
         scope="guild",
         initiative_id=None,
     )
+
+
+@router.post(
+    "/{guild_id}/billing/handoff",
+    response_model=BillingPortalHandoffResponse,
+)
+async def create_guild_billing_handoff(
+    guild_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> BillingPortalHandoffResponse:
+    """Mint a billing-portal handoff for a guild admin. Guild admin only."""
+    if not settings.BILLING_URL:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=BillingMessages.PORTAL_NOT_CONFIGURED,
+        )
+
+    await _ensure_guild_admin(
+        session,
+        guild_id=guild_id,
+        user_id=current_user.id,
+    )
+
+    try:
+        token, expires_in_seconds = create_billing_portal_handoff_token(
+            user_id=current_user.id,
+            guild_id=guild_id,
+            guild_role=GuildRole.admin.value,
+        )
+    except HandoffSigningNotConfiguredError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=BillingMessages.PORTAL_SIGNING_NOT_CONFIGURED,
+        ) from exc
+
+    return BillingPortalHandoffResponse(
+        handoff_token=token,
+        expires_in_seconds=expires_in_seconds,
+    )
+
+
+def _require_guild_auth_scope() -> None:
+    """The guild sign-in configuration surface exists only when the instance's
+    deploy-time posture is per-guild login; under platform posture it is absent
+    (404), the same way dormant login providers behave. Enforcement of an
+    existing policy row is deliberately not posture-gated — only its management
+    is."""
+    if settings.AUTH_SCOPE != AuthScope.guild:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=GuildMessages.GUILD_AUTH_NOT_ENABLED,
+        )
+
+
+async def _require_guild_auth_enabled(
+    admin_session: AsyncSession, guild_id: int
+) -> None:
+    """The per-guild sign-in *configuration* surface exists only when an
+    operator has enabled guild auth for this guild (the Guilds-dashboard
+    toggle); absent (404) otherwise — the same shape as the posture gate above.
+    Like that gate, this bounds *management* only: turning the toggle back off
+    never deletes providers, keeps existing members signing in through them, and
+    leaves any existing sign-in requirement enforced (see the Guild model)."""
+    guild = await admin_session.get(Guild, guild_id)
+    if guild is None or not guild.guild_auth_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=GuildMessages.GUILD_AUTH_NOT_ENABLED,
+        )
+
+
+def _auth_policy_read(
+    policy_row, provider_display_name: str | None = None
+) -> GuildAuthPolicyRead:
+    if policy_row is None or policy_row.policy == "open":
+        return GuildAuthPolicyRead(policy="open")
+    return GuildAuthPolicyRead(
+        policy="required",
+        provider_id=policy_row.provider_id,
+        provider_slug=policy_row.provider_slug,
+        provider_display_name=provider_display_name,
+    )
+
+
+@router.get("/{guild_id}/auth-policy", response_model=GuildAuthPolicyRead)
+async def get_guild_auth_policy(
+    guild_id: int,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> GuildAuthPolicyRead:
+    """The guild's sign-in requirement. Guild admin only (the settings UI);
+    a blocked session learns the required provider from the step-up 401's
+    header, not from here. Absent (404) unless the platform posture is
+    per-guild login."""
+    _require_guild_auth_scope()
+    await _require_guild_auth_enabled(admin_session, guild_id)
+    await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id)
+    policy_row = await admin_session.get(GuildAuthPolicy, guild_id)
+    display_name = None
+    if policy_row is not None and policy_row.provider_id is not None:
+        provider = await admin_session.get(AuthProvider, policy_row.provider_id)
+        display_name = provider.display_name if provider else None
+    return _auth_policy_read(policy_row, display_name)
+
+
+@router.put("/{guild_id}/auth-policy", response_model=GuildAuthPolicyRead)
+async def set_guild_auth_policy(
+    guild_id: int,
+    payload: GuildAuthPolicyUpdate,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> GuildAuthPolicyRead:
+    """Set the guild's sign-in requirement. Guild admin only.
+
+    ``open`` deletes the stored row (no row IS open). ``required`` names one
+    of the guild's own login-ready providers — and the calling admin's own
+    session must already satisfy it, which both proves the provider works
+    end-to-end and keeps an admin from locking their guild (and themselves)
+    behind a sign-in they haven't completed. Absent (404) unless the platform
+    posture is per-guild login."""
+    _require_guild_auth_scope()
+    await _require_guild_auth_enabled(admin_session, guild_id)
+    await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id)
+
+    if payload.policy == "open":
+        policy_row = await admin_session.get(GuildAuthPolicy, guild_id)
+        if policy_row is not None:
+            await admin_session.delete(policy_row)
+            await admin_session.commit()
+        return GuildAuthPolicyRead(policy="open")
+
+    if payload.provider_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=GuildMessages.GUILD_AUTH_POLICY_INVALID_PROVIDER,
+        )
+    provider = await admin_session.get(AuthProvider, payload.provider_id)
+    if (
+        provider is None
+        or provider.guild_id != guild_id
+        or not is_login_ready(provider)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=GuildMessages.GUILD_AUTH_POLICY_INVALID_PROVIDER,
+        )
+    if provider.id not in satisfied_provider_ids():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,
+        )
+
+    policy_row = await admin_session.get(GuildAuthPolicy, guild_id)
+    if policy_row is None:
+        policy_row = GuildAuthPolicy(
+            guild_id=guild_id,
+            policy="required",
+            provider_id=provider.id,
+            provider_slug=provider.slug,
+        )
+    else:
+        policy_row.policy = "required"
+        policy_row.provider_id = provider.id
+        policy_row.provider_slug = provider.slug
+    admin_session.add(policy_row)
+    await admin_session.commit()
+    return _auth_policy_read(policy_row, provider.display_name)
 
 
 @router.delete(
@@ -519,7 +714,7 @@ async def update_guild_membership(
     guild_id: int,
     user_id: int,
     payload: GuildMembershipUpdate,
-    session: SessionDep,
+    session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> Response:
     """Update a user's guild membership role. Guild admin only.
@@ -528,12 +723,14 @@ async def update_guild_membership(
     - Cannot change your own role
     - Cannot demote the last guild admin
     """
+    # Runs on the system engine (AdminSessionDep): the guild role holds no UPDATE
+    # on guild_memberships, so a role change happens only here, after the
+    # guild-admin check — never under a request-path role. See migration 0145.
     await _ensure_guild_admin(
         session,
         guild_id=guild_id,
         user_id=current_user.id,
     )
-    await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
 
     if user_id == current_user.id:
         raise HTTPException(

@@ -26,7 +26,6 @@ from app.models.platform.oidc_claim_mapping import (
     OIDCMappingTargetType,
 )
 from app.schemas.platform.settings import (
-    AuthScopeUpdate,
     EmailSettingsResponse,
     EmailSettingsUpdate,
     EmailTestRequest,
@@ -51,6 +50,7 @@ from app.schemas.platform.guild import (
 )
 from app.schemas.platform.push import FCMConfigResponse
 from app.core.messages import GuildMessages, SettingsMessages
+from app.services.auth import platform_provider as platform_provider_service
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import guilds as guilds_service
 from app.services import email as email_service
@@ -92,79 +92,55 @@ def _email_settings_payload(settings_obj: AppSetting) -> EmailSettingsResponse:
     )
 
 
-@router.get("/auth", response_model=OIDCSettingsResponse)
-async def get_oidc_settings(
-    session: UserSessionDep,
-    _admin: ConfigManageDep,
-) -> OIDCSettingsResponse:
-    settings_obj = await app_settings_service.get_app_settings(session)
+def _platform_oidc_response(provider) -> OIDCSettingsResponse:
+    """Serialize the platform provider row (or its not-yet-created default)
+    into the settings wire format — unchanged from the app_settings era."""
     return OIDCSettingsResponse(
-        auth_scope=settings_obj.auth_scope,
-        enabled=settings_obj.oidc_enabled,
-        issuer=settings_obj.oidc_issuer,
-        client_id=settings_obj.oidc_client_id,
+        auth_scope=app_config.AUTH_SCOPE,
+        enabled=provider.enabled if provider else False,
+        issuer=provider.issuer if provider else None,
+        client_id=provider.client_id if provider else None,
         redirect_uri=_backend_redirect_uri(),
         post_login_redirect=_frontend_redirect_uri(),
         mobile_redirect_uri=_mobile_redirect_uri(),
-        provider_name=settings_obj.oidc_provider_name,
-        scopes=settings_obj.oidc_scopes,
+        provider_name=provider.display_name if provider else None,
+        scopes=platform_provider_service.scopes_list(provider)
+        if provider
+        else list(platform_provider_service.DEFAULT_OIDC_SCOPES),
     )
+
+
+@router.get("/auth", response_model=OIDCSettingsResponse)
+async def get_oidc_settings(
+    session: AdminSessionDep,
+    _admin: ConfigManageDep,
+) -> OIDCSettingsResponse:
+    """Platform OIDC config — read straight from the provider registry row
+    (its source of truth). System engine: ``auth_providers`` carries no
+    request-path grant; the capability gate stays ``config.manage``."""
+    provider = await platform_provider_service.get_platform_provider(session)
+    return _platform_oidc_response(provider)
 
 
 @router.put("/auth", response_model=OIDCSettingsResponse)
 async def update_oidc_settings(
     payload: OIDCSettingsUpdate,
-    session: UserSessionDep,
+    session: AdminSessionDep,
     _admin: ConfigManageDep,
 ) -> OIDCSettingsResponse:
-    updated = await app_settings_service.update_oidc_settings(
+    """Write the platform provider row directly (create-on-first-save).
+    ``client_secret`` keeps its write-only convention: omitted keeps the
+    stored secret, empty clears it, a value replaces it."""
+    provider = await platform_provider_service.upsert_platform_provider(
         session,
         enabled=payload.enabled,
         issuer=payload.issuer,
         client_id=payload.client_id,
-        client_secret=payload.client_secret,
         provider_name=payload.provider_name,
         scopes=payload.scopes,
+        client_secret=payload.client_secret,
     )
-    return OIDCSettingsResponse(
-        auth_scope=updated.auth_scope,
-        enabled=updated.oidc_enabled,
-        issuer=updated.oidc_issuer,
-        client_id=updated.oidc_client_id,
-        redirect_uri=_backend_redirect_uri(),
-        post_login_redirect=_frontend_redirect_uri(),
-        mobile_redirect_uri=_mobile_redirect_uri(),
-        provider_name=updated.oidc_provider_name,
-        scopes=updated.oidc_scopes,
-    )
-
-
-@router.put("/auth-scope", response_model=OIDCSettingsResponse)
-async def update_auth_scope(
-    payload: AuthScopeUpdate,
-    session: UserSessionDep,
-    _admin: ConfigManageDep,
-) -> OIDCSettingsResponse:
-    """Switch where login is configured (platform-wide vs per-guild).
-
-    Non-destructive: the dormant posture's provider configuration is kept, so
-    switching back restores it exactly. Enforcement is server-side — the OIDC
-    login endpoints refuse when the platform posture isn't active.
-    """
-    updated = await app_settings_service.update_auth_scope(
-        session, scope=payload.scope.value
-    )
-    return OIDCSettingsResponse(
-        auth_scope=updated.auth_scope,
-        enabled=updated.oidc_enabled,
-        issuer=updated.oidc_issuer,
-        client_id=updated.oidc_client_id,
-        redirect_uri=_backend_redirect_uri(),
-        post_login_redirect=_frontend_redirect_uri(),
-        mobile_redirect_uri=_mobile_redirect_uri(),
-        provider_name=updated.oidc_provider_name,
-        scopes=updated.oidc_scopes,
-    )
+    return _platform_oidc_response(provider)
 
 
 @router.get("/interface", response_model=InterfaceSettingsResponse)
@@ -175,7 +151,7 @@ async def get_interface_settings(
     return InterfaceSettingsResponse(
         light_accent_color=settings_obj.light_accent_color,
         dark_accent_color=settings_obj.dark_accent_color,
-        auth_scope=settings_obj.auth_scope,
+        auth_scope=app_config.AUTH_SCOPE,
     )
 
 
@@ -193,7 +169,7 @@ async def update_interface_settings(
     return InterfaceSettingsResponse(
         light_accent_color=settings_obj.light_accent_color,
         dark_accent_color=settings_obj.dark_accent_color,
-        auth_scope=settings_obj.auth_scope,
+        auth_scope=app_config.AUTH_SCOPE,
     )
 
 
@@ -444,6 +420,7 @@ async def list_platform_guild_storage(
             max_users=g.max_users,
             status=GuildStatus(g.status),
             status_changed_at=g.status_changed_at,
+            guild_auth_enabled=g.guild_auth_enabled,
         )
         for g in guilds
     ]
@@ -476,6 +453,7 @@ async def update_platform_guild_storage(
             max_storage_bytes_provided="max_storage_bytes" in provided,
             max_users=payload.max_users,
             max_users_provided="max_users" in provided,
+            guild_auth_enabled=payload.guild_auth_enabled,
         )
         if payload.status is not None and guild.status != payload.status.value:
             logger.info(
@@ -509,6 +487,7 @@ async def update_platform_guild_storage(
         max_users=guild.max_users,
         status=GuildStatus(guild.status),
         status_changed_at=guild.status_changed_at,
+        guild_auth_enabled=guild.guild_auth_enabled,
     )
 
 
@@ -626,12 +605,12 @@ async def get_oidc_mappings(
     session: AdminSessionDep,
     _admin: ConfigManageDep,
 ) -> OIDCMappingsResponse:
-    settings_obj = await app_settings_service.get_app_settings(session)
+    provider = await platform_provider_service.get_platform_provider(session)
     stmt = select(OIDCClaimMapping).order_by(OIDCClaimMapping.id)
     mappings = (await session.exec(stmt)).all()
     enriched = [await _enrich_mapping(session, m) for m in mappings]
     return OIDCMappingsResponse(
-        claim_path=settings_obj.oidc_role_claim_path,
+        claim_path=provider.role_claim_path if provider else None,
         mappings=enriched,
     )
 
@@ -642,14 +621,12 @@ async def update_oidc_claim_path(
     session: AdminSessionDep,
     _admin: ConfigManageDep,
 ) -> dict:
-    # Residual admin-engine: kept with the rest of the oidc-mappings surface,
-    # which is deferred to Phase 3 (guild-scoped / dual-path + break-glass).
-    settings_obj = await app_settings_service.get_app_settings(session)
-    cleaned = payload.claim_path.strip() if payload.claim_path else None
-    settings_obj.oidc_role_claim_path = cleaned or None
-    session.add(settings_obj)
-    await session.commit()
-    return {"claim_path": settings_obj.oidc_role_claim_path}
+    # The role-claim path lives on the platform provider row; setting it
+    # before the provider is configured creates a dormant skeleton row.
+    claim_path = await platform_provider_service.set_platform_claim_path(
+        session, payload.claim_path
+    )
+    return {"claim_path": claim_path}
 
 
 @router.post(

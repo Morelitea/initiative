@@ -777,7 +777,7 @@ export const DocumentsView = ({
                   onToggle={() => toggleDocumentSelection(document)}
                   label={document.title}
                 >
-                  <DocumentCard document={document} hideInitiative />
+                  <DocumentCard document={document} />
                 </SelectableGridItem>
               ))}
             </div>

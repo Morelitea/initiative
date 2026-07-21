@@ -5,6 +5,10 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
+import type {
+  LoginProviderEntry,
+  LoginProvidersResponse,
+} from "@/api/generated/initiativeAPI.schemas";
 import { LogoIcon } from "@/components/LogoIcon";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,14 +31,19 @@ export const LoginPage = () => {
   const router = useRouter();
   const searchParams = useSearch({ strict: false }) as { invite_code?: string };
   const { login } = useAuth();
-  const { isNativePlatform, isServerConfigured, getServerHostname, clearServerUrl, serverUrl } =
-    useServer();
+  const {
+    isNativePlatform,
+    isServerConfigured,
+    getServerHostname,
+    getServerOrigin,
+    clearServerUrl,
+    serverUrl,
+  } = useServer();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [oidcLoginUrl, setOidcLoginUrl] = useState<string | null>(null);
-  const [oidcProviderName, setOidcProviderName] = useState<string | null>(null);
+  const [providers, setProviders] = useState<LoginProviderEntry[]>([]);
   const [bootstrapStatus, setBootstrapStatus] = useState<"loading" | "required" | "ready">(
     "loading"
   );
@@ -43,29 +52,39 @@ export const LoginPage = () => {
     return code && code.trim().length > 0 ? code.trim() : null;
   }, [searchParams]);
 
-  // Fetch OIDC status
+  // Fetch the sign-in providers the server offers (one button per provider).
+  // Re-runs when the server becomes configured: on native the base URL is
+  // hydrated after mount, and a fetch before that returns nothing.
   useEffect(() => {
-    const fetchOidcStatus = async () => {
+    const fetchProviders = async () => {
       try {
-        const response = await apiClient.get<{
-          enabled: boolean;
-          login_url?: string;
-          provider_name?: string;
-        }>("/auth/oidc/status");
-        if (response.data.enabled && response.data.login_url) {
-          setOidcLoginUrl(response.data.login_url);
-          setOidcProviderName(response.data.provider_name ?? null);
-        } else {
-          setOidcLoginUrl(null);
-          setOidcProviderName(null);
-        }
+        const response = await apiClient.get<LoginProvidersResponse>("/auth/providers");
+        setProviders(response.data.providers);
       } catch {
-        setOidcLoginUrl(null);
-        setOidcProviderName(null);
+        setProviders([]);
       }
     };
-    void fetchOidcStatus();
-  }, []);
+    void fetchProviders();
+  }, [isServerConfigured]);
+
+  const handleProviderLogin = async (provider: LoginProviderEntry) => {
+    if (isNativePlatform && serverUrl) {
+      // On mobile, open in system browser with mobile flag and device name
+      const baseUrl = getServerOrigin() ?? serverUrl;
+      let deviceName = "Mobile Device";
+      try {
+        const info = await Device.getInfo();
+        deviceName = info.name || info.model || "Mobile Device";
+      } catch {
+        // Fall back to default device name
+      }
+      const mobileLoginUrl = `${baseUrl}${provider.login_url}?mobile=true&device_name=${encodeURIComponent(deviceName)}`;
+      await Browser.open({ url: mobileLoginUrl });
+    } else {
+      // On web, redirect directly
+      window.location.href = provider.login_url;
+    }
+  };
 
   // Fetch bootstrap status
   useEffect(() => {
@@ -104,11 +123,10 @@ export const LoginPage = () => {
         router.navigate({
           to: "/invite/$code",
           params: { code: encodeURIComponent(inviteCodeParam) },
-          search: { authenticated: "1" },
           replace: true,
         });
       } else {
-        router.navigate({ to: "/", search: { authenticated: "1" }, replace: true });
+        router.navigate({ to: "/", replace: true });
       }
     } catch (err) {
       console.error(err);
@@ -191,35 +209,17 @@ export const LoginPage = () => {
               <Button className="w-full" type="submit" disabled={submitting}>
                 {submitting ? t("login.submitting") : t("login.submit")}
               </Button>
-              {oidcLoginUrl ? (
+              {providers.map((provider) => (
                 <Button
+                  key={provider.slug}
                   type="button"
                   variant="outline"
                   className="w-full"
-                  onClick={async () => {
-                    if (isNativePlatform && serverUrl) {
-                      // On mobile, open in system browser with mobile flag and device name
-                      const baseUrl = serverUrl.replace(/\/api\/v1\/?(\?.*)?$/, "");
-                      let deviceName = "Mobile Device";
-                      try {
-                        const info = await Device.getInfo();
-                        deviceName = info.name || info.model || "Mobile Device";
-                      } catch {
-                        // Fall back to default device name
-                      }
-                      const mobileLoginUrl = `${baseUrl}${oidcLoginUrl}?mobile=true&device_name=${encodeURIComponent(deviceName)}`;
-                      await Browser.open({ url: mobileLoginUrl });
-                    } else {
-                      // On web, redirect directly
-                      window.location.href = oidcLoginUrl;
-                    }
-                  }}
+                  onClick={() => void handleProviderLogin(provider)}
                 >
-                  {t("login.continueWith", {
-                    provider: oidcProviderName ?? t("login.defaultSsoProvider"),
-                  })}
+                  {t("login.continueWith", { provider: provider.display_name })}
                 </Button>
-              ) : null}
+              ))}
               {error ? <p className="text-destructive text-sm">{error}</p> : null}
             </form>
           </CardContent>

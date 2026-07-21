@@ -96,16 +96,19 @@ async def test_support_cannot_update_others_but_moderator_can(session):
 
 
 async def test_no_tier_can_delete_users(session):
-    """``users_no_delete`` (RESTRICTIVE) keeps DELETE denied even for owner; user
-    deletion stays on the admin engine."""
+    """DELETE on ``public.users`` is revoked from every request-path floor
+    (migration 0144); user rows are removed only on the admin/system engine.
+    An owner-tier request-path DELETE is therefore denied at the grant level
+    (insufficient-privilege), not merely filtered to 0 rows."""
     actor = await create_user(session)
     target = await create_user(session)
     await _assume(session, "owner", actor.id)
-    res = await session.exec(
-        text("DELETE FROM users WHERE id = :id"), params={"id": target.id}
-    )
+    with pytest.raises(DBAPIError):
+        async with session.begin_nested():
+            await session.exec(
+                text("DELETE FROM users WHERE id = :id"), params={"id": target.id}
+            )
     await _reset(session)
-    assert res.rowcount == 0
 
 
 # --- access_grants --------------------------------------------------------
@@ -161,10 +164,7 @@ async def test_app_settings_write_is_owner_only(session):
     owner = await create_user(session, role=UserRole.owner)
     member = await create_user(session, role=UserRole.member)
     await session.exec(
-        text(
-            "INSERT INTO app_settings (id, oidc_enabled, oidc_scopes) "
-            "VALUES (1, false, '[]'::json) ON CONFLICT (id) DO NOTHING"
-        )
+        text("INSERT INTO app_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING")
     )
 
     await _assume(session, "member", member.id)
@@ -189,10 +189,7 @@ async def test_app_settings_readable_by_every_tier(session):
     """Everyone may SELECT config (``app_settings_read`` TO PUBLIC) — public reads
     like interface colors must work for any tier."""
     await session.exec(
-        text(
-            "INSERT INTO app_settings (id, oidc_enabled, oidc_scopes) "
-            "VALUES (1, false, '[]'::json) ON CONFLICT (id) DO NOTHING"
-        )
+        text("INSERT INTO app_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING")
     )
     member = await create_user(session, role=UserRole.member)
     await _assume(session, "member", member.id)
@@ -203,38 +200,11 @@ async def test_app_settings_readable_by_every_tier(session):
     assert len(rows) == 1
 
 
-async def test_app_settings_reseed_degrades_to_transient_for_non_owner(
-    session, monkeypatch
-):
-    """A non-owner read that would env-reseed an existing config row can't write
-    (owner-only). It must return an env-correct *transient* copy without faulting,
-    and must NOT persist (the savepoint rollback expires the tracked instance — the
-    re-seed path rebuilds from a pre-captured snapshot). The env value is persisted
-    later by an owner / startup, not by a non-owner read."""
-    from app.core.config import settings as app_config
-    from app.services.platform import app_settings as svc
-
-    # Existing singleton with an empty oidc_issuer.
-    await session.exec(
-        text(
-            "INSERT INTO app_settings (id, oidc_enabled, oidc_scopes) "
-            "VALUES (1, false, '[]'::json) ON CONFLICT (id) DO NOTHING"
-        )
-    )
-    member = await create_user(session, role=UserRole.member)
-    monkeypatch.setattr(app_config, "OIDC_ISSUER", "https://issuer.example")
-
-    await _assume(session, "member", member.id)
-    settings_obj = await svc.get_app_settings(session)
-    # env-correct transient, no fault despite the owner-only write being denied
-    assert settings_obj.oidc_issuer == "https://issuer.example"
-    await _reset(session)
-
-    # The non-owner read did NOT persist the env value into the row.
-    db_issuer = (
-        await session.exec(text("SELECT oidc_issuer FROM app_settings WHERE id = 1"))
-    ).scalar_one()
-    assert db_issuer is None
+# NOTE: the env-reseed-on-read machinery was OIDC-only and is gone — OIDC env
+# values now seed the platform provider registry row once at boot instead
+# (platform_provider.seed_platform_provider_from_env). The non-owner create
+# path (a fresh singleton served transient without a write) is still covered
+# by _ensure_app_settings' grant probe.
 
 
 # --- end-to-end through the real-role request path ------------------------

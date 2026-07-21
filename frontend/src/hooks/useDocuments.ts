@@ -10,13 +10,17 @@ import {
   generateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPost,
   getBacklinksApiV1GGuildIdDocumentsDocumentIdBacklinksGet,
   getDocumentCountsApiV1GGuildIdDocumentsCountsGet,
+  getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet,
   getGetBacklinksApiV1GGuildIdDocumentsDocumentIdBacklinksGetQueryKey,
   getGetDocumentCountsApiV1GGuildIdDocumentsCountsGetQueryKey,
+  getGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGetQueryKey,
   getListDocumentsApiV1GGuildIdDocumentsGetQueryKey,
   getListDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGetQueryKey,
+  getListMyDocumentsApiV1MeDocumentsGetQueryKey,
   getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryKey,
   listDocumentsApiV1GGuildIdDocumentsGet,
   listDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGet,
+  listMyDocumentsApiV1MeDocumentsGet,
   readDocumentApiV1GGuildIdDocumentsDocumentIdGet,
   setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut,
   updateDocumentApiV1GGuildIdDocumentsDocumentIdPatch,
@@ -33,10 +37,13 @@ import type {
   DocumentListResponse,
   DocumentRead,
   DocumentSummary,
+  DocumentType,
   DocumentUpdate,
   GenerateDocumentSummaryResponse,
   GetDocumentCountsApiV1GGuildIdDocumentsCountsGetParams,
+  InitiativeGroupedCountsResponse,
   ListDocumentsApiV1GGuildIdDocumentsGetParams,
+  ListMyDocumentsApiV1MeDocumentsGetParams,
   ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
 import { attachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdPost } from "@/api/generated/projects/projects";
@@ -101,21 +108,17 @@ export const useDocumentCounts = (
   });
 };
 
-export const useAllDocumentIds = (options?: QueryOpts<DocumentSummary[]>) => {
+export const useDocumentCountsByInitiative = (
+  options?: QueryOpts<InitiativeGroupedCountsResponse>
+) => {
   const guildId = useActiveGuildId();
-  return useQuery<DocumentSummary[]>({
-    // Distinct key from useDocumentsList({ page_size: 0 }) — the extra
-    // "items" segment prevents cache collisions with the paginated variant.
-    queryKey: [
-      ...getListDocumentsApiV1GGuildIdDocumentsGetQueryKey(guildId, { page_size: 0 }),
-      "items",
-    ],
-    queryFn: async () => {
-      const response = await fetchAllPages(listDocumentsApiV1GGuildIdDocumentsGet, guildId, {
-        page_size: 0,
-      });
-      return response.items;
-    },
+  return useQuery<InitiativeGroupedCountsResponse>({
+    queryKey:
+      getGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGetQueryKey(guildId),
+    queryFn: () =>
+      getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet(
+        guildId
+      ) as unknown as Promise<InitiativeGroupedCountsResponse>,
     ...options,
   });
 };
@@ -157,7 +160,37 @@ export const useDocumentAutocomplete = (
   const { limit = 20, ...queryOptions } = options ?? {};
   return useQuery<DocumentAutocomplete[]>({
     queryKey: ["documents", "autocomplete", guildId, initiativeId, query, limit],
-    queryFn: () => autocompleteDocuments(guildId, initiativeId, query, limit),
+    queryFn: () => autocompleteDocuments(guildId, { initiative_id: initiativeId, q: query, limit }),
+    placeholderData: keepPreviousData,
+    ...queryOptions,
+  });
+};
+
+/**
+ * Guild-wide title typeahead over template documents, for the template pickers.
+ *
+ * Templates are picked across initiatives, so this deliberately isn't scoped to
+ * one — but it's still a bounded, server-filtered page rather than a walk of
+ * the guild's corpus. Pass ``enabled: false`` until the picker is open.
+ */
+export const useTemplateAutocomplete = (
+  query: string,
+  options?: QueryOpts<DocumentAutocomplete[]> & {
+    limit?: number;
+    documentType?: DocumentType;
+  }
+) => {
+  const guildId = useActiveGuildId();
+  const { limit = 20, documentType, ...queryOptions } = options ?? {};
+  return useQuery<DocumentAutocomplete[]>({
+    queryKey: ["documents", "autocomplete", guildId, "templates", documentType, query, limit],
+    queryFn: () =>
+      autocompleteDocuments(guildId, {
+        q: query,
+        is_template: true,
+        ...(documentType ? { document_type: documentType } : {}),
+        limit,
+      }),
     placeholderData: keepPreviousData,
     ...queryOptions,
   });
@@ -200,34 +233,25 @@ export const useSetDocumentCache = () => {
 
 // ── Global (cross-guild) queries ────────────────────────────────────────────
 
-import { apiClient } from "@/api/client";
-
-export const GLOBAL_DOCUMENTS_QUERY_KEY = "/api/v1/me/documents" as const;
-
-export const globalDocumentsQueryFn = async (
-  params: Record<string, string | string[] | number | number[]>
-) => {
-  const response = await apiClient.get<DocumentListResponse>("/me/documents", { params });
-  return response.data;
-};
-
 export const useGlobalDocuments = (
-  params: Record<string, string | string[] | number | number[]>,
+  params?: ListMyDocumentsApiV1MeDocumentsGetParams,
   options?: QueryOpts<DocumentListResponse>
 ) => {
   return useQuery<DocumentListResponse>({
-    queryKey: [GLOBAL_DOCUMENTS_QUERY_KEY, params],
-    queryFn: () => globalDocumentsQueryFn(params),
+    queryKey: getListMyDocumentsApiV1MeDocumentsGetQueryKey(params),
+    queryFn: () =>
+      listMyDocumentsApiV1MeDocumentsGet(params) as unknown as Promise<DocumentListResponse>,
     ...options,
   });
 };
 
 export const usePrefetchGlobalDocuments = () => {
   const qc = useQueryClient();
-  return (params: Record<string, string | string[] | number | number[]>) => {
+  return (params?: ListMyDocumentsApiV1MeDocumentsGetParams) => {
     return qc.prefetchQuery({
-      queryKey: [GLOBAL_DOCUMENTS_QUERY_KEY, params],
-      queryFn: () => globalDocumentsQueryFn(params),
+      queryKey: getListMyDocumentsApiV1MeDocumentsGetQueryKey(params),
+      queryFn: () =>
+        listMyDocumentsApiV1MeDocumentsGet(params) as unknown as Promise<DocumentListResponse>,
       staleTime: 30_000,
     });
   };

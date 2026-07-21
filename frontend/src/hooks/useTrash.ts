@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type {
+  RestoreNeedsReassignmentResponse,
   RestoreRequest,
   TrashItemEntityType,
   TrashListResponse,
@@ -91,9 +92,7 @@ export type RestoreTrashVars = {
 
 // 200 {restored: true} or — recovered from a 409 in mutationFn —
 // {needs_reassignment: true, ...}. The dialog branches on shape.
-export type RestoreTrashResponse =
-  | { restored: true }
-  | { needs_reassignment: true; valid_owner_ids: number[]; detail: string };
+export type RestoreTrashResponse = { restored: true } | RestoreNeedsReassignmentResponse;
 
 export const useRestoreTrashEntity = (
   options?: MutationOpts<RestoreTrashResponse, RestoreTrashVars>

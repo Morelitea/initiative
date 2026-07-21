@@ -34,7 +34,7 @@ import {
   useSetQueueItemTasks,
   useUpdateQueueItem,
 } from "@/hooks/useQueues";
-import { useTasks } from "@/hooks/useTasks";
+import { useTaskAutocomplete } from "@/hooks/useTasks";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
 import { getUserDisplayName } from "@/lib/userDisplay";
@@ -120,18 +120,13 @@ export const EditQueueItemDialog = ({
   );
 
   // Task picker — server typeahead over titles within this initiative.
-  const tasksQuery = useTasks(
-    {
-      conditions: [
-        { field: "initiative_ids", op: "in_", value: [initiativeId] },
-        ...(taskSearch ? [{ field: "title", op: "ilike" as const, value: taskSearch }] : []),
-      ],
-      page_size: ENTITY_PICKER_PAGE_SIZE,
-    },
-    { enabled: open && taskPickerOpen }
-  );
+  const tasksQuery = useTaskAutocomplete(taskSearch, {
+    initiativeId,
+    enabled: open && taskPickerOpen,
+    limit: ENTITY_PICKER_PAGE_SIZE,
+  });
   const taskResults = useMemo(
-    () => (tasksQuery.data?.items ?? []).map((task) => ({ id: task.id, title: task.title })),
+    () => (tasksQuery.data ?? []).map((task) => ({ id: task.id, title: task.title })),
     [tasksQuery.data]
   );
 
@@ -371,13 +366,13 @@ export const EditQueueItemDialog = ({
                 onClick={() => setDeleteConfirmOpen(true)}
                 disabled={isSaving || isDeleting}
               >
-                <Trash2 className="mr-1 h-4 w-4" />
+                <Trash2 className="h-4 w-4" />
                 {t("removeItem")}
               </Button>
               <Button type="button" onClick={handleSubmit} disabled={!canSubmit}>
                 {isSaving ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                     {t("saving")}
                   </>
                 ) : (

@@ -13,3 +13,9 @@ class TokenPayload(SanitizedBaseModel):
     exp: Optional[int] = None
     iat: Optional[int] = None
     ver: Optional[int] = None
+    # New-model session claims (absent on legacy tokens): the server-side
+    # session id, satisfied auth methods, and satisfied provider ids — the
+    # guild auth-policy gate reads ``sat``.
+    sid: Optional[str] = None
+    amr: Optional[list[str]] = None
+    sat: Optional[list[int]] = None

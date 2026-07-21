@@ -54,11 +54,21 @@ class RestoreRequest(SanitizedBaseModel):
     new_owner_id: Optional[int] = None
 
 
+class RestoreOwnerCandidate(SanitizedBaseModel):
+    """A user eligible to become the restored entity's owner. Carries the
+    display name so the picker needn't fetch the whole guild roster."""
+
+    id: int
+    full_name: Optional[str] = None
+
+
 class RestoreNeedsReassignmentResponse(SanitizedBaseModel):
     """409 payload when the entity's owner is no longer an active member of
     the relevant initiative. The client opens a picker seeded with
-    ``valid_owner_ids`` and resubmits with the chosen one."""
+    ``valid_owners`` and resubmits with the chosen one. ``valid_owner_ids``
+    is retained as the bare-id form for validation/back-compat."""
 
     needs_reassignment: Literal[True] = True
     valid_owner_ids: list[int]
+    valid_owners: list[RestoreOwnerCandidate] = []
     detail: str = "TRASH_NEEDS_REASSIGNMENT"

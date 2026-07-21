@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { TrashItemEntityType } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  RestoreOwnerCandidate,
+  TrashItemEntityType,
+} from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -13,18 +16,15 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
-import { useUsers } from "@/hooks/useUsers";
 import { getUserDisplayName } from "@/lib/userDisplay";
 
 export interface ReassignOwnerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  // The guild the trashed item lives in — the owner picker must list that
-  // guild's members, which is not necessarily the active guild on the
-  // cross-guild personal trash view.
-  guildId: number;
   entityType: TrashItemEntityType;
-  validOwnerIds: number[];
+  // Eligible new owners (id + name), returned by the reassign-eligibility
+  // response — so the picker needn't fetch the whole guild roster.
+  validOwners: RestoreOwnerCandidate[];
   onConfirm: (newOwnerId: number) => void;
   isPending?: boolean;
 }
@@ -32,14 +32,12 @@ export interface ReassignOwnerDialogProps {
 export const ReassignOwnerDialog = ({
   open,
   onOpenChange,
-  guildId,
   entityType,
-  validOwnerIds,
+  validOwners,
   onConfirm,
   isPending = false,
 }: ReassignOwnerDialogProps) => {
   const { t } = useTranslation("trash");
-  const { data: guildMembers } = useUsers(undefined, guildId);
   const [selected, setSelected] = useState<string>("");
 
   // Reset the picker every time the dialog reopens.
@@ -49,15 +47,14 @@ export const ReassignOwnerDialog = ({
     }
   }, [open]);
 
-  const options = useMemo(() => {
-    const validSet = new Set(validOwnerIds);
-    return (guildMembers ?? [])
-      .filter((m) => validSet.has(m.id))
-      .map((m) => ({
-        value: String(m.id),
-        label: getUserDisplayName(m, `User #${m.id}`),
-      }));
-  }, [guildMembers, validOwnerIds]);
+  const options = useMemo(
+    () =>
+      validOwners.map((owner) => ({
+        value: String(owner.id),
+        label: getUserDisplayName(owner, `User #${owner.id}`),
+      })),
+    [validOwners]
+  );
 
   const entityLabel = t(`entityType.${entityType}` as const);
 

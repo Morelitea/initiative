@@ -63,7 +63,6 @@ from app.services import notifications as notifications_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import recent_views as recent_views_service
 from app.services.tenant import tags as tags_service
-from app.schemas.tenant.tag import TagSetRequest
 from app.schemas.tenant.recent_view import RecentViewWrite
 from app.services import rls as rls_service
 
@@ -195,23 +194,21 @@ def _cross_guild_event_dac_clause(guild_id: int, user_id: int):
     )
 
 
-@me_router.get("/calendar-events", response_model=CalendarEventListResponse)
-async def list_my_calendar_events(
-    session: AdminSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_ids: Optional[List[int]] = Query(default=None),
-    start_after: Optional[datetime] = Query(default=None),
-    start_before: Optional[datetime] = Query(default=None),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=200, ge=1, le=200),
-) -> CalendarEventListResponse:
-    """List calendar events across all guilds the user belongs to.
+async def query_my_calendar_events(
+    session: AsyncSession,
+    current_user: User,
+    *,
+    guild_ids: Optional[List[int]] = None,
+    start_after: Optional[datetime] = None,
+    start_before: Optional[datetime] = None,
+) -> list[CalendarEvent]:
+    """Shared cross-guild calendar-event query for ``list_my_calendar_events``
+    and the ``/me/calendar-entries`` aggregate.
 
-    Uses AdminSessionDep + ``gather_across_guilds`` (schema-per-guild): events
-    live in per-guild schemas, so a single cross-guild query would read the
-    frozen ``public`` backup. Instead we visit each of the user's guild schemas
-    in turn (routed to the user's own RLS context, so guild isolation still
-    holds) and merge, then sort + paginate the merged set in Python.
+    Schema-per-guild: events live in per-guild schemas, so a single cross-guild
+    query would read the frozen ``public`` backup. Visit each of the user's
+    guild schemas (routed to the user's own RLS context, so guild isolation +
+    DAC still hold) and merge, sorted by ``(start_at, guild_id, id)``.
     """
 
     def _fetch(guild_session, guild_id):  # type: ignore[no-untyped-def]
@@ -229,26 +226,7 @@ async def list_my_calendar_events(
             select(CalendarEvent)
             .join(Initiative, Initiative.id == CalendarEvent.initiative_id)
             .where(*conditions)
-            .options(
-                selectinload(CalendarEvent.attendees).selectinload(
-                    CalendarEventAttendee.user,
-                ),
-                # memberships are needed by my_permission_level (effective_level
-                # reads the requester's roles + membership off the initiative).
-                selectinload(CalendarEvent.initiative).selectinload(
-                    Initiative.memberships
-                ),
-                selectinload(CalendarEvent.tag_links).selectinload(
-                    CalendarEventTag.tag
-                ),
-                selectinload(CalendarEvent.grants).selectinload(ResourceGrant.role),
-                selectinload(CalendarEvent.property_values).selectinload(
-                    CalendarEventPropertyValue.property_definition
-                ),
-                selectinload(CalendarEvent.property_values).selectinload(
-                    CalendarEventPropertyValue.value_user
-                ),
-            )
+            .options(*_calendar_event_loader_options())
         )
         return _exec_events(guild_session, stmt)
 
@@ -256,9 +234,34 @@ async def list_my_calendar_events(
         session, current_user.id, restrict_to=guild_ids
     )
     events = await gather_across_guilds(session, current_user.id, target_guilds, _fetch)
-    # Merge-sort across guilds, then paginate in Python (per-schema SQL can't
-    # order/limit across schemas).
+    # Merge-sort across guilds (per-schema SQL can't order across schemas).
     events.sort(key=lambda e: (e.start_at, e.guild_id, e.id))
+    return events
+
+
+@me_router.get("/calendar-events", response_model=CalendarEventListResponse)
+async def list_my_calendar_events(
+    session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_ids: Optional[List[int]] = Query(default=None),
+    start_after: Optional[datetime] = Query(default=None),
+    start_before: Optional[datetime] = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=200, ge=1, le=200),
+) -> CalendarEventListResponse:
+    """List calendar events across all guilds the user belongs to.
+
+    Delegates the cross-guild fetch to ``query_my_calendar_events`` and then
+    paginates the merged set in Python (per-schema SQL can't limit across
+    schemas).
+    """
+    events = await query_my_calendar_events(
+        session,
+        current_user,
+        guild_ids=guild_ids,
+        start_after=start_after,
+        start_before=start_before,
+    )
     total_count = len(events)
     start = (page - 1) * page_size
     page_events = events[start : start + page_size]
@@ -425,31 +428,53 @@ async def import_ical_events(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/", response_model=CalendarEventListResponse)
-async def list_calendar_events(
+def _calendar_event_loader_options():
+    """Eager-load options shared by the list + aggregate event queries.
+
+    Loads attendees, initiative memberships (needed by my_permission_level),
+    tags, grants, and custom property values so serialization never triggers an
+    async lazy-load.
+    """
+    return (
+        selectinload(CalendarEvent.attendees).selectinload(CalendarEventAttendee.user),
+        selectinload(CalendarEvent.initiative).selectinload(Initiative.memberships),
+        selectinload(CalendarEvent.tag_links).selectinload(CalendarEventTag.tag),
+        selectinload(CalendarEvent.grants).selectinload(ResourceGrant.role),
+        selectinload(CalendarEvent.property_values).selectinload(
+            CalendarEventPropertyValue.property_definition
+        ),
+        selectinload(CalendarEvent.property_values).selectinload(
+            CalendarEventPropertyValue.value_user
+        ),
+    )
+
+
+async def query_guild_calendar_events(
     session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-    initiative_id: Optional[int] = Query(default=None),
-    start_after: Optional[datetime] = Query(default=None),
-    start_before: Optional[datetime] = Query(default=None),
-    property_filters: Optional[str] = Query(default=None),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=50, ge=1, le=200),
-) -> CalendarEventListResponse:
-    """List calendar events. RLS + initiative membership handle access."""
+    current_user: User,
+    guild_context: GuildContext,
+    *,
+    initiative_id: Optional[int] = None,
+    start_after: Optional[datetime] = None,
+    start_before: Optional[datetime] = None,
+    property_filters: Optional[str] = None,
+    limit: Optional[int] = None,
+    offset: int = 0,
+) -> tuple[list[CalendarEvent], int]:
+    """Shared guild calendar-event query for ``list_calendar_events`` and the
+    ``calendar-entries`` aggregate.
+
+    Applies the same guild scope, feature-gate, window, property-filter, and DAC
+    conditions to both callers so access is identical. Returns
+    ``(events, total_count)``; pass ``limit=None`` (the aggregate's bounded
+    window) to fetch every matching row, or ``limit``/``offset`` to paginate.
+    """
     conditions = [CalendarEvent.guild_id == guild_context.guild_id]
 
     if initiative_id is not None:
         initiative = await session.get(Initiative, initiative_id)
         if initiative and not initiative.calendar_events_enabled:
-            return CalendarEventListResponse(
-                items=[],
-                total_count=0,
-                page=page,
-                page_size=page_size,
-                has_next=False,
-            )
+            return [], 0
         conditions.append(CalendarEvent.initiative_id == initiative_id)
     else:
         conditions.append(
@@ -502,26 +527,40 @@ async def list_calendar_events(
     stmt = (
         select(CalendarEvent)
         .where(*conditions)
-        .options(
-            selectinload(CalendarEvent.attendees).selectinload(
-                CalendarEventAttendee.user
-            ),
-            selectinload(CalendarEvent.initiative).selectinload(Initiative.memberships),
-            selectinload(CalendarEvent.tag_links).selectinload(CalendarEventTag.tag),
-            selectinload(CalendarEvent.grants).selectinload(ResourceGrant.role),
-            selectinload(CalendarEvent.property_values).selectinload(
-                CalendarEventPropertyValue.property_definition
-            ),
-            selectinload(CalendarEvent.property_values).selectinload(
-                CalendarEventPropertyValue.value_user
-            ),
-        )
+        .options(*_calendar_event_loader_options())
         .order_by(CalendarEvent.start_at.asc(), CalendarEvent.id.asc())
-        .offset((page - 1) * page_size)
-        .limit(page_size)
+        .offset(offset)
     )
+    if limit is not None:
+        stmt = stmt.limit(limit)
     result = await session.exec(stmt)
-    events = result.unique().all()
+    return list(result.unique().all()), total_count
+
+
+@router.get("/", response_model=CalendarEventListResponse)
+async def list_calendar_events(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    initiative_id: Optional[int] = Query(default=None),
+    start_after: Optional[datetime] = Query(default=None),
+    start_before: Optional[datetime] = Query(default=None),
+    property_filters: Optional[str] = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=200),
+) -> CalendarEventListResponse:
+    """List calendar events. RLS + initiative membership handle access."""
+    events, total_count = await query_guild_calendar_events(
+        session,
+        current_user,
+        guild_context,
+        initiative_id=initiative_id,
+        start_after=start_after,
+        start_before=start_before,
+        property_filters=property_filters,
+        limit=page_size,
+        offset=(page - 1) * page_size,
+    )
 
     items = [
         serialize_calendar_event_summary(e, user_id=current_user.id) for e in events
@@ -887,35 +926,6 @@ async def update_rsvp(
 # ---------------------------------------------------------------------------
 # Tags & Documents
 # ---------------------------------------------------------------------------
-
-
-@router.put("/{event_id}/tags", response_model=CalendarEventRead)
-async def set_tags(
-    event_id: int,
-    tags_in: TagSetRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> CalendarEventRead:
-    event = await _get_event_or_404(session, event_id, current_user, guild_context)
-    await _check_initiative_permission(
-        session,
-        await _get_initiative_for_event(session, event.initiative_id),
-        current_user,
-        guild_context,
-        PermissionKey.create_calendar_events,
-    )
-    await tags_service.set_entity_tags(
-        session,
-        tags_service.TOOL_TAG_LINKS[Tool.calendar_event],
-        guild_id=guild_context.guild_id,
-        entity_id=event.id,
-        tag_ids=tags_in.tag_ids,
-    )
-    event.updated_at = datetime.now(timezone.utc)
-    await session.commit()
-    hydrated = await _refetch_event(session, event.id)
-    return serialize_calendar_event(hydrated, user_id=current_user.id)
 
 
 @router.put("/{event_id}/documents", response_model=CalendarEventRead)

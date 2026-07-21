@@ -47,7 +47,7 @@ export interface UseExportJobOptions {
  * shared by ExportButton and the export wizard. Toasts (queued / success /
  * failed) live here so every surface reports identically. */
 export function useExportJob({ resumePending = false }: UseExportJobOptions = {}) {
-  const { t } = useTranslation("tasks");
+  const { t } = useTranslation("exports");
   const guildId = useActiveGuildId();
   const [requesting, setRequesting] = useState(false);
   // The last terminal outcome, until the next start()/reset() — what lets a

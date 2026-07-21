@@ -800,7 +800,7 @@ export function BulkEditAccessDialog({
             >
               {isPending ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   {t("bulkAccess.applying")}
                 </>
               ) : roleMode === "grant" ? (
@@ -817,7 +817,7 @@ export function BulkEditAccessDialog({
             >
               {isPending ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   {t("bulkAccess.applying")}
                 </>
               ) : userMode === "grant" ? (
@@ -834,7 +834,7 @@ export function BulkEditAccessDialog({
             >
               {isPending ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   {t("bulkAccess.applying")}
                 </>
               ) : allMode === "share" ? (

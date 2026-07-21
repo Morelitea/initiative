@@ -3,7 +3,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { server } from "@/__tests__/helpers/msw-server";
 
-import { AUTH_UNAUTHORIZED_EVENT, apiClient, setAuthToken, setHasActiveSession } from "./client";
+import {
+  AUTH_STEP_UP_EVENT,
+  AUTH_UNAUTHORIZED_EVENT,
+  apiClient,
+  setAuthToken,
+  setHasActiveSession,
+} from "./client";
 
 // The silent-renewal interceptor: a 401 gets one POST /auth/refresh and a
 // retry before it surfaces as a signed-out state (web only — the refresh
@@ -107,6 +113,49 @@ describe("silent session renewal", () => {
       expect(onUnauthorized).toHaveBeenCalledTimes(1);
     } finally {
       window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
+    }
+  });
+
+  it("passes a guild step-up 401 through without renewal or sign-out", async () => {
+    let refreshCalls = 0;
+    server.use(
+      http.get("/api/v1/g/1/projects/", () =>
+        HttpResponse.json(
+          { detail: "GUILD_AUTH_STEP_UP_REQUIRED" },
+          {
+            status: 401,
+            headers: { "X-Auth-Step-Up": "corp", "X-Auth-Step-Up-Guild": "1" },
+          }
+        )
+      ),
+      http.post("/api/v1/auth/refresh", () => {
+        refreshCalls += 1;
+        return HttpResponse.json({ access_token: "fresh" });
+      })
+    );
+    setHasActiveSession(true);
+    const onUnauthorized = vi.fn();
+    const onStepUp = vi.fn();
+    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
+    window.addEventListener(AUTH_STEP_UP_EVENT, onStepUp);
+
+    try {
+      await expect(apiClient.get("/g/1/projects/")).rejects.toMatchObject({
+        response: { status: 401 },
+      });
+      expect(refreshCalls).toBe(0);
+      expect(onUnauthorized).not.toHaveBeenCalled();
+      // The challenge is announced (with the provider to step up with and
+      // the guild whose login flow serves it) so the global dialog can offer
+      // the sign-in.
+      expect(onStepUp).toHaveBeenCalledTimes(1);
+      expect((onStepUp.mock.calls[0][0] as CustomEvent).detail).toEqual({
+        providerSlug: "corp",
+        guildId: 1,
+      });
+    } finally {
+      window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
+      window.removeEventListener(AUTH_STEP_UP_EVENT, onStepUp);
     }
   });
 

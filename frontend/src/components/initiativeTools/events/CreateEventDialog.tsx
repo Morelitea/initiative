@@ -1,4 +1,4 @@
-import { Loader2, X } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -9,6 +9,7 @@ import type {
   TaskRecurrenceOutput,
 } from "@/api/generated/initiativeAPI.schemas";
 import { ShareControl } from "@/components/access/ShareControl";
+import { MemberMultiSelect } from "@/components/members/MemberSearchSelect";
 import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
 import {
   Accordion,
@@ -16,7 +17,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import {
@@ -28,7 +28,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import {
   Select,
   SelectContent,
@@ -40,8 +39,6 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
 import { useCreateCalendarEvent } from "@/hooks/useCalendarEvents";
-import { useInitiative } from "@/hooks/useInitiatives";
-import { getUserDisplayName } from "@/lib/userDisplay";
 import type { DialogProps } from "@/types/dialog";
 
 import {
@@ -88,49 +85,9 @@ export const CreateEventDialog = ({
     { all_initiative_members: true, level: "read" },
   ]);
 
-  // Attendee candidates: initiative members who can access this event via its
-  // grants — mirrors how task assignees are derived from a project's grants
-  // (ProjectDetailPage.userOptions), but scoped to the initiative's members
-  // rather than all guild users. Any grant level qualifies (attending only needs
-  // view access, unlike a task assignee who needs write). The initiative is read
-  // via get_initiative (the same source ShareControl uses), which honors the
-  // guild-admin override — so the picker is no longer empty for a non-member
-  // admin, and the default all-members grant surfaces the whole initiative.
-  const { data: initiative } = useInitiative(initiativeId);
-  const members = useMemo(() => {
-    const initiativeMembers = initiative?.members ?? [];
-    if (grants.some((g) => g.all_initiative_members)) {
-      return initiativeMembers.map((m) => m.user);
-    }
-    const grantedUserIds = new Set(
-      grants.filter((g) => g.user_id != null).map((g) => g.user_id as number)
-    );
-    const grantedRoleIds = new Set(
-      grants.filter((g) => g.role_id != null).map((g) => g.role_id as number)
-    );
-    return initiativeMembers
-      .filter(
-        (m) => grantedUserIds.has(m.user.id) || (m.role_id != null && grantedRoleIds.has(m.role_id))
-      )
-      .map((m) => m.user);
-  }, [initiative?.members, grants]);
-
-  const memberItems = useMemo(() => {
-    return (members ?? [])
-      .filter((m) => !attendeeIds.includes(m.id))
-      .map((m) => ({
-        value: String(m.id),
-        label: getUserDisplayName(m),
-      }));
-  }, [members, attendeeIds]);
-
-  const attendeeNames = useMemo(() => {
-    const map = new Map<number, string>();
-    for (const m of members ?? []) {
-      map.set(m.id, getUserDisplayName(m));
-    }
-    return map;
-  }, [members]);
+  // Attendee candidates come from the initiative-scoped member typeahead
+  // (MemberMultiSelect below) — every initiative member may attend. Event DAC
+  // (the ShareControl below) is a separate concern tracked in #948.
 
   useEffect(() => {
     if (open) {
@@ -391,33 +348,15 @@ export const CreateEventDialog = ({
           {/* Attendees */}
           <div className="space-y-2">
             <Label>{t("attendees")}</Label>
-            <SearchableCombobox
-              items={memberItems}
-              value={null}
-              onValueChange={(val) => {
-                if (val) {
-                  setAttendeeIds((prev) => [...prev, Number(val)]);
-                }
-              }}
+            <MemberMultiSelect
+              scope={{ type: "initiative", initiativeId }}
+              selectedIds={attendeeIds}
+              selectedUsers={user ? [user] : undefined}
+              onChange={setAttendeeIds}
+              currentUserId={user?.id}
               placeholder={t("addAttendee")}
               emptyMessage={t("noAttendees")}
             />
-            {attendeeIds.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {attendeeIds.map((id) => (
-                  <Badge key={id} variant="secondary" className="gap-1 pr-1">
-                    {attendeeNames.get(id) ?? `User ${id}`}
-                    <button
-                      type="button"
-                      className="rounded-full p-0.5 hover:bg-muted"
-                      onClick={() => setAttendeeIds((prev) => prev.filter((a) => a !== id))}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* Recurrence */}
@@ -443,7 +382,7 @@ export const CreateEventDialog = ({
           <Button type="button" onClick={handleSubmit} disabled={!canSubmit}>
             {isCreating ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
                 {t("creating")}
               </>
             ) : (

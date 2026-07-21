@@ -2,7 +2,8 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { TagRead, TagSummary, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
-import type { DueFilterOption, UserOption } from "@/components/projects/projectTasksConfig";
+import { MemberMultiSelect } from "@/components/members/MemberSearchSelect";
+import type { DueFilterOption } from "@/components/projects/projectTasksConfig";
 import {
   PropertyFilter,
   type PropertyFilterCondition,
@@ -22,7 +23,7 @@ import {
 export type ListStatusFilter = "all" | "incomplete" | number;
 
 type ProjectTasksFiltersProps = {
-  userOptions: UserOption[];
+  projectId: number;
   taskStatuses: TaskStatusRead[];
   tags: TagRead[];
   assigneeFilters: string[];
@@ -41,7 +42,7 @@ type ProjectTasksFiltersProps = {
 
 export const ProjectTasksFilters = ({
   taskStatuses,
-  userOptions,
+  projectId,
   tags,
   assigneeFilters,
   dueFilter,
@@ -80,13 +81,11 @@ export const ProjectTasksFilters = ({
           >
             {t("filters.filterByAssignee")}
           </Label>
-          <MultiSelect
-            selectedValues={assigneeFilters}
-            options={userOptions.map((option) => ({
-              value: String(option.id),
-              label: option.label,
-            }))}
-            onChange={onAssigneeFiltersChange}
+          <MemberMultiSelect
+            variant="filter"
+            scope={{ type: "project", projectId }}
+            selectedIds={assigneeFilters.map(Number).filter(Number.isFinite)}
+            onChange={(ids) => onAssigneeFiltersChange(ids.map(String))}
             placeholder={t("filters.allAssignees")}
             emptyMessage={t("filters.noUsersAvailable")}
           />

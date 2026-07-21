@@ -11,7 +11,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { getDocumentIcon, getDocumentIconColor, getFileTypeLabel } from "@/lib/fileUtils";
 import { useGuildPath } from "@/lib/guildUrl";
-import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { matchSmartLinkProvider } from "@/lib/smartLinkProviders";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
@@ -19,10 +18,9 @@ import { cn } from "@/lib/utils";
 interface DocumentCardProps {
   document: DocumentSummary;
   className?: string;
-  hideInitiative?: boolean;
 }
 
-export const DocumentCard = ({ document, className, hideInitiative }: DocumentCardProps) => {
+export const DocumentCard = ({ document, className }: DocumentCardProps) => {
   const { t } = useTranslation("documents");
   const dateLocale = useDateLocale();
   const gp = useGuildPath();
@@ -124,15 +122,6 @@ export const DocumentCard = ({ document, className, hideInitiative }: DocumentCa
               }),
             })}
           </p>
-          {document.initiative && !hideInitiative ? (
-            <Link
-              to={gp(`/initiatives/${document.initiative.id}`)}
-              className="inline-flex items-center gap-2 text-muted-foreground text-sm"
-            >
-              <InitiativeColorDot color={document.initiative.color} />
-              {document.initiative.name}
-            </Link>
-          ) : null}
           {document.tags && document.tags.length > 0 ? (
             <div className="flex flex-wrap gap-1">
               {document.tags.slice(0, 3).map((tag) => (
@@ -149,7 +138,12 @@ export const DocumentCard = ({ document, className, hideInitiative }: DocumentCa
             return (
               <div className="flex flex-wrap gap-1">
                 {propertyChips.map((summary) => (
-                  <PropertyValueCell key={summary.property_id} summary={summary} variant="chip" />
+                  <PropertyValueCell
+                    key={summary.property_id}
+                    summary={summary}
+                    variant="chip"
+                    nested
+                  />
                 ))}
               </div>
             );

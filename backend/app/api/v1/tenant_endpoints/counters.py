@@ -20,6 +20,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
+from app.core.auth_context import satisfied_provider_ids
 from app.api.deps import (
     RLSSessionDep,
     establish_guild_access,
@@ -42,6 +43,7 @@ from app.models.tenant.initiative import (
 )
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.platform.user import User
+from app.schemas.tenant.initiative import InitiativeGroupedCountsResponse
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.counter import (
     CounterCreate,
@@ -64,7 +66,6 @@ from app.services import permissions as permissions_service
 from app.services.tenant import recent_views as recent_views_service
 from app.api import resource_access
 from app.core.tools import Tool
-from app.schemas.tenant.tag import TagSetRequest
 from app.services.tenant import tags as tags_service
 from app.services import rls as rls_service
 from app.services.stream_authz import authority as stream_authority
@@ -297,6 +298,42 @@ async def list_counter_groups(
     )
 
 
+@router.get("/counts/by-initiative", response_model=InitiativeGroupedCountsResponse)
+async def get_counter_group_counts_by_initiative(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> InitiativeGroupedCountsResponse:
+    """Visible counter-group counts grouped by initiative.
+
+    Lightweight endpoint for the sidebar badges — same visibility rules
+    as the counter-group list (counters-enabled initiatives, DAC), one
+    GROUP BY instead of a capped list page.
+    """
+    conditions = [
+        CounterGroup.guild_id == guild_context.guild_id,
+        CounterGroup.initiative_id.in_(
+            select(Initiative.id).where(Initiative.counter_groups_enabled == True)  # noqa: E712
+        ),
+    ]
+    if not rls_service.is_guild_admin(guild_context.role) and not guild_context.is_pam:
+        conditions.append(
+            CounterGroup.id.in_(
+                counters_service.visible_counter_group_ids_subquery(current_user.id)
+            )
+        )
+
+    statement = (
+        select(CounterGroup.initiative_id, func.count(CounterGroup.id))
+        .where(*conditions)
+        .group_by(CounterGroup.initiative_id)
+    )
+    rows = (await session.exec(statement)).all()
+    return InitiativeGroupedCountsResponse(
+        counts={initiative_id: count for initiative_id, count in rows}
+    )
+
+
 @router.get("/{group_id}", response_model=CounterGroupRead)
 async def read_counter_group(
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -456,43 +493,6 @@ async def update_counter_group(
         await _emit_counter(
             session, group_id, "group_updated", result.model_dump(mode="json")
         )
-    return result
-
-
-@router.put("/{group_id}/tags", response_model=CounterGroupRead)
-async def set_counter_group_tags(
-    group_id: int,
-    tags_in: TagSetRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> CounterGroupRead:
-    """Set tags on a counter group. Replaces all existing tags. Requires
-    write access."""
-    group = await _get_counter_group_with_access(
-        session, group_id, current_user, guild_context, access="write"
-    )
-    await tags_service.set_entity_tags(
-        session,
-        tags_service.TOOL_TAG_LINKS[Tool.counter_group],
-        guild_id=guild_context.guild_id,
-        entity_id=group.id,
-        tag_ids=tags_in.tag_ids,
-    )
-    group.updated_at = datetime.now(timezone.utc)
-    session.add(group)
-    await session.commit()
-
-    hydrated = await _refetch_group(session, group.id)
-    result = serialize_counter_group(
-        hydrated,
-        my_permission_level=_compute_my_permission(
-            hydrated, current_user, guild_context
-        ),
-    )
-    await _emit_counter(
-        session, group_id, "group_updated", result.model_dump(mode="json")
-    )
     return result
 
 
@@ -1016,6 +1016,7 @@ async def websocket_counter_group(
         resource_type="counter_group",
         resource_id=group_id,
         authorize=_authorize,
+        satisfied_providers=satisfied_provider_ids(),
     )
 
     try:

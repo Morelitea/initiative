@@ -9,7 +9,7 @@ from sqlalchemy import select, delete, update as sa_update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.email_i18n import email_t, translate
-from app.db.session import AdminSessionLocal, set_rls_context
+from app.db.session import SYSTEM_SATISFIED, AdminSessionLocal, set_rls_context
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.core.config import settings as app_config
 from app.models.tenant.initiative import Initiative
@@ -188,7 +188,11 @@ async def clear_task_assignment_queue_across_guilds(
         await clear_task_assignment_queue_for_user(routed, user_id)
         return []
 
-    await cross_guild.gather_across_guilds(session, user_id, guild_ids, _clear)
+    # Membership-based hygiene, not content access: must reach every guild
+    # the user belongs to, including auth-policy-gated ones.
+    await cross_guild.gather_across_guilds(
+        session, user_id, guild_ids, _clear, satisfied_providers=SYSTEM_SATISFIED
+    )
 
 
 async def notify_initiative_membership(
@@ -1195,7 +1199,11 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
             ]
 
         guild_ids = await member_guild_ids(session, user_id)
-        assignments = await gather_across_guilds(session, user_id, guild_ids, _fetch)
+        # Digests act on membership (no live session exists here) — the
+        # system sentinel clears the guild auth-policy gate.
+        assignments = await gather_across_guilds(
+            session, user_id, guild_ids, _fetch, satisfied_providers=SYSTEM_SATISFIED
+        )
         if not assignments:
             continue
         # Send: re-load the user (gather expunged it) in a shared-table context.
@@ -1226,7 +1234,12 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
             if not item_ids:
                 continue
             session.expunge_all()
-            await set_rls_context(session, user_id=user_id, guild_id=gid)
+            await set_rls_context(
+                session,
+                user_id=user_id,
+                guild_id=gid,
+                satisfied_providers=SYSTEM_SATISFIED,
+            )
             await session.exec(
                 sa_update(TaskAssignmentDigestItem)
                 .where(TaskAssignmentDigestItem.id.in_(item_ids))
@@ -1346,6 +1359,7 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
             # _uid default-binds user_id so the closure doesn't capture the loop
             # variable by reference (B023).
             lambda routed, _gid, _uid=user_id: _overdue_tasks_for_user(routed, _uid),
+            satisfied_providers=SYSTEM_SATISFIED,
         )
         if not tasks:
             continue
@@ -1408,7 +1422,12 @@ async def _run_event_reminder_pass(session: AsyncSession, *, now: datetime) -> N
             continue
         for guild_id in await member_guild_ids(session, user_id):
             session.expunge_all()
-            await set_rls_context(session, user_id=user_id, guild_id=guild_id)
+            await set_rls_context(
+                session,
+                user_id=user_id,
+                guild_id=guild_id,
+                satisfied_providers=SYSTEM_SATISFIED,
+            )
             events = (
                 (
                     await session.exec(

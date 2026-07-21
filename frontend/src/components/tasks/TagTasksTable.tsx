@@ -32,7 +32,7 @@ import { usePrefetchTasks, useTasks, useUpdateTask } from "@/hooks/useTasks";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
-import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
+import { dateSortingFn, PRIORITY_ORDER, prioritySortingFn } from "@/lib/sorting";
 
 const statusFallbackOrder: Record<TaskStatusCategory, TaskStatusCategory[]> = {
   backlog: ["backlog"],
@@ -40,8 +40,6 @@ const statusFallbackOrder: Record<TaskStatusCategory, TaskStatusCategory[]> = {
   in_progress: ["in_progress", "todo", "backlog"],
   done: ["done", "in_progress", "todo", "backlog"],
 };
-
-const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
 
 const DEFAULT_STATUS_FILTERS: TaskStatusCategory[] = ["backlog", "todo", "in_progress"];
 
@@ -488,7 +486,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
             <Button variant="ghost" size="sm" className="h-8 px-3">
               {filtersOpen ? t("filters.hide") : t("filters.show")}
               <ChevronDown
-                className={`ml-1 h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
+                className={`h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
               />
             </Button>
           </CollapsibleTrigger>
@@ -516,7 +514,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
               </Label>
               <MultiSelect
                 selectedValues={priorityFilters}
-                options={priorityOrder.map((priority) => ({
+                options={PRIORITY_ORDER.map((priority) => ({
                   value: priority,
                   label: t(`priority.${priority}`),
                 }))}

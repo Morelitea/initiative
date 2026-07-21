@@ -20,10 +20,14 @@ export const GuildSettingsLayout = () => {
   // tool URL configured; OSS instances without it never see this tab even
   // if a user is a guild admin.
   const { advancedTool } = useAppConfig();
-  // The Authentication tab exists only in the guild-scoped login posture
-  // (non-secret posture info from the public interface settings).
+  // The Authentication tab exists only when the platform has opted into
+  // per-guild auth (non-secret posture info from the public interface settings)
+  // AND an operator has enabled sign-in for this specific guild. Disabling the
+  // guild toggle hides the config surface without touching existing providers
+  // or member logins (guild_auth_enabled is admin-only on GuildRead).
   const interfaceSettings = useInterfaceSettings();
-  const guildAuthEnabled = interfaceSettings.data?.auth_scope === "guild";
+  const guildAuthEnabled =
+    interfaceSettings.data?.auth_scope === "guild" && activeGuild?.guild_auth_enabled === true;
 
   // Get guild ID from URL params or active guild
   const urlGuildId = params.guildId ? Number(params.guildId) : activeGuildId;
@@ -124,6 +128,7 @@ export const GuildSettingsLayout = () => {
     { value: "guild", subPath: "/settings" },
     { value: "ai", subPath: "/settings/ai" },
     { value: "users", subPath: "/settings/users" },
+    { value: "auth", subPath: "/settings/auth" },
     { value: "initiatives", subPath: "/settings/initiatives" },
     { value: "trash", subPath: "/settings/trash" },
     { value: "data", subPath: "/settings/data" },

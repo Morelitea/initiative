@@ -11,18 +11,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { AsyncCombobox } from "@/components/ui/async-combobox";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { useAuth } from "@/hooks/useAuth";
-import { useAllDocumentIds, useCreateDocument } from "@/hooks/useDocuments";
+import { useCreateDocument, useTemplateAutocomplete } from "@/hooks/useDocuments";
 import { toast } from "@/lib/chesterToast";
+
+/** Sentinel for the "no template" option — the combobox needs a value. */
+const BLANK_TEMPLATE = "blank";
 
 interface CreateWikilinkDocumentDialogProps {
   open: boolean;
@@ -46,27 +42,37 @@ export function CreateWikilinkDocumentDialog({
   onCreated,
 }: CreateWikilinkDocumentDialogProps) {
   const { t } = useTranslation(["documents", "common"]);
-  const { user } = useAuth();
 
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  // Server search only returns matches for the live query, so the picker can't
+  // look the selected template's title up from the current page — remember it.
+  const [selectedTemplateLabel, setSelectedTemplateLabel] = useState<string | null>(null);
+  const [templateSearch, setTemplateSearch] = useState("");
 
-  // Query templates
-  const templateDocumentsQuery = useAllDocumentIds({ enabled: open && canCreate });
+  // Guild-wide server typeahead over templates — bounded, and gated to what
+  // this user can actually see by the same RLS/DAC rules as the document list.
+  const templateDocumentsQuery = useTemplateAutocomplete(templateSearch, {
+    enabled: open && canCreate,
+  });
 
-  // Filter templates user can access
-  const manageableTemplates = useMemo(() => {
-    if (!templateDocumentsQuery.data || !Array.isArray(templateDocumentsQuery.data) || !user)
-      return [];
-    return templateDocumentsQuery.data.filter((doc) => {
-      if (!doc.is_template) return false;
-      return doc.my_permission_level != null;
-    });
-  }, [templateDocumentsQuery.data, user]);
+  const templateItems = useMemo(() => {
+    const templates = (templateDocumentsQuery.data ?? []).map((doc) => ({
+      value: String(doc.id),
+      label: doc.title,
+    }));
+    // "Blank document" is the default choice, not a search result: offer it
+    // only in the unsearched list, so a query matching no template leaves the
+    // list genuinely empty and the picker can say so.
+    return templateSearch
+      ? templates
+      : [{ value: BLANK_TEMPLATE, label: t("wikilink.blankDocument") }, ...templates];
+  }, [templateDocumentsQuery.data, templateSearch, t]);
 
   // Reset template selection when dialog closes
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
       setSelectedTemplateId("");
+      setSelectedTemplateLabel(null);
     }
     onOpenChange(newOpen);
   };
@@ -93,32 +99,24 @@ export function CreateWikilinkDocumentDialog({
 
         {canCreate && (
           <div className="space-y-2 py-2">
-            <Label htmlFor="wikilink-template">{t("wikilink.templateLabel")}</Label>
-            <Select
-              value={selectedTemplateId || undefined}
-              onValueChange={setSelectedTemplateId}
-              disabled={templateDocumentsQuery.isLoading || manageableTemplates.length === 0}
-            >
-              <SelectTrigger id="wikilink-template">
-                <SelectValue
-                  placeholder={
-                    templateDocumentsQuery.isLoading
-                      ? t("wikilink.loadingTemplates")
-                      : manageableTemplates.length > 0
-                        ? t("wikilink.blankDocument")
-                        : t("wikilink.noTemplates")
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="blank">{t("wikilink.blankDocument")}</SelectItem>
-                {manageableTemplates.map((template) => (
-                  <SelectItem key={template.id} value={String(template.id)}>
-                    {template.title}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>{t("wikilink.templateLabel")}</Label>
+            <AsyncCombobox
+              items={templateItems}
+              value={selectedTemplateId || null}
+              selectedLabel={selectedTemplateLabel}
+              onValueChange={(value) => {
+                setSelectedTemplateId(value);
+                setSelectedTemplateLabel(
+                  templateItems.find((item) => item.value === value)?.label ?? null
+                );
+              }}
+              onSearchChange={setTemplateSearch}
+              loading={templateDocumentsQuery.isFetching}
+              placeholder={t("wikilink.blankDocument")}
+              searchPlaceholder={t("wikilink.searchTemplates")}
+              emptyMessage={t("wikilink.noTemplates")}
+              aria-label={t("wikilink.templateLabel")}
+            />
           </div>
         )}
 
@@ -131,7 +129,7 @@ export function CreateWikilinkDocumentDialog({
                   title: title.trim(),
                   initiative_id: initiativeId,
                   template_id:
-                    selectedTemplateId && selectedTemplateId !== "blank"
+                    selectedTemplateId && selectedTemplateId !== BLANK_TEMPLATE
                       ? Number(selectedTemplateId)
                       : undefined,
                 })
@@ -140,7 +138,7 @@ export function CreateWikilinkDocumentDialog({
             >
               {createDocument.isPending ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   {t("wikilink.creating")}
                 </>
               ) : (

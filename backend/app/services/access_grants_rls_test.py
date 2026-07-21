@@ -309,3 +309,34 @@ async def test_pam_write_grant_can_update(session: AsyncSession):
         assert result.rowcount == 1, "read_write grant should be able to update content"
     finally:
         await _reset_role(session)
+
+
+@pytest.mark.integration
+async def test_request_role_cannot_self_insert_an_access_grant(session: AsyncSession):
+    """Grant creation is system-engine-only (migration 0146): a routed
+    request-path session is refused when it writes ``access_grants``, so the
+    PAM/support path cannot be self-granted. Routed as the actor on the
+    platform path; the write is denied at the role level."""
+    attacker = await create_user(session, email="attacker@example.com")
+    target = await create_guild(session)  # a guild the attacker is not a member of
+
+    try:
+        await set_rls_context(session, user_id=attacker.id, platform_role="member")
+        with pytest.raises(Exception) as exc:
+            await session.exec(
+                text(
+                    "INSERT INTO public.access_grants "
+                    "(user_id, guild_id, access_level, status, reason, "
+                    "requested_duration_minutes, requested_by_id, requested_at, "
+                    "created_at, updated_at, expires_at) VALUES "
+                    "(:uid, :gid, 'read_write', 'approved', 'ticket', 60, :uid, "
+                    "now(), now(), now(), now() + interval '1 hour')"
+                ),
+                params={"uid": attacker.id, "gid": target.id},
+            )
+        assert "permission denied" in str(exc.value).lower(), (
+            f"expected a grant-level denial on access_grants, got: {exc.value!r}"
+        )
+        await session.rollback()
+    finally:
+        await _reset_role(session)

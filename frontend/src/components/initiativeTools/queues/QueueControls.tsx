@@ -57,11 +57,11 @@ export const QueueControls = ({
             disabled={isLoading}
           >
             {isLoading ? (
-              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : queue.is_active ? (
-              <Pause className="mr-1 h-4 w-4" />
+              <Pause className="h-4 w-4" />
             ) : (
-              <Play className="mr-1 h-4 w-4" />
+              <Play className="h-4 w-4" />
             )}
             {queue.is_active ? t("stop") : t("start")}
           </Button>
@@ -119,7 +119,7 @@ export const QueueControls = ({
             onClick={onHold}
             disabled={!queue.is_active || !queue.current_item || isLoading}
           >
-            <Hand className="mr-1 h-4 w-4" />
+            <Hand className="h-4 w-4" />
             {t("hold")}
           </Button>
         </TooltipTrigger>
@@ -142,7 +142,7 @@ export const QueueControls = ({
       <Tooltip delayDuration={300}>
         <TooltipTrigger asChild>
           <Button variant="ghost" size="sm" onClick={onReset} disabled={isLoading}>
-            <RotateCcw className="mr-1 h-4 w-4" />
+            <RotateCcw className="h-4 w-4" />
             {t("reset")}
           </Button>
         </TooltipTrigger>

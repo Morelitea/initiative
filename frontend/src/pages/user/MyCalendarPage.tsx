@@ -1,12 +1,13 @@
 import { useNavigate } from "@tanstack/react-router";
-import { addYears, endOfYear, startOfYear, subYears } from "date-fns";
 import { ChevronDown, Download, Filter, Loader2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
 import type {
-  ListMyCalendarEventsApiV1MeCalendarEventsGetParams,
+  FilterCondition,
+  FilterGroup,
+  ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams,
   TaskPriority,
   TaskStatusCategory,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -16,6 +17,7 @@ import {
   type CalendarEntry,
   CalendarView,
   type CalendarViewMode,
+  calendarVisibleRange,
 } from "@/components/calendar";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { Button } from "@/components/ui/button";
@@ -23,13 +25,13 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { useAuth } from "@/hooks/useAuth";
-import { useGlobalCalendarEventsList } from "@/hooks/useCalendarEvents";
-import { useGlobalTasksTable } from "@/hooks/useGlobalTasksTable";
+import { useMyCalendarEntries } from "@/hooks/useCalendarEntries";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { toast } from "@/lib/chesterToast";
 import { guildPath, useGuildPath } from "@/lib/guildUrl";
 import { getProjectColor } from "@/lib/projectColor";
+import { PRIORITY_ORDER } from "@/lib/sorting";
 
 const STORAGE_KEY = "initiative-my-calendar-prefs";
 
@@ -37,12 +39,19 @@ type StoredPrefs = {
   showEvents: boolean;
   showTasks: boolean;
   calendarViewMode: CalendarViewMode;
+  statusFilters: TaskStatusCategory[];
+  priorityFilters: TaskPriority[];
+  guildFilters: number[];
 };
 
 const PREFS_DEFAULTS: StoredPrefs = {
   showEvents: true,
   showTasks: true,
   calendarViewMode: "month",
+  // Match the historical My Tasks default: hide done tasks unless the user opts in.
+  statusFilters: ["backlog", "todo", "in_progress"],
+  priorityFilters: [],
+  guildFilters: [],
 };
 
 const sanitizeStoredPrefs = (raw: unknown): StoredPrefs => {
@@ -55,10 +64,16 @@ const sanitizeStoredPrefs = (raw: unknown): StoredPrefs => {
       typeof v.calendarViewMode === "string"
         ? (v.calendarViewMode as CalendarViewMode)
         : PREFS_DEFAULTS.calendarViewMode,
+    statusFilters: Array.isArray(v.statusFilters) ? v.statusFilters : PREFS_DEFAULTS.statusFilters,
+    priorityFilters: Array.isArray(v.priorityFilters)
+      ? v.priorityFilters
+      : PREFS_DEFAULTS.priorityFilters,
+    guildFilters: Array.isArray(v.guildFilters) ? v.guildFilters : PREFS_DEFAULTS.guildFilters,
   };
 };
 
-const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
+const getDefaultFiltersVisibility = () =>
+  typeof window !== "undefined" && window.matchMedia("(min-width: 640px)").matches;
 
 export const MyCalendarPage = () => {
   const { t } = useTranslation(["tasks", "calendarEvents", "common"]);
@@ -103,26 +118,68 @@ export const MyCalendarPage = () => {
       }),
     [setStoredPrefs]
   );
+  const { statusFilters, priorityFilters, guildFilters } = storedPrefs;
+  const setStatusFilters = useCallback(
+    (next: TaskStatusCategory[]) =>
+      setStoredPrefs((prev) => ({ ...sanitizeStoredPrefs(prev), statusFilters: next })),
+    [setStoredPrefs]
+  );
+  const setPriorityFilters = useCallback(
+    (next: TaskPriority[]) =>
+      setStoredPrefs((prev) => ({ ...sanitizeStoredPrefs(prev), priorityFilters: next })),
+    [setStoredPrefs]
+  );
+  const setGuildFilters = useCallback(
+    (next: number[]) =>
+      setStoredPrefs((prev) => ({ ...sanitizeStoredPrefs(prev), guildFilters: next })),
+    [setStoredPrefs]
+  );
+  const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
   const [focusDate, setFocusDate] = useState(() => new Date());
 
-  // Use the same hook as My Tasks for task data + filters
-  const table = useGlobalTasksTable({ view: "assigned", storageKeyPrefix: "my-calendar-tasks" });
+  const userTimezone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
 
-  // --- Events query (global cross-guild) ---
-  const eventsParams = useMemo((): ListMyCalendarEventsApiV1MeCalendarEventsGetParams => {
-    const params: ListMyCalendarEventsApiV1MeCalendarEventsGetParams = {
-      start_after: startOfYear(subYears(focusDate, 1)).toISOString(),
-      start_before: endOfYear(addYears(focusDate, 1)).toISOString(),
-      page: 1,
-      page_size: 200,
+  // The span the current view renders — the window events + tasks fetch over.
+  const visibleRange = useMemo(
+    () => calendarVisibleRange(focusDate, calendarViewMode, weekStartsOn),
+    [focusDate, calendarViewMode, weekStartsOn]
+  );
+
+  // Task filter conditions (same JSON shape GET /me/tasks accepts). The date
+  // window travels as start_after/start_before on the request (see
+  // entriesParams) — the cross-guild task path can only be windowed by those
+  // params, not by conditions — so it isn't repeated here.
+  const taskConditions = useMemo((): (FilterCondition | FilterGroup)[] => {
+    const conditions: (FilterCondition | FilterGroup)[] = [];
+    if (statusFilters.length > 0) {
+      conditions.push({ field: "status_category", op: "in_", value: statusFilters });
+    }
+    if (priorityFilters.length > 0) {
+      conditions.push({ field: "priority", op: "in_", value: priorityFilters });
+    }
+    if (guildFilters.length > 0) {
+      conditions.push({ field: "guild_ids", op: "in_", value: guildFilters });
+    }
+    return conditions;
+  }, [statusFilters, priorityFilters, guildFilters]);
+
+  // --- One request: cross-guild events + assigned-task markers over the window. ---
+  const entriesParams = useMemo((): ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams => {
+    const params: ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams = {
+      start_after: visibleRange.start.toISOString(),
+      start_before: visibleRange.end.toISOString(),
+      conditions: taskConditions,
+      tz: userTimezone,
+      include_events: showEvents,
+      include_tasks: showTasks,
     };
-    if (table.guildFilters.length > 0) {
-      params.guild_ids = table.guildFilters;
+    if (guildFilters.length > 0) {
+      params.guild_ids = guildFilters;
     }
     return params;
-  }, [focusDate, table.guildFilters]);
+  }, [visibleRange, taskConditions, userTimezone, showEvents, showTasks, guildFilters]);
 
-  const eventsQuery = useGlobalCalendarEventsList(eventsParams);
+  const entriesQuery = useMyCalendarEntries(entriesParams);
 
   const handleRefresh = useCallback(async () => {
     await Promise.all([invalidateAllTasks(), invalidateAllCalendarEvents()]);
@@ -137,7 +194,7 @@ export const MyCalendarPage = () => {
     // injecting guildId into meta for cross-guild navigation. Not draggable here
     // (My Calendar has no reschedule handler).
     if (showTasks) {
-      table.displayTasks.forEach((task) => {
+      (entriesQuery.data?.tasks ?? []).forEach((task) => {
         for (const entry of buildTaskCalendarEntries(
           task,
           getProjectColor(task.project_id),
@@ -153,7 +210,7 @@ export const MyCalendarPage = () => {
 
     // Event entries (only if showEvents is true, since events have no task status)
     if (showEvents) {
-      const events = eventsQuery.data?.items ?? [];
+      const events = entriesQuery.data?.events ?? [];
       events.forEach((event) => {
         entries.push({
           id: `event-${event.id}`,
@@ -175,7 +232,7 @@ export const MyCalendarPage = () => {
     }
 
     return entries;
-  }, [table.displayTasks, eventsQuery.data, showEvents, showTasks]);
+  }, [entriesQuery.data, showEvents, showTasks]);
 
   const handleEntryClick = (entry: CalendarEntry) => {
     const meta = entry.meta as
@@ -201,13 +258,13 @@ export const MyCalendarPage = () => {
     [t]
   );
 
-  const isLoading = table.isInitialLoad || (eventsQuery.isLoading && !eventsQuery.data);
+  const isLoading = entriesQuery.isLoading && !entriesQuery.data;
 
   const handleExport = useCallback(async () => {
     try {
       const params: Record<string, string | number[]> = {};
-      if (table.guildFilters.length > 0) {
-        params.guild_ids = table.guildFilters;
+      if (guildFilters.length > 0) {
+        params.guild_ids = guildFilters;
       }
       const response = await apiClient.get("/me/calendar-events/export.ics", {
         params,
@@ -222,7 +279,7 @@ export const MyCalendarPage = () => {
     } catch {
       toast.error(t("calendarEvents:export.exportError"));
     }
-  }, [table.guildFilters, t]);
+  }, [guildFilters, t]);
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>
@@ -233,16 +290,12 @@ export const MyCalendarPage = () => {
             <p className="text-muted-foreground">{t("tasks:myCalendar.subtitle")}</p>
           </div>
           <Button variant="outline" size="sm" onClick={handleExport}>
-            <Download className="mr-1.5 h-4 w-4" />
+            <Download className="h-4 w-4" />
             {t("calendarEvents:export.exportIcs")}
           </Button>
         </div>
 
-        <Collapsible
-          open={table.filtersOpen}
-          onOpenChange={table.setFiltersOpen}
-          className="space-y-2"
-        >
+        <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="space-y-2">
           <div className="flex items-center justify-between sm:hidden">
             <div className="inline-flex items-center gap-2 font-medium text-muted-foreground text-sm">
               <Filter className="h-4 w-4" />
@@ -250,9 +303,9 @@ export const MyCalendarPage = () => {
             </div>
             <CollapsibleTrigger asChild>
               <Button variant="ghost" size="sm" className="h-8 px-3">
-                {table.filtersOpen ? t("tasks:filters.hide") : t("tasks:filters.show")}
+                {filtersOpen ? t("tasks:filters.hide") : t("tasks:filters.show")}
                 <ChevronDown
-                  className={`ml-1 h-4 w-4 transition-transform ${table.filtersOpen ? "rotate-180" : ""}`}
+                  className={`h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
                 />
               </Button>
             </CollapsibleTrigger>
@@ -264,9 +317,9 @@ export const MyCalendarPage = () => {
                   {t("tasks:filters.filterByStatusCategory")}
                 </Label>
                 <MultiSelect
-                  selectedValues={table.statusFilters}
+                  selectedValues={statusFilters}
                   options={statusOptions.map((o) => ({ value: o.value, label: o.label }))}
-                  onChange={(values) => table.setStatusFilters(values as TaskStatusCategory[])}
+                  onChange={(values) => setStatusFilters(values as TaskStatusCategory[])}
                   placeholder={t("tasks:filters.allStatusCategories")}
                   emptyMessage={t("tasks:filters.noStatusCategories")}
                 />
@@ -276,12 +329,12 @@ export const MyCalendarPage = () => {
                   {t("tasks:filters.filterByPriority")}
                 </Label>
                 <MultiSelect
-                  selectedValues={table.priorityFilters}
-                  options={priorityOrder.map((p) => ({
+                  selectedValues={priorityFilters}
+                  options={PRIORITY_ORDER.map((p) => ({
                     value: p,
                     label: t(`tasks:priority.${p}` as never),
                   }))}
-                  onChange={(values) => table.setPriorityFilters(values as TaskPriority[])}
+                  onChange={(values) => setPriorityFilters(values as TaskPriority[])}
                   placeholder={t("tasks:filters.allPriorities")}
                   emptyMessage={t("tasks:filters.noPriorities")}
                 />
@@ -291,14 +344,14 @@ export const MyCalendarPage = () => {
                   {t("tasks:filters.filterByGuild")}
                 </Label>
                 <MultiSelect
-                  selectedValues={table.guildFilters.map(String)}
+                  selectedValues={guildFilters.map(String)}
                   options={guilds.map((guild) => ({
                     value: String(guild.id),
                     label: guild.name,
                   }))}
                   onChange={(values) => {
                     const numericValues = values.map(Number).filter(Number.isFinite);
-                    table.setGuildFilters(numericValues);
+                    setGuildFilters(numericValues);
                   }}
                   placeholder={t("tasks:filters.allGuilds")}
                   emptyMessage={t("tasks:filters.noGuilds")}

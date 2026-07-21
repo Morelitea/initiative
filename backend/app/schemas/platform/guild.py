@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import ConfigDict, EmailStr, Field
 
@@ -50,6 +50,11 @@ class GuildRead(GuildBase):
     # database role level regardless, so the UI must be able to drop its write
     # affordances — the flag discloses the effect, not the reason.
     content_read_only: bool = False
+    # Whether this guild may configure its own sign-in (operator entitlement).
+    # Surfaced to guild ADMINS only, so their settings UI can show/hide the
+    # Authentication tab; ``None`` for non-admin members (they never configure
+    # auth). Only meaningful under the per-guild AUTH_SCOPE posture.
+    guild_auth_enabled: Optional[bool] = None
 
 
 class GuildInviteCreate(SanitizedBaseModel):
@@ -129,6 +134,9 @@ class PlatformGuildStorageRead(SanitizedBaseModel):
     # only to platform operators here — never to guild members (GuildRead omits it).
     status: GuildStatus = GuildStatus.active
     status_changed_at: Optional[datetime] = None
+    # Per-guild sign-in entitlement (operator toggle). Only meaningful under the
+    # per-guild AUTH_SCOPE posture; the dashboard hides the control otherwise.
+    guild_auth_enabled: bool = False
 
 
 class PlatformGuildStorageUpdate(SanitizedBaseModel):
@@ -144,6 +152,25 @@ class PlatformGuildStorageUpdate(SanitizedBaseModel):
     max_storage_bytes: Optional[int] = Field(default=None, ge=0)
     max_users: Optional[int] = Field(default=None, ge=1)
     status: Optional[GuildStatus] = None
+    # Per-guild sign-in entitlement. Omit-to-skip (a bool is never null here).
+    guild_auth_enabled: Optional[bool] = None
+
+
+class GuildAuthPolicyRead(SanitizedBaseModel):
+    """The guild's sign-in requirement. ``open`` is the default (no stored
+    row); ``required`` names the provider a session must have satisfied."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    policy: Literal["open", "required"]
+    provider_id: Optional[int] = None
+    provider_slug: Optional[str] = None
+    provider_display_name: Optional[str] = None
+
+
+class GuildAuthPolicyUpdate(SanitizedBaseModel):
+    policy: Literal["open", "required"]
+    provider_id: Optional[int] = None
 
 
 class GuildDeletionRequest(SanitizedBaseModel):

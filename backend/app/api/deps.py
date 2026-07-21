@@ -11,6 +11,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import API_V1_STR, settings
+from app.core import auth_context
+from app.core.auth_context import set_satisfied_providers
 from app.core.pam_context import set_active_grant
 from app.core.role_context import (
     set_active_role,
@@ -26,10 +28,11 @@ from app.core.security import (
     verify_auto_delegation_token,
     verify_upload_token,
 )
-from app.db.session import get_session, set_rls_context
+from app.db.session import SYSTEM_SATISFIED, get_session, set_rls_context
 from app.models.platform.access_grant import AccessGrant, AccessLevel
 from app.models.platform.api_key import UserApiKey
 from app.models.platform.guild import Guild, GuildMembership, GuildRole, GuildStatus
+from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.user import User, UserRole, UserStatus
 from app.schemas.platform.token import TokenPayload
 from app.services.platform import access_grants as access_grants_service
@@ -169,6 +172,10 @@ async def get_current_user(
     bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
     session_cookie: Annotated[Optional[str], Cookie(alias=SESSION_COOKIE_NAME)] = None,
 ) -> User:
+    # Start from the fail-closed empty satisfied-provider set; only the session
+    # JWT branch below records a real one (see app.core.auth_context).
+    set_satisfied_providers(None)
+
     # Check for Authorization header - could be Bearer, DeviceToken, or API key
     auth_header = request.headers.get("Authorization", "")
 
@@ -222,6 +229,11 @@ async def get_current_user(
             detail=AuthMessages.COULD_NOT_VALIDATE_CREDENTIALS,
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
+
+    # The satisfied-provider set the guild auth-policy gate reads. Legacy
+    # tokens (and every non-session credential, which never reaches this
+    # branch) leave it empty — fail-closed for policy-gated guilds.
+    set_satisfied_providers(frozenset(token_data.sat or ()))
 
     if not token_data.sub:
         raise HTTPException(
@@ -347,15 +359,63 @@ class GuildAccessError(Exception):
     the prior inline ``raise HTTPException``.
     """
 
-    def __init__(self, detail: str = GuildMessages.GUILD_ACCESS_DENIED) -> None:
+    def __init__(
+        self,
+        detail: str = GuildMessages.GUILD_ACCESS_DENIED,
+        *,
+        step_up_provider_slug: str | None = None,
+        step_up_guild_id: int | None = None,
+    ) -> None:
         self.detail = detail
+        # Set for GUILD_AUTH_STEP_UP_REQUIRED: which provider the session must
+        # satisfy (X-Auth-Step-Up) and which guild's login flow serves it
+        # (X-Auth-Step-Up-Guild) — guild-scoped providers resolve their login
+        # URL through the guild, not a global slug.
+        self.step_up_provider_slug = step_up_provider_slug
+        self.step_up_guild_id = step_up_guild_id
         super().__init__(detail)
+
+
+def _satp_param(value: frozenset[int] | str) -> list[int] | str:
+    """``set_rls_context`` form of a satisfied set: the system sentinel passes
+    through verbatim, a provider-id set sorts for a deterministic GUC."""
+    return value if isinstance(value, str) else sorted(value)
+
+
+async def _enforce_guild_auth_policy(
+    session: AsyncSession,
+    guild_id: int,
+    satisfied: frozenset[int] | str,
+) -> None:
+    """Gate 0 of guild access (history/auth-detailed-design.md §5): the guild's
+    sign-in policy must be satisfied by THIS session — membership and PAM
+    grants alike. No policy row (or ``open``) admits any authenticated
+    session; the SYSTEM_SATISFIED sentinel (user-attributed system work whose
+    enqueueing request already passed this gate) passes. Mirrored at the
+    database layer by ``public.guild_auth_satisfied()`` inside the guild
+    RLS."""
+    if satisfied == SYSTEM_SATISFIED:
+        return
+    policy = (
+        await session.exec(
+            select(GuildAuthPolicy).where(GuildAuthPolicy.guild_id == guild_id)
+        )
+    ).one_or_none()
+    if policy is None or policy.policy == "open" or policy.provider_id is None:
+        return
+    if isinstance(satisfied, str) or policy.provider_id not in satisfied:
+        raise GuildAccessError(
+            detail=GuildMessages.GUILD_AUTH_STEP_UP_REQUIRED,
+            step_up_provider_slug=policy.provider_slug,
+            step_up_guild_id=guild_id,
+        )
 
 
 async def _load_guild_context(
     session: AsyncSession,
     current_user: User,
     guild_id: int,
+    satisfied: frozenset[int] | str = frozenset(),
 ) -> GuildContext:
     """Resolve and validate the guild context for one guild.
 
@@ -418,6 +478,9 @@ async def _load_guild_context(
             pam_write=is_read_write,
         )
         guild = await guilds_service.get_guild(session, guild_id=guild_id)
+        # The guild's sign-in policy binds grantees too — PAM is a scoped
+        # access path, not a policy bypass.
+        await _enforce_guild_auth_policy(session, guild_id, satisfied)
         # Break-glass acts as a full guild admin; a scoped grantee gets the
         # ``support`` role — a first-class identity for PAM access rather than a
         # ``member`` masquerade. ``support`` clears no admin guard (it is not
@@ -446,6 +509,7 @@ async def _load_guild_context(
     # the SELECT-only guild role (see _apply_guild_session_context).
     if guild.status == GuildStatus.suspended.value:
         raise GuildAccessError()
+    await _enforce_guild_auth_policy(session, guild_id, satisfied)
     return GuildContext(
         guild=guild,
         membership=membership,
@@ -487,8 +551,28 @@ async def get_guild_membership(
             detail=GuildMessages.GUILD_ACCESS_DENIED,
         )
     try:
-        return await _load_guild_context(session, current_user, guild_id)
+        return await _load_guild_context(
+            session,
+            current_user,
+            guild_id,
+            satisfied=auth_context.satisfied_providers(),
+        )
     except GuildAccessError as exc:
+        if exc.detail == GuildMessages.GUILD_AUTH_STEP_UP_REQUIRED:
+            # 401, not 403: the session lacks an auth factor, not a permission.
+            # The header names the provider the client must step up with.
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=exc.detail,
+                headers={
+                    "X-Auth-Step-Up": exc.step_up_provider_slug or "",
+                    "X-Auth-Step-Up-Guild": (
+                        str(exc.step_up_guild_id)
+                        if exc.step_up_guild_id is not None
+                        else ""
+                    ),
+                },
+            ) from exc
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=exc.detail
         ) from exc
@@ -512,6 +596,7 @@ async def _apply_guild_session_context(
     session: AsyncSession,
     current_user: User,
     guild_context: GuildContext,
+    satisfied: frozenset[int] | str = frozenset(),
 ) -> AsyncSession:
     """Route ``session`` into ``guild_context``'s guild: set the RLS/session
     variables (and the request-scoped PAM/role contexts) for the user+guild,
@@ -537,6 +622,7 @@ async def _apply_guild_session_context(
             user_id=current_user.id,
             guild_id=guild_context.guild_id,
             guild_role=GuildRole.admin.value,
+            satisfied_providers=_satp_param(satisfied),
         )
         return session
 
@@ -573,6 +659,7 @@ async def _apply_guild_session_context(
             pam_guild_id=guild_context.guild_id,
             pam_read=True,
             pam_write=(access_level == AccessLevel.read_write.value),
+            satisfied_providers=_satp_param(satisfied),
         )
         return session
 
@@ -601,6 +688,7 @@ async def _apply_guild_session_context(
         # the SELECT-only guild_<id>_ro Postgres role — content writes are
         # denied by Postgres, not app code.
         read_only=guild_context.content_read_only,
+        satisfied_providers=_satp_param(satisfied),
     )
     # Precompute the initiatives where this member holds "Full access" so the
     # sync DAC checks can apply the gate-4 override without an async query. Runs
@@ -629,13 +717,19 @@ async def get_guild_session(
     every transaction (see app.db.session), so post-commit queries need no
     manual re-apply.
     """
-    return await _apply_guild_session_context(session, current_user, guild_context)
+    return await _apply_guild_session_context(
+        session,
+        current_user,
+        guild_context,
+        satisfied=auth_context.satisfied_providers(),
+    )
 
 
 async def establish_guild_access(
     session: AsyncSession,
     current_user: User,
     guild_id: int,
+    satisfied_providers: frozenset[int] | str | None = None,
 ) -> GuildContext:
     """Resolve guild access AND apply the session context — the single entry
     point for callers that can't use the REST dependency chain.
@@ -648,9 +742,25 @@ async def establish_guild_access(
     omission that denied a guild admin on the collaboration socket while the REST
     read allowed them. The caller maps ``GuildAccessError`` to its transport
     (REST → 403, WebSocket → 1008, keepalive → soft error body).
+
+    ``satisfied_providers`` feeds the guild auth-policy gate and the
+    ``app.satisfied_providers`` GUC. ``None`` (the default) reads the ambient
+    ``auth_context`` the credential validator recorded — right for every path
+    serving a live session. Explicit values are for the two non-session cases:
+    user-attributed system jobs pass ``SYSTEM_SATISFIED``, and the stream
+    re-auth sweep replays the set captured at socket join.
     """
-    guild_context = await _load_guild_context(session, current_user, guild_id)
-    await _apply_guild_session_context(session, current_user, guild_context)
+    satisfied = (
+        auth_context.satisfied_providers()
+        if satisfied_providers is None
+        else satisfied_providers
+    )
+    guild_context = await _load_guild_context(
+        session, current_user, guild_id, satisfied=satisfied
+    )
+    await _apply_guild_session_context(
+        session, current_user, guild_context, satisfied=satisfied
+    )
     return guild_context
 
 
@@ -729,10 +839,13 @@ async def _authenticate_upload_query_token(
     """
     # 1. Scoped upload token (preferred for native media).
     try:
-        user_id = verify_upload_token(token_param)
+        user_id, token_satisfied = verify_upload_token(token_param)
     except UploadTokenError:
         pass
     else:
+        # The scoped token copied its minting session's satisfied set — record
+        # it so the guild auth-policy gate treats this request as that session.
+        set_satisfied_providers(token_satisfied)
         return await _load_active_user_by_id(session, user_id)
 
     # 2. Device token fallback (native apps historically pass these as ?token=).
@@ -773,6 +886,10 @@ async def get_upload_user(
         rejected; native clients fetch a scoped token from
         ``POST /auth/upload-token`` instead.
     """
+    # Fail-closed default; the session-JWT and scoped-token branches record the
+    # credential's real satisfied set (see app.core.auth_context).
+    set_satisfied_providers(None)
+
     auth_header = request.headers.get("Authorization", "")
 
     # 1. DeviceToken scheme (Authorization header only — device tokens aren't safe in URLs)
@@ -864,6 +981,7 @@ async def get_upload_user(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
         )
+    set_satisfied_providers(frozenset(token_data.sat or ()))
     return user
 
 

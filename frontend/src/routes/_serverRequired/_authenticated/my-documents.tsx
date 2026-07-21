@@ -1,7 +1,13 @@
 import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 
-import { apiClient } from "@/api/client";
-import type { UserViewPreferencesMap } from "@/api/generated/initiativeAPI.schemas";
+import {
+  getListMyDocumentsApiV1MeDocumentsGetQueryKey,
+  listMyDocumentsApiV1MeDocumentsGet,
+} from "@/api/generated/documents/documents";
+import type {
+  ListMyDocumentsApiV1MeDocumentsGetParams,
+  UserViewPreferencesMap,
+} from "@/api/generated/initiativeAPI.schemas";
 import { VIEW_PREFERENCES_QUERY_KEY } from "@/hooks/useViewPreference";
 import { getItem } from "@/lib/storage";
 
@@ -53,7 +59,7 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/my-documen
     const { queryClient } = context;
     const { guildFilters } = readPrefetchFilters(queryClient);
 
-    const params: Record<string, string | string[] | number | number[]> = {
+    const params: ListMyDocumentsApiV1MeDocumentsGetParams = {
       page: 1,
       page_size: PAGE_SIZE,
     };
@@ -62,8 +68,8 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/my-documen
     try {
       await queryClient.ensureQueryData({
         // Key + params mirror useGlobalDocuments so the prefetch warms the page query.
-        queryKey: ["/api/v1/me/documents", params],
-        queryFn: () => apiClient.get("/me/documents", { params }).then((r) => r.data),
+        queryKey: getListMyDocumentsApiV1MeDocumentsGetQueryKey(params),
+        queryFn: () => listMyDocumentsApiV1MeDocumentsGet(params),
         staleTime: 30_000,
       });
     } catch {

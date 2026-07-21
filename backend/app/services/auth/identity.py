@@ -23,7 +23,6 @@ service: no raise-with-uncommitted-writes).
 from __future__ import annotations
 
 import logging
-import secrets
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
@@ -34,9 +33,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.encryption import SALT_EMAIL, encrypt_field, encrypt_token, hash_email
-from app.core.security import get_password_hash
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.federated_identity import FederatedIdentity
+from app.models.platform.guild import Guild
 from app.models.platform.federated_identity_secret import FederatedIdentitySecret
 from app.models.platform.user import User, UserRole, UserStatus
 
@@ -77,6 +76,15 @@ async def resolve_oidc_identity(
     email claim — a synthetic ``{subject}@oidc.local`` address is used for
     provisioning, mirroring the existing flow). Account-status checks (active,
     deactivated) stay with the caller, as they do today.
+
+    JIT provisioning: operator-global providers require the instance's
+    registration to be open (an unaffiliated self-registration channel);
+    guild-scoped providers JIT under ``allow_jit`` **and** the guild having
+    sign-in enabled (the operator entitlement toggle) — the guild admin
+    configured the IdP, authentication there is the invitation, and the caller
+    lands the new user in that guild (capacity-enforced) rather than leaving an
+    unaffiliated account. Turning the guild toggle off stops NEW accounts here
+    while existing linked identities keep resolving to ``LINKED`` above.
     """
     identity = await _find_identity(session, provider_id=provider.id, subject=subject)
     if identity is not None:
@@ -127,11 +135,20 @@ async def resolve_oidc_identity(
                 outcome=ResolutionOutcome.EMAIL_MATCH, user=existing
             )
 
-    # Unknown user: JIT-provision if the provider and the instance allow it.
+    # Unknown user: JIT-provision if the provider allows it. Operator-global
+    # providers additionally require open registration; guild-scoped providers
+    # additionally require the guild to have sign-in enabled (the operator
+    # toggle) — off means no NEW accounts onboard here, though existing linked
+    # identities (LINKED, above) are untouched (see docstring).
     if not provider.allow_jit:
         return IdentityResolution(outcome=ResolutionOutcome.JIT_DISABLED)
-    if not await _registration_open(session):
-        return IdentityResolution(outcome=ResolutionOutcome.REGISTRATION_DISABLED)
+    if provider.guild_id is None:
+        if not await _registration_open(session):
+            return IdentityResolution(outcome=ResolutionOutcome.REGISTRATION_DISABLED)
+    else:
+        guild = await session.get(Guild, provider.guild_id)
+        if guild is None or not guild.guild_auth_enabled:
+            return IdentityResolution(outcome=ResolutionOutcome.JIT_DISABLED)
     return await _provision(
         session,
         provider=provider,
@@ -261,9 +278,9 @@ async def _provision(
         email_hash=hash_email(normalized),
         email_encrypted=encrypt_field(normalized, SALT_EMAIL),
         full_name=full_name or normalized,
-        # No usable password: random throwaway until hashed_password turns
-        # nullable in the final cutover phase.
-        hashed_password=get_password_hash(secrets.token_urlsafe(32)),
+        # SSO-only account: no password. Verification treats a NULL hash as
+        # never-a-match, so this account signs in only through its provider.
+        hashed_password=None,
         role=UserRole.member,
         status=UserStatus.active,
         avatar_url=avatar_url,

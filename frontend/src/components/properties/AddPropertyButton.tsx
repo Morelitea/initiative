@@ -170,7 +170,7 @@ export const AddPropertyButton = ({
           className="w-full justify-start text-muted-foreground hover:text-foreground"
           disabled={disabled}
         >
-          <Plus className="mr-1 h-4 w-4" />
+          <Plus className="h-4 w-4" />
           {t("properties:addProperty")}
         </Button>
       </PopoverTrigger>
@@ -270,7 +270,7 @@ export const AddPropertyButton = ({
                   className="w-full"
                   onClick={handleAddOption}
                 >
-                  <Plus className="mr-1 h-4 w-4" />
+                  <Plus className="h-4 w-4" />
                   {t("properties:picker.addOption")}
                 </Button>
               </div>

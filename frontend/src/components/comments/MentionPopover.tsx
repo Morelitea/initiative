@@ -1,22 +1,40 @@
-import { CheckSquare, FileText, FolderKanban, User } from "lucide-react";
+import { CheckSquare, FileText, FolderKanban } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { MentionEntityType, MentionSuggestion } from "@/api/generated/initiativeAPI.schemas";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useMentionSuggestions } from "@/hooks/useComments";
+import { getInitials } from "@/lib/initials";
+import { getAvatarSrc } from "@/lib/userDisplay";
+import { cn } from "@/lib/utils";
 
 interface MentionPopoverProps {
   type: MentionEntityType;
   query: string;
   initiativeId: number;
+  /** Pixel anchor (relative to the field) so the popover sits under the word
+   *  being typed. Falls back to below the whole field when absent. */
+  anchor?: { top: number; left: number } | null;
   onSelect: (suggestion: MentionSuggestion) => void;
   onClose: () => void;
 }
 
-const getIcon = (type: MentionEntityType) => {
-  switch (type) {
-    case "user":
-      return <User className="h-4 w-4 shrink-0" />;
+// User suggestions render a face (parity with the member typeaheads); the
+// other entity types render their type icon.
+const renderLeading = (suggestion: MentionSuggestion) => {
+  if (suggestion.type === "user") {
+    const src = getAvatarSrc(suggestion);
+    return (
+      <Avatar className="h-5 w-5 shrink-0 text-[10px]">
+        {src ? <AvatarImage src={src} alt={suggestion.display_text} /> : null}
+        <AvatarFallback userId={suggestion.id}>
+          {getInitials(suggestion.display_text)}
+        </AvatarFallback>
+      </Avatar>
+    );
+  }
+  switch (suggestion.type) {
     case "task":
       return <CheckSquare className="h-4 w-4 shrink-0" />;
     case "doc":
@@ -30,12 +48,18 @@ export const MentionPopover = ({
   type,
   query,
   initiativeId,
+  anchor,
   onSelect,
   onClose,
 }: MentionPopoverProps) => {
   const { t } = useTranslation(["documents", "common"]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const popoverRef = useRef<HTMLDivElement>(null);
+
+  // Anchor under the caret when we have a position; otherwise drop below the
+  // whole field (the legacy fallback).
+  const positionClass = anchor ? "" : "top-full left-0 mt-1";
+  const positionStyle = anchor ? { top: anchor.top, left: anchor.left } : undefined;
 
   const typeLabels: Record<MentionEntityType, string> = useMemo(
     () => ({
@@ -113,7 +137,11 @@ export const MentionPopover = ({
     return (
       <div
         ref={popoverRef}
-        className="absolute top-full left-0 z-50 mt-1 w-64 rounded-md border bg-popover p-2 text-popover-foreground shadow-md"
+        style={positionStyle}
+        className={cn(
+          "absolute z-50 w-64 rounded-md border bg-popover p-2 text-popover-foreground shadow-md",
+          positionClass
+        )}
       >
         <p className="text-muted-foreground text-sm">{t("common:loading")}</p>
       </div>
@@ -124,7 +152,11 @@ export const MentionPopover = ({
     return (
       <div
         ref={popoverRef}
-        className="absolute top-full left-0 z-50 mt-1 w-64 rounded-md border bg-popover p-2 text-popover-foreground shadow-md"
+        style={positionStyle}
+        className={cn(
+          "absolute z-50 w-64 rounded-md border bg-popover p-2 text-popover-foreground shadow-md",
+          positionClass
+        )}
       >
         <p className="text-muted-foreground text-sm">
           {t("comments.noResults", { type: typeLabels[type].toLowerCase() })}
@@ -136,7 +168,11 @@ export const MentionPopover = ({
   return (
     <div
       ref={popoverRef}
-      className="absolute top-full left-0 z-50 mt-1 w-64 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md"
+      style={positionStyle}
+      className={cn(
+        "absolute z-50 w-64 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md",
+        positionClass
+      )}
     >
       <div className="px-2 py-1.5 font-medium text-muted-foreground text-xs">
         {typeLabels[type]}
@@ -151,7 +187,7 @@ export const MentionPopover = ({
               index === selectedIndex ? "bg-accent" : ""
             }`}
           >
-            {getIcon(suggestion.type as MentionEntityType)}
+            {renderLeading(suggestion)}
             <div className="min-w-0 flex-1">
               <p className="truncate font-medium">{suggestion.display_text}</p>
               {suggestion.subtitle && (

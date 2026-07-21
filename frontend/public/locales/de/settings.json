@@ -578,14 +578,8 @@
     "loadingOidcMappings": "OIDC-Zuordnungen werden geladen…",
     "oidcMappingsLoadError": "OIDC-Zuordnungen konnten nicht geladen werden.",
     "scope": {
-      "title": "Anmeldekonfiguration",
-      "description": "Lege fest, wo die Anmeldung für diesen Server konfiguriert wird.",
-      "platformLabel": "Plattformweit",
-      "platformHelp": "Die Anmeldung wird einmal, hier, für den gesamten Server konfiguriert. Alle Gilden verwenden sie. Ideal für eine einzelne Organisation mit eigener Instanz.",
-      "guildLabel": "Pro Gilde",
-      "guildHelp": "Jede Gilde konfiguriert ihre Anmeldung und Mitgliedschaftsregeln in ihren Gildeneinstellungen. Ideal für einen Server mit mehreren unabhängigen Organisationen.",
-      "comingSoon": "Demnächst",
-      "passwordNote": "Die Passwort-Anmeldung bleibt in beiden Modi verfügbar."
+      "platformLabel": "Plattformweite Anmeldung",
+      "guildLabel": "Anmeldung pro Gilde"
     }
   },
   "platformUsers": {
@@ -799,6 +793,9 @@
     "statusInputLabel": "Status für {{name}}",
     "statusSaved": "Status für {{name}} aktualisiert.",
     "statusSaveError": "Der Gildenstatus konnte nicht aktualisiert werden. Bitte versuche es erneut.",
+    "guildAuthInputLabel": "Gildenspezifische Anmeldung für {{name}}",
+    "guildAuthOn": "Gildenspezifische Anmeldung für {{name}} aktiviert.",
+    "guildAuthOff": "Gildenspezifische Anmeldung für {{name}} deaktiviert. Bestehende Mitglieder melden sich weiterhin an; es werden keine neuen Konten angelegt.",
     "status": {
       "active": "Aktiv",
       "read_only": "Schreibgeschützt",
@@ -815,6 +812,7 @@
       "members": "Mitglieder",
       "users": "Benutzer",
       "storageLimit": "Speicherlimit",
+      "guildAuth": "Gildenanmeldung",
       "status": "Status"
     }
   },
@@ -870,9 +868,73 @@
     }
   },
   "guildAuth": {
-    "title": "Authentifizierung",
-    "comingSoon": "Demnächst",
-    "description": "Anmeldekonfiguration für diese Gilde.",
-    "body": "Dieser Server verwendet die Anmeldung pro Gilde. Bald können Gilden-Admins hier Single Sign-on und Mitgliedschaftsregeln für diese Gilde konfigurieren."
+    "registry": {
+      "title": "Identitätsanbieter",
+      "description": "Die Single-Sign-on-Anbieter, mit denen sich die Mitglieder dieser Gilde anmelden. Werden von den Admins dieser Gilde konfiguriert und gelten nur hier.",
+      "dialogDescription": "OpenID-Connect-Details. Die Callback-URL beim IdP ist /api/v1/auth/g/{{guildId}}/{slug}/callback auf diesem Server."
+    },
+    "shareUrl": {
+      "title": "Anmeldelink für Mitglieder",
+      "description": "Teile diesen Link mit Mitgliedern — er bietet die Anmeldeanbieter dieser Gilde an und führt sie direkt in die Gilde.",
+      "copy": "Link kopieren",
+      "copied": "Anmeldelink kopiert"
+    },
+    "policy": {
+      "title": "Anmeldeanforderung",
+      "description": "Lege fest, mit welcher Anmeldung eine Sitzung erfolgt sein muss, bevor sie auf diese Gilde zugreifen kann.",
+      "openLabel": "Offen",
+      "openHelp": "Jedes angemeldete Mitglied kann auf diese Gilde zugreifen.",
+      "requiredLabel": "Single Sign-on erforderlich",
+      "requiredHelp": "Mitglieder können erst nach der Anmeldung über den ausgewählten Anbieter auf diese Gilde zugreifen.",
+      "providerPlaceholder": "Anbieter auswählen …",
+      "noProviders": "Es sind noch keine Anbieter konfiguriert. Füge unten unter Identitätsanbieter einen hinzu und mache ihn dann hier verpflichtend.",
+      "saved": "Anmeldeanforderung gespeichert",
+      "error": "Anmeldeanforderung konnte nicht gespeichert werden",
+      "selfUnsatisfied": "Deine aktuelle Sitzung hat sich noch nicht über {{providerName}} angemeldet. Melde dich einmal damit an, um zu bestätigen, dass es funktioniert, bevor du es verpflichtend machst.",
+      "signInWith": "Mit {{providerName}} anmelden"
+    }
+  },
+  "authProviders": {
+    "title": "Weitere Anmeldeanbieter",
+    "description": "Bieten Sie zusätzliche Anmeldewege neben dem obigen Single Sign-On an. Jeder Anbieter erhält eine eigene Schaltfläche auf der Anmeldeseite.",
+    "addProvider": "Anbieter hinzufügen",
+    "loading": "Anbieter werden geladen…",
+    "empty": "Keine weiteren Anbieter konfiguriert.",
+    "reservedBadge": "Plattform-SSO",
+    "reservedHelp": "Wird in den Single-Sign-On-Einstellungen oben verwaltet",
+    "disabledBadge": "Deaktiviert",
+    "createTitle": "Anmeldeanbieter hinzufügen",
+    "editTitle": "Anmeldeanbieter bearbeiten",
+    "dialogDescription": "OpenID-Connect-Anbieterdetails. Die Callback-URL für Ihren IdP lautet /api/v1/auth/{slug}/callback auf diesem Server.",
+    "presetLabel": "Vorlage",
+    "presetCustom": "Benutzerdefiniert (beliebiger OIDC-Anbieter)",
+    "slugLabel": "Kürzel",
+    "slugHelp": "Kleinbuchstaben, Zahlen und Bindestriche. Nach dem Erstellen unveränderlich — es bildet die Anmelde-URLs.",
+    "slugInvalid": "Nur Kleinbuchstaben, Zahlen und Bindestriche; kein Bindestrich am Anfang oder Ende.",
+    "displayNameLabel": "Anzeigename",
+    "issuerLabel": "Issuer-URL",
+    "issuerPlaceholder": "https://idp.example.com",
+    "tenantHelp": "Ersetzen Sie {tenant} durch Ihre Entra-Mandanten-ID.",
+    "clientIdLabel": "Client-ID",
+    "clientSecretLabel": "Client-Secret",
+    "secretPlaceholder": "Leer lassen für einen öffentlichen Client (nur PKCE)",
+    "secretKeepPlaceholder": "Leer lassen, um das aktuelle Secret zu behalten",
+    "clearSecret": "Gespeichertes Secret entfernen",
+    "scopesLabel": "Scopes",
+    "allowJitLabel": "Konten bei erster Anmeldung erstellen",
+    "allowJitHelp": "Wenn deaktiviert, können sich nur bestehende Konten mit diesem Anbieter anmelden.",
+    "enabledLabel": "Aktiviert",
+    "save": "Speichern",
+    "saving": "Wird gespeichert…",
+    "cancel": "Abbrechen",
+    "edit": "Bearbeiten",
+    "delete": "Löschen",
+    "deleteTitle": "{{name}} löschen?",
+    "deleteDescription": "Konten behalten ihre anderen Anmeldemethoden, aber Verknüpfungen zu diesem Anbieter werden dauerhaft entfernt.",
+    "created": "Anbieter hinzugefügt",
+    "saved": "Anbieter gespeichert",
+    "deleted": "Anbieter gelöscht",
+    "saveError": "Anbieter konnte nicht gespeichert werden",
+    "deleteError": "Anbieter konnte nicht gelöscht werden"
   }
 }

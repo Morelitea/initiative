@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import case, func
+from sqlalchemy import and_, case, func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -53,7 +53,12 @@ from app.services.tenant import tags as tags_service
 from app.services.tenant import task_statuses as task_statuses_service
 from app.core.messages import ProjectMessages
 from app.core.config import settings as app_settings
-from app.db.query import page_has_next, paginate_sequence
+from app.db.query import (
+    apply_pagination,
+    clamp_page,
+    page_has_next,
+    paginate_sequence,
+)
 from app.core.pam_context import has_active_grant
 from app.services.realtime import broadcast_event
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
@@ -69,8 +74,12 @@ from app.schemas.tenant.project import (
     ProjectActivityEntry,
     ProjectActivityResponse,
 )
+from app.schemas.platform.user import UserSummary, UserSummaryListResponse
 from app.schemas.tenant.comment import CommentAuthor
-from app.schemas.tenant.initiative import serialize_initiative
+from app.schemas.tenant.initiative import (
+    InitiativeGroupedCountsResponse,
+    serialize_initiative,
+)
 from app.schemas.tenant.document import (
     ProjectDocumentSummary,
     serialize_project_document_link,
@@ -78,7 +87,6 @@ from app.schemas.tenant.document import (
 from app.schemas.tenant.project_export import (
     ProjectExportEnvelope,
 )
-from app.schemas.tenant.tag import TagSetRequest
 from app.services.tenant import project_export as project_export_service
 from app.services.tenant import recent_views as recent_views_service
 from app.schemas.tenant.recent_view import RecentViewWrite
@@ -410,18 +418,84 @@ async def _duplicate_template_tasks(
         )
 
 
-def _matches_filters(
-    project: Project, *, archived: Optional[bool], template: Optional[bool]
-) -> bool:
+def _full_project_load_options() -> list:
+    """Eager loads for a fully-serialized ``ProjectRead`` (owner, nested
+    initiative + memberships, linked documents with their DAC, tags, grants)."""
+    return [
+        selectinload(Project.grants).selectinload(ResourceGrant.role),
+        selectinload(Project.owner),
+        selectinload(Project.initiative)
+        .selectinload(Initiative.memberships)
+        .options(
+            selectinload(InitiativeMember.user),
+            selectinload(InitiativeMember.role_ref).selectinload(
+                InitiativeRoleModel.permissions
+            ),
+        ),
+        selectinload(Project.document_links)
+        .selectinload(ProjectDocument.document)
+        .options(
+            selectinload(Document.grants).selectinload(ResourceGrant.role),
+            # Linked-doc visibility defers to the shared document DAC, which
+            # reads the doc's own initiative memberships (all-members grants).
+            selectinload(Document.initiative).selectinload(Initiative.memberships),
+        ),
+        selectinload(Project.tag_links).selectinload(ProjectTag.tag),
+    ]
+
+
+def _slim_project_load_options() -> list:
+    """Minimal eager loads for the slim projection: only what
+    ``compute_project_permission`` needs (own/role/all-members grants and the
+    initiative's memberships) — no owner, documents, tags, or nested roles."""
+    return [
+        selectinload(Project.grants),
+        selectinload(Project.initiative).selectinload(Initiative.memberships),
+    ]
+
+
+def _visible_project_conditions(
+    user_id: int,
+    *,
+    guild_id: int,
+    archived: Optional[bool],
+    template: Optional[bool],
+    search: Optional[str] = None,
+) -> list:
+    """WHERE clauses for the guild's DAC-visible projects.
+
+    ``archived``/``template``/``search`` are pushed into SQL (mirroring the old
+    ``_matches_filters``: ``None`` means "exclude" for the boolean flags). DAC
+    scoping is preserved exactly — a guild admin or a live PAM grant sees every
+    project in the guild; otherwise the set is narrowed to the user's
+    explicit/role-granted projects via ``visible_project_ids_subquery``.
+    """
+    conditions = [Initiative.guild_id == guild_id]
+    if not has_active_grant(
+        guild_id
+    ) and not permissions_service.is_request_guild_admin(guild_id):
+        conditions.append(
+            Project.id.in_(permissions_service.visible_project_ids_subquery(user_id))
+        )
+
     if template is None:
-        if project.is_template:
-            return False
-    elif project.is_template != template:
-        return False
+        conditions.append(Project.is_template.is_(False))
+    else:
+        conditions.append(Project.is_template.is_(template))
 
     if archived is None:
-        return not project.is_archived
-    return project.is_archived == archived
+        conditions.append(Project.is_archived.is_(False))
+    else:
+        conditions.append(Project.is_archived.is_(archived))
+
+    if search and search.strip():
+        # autoescape so a literal % or _ in the query is matched as itself, not
+        # as a LIKE wildcard — keeps the documented substring semantics.
+        conditions.append(
+            func.lower(Project.name).contains(search.strip().lower(), autoescape=True)
+        )
+
+    return conditions
 
 
 async def _visible_projects(
@@ -432,58 +506,21 @@ async def _visible_projects(
     archived: Optional[bool],
     template: Optional[bool],
 ) -> List[Project]:
-    """Get projects visible to the user.
+    """Get projects visible to the user (filtered in SQL).
 
     DAC: Projects with explicit ProjectPermission OR role-based permission.
     """
-    # A guild admin (full access to all guild data) or a live PAM grant (acts
-    # like a member of every initiative) sees all of the guild's projects in one
-    # bulk, guild-scoped query; otherwise narrow to projects the user has
-    # explicit/role permission for. The guild scope + RLS apply either way.
-    conditions = [Initiative.guild_id == guild_id]
-    if not has_active_grant(
-        guild_id
-    ) and not permissions_service.is_request_guild_admin(guild_id):
-        conditions.append(
-            Project.id.in_(
-                permissions_service.visible_project_ids_subquery(current_user.id)
-            )
-        )
-
+    conditions = _visible_project_conditions(
+        current_user.id, guild_id=guild_id, archived=archived, template=template
+    )
     base_statement = (
         select(Project)
         .join(Project.initiative)
         .where(*conditions)
-        .options(
-            selectinload(Project.grants).selectinload(ResourceGrant.role),
-            selectinload(Project.owner),
-            selectinload(Project.initiative)
-            .selectinload(Initiative.memberships)
-            .options(
-                selectinload(InitiativeMember.user),
-                selectinload(InitiativeMember.role_ref).selectinload(
-                    InitiativeRoleModel.permissions
-                ),
-            ),
-            selectinload(Project.document_links)
-            .selectinload(ProjectDocument.document)
-            .options(
-                selectinload(Document.grants).selectinload(ResourceGrant.role),
-                # Linked-doc visibility defers to the shared document DAC, which
-                # reads the doc's own initiative memberships (all-members grants).
-                selectinload(Document.initiative).selectinload(Initiative.memberships),
-            ),
-            selectinload(Project.tag_links).selectinload(ProjectTag.tag),
-        )
+        .options(*_full_project_load_options())
     )
     result = await session.exec(base_statement)
-    all_projects = result.all()
-
-    return [
-        project
-        for project in all_projects
-        if _matches_filters(project, archived=archived, template=template)
-    ]
+    return list(result.all())
 
 
 async def _project_reads_with_order(
@@ -535,6 +572,38 @@ async def _project_reads_with_order(
             )
         )
     return payloads
+
+
+def _slim_project_reads(projects: List[Project], user_id: int) -> List[ProjectRead]:
+    """Build lightweight ``ProjectRead`` rows for the slim projection.
+
+    Carries only ``{id, name, icon, initiative_id, my_permission_level}`` plus
+    the cheap scalar flags; documents/grants/tags/owner/nested initiative are
+    left at their defaults so no heavy relationship is serialized. ``description``
+    is dropped too (it would run rich-text sanitization for no picker benefit).
+    """
+    reads: List[ProjectRead] = []
+    for project in projects:
+        reads.append(
+            ProjectRead(
+                id=project.id or 0,
+                name=project.name,
+                description=None,
+                icon=project.icon,
+                owner_id=project.owner_id,
+                initiative_id=project.initiative_id,
+                created_at=project.created_at,
+                updated_at=project.updated_at,
+                is_archived=project.is_archived,
+                is_template=project.is_template,
+                archived_at=project.archived_at,
+                pinned_at=project.pinned_at,
+                my_permission_level=permissions_service.compute_project_permission(
+                    project, user_id
+                ),
+            )
+        )
+    return reads
 
 
 async def _project_meta_for_user(
@@ -805,7 +874,9 @@ async def _list_global_projects(
         Project.id.in_(has_permission_subq),
     ]
     if search:
-        conditions.append(func.lower(Project.name).contains(search.strip().lower()))
+        conditions.append(
+            func.lower(Project.name).contains(search.strip().lower(), autoescape=True)
+        )
 
     async def _fetch(guild_session: AsyncSession, _guild_id: int) -> list[ProjectRead]:
         statement = (
@@ -854,32 +925,78 @@ async def list_projects(
     guild_context: GuildContextDep,
     archived: Optional[bool] = Query(default=None),
     template: Optional[bool] = Query(default=None),
+    search: Optional[str] = Query(
+        default=None, description="Case-insensitive substring match on name."
+    ),
+    slim: bool = Query(
+        default=False,
+        description=(
+            "Return a lightweight projection (id, name, icon, initiative_id, "
+            "my_permission_level) without documents, grants, tags, or the nested "
+            "initiative. For project pickers and other list-only callers."
+        ),
+    ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=0, ge=0, le=100),
 ) -> ProjectListResponse:
-    projects = await _visible_projects(
-        session,
-        current_user,
+    # Filtering, ordering, and pagination all happen in SQL: the DAC scope
+    # (guild admin / PAM see all, else visible-project-ids) plus archived/
+    # template/search go into the WHERE, and the per-user manual order
+    # (project_orders, NULLS last) drives ORDER BY so LIMIT/OFFSET can page the
+    # rows instead of loading the whole visible graph.
+    conditions = _visible_project_conditions(
+        current_user.id,
         guild_id=guild_context.guild_id,
         archived=archived,
         template=template,
+        search=search,
     )
-    all_reads = await _project_reads_with_order(
-        session,
-        current_user,
-        projects,
+
+    count_stmt = (
+        select(func.count())
+        .select_from(Project)
+        .join(Project.initiative)
+        .where(*conditions)
     )
-    total_count = len(all_reads)
+    total_count = int((await session.exec(count_stmt)).one())
+    page = clamp_page(page, page_size, total_count)
+
+    load_options = (
+        _slim_project_load_options() if slim else _full_project_load_options()
+    )
+    data_stmt = (
+        select(Project)
+        .join(Project.initiative)
+        .outerjoin(
+            ProjectOrder,
+            and_(
+                ProjectOrder.project_id == Project.id,
+                ProjectOrder.user_id == current_user.id,
+            ),
+        )
+        .where(*conditions)
+        .order_by(ProjectOrder.sort_order.asc().nulls_last(), Project.id.asc())
+        .options(*load_options)
+    )
     # page_size<=0 serves FETCH_ALL_WINDOW-sized pages (bounded response,
     # SEC-14) that honor ``page`` — has_next tells the caller to keep walking.
-    items = paginate_sequence(all_reads, page, page_size)
-    has_next = page_has_next(page, page_size, total_count)
+    data_stmt = apply_pagination(data_stmt, page, page_size)
+    projects = list((await session.exec(data_stmt)).all())
+
+    if slim:
+        items = _slim_project_reads(projects, current_user.id)
+    else:
+        # Order is already applied in SQL; preserve it through serialization.
+        items = await _project_reads_with_order(
+            session, current_user, projects, preserve_order=True
+        )
+
     return ProjectListResponse(
         items=items,
         total_count=total_count,
         page=page,
         page_size=page_size,
-        has_next=has_next,
+        has_next=page_has_next(page, page_size, total_count),
     )
 
 
@@ -905,6 +1022,44 @@ async def list_writable_projects(
         session,
         current_user,
         writable_projects,
+    )
+
+
+@router.get("/counts/by-initiative", response_model=InitiativeGroupedCountsResponse)
+async def get_project_counts_by_initiative(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> InitiativeGroupedCountsResponse:
+    """Visible-project counts grouped by initiative.
+
+    Lightweight endpoint for initiative landing-card badges — same
+    visibility rules as the default project list (non-archived,
+    non-template), one GROUP BY instead of walking the full corpus.
+    """
+    conditions = [
+        Initiative.guild_id == guild_context.guild_id,
+        Project.is_archived.is_(False),
+        Project.is_template.is_(False),
+    ]
+    if not has_active_grant(
+        guild_context.guild_id
+    ) and not permissions_service.is_request_guild_admin(guild_context.guild_id):
+        conditions.append(
+            Project.id.in_(
+                permissions_service.visible_project_ids_subquery(current_user.id)
+            )
+        )
+
+    statement = (
+        select(Project.initiative_id, func.count(Project.id))
+        .join(Project.initiative)
+        .where(*conditions)
+        .group_by(Project.initiative_id)
+    )
+    rows = (await session.exec(statement)).all()
+    return InitiativeGroupedCountsResponse(
+        counts={initiative_id: count for initiative_id, count in rows}
     )
 
 
@@ -1507,6 +1662,65 @@ async def read_project(
     )
 
 
+@router.get("/{project_id}/members/search", response_model=UserSummaryListResponse)
+async def search_project_members(
+    project_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    search: Optional[str] = Query(
+        default=None,
+        description="Case-insensitive substring match on the member's name.",
+    ),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=0, le=100),
+) -> UserSummaryListResponse:
+    """Slim, searchable roster of users assignable to this project's tasks.
+
+    The assignable set is the project's **write/owner DAC set** — explicit
+    per-user grants, members holding a write-access role, and every member
+    when an all-initiative-members write grant exists — computed server-side
+    via the shared permission engine. This replaces the client-side
+    ``project.grants`` derivation the pickers used to run over the full guild
+    roster. Requester needs read access to the project.
+    """
+    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _require_project_membership(project, current_user, session, access="read")
+
+    # Candidate pool = the initiative's members. User-level grants are validated
+    # to reference initiative members when written (see replace_resource_grants),
+    # so the membership list is a complete superset of the assignable users.
+    members = getattr(project.initiative, "memberships", None) or []
+    assignable: list[User] = []
+    seen: set[int] = set()
+    for member in members:
+        user = member.user
+        if user is None or user.id in seen:
+            continue
+        if permissions_service.has_project_write_access(project, user):
+            assignable.append(user)
+            seen.add(user.id)
+
+    term = (search or "").strip().lower()
+    if term:
+        assignable = [u for u in assignable if term in (u.full_name or "").lower()]
+
+    assignable.sort(key=lambda u: ((u.full_name or "").lower(), u.id))
+
+    total_count = len(assignable)
+    actual_page = clamp_page(page, page_size, total_count)
+    page_items = paginate_sequence(assignable, actual_page, page_size)
+
+    return UserSummaryListResponse(
+        items=[UserSummary.model_validate(user) for user in page_items],
+        total_count=total_count,
+        page=actual_page,
+        page_size=page_size,
+        has_next=page_has_next(actual_page, page_size, total_count),
+        has_prev=actual_page > 1,
+    )
+
+
 @router.patch("/{project_id}", response_model=ProjectRead)
 async def update_project(
     project_id: int,
@@ -1757,45 +1971,6 @@ async def delete_project(
     )
     await session.commit()
     await _broadcast_project(project, "deleted")
-
-
-@router.put("/{project_id}/tags", response_model=ProjectRead)
-async def set_project_tags(
-    project_id: int,
-    tags_in: TagSetRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> ProjectRead:
-    """Set tags on a project. Replaces all existing tags with the provided list."""
-    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
-    await _require_project_membership(project, current_user, session, access="write")
-
-    await tags_service.set_entity_tags(
-        session,
-        tags_service.TOOL_TAG_LINKS[Tool.project],
-        guild_id=guild_context.guild_id,
-        entity_id=project_id,
-        tag_ids=tags_in.tag_ids,
-    )
-
-    # Update timestamp directly via SQL to avoid issues with deleted relationship objects
-    update_stmt = select(Project).where(Project.id == project_id)
-    result = await session.exec(update_stmt)
-    proj = result.one()
-    proj.updated_at = datetime.now(timezone.utc)
-    await session.commit()
-
-    # Refetch with all relationships
-    updated = await _get_project_or_404(
-        project_id, session, guild_context.guild_id, populate_existing=True
-    )
-    await _attach_task_summaries(session, [updated])
-    return await _project_read_for_user(
-        session,
-        current_user,
-        updated,
-    )
 
 
 @router.put("/{project_id}/grants", response_model=ProjectRead)

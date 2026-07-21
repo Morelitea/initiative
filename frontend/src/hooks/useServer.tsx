@@ -21,6 +21,13 @@ interface ServerContextValue {
   testServerConnection: (url: string) => Promise<{ valid: boolean; error?: string }>;
   /** Get display-friendly hostname from server URL */
   getServerHostname: () => string | null;
+  /**
+   * The server's origin (scheme + host, no path) for building absolute links
+   * to non-API routes. On web that's the app's own origin; on native it's
+   * derived from the configured server URL. Null on native before a server is
+   * configured.
+   */
+  getServerOrigin: () => string | null;
 }
 
 export const ServerContext = createContext<ServerContextValue | undefined>(undefined);
@@ -56,6 +63,18 @@ function extractHostname(serverUrl: string): string | null {
   try {
     const url = new URL(serverUrl);
     return url.hostname;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The origin (scheme + host) of a server URL, dropping its `/api/v1` path.
+ * `URL.origin` handles any path shape, unlike a suffix match on `/api/v1`.
+ */
+function extractOrigin(serverUrl: string): string | null {
+  try {
+    return new URL(serverUrl).origin;
   } catch {
     return null;
   }
@@ -137,6 +156,11 @@ export const ServerProvider = ({ children }: { children: ReactNode }) => {
     return extractHostname(serverUrl);
   }, [serverUrl]);
 
+  const getServerOrigin = useCallback((): string | null => {
+    if (!isNativePlatform) return window.location.origin;
+    return serverUrl ? extractOrigin(serverUrl) : null;
+  }, [isNativePlatform, serverUrl]);
+
   const value: ServerContextValue = {
     serverUrl,
     isNativePlatform,
@@ -146,6 +170,7 @@ export const ServerProvider = ({ children }: { children: ReactNode }) => {
     clearServerUrl,
     testServerConnection,
     getServerHostname,
+    getServerOrigin,
   };
 
   return <ServerContext.Provider value={value}>{children}</ServerContext.Provider>;

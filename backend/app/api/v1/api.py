@@ -13,6 +13,7 @@ from app.api.v1.tenant_endpoints import (
     ai_settings,
     attachments,
     auto_subscriptions,
+    calendar_entries,
     calendar_events,
     collaboration,
     comments,
@@ -32,6 +33,7 @@ from app.api.v1.tenant_endpoints import (
     tags,
     task_statuses,
     tasks,
+    tools,
     trash,
 )
 from app.api.v1.platform_endpoints import (
@@ -39,8 +41,10 @@ from app.api.v1.platform_endpoints import (
     admin,
     ai_settings as platform_ai_settings,
     auth,
+    auth_providers,
     billing,
     config,
+    guild_auth_providers,
     guilds,
     native,
     notifications,
@@ -71,6 +75,12 @@ api_router.include_router(
     access_grants.router, prefix="/access-grants", tags=["access-grants"]
 )
 api_router.include_router(settings.router, prefix="/settings", tags=["settings"])
+api_router.include_router(
+    auth_providers.router, prefix="/settings/auth/providers", tags=["auth-providers"]
+)
+api_router.include_router(
+    guild_auth_providers.router, prefix="/guilds", tags=["guild-auth-providers"]
+)
 # Service-to-service endpoints for the external billing service.
 api_router.include_router(billing.router, prefix="/billing", tags=["billing"])
 api_router.include_router(
@@ -122,11 +132,17 @@ guild_router.include_router(
 guild_router.include_router(
     calendar_events.router, prefix="/calendar-events", tags=["calendar-events"]
 )
+# Aggregate view: events + task markers in one request (calendar surfaces).
+guild_router.include_router(
+    calendar_entries.router, prefix="/calendar-entries", tags=["calendar-entries"]
+)
 guild_router.include_router(
     resource_grants.router, prefix="/resource-grants", tags=["resource-grants"]
 )
 guild_router.include_router(storage.router, prefix="/storage", tags=["storage"])
 guild_router.include_router(tags.router, prefix="/tags", tags=["tags"])
+# Generic per-tool surfaces addressed by the Tool enum ({tool} path param).
+guild_router.include_router(tools.router, prefix="/tools", tags=["tools"])
 guild_router.include_router(
     advanced_tool.router, prefix="/advanced-tools", tags=["advanced-tools"]
 )
@@ -160,6 +176,7 @@ me_router.include_router(tasks.me_router, tags=["tasks"])
 me_router.include_router(documents.me_router, tags=["documents"])
 me_router.include_router(projects.me_router, tags=["projects"])
 me_router.include_router(calendar_events.me_router, tags=["calendar-events"])
+me_router.include_router(calendar_entries.me_router, tags=["calendar-entries"])
 me_router.include_router(me_trash.me_router, tags=["trash"])
 me_router.include_router(users.me_router, tags=["users"])
 api_router.include_router(me_router)

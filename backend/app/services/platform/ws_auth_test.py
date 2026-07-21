@@ -124,7 +124,7 @@ async def test_token_without_version_claim_rejected(session: AsyncSession):
             "sub": str(user.id),
             "exp": datetime.now(timezone.utc) + timedelta(minutes=10),
         },
-        settings.SECRET_KEY,
+        settings.jwt_signing_key,
         algorithm=JWT_ALGORITHM,
     )
 
@@ -152,7 +152,7 @@ async def test_jwt_without_sub_does_not_fall_through_to_device_lookup(
 
     subless_token = pyjwt.encode(
         {"exp": datetime.now(timezone.utc) + timedelta(minutes=10)},
-        settings.SECRET_KEY,
+        settings.jwt_signing_key,
         algorithm=JWT_ALGORITHM,
     )
 

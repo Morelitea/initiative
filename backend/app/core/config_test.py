@@ -2,6 +2,7 @@
 
 import pytest
 from pydantic import ValidationError
+from pydantic_settings import SettingsConfigDict
 
 from app.core.config import CAPACITOR_NATIVE_ORIGINS, Settings
 
@@ -9,14 +10,54 @@ from app.core.config import CAPACITOR_NATIVE_ORIGINS, Settings
 TEST_SECRET_KEY = "f2d8a1c4b7e90365d4a2f8c1b6e3079a5c8d2e4f6a1b3c5d7e9f0a2b4c6d8e1f"
 
 
+class _HermeticSettings(Settings):
+    """``Settings`` without the dotenv source: keeps these unit tests hermetic —
+    otherwise a developer's real backend/.env (e.g. a legitimately-set
+    JWT_SIGNING_KEY) leaks into every field the test didn't override."""
+
+    model_config = SettingsConfigDict(env_file=None)
+
+
 def _settings(**overrides) -> Settings:
     overrides.setdefault("APP_URL", "https://app.example.com")
     overrides.setdefault("SECRET_KEY", TEST_SECRET_KEY)
-    return Settings(
+    return _HermeticSettings(
         DATABASE_URL_APP="postgresql+asyncpg://app:app@localhost/app",
         DATABASE_URL_ADMIN="postgresql+asyncpg://admin:admin@localhost/app",
         **overrides,
     )
+
+
+@pytest.mark.parametrize("field", ["GUILD_ROLE_PREFIX", "PLATFORM_ROLE_PREFIX"])
+@pytest.mark.parametrize(
+    "bad_prefix",
+    [
+        "a; DROP ROLE app_admin",
+        "x'",
+        "p-1",
+        "test prefix",
+        "p.g",
+        'q"',
+        "réle_",
+        # Digit-leading: valid characters but Postgres rejects it as an
+        # unquoted identifier, so the prefix must be refused at load.
+        "9prod_",
+        "0",
+    ],
+)
+def test_role_prefix_rejects_non_identifier_chars(field, bad_prefix):
+    """The role-name prefixes are interpolated into Postgres ROLE DDL and into
+    every request's SET ROLE, so a prefix that isn't a valid unquoted
+    identifier must fail closed at load rather than reach that sink."""
+    with pytest.raises(ValidationError):
+        _settings(**{field: bad_prefix})
+
+
+@pytest.mark.parametrize("field", ["GUILD_ROLE_PREFIX", "PLATFORM_ROLE_PREFIX"])
+@pytest.mark.parametrize("ok_prefix", ["", "test_", "test_gw0_", "Prod9_"])
+def test_role_prefix_accepts_identifier_safe(field, ok_prefix):
+    """Empty (the production default) and identifier-safe prefixes pass."""
+    assert getattr(_settings(**{field: ok_prefix}), field) == ok_prefix
 
 
 @pytest.mark.parametrize(

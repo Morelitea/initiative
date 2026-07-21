@@ -1,9 +1,35 @@
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import ConfigDict, EmailStr, Field
 
 from app.schemas.base import RawTextStr, SanitizedBaseModel
+
+
+class LoginProviderEntry(SanitizedBaseModel):
+    """One sign-in provider offered on the login page (non-secret metadata)."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    # Registry row id — what the guild auth-policy endpoints identify a
+    # provider by. None only for a platform entry not yet reconciled to a row.
+    id: Optional[int] = None
+    slug: str
+    display_name: str
+    kind: str
+    login_url: str
+    icon: Optional[str] = None
+    button_style: Optional[str] = None
+
+
+class LoginProvidersResponse(SanitizedBaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    providers: List[LoginProviderEntry]
+    # Guild-addressed listings only: the guild's display name for its login
+    # page. Set exactly when the listing is non-empty, so a guild without
+    # login-ready providers stays indistinguishable from an unknown id.
+    guild_name: Optional[str] = None
 
 
 class VerificationSendResponse(SanitizedBaseModel):

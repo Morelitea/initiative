@@ -1,7 +1,7 @@
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Sequence
 
 import bcrypt
 import jwt
@@ -31,13 +31,18 @@ def get_password_hash(password: str) -> str:
     return _argon2_hasher.hash(password)
 
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
+def verify_password(plain_password: str, hashed_password: str | None) -> bool:
     """Verify a plaintext password against either an argon2id or legacy bcrypt hash.
 
-    Existing users still have bcrypt hashes from the passlib era; those are
-    verified directly with the bcrypt library. The login flow rehashes them
-    as argon2id on next successful login (see ``password_needs_rehash``).
+    A ``None`` hash means the account has no password (SSO-only) — never a
+    match, so every caller gets uniform "incorrect credentials" behavior
+    without a separate check. Existing users still have bcrypt hashes from the
+    passlib era; those are verified directly with the bcrypt library. The login
+    flow rehashes them as argon2id on next successful login (see
+    ``password_needs_rehash``).
     """
+    if hashed_password is None:
+        return False
     if hashed_password.startswith("$argon2"):
         try:
             _argon2_hasher.verify(hashed_password, plain_password)
@@ -55,12 +60,15 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return False
 
 
-def password_needs_rehash(hashed_password: str) -> bool:
+def password_needs_rehash(hashed_password: str | None) -> bool:
     """Return True if the stored hash should be rewritten on next successful login.
 
     Triggers for legacy bcrypt hashes and for argon2 hashes whose parameters
-    have drifted from the current PasswordHasher defaults.
+    have drifted from the current PasswordHasher defaults. ``None`` (no
+    password set) has nothing to rehash.
     """
+    if hashed_password is None:
+        return False
     if not hashed_password.startswith("$argon2"):
         return True
     try:
@@ -210,6 +218,7 @@ class UploadTokenError(Exception):
 def create_upload_token(
     *,
     user_id: int,
+    satisfied_providers: Sequence[int] = (),
     expires_in: timedelta = UPLOAD_TOKEN_LIFETIME,
 ) -> tuple[str, int]:
     """Mint a short-lived, uploads-scoped JWT for ``user_id``.
@@ -218,12 +227,17 @@ def create_upload_token(
     before the token lapses. Signed with the same HS256 JWT key as the session
     JWT but distinguished by its ``aud``/``scope`` claims and the absence of
     ``ver`` — the general auth path will not accept it.
+
+    ``satisfied_providers`` copies the minting session's ``sat`` claim so a
+    download/keepalive in a policy-gated guild carries the same satisfaction
+    as the session that requested it (bounded by this token's short lifetime).
     """
     now = datetime.now(timezone.utc)
     payload: dict[str, Any] = {
         "sub": str(user_id),
         "aud": UPLOAD_TOKEN_AUDIENCE,
         "scope": UPLOAD_TOKEN_SCOPE,
+        "sat": [int(pid) for pid in satisfied_providers],
         "iat": int(now.timestamp()),
         "exp": now + expires_in,
     }
@@ -231,8 +245,8 @@ def create_upload_token(
     return token, int(expires_in.total_seconds())
 
 
-def verify_upload_token(token: str) -> int:
-    """Verify a scoped upload token and return the user id it names.
+def verify_upload_token(token: str) -> tuple[int, frozenset[int]]:
+    """Verify a scoped upload token; return the user id and satisfied set.
 
     Raises :class:`UploadTokenError` on any failure (bad signature, expired,
     wrong audience, missing/extra-scoped claims). The caller treats that as
@@ -255,9 +269,14 @@ def verify_upload_token(token: str) -> int:
 
     sub = payload.get("sub")
     try:
-        return int(sub)
+        user_id = int(sub)
     except (TypeError, ValueError) as exc:
         raise UploadTokenError("sub must be a numeric user id") from exc
+    try:
+        satisfied = frozenset(int(pid) for pid in payload.get("sat") or ())
+    except (TypeError, ValueError) as exc:
+        raise UploadTokenError("sat must be a list of provider ids") from exc
+    return user_id, satisfied
 
 
 # Audience claim for tokens minted for the embedded advanced-tool iframe.
@@ -273,23 +292,31 @@ ADVANCED_TOOL_AUDIENCE = "initiative:advanced-tool"
 ADVANCED_TOOL_HANDOFF_LIFETIME = timedelta(seconds=60)
 
 
+class HandoffSigningNotConfiguredError(RuntimeError):
+    """Raised when a handoff token is requested but no RS256 signing key is
+    configured. The token is verified by a separate service, so there is no
+    symmetric fallback — the caller must translate this into a fail-closed
+    response (503) rather than mint an unverifiable token."""
+
+
 def _resolve_handoff_signing_material() -> tuple[str, str, str | None]:
-    """Pick (key, algorithm, kid) for signing advanced-tool handoff JWTs.
+    """Return (private_key_pem, "RS256", kid) for signing handoff JWTs.
 
-    Default: HS256 with the JWT signing key — works out of the box for OSS
-    but requires sharing the secret with the embed backend (single point of
-    compromise).
+    Handoff tokens cross a trust boundary: the receiving service verifies them
+    with the public half of this key, so they are always RS256 — never a
+    symmetric scheme that would force sharing a secret across that boundary.
+    Set HANDOFF_SIGNING_KEY_ID for a stable ``kid`` so the receiver can pick
+    the right verifying key out of a JWKS during rotation.
 
-    Preferred: RS256 with HANDOFF_SIGNING_PRIVATE_KEY_PEM — FOSS holds
-    the private key, the embed verifies with the matching public key,
-    and rotation is just a key swap. Set HANDOFF_SIGNING_KEY_ID for a
-    stable ``kid`` so the embed can pick the right verifying key out of
-    a JWKS.
+    Fails closed (raises) when no key is configured: a deployment that links a
+    companion service must also supply HANDOFF_SIGNING_PRIVATE_KEY_PEM.
     """
     private_pem = settings.HANDOFF_SIGNING_PRIVATE_KEY_PEM
-    if private_pem:
-        return private_pem, "RS256", settings.HANDOFF_SIGNING_KEY_ID
-    return settings.jwt_signing_key, "HS256", None
+    if not private_pem:
+        raise HandoffSigningNotConfiguredError(
+            "HANDOFF_SIGNING_PRIVATE_KEY_PEM is required to mint handoff tokens"
+        )
+    return private_pem, "RS256", settings.HANDOFF_SIGNING_KEY_ID
 
 
 def create_advanced_tool_handoff_token(
@@ -311,11 +338,11 @@ def create_advanced_tool_handoff_token(
       2. Backend validates membership + master switch + URL config.
       3. Backend returns this token, which the SPA passes to the iframe via
          postMessage (never a query string).
-      4. The iframe's backend verifies the token (RS256 public key OR
-         HS256 shared secret), confirms ``aud == ADVANCED_TOOL_AUDIENCE``,
-         and exchanges it for its own session. The ``jti`` claim is used
-         as a one-shot guard — once exchanged, the embed must reject any
-         repeat presentation of the same token within the 60s window.
+      4. The iframe's backend verifies the token with the matching RS256
+         public key, confirms ``aud == ADVANCED_TOOL_AUDIENCE``, and
+         exchanges it for its own session. The ``jti`` claim is used as a
+         one-shot guard — once exchanged, the embed must reject any repeat
+         presentation of the same token within the 60s window.
 
     ``scope`` is "initiative" or "guild". For guild scope the iframe is
     used by guild admins only and there is no ``initiative_id``. The
@@ -354,6 +381,34 @@ def create_advanced_tool_handoff_token(
     if initiative_id is not None:
         payload["initiative_id"] = initiative_id
 
+    key, algorithm, kid = _resolve_handoff_signing_material()
+    headers: dict[str, Any] | None = {"kid": kid} if kid else None
+    token = jwt.encode(payload, key, algorithm=algorithm, headers=headers)
+    return token, int(expires_in.total_seconds())
+
+
+BILLING_PORTAL_AUDIENCE = "initiative:billing-portal"
+
+
+def create_billing_portal_handoff_token(
+    *,
+    user_id: int,
+    guild_id: int,
+    guild_role: str,
+    expires_in: timedelta = ADVANCED_TOOL_HANDOFF_LIFETIME,
+) -> tuple[str, int]:
+    """Mint the billing-portal handoff token (RS256; raises if unconfigured)."""
+    now = datetime.now(timezone.utc)
+    payload: dict[str, Any] = {
+        "jti": str(uuid.uuid4()),
+        "sub": str(user_id),
+        "aud": BILLING_PORTAL_AUDIENCE,
+        "iss": "initiative",
+        "iat": int(now.timestamp()),
+        "exp": now + expires_in,
+        "guild_id": guild_id,
+        "guild_role": guild_role,
+    }
     key, algorithm, kid = _resolve_handoff_signing_material()
     headers: dict[str, Any] | None = {"kid": kid} if kid else None
     token = jwt.encode(payload, key, algorithm=algorithm, headers=headers)

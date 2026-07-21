@@ -1,7 +1,9 @@
+import logging
 from datetime import datetime, timezone
 from typing import Annotated, List, Optional, Sequence
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from sqlalchemy import func
 from sqlmodel import select
 
 from app.api.deps import (
@@ -13,13 +15,19 @@ from app.api.deps import (
     GuildContext,
     require_guild_roles,
 )
+from app.api.v1.platform_endpoints.session_cookies import (
+    clear_refresh_cookie,
+    set_refresh_cookie,
+    set_session_cookie,
+)
 from app.core.config import settings
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.password_policy import enforce_password_policy
+from app.core.rate_limit import get_inet_client_ip
 from app.core.security import (
-    SESSION_COOKIE_NAME,
     create_access_token,
     get_password_hash,
+    mint_access_token,
     verify_password,
 )
 from app.core.user_input_validators import (
@@ -38,6 +46,8 @@ from app.schemas.platform.user import (
     UserGuildMember,
     UserRead,
     UserSelfUpdate,
+    UserSummary,
+    UserSummaryListResponse,
     UserUpdate,
     AccountDeletionRequest,
     AccountDeletionResponse,
@@ -55,6 +65,7 @@ from app.schemas.platform.api_key import (
 from app.schemas.tenant.stats import UserStatsResponse
 from app.core.messages import AuthMessages, GuildMessages, UserMessages
 from app.services import notifications as notifications_service
+from app.services.auth import sessions as session_service
 from app.services.auth.identity import has_federated_identity
 from app.services.tenant import initiatives as initiatives_service
 from app.services.platform import guilds as guilds_service
@@ -65,6 +76,7 @@ from app.services.platform import csv_export
 from app.services.tenant import stats_service
 from app.services.platform import user_tokens as user_tokens_service
 from app.services.tenant import recent_views as recent_views_service
+from app.db.query import page_has_next, paginated_query
 
 # Allowed values for the optional "task completion visual feedback" effect.
 # Mirrored on the frontend in src/lib/taskCompletionVisualFeedback.ts; keep
@@ -72,6 +84,8 @@ from app.services.tenant import recent_views as recent_views_service
 TASK_COMPLETION_VISUAL_FEEDBACK_VALUES: frozenset[str] = frozenset(
     {"none", "confetti", "heart", "d20", "gold_coin", "random"}
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 # Cross-guild "my" aggregate (user stats). Mounted under /api/v1/me; user-scoped
@@ -155,6 +169,51 @@ async def list_users(
         member.initiative_roles = getattr(user, "initiative_roles", [])
         response.append(member)
     return response
+
+
+@guild_router.get("/search", response_model=UserSummaryListResponse)
+async def search_users(
+    session: RLSSessionDep,
+    _current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    search: Optional[str] = Query(
+        default=None,
+        description="Case-insensitive substring match on the member's name.",
+    ),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=0, le=100),
+) -> UserSummaryListResponse:
+    """Slim, searchable, paginated roster for typeahead/pickers.
+
+    Same authorization as the full member list (``RLSSessionDep`` +
+    ``GuildContextDep``, membership re-validated per request): the new params
+    are additive filters on an already-RLS-gated query, so they only ever
+    narrow the row set. Returns :class:`UserSummary` (no email, roles, or
+    ``initiative_roles`` enrichment) instead of the heavy ``UserGuildMember``.
+    """
+    base = (
+        select(User)
+        .join(GuildMembership, GuildMembership.user_id == User.id)
+        .where(GuildMembership.guild_id == guild_context.guild_id)
+    )
+    if search and (term := search.strip()):
+        base = base.where(User.full_name.ilike(f"%{term}%"))
+
+    count_stmt = select(func.count()).select_from(base.subquery())
+    data_stmt = base.order_by(User.full_name.asc(), User.id.asc())
+
+    users, total_count, actual_page = await paginated_query(
+        session, data_stmt, count_stmt, page=page, page_size=page_size
+    )
+
+    return UserSummaryListResponse(
+        items=[UserSummary.model_validate(user) for user in users],
+        total_count=total_count,
+        page=actual_page,
+        page_size=page_size,
+        has_next=page_has_next(actual_page, page_size, total_count),
+        has_prev=actual_page > 1,
+    )
 
 
 _GUILD_CSV_HEADERS = [
@@ -299,6 +358,7 @@ async def create_user(
 
 @router.patch("/me", response_model=UserRead)
 async def update_users_me(
+    request: Request,
     user_in: UserSelfUpdate,
     session: UserSessionDep,
     admin_session: AdminSessionDep,
@@ -363,23 +423,55 @@ async def update_users_me(
         await user_tokens_service.revoke_user_sessions(
             session, user=current_user, admin_session=admin_session
         )
-        # ...but keep THIS session alive. The version bump above invalidates the
-        # caller's own token too, so re-issue the session cookie with the new
-        # version: every *other* session/device still dies, while the user who
-        # just changed their password stays logged in (web cookie auth).
-        refreshed_token = create_access_token(
-            subject=str(current_user.id),
-            token_version=current_user.token_version,
-        )
-        response.set_cookie(
-            key=SESSION_COOKIE_NAME,
-            value=refreshed_token,
-            httponly=True,
-            samesite="lax",
-            secure=settings.cookie_secure,
-            max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            path="/",
-        )
+        # ...but keep THIS device signed in: the revocation above killed the
+        # caller's own access token AND refresh chain, so open a fresh session
+        # and re-issue both cookies — every *other* session/device still dies.
+        # ``amr`` records what this request proved: the current password for
+        # local accounts; nothing for the SSO-exempt path (no factor was
+        # presented here).
+        #
+        # Fallback: a transient session-store failure must not fail the
+        # password change — re-issue a legacy long-lived token instead (the
+        # dual-verify window accepts both); that session just can't renew.
+        try:
+            issued = await session_service.create_session(
+                admin_session,
+                user_id=current_user.id,
+                amr=[] if is_sso_account else ["pwd"],
+                satisfied_providers=[],
+                user_agent=request.headers.get("user-agent"),
+                ip=get_inet_client_ip(request),
+            )
+            await admin_session.commit()
+            refreshed_token, refreshed_max_age = mint_access_token(
+                user_id=current_user.id,
+                token_version=current_user.token_version,
+                session_id=issued.session.id,
+                amr=issued.session.amr,
+                satisfied_providers=issued.session.satisfied_providers,
+            )
+            set_session_cookie(response, refreshed_token, max_age=refreshed_max_age)
+            set_refresh_cookie(response, issued.refresh_token)
+        except Exception:
+            await admin_session.rollback()
+            logger.exception(
+                "Failed to establish refresh session for user %s after password "
+                "change; falling back to a legacy access token",
+                current_user.id,
+            )
+            refreshed_token = create_access_token(
+                subject=str(current_user.id),
+                token_version=current_user.token_version,
+            )
+            set_session_cookie(
+                response,
+                refreshed_token,
+                max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            )
+            # The browser still holds the refresh cookie whose chain was just
+            # revoked above — clear it so the SPA doesn't resend a dead token
+            # on its next silent renewal.
+            clear_refresh_cookie(response)
 
     if "avatar_base64" in update_data:
         avatar_value = update_data["avatar_base64"]
@@ -708,11 +800,10 @@ async def delete_own_account(
             detail=UserMessages.CANNOT_DELETE_LAST_ADMIN,
         )
 
-    # Verify password — skipped for SSO-only users, who were created
-    # with a random ``hashed_password`` they were never shown
-    # (auth.py provisioning flow). Without this exemption an SSO-only
-    # account would have no way to satisfy the gate and could only be
-    # removed by an admin.
+    # Verify password — skipped for SSO-only users, who have no password
+    # (NULL ``hashed_password``; identity provisioning flow). Without this
+    # exemption an SSO-only account would have no way to satisfy the gate
+    # and could only be removed by an admin.
     if not await has_federated_identity(session, user_id=current_user.id):
         if not verify_password(request.password, current_user.hashed_password):
             # 400 (not 401): the user IS authenticated — they passed

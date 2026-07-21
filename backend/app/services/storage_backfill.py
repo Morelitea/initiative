@@ -38,6 +38,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.db.backfill_uploads_to_s3 import BackfillSummary, backfill_uploads_to_s3
 from app.db import session as db_session
 from app.db.session import AdminSessionLocal
+from app.db.system_grants import SHARED_TABLE_SYSTEM_GRANTS, grant_sql
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,21 @@ CREATE UNLOGGED TABLE IF NOT EXISTS storage_backfill_state (
     heartbeat timestamptz
 )
 """
+
+# The system engine's verbs come from the audited shared-table registry, so the
+# lazily-created table follows the same "decide it explicitly" discipline as the
+# migrated ones (security_invariants_test compares the live catalog to it).
+_ADMIN_GRANT = grant_sql(SHARED_TABLE_SYSTEM_GRANTS["storage_backfill_state"])
+if _ADMIN_GRANT is None:
+    # Every read/write in this module runs on the system engine; a registry
+    # entry of "no access" would leave the service unable to operate at all,
+    # so fail at import with a pointer to the decision rather than emitting a
+    # malformed GRANT at first use.
+    raise RuntimeError(
+        "app.db.system_grants gives the system engine no access to "
+        "storage_backfill_state; the storage backfill service requires "
+        "SELECT/INSERT/UPDATE"
+    )
 
 _table_lock = asyncio.Lock()
 _table_ready = False
@@ -97,7 +113,14 @@ async def _ensure_table() -> None:
             await conn.execute(
                 text("ALTER TABLE storage_backfill_state FORCE ROW LEVEL SECURITY")
             )
-            await conn.execute(text("GRANT ALL ON storage_backfill_state TO app_admin"))
+            # Revoke-then-grant so a table created by an earlier build (which
+            # granted ALL) converges on the registry's verb set.
+            await conn.execute(
+                text("REVOKE ALL ON storage_backfill_state FROM app_admin")
+            )
+            await conn.execute(
+                text(f"GRANT {_ADMIN_GRANT} ON storage_backfill_state TO app_admin")
+            )
         _table_ready = True
 
 

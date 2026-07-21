@@ -1,17 +1,13 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import { setDocumentTagsApiV1GGuildIdDocumentsDocumentIdTagsPut } from "@/api/generated/documents/documents";
 import type {
-  DocumentRead,
-  ProjectRead,
   TagCreate,
   TaggedEntitiesResponse,
   TagRead,
   TagUpdate,
   TaskListRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import { setProjectTagsApiV1GGuildIdProjectsProjectIdTagsPut } from "@/api/generated/projects/projects";
 import {
   createTagApiV1GGuildIdTagsPost,
   deleteTagApiV1GGuildIdTagsTagIdDelete,
@@ -190,55 +186,5 @@ export const useTagEntities = (tagId: number | null) => {
       ) as unknown as Promise<TaggedEntitiesResponse>,
     enabled: !!tagId,
     staleTime: 30 * 1000,
-  });
-};
-
-export const useSetProjectTags = (
-  options?: MutationOpts<ProjectRead, { projectId: number; tagIds: number[] }>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async ({ projectId, tagIds }: { projectId: number; tagIds: number[] }) => {
-      return setProjectTagsApiV1GGuildIdProjectsProjectIdTagsPut(guildId, projectId, {
-        tag_ids: tagIds,
-      }) as unknown as Promise<ProjectRead>;
-    },
-    onSuccess: (...args) => {
-      void invalidateAllProjects();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "tags:projectTagsError"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
-
-export const useSetDocumentTags = (
-  options?: MutationOpts<DocumentRead, { documentId: number; tagIds: number[] }>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async ({ documentId, tagIds }: { documentId: number; tagIds: number[] }) => {
-      return setDocumentTagsApiV1GGuildIdDocumentsDocumentIdTagsPut(guildId, documentId, {
-        tag_ids: tagIds,
-      }) as unknown as Promise<DocumentRead>;
-    },
-    onSuccess: (...args) => {
-      void invalidateAllDocuments();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "tags:documentTagsError"));
-      onError?.(...args);
-    },
-    onSettled,
   });
 };

@@ -21,6 +21,10 @@ export interface PropertyValueCellProps {
   summary: PropertySummary | undefined;
   variant?: CellVariant;
   className?: string;
+  /** Set when the cell renders inside a wrapping link (card-as-anchor): a URL
+   * value opens via a programmatic handler instead of nesting an `<a>` in an
+   * `<a>`, and stops the click from also triggering the outer link. */
+  nested?: boolean;
 }
 
 const formatNumber = (raw: unknown): string => {
@@ -111,6 +115,7 @@ export const PropertyValueCell = ({
   summary,
   variant = "cell",
   className,
+  nested = false,
 }: PropertyValueCellProps) => {
   const { t } = useTranslation("properties");
   const options = useMemo(() => coerceOptionMap(summary?.options), [summary?.options]);
@@ -139,16 +144,44 @@ export const PropertyValueCell = ({
     }
     case PropertyType.url: {
       const href = typeof value === "string" ? value : "";
-      body = (
+      const urlClassName =
+        "inline-flex max-w-full items-center gap-1 truncate text-primary hover:underline";
+      const urlContent = (
+        <>
+          <span className="truncate">{href}</span>
+          <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
+        </>
+      );
+      body = nested ? (
+        // biome-ignore lint/a11y/useSemanticElements: a <button> is also invalid interactive content nested inside the wrapping card <a>; a role=button span avoids the nested-anchor while staying keyboard-accessible.
+        <span
+          role="button"
+          tabIndex={0}
+          className={cn(urlClassName, "cursor-pointer")}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (href) window.open(href, "_blank", "noopener,noreferrer");
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              e.stopPropagation();
+              if (href) window.open(href, "_blank", "noopener,noreferrer");
+            }
+          }}
+        >
+          {urlContent}
+        </span>
+      ) : (
         <a
           href={href}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex max-w-full items-center gap-1 truncate text-primary hover:underline"
+          className={urlClassName}
           onClick={(e) => e.stopPropagation()}
         >
-          <span className="truncate">{href}</span>
-          <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
+          {urlContent}
         </a>
       );
       break;

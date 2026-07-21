@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ShareControl } from "@/components/access/ShareControl";
 import { TagPicker } from "@/components/tags";
 import {
@@ -22,7 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useDeleteQueue, useQueue, useSetQueueGrants, useUpdateQueue } from "@/hooks/useQueues";
-import { useSetQueueTags } from "@/hooks/useToolTags";
+import { useSetToolTags } from "@/hooks/useToolTags";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
 
@@ -57,7 +58,7 @@ export const QueueSettingsPage = () => {
     onSuccess: () => toast.success(t("detailsUpdated")),
   });
 
-  const setQueueTags = useSetQueueTags();
+  const setQueueTags = useSetToolTags(Tool.queue);
 
   const handleDetailsSave = () => {
     const trimmedName = nameValue.trim();
@@ -190,7 +191,7 @@ export const QueueSettingsPage = () => {
                   onChange={(newTags) => {
                     setTags(newTags);
                     setQueueTags.mutate({
-                      queueId: parsedId,
+                      id: parsedId,
                       tagIds: newTags.map((tag) => tag.id),
                     });
                   }}
@@ -238,7 +239,7 @@ export const QueueSettingsPage = () => {
                   onClick={() => setDeleteDialogOpen(true)}
                   disabled={!isOwner}
                 >
-                  <Trash2 className="mr-2 h-4 w-4" />
+                  <Trash2 className="h-4 w-4" />
                   {t("deleteQueue")}
                 </Button>
               </CardContent>

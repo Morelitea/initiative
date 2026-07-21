@@ -9,7 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
 from app.models.tenant.initiative import InitiativeRoleModel
-from app.testing import Actor
+from app.testing import Actor, create_initiative, create_queue
 
 
 # ---------------------------------------------------------------------------
@@ -947,3 +947,45 @@ async def test_delete_queue_still_emits_queue_deleted(
     resp = await client.delete(a.g(f"/queues/{queue['id']}"), headers=a.headers)
     assert resp.status_code == 204, resp.text
     assert (a.guild.id, "queue", queue["id"], "queue_deleted") in emitted
+
+
+@pytest.mark.integration
+async def test_queue_counts_by_initiative(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Grouped counts mirror the list: DAC-visible queues in queues-enabled
+    initiatives only, with no entry for unjoined initiatives."""
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=admin.initiative,
+        initiative_role="member",
+    )
+    other_initiative = await create_initiative(session, admin.guild, admin.user)
+    disabled_initiative = await create_initiative(
+        session, admin.guild, admin.user, queues_enabled=False
+    )
+
+    await create_queue(session, admin.initiative, member.user, name="Member queue")
+    await create_queue(session, admin.initiative, admin.user, name="Admin queue")
+    await create_queue(session, other_initiative, admin.user, name="Other queue")
+    await create_queue(session, disabled_initiative, admin.user, name="Hidden queue")
+
+    # Guild admin: every queue in queues-enabled initiatives, grouped.
+    response = await client.get(
+        admin.g("/queues/counts/by-initiative"), headers=admin.headers
+    )
+    assert response.status_code == 200
+    assert response.json()["counts"] == {
+        str(admin.initiative.id): 2,
+        str(other_initiative.id): 1,
+    }
+
+    # Member: only queues shared with them, and no entry for initiatives
+    # they are not in.
+    response = await client.get(
+        member.g("/queues/counts/by-initiative"), headers=member.headers
+    )
+    assert response.status_code == 200
+    assert response.json()["counts"] == {str(admin.initiative.id): 1}
