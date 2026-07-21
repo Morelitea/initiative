@@ -13,8 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
-
-const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
+import { PRIORITY_ORDER } from "@/lib/sorting";
 
 interface GlobalTaskFiltersProps {
   statusFilters: TaskStatusCategory[];
@@ -101,7 +100,7 @@ export const GlobalTaskFilters = ({
               </Label>
               <MultiSelect
                 selectedValues={priorityFilters}
-                options={priorityOrder.map((priority) => ({
+                options={PRIORITY_ORDER.map((priority) => ({
                   value: priority,
                   label: t(`priority.${priority}` as never),
                 }))}

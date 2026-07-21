@@ -1,6 +1,6 @@
 import type { Row } from "@tanstack/react-table";
 
-import type { TaskPriority } from "@/api/generated/initiativeAPI.schemas";
+import { TaskPriority } from "@/api/generated/initiativeAPI.schemas";
 
 const toTimestamp = (value: unknown): number | null => {
   if (!value) {
@@ -42,12 +42,26 @@ export const dateSortingFn = <TData>(rowA: Row<TData>, rowB: Row<TData>, columnI
   return valueA - valueB;
 };
 
-const priorityRank: Record<TaskPriority, number> = {
+/**
+ * Canonical task-priority ranking, low → urgent. Keyed by `TaskPriority` so
+ * adding a priority to the backend enum surfaces as a compile error here until
+ * it is ranked — this is the single source of truth for priority ordering.
+ */
+export const priorityRank: Record<TaskPriority, number> = {
   low: 0,
   medium: 1,
   high: 2,
   urgent: 3,
 };
+
+/**
+ * Task priorities in ascending order (low → urgent). Derived from the generated
+ * `TaskPriority` enum so it always covers every backend value, sorted by
+ * `priorityRank`. Route all "ordered priority list" UIs through this.
+ */
+export const PRIORITY_ORDER: TaskPriority[] = (Object.values(TaskPriority) as TaskPriority[]).sort(
+  (a, b) => priorityRank[a] - priorityRank[b]
+);
 
 /**
  * Sorts by task priority (low to urgent)
