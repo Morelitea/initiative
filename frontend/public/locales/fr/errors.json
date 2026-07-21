@@ -248,6 +248,7 @@
   "QUERY_INVALID_CONDITIONS": "Conditions de filtre invalides",
   "QUERY_INVALID_SORT_FIELDS": "Champs de tri invalides",
   "RATE_LIMITED": "Trop de requêtes. Veuillez patienter un moment et réessayer.",
+  "unableToLoadGuilds": "Impossible de charger les groupes.",
   "TRASH_ITEM_NOT_FOUND": "Cet élément de la corbeille n'est plus disponible.",
   "TRASH_NEEDS_REASSIGNMENT": "Choisissez un nouveau propriétaire avant de restaurer.",
   "TRASH_INVALID_OWNER": "Cet utilisateur ne peut pas prendre la propriété.",

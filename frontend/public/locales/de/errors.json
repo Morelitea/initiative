@@ -262,6 +262,7 @@
   "QUERY_INVALID_CONDITIONS": "Ungültige Filterbedingungen",
   "QUERY_INVALID_SORT_FIELDS": "Ungültige Sortierfelder",
   "RATE_LIMITED": "Zu viele Anfragen. Bitte warte einen Moment und versuche es erneut.",
+  "unableToLoadGuilds": "Gilden konnten nicht geladen werden.",
   "TRASH_ITEM_NOT_FOUND": "Dieses Element im Papierkorb ist nicht mehr verfügbar.",
   "TRASH_NEEDS_REASSIGNMENT": "Wähle vor dem Wiederherstellen einen neuen Eigentümer aus.",
   "TRASH_INVALID_OWNER": "Dieser Benutzer kann die Eigentümerschaft nicht übernehmen.",

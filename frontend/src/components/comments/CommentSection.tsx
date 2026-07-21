@@ -1,4 +1,3 @@
-import { isAxiosError } from "axios";
 import { HelpCircle, MessageSquarePlus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -9,6 +8,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { useAuth } from "@/hooks/useAuth";
 import { useCreateComment, useDeleteComment, useUpdateComment } from "@/hooks/useComments";
 import { useGuilds } from "@/hooks/useGuilds";
+import { getErrorMessage } from "@/lib/errorMessage";
 
 import { CommentInput } from "./CommentInput";
 import { CommentThread } from "./CommentThread";
@@ -89,14 +89,7 @@ export const CommentSection = ({
       onCommentCreated?.(comment);
     },
     onError: (err) => {
-      if (isAxiosError(err)) {
-        const detail = err.response?.data?.detail;
-        if (typeof detail === "string" && detail.trim()) {
-          setError(detail);
-          return;
-        }
-      }
-      setError(t("comments.errorCreate"));
+      setError(getErrorMessage(err, "documents:comments.errorCreate"));
     },
   });
 
@@ -106,14 +99,7 @@ export const CommentSection = ({
       onCommentDeleted?.(commentId);
     },
     onError: (err) => {
-      if (isAxiosError(err)) {
-        const detail = err.response?.data?.detail;
-        if (typeof detail === "string" && detail.trim()) {
-          setDeleteError(detail);
-          return;
-        }
-      }
-      setDeleteError(t("comments.errorDelete"));
+      setDeleteError(getErrorMessage(err, "documents:comments.errorDelete"));
     },
   });
 
@@ -123,14 +109,7 @@ export const CommentSection = ({
       onCommentUpdated?.(comment);
     },
     onError: (err) => {
-      if (isAxiosError(err)) {
-        const detail = err.response?.data?.detail;
-        if (typeof detail === "string" && detail.trim()) {
-          setEditError(detail);
-          return;
-        }
-      }
-      setEditError(t("comments.errorUpdate"));
+      setEditError(getErrorMessage(err, "documents:comments.errorUpdate"));
     },
   });
 

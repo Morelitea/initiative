@@ -1,4 +1,3 @@
-import type { AxiosError } from "axios";
 import {
   createContext,
   type ReactNode,
@@ -15,6 +14,7 @@ import type { AccessGrantRead, GuildRead } from "@/api/generated/initiativeAPI.s
 import { resetGuildScopedQueries, setInvalidationGuild } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 import { getItem, removeItem, setItem } from "@/lib/storage";
 
 /**
@@ -208,9 +208,10 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       applyGuildState([...response.data, ...grantGuilds]);
     } catch (err) {
       console.error("Failed to load guilds", err);
-      const axiosError = err as AxiosError<{ detail?: string }>;
-      const detail = axiosError.response?.data?.detail;
-      setError(detail ?? "Unable to load guilds.");
+      // Fallback lives in the ``errors`` namespace (preloaded at init) rather
+      // than ``guilds``: this hook never mounts a ``useTranslation("guilds")``,
+      // so on a startup fetch failure that namespace may not be loaded yet.
+      setError(getErrorMessage(err, "errors:unableToLoadGuilds"));
     } finally {
       setLoading(false);
     }

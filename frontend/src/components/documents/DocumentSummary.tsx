@@ -1,4 +1,3 @@
-import { isAxiosError } from "axios";
 import { Check, Copy, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -6,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useGenerateDocumentSummary } from "@/hooks/useDocuments";
+import { getErrorMessage } from "@/lib/errorMessage";
 
 interface DocumentSummaryProps {
   documentId: number;
@@ -35,14 +35,9 @@ export const DocumentSummary = ({ documentId, summary, onSummaryChange }: Docume
     }
   };
 
-  const getErrorMessage = (): string | null => {
+  const summaryError = (): string | null => {
     if (!generateSummary.isError) return null;
-    const error = generateSummary.error;
-    if (isAxiosError(error)) {
-      const detail = error.response?.data?.detail;
-      if (typeof detail === "string") return detail;
-    }
-    return t("summary.generateError");
+    return getErrorMessage(generateSummary.error, "documents:summary.generateError");
   };
 
   // Loading AI settings
@@ -74,7 +69,7 @@ export const DocumentSummary = ({ documentId, summary, onSummaryChange }: Docume
           <Sparkles className="h-4 w-4" />
           {t("summary.generateButton")}
         </Button>
-        {generateSummary.isError && <p className="text-destructive text-sm">{getErrorMessage()}</p>}
+        {generateSummary.isError && <p className="text-destructive text-sm">{summaryError()}</p>}
       </div>
     );
   }
@@ -119,7 +114,7 @@ export const DocumentSummary = ({ documentId, summary, onSummaryChange }: Docume
       <div className="rounded-lg bg-muted/50 p-4">
         <p className="whitespace-pre-wrap text-sm">{summary}</p>
       </div>
-      {generateSummary.isError && <p className="text-destructive text-sm">{getErrorMessage()}</p>}
+      {generateSummary.isError && <p className="text-destructive text-sm">{summaryError()}</p>}
     </div>
   );
 };

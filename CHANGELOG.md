@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Comment, document-summary, and guild-list error messages now route through the shared error-message helper: the user sees a localized message (and rate-limit errors are surfaced as such) instead of an untranslated backend error code.
 - A database created or restored in a Postgres cluster where the platform "admin" → "operator" role rename had already run no longer loses its platform-staff row-security coverage: a repair migration finishes the rename by re-binding the affected policies (access-grant queue, platform user list/management) to the operator role and removing the leftover one. Without it, operators and owners saw only their own rows in the access-grant queue and the platform user list on such databases.
 - The sidebar "Edit tag" dialog is no longer visually broken — the name field now fills the row and the color picker sits beside it, instead of the color picker taking the full width and collapsing the name field to a sliver.
 - On mobile, opening the three-dot menu next to an initiative or project in the sidebar no longer dismisses the sidebar drawer.

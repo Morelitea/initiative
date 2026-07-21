@@ -262,6 +262,7 @@
   "QUERY_INVALID_CONDITIONS": "Invalid filter conditions",
   "QUERY_INVALID_SORT_FIELDS": "Invalid sort fields",
   "RATE_LIMITED": "Too many requests. Please wait a moment and try again.",
+  "unableToLoadGuilds": "Unable to load guilds.",
   "TRASH_ITEM_NOT_FOUND": "That trashed item is no longer available.",
   "TRASH_NEEDS_REASSIGNMENT": "Pick a new owner before restoring.",
   "TRASH_INVALID_OWNER": "That user can't take ownership.",
