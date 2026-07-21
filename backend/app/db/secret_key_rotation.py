@@ -75,11 +75,8 @@ _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
     # The IdP refresh token lives on the identity link (the legacy
     # users.oidc_refresh_token_encrypted column is dropped).
     ("federated_identity_secrets", "refresh_token_encrypted", SALT_OIDC_REFRESH_TOKEN),
-    ("app_settings", "oidc_client_secret_encrypted", SALT_OIDC_CLIENT_SECRET),
-    # Successor home for the OIDC client secret (same salt → ciphertext moves
-    # verbatim). Both rows are rotated during the transition; app_settings is
-    # dropped in Phase 4. Currently always NULL until the OidcProvider phase
-    # backfills it — rotating a NULL column is a harmless no-op.
+    # The OIDC client secret lives on the provider registry's companion (the
+    # legacy app_settings.oidc_client_secret_encrypted column is dropped).
     ("auth_provider_secrets", "client_secret_encrypted", SALT_OIDC_CLIENT_SECRET),
     ("app_settings", "smtp_password_encrypted", SALT_SMTP_PASSWORD),
     ("app_settings", "ai_api_key_encrypted", SALT_AI_API_KEY),

@@ -23,7 +23,6 @@ from app.core.encryption import (
     encrypt_field,
     hash_email,
     SALT_EMAIL,
-    SALT_OIDC_CLIENT_SECRET,
 )
 from app.core.messages import OidcMessages
 from app.core.security import (
@@ -34,7 +33,6 @@ from app.core.security import (
     get_password_hash,
     verify_upload_token,
 )
-from app.models.platform.app_setting import AppSetting
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.auth_session import AuthSession
 from app.models.platform.federated_identity import FederatedIdentity
@@ -851,29 +849,23 @@ def _wire_fake_idp(monkeypatch, idp: FakeIdp) -> None:
 
 
 async def _enable_platform_oidc(session: AsyncSession, **overrides) -> None:
-    """Configure a live platform OIDC provider in app_settings. Posture
-    (``settings.AUTH_SCOPE``) is a deploy-time value — set it with
+    """Configure a live platform OIDC provider — a registry row with the
+    platform slug plus its client secret (the row is the source of truth).
+    Posture (``settings.AUTH_SCOPE``) is a deploy-time value — set it with
     ``set_auth_scope`` where a test needs a non-default posture; it defaults to
     ``platform``, which is what these tests assume."""
-    row = (await session.exec(select(AppSetting))).first()
-    if row is None:
-        row = AppSetting()
+    from app.services.auth.platform_provider import upsert_platform_provider
+
     values = {
-        "oidc_enabled": True,
-        "oidc_issuer": OIDC_ISSUER,
-        "oidc_client_id": OIDC_CLIENT_ID,
-        "oidc_client_secret_encrypted": encrypt_field(
-            "s3cret", SALT_OIDC_CLIENT_SECRET
-        ),
-        "oidc_scopes": ["openid", "email", "profile"],
-        "oidc_provider_name": "Test IdP",
-        "oidc_role_claim_path": None,
+        "enabled": True,
+        "issuer": OIDC_ISSUER,
+        "client_id": OIDC_CLIENT_ID,
+        "client_secret": "s3cret",
+        "scopes": ["openid", "email", "profile"],
+        "provider_name": "Test IdP",
     }
     values.update(overrides)
-    for field, value in values.items():
-        setattr(row, field, value)
-    session.add(row)
-    await session.commit()
+    await upsert_platform_provider(session, **values)
 
 
 async def _begin_login(

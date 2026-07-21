@@ -1,19 +1,20 @@
-"""Reconcile the operator-global OIDC provider row from ``app_settings``.
+"""The operator-global platform OIDC provider — registry-row native.
 
-Until the provider registry gets its own CRUD, ``app_settings.oidc_*`` — the
-admin settings UI — remains the operator's source of truth for the platform
-provider. The login path resolves identities against the ``auth_providers``
-row, so the two must agree: :func:`ensure_platform_provider` get-or-creates
-the row and folds in any drift (issuer, client_id, scopes, a rotated secret)
-whenever the login path asks for the provider. Reconcile-on-read keeps a
-settings edit effective immediately, without waiting for a reboot.
+The ``auth_providers`` row with slug ``oidc`` (``guild_id IS NULL``) is the
+**single source of truth** for the platform provider: the settings endpoints
+write it directly, the login path and refresh sweep read it, and the client
+secret lives in its ``auth_provider_secrets`` companion (write-only, shared
+Fernet salt with the retired ``app_settings`` column). The old
+reconcile-from-``app_settings`` shim is gone; migration 0153 folded the last
+column state into the row and dropped the columns.
 
-The client secret ciphertext moves **verbatim** — ``app_settings`` and
-``auth_provider_secrets`` share the same Fernet salt, so there is no
-decrypt/re-encrypt round trip.
+``OIDC_*`` env values remain a **first-boot seed only**: when no platform row
+exists and the env carries an issuer + client id, :func:`seed_platform_provider_from_env`
+creates the row once at startup. After that the row is owned by the settings
+UI — the env never overwrites it.
 
-Runs on the system engine (``auth_providers`` / ``auth_provider_secrets`` are
-app_admin surfaces); callers pass their admin session.
+Runs on the system engine (``auth_providers`` / ``auth_provider_secrets``
+carry no request-path grants); callers pass their admin session.
 """
 
 from __future__ import annotations
@@ -24,15 +25,20 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.app_setting import AppSetting
+from app.core.config import settings as app_config
 from app.models.platform.auth_provider import AuthProvider, AuthProviderKind
-from app.models.platform.auth_provider_secret import AuthProviderSecret
 
 logger = logging.getLogger(__name__)
 
-# Fixed slug for the one platform provider: stable so every caller (boot
-# backfill, login path) finds the same row.
+# Fixed slug for the one platform provider: stable so every caller (login
+# path, settings endpoints, refresh sweep) finds the same row. It is also the
+# reason the pre-generalization /auth/oidc/* URLs still work — including the
+# IdP-registered callback URL.
 PLATFORM_OIDC_SLUG = "oidc"
+
+# Presented when no provider row exists yet (mirrors the historical env-seed
+# fallback), and used by the env seed when OIDC_SCOPES is unset.
+DEFAULT_OIDC_SCOPES = ["openid", "profile", "email", "offline_access"]
 
 
 def is_login_ready(row: AuthProvider) -> bool:
@@ -40,6 +46,23 @@ def is_login_ready(row: AuthProvider) -> bool:
     the non-secret client config discovery needs. The single predicate behind
     the login routes, the provider listing, and guild auth policies."""
     return bool(row.enabled and row.kind == "oidc" and row.issuer and row.client_id)
+
+
+def scopes_list(row: AuthProvider) -> list[str]:
+    """The row's space-joined scopes as the list the settings API speaks."""
+    return row.scopes.split() if row.scopes else []
+
+
+def _normalize(value: str | None) -> str | None:
+    if value is None:
+        return None
+    cleaned = value.strip()
+    return cleaned or None
+
+
+def _join_scopes(scopes: list[str] | None) -> str | None:
+    cleaned = [s.strip() for s in (scopes or []) if s and s.strip()]
+    return " ".join(cleaned) if cleaned else None
 
 
 async def get_platform_provider(session: AsyncSession) -> AuthProvider | None:
@@ -54,47 +77,17 @@ async def get_platform_provider(session: AsyncSession) -> AuthProvider | None:
     ).first()
 
 
-async def ensure_platform_provider(
-    session: AsyncSession, settings_row: AppSetting
-) -> AuthProvider:
-    """Get-or-create the platform provider row, reconciled with ``app_settings``.
-
-    Caller must have checked that OIDC is configured (``oidc_issuer`` and
-    ``oidc_client_id`` set). Commits only when something actually changed;
-    concurrent creation races resolve to the winner's row.
-    """
-    provider = await get_platform_provider(session)
-    if provider is None:
-        provider = await _create_provider(session, settings_row)
-
-    changed = _apply_settings(provider, settings_row)
-    if changed:
-        session.add(provider)
-    secret_changed = await _reconcile_secret(session, provider, settings_row)
-    if changed or secret_changed:
-        await session.commit()
-        await session.refresh(provider)
-    return provider
-
-
-async def _create_provider(
-    session: AsyncSession, settings_row: AppSetting
-) -> AuthProvider:
+async def _create_platform_row(session: AsyncSession, **fields) -> AuthProvider:
+    """Insert the platform row; a concurrent-creation race resolves to the
+    winner's row (the savepoint keeps the outer transaction usable)."""
     provider = AuthProvider(
         slug=PLATFORM_OIDC_SLUG,
-        display_name=settings_row.oidc_provider_name or "SSO",
         kind=AuthProviderKind.oidc.value,
-        enabled=bool(settings_row.oidc_enabled),
         guild_id=None,  # operator-global: platform-level login
-        issuer=settings_row.oidc_issuer,
-        client_id=settings_row.oidc_client_id,
-        scopes=_scopes_string(settings_row),
-        role_claim_path=settings_row.oidc_role_claim_path,
         allow_jit=True,  # the platform flow JIT-provisions unknown users
+        **fields,
     )
     try:
-        # Savepoint so losing a concurrent-creation race leaves the outer
-        # transaction usable for the recovery read (the _provision pattern).
         async with session.begin_nested():
             session.add(provider)
             await session.flush()
@@ -108,63 +101,99 @@ async def _create_provider(
         return winner
 
 
-def _scopes_string(settings_row: AppSetting) -> str | None:
-    scopes = settings_row.oidc_scopes or []
-    return " ".join(scopes) if scopes else None
+async def upsert_platform_provider(
+    session: AsyncSession,
+    *,
+    enabled: bool,
+    issuer: str | None,
+    client_id: str | None,
+    provider_name: str | None,
+    scopes: list[str],
+    client_secret: str | None,
+) -> AuthProvider:
+    """Create or update the platform provider row from the settings surface.
 
-
-def _apply_settings(provider: AuthProvider, settings_row: AppSetting) -> bool:
-    """Fold ``app_settings`` values into the provider row; True if drifted."""
-    desired = {
-        "display_name": settings_row.oidc_provider_name or "SSO",
-        "enabled": bool(settings_row.oidc_enabled),
-        "issuer": settings_row.oidc_issuer,
-        "client_id": settings_row.oidc_client_id,
-        "scopes": _scopes_string(settings_row),
-        "role_claim_path": settings_row.oidc_role_claim_path,
-    }
-    changed = False
-    for field, value in desired.items():
-        if getattr(provider, field) != value:
-            setattr(provider, field, value)
-            changed = True
-    return changed
-
-
-async def _reconcile_secret(
-    session: AsyncSession, provider: AuthProvider, settings_row: AppSetting
-) -> bool:
-    """Mirror the settings secret ciphertext into ``auth_provider_secrets``.
-
-    A changed ciphertext (rotation, or a re-save — Fernet output is fresh per
-    encryption) is copied over; a cleared settings secret clears the companion
-    row's value (public / PKCE-only client). Returns True if a write is staged.
+    ``client_secret`` follows the write-only convention: ``None`` keeps the
+    stored secret, an empty string clears it, a value replaces it (delegated
+    to the shared registry secret helper).
     """
-    ciphertext = settings_row.oidc_client_secret_encrypted
-    secret_row = await session.get(AuthProviderSecret, provider.id)
-    if secret_row is None:
-        if ciphertext is None:
-            return False
-        secret_row = AuthProviderSecret(
-            provider_id=provider.id, client_secret_encrypted=ciphertext
+    from app.services.auth.provider_registry import set_provider_secret
+
+    provider = await get_platform_provider(session)
+    desired = {
+        "display_name": _normalize(provider_name) or "SSO",
+        "enabled": bool(enabled),
+        "issuer": _normalize(issuer),
+        "client_id": _normalize(client_id),
+        "scopes": _join_scopes(scopes),
+    }
+    if provider is None:
+        provider = await _create_platform_row(session, **desired)
+    else:
+        changed = False
+        for field, value in desired.items():
+            if getattr(provider, field) != value:
+                setattr(provider, field, value)
+                changed = True
+        if changed:
+            session.add(provider)
+    if client_secret is not None:
+        await set_provider_secret(session, provider.id, client_secret)
+    await session.commit()
+    await session.refresh(provider)
+    return provider
+
+
+async def set_platform_claim_path(
+    session: AsyncSession, claim_path: str | None
+) -> str | None:
+    """Set the platform provider's role-claim path (the OIDC mappings surface).
+
+    A missing platform row is created as a disabled skeleton so the path has a
+    home before the provider itself is configured — dormant until the operator
+    fills in issuer/client id.
+    """
+    provider = await get_platform_provider(session)
+    cleaned = _normalize(claim_path)
+    if provider is None:
+        provider = await _create_platform_row(
+            session, display_name="SSO", enabled=False, role_claim_path=cleaned
         )
-        try:
-            async with session.begin_nested():
-                session.add(secret_row)
-                await session.flush()
-        except IntegrityError:
-            # A concurrent login created it; reconcile that row instead.
-            winner = await session.get(AuthProviderSecret, provider.id)
-            if winner is None:  # pragma: no cover - the conflict implies a winner
-                raise
-            if winner.client_secret_encrypted != ciphertext:
-                winner.client_secret_encrypted = ciphertext
-                session.add(winner)
-                return True
-            return False
-        return True
-    if secret_row.client_secret_encrypted != ciphertext:
-        secret_row.client_secret_encrypted = ciphertext
-        session.add(secret_row)
-        return True
-    return False
+        return provider.role_claim_path
+    if provider.role_claim_path != cleaned:
+        provider.role_claim_path = cleaned
+        session.add(provider)
+        await session.commit()
+        await session.refresh(provider)
+    return provider.role_claim_path
+
+
+async def seed_platform_provider_from_env(session: AsyncSession) -> bool:
+    """First-boot seed: create the platform row from ``OIDC_*`` env values.
+
+    Runs at startup; a no-op unless the env carries an issuer + client id AND
+    no platform row exists yet — after creation the settings UI owns the row
+    and the env never overwrites it. Returns True when a row was created.
+    """
+    issuer = _normalize(app_config.OIDC_ISSUER)
+    client_id = _normalize(app_config.OIDC_CLIENT_ID)
+    if not issuer or not client_id:
+        return False
+    if await get_platform_provider(session) is not None:
+        return False
+    scopes = app_config.OIDC_SCOPES or DEFAULT_OIDC_SCOPES
+    provider = await upsert_platform_provider(
+        session,
+        enabled=bool(app_config.OIDC_ENABLED),
+        issuer=issuer,
+        client_id=client_id,
+        provider_name=app_config.OIDC_PROVIDER_NAME,
+        scopes=list(scopes),
+        client_secret=app_config.OIDC_CLIENT_SECRET or None,
+    )
+    logger.info(
+        "Seeded platform OIDC provider %s from environment (enabled=%s)",
+        provider.slug,
+        provider.enabled,
+    )
+    return True

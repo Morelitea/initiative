@@ -55,7 +55,6 @@ from app.api.v1.platform_endpoints.session_cookies import (
     set_session_cookie,
 )
 from app.core.config import AuthScope
-from app.models.platform.app_setting import AppSetting
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.auth_provider_secret import AuthProviderSecret
 from app.models.platform.user import User, UserRole, UserStatus
@@ -90,9 +89,9 @@ from app.services.auth.oidc.provider import (
     OidcFlowError,
     OidcProvider,
 )
+from app.services.auth import provider_registry
 from app.services.auth.platform_provider import (
     PLATFORM_OIDC_SLUG,
-    ensure_platform_provider,
     get_platform_provider,
     is_login_ready,
 )
@@ -686,31 +685,36 @@ OIDC_NEXT_COOKIE = "oidc_next"
 OIDC_NEXT_COOKIE_MAX_AGE = 600
 
 
-def _platform_oidc_active(app_settings: AppSetting) -> bool:
-    """The platform OIDC login is offered only when the platform posture is
-    live AND the provider is enabled + fully configured. In guild scope the
-    platform provider is dormant (kept, not deleted) and must not authenticate
-    anyone — enforced here, server-side, not just hidden in the UI."""
-    return bool(
-        settings.AUTH_SCOPE == AuthScope.platform
-        and app_settings.oidc_enabled
-        and app_settings.oidc_issuer
-        and app_settings.oidc_client_id
-        and app_settings.oidc_client_secret_encrypted
-    )
+async def _active_platform_provider(
+    admin_session: AsyncSession,
+) -> AuthProvider | None:
+    """The platform provider row when its login is actually offerable —
+    platform posture, enabled, issuer + client id, AND a stored client secret
+    (the platform flow has always required one; PKCE-only stays a guild-provider
+    affordance). In guild scope the platform provider is dormant (kept, not
+    deleted) and must not authenticate anyone — enforced here, server-side,
+    not just hidden in the UI. Returns None when any condition fails."""
+    if settings.AUTH_SCOPE != AuthScope.platform:
+        return None
+    row = await get_platform_provider(admin_session)
+    if row is None or not is_login_ready(row):
+        return None
+    if not await provider_registry.secret_is_set(admin_session, row.id):
+        return None
+    return row
 
 
 async def _resolve_login_provider(
-    app_settings: AppSetting, admin_session: AsyncSession, provider_slug: str
+    admin_session: AsyncSession, provider_slug: str
 ) -> AuthProvider:
     """The enabled operator-global provider row for one login slug, or 404.
 
     The scope gate comes first: in guild posture every operator-global provider
     is dormant and must not authenticate anyone — enforced server-side, not
-    just hidden in the UI. The platform slug keeps ``app_settings`` as its
-    config surface (reconciled into the registry row on every resolve); any
-    other slug is a registry row directly. A malformed slug is treated like an
-    unknown one (no registry row can carry it)."""
+    just hidden in the UI. Every slug — the platform ``oidc`` slug included —
+    resolves to its registry row directly (the row is the source of truth; the
+    old reconcile-from-settings shim is gone). A malformed slug is treated like
+    an unknown one (no registry row can carry it)."""
     if not is_valid_provider_slug(provider_slug):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
@@ -720,12 +724,13 @@ async def _resolve_login_provider(
             status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
         )
     if provider_slug == PLATFORM_OIDC_SLUG:
-        if not _platform_oidc_active(app_settings):
+        row = await _active_platform_provider(admin_session)
+        if row is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=OidcMessages.OIDC_NOT_ENABLED,
             )
-        return await ensure_platform_provider(admin_session, app_settings)
+        return row
     row = (
         await admin_session.exec(
             select(AuthProvider).where(
@@ -826,33 +831,25 @@ async def list_login_providers(
     """The sign-in providers the login page offers — non-secret metadata only.
 
     Empty in guild posture (operator-global providers are dormant there) and
-    on instances with no SSO configured. Strictly read-only: an
-    unauthenticated GET must not trigger writes, so the platform entry is
-    built from ``app_settings`` (its config surface) rather than the
-    write-capable reconcile — that runs in the login flow and at boot.
-    Registry rows are read on the system engine (``auth_providers`` carries no
-    request-path grant)."""
-    app_settings = await app_settings_service.get_app_settings(session)
+    on instances with no SSO configured. Strictly read-only: the platform
+    entry, like every other, is its registry row (the source of truth) — no
+    write path is reachable from here. Registry rows are read on the system
+    engine (``auth_providers`` carries no request-path grant)."""
     if settings.AUTH_SCOPE != AuthScope.platform:
         return LoginProvidersResponse(providers=[])
 
     entries: list[LoginProviderEntry] = []
-    if _platform_oidc_active(app_settings):
-        # Row read only for display extras (icon/button_style); name and
-        # liveness come from app_settings, matching what login would do.
-        platform_row = await get_platform_provider(admin_session)
+    platform_row = await _active_platform_provider(admin_session)
+    if platform_row is not None:
         entries.append(
             LoginProviderEntry(
-                # None until the platform row's first reconcile (login/boot);
-                # consumers that need a registry id (the guild auth-policy
-                # picker) skip id-less entries.
-                id=platform_row.id if platform_row else None,
+                id=platform_row.id,
                 slug=PLATFORM_OIDC_SLUG,
-                display_name=app_settings.oidc_provider_name or "SSO",
+                display_name=platform_row.display_name,
                 kind="oidc",
                 login_url=f"{API_V1_STR}/auth/{PLATFORM_OIDC_SLUG}/login",
-                icon=platform_row.icon if platform_row else None,
-                button_style=platform_row.button_style if platform_row else None,
+                icon=platform_row.icon,
+                button_style=platform_row.button_style,
             )
         )
 
@@ -980,10 +977,7 @@ async def provider_login(
     """Begin the relying-party flow for one operator-global provider. The
     platform provider's slug is ``oidc``, so the pre-generalization
     ``/auth/oidc/login`` URL is this same route."""
-    app_settings = await app_settings_service.get_app_settings(session)
-    provider_row = await _resolve_login_provider(
-        app_settings, admin_session, provider_slug
-    )
+    provider_row = await _resolve_login_provider(admin_session, provider_slug)
     return await _begin_provider_login(
         admin_session,
         provider_row,
@@ -1351,10 +1345,7 @@ async def provider_callback(
     """Complete the relying-party flow for one operator-global provider (see
     provider_login: the platform provider's slug is ``oidc``, so the URL
     operators registered at their IdP is this same route)."""
-    app_settings = await app_settings_service.get_app_settings(session)
-    provider_row = await _resolve_login_provider(
-        app_settings, admin_session, provider_slug
-    )
+    provider_row = await _resolve_login_provider(admin_session, provider_slug)
     return await _complete_provider_login(
         request, session, admin_session, provider_row, code, state
     )
