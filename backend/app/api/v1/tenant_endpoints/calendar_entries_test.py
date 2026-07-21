@@ -161,6 +161,41 @@ async def test_guild_entries_guild_admin_sees_all(
     assert task.id in {t["id"] for t in body["tasks"]}
 
 
+@pytest.mark.integration
+async def test_guild_entries_windows_tasks_by_params(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """start_after/start_before bound the task leg even when the caller sends no
+    matching date filter in `conditions` — the window is a first-class param, so
+    an out-of-window task is excluded and the query never runs unbounded."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    in_window = await create_task(
+        session, a.project, title="In window", due_date=NOW, assignees=[a.user]
+    )
+    out_window = await create_task(
+        session,
+        a.project,
+        title="Out of window",
+        due_date=NOW + timedelta(days=400),
+        assignees=[a.user],
+    )
+
+    response = await client.get(
+        a.g("/calendar-entries/"),
+        headers=a.headers,
+        params={
+            "initiative_id": a.initiative.id,
+            "start_after": WINDOW_START,
+            "start_before": WINDOW_END,
+            "include_events": "false",
+        },
+    )
+    assert response.status_code == 200, response.text
+    task_ids = {t["id"] for t in response.json()["tasks"]}
+    assert in_window.id in task_ids
+    assert out_window.id not in task_ids
+
+
 # ---------------------------------------------------------------------------
 # Cross-guild /me endpoint
 # ---------------------------------------------------------------------------
@@ -218,3 +253,34 @@ async def test_me_entries_aggregate_across_guilds(
     narrowed_event_keys = {(e["guild_id"], e["id"]) for e in nbody["events"]}
     assert (g1.id, event1.id) in narrowed_event_keys
     assert (g2.id, event2.id) not in narrowed_event_keys
+
+
+@pytest.mark.integration
+async def test_me_entries_windows_tasks_by_params(
+    client: AsyncClient, session: AsyncSession
+):
+    """The cross-guild task path applies only extracted scalar filters, so the
+    calendar window can only travel as start_after/start_before — assert it
+    excludes an out-of-window task rather than returning every assigned task."""
+    user = await create_user(session, email="cal-me-window@example.com")
+    _g, _i, project = await _guild_with_project(session, user, name="Gamma")
+
+    in_window = await create_task(session, project, due_date=NOW, assignees=[user])
+    out_window = await create_task(
+        session, project, due_date=NOW + timedelta(days=400), assignees=[user]
+    )
+
+    headers = get_auth_headers(user)
+    response = await client.get(
+        "/api/v1/me/calendar-entries",
+        headers=headers,
+        params={
+            "start_after": WINDOW_START,
+            "start_before": WINDOW_END,
+            "include_events": "false",
+        },
+    )
+    assert response.status_code == 200, response.text
+    task_ids = {t["id"] for t in response.json()["tasks"]}
+    assert in_window.id in task_ids
+    assert out_window.id not in task_ids

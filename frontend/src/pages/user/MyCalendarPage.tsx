@@ -146,20 +146,12 @@ export const MyCalendarPage = () => {
     [focusDate, calendarViewMode, weekStartsOn]
   );
 
-  // Task filter conditions (same JSON shape GET /me/tasks accepts). Placed by
-  // start_date or due_date within the window; narrowed by the calendar filters.
+  // Task filter conditions (same JSON shape GET /me/tasks accepts). The date
+  // window travels as start_after/start_before on the request (see
+  // entriesParams) — the cross-guild task path can only be windowed by those
+  // params, not by conditions — so it isn't repeated here.
   const taskConditions = useMemo((): (FilterCondition | FilterGroup)[] => {
     const conditions: (FilterCondition | FilterGroup)[] = [];
-    conditions.push({
-      logic: "or",
-      conditions: (["start_date", "due_date"] as const).map((field) => ({
-        logic: "and" as const,
-        conditions: [
-          { field, op: "gte", value: visibleRange.start.toISOString() },
-          { field, op: "lte", value: visibleRange.end.toISOString() },
-        ],
-      })),
-    });
     if (statusFilters.length > 0) {
       conditions.push({ field: "status_category", op: "in_", value: statusFilters });
     }
@@ -170,7 +162,7 @@ export const MyCalendarPage = () => {
       conditions.push({ field: "guild_ids", op: "in_", value: guildFilters });
     }
     return conditions;
-  }, [visibleRange, statusFilters, priorityFilters, guildFilters]);
+  }, [statusFilters, priorityFilters, guildFilters]);
 
   // --- One request: cross-guild events + assigned-task markers over the window. ---
   const entriesParams = useMemo((): ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams => {

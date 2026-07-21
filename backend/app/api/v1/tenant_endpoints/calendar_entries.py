@@ -85,6 +85,8 @@ async def list_calendar_entries(
             guild_context,
             conditions=conditions,
             tz=tz,
+            start_after=start_after,
+            start_before=start_before,
         )
 
     return CalendarEntriesResponse(events=events_out, tasks=tasks_out)
@@ -133,6 +135,8 @@ async def list_my_calendar_entries(
             current_user,
             conditions=conditions,
             tz=tz,
+            start_after=start_after,
+            start_before=start_before,
         )
 
     return CalendarEntriesResponse(events=events_out, tasks=tasks_out)

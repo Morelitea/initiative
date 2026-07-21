@@ -80,33 +80,17 @@ describe("EventsView calendar-entries query", () => {
 
     await waitFor(() => expect(requests.length).toBeGreaterThan(0));
 
-    // Task placement travels in the `conditions` param (same JSON shape GET
-    // /tasks accepts); the event window travels in start_after/start_before.
-    const group = parseConditions(requests[0]).find(isGroup);
-    expect(group).toBeDefined();
-    expect(group?.logic).toBe("or");
-
-    // A task sits on the calendar by its start_date, its due_date, or both, so
-    // the window must match either — not both at once.
-    const legs = (group?.conditions ?? []).filter(isGroup);
-    expect(legs).toHaveLength(2);
-    const fields = legs.map((leg) => (leg.conditions[0] as FilterCondition).field);
-    expect(fields).toEqual(["start_date", "due_date"]);
-
-    // List view shows the focus month exactly.
+    // The window bounds BOTH legs via start_after/start_before — the endpoint
+    // windows events and tasks by these, so the date range isn't duplicated
+    // inside `conditions`. List view shows the focus month exactly.
     const now = new Date();
-    for (const leg of legs) {
-      const [gte, lte] = leg.conditions as FilterCondition[];
-      expect(leg.logic).toBe("and");
-      expect(gte.op).toBe("gte");
-      expect(gte.value).toBe(startOfMonth(now).toISOString());
-      expect(lte.op).toBe("lte");
-      expect(lte.value).toBe(endOfMonth(now).toISOString());
-    }
-
-    // The event leg fetches the same window — start_after/start_before, not paging.
     expect(requests[0].get("start_after")).toBe(startOfMonth(now).toISOString());
     expect(requests[0].get("start_before")).toBe(endOfMonth(now).toISOString());
+
+    // `conditions` carries only the non-window filters (none selected here), so
+    // it never contains a start_date/due_date group.
+    const groups = parseConditions(requests[0]).filter(isGroup);
+    expect(groups).toHaveLength(0);
   });
 
   it("renders every in-window task the aggregate returns", async () => {

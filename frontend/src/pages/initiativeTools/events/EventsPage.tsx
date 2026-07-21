@@ -200,30 +200,11 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
 
   // Task filter conditions (same JSON shape GET /tasks accepts). Built even when
   // tasks are toggled off so the memo is stable; the backend skips the task leg
-  // via include_tasks below.
+  // via include_tasks below. The date window travels as start_after/start_before
+  // on the request (see entriesParams) — the endpoint bounds the task leg by
+  // those, so it isn't repeated here.
   const taskConditions = useMemo((): (FilterCondition | FilterGroup)[] => {
     const conditions: (FilterCondition | FilterGroup)[] = [];
-
-    // Fetch only the tasks the current view can render. A task is placed by its
-    // start_date, its due_date, or both (see buildTaskCalendarEntries), so the
-    // window has to match either one — a task due in-window but started before
-    // it still belongs on the calendar.
-    //
-    // A task that straddles the whole window (starts before, due after) matches
-    // neither arm, which is correct: its two markers sit on days outside the
-    // window and it renders nothing inside it. That holds only while markers
-    // are single days rather than a bar spanning start → due — pinned by a test
-    // in taskCalendarEntries.test.ts.
-    conditions.push({
-      logic: "or",
-      conditions: (["start_date", "due_date"] as const).map((field) => ({
-        logic: "and" as const,
-        conditions: [
-          { field, op: "gte", value: visibleRange.start.toISOString() },
-          { field, op: "lte", value: visibleRange.end.toISOString() },
-        ],
-      })),
-    });
 
     // If initiativeId is specified, filter by that initiative; otherwise show all guild tasks
     if (initiativeId) {
@@ -253,7 +234,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
       });
     }
     return conditions;
-  }, [visibleRange, initiativeId, statusFilters, priorityFilters, projectFilters, propertyFilters]);
+  }, [initiativeId, statusFilters, priorityFilters, projectFilters, propertyFilters]);
 
   // --- One request: events + task markers over the visible window. ---
   const entriesParams = useMemo(
