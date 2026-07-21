@@ -6,7 +6,10 @@ import { ChevronDown, Filter, Loader2, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { DocumentSummary } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  DocumentSummary,
+  ListMyDocumentsApiV1MeDocumentsGetParams,
+} from "@/api/generated/initiativeAPI.schemas";
 import { invalidateAllDocuments } from "@/api/query-keys";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { SortIcon } from "@/components/SortIcon";
@@ -165,7 +168,7 @@ export const MyDocumentsPage = () => {
   }, [guildFilters, debouncedSearch, setPage]);
 
   const documentsGlobalParams = useMemo(() => {
-    const params: Record<string, string | string[] | number | number[]> = {};
+    const params: ListMyDocumentsApiV1MeDocumentsGetParams = {};
     if (guildFilters.length > 0) params.guild_ids = guildFilters;
     if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
     if (sortBy) params.sort_by = sortBy;

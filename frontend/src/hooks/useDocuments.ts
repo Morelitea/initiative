@@ -16,9 +16,11 @@ import {
   getGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGetQueryKey,
   getListDocumentsApiV1GGuildIdDocumentsGetQueryKey,
   getListDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGetQueryKey,
+  getListMyDocumentsApiV1MeDocumentsGetQueryKey,
   getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryKey,
   listDocumentsApiV1GGuildIdDocumentsGet,
   listDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGet,
+  listMyDocumentsApiV1MeDocumentsGet,
   readDocumentApiV1GGuildIdDocumentsDocumentIdGet,
   setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut,
   updateDocumentApiV1GGuildIdDocumentsDocumentIdPatch,
@@ -41,6 +43,7 @@ import type {
   GetDocumentCountsApiV1GGuildIdDocumentsCountsGetParams,
   InitiativeGroupedCountsResponse,
   ListDocumentsApiV1GGuildIdDocumentsGetParams,
+  ListMyDocumentsApiV1MeDocumentsGetParams,
   ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
 import { attachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdPost } from "@/api/generated/projects/projects";
@@ -230,34 +233,25 @@ export const useSetDocumentCache = () => {
 
 // ── Global (cross-guild) queries ────────────────────────────────────────────
 
-import { apiClient } from "@/api/client";
-
-export const GLOBAL_DOCUMENTS_QUERY_KEY = "/api/v1/me/documents" as const;
-
-export const globalDocumentsQueryFn = async (
-  params: Record<string, string | string[] | number | number[]>
-) => {
-  const response = await apiClient.get<DocumentListResponse>("/me/documents", { params });
-  return response.data;
-};
-
 export const useGlobalDocuments = (
-  params: Record<string, string | string[] | number | number[]>,
+  params?: ListMyDocumentsApiV1MeDocumentsGetParams,
   options?: QueryOpts<DocumentListResponse>
 ) => {
   return useQuery<DocumentListResponse>({
-    queryKey: [GLOBAL_DOCUMENTS_QUERY_KEY, params],
-    queryFn: () => globalDocumentsQueryFn(params),
+    queryKey: getListMyDocumentsApiV1MeDocumentsGetQueryKey(params),
+    queryFn: () =>
+      listMyDocumentsApiV1MeDocumentsGet(params) as unknown as Promise<DocumentListResponse>,
     ...options,
   });
 };
 
 export const usePrefetchGlobalDocuments = () => {
   const qc = useQueryClient();
-  return (params: Record<string, string | string[] | number | number[]>) => {
+  return (params?: ListMyDocumentsApiV1MeDocumentsGetParams) => {
     return qc.prefetchQuery({
-      queryKey: [GLOBAL_DOCUMENTS_QUERY_KEY, params],
-      queryFn: () => globalDocumentsQueryFn(params),
+      queryKey: getListMyDocumentsApiV1MeDocumentsGetQueryKey(params),
+      queryFn: () =>
+        listMyDocumentsApiV1MeDocumentsGet(params) as unknown as Promise<DocumentListResponse>,
       staleTime: 30_000,
     });
   };
