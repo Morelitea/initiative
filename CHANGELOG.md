@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.58.0] - 2026-07-21
+
 ### Security
 
 - Platform role assignment is now enforced at the database layer: the request-path database roles carry column-scoped grants on the user table that exclude the platform role column, so role changes can only happen through the dedicated operator/owner role-assignment endpoint. Unused write privileges the request-path roles held on the user table were revoked outright. No behavior change for any existing flow; this is defense in depth, verified by CI invariants against the live catalog.
