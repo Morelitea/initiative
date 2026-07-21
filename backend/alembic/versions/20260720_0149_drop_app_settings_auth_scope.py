@@ -4,8 +4,9 @@ Login posture (platform vs guild) moves from a mutable ``app_settings`` column
 to the deploy-time ``AUTH_SCOPE`` env value (``app.core.config``). The column and
 its runtime setter are removed; nothing reads it anymore.
 
-Downgrade restores the column with its original ``'platform'`` server default so
-an older build's reads keep working.
+Downgrade restores the column with its original ``'platform'`` server default —
+and its value check, which Postgres dropped along with the column — so an older
+build's reads keep working and 0136's own downgrade still finds the constraint.
 
 Revision ID: 20260720_0149
 Revises: 20260718_0148
@@ -36,4 +37,9 @@ def downgrade() -> None:
             nullable=False,
             server_default="platform",
         ),
+    )
+    op.create_check_constraint(
+        "ck_app_settings_auth_scope",
+        "app_settings",
+        "auth_scope IN ('platform', 'guild')",
     )
