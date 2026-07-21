@@ -53,13 +53,13 @@ import { useViewPreference } from "@/hooks/useViewPreference";
 import { exportFilenameStem } from "@/lib/exportDownload";
 import { useGuildPath } from "@/lib/guildUrl";
 import { getProjectColor } from "@/lib/projectColor";
+import { PRIORITY_ORDER } from "@/lib/sorting";
 import { getItem, setItem } from "@/lib/storage";
 import { toolExportEndpoint } from "@/lib/tools";
 
 const STORAGE_KEY = "initiative-events-prefs";
 
 const STATUS_CATEGORIES: TaskStatusCategory[] = ["backlog", "todo", "in_progress", "done"];
-const PRIORITY_ORDER: TaskPriority[] = ["low", "medium", "high", "urgent"];
 
 interface StoredPrefs {
   showEvents: boolean;

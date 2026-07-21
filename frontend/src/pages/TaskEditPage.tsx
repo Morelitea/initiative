@@ -87,14 +87,13 @@ import { toast } from "@/lib/chesterToast";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { queryClient } from "@/lib/queryClient";
+import { PRIORITY_ORDER } from "@/lib/sorting";
 import {
   getAvatarSrc,
   getInitialsForUser,
   getUserDisplayName,
   isAnonymizedUser,
 } from "@/lib/userDisplay";
-
-const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
 
 const toLocalInputValue = (value?: string | null) => {
   if (!value) {
@@ -761,7 +760,7 @@ export const TaskEditPage = () => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {priorityOrder.map((value) => (
+                      {PRIORITY_ORDER.map((value) => (
                         <SelectItem key={value} value={value}>
                           {t(`priority.${value}` as never)}
                         </SelectItem>

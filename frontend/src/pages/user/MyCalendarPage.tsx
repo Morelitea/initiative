@@ -31,6 +31,7 @@ import { useViewPreference } from "@/hooks/useViewPreference";
 import { toast } from "@/lib/chesterToast";
 import { guildPath, useGuildPath } from "@/lib/guildUrl";
 import { getProjectColor } from "@/lib/projectColor";
+import { PRIORITY_ORDER } from "@/lib/sorting";
 
 const STORAGE_KEY = "initiative-my-calendar-prefs";
 
@@ -70,8 +71,6 @@ const sanitizeStoredPrefs = (raw: unknown): StoredPrefs => {
     guildFilters: Array.isArray(v.guildFilters) ? v.guildFilters : PREFS_DEFAULTS.guildFilters,
   };
 };
-
-const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
 
 const getDefaultFiltersVisibility = () =>
   typeof window !== "undefined" && window.matchMedia("(min-width: 640px)").matches;
@@ -331,7 +330,7 @@ export const MyCalendarPage = () => {
                 </Label>
                 <MultiSelect
                   selectedValues={priorityFilters}
-                  options={priorityOrder.map((p) => ({
+                  options={PRIORITY_ORDER.map((p) => ({
                     value: p,
                     label: t(`tasks:priority.${p}` as never),
                   }))}

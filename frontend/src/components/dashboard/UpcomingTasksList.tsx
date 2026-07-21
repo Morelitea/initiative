@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGuildPath } from "@/lib/guildUrl";
+import { priorityRank } from "@/lib/sorting";
 
 interface UpcomingTasksListProps {
   tasks: TaskListRead[];
@@ -34,14 +35,6 @@ function getDueBadgeLabelKey(dueDate: string | null | undefined): string | null 
   return "upcomingTasks.upcoming";
 }
 
-const priorityOrder: Record<string, number> = {
-  critical: 0,
-  high: 1,
-  medium: 2,
-  low: 3,
-  none: 4,
-};
-
 export function UpcomingTasksList({ tasks, isLoading }: UpcomingTasksListProps) {
   const { t } = useTranslation("dashboard");
   const gp = useGuildPath();
@@ -51,7 +44,8 @@ export function UpcomingTasksList({ tasks, isLoading }: UpcomingTasksListProps) 
     const aDate = a.due_date ? parseISO(a.due_date).getTime() : Infinity;
     const bDate = b.due_date ? parseISO(b.due_date).getTime() : Infinity;
     if (aDate !== bDate) return aDate - bDate;
-    return (priorityOrder[a.priority] ?? 4) - (priorityOrder[b.priority] ?? 4);
+    // Higher priority first (urgent → low) as the due-date tiebreaker.
+    return (priorityRank[b.priority] ?? -1) - (priorityRank[a.priority] ?? -1);
   });
 
   return (
