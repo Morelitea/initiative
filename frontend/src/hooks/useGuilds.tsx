@@ -1,4 +1,3 @@
-import type { AxiosError } from "axios";
 import {
   createContext,
   type ReactNode,
@@ -15,6 +14,7 @@ import type { AccessGrantRead, GuildRead } from "@/api/generated/initiativeAPI.s
 import { resetGuildScopedQueries, setInvalidationGuild } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 import { getItem, removeItem, setItem } from "@/lib/storage";
 
 /**
@@ -208,9 +208,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       applyGuildState([...response.data, ...grantGuilds]);
     } catch (err) {
       console.error("Failed to load guilds", err);
-      const axiosError = err as AxiosError<{ detail?: string }>;
-      const detail = axiosError.response?.data?.detail;
-      setError(detail ?? "Unable to load guilds.");
+      setError(getErrorMessage(err, "guilds:unableToLoadGuilds"));
     } finally {
       setLoading(false);
     }
