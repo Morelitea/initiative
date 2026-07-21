@@ -9,7 +9,6 @@
   "creating": "Creando…",
   "createGuildSubmit": "Crear gremio",
   "unableToCreateGuild": "No se pudo crear el gremio",
-  "unableToLoadGuilds": "No se pudieron cargar los gremios.",
   "switchTo": "Cambiar a {{name}}",
   "guildsHeading": "Gremios",
   "expandGuilds": "Expandir lista de gremios",

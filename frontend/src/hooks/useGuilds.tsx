@@ -208,7 +208,10 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       applyGuildState([...response.data, ...grantGuilds]);
     } catch (err) {
       console.error("Failed to load guilds", err);
-      setError(getErrorMessage(err, "guilds:unableToLoadGuilds"));
+      // Fallback lives in the ``errors`` namespace (preloaded at init) rather
+      // than ``guilds``: this hook never mounts a ``useTranslation("guilds")``,
+      // so on a startup fetch failure that namespace may not be loaded yet.
+      setError(getErrorMessage(err, "errors:unableToLoadGuilds"));
     } finally {
       setLoading(false);
     }

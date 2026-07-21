@@ -9,7 +9,6 @@
   "creating": "Creating…",
   "createGuildSubmit": "Create guild",
   "unableToCreateGuild": "Unable to create guild",
-  "unableToLoadGuilds": "Unable to load guilds.",
   "switchTo": "Switch to {{name}}",
   "guildsHeading": "Guilds",
   "expandGuilds": "Expand guild list",

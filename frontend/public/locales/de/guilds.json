@@ -9,7 +9,6 @@
   "creating": "Wird erstellt…",
   "createGuildSubmit": "Gilde erstellen",
   "unableToCreateGuild": "Gilde konnte nicht erstellt werden",
-  "unableToLoadGuilds": "Gilden konnten nicht geladen werden.",
   "switchTo": "Zu {{name}} wechseln",
   "guildsHeading": "Gilden",
   "expandGuilds": "Gildenliste erweitern",

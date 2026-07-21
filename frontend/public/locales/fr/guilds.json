@@ -9,7 +9,6 @@
   "creating": "Création en cours…",
   "createGuildSubmit": "Créer le groupe",
   "unableToCreateGuild": "Impossible de créer le groupe",
-  "unableToLoadGuilds": "Impossible de charger les groupes.",
   "switchTo": "Passer à {{name}}",
   "guildsHeading": "Groupes",
   "expandGuilds": "Développer la liste des groupes",
