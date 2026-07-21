@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Signing in through single sign-on no longer sends the app into a request storm: the sign-in callback finished, updated the session, and then re-ran itself off its own update, re-fetching the current user, the guild list, and access grants dozens of times before settling. The callback is now consumed exactly once, and the guild list no longer reloads every time the current user is refreshed.
 - Comment, document-summary, and guild-list error messages now route through the shared error-message helper: the user sees a localized message (and rate-limit errors are surfaced as such) instead of an untranslated backend error code.
 - A database created or restored in a Postgres cluster where the platform "admin" → "operator" role rename had already run no longer loses its platform-staff row-security coverage: a repair migration finishes the rename by re-binding the affected policies (access-grant queue, platform user list/management) to the operator role and removing the leftover one. Without it, operators and owners saw only their own rows in the access-grant queue and the platform user list on such databases.
 - The sidebar "Edit tag" dialog is no longer visually broken — the name field now fills the row and the color picker sits beside it, instead of the color picker taking the full width and collapsing the name field to a sliver.
