@@ -1603,6 +1603,99 @@ async def list_my_created_tasks(
     )
 
 
+async def query_guild_tasks(
+    session: RLSSessionDep,
+    current_user: User,
+    guild_context: GuildContext,
+    *,
+    conditions: Optional[str] = None,
+    sorting: Optional[str] = None,
+    tz: Optional[str] = None,
+    include_archived: bool = False,
+) -> list[TaskListRead]:
+    """Fetch every guild task matching the filter (no pagination).
+
+    Shared by the ``calendar-entries`` aggregate, whose date window is bounded so
+    the whole matching set is small. Mirrors ``list_tasks`` minus paging: same
+    parse → guild query builder → eager loads → sort → annotate → serialize path,
+    so access + shaping are identical.
+    """
+    q = await _parse_task_list_query(session, conditions, sorting, tz)
+    build = await _guild_task_query_builder(
+        session,
+        current_user,
+        guild_context.guild_id,
+        q=q,
+        include_archived=include_archived,
+    )
+    if build is None:
+        return []
+    statement = build(select(Task)).options(
+        selectinload(Task.project)
+        .selectinload(Project.initiative)
+        .selectinload(Initiative.guild),
+        selectinload(Task.assignees),
+        selectinload(Task.task_status),
+        selectinload(Task.tag_links).selectinload(TaskTag.tag),
+        selectinload(Task.property_values).selectinload(
+            TaskPropertyValue.property_definition
+        ),
+        selectinload(Task.property_values).selectinload(TaskPropertyValue.value_user),
+    )
+    statement = apply_sorting(
+        statement,
+        Task,
+        sort_fields=q.sort_fields,
+        allowed_fields=_task_sort_fields(q.tz),
+        default_sort=TASK_DEFAULT_SORT,
+    )
+    result = await session.exec(statement)
+    tasks = list(result.unique().all())
+    await _annotate_tasks(session, tasks)
+    tags_service.annotate_tags(tasks)
+    _annotate_task_properties(tasks)
+    return [_task_to_list_read(task) for task in tasks]
+
+
+async def query_my_tasks_list(
+    session: UserSessionDep,
+    current_user: User,
+    *,
+    conditions: Optional[str] = None,
+    sorting: Optional[str] = None,
+    tz: Optional[str] = None,
+    include_archived: bool = False,
+) -> list[TaskListRead]:
+    """Fetch every cross-guild assigned task matching the filter (no paging).
+
+    Shared by the ``/me/calendar-entries`` aggregate; mirrors ``list_my_tasks``
+    with ``page_size=0`` (the global path's fetch-all).
+    """
+    q = await _parse_task_list_query(
+        session, conditions, sorting, tz, defer_property_definitions=True
+    )
+    q.property_definitions = await _load_property_definitions_across_guilds(
+        session, current_user, q
+    )
+    items, _total, _page = await _list_global_tasks(
+        session,
+        current_user,
+        project_id=q.project_id,
+        priorities=q.priorities,
+        status_category=q.status_category,
+        initiative_ids=q.initiative_ids,
+        guild_ids=q.guild_ids,
+        property_value_conditions=q.property_value_conditions,
+        property_definitions=q.property_definitions,
+        include_archived=include_archived,
+        page=1,
+        page_size=0,
+        sort_fields=q.sort_fields,
+        tz=q.tz,
+    )
+    return items
+
+
 @router.get("/", response_model=TaskListResponse)
 async def list_tasks(
     session: RLSSessionDep,

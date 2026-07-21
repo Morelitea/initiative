@@ -665,37 +665,6 @@ export interface BreakGlassCreate {
   reason: string;
 }
 
-/**
- * Compact per-attendee snapshot for list responses.
- *
- * Carries the id + avatar fields the SPA needs to render tinted,
- * image-backed avatars on the calendar list view. The full
- * ``CalendarEventAttendeeRead`` (with RSVP status + timestamps) is
- * still exposed on the detail endpoint.
- */
-export interface CalendarEventAttendeePreview {
-  user_id: number;
-  name: string;
-  avatar_url: string | null;
-  avatar_base64: string | null;
-}
-
-export type RSVPStatus = (typeof RSVPStatus)[keyof typeof RSVPStatus];
-
-export const RSVPStatus = {
-  pending: "pending",
-  accepted: "accepted",
-  declined: "declined",
-  tentative: "tentative",
-} as const;
-
-export interface CalendarEventAttendeeRead {
-  user_id: number;
-  user: UserPublic | null;
-  rsvp_status: RSVPStatus;
-  created_at: string;
-}
-
 export interface EventRecurrence {
   /** @pattern ^(daily|weekly|monthly|yearly)$ */
   frequency: string;
@@ -716,30 +685,19 @@ export interface EventRecurrence {
   end_date?: string | null;
 }
 
-export interface CalendarEventCreate {
-  /**
-   * @minLength 1
-   * @maxLength 255
-   */
-  title: string;
-  description?: string | null;
-  location?: string | null;
-  start_at: string;
-  end_at: string;
-  all_day?: boolean;
-  color?: string | null;
-  recurrence?: EventRecurrence | null;
-  initiative_id: number;
-  attendee_ids?: number[] | null;
-  tag_ids?: number[] | null;
-  document_ids?: number[] | null;
-  grants?: ResourceGrantSchema[];
-}
-
-export interface CalendarEventDocumentRead {
-  document_id: number;
-  title?: string;
-  attached_at: string;
+/**
+ * Compact per-attendee snapshot for list responses.
+ *
+ * Carries the id + avatar fields the SPA needs to render tinted,
+ * image-backed avatars on the calendar list view. The full
+ * ``CalendarEventAttendeeRead`` (with RSVP status + timestamps) is
+ * still exposed on the detail endpoint.
+ */
+export interface CalendarEventAttendeePreview {
+  user_id: number;
+  name: string;
+  avatar_url: string | null;
+  avatar_base64: string | null;
 }
 
 /**
@@ -818,6 +776,241 @@ export interface CalendarEventSummary {
   my_permission_level: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export type TaskPriority = (typeof TaskPriority)[keyof typeof TaskPriority];
+
+export const TaskPriority = {
+  low: "low",
+  medium: "medium",
+  high: "high",
+  urgent: "urgent",
+} as const;
+
+export type TaskRecurrenceOutputFrequency =
+  (typeof TaskRecurrenceOutputFrequency)[keyof typeof TaskRecurrenceOutputFrequency];
+
+export const TaskRecurrenceOutputFrequency = {
+  daily: "daily",
+  weekly: "weekly",
+  monthly: "monthly",
+  yearly: "yearly",
+} as const;
+
+export type TaskRecurrenceOutputWeekdaysItem =
+  (typeof TaskRecurrenceOutputWeekdaysItem)[keyof typeof TaskRecurrenceOutputWeekdaysItem];
+
+export const TaskRecurrenceOutputWeekdaysItem = {
+  monday: "monday",
+  tuesday: "tuesday",
+  wednesday: "wednesday",
+  thursday: "thursday",
+  friday: "friday",
+  saturday: "saturday",
+  sunday: "sunday",
+} as const;
+
+export type TaskRecurrenceOutputMonthlyMode =
+  (typeof TaskRecurrenceOutputMonthlyMode)[keyof typeof TaskRecurrenceOutputMonthlyMode];
+
+export const TaskRecurrenceOutputMonthlyMode = {
+  day_of_month: "day_of_month",
+  weekday: "weekday",
+} as const;
+
+export type TaskRecurrenceOutputWeekdayPosition =
+  | (typeof TaskRecurrenceOutputWeekdayPosition)[keyof typeof TaskRecurrenceOutputWeekdayPosition]
+  | null;
+
+export const TaskRecurrenceOutputWeekdayPosition = {
+  first: "first",
+  second: "second",
+  third: "third",
+  fourth: "fourth",
+  last: "last",
+} as const;
+
+export type TaskRecurrenceOutputWeekday =
+  | (typeof TaskRecurrenceOutputWeekday)[keyof typeof TaskRecurrenceOutputWeekday]
+  | null;
+
+export const TaskRecurrenceOutputWeekday = {
+  monday: "monday",
+  tuesday: "tuesday",
+  wednesday: "wednesday",
+  thursday: "thursday",
+  friday: "friday",
+  saturday: "saturday",
+  sunday: "sunday",
+} as const;
+
+export type TaskRecurrenceOutputEnds =
+  (typeof TaskRecurrenceOutputEnds)[keyof typeof TaskRecurrenceOutputEnds];
+
+export const TaskRecurrenceOutputEnds = {
+  never: "never",
+  on_date: "on_date",
+  after_occurrences: "after_occurrences",
+} as const;
+
+export interface TaskRecurrenceOutput {
+  frequency: TaskRecurrenceOutputFrequency;
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  interval: number;
+  weekdays: TaskRecurrenceOutputWeekdaysItem[];
+  monthly_mode: TaskRecurrenceOutputMonthlyMode;
+  day_of_month: number | null;
+  weekday_position: TaskRecurrenceOutputWeekdayPosition;
+  weekday: TaskRecurrenceOutputWeekday;
+  month: number | null;
+  ends: TaskRecurrenceOutputEnds;
+  end_after_occurrences: number | null;
+  end_date: string | null;
+}
+
+export type TaskListReadRecurrenceStrategy =
+  (typeof TaskListReadRecurrenceStrategy)[keyof typeof TaskListReadRecurrenceStrategy];
+
+export const TaskListReadRecurrenceStrategy = {
+  fixed: "fixed",
+  rolling: "rolling",
+} as const;
+
+export type TaskStatusCategory = (typeof TaskStatusCategory)[keyof typeof TaskStatusCategory];
+
+export const TaskStatusCategory = {
+  backlog: "backlog",
+  todo: "todo",
+  in_progress: "in_progress",
+  done: "done",
+} as const;
+
+export interface TaskStatusRead {
+  /**
+   * @minLength 1
+   * @maxLength 100
+   */
+  name: string;
+  category: TaskStatusCategory;
+  /** @minimum 0 */
+  position: number;
+  is_default: boolean;
+  /**
+   * @minLength 4
+   * @maxLength 9
+   * @pattern ^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$
+   */
+  color: string;
+  /**
+   * @minLength 1
+   * @maxLength 64
+   */
+  icon: string;
+  id: number;
+  project_id: number;
+}
+
+/**
+ * Minimal assignee data for task lists.
+ *
+ * Includes ``status`` so the frontend can render the "Deleted user
+ * #{id}" placeholder for anonymized assignees inline.
+ */
+export interface TaskAssigneeSummary {
+  id: number;
+  full_name: string | null;
+  avatar_url: string | null;
+  avatar_base64: string | null;
+  status: UserStatus;
+}
+
+export interface TaskSubtaskProgress {
+  completed: number;
+  total: number;
+}
+
+/**
+ * Lightweight schema for task list endpoints - excludes heavy nested data
+ */
+export interface TaskListRead {
+  title: string;
+  description: string | null;
+  priority: TaskPriority;
+  start_date: string | null;
+  due_date: string | null;
+  recurrence: TaskRecurrenceOutput | null;
+  recurrence_strategy: TaskListReadRecurrenceStrategy;
+  id: number;
+  project_id: number;
+  task_status_id: number;
+  task_status: TaskStatusRead;
+  created_at: string;
+  updated_at: string;
+  position: number;
+  is_archived: boolean;
+  created_by_id: number | null;
+  assignees: TaskAssigneeSummary[];
+  recurrence_occurrence_count: number;
+  comment_count: number;
+  guild_id: number | null;
+  guild_name: string | null;
+  project_name: string | null;
+  initiative_id: number | null;
+  initiative_name: string | null;
+  initiative_color: string | null;
+  subtask_progress: TaskSubtaskProgress | null;
+  tags: TagSummary[];
+  properties: PropertySummary[];
+}
+
+export interface CalendarEntriesResponse {
+  events: CalendarEventSummary[];
+  tasks: TaskListRead[];
+}
+
+export type RSVPStatus = (typeof RSVPStatus)[keyof typeof RSVPStatus];
+
+export const RSVPStatus = {
+  pending: "pending",
+  accepted: "accepted",
+  declined: "declined",
+  tentative: "tentative",
+} as const;
+
+export interface CalendarEventAttendeeRead {
+  user_id: number;
+  user: UserPublic | null;
+  rsvp_status: RSVPStatus;
+  created_at: string;
+}
+
+export interface CalendarEventCreate {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  title: string;
+  description?: string | null;
+  location?: string | null;
+  start_at: string;
+  end_at: string;
+  all_day?: boolean;
+  color?: string | null;
+  recurrence?: EventRecurrence | null;
+  initiative_id: number;
+  attendee_ids?: number[] | null;
+  tag_ids?: number[] | null;
+  document_ids?: number[] | null;
+  grants?: ResourceGrantSchema[];
+}
+
+export interface CalendarEventDocumentRead {
+  document_id: number;
+  title?: string;
+  attached_at: string;
 }
 
 export interface CalendarEventListResponse {
@@ -2911,20 +3104,6 @@ export interface TaggedEntitiesResponse {
 }
 
 /**
- * Minimal assignee data for task lists.
- *
- * Includes ``status`` so the frontend can render the "Deleted user
- * #{id}" placeholder for anonymized assignees inline.
- */
-export interface TaskAssigneeSummary {
-  id: number;
-  full_name: string | null;
-  avatar_url: string | null;
-  avatar_base64: string | null;
-  status: UserStatus;
-}
-
-/**
  * Lightweight task info for autocomplete/pickers (id + title only).
  */
 export interface TaskAutocomplete {
@@ -2938,15 +3117,6 @@ export type TaskCreateRecurrenceStrategy =
 export const TaskCreateRecurrenceStrategy = {
   fixed: "fixed",
   rolling: "rolling",
-} as const;
-
-export type TaskPriority = (typeof TaskPriority)[keyof typeof TaskPriority];
-
-export const TaskPriority = {
-  low: "low",
-  medium: "medium",
-  high: "high",
-  urgent: "urgent",
 } as const;
 
 export type TaskRecurrenceInputFrequency =
@@ -3044,171 +3214,6 @@ export interface TaskCreate {
   project_id: number;
   assignee_ids?: number[];
   task_status_id?: number | null;
-}
-
-export type TaskListReadRecurrenceStrategy =
-  (typeof TaskListReadRecurrenceStrategy)[keyof typeof TaskListReadRecurrenceStrategy];
-
-export const TaskListReadRecurrenceStrategy = {
-  fixed: "fixed",
-  rolling: "rolling",
-} as const;
-
-export type TaskRecurrenceOutputFrequency =
-  (typeof TaskRecurrenceOutputFrequency)[keyof typeof TaskRecurrenceOutputFrequency];
-
-export const TaskRecurrenceOutputFrequency = {
-  daily: "daily",
-  weekly: "weekly",
-  monthly: "monthly",
-  yearly: "yearly",
-} as const;
-
-export type TaskRecurrenceOutputWeekdaysItem =
-  (typeof TaskRecurrenceOutputWeekdaysItem)[keyof typeof TaskRecurrenceOutputWeekdaysItem];
-
-export const TaskRecurrenceOutputWeekdaysItem = {
-  monday: "monday",
-  tuesday: "tuesday",
-  wednesday: "wednesday",
-  thursday: "thursday",
-  friday: "friday",
-  saturday: "saturday",
-  sunday: "sunday",
-} as const;
-
-export type TaskRecurrenceOutputMonthlyMode =
-  (typeof TaskRecurrenceOutputMonthlyMode)[keyof typeof TaskRecurrenceOutputMonthlyMode];
-
-export const TaskRecurrenceOutputMonthlyMode = {
-  day_of_month: "day_of_month",
-  weekday: "weekday",
-} as const;
-
-export type TaskRecurrenceOutputWeekdayPosition =
-  | (typeof TaskRecurrenceOutputWeekdayPosition)[keyof typeof TaskRecurrenceOutputWeekdayPosition]
-  | null;
-
-export const TaskRecurrenceOutputWeekdayPosition = {
-  first: "first",
-  second: "second",
-  third: "third",
-  fourth: "fourth",
-  last: "last",
-} as const;
-
-export type TaskRecurrenceOutputWeekday =
-  | (typeof TaskRecurrenceOutputWeekday)[keyof typeof TaskRecurrenceOutputWeekday]
-  | null;
-
-export const TaskRecurrenceOutputWeekday = {
-  monday: "monday",
-  tuesday: "tuesday",
-  wednesday: "wednesday",
-  thursday: "thursday",
-  friday: "friday",
-  saturday: "saturday",
-  sunday: "sunday",
-} as const;
-
-export type TaskRecurrenceOutputEnds =
-  (typeof TaskRecurrenceOutputEnds)[keyof typeof TaskRecurrenceOutputEnds];
-
-export const TaskRecurrenceOutputEnds = {
-  never: "never",
-  on_date: "on_date",
-  after_occurrences: "after_occurrences",
-} as const;
-
-export interface TaskRecurrenceOutput {
-  frequency: TaskRecurrenceOutputFrequency;
-  /**
-   * @minimum 1
-   * @maximum 365
-   */
-  interval: number;
-  weekdays: TaskRecurrenceOutputWeekdaysItem[];
-  monthly_mode: TaskRecurrenceOutputMonthlyMode;
-  day_of_month: number | null;
-  weekday_position: TaskRecurrenceOutputWeekdayPosition;
-  weekday: TaskRecurrenceOutputWeekday;
-  month: number | null;
-  ends: TaskRecurrenceOutputEnds;
-  end_after_occurrences: number | null;
-  end_date: string | null;
-}
-
-export type TaskStatusCategory = (typeof TaskStatusCategory)[keyof typeof TaskStatusCategory];
-
-export const TaskStatusCategory = {
-  backlog: "backlog",
-  todo: "todo",
-  in_progress: "in_progress",
-  done: "done",
-} as const;
-
-export interface TaskStatusRead {
-  /**
-   * @minLength 1
-   * @maxLength 100
-   */
-  name: string;
-  category: TaskStatusCategory;
-  /** @minimum 0 */
-  position: number;
-  is_default: boolean;
-  /**
-   * @minLength 4
-   * @maxLength 9
-   * @pattern ^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$
-   */
-  color: string;
-  /**
-   * @minLength 1
-   * @maxLength 64
-   */
-  icon: string;
-  id: number;
-  project_id: number;
-}
-
-export interface TaskSubtaskProgress {
-  completed: number;
-  total: number;
-}
-
-/**
- * Lightweight schema for task list endpoints - excludes heavy nested data
- */
-export interface TaskListRead {
-  title: string;
-  description: string | null;
-  priority: TaskPriority;
-  start_date: string | null;
-  due_date: string | null;
-  recurrence: TaskRecurrenceOutput | null;
-  recurrence_strategy: TaskListReadRecurrenceStrategy;
-  id: number;
-  project_id: number;
-  task_status_id: number;
-  task_status: TaskStatusRead;
-  created_at: string;
-  updated_at: string;
-  position: number;
-  is_archived: boolean;
-  created_by_id: number | null;
-  assignees: TaskAssigneeSummary[];
-  recurrence_occurrence_count: number;
-  comment_count: number;
-  guild_id: number | null;
-  guild_name: string | null;
-  project_name: string | null;
-  initiative_id: number | null;
-  initiative_name: string | null;
-  initiative_color: string | null;
-  subtask_progress: TaskSubtaskProgress | null;
-  tags: TagSummary[];
-  properties: PropertySummary[];
 }
 
 export interface TaskListResponse {
@@ -4578,6 +4583,20 @@ export type ListCalendarEventsApiV1GGuildIdCalendarEventsGetParams = {
   page_size?: number;
 };
 
+export type ListCalendarEntriesApiV1GGuildIdCalendarEntriesGetParams = {
+  initiative_id?: number | null;
+  start_after?: string | null;
+  start_before?: string | null;
+  property_filters?: string | null;
+  /**
+   * Task filter conditions (same JSON shape as GET /tasks).
+   */
+  conditions?: (FilterCondition | FilterGroup)[];
+  tz?: string | null;
+  include_events?: boolean;
+  include_tasks?: boolean;
+};
+
 export type ListAdvancedToolsApiV1GGuildIdAdvancedToolsGetParams = {
   initiative_id?: number | null;
   /**
@@ -4712,6 +4731,19 @@ export type ExportMyCalendarEventsIcsApiV1MeCalendarEventsExportIcsGetParams = {
   guild_ids?: number[] | null;
   start_after?: string | null;
   start_before?: string | null;
+};
+
+export type ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams = {
+  guild_ids?: number[] | null;
+  start_after?: string | null;
+  start_before?: string | null;
+  /**
+   * Task filter conditions (same JSON shape as GET /me/tasks).
+   */
+  conditions?: (FilterCondition | FilterGroup)[];
+  tz?: string | null;
+  include_events?: boolean;
+  include_tasks?: boolean;
 };
 
 export type GetUserStatsApiV1MeStatsGetParams = {

@@ -13,6 +13,7 @@ from app.api.v1.tenant_endpoints import (
     ai_settings,
     attachments,
     auto_subscriptions,
+    calendar_entries,
     calendar_events,
     collaboration,
     comments,
@@ -131,6 +132,10 @@ guild_router.include_router(
 guild_router.include_router(
     calendar_events.router, prefix="/calendar-events", tags=["calendar-events"]
 )
+# Aggregate view: events + task markers in one request (calendar surfaces).
+guild_router.include_router(
+    calendar_entries.router, prefix="/calendar-entries", tags=["calendar-entries"]
+)
 guild_router.include_router(
     resource_grants.router, prefix="/resource-grants", tags=["resource-grants"]
 )
@@ -171,6 +176,7 @@ me_router.include_router(tasks.me_router, tags=["tasks"])
 me_router.include_router(documents.me_router, tags=["documents"])
 me_router.include_router(projects.me_router, tags=["projects"])
 me_router.include_router(calendar_events.me_router, tags=["calendar-events"])
+me_router.include_router(calendar_entries.me_router, tags=["calendar-entries"])
 me_router.include_router(me_trash.me_router, tags=["trash"])
 me_router.include_router(users.me_router, tags=["users"])
 api_router.include_router(me_router)
