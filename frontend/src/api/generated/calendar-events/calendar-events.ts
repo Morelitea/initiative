@@ -1567,11 +1567,9 @@ export const useClearCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewDele
 /**
  * List calendar events across all guilds the user belongs to.
  *
- * Uses AdminSessionDep + ``gather_across_guilds`` (schema-per-guild): events
- * live in per-guild schemas, so a single cross-guild query would read the
- * frozen ``public`` backup. Instead we visit each of the user's guild schemas
- * in turn (routed to the user's own RLS context, so guild isolation still
- * holds) and merge, then sort + paginate the merged set in Python.
+ * Delegates the cross-guild fetch to ``query_my_calendar_events`` and then
+ * paginates the merged set in Python (per-schema SQL can't limit across
+ * schemas).
  * @summary List My Calendar Events
  */
 export const listMyCalendarEventsApiV1MeCalendarEventsGet = (

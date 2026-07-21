@@ -1,6 +1,5 @@
-import { keepPreviousData } from "@tanstack/react-query";
 import { useRouter, useSearch } from "@tanstack/react-router";
-import { addYears, endOfYear, format, startOfYear, subYears } from "date-fns";
+import { format } from "date-fns";
 import { ChevronDown, Filter, Loader2, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -9,7 +8,7 @@ import type {
   CalendarEventSummary,
   FilterCondition,
   FilterGroup,
-  ListTasksApiV1GGuildIdTasksGetParams,
+  ListCalendarEntriesApiV1GGuildIdCalendarEntriesGetParams,
   TaskPriority,
   TaskStatusCategory,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -43,12 +42,13 @@ import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAuth } from "@/hooks/useAuth";
-import { useCalendarEventsList, useRescheduleCalendarEvent } from "@/hooks/useCalendarEvents";
+import { useCalendarEntries } from "@/hooks/useCalendarEntries";
+import { useRescheduleCalendarEvent } from "@/hooks/useCalendarEvents";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { canCreateTool, useMyInitiativePermissions } from "@/hooks/useInitiativeRoles";
 import { useProjects } from "@/hooks/useProjects";
-import { useTasks, useUpdateTask } from "@/hooks/useTasks";
+import { useUpdateTask } from "@/hooks/useTasks";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { exportFilenameStem } from "@/lib/exportDownload";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -183,7 +183,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     );
   }, [showEvents, showTasks, statusFilters, priorityFilters, projectFilters, propertyFilters]);
 
-  // The span the current view renders — the window the tasks query fetches.
+  // The span the current view renders — the window events + tasks fetch over.
   const visibleRange = useMemo(
     () => calendarVisibleRange(focusDate, viewMode, weekStartsOn),
     [focusDate, viewMode, weekStartsOn]
@@ -196,43 +196,15 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     return JSON.stringify(propertyFilters);
   }, [propertyFilters]);
 
-  // --- Events query (scoped to initiative) ---
-  const eventsQuery = useCalendarEventsList({
-    ...(initiativeId ? { initiative_id: initiativeId } : {}),
-    start_after: startOfYear(subYears(focusDate, 1)).toISOString(),
-    start_before: endOfYear(addYears(focusDate, 1)).toISOString(),
-    ...(propertyFiltersParam ? { property_filters: propertyFiltersParam } : {}),
-    page: 1,
-    page_size: 100,
-  });
-
-  // --- Tasks query (scoped to initiative or all guild tasks) ---
   const userTimezone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
 
-  const tasksParams = useMemo((): ListTasksApiV1GGuildIdTasksGetParams | null => {
-    if (!showTasks) return null;
+  // Task filter conditions (same JSON shape GET /tasks accepts). Built even when
+  // tasks are toggled off so the memo is stable; the backend skips the task leg
+  // via include_tasks below. The date window travels as start_after/start_before
+  // on the request (see entriesParams) — the endpoint bounds the task leg by
+  // those, so it isn't repeated here.
+  const taskConditions = useMemo((): (FilterCondition | FilterGroup)[] => {
     const conditions: (FilterCondition | FilterGroup)[] = [];
-
-    // Fetch only the tasks the current view can render. A task is placed by its
-    // start_date, its due_date, or both (see buildTaskCalendarEntries), so the
-    // window has to match either one — a task due in-window but started before
-    // it still belongs on the calendar.
-    //
-    // A task that straddles the whole window (starts before, due after) matches
-    // neither arm, which is correct: its two markers sit on days outside the
-    // window and it renders nothing inside it. That holds only while markers
-    // are single days rather than a bar spanning start → due — pinned by a test
-    // in taskCalendarEntries.test.ts.
-    conditions.push({
-      logic: "or",
-      conditions: (["start_date", "due_date"] as const).map((field) => ({
-        logic: "and" as const,
-        conditions: [
-          { field, op: "gte", value: visibleRange.start.toISOString() },
-          { field, op: "lte", value: visibleRange.end.toISOString() },
-        ],
-      })),
-    });
 
     // If initiativeId is specified, filter by that initiative; otherwise show all guild tasks
     if (initiativeId) {
@@ -261,30 +233,33 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
         value: { property_id: cond.property_id, value: cond.value },
       });
     }
-    return {
-      conditions,
-      page: 1,
-      // The calendar must render every in-window task, so take the whole
-      // window: page_size=0 makes useTasks walk the server's pages.
-      page_size: 0,
-      tz: userTimezone,
-    };
-  }, [
-    showTasks,
-    visibleRange,
-    initiativeId,
-    statusFilters,
-    priorityFilters,
-    projectFilters,
-    propertyFilters,
-    userTimezone,
-  ]);
+    return conditions;
+  }, [initiativeId, statusFilters, priorityFilters, projectFilters, propertyFilters]);
 
-  const defaultTaskParams: ListTasksApiV1GGuildIdTasksGetParams = { page: 1, page_size: 0 };
-  const tasksQuery = useTasks(tasksParams ?? defaultTaskParams, {
-    enabled: !!tasksParams,
-    placeholderData: keepPreviousData,
-  });
+  // --- One request: events + task markers over the visible window. ---
+  const entriesParams = useMemo(
+    (): ListCalendarEntriesApiV1GGuildIdCalendarEntriesGetParams => ({
+      ...(initiativeId ? { initiative_id: initiativeId } : {}),
+      start_after: visibleRange.start.toISOString(),
+      start_before: visibleRange.end.toISOString(),
+      ...(propertyFiltersParam ? { property_filters: propertyFiltersParam } : {}),
+      conditions: taskConditions,
+      tz: userTimezone,
+      include_events: showEvents,
+      include_tasks: showTasks,
+    }),
+    [
+      initiativeId,
+      visibleRange,
+      propertyFiltersParam,
+      taskConditions,
+      userTimezone,
+      showEvents,
+      showTasks,
+    ]
+  );
+
+  const entriesQuery = useCalendarEntries(entriesParams);
 
   // Same param shape the sidebar and dashboard use, so this shares their cache.
   const projectsQuery = useProjects(undefined, { enabled: showTasks, staleTime: 30_000 });
@@ -314,7 +289,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     const entries: CalendarEntry[] = [];
 
     if (showEvents) {
-      const items = eventsQuery.data?.items ?? [];
+      const items = entriesQuery.data?.events ?? [];
       items.forEach((event) => {
         entries.push({
           id: `event-${event.id}`,
@@ -339,7 +314,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     }
 
     if (showTasks) {
-      const tasks = tasksQuery.data?.items ?? [];
+      const tasks = entriesQuery.data?.tasks ?? [];
       tasks.forEach((task) => {
         entries.push(
           ...buildTaskCalendarEntries(task, getProjectColor(task.project_id), canEditTasks)
@@ -348,7 +323,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     }
 
     return entries;
-  }, [showEvents, showTasks, eventsQuery.data, tasksQuery.data, canCreateEvents, canEditTasks]);
+  }, [showEvents, showTasks, entriesQuery.data, canCreateEvents, canEditTasks]);
 
   // --- Bulk edit-access selection (list view only) ---
   const eventSelection = useGridSelection<CalendarEventSummary>();
@@ -356,9 +331,9 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
 
   const eventsById = useMemo(() => {
     const map = new Map<number, CalendarEventSummary>();
-    for (const event of eventsQuery.data?.items ?? []) map.set(event.id, event);
+    for (const event of entriesQuery.data?.events ?? []) map.set(event.id, event);
     return map;
-  }, [eventsQuery.data]);
+  }, [entriesQuery.data]);
 
   const selectedEntryIds = useMemo(
     () => new Set<CalendarEntry["id"]>(eventSelection.selectedItems.map((e) => `event-${e.id}`)),
@@ -494,7 +469,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [projectsQuery.data, initiativeId]);
 
-  const isLoading = eventsQuery.isLoading && !eventsQuery.data;
+  const isLoading = entriesQuery.isLoading && !entriesQuery.data;
 
   return (
     <div className="space-y-4">

@@ -102,7 +102,10 @@ export const invalidateTagEntities = (tagId: number) =>
 
 // ── Tasks (guild + me) ──────────────────────────────────────────────────────────
 
-export const invalidateAllTasks = () => invalidateResourceAndMe("tasks");
+// Also refreshes the calendar-entries aggregate (a derived events+tasks view),
+// so a task mutation reflects on the calendar surfaces.
+export const invalidateAllTasks = () =>
+  Promise.all([invalidateResourceAndMe("tasks"), invalidateResourceAndMe("calendar-entries")]);
 
 export const invalidateTask = (taskId: number) => invalidateGuildExact([`/api/v1/tasks/${taskId}`]);
 
@@ -299,7 +302,12 @@ export const invalidateCounterGroup = (groupId: number) =>
 
 // ── Calendar Events (guild + me) ──────────────────────────────────────────────────
 
-export const invalidateAllCalendarEvents = () => invalidateResourceAndMe("calendar-events");
+// The calendar-entries aggregate unions events + task markers; refresh it too so
+// event mutations reflect on the calendar surfaces.
+export const invalidateAllCalendarEntries = () => invalidateResourceAndMe("calendar-entries");
+
+export const invalidateAllCalendarEvents = () =>
+  Promise.all([invalidateResourceAndMe("calendar-events"), invalidateAllCalendarEntries()]);
 
 export const invalidateCalendarEvent = (eventId: number) =>
   invalidateGuildExact([`/api/v1/calendar-events/${eventId}`]);

@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import selectinload
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
-from sqlalchemy import case, func, literal, text
+from sqlalchemy import and_, case, func, literal, or_, text
 from sqlmodel import select, delete
 
 from app.db.query import (
@@ -1096,8 +1096,15 @@ async def _list_global_tasks(
     page_size: int = 20,
     sort_fields: list | None = None,
     tz: str | None = None,
+    start_after: datetime | None = None,
+    start_before: datetime | None = None,
 ) -> tuple[list[TaskListRead], int, int]:
-    """Tasks assigned to the user, across every guild they belong to."""
+    """Tasks assigned to the user, across every guild they belong to.
+
+    ``start_after``/``start_before`` window the set to tasks whose start or due
+    date falls inside — used by the ``/me`` calendar aggregate (the global path
+    ignores arbitrary ``conditions``, so the window travels as explicit params).
+    """
     conditions = [
         TaskAssignee.user_id == current_user.id,
         Project.is_archived.is_(False),
@@ -1111,6 +1118,9 @@ async def _list_global_tasks(
         conditions.append(Task.priority.in_(tuple(priorities)))
     if initiative_ids:
         conditions.append(Project.initiative_id.in_(tuple(initiative_ids)))
+    window = _task_calendar_window_clause(start_after, start_before)
+    if window is not None:
+        conditions.append(window)
     conditions.extend(
         _property_value_filter_clauses(
             property_value_conditions or [], property_definitions or {}
@@ -1601,6 +1611,138 @@ async def list_my_created_tasks(
             sorting=sorting,
         )
     )
+
+
+def _task_calendar_window_clause(
+    start_after: Optional[datetime], start_before: Optional[datetime]
+):
+    """Keep only tasks that sit on a calendar within ``[start_after,
+    start_before]`` — i.e. whose ``start_date`` OR ``due_date`` falls in the
+    window (a task placed by either endpoint belongs on the calendar).
+
+    Returns ``None`` when neither bound is given (no windowing). This is the
+    aggregate's authoritative task window: the named params bound the task leg
+    directly, so a caller never has to duplicate the window inside ``conditions``
+    (and the cross-guild ``/me`` path can't express it there at all).
+    """
+    if start_after is None and start_before is None:
+        return None
+    field_clauses = []
+    for field in (Task.start_date, Task.due_date):
+        bounds = []
+        if start_after is not None:
+            bounds.append(field >= start_after)
+        if start_before is not None:
+            bounds.append(field <= start_before)
+        field_clauses.append(and_(*bounds))
+    return or_(*field_clauses)
+
+
+async def query_guild_tasks(
+    session: RLSSessionDep,
+    current_user: User,
+    guild_context: GuildContext,
+    *,
+    conditions: Optional[str] = None,
+    sorting: Optional[str] = None,
+    tz: Optional[str] = None,
+    include_archived: bool = False,
+    start_after: Optional[datetime] = None,
+    start_before: Optional[datetime] = None,
+) -> list[TaskListRead]:
+    """Fetch every guild task matching the filter (no pagination).
+
+    Shared by the ``calendar-entries`` aggregate, whose date window is bounded so
+    the whole matching set is small. Mirrors ``list_tasks`` minus paging: same
+    parse → guild query builder → eager loads → sort → annotate → serialize path,
+    so access + shaping are identical. ``start_after``/``start_before`` bound the
+    result to the calendar window regardless of ``conditions``.
+    """
+    q = await _parse_task_list_query(session, conditions, sorting, tz)
+    build = await _guild_task_query_builder(
+        session,
+        current_user,
+        guild_context.guild_id,
+        q=q,
+        include_archived=include_archived,
+    )
+    if build is None:
+        return []
+    window = _task_calendar_window_clause(start_after, start_before)
+    base = build(select(Task))
+    if window is not None:
+        base = base.where(window)
+    statement = base.options(
+        selectinload(Task.project)
+        .selectinload(Project.initiative)
+        .selectinload(Initiative.guild),
+        selectinload(Task.assignees),
+        selectinload(Task.task_status),
+        selectinload(Task.tag_links).selectinload(TaskTag.tag),
+        selectinload(Task.property_values).selectinload(
+            TaskPropertyValue.property_definition
+        ),
+        selectinload(Task.property_values).selectinload(TaskPropertyValue.value_user),
+    )
+    statement = apply_sorting(
+        statement,
+        Task,
+        sort_fields=q.sort_fields,
+        allowed_fields=_task_sort_fields(q.tz),
+        default_sort=TASK_DEFAULT_SORT,
+    )
+    result = await session.exec(statement)
+    tasks = list(result.unique().all())
+    await _annotate_tasks(session, tasks)
+    tags_service.annotate_tags(tasks)
+    _annotate_task_properties(tasks)
+    return [_task_to_list_read(task) for task in tasks]
+
+
+async def query_my_tasks_list(
+    session: UserSessionDep,
+    current_user: User,
+    *,
+    conditions: Optional[str] = None,
+    sorting: Optional[str] = None,
+    tz: Optional[str] = None,
+    include_archived: bool = False,
+    start_after: Optional[datetime] = None,
+    start_before: Optional[datetime] = None,
+) -> list[TaskListRead]:
+    """Fetch every cross-guild assigned task matching the filter (no paging).
+
+    Shared by the ``/me/calendar-entries`` aggregate; mirrors ``list_my_tasks``
+    with ``page_size=0`` (the global path's fetch-all).
+    ``start_after``/``start_before`` bound the result to the calendar window —
+    the global path applies only extracted scalar filters, so the window can
+    only be expressed through these params, never through ``conditions``.
+    """
+    q = await _parse_task_list_query(
+        session, conditions, sorting, tz, defer_property_definitions=True
+    )
+    q.property_definitions = await _load_property_definitions_across_guilds(
+        session, current_user, q
+    )
+    items, _total, _page = await _list_global_tasks(
+        session,
+        current_user,
+        project_id=q.project_id,
+        priorities=q.priorities,
+        status_category=q.status_category,
+        initiative_ids=q.initiative_ids,
+        guild_ids=q.guild_ids,
+        property_value_conditions=q.property_value_conditions,
+        property_definitions=q.property_definitions,
+        include_archived=include_archived,
+        page=1,
+        page_size=0,
+        sort_fields=q.sort_fields,
+        tz=q.tz,
+        start_after=start_after,
+        start_before=start_before,
+    )
+    return items
 
 
 @router.get("/", response_model=TaskListResponse)
