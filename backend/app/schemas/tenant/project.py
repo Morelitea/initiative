@@ -11,6 +11,7 @@ from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.initiative import InitiativeRead
 from app.schemas.tenant.document import ProjectDocumentSummary
 from app.schemas.tenant.tag import TagSummary
+from app.schemas.tenant.task_status import TaskStatusRead
 from app.schemas.platform.user import UserPublic
 from app.schemas.tenant.comment import CommentAuthor
 
@@ -75,6 +76,16 @@ class ProjectRead(ProjectBase):
     last_viewed_at: Optional[datetime] = None
     documents: List[ProjectDocumentSummary] = Field(default_factory=list)
     task_summary: ProjectTaskSummary = Field(default_factory=ProjectTaskSummary)
+    # The project's task statuses (ordered by position). Populated on the
+    # single-project detail read and mutation responses so a caller has the
+    # status ids it needs to place or move a task; left empty in list
+    # projections, which stay lean. The ``validation_alias`` (an attribute the
+    # ORM row never has) stops ``model_validate(project)`` from auto-pulling the
+    # relationship — which would lazy-load and fail on the paths that don't
+    # eager-load it; the value is set explicitly in ``_build_project_payload``.
+    task_statuses: List[TaskStatusRead] = Field(
+        default_factory=list, validation_alias="task_statuses_source"
+    )
     tags: List[TagSummary] = Field(default_factory=list)
     # The current user's effective level on this resource (what *I* can do).
     my_permission_level: Optional[str] = None

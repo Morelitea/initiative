@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - The new-task dialog now matches the task editor: both are built on a single shared task form, so creating a task exposes the same fields as editing one. You can now set the **status**, attach **tags**, and fill in **custom properties** while creating a task — all saved in the single create request instead of only becoming available after the task exists.
+- The single-project read (`GET /projects/{id}`) now includes the project's `task_statuses` (ordered by position), so a client has the status ids it needs to place or move a task without a second call or hunting through existing tasks. List responses stay lean and omit them. The MCP server also exposes the existing per-project task-status listing as a read tool.
 
 ### Changed
 

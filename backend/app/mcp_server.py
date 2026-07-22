@@ -35,7 +35,10 @@ if TYPE_CHECKING:
     from fastapi import FastAPI
 
 # Read surface: every GET route carrying these FastAPI tags becomes a tool.
-READ_TAGS = ("projects", "tasks", "initiatives")
+# ``task-statuses`` exposes only its GET (list a project's statuses) — its
+# POST/PATCH/reorder routes aren't in the write allow-list, so they stay
+# excluded — giving a caller the status ids needed to place or move a task.
+READ_TAGS = ("projects", "tasks", "initiatives", "task-statuses")
 
 # Curated safe writes: an explicit allow-list matched by exact path *shape* so
 # only these four mutations are exposed — create a task (``POST /tasks/``), edit a

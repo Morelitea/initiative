@@ -3,6 +3,7 @@ from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import and_, case, func
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -74,6 +75,7 @@ from app.schemas.tenant.project import (
     ProjectActivityEntry,
     ProjectActivityResponse,
 )
+from app.schemas.tenant.task_status import TaskStatusRead
 from app.schemas.platform.user import UserSummary, UserSummaryListResponse
 from app.schemas.tenant.comment import CommentAuthor
 from app.schemas.tenant.initiative import (
@@ -205,6 +207,7 @@ async def _get_project_or_404(
                 selectinload(Document.initiative).selectinload(Initiative.memberships),
             ),
             selectinload(Project.tag_links).selectinload(ProjectTag.tag),
+            selectinload(Project.task_statuses),
         )
     )
     if populate_existing:
@@ -715,6 +718,20 @@ async def _projects_by_ids(
     return {project.id: project for project in projects if project.id is not None}
 
 
+def _project_task_statuses(project: Project) -> List[TaskStatusRead]:
+    """Serialize the project's task statuses (ordered by position).
+
+    Returns an empty list when the relationship wasn't eager-loaded — the slim
+    and list projections don't load it, so this must never trigger a lazy load
+    on the async session (which would raise). Detail reads load it via
+    ``_get_project_or_404``.
+    """
+    if "task_statuses" in sa_inspect(project).unloaded:
+        return []
+    statuses = sorted(project.task_statuses, key=lambda s: (s.position, s.id or 0))
+    return [TaskStatusRead.model_validate(status) for status in statuses]
+
+
 def _build_project_payload(
     project: Project,
     *,
@@ -738,6 +755,7 @@ def _build_project_payload(
             "last_viewed_at": view_map.get(project_id),
             "documents": _project_documents(project, user_id=user_id),
             "task_summary": summary,
+            "task_statuses": _project_task_statuses(project),
             "tags": tags_service.tag_summaries(project.tag_links),
             "grants": permissions_service.serialize_grants(project),
             "my_permission_level": my_permission_level,
