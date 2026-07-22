@@ -20,11 +20,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.guild import GuildRole
 from app.models.tenant.document import Document, DocumentType, ProjectDocument
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.models.tenant.task import TaskStatusCategory
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
     create_initiative,
     create_project,
+    create_task_status,
 )
 
 
@@ -444,6 +446,53 @@ async def test_get_project_by_id(
     data = response.json()
     assert data["id"] == project.id
     assert data["name"] == project.name
+
+
+@pytest.mark.integration
+async def test_get_project_includes_task_statuses(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The detail read carries the project's task statuses, ordered by position."""
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    project = await create_project(session, admin.initiative, admin.user)
+    done = await create_task_status(
+        session, project, name="Done", category=TaskStatusCategory.done, position=1
+    )
+    backlog = await create_task_status(
+        session,
+        project,
+        name="Backlog",
+        category=TaskStatusCategory.backlog,
+        position=0,
+    )
+
+    response = await client.get(
+        admin.g(f"/projects/{project.id}"), headers=admin.headers
+    )
+
+    assert response.status_code == 200
+    statuses = response.json()["task_statuses"]
+    # Ordered by position: backlog (0) before done (1).
+    assert [s["id"] for s in statuses] == [backlog.id, done.id]
+    assert [s["category"] for s in statuses] == ["backlog", "done"]
+
+
+@pytest.mark.integration
+async def test_list_projects_omits_task_statuses(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The list projection stays lean — statuses are a detail-read enrichment."""
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    project = await create_project(session, admin.initiative, admin.user)
+    await create_task_status(
+        session, project, name="Done", category=TaskStatusCategory.done
+    )
+
+    response = await client.get(admin.g("/projects/"), headers=admin.headers)
+
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert items and all(item["task_statuses"] == [] for item in items)
 
 
 @pytest.mark.integration

@@ -2450,6 +2450,7 @@ export interface ProjectRead {
   last_viewed_at: string | null;
   documents: ProjectDocumentSummary[];
   task_summary: ProjectTaskSummary;
+  task_statuses: TaskStatusRead[];
   tags: TagSummary[];
   my_permission_level: string | null;
   grants: ResourceGrantSchema[];
