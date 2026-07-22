@@ -1,12 +1,11 @@
 import { Link } from "@tanstack/react-router";
-import { formatDistanceToNow } from "date-fns";
 import { ChevronDown, ChevronRight, FileText, Link2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { useDateLocale } from "@/hooks/useDateLocale";
+import { RelativeTime } from "@/components/ui/relative-time";
 import { useDocumentBacklinks } from "@/hooks/useDocuments";
 import { useGuildPath } from "@/lib/guildUrl";
 
@@ -16,7 +15,6 @@ interface DocumentBacklinksProps {
 
 export function DocumentBacklinks({ documentId }: DocumentBacklinksProps) {
   const { t } = useTranslation("documents");
-  const dateLocale = useDateLocale();
   const [isOpen, setIsOpen] = useState(true);
   const gp = useGuildPath();
 
@@ -67,12 +65,10 @@ export function DocumentBacklinks({ documentId }: DocumentBacklinksProps) {
                   <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <div className="flex-1 truncate">
                     <span className="text-sm group-hover:underline">{backlink.title}</span>
-                    <span className="ml-2 text-muted-foreground text-xs">
-                      {formatDistanceToNow(new Date(backlink.updated_at), {
-                        addSuffix: true,
-                        locale: dateLocale,
-                      })}
-                    </span>
+                    <RelativeTime
+                      date={backlink.updated_at}
+                      className="ml-2 text-muted-foreground text-xs"
+                    />
                   </div>
                 </Link>
               </li>

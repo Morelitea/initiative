@@ -1,8 +1,9 @@
-import { formatDistance, isPast } from "date-fns";
+import { formatDistance } from "date-fns";
 import { memo, useMemo } from "react";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useDateLocale } from "@/hooks/useDateLocale";
+import { useLiveClockValue } from "@/hooks/useRelativeTime";
 
 type DateCellProps = {
   date: string | null | undefined;
@@ -11,21 +12,36 @@ type DateCellProps = {
 };
 
 /**
- * Memoized date cell to avoid re-computing formatDistance on every render
+ * Memoized date cell for task tables. The relative label and its past-due
+ * styling both refresh in place as time passes (via the shared clock in
+ * `useLiveClockValue`) without a page reload, while the absolute tooltip date is
+ * memoized since it never changes.
  */
 export const DateCell = memo(({ date, isPastVariant, isDone }: DateCellProps) => {
   const dateLocale = useDateLocale();
-  const dateObj = useMemo(() => (date ? new Date(date) : null), [date]);
-  const isPastDate = useMemo(() => (dateObj ? isPast(dateObj) : false), [dateObj]);
-  const relativeDate = useMemo(
-    () =>
-      dateObj ? formatDistance(dateObj, new Date(), { addSuffix: true, locale: dateLocale }) : null,
-    [dateObj, dateLocale]
-  );
+  const time = useMemo(() => {
+    if (!date) {
+      return null;
+    }
+    const parsed = new Date(date).getTime();
+    return Number.isNaN(parsed) ? null : parsed;
+  }, [date]);
+
+  // A single snapshot string encodes both the label and whether the date is in
+  // the past, so the cell re-renders exactly when either changes (and never when
+  // neither does). "1|2 minutes ago" → past, "0|in 3 days" → future.
+  const snapshot = useLiveClockValue((now) => {
+    if (time == null) {
+      return null;
+    }
+    const relative = formatDistance(time, now, { addSuffix: true, locale: dateLocale });
+    return `${time < now ? "1" : "0"}|${relative}`;
+  });
+
   const formattedDate = useMemo(
     () =>
-      dateObj
-        ? dateObj.toLocaleString(dateLocale.code, {
+      time != null
+        ? new Date(time).toLocaleString(dateLocale.code, {
             weekday: "long",
             year: "numeric",
             month: "long",
@@ -34,12 +50,15 @@ export const DateCell = memo(({ date, isPastVariant, isDone }: DateCellProps) =>
             minute: "2-digit",
           })
         : null,
-    [dateObj, dateLocale]
+    [time, dateLocale]
   );
 
-  if (!relativeDate) {
+  if (snapshot == null) {
     return <span className="text-muted-foreground">—</span>;
   }
+
+  const isPastDate = snapshot[0] === "1";
+  const relativeDate = snapshot.slice(2);
 
   const className = (() => {
     if (!isPastDate || !isPastVariant) {

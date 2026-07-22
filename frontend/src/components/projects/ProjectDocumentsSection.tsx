@@ -1,4 +1,3 @@
-import { formatDistanceToNow } from "date-fns";
 import { ChevronDown, ChevronUp, FilePlus, Link, Loader2, Unlink } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -29,9 +28,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useDateLocale } from "@/hooks/useDateLocale";
 import { useDocumentAutocomplete, useDocumentsList } from "@/hooks/useDocuments";
 import { useAttachProjectDocument, useDetachProjectDocument } from "@/hooks/useProjects";
+import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { toast } from "@/lib/chesterToast";
 import { MAX_DOCUMENT_IDS } from "@/lib/documentUtils";
 import { getItem, setItem } from "@/lib/storage";
@@ -44,6 +43,17 @@ type ProjectDocumentsSectionProps = {
   canAttach: boolean;
 };
 
+/**
+ * Live "Attached N ago" label for one attached document. A component (not an
+ * inline hook) so `useRelativeTime` can run per row inside the documents map.
+ * `addSuffix` is off because the "ago" wording lives in the translation string.
+ */
+const AttachedDocumentTime = ({ attachedAt }: { attachedAt: string }) => {
+  const { t } = useTranslation("projects");
+  const relative = useRelativeTime(attachedAt, { addSuffix: false });
+  return <>{t("documents.attachedAgo", { time: relative })}</>;
+};
+
 export const ProjectDocumentsSection = ({
   projectId,
   initiativeId,
@@ -52,7 +62,6 @@ export const ProjectDocumentsSection = ({
   canAttach,
 }: ProjectDocumentsSectionProps) => {
   const { t } = useTranslation("projects");
-  const dateLocale = useDateLocale();
   const guildId = useActiveGuildId();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -265,11 +274,7 @@ export const ProjectDocumentsSection = ({
                         ) : null}
                       </div>
                       <div className="text-muted-foreground text-xs">
-                        {t("documents.attachedAgo", {
-                          time: formatDistanceToNow(new Date(doc.attached_at), {
-                            locale: dateLocale,
-                          }),
-                        })}
+                        <AttachedDocumentTime attachedAt={doc.attached_at} />
                       </div>
                     </div>
                   </CarouselItem>

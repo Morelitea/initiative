@@ -1,5 +1,4 @@
 import { Link, useParams, useRouter } from "@tanstack/react-router";
-import { formatDistanceToNow } from "date-fns";
 import { Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -20,7 +19,6 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
-import { useDateLocale } from "@/hooks/useDateLocale";
 import {
   useCopyDocumentToInitiative,
   useDeleteDocument,
@@ -30,6 +28,7 @@ import {
   useUpdateDocument,
 } from "@/hooks/useDocuments";
 import { useInitiatives } from "@/hooks/useInitiatives";
+import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { useSetToolTags } from "@/hooks/useToolTags";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -39,7 +38,6 @@ import { Capability, hasCapability } from "@/lib/permissions";
 
 export const DocumentSettingsPage = () => {
   const { t } = useTranslation(["documents", "common"]);
-  const dateLocale = useDateLocale();
   const { documentId } = useParams({ strict: false }) as { documentId: string };
   const parsedId = Number(documentId);
   const router = useRouter();
@@ -61,6 +59,7 @@ export const DocumentSettingsPage = () => {
   const documentQuery = useDocument(Number.isFinite(parsedId) ? parsedId : null);
 
   const document = documentQuery.data;
+  const relativeUpdatedAt = useRelativeTime(document?.updated_at);
 
   const initiativesQuery = useInitiatives({ enabled: Boolean(document) && Boolean(user) });
 
@@ -264,14 +263,7 @@ export const DocumentSettingsPage = () => {
         </div>
         <div className="flex flex-col items-end gap-2 text-right text-muted-foreground text-sm">
           <p className="font-medium">{document.title}</p>
-          <p>
-            {t("detail.updated", {
-              date: formatDistanceToNow(new Date(document.updated_at), {
-                addSuffix: true,
-                locale: dateLocale,
-              }),
-            })}
-          </p>
+          <p>{t("detail.updated", { date: relativeUpdatedAt })}</p>
           {document.initiative ? (
             <span className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs">
               <InitiativeColorDot color={document.initiative.color} />

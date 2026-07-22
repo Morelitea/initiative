@@ -1,7 +1,6 @@
 import { keepPreviousData } from "@tanstack/react-query";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
-import { formatDistanceToNow } from "date-fns";
 import { ChevronDown, Filter, Loader2, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -20,7 +19,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
-import { useDateLocale } from "@/hooks/useDateLocale";
+import { RelativeTime } from "@/components/ui/relative-time";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useGlobalProjects, usePrefetchGlobalProjects } from "@/hooks/useProjects";
 import { useViewPreference } from "@/hooks/useViewPreference";
@@ -75,7 +74,6 @@ export const MyProjectsPage = () => {
   const { t } = useTranslation(["projects", "common"]);
   const { guilds } = useGuilds();
   const prefetchGlobalProjects = usePrefetchGlobalProjects();
-  const dateLocale = useDateLocale();
   const router = useRouter();
   const searchParams = useSearch({ strict: false }) as { page?: number };
   const searchParamsRef = useRef(searchParams);
@@ -357,15 +355,11 @@ export const MyProjectsPage = () => {
           if (!updatedAt) {
             return <span className="text-muted-foreground text-sm">&mdash;</span>;
           }
-          return (
-            <span className="text-muted-foreground text-sm">
-              {formatDistanceToNow(new Date(updatedAt), { addSuffix: true, locale: dateLocale })}
-            </span>
-          );
+          return <RelativeTime date={updatedAt} className="text-muted-foreground text-sm" />;
         },
       },
     ],
-    [t, getGuildName, getProjectGuildId, dateLocale]
+    [t, getGuildName, getProjectGuildId]
   );
 
   // Responsive filter collapsible

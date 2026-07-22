@@ -1,5 +1,4 @@
 import { Link } from "@tanstack/react-router";
-import { formatDistanceToNow, parseISO } from "date-fns";
 import { MessageSquare } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -7,6 +6,7 @@ import type { RecentActivityEntry } from "@/api/generated/initiativeAPI.schemas"
 import { CommentContent } from "@/components/comments/CommentContent";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { RelativeTime } from "@/components/ui/relative-time";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGuildPath } from "@/lib/guildUrl";
 import { getInitials } from "@/lib/initials";
@@ -89,9 +89,10 @@ export function RecentCommentsList({ comments, isLoading }: RecentCommentsListPr
                       <span className="truncate font-medium text-sm">
                         {getUserDisplayName(entry.author, "Unknown")}
                       </span>
-                      <span className="shrink-0 text-muted-foreground text-xs">
-                        {formatDistanceToNow(parseISO(entry.created_at), { addSuffix: true })}
-                      </span>
+                      <RelativeTime
+                        date={entry.created_at}
+                        className="shrink-0 text-muted-foreground text-xs"
+                      />
                     </div>
                     {contextParts.length > 0 && (
                       <p className="truncate text-muted-foreground text-xs">

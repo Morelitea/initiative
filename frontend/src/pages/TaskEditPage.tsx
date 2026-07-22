@@ -1,5 +1,5 @@
 import { Link, useBlocker, useParams, useRouter } from "@tanstack/react-router";
-import { format, formatDistanceToNow } from "date-fns";
+import { format } from "date-fns";
 import {
   AlertCircle,
   Archive,
@@ -60,6 +60,7 @@ import { useComments } from "@/hooks/useComments";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useProject, useProjectTaskStatuses, useWritableProjects } from "@/hooks/useProjects";
+import { useRelativeTime } from "@/hooks/useRelativeTime";
 import {
   useDeleteTask,
   useDuplicateTask,
@@ -402,24 +403,13 @@ export const TaskEditPage = () => {
     };
   }, [task?.created_at, task?.created_by_id, creator]);
 
-  // Tick once a minute so the "N ago" label stays fresh while the page is
-  // open — ``formatDistanceToNow`` reads ``Date.now()`` at call time, so a
-  // bare state update is enough to re-render with a current value.
-  const [, setRelativeTick] = useState(0);
-  useEffect(() => {
-    if (!creationContext) return;
-    const id = setInterval(() => setRelativeTick((n) => n + 1), 60_000);
-    return () => clearInterval(id);
-  }, [creationContext]);
-
-  // Computed each render (cheap) so the tick above actually shows up.
+  // The relative "N ago" label refreshes in place via the shared clock; the
+  // absolute date never changes so it's formatted inline.
+  const relativeCreatedAt = useRelativeTime(creationContext?.createdAt);
   const creationMeta = creationContext
     ? {
         ...creationContext,
-        relative: formatDistanceToNow(creationContext.createdAt, {
-          addSuffix: true,
-          locale: dateLocale,
-        }),
+        relative: relativeCreatedAt,
         absolute: format(creationContext.createdAt, "PPpp", { locale: dateLocale }),
       }
     : null;
