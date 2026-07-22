@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The in-app MCP server now strips base64 image blobs (avatar and guild-icon data URIs) from every tool result. These `*_base64` fields carried no information an MCP client could act on yet often dwarfed the rest of a payload — a single guild icon was frequently larger than an entire task read — so filtering them out reclaims that context for the fields that matter.
 - Relative timestamps across the app (e.g. "2 minutes ago" on task start/due dates, document cards and detail pages, comments, project activity, trash, import/export jobs, and the My Projects / My Documents lists) now refresh in place as time passes, instead of only updating on a page reload. A single shared clock drives every label, and each one re-renders only when its displayed text actually changes, so even large tables stay fast.
 
 ## [0.58.0] - 2026-07-21
