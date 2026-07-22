@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.58.1] - 2026-07-22
+
 ### Added
 
 - The new-task dialog now matches the task editor: both are built on a single shared task form, so creating a task exposes the same fields as editing one. You can now set the **status**, attach **tags**, and fill in **custom properties** while creating a task — all saved in the single create request instead of only becoming available after the task exists.
