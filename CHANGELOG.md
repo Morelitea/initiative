@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The new-task dialog now matches the task editor: both are built on a single shared task form, so creating a task exposes the same fields as editing one. You can now set the **status**, attach **tags**, and fill in **custom properties** while creating a task — all saved in the single create request instead of only becoming available after the task exists.
+
+### Changed
+
+- In the task editor, tags and custom properties now save with the rest of the form when you click **Save** (previously they saved immediately on change). The editor warns before you navigate away with unsaved changes, and the new-task dialog no longer closes if you click outside it (use Escape or Cancel).
+
 ## [0.58.0] - 2026-07-21
 
 ### Security

@@ -112,7 +112,11 @@
     "descriptionGenerated": "Descripción generada",
     "generateDescriptionError": "No se pudo generar la descripción",
     "commentsError": "No se pudieron cargar los comentarios en este momento.",
-    "taskStatusRequired": "El estado de la tarea es obligatorio"
+    "taskStatusRequired": "El estado de la tarea es obligatorio",
+    "unsavedTitle": "¿Descartar los cambios sin guardar?",
+    "unsavedBody": "Tienes cambios sin guardar en esta tarea. Si sales ahora, se perderán.",
+    "unsavedLeave": "Salir",
+    "unsavedStay": "Quedarme"
   },
   "myTasks": {
     "title": "Mis tareas",
@@ -251,5 +255,21 @@
     "selected_other": "{{count}} tareas seleccionadas",
     "editTags": "Editar etiquetas",
     "archiving": "Archivando…"
+  },
+  "taskForm": {
+    "titleLabel": "Título",
+    "titlePlaceholder": "Título de la tarea",
+    "descriptionLabel": "Descripción",
+    "descriptionPlaceholder": "Añade más detalles (opcional)",
+    "advancedDetails": "Detalles avanzados",
+    "statusLabel": "Estado",
+    "selectStatus": "Seleccionar estado",
+    "priorityLabel": "Prioridad",
+    "assigneesLabel": "Asignados",
+    "assigneesEmptyMessage": "No se encontraron miembros",
+    "startDateLabel": "Fecha de inicio",
+    "dueDateLabel": "Fecha de vencimiento",
+    "tagsLabel": "Etiquetas",
+    "tagsPlaceholder": "Añadir etiquetas"
   }
 }

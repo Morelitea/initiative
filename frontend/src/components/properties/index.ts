@@ -1,5 +1,7 @@
 export type { AddPropertyButtonProps } from "./AddPropertyButton";
 export { AddPropertyButton } from "./AddPropertyButton";
+export type { PropertyFieldsProps } from "./PropertyFields";
+export { PropertyFields, propertyStubFromDefinition } from "./PropertyFields";
 export type { PropertyFilterCondition, PropertyFilterProps } from "./PropertyFilter";
 export { opsForType, PropertyFilter } from "./PropertyFilter";
 export type { PropertyInputProps } from "./PropertyInput";

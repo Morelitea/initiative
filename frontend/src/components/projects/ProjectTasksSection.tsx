@@ -26,9 +26,6 @@ import type {
   FilterCondition,
   ListTasksApiV1GGuildIdTasksGetParams,
   TaskListRead,
-  TaskListReadRecurrenceStrategy,
-  TaskPriority,
-  TaskRecurrenceOutput,
   TaskReorderRequest,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -58,6 +55,7 @@ import { BulkEditTaskTagsDialog } from "@/components/tasks/BulkEditTaskTagsDialo
 import { ExportTasksButton } from "@/components/tasks/ExportTasksButton";
 import { TaskBulkEditDialog } from "@/components/tasks/TaskBulkEditDialog";
 import { TaskBulkEditPanel } from "@/components/tasks/TaskBulkEditPanel";
+import { emptyTaskFormValue, type TaskFormValue } from "@/components/tasks/TaskForm";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -209,15 +207,11 @@ export const ProjectTasksSection = ({
       return a.position - b.position;
     });
   }, [taskStatuses]);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [priority, setPriority] = useState<TaskPriority>("medium");
-  const [assigneeIds, setAssigneeIds] = useState<number[]>([]);
-  const [startDate, setStartDate] = useState<string>("");
-  const [dueDate, setDueDate] = useState<string>("");
-  const [recurrence, setRecurrence] = useState<TaskRecurrenceOutput | null>(null);
-  const [recurrenceStrategy, setRecurrenceStrategy] =
-    useState<TaskListReadRecurrenceStrategy>("fixed");
+  // Single source of truth for the aligned create dialog's fields (title,
+  // description, status, priority, assignees, dates, recurrence, tags, and
+  // custom properties). TaskForm mutates it via onChange; submit batches it
+  // all into one create POST.
+  const [composerValue, setComposerValue] = useState<TaskFormValue>(() => emptyTaskFormValue());
   const filterStorageKey = `project:${projectId}:view-filters`;
   const [storedFilters, setStoredFilters, { isLoaded: filtersLoaded }] =
     useViewPreference<StoredFilters>(filterStorageKey, DEFAULT_FILTERS);
@@ -445,19 +439,22 @@ export const ProjectTasksSection = ({
 
   const createTask = useCreateTask({
     onSuccess: (newTask) => {
-      setTitle("");
-      setDescription("");
-      setPriority("medium");
-      setAssigneeIds([]);
-      setStartDate("");
-      setDueDate("");
-      setRecurrence(null);
-      setRecurrenceStrategy("fixed");
+      setComposerValue(emptyTaskFormValue({ statusId: defaultStatusId }));
       setIsComposerOpen(false);
       setLocalOverride((prev) => [...(prev ?? projectTasks), newTask]);
       toast.success(t("tasks.taskCreated"));
     },
   });
+
+  // Seed the composer's status from the project default whenever it opens so
+  // the user starts at the default but can override it.
+  useEffect(() => {
+    if (isComposerOpen) {
+      setComposerValue((prev) =>
+        prev.statusId == null ? { ...prev, statusId: defaultStatusId } : prev
+      );
+    }
+  }, [isComposerOpen, defaultStatusId]);
 
   // Patch the locally-overridden task list with a server-confirmed update so
   // the board/calendar reflects it immediately (and drop the task if it no
@@ -1085,46 +1082,47 @@ export const ProjectTasksSection = ({
         <>
           <Dialog open={isComposerOpen} onOpenChange={setIsComposerOpen}>
             <ProjectTaskComposer
-              title={title}
-              description={description}
-              priority={priority}
-              assigneeIds={assigneeIds}
-              startDate={startDate}
-              dueDate={dueDate}
-              recurrence={recurrence}
-              recurrenceStrategy={recurrenceStrategy}
               canWrite={canWriteProject}
               isArchived={projectIsArchived}
               isSubmitting={createTask.isPending}
               hasError={Boolean(createTask.isError)}
-              projectId={projectId}
-              onTitleChange={setTitle}
-              onDescriptionChange={setDescription}
-              onPriorityChange={setPriority}
-              onAssigneesChange={setAssigneeIds}
-              onStartDateChange={setStartDate}
-              onDueDateChange={setDueDate}
-              onRecurrenceChange={setRecurrence}
-              onRecurrenceStrategyChange={setRecurrenceStrategy}
+              form={{
+                value: composerValue,
+                onChange: setComposerValue,
+                statuses: sortedTaskStatuses,
+                projectId,
+                initiativeId,
+                currentUserId: user?.id,
+                autoFocusTitle: true,
+              }}
               onSubmit={() => {
-                if (!defaultStatusId) {
+                const selectedStatusId = composerValue.statusId ?? defaultStatusId;
+                if (!selectedStatusId) {
                   toast.error(t("tasks.createError"));
                   return;
                 }
                 const payload: Record<string, unknown> = {
                   project_id: projectId,
-                  title,
-                  description,
-                  priority,
-                  assignee_ids: assigneeIds,
-                  start_date: startDate ? new Date(startDate).toISOString() : null,
-                  due_date: dueDate ? new Date(dueDate).toISOString() : null,
-                  recurrence: recurrence,
-                  task_status_id: defaultStatusId,
+                  title: composerValue.title,
+                  description: composerValue.description,
+                  priority: composerValue.priority,
+                  assignee_ids: composerValue.assigneeIds,
+                  start_date: composerValue.startDate
+                    ? new Date(composerValue.startDate).toISOString()
+                    : null,
+                  due_date: composerValue.dueDate
+                    ? new Date(composerValue.dueDate).toISOString()
+                    : null,
+                  task_status_id: selectedStatusId,
+                  tag_ids: composerValue.tags.map((tg) => tg.id),
+                  property_values: composerValue.properties.map((property) => ({
+                    property_id: property.property_id,
+                    value: composerValue.propertyValues[property.property_id] ?? null,
+                  })),
                 };
-                if (recurrence) {
-                  payload.recurrence = recurrence;
-                  payload.recurrence_strategy = recurrenceStrategy;
+                if (composerValue.recurrence) {
+                  payload.recurrence = composerValue.recurrence;
+                  payload.recurrence_strategy = composerValue.recurrenceStrategy;
                 } else {
                   payload.recurrence = null;
                   payload.recurrence_strategy = "fixed";
@@ -1132,7 +1130,6 @@ export const ProjectTasksSection = ({
                 createTask.mutate(payload as never);
               }}
               onCancel={() => setIsComposerOpen(false)}
-              autoFocusTitle
             />
           </Dialog>
           <Dialog open={isBulkEditDialogOpen} onOpenChange={setIsBulkEditDialogOpen}>
