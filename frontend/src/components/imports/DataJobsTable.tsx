@@ -1,4 +1,3 @@
-import { formatDistanceToNow } from "date-fns";
 import { Download, FileText, Loader2, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -14,6 +13,7 @@ import { ImportReport } from "@/components/imports/ImportReport";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { RelativeTime } from "@/components/ui/relative-time";
 import {
   Table,
   TableBody,
@@ -23,7 +23,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useDateLocale } from "@/hooks/useDateLocale";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { downloadExportArtifact } from "@/lib/exportDownload";
@@ -68,7 +67,6 @@ function exportDisplayStatus(job: ExportJobRead): string {
 export function DataJobsTable() {
   const { t } = useTranslation(["imports", "exports"]);
   const guildId = useActiveGuildId();
-  const dateLocale = useDateLocale();
   const [reportJob, setReportJob] = useState<ImportJobRead | null>(null);
 
   const exportsQuery = useListExportJobsApiV1GGuildIdExportsGet(guildId, {
@@ -176,10 +174,7 @@ export function DataJobsTable() {
                   </Badge>
                 </TableCell>
                 <TableCell className="hidden text-muted-foreground text-sm sm:table-cell">
-                  {formatDistanceToNow(new Date(row.job.created_at), {
-                    addSuffix: true,
-                    locale: dateLocale,
-                  })}
+                  <RelativeTime date={row.job.created_at} />
                 </TableCell>
                 <TableCell className="text-right">
                   {row.direction === "export" && status === "done" && (

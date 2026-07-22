@@ -1,5 +1,4 @@
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
-import { formatDistanceToNow } from "date-fns";
 import type { SerializedEditorState } from "lexical";
 import {
   ChevronDown,
@@ -107,9 +106,9 @@ import { Label } from "@/components/ui/label";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useAuth } from "@/hooks/useAuth";
 import { useCollaboration } from "@/hooks/useCollaboration";
-import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { uploadAttachment } from "@/lib/attachmentUtils";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -120,9 +119,18 @@ import { resolveHeaderlessApiUrl, resolveUploadUrl } from "@/lib/uploadUrl";
 import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 
+/**
+ * Live "Attached N ago" label for one attached-project row. A component (not an
+ * inline hook) so `useRelativeTime` can run per row inside the projects map.
+ */
+const AttachedProjectTime = ({ attachedAt }: { attachedAt: string }) => {
+  const { t } = useTranslation("documents");
+  const relative = useRelativeTime(attachedAt);
+  return <>{t("detail.attached", { date: relative })}</>;
+};
+
 export const DocumentDetailPage = () => {
   const { t } = useTranslation(["documents", "properties", "common"]);
-  const dateLocale = useDateLocale();
   const { guildId: guildIdParam, documentId } = useParams({ strict: false }) as {
     guildId: string;
     documentId: string;
@@ -235,6 +243,7 @@ export const DocumentDetailPage = () => {
   });
 
   const document = documentQuery.data;
+  const relativeUpdatedAt = useRelativeTime(document?.updated_at);
 
   // Track recently viewed documents so the layout header tabs bar can surface
   // them. Mirrors the pattern in ProjectDetailPage.
@@ -1151,14 +1160,7 @@ export const DocumentDetailPage = () => {
               {document.initiative.name}
             </Link>
           ) : null}
-          <span>
-            {t("detail.updated", {
-              date: formatDistanceToNow(new Date(document.updated_at), {
-                addSuffix: true,
-                locale: dateLocale,
-              }),
-            })}
-          </span>
+          <span>{t("detail.updated", { date: relativeUpdatedAt })}</span>
           {document.is_template ? <Badge variant="outline">{t("detail.template")}</Badge> : null}
         </div>
       </div>
@@ -1552,12 +1554,7 @@ export const DocumentDetailPage = () => {
                         {link.project_name ?? t("detail.projectFallback", { id: link.project_id })}
                       </Link>
                       <p className="text-muted-foreground text-xs">
-                        {t("detail.attached", {
-                          date: formatDistanceToNow(new Date(link.attached_at), {
-                            addSuffix: true,
-                            locale: dateLocale,
-                          }),
-                        })}
+                        <AttachedProjectTime attachedAt={link.attached_at} />
                       </p>
                     </div>
                   </div>

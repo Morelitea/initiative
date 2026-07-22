@@ -1,5 +1,4 @@
 import { Link } from "@tanstack/react-router";
-import { formatDistanceToNow } from "date-fns";
 import { useTranslation } from "react-i18next";
 
 import type { DocumentSummary } from "@/api/generated/initiativeAPI.schemas";
@@ -8,7 +7,7 @@ import { nonEmptyPropertySummaries } from "@/components/properties/propertyHelpe
 import { TagBadge } from "@/components/tags/TagBadge";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useDateLocale } from "@/hooks/useDateLocale";
+import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { getDocumentIcon, getDocumentIconColor, getFileTypeLabel } from "@/lib/fileUtils";
 import { useGuildPath } from "@/lib/guildUrl";
 import { matchSmartLinkProvider } from "@/lib/smartLinkProviders";
@@ -22,7 +21,7 @@ interface DocumentCardProps {
 
 export const DocumentCard = ({ document, className }: DocumentCardProps) => {
   const { t } = useTranslation("documents");
-  const dateLocale = useDateLocale();
+  const relativeUpdatedAt = useRelativeTime(document.updated_at);
   const gp = useGuildPath();
   const projectCount = document.projects.length;
   const commentCount = document.comment_count ?? 0;
@@ -115,12 +114,7 @@ export const DocumentCard = ({ document, className }: DocumentCardProps) => {
             </TooltipProvider>
           </div>
           <p className="text-muted-foreground text-xs">
-            {t("card.updated", {
-              date: formatDistanceToNow(new Date(document.updated_at), {
-                addSuffix: true,
-                locale: dateLocale,
-              }),
-            })}
+            {t("card.updated", { date: relativeUpdatedAt })}
           </p>
           {document.tags && document.tags.length > 0 ? (
             <div className="flex flex-wrap gap-1">

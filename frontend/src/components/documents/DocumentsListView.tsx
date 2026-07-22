@@ -1,6 +1,5 @@
 import { Link } from "@tanstack/react-router";
 import type { ColumnDef, PaginationState, SortingState } from "@tanstack/react-table";
-import { formatDistanceToNow } from "date-fns";
 import { FileSpreadsheet, FileText, Presentation } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -13,7 +12,7 @@ import { TagBadge } from "@/components/tags/TagBadge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
-import { useDateLocale } from "@/hooks/useDateLocale";
+import { RelativeTime } from "@/components/ui/relative-time";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
 import { useProperties } from "@/hooks/useProperties";
 import { getFileTypeLabel } from "@/lib/fileUtils";
@@ -97,7 +96,6 @@ export const DocumentsListView = ({
   onSortingChange,
 }: DocumentsListViewProps) => {
   const { t } = useTranslation(["documents", "common"]);
-  const dateLocale = useDateLocale();
 
   const { data: allPropertyDefinitions = [] } = useProperties();
   const propertyColumns = useMemo(
@@ -148,16 +146,11 @@ export const DocumentsListView = ({
             </div>
           );
         },
-        cell: ({ row }) => {
-          const updatedAt = new Date(row.original.updated_at);
-          return (
-            <div className="min-w-[100px] sm:min-w-0">
-              <span className="text-muted-foreground">
-                {formatDistanceToNow(updatedAt, { addSuffix: true, locale: dateLocale })}
-              </span>
-            </div>
-          );
-        },
+        cell: ({ row }) => (
+          <div className="min-w-[100px] sm:min-w-0">
+            <RelativeTime date={row.original.updated_at} className="text-muted-foreground" />
+          </div>
+        ),
         sortingFn: dateSortingFn,
       },
       {
@@ -225,7 +218,7 @@ export const DocumentsListView = ({
         },
       },
     ],
-    [t, dateLocale]
+    [t]
   );
 
   const columnsWithProperties = useMemo<ColumnDef<DocumentSummary>[]>(() => {
