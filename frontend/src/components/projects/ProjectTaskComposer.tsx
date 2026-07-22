@@ -17,6 +17,8 @@ interface ProjectTaskComposerProps {
   isArchived: boolean;
   isSubmitting: boolean;
   hasError: boolean;
+  /** When true, a backdrop click won't close the dialog (unsaved input). */
+  isDirty: boolean;
   onSubmit: () => void;
   onCancel?: () => void;
 }
@@ -27,6 +29,7 @@ export const ProjectTaskComposer = ({
   isArchived,
   isSubmitting,
   hasError,
+  isDirty,
   onSubmit,
   onCancel,
 }: ProjectTaskComposerProps) => {
@@ -39,9 +42,12 @@ export const ProjectTaskComposer = ({
   return (
     <DialogContent
       className="max-h-screen overflow-y-auto bg-card"
-      // Don't let an accidental backdrop click discard an in-progress task.
-      // Escape and the explicit Cancel button still close the dialog.
-      onInteractOutside={(event) => event.preventDefault()}
+      // Only block a backdrop click while there's unsaved input, so a stray
+      // click can't discard an in-progress task. When the form is untouched,
+      // clicking outside closes it as usual. Escape and Cancel always close.
+      onInteractOutside={(event) => {
+        if (isDirty) event.preventDefault();
+      }}
     >
       <DialogHeader>
         <DialogTitle>{t("taskComposer.title")}</DialogTitle>

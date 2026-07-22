@@ -55,7 +55,11 @@ import { BulkEditTaskTagsDialog } from "@/components/tasks/BulkEditTaskTagsDialo
 import { ExportTasksButton } from "@/components/tasks/ExportTasksButton";
 import { TaskBulkEditDialog } from "@/components/tasks/TaskBulkEditDialog";
 import { TaskBulkEditPanel } from "@/components/tasks/TaskBulkEditPanel";
-import { emptyTaskFormValue, type TaskFormValue } from "@/components/tasks/TaskForm";
+import {
+  emptyTaskFormValue,
+  serializeTaskFormValue,
+  type TaskFormValue,
+} from "@/components/tasks/TaskForm";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -455,6 +459,15 @@ export const ProjectTasksSection = ({
       );
     }
   }, [isComposerOpen, defaultStatusId]);
+
+  // Dirty = the composer differs from a fresh form seeded at the default
+  // status. Used to keep a backdrop click from discarding in-progress input.
+  const composerDirty = useMemo(
+    () =>
+      serializeTaskFormValue(composerValue) !==
+      serializeTaskFormValue(emptyTaskFormValue({ statusId: defaultStatusId })),
+    [composerValue, defaultStatusId]
+  );
 
   // Patch the locally-overridden task list with a server-confirmed update so
   // the board/calendar reflects it immediately (and drop the task if it no
@@ -1086,6 +1099,7 @@ export const ProjectTasksSection = ({
               isArchived={projectIsArchived}
               isSubmitting={createTask.isPending}
               hasError={Boolean(createTask.isError)}
+              isDirty={composerDirty}
               form={{
                 value: composerValue,
                 onChange: setComposerValue,

@@ -36,7 +36,7 @@ import { normalizePropertyValue } from "@/components/properties/PropertyFields";
 import { StatusMessage } from "@/components/StatusMessage";
 import { MoveTaskDialog } from "@/components/tasks/MoveTaskDialog";
 import { TaskChecklist } from "@/components/tasks/TaskChecklist";
-import { TaskForm, type TaskFormValue } from "@/components/tasks/TaskForm";
+import { serializeTaskFormValue, TaskForm, type TaskFormValue } from "@/components/tasks/TaskForm";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -133,26 +133,6 @@ const formValueFromTask = (task: TaskFormSource): TaskFormValue => ({
   properties: task.properties ?? [],
   propertyValues: seedPropertyValues(task.properties ?? []),
 });
-
-/** Order-stable projection of a form value for dirty comparison. */
-const serializeFormValue = (value: TaskFormValue): string =>
-  JSON.stringify({
-    title: value.title,
-    description: value.description,
-    statusId: value.statusId,
-    priority: value.priority,
-    assigneeIds: [...value.assigneeIds].sort((a, b) => a - b),
-    startDate: value.startDate,
-    dueDate: value.dueDate,
-    recurrence: value.recurrence,
-    recurrenceStrategy: value.recurrenceStrategy,
-    tags: value.tags.map((tag) => tag.id).sort((a, b) => a - b),
-    properties: value.properties.map((p) => p.property_id).sort((a, b) => a - b),
-    propertyValues: Object.keys(value.propertyValues)
-      .map(Number)
-      .sort((a, b) => a - b)
-      .map((id) => [id, value.propertyValues[id] ?? null]),
-  });
 
 type MoveTaskVariables = {
   targetProjectId: number;
@@ -253,7 +233,7 @@ export const TaskEditPage = () => {
       setTags(task.tags ?? []);
       setAttachedProperties(task.properties ?? []);
       setPropertyValues(seedPropertyValues(task.properties ?? []));
-      setSavedSnapshot(serializeFormValue(formValueFromTask(task)));
+      setSavedSnapshot(serializeTaskFormValue(formValueFromTask(task)));
     }
   }, [taskQuery.data]);
 
@@ -275,7 +255,7 @@ export const TaskEditPage = () => {
       setTags(updatedTask.tags ?? []);
       setAttachedProperties(updatedTask.properties ?? []);
       setPropertyValues(seedPropertyValues(updatedTask.properties ?? []));
-      setSavedSnapshot(serializeFormValue(formValueFromTask(updatedTask)));
+      setSavedSnapshot(serializeTaskFormValue(formValueFromTask(updatedTask)));
       toast.success(t("edit.taskUpdated"));
     },
   });
@@ -491,7 +471,7 @@ export const TaskEditPage = () => {
   // values against the last-saved snapshot. Computed from the individual
   // states + effective* fallbacks (kept before the early returns so the
   // guard hooks below run unconditionally).
-  const currentSnapshot = serializeFormValue({
+  const currentSnapshot = serializeTaskFormValue({
     title,
     description,
     statusId: statusId ?? task?.task_status_id ?? null,

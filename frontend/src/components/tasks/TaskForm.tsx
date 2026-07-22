@@ -55,6 +55,26 @@ export interface TaskFormValue {
   propertyValues: Record<number, unknown>;
 }
 
+/** Order-stable projection of a form value, for equality / dirty comparison. */
+export const serializeTaskFormValue = (value: TaskFormValue): string =>
+  JSON.stringify({
+    title: value.title,
+    description: value.description,
+    statusId: value.statusId,
+    priority: value.priority,
+    assigneeIds: [...value.assigneeIds].sort((a, b) => a - b),
+    startDate: value.startDate,
+    dueDate: value.dueDate,
+    recurrence: value.recurrence,
+    recurrenceStrategy: value.recurrenceStrategy,
+    tags: value.tags.map((tag) => tag.id).sort((a, b) => a - b),
+    properties: value.properties.map((p) => p.property_id).sort((a, b) => a - b),
+    propertyValues: Object.keys(value.propertyValues)
+      .map(Number)
+      .sort((a, b) => a - b)
+      .map((id) => [id, value.propertyValues[id] ?? null]),
+  });
+
 /** A blank value for a fresh task form. */
 export const emptyTaskFormValue = (overrides: Partial<TaskFormValue> = {}): TaskFormValue => ({
   title: "",
