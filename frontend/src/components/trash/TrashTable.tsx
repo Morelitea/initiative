@@ -1,4 +1,3 @@
-import { formatDistanceToNow } from "date-fns";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -10,6 +9,7 @@ import type {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { RelativeTime } from "@/components/ui/relative-time";
 import {
   Table,
   TableBody,
@@ -42,14 +42,6 @@ interface TrashTableProps {
   // would always 403.
   showPurgeAction: boolean;
 }
-
-const formatRelative = (iso: string): string => {
-  try {
-    return formatDistanceToNow(new Date(iso), { addSuffix: true });
-  } catch {
-    return iso;
-  }
-};
 
 export const TrashTable = ({ variant, showPurgeAction }: TrashTableProps) => {
   const { t } = useTranslation("trash");
@@ -175,10 +167,14 @@ export const TrashTable = ({ variant, showPurgeAction }: TrashTableProps) => {
                 <TableCell className="font-medium">{item.name || `#${item.entity_id}`}</TableCell>
                 <TableCell className="text-muted-foreground">{item.deleted_by_display}</TableCell>
                 <TableCell className="text-muted-foreground">
-                  {formatRelative(item.deleted_at)}
+                  <RelativeTime date={item.deleted_at} fallback={item.deleted_at} />
                 </TableCell>
                 <TableCell className="text-muted-foreground">
-                  {item.purge_at ? formatRelative(item.purge_at) : t("neverPurges")}
+                  {item.purge_at ? (
+                    <RelativeTime date={item.purge_at} fallback={item.purge_at} />
+                  ) : (
+                    t("neverPurges")
+                  )}
                 </TableCell>
                 <TableCell>
                   <div className="flex justify-end gap-2">

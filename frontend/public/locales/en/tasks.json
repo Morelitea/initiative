@@ -112,7 +112,11 @@
     "descriptionGenerated": "Description generated",
     "generateDescriptionError": "Unable to generate description",
     "commentsError": "Unable to load comments right now.",
-    "taskStatusRequired": "Task status is required"
+    "taskStatusRequired": "Task status is required",
+    "unsavedTitle": "Discard unsaved changes?",
+    "unsavedBody": "You have unsaved changes to this task. If you leave now, they will be lost.",
+    "unsavedLeave": "Leave",
+    "unsavedStay": "Stay"
   },
   "myTasks": {
     "title": "My Tasks",
@@ -251,5 +255,21 @@
     "selected_other": "{{count}} tasks selected",
     "editTags": "Edit Tags",
     "archiving": "Archiving…"
+  },
+  "taskForm": {
+    "titleLabel": "Title",
+    "titlePlaceholder": "Task title",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "Add more details (optional)",
+    "advancedDetails": "Advanced details",
+    "statusLabel": "Status",
+    "selectStatus": "Select status",
+    "priorityLabel": "Priority",
+    "assigneesLabel": "Assignees",
+    "assigneesEmptyMessage": "No members found",
+    "startDateLabel": "Start date",
+    "dueDateLabel": "Due date",
+    "tagsLabel": "Tags",
+    "tagsPlaceholder": "Add tags"
   }
 }

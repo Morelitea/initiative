@@ -1,7 +1,6 @@
 import { keepPreviousData } from "@tanstack/react-query";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
-import { formatDistanceToNow } from "date-fns";
 import { ChevronDown, Filter, Loader2, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -21,7 +20,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
-import { useDateLocale } from "@/hooks/useDateLocale";
+import { RelativeTime } from "@/components/ui/relative-time";
 import { useGlobalDocuments, usePrefetchGlobalDocuments } from "@/hooks/useDocuments";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useViewPreference } from "@/hooks/useViewPreference";
@@ -76,7 +75,6 @@ export const MyDocumentsPage = () => {
   const { guilds, activeGuildId } = useGuilds();
   const prefetchGlobalDocuments = usePrefetchGlobalDocuments();
   const router = useRouter();
-  const dateLocale = useDateLocale();
   const searchParams = useSearch({ strict: false }) as { page?: number };
   const searchParamsRef = useRef(searchParams);
   searchParamsRef.current = searchParams;
@@ -316,16 +314,12 @@ export const MyDocumentsPage = () => {
           if (!updatedAt || Number.isNaN(updatedAt.getTime())) {
             return <span className="text-muted-foreground text-sm">&mdash;</span>;
           }
-          return (
-            <span className="text-muted-foreground text-sm">
-              {formatDistanceToNow(updatedAt, { addSuffix: true, locale: dateLocale })}
-            </span>
-          );
+          return <RelativeTime date={updatedAt} className="text-muted-foreground text-sm" />;
         },
         enableSorting: true,
       },
     ],
-    [t, guilds, docGuildPath, dateLocale]
+    [t, guilds, docGuildPath]
   );
 
   // Responsive filter visibility

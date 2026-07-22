@@ -1,4 +1,3 @@
-import { formatDistanceToNow } from "date-fns";
 import {
   Download,
   ExternalLink,
@@ -23,12 +22,12 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useDateLocale } from "@/hooks/useDateLocale";
 import {
   useDeleteDocumentVersion,
   useDocumentVersions,
   useUploadDocumentVersion,
 } from "@/hooks/useDocuments";
+import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { toast } from "@/lib/chesterToast";
 import { formatBytes, getFileExtension, getFileTypeLabel } from "@/lib/fileUtils";
 import { resolveDocumentDownloadUrl, resolveDocumentVersionDownloadUrl } from "@/lib/uploadUrl";
@@ -66,6 +65,16 @@ interface FileDocumentViewerProps {
   isOwner?: boolean;
 }
 
+/**
+ * Live "Version N · M ago" label for one version row. A component (not an inline
+ * hook) so `useRelativeTime` can run per row inside the versions map.
+ */
+const VersionLabel = ({ number, createdAt }: { number: number; createdAt: string }) => {
+  const { t } = useTranslation(["documents", "common"]);
+  const relative = useRelativeTime(createdAt);
+  return <>{t("versions.versionLabel", { number, date: relative })}</>;
+};
+
 export const FileDocumentViewer = ({
   documentId,
   guildId,
@@ -77,7 +86,6 @@ export const FileDocumentViewer = ({
   isOwner = false,
 }: FileDocumentViewerProps) => {
   const { t } = useTranslation(["documents", "common"]);
-  const dateLocale = useDateLocale();
 
   // ── Version history ─────────────────────────────────────────────────────
   const { data: versions } = useDocumentVersions(documentId);
@@ -262,9 +270,6 @@ export const FileDocumentViewer = ({
   const OfficeIcon = isExcel ? FileSpreadsheet : isPowerPoint ? Presentation : FileText;
   const iconColor = isExcel ? "text-green-600" : isPowerPoint ? "text-orange-500" : "text-blue-600";
 
-  const formatVersionDate = (createdAt: string) =>
-    formatDistanceToNow(new Date(createdAt), { addSuffix: true, locale: dateLocale });
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -332,10 +337,7 @@ export const FileDocumentViewer = ({
                           className="flex flex-1 items-center gap-2 rounded px-1.5 py-1.5 text-left text-sm hover:bg-accent"
                         >
                           <span className="flex-1 truncate">
-                            {t("versions.versionLabel", {
-                              number: v.version_number,
-                              date: formatVersionDate(v.created_at),
-                            })}
+                            <VersionLabel number={v.version_number} createdAt={v.created_at} />
                           </span>
                           {v.is_current && (
                             <Badge variant="outline" className="shrink-0">

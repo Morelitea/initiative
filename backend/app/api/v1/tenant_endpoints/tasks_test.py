@@ -138,6 +138,207 @@ async def test_create_task(client: AsyncClient, session: AsyncSession, acting_us
 
 
 @pytest.mark.integration
+async def test_create_task_with_status(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A non-default ``task_status_id`` is honored on create."""
+    from app.services.tenant import task_statuses as task_statuses_service
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await task_statuses_service.ensure_default_statuses(session, a.project.id)
+    statuses = await task_statuses_service.list_statuses(session, a.project.id)
+    default_status = await task_statuses_service.get_default_status(
+        session, a.project.id
+    )
+    await session.commit()
+    non_default = next(s for s in statuses if s.id != default_status.id)
+
+    response = await client.post(
+        a.g("/tasks/"),
+        headers=a.headers,
+        json={
+            "title": "Statused Task",
+            "project_id": a.project.id,
+            "task_status_id": non_default.id,
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["task_status_id"] == non_default.id
+
+
+@pytest.mark.integration
+async def test_create_task_with_tags(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """``tag_ids`` on create attaches the tags in the same request."""
+    from app.testing.factories import create_tag
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    tag1 = await create_tag(session, a.guild, name="urgent")
+    tag2 = await create_tag(session, a.guild, name="backend")
+
+    response = await client.post(
+        a.g("/tasks/"),
+        headers=a.headers,
+        json={
+            "title": "Tagged Task",
+            "project_id": a.project.id,
+            "tag_ids": [tag1.id, tag2.id],
+        },
+    )
+
+    assert response.status_code == 201
+    returned_tag_ids = {t["id"] for t in response.json()["tags"]}
+    assert returned_tag_ids == {tag1.id, tag2.id}
+
+
+@pytest.mark.integration
+async def test_create_task_with_properties(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """``property_values`` on create attaches custom property values."""
+    from app.testing.factories import create_property_definition
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    text_defn = await create_property_definition(session, a.initiative, name="Notes")
+
+    response = await client.post(
+        a.g("/tasks/"),
+        headers=a.headers,
+        json={
+            "title": "Task with props",
+            "project_id": a.project.id,
+            "property_values": [{"property_id": text_defn.id, "value": "hello"}],
+        },
+    )
+
+    assert response.status_code == 201
+    props = {p["property_id"]: p["value"] for p in response.json()["properties"]}
+    assert props[text_defn.id] == "hello"
+
+
+@pytest.mark.integration
+async def test_create_task_with_invalid_tag_id_rolls_back(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """An invalid tag id fails the create and persists no task."""
+    from sqlmodel import func, select
+
+    from app.models.tenant.task import Task
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+
+    response = await client.post(
+        a.g("/tasks/"),
+        headers=a.headers,
+        json={
+            "title": "Should Not Exist",
+            "project_id": a.project.id,
+            "tag_ids": [999999],
+        },
+    )
+
+    assert response.status_code in (400, 404)
+    count = (
+        await session.exec(
+            select(func.count())
+            .select_from(Task)
+            .where(Task.title == "Should Not Exist")
+        )
+    ).one()
+    assert count == 0
+
+
+@pytest.mark.integration
+async def test_create_task_with_invalid_property_rolls_back(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A property from another initiative fails the create and persists no task."""
+    from sqlmodel import func, select
+
+    from app.models.tenant.task import Task
+    from app.testing.factories import create_initiative, create_property_definition
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    # A definition scoped to a DIFFERENT initiative in the same guild.
+    other_initiative = await create_initiative(session, a.guild, a.user)
+    foreign_defn = await create_property_definition(
+        session, other_initiative, name="Foreign"
+    )
+
+    response = await client.post(
+        a.g("/tasks/"),
+        headers=a.headers,
+        json={
+            "title": "Bad Prop Task",
+            "project_id": a.project.id,
+            "property_values": [{"property_id": foreign_defn.id, "value": "x"}],
+        },
+    )
+
+    assert response.status_code in (400, 404)
+    count = (
+        await session.exec(
+            select(func.count()).select_from(Task).where(Task.title == "Bad Prop Task")
+        )
+    ).one()
+    assert count == 0
+
+
+@pytest.mark.integration
+async def test_update_task_with_tags_and_properties(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """PATCH replaces tags/properties; omitting the keys leaves them unchanged."""
+    from app.testing.factories import create_property_definition, create_tag
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await _create_task(session, a.project)
+    tag = await create_tag(session, a.guild, name="review")
+    defn = await create_property_definition(session, a.initiative, name="Estimate")
+
+    # Set tags + a property value via PATCH.
+    response = await client.patch(
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
+        json={
+            "tag_ids": [tag.id],
+            "property_values": [{"property_id": defn.id, "value": "later"}],
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert {t["id"] for t in body["tags"]} == {tag.id}
+    assert {p["property_id"]: p["value"] for p in body["properties"]}[
+        defn.id
+    ] == "later"
+
+    # A PATCH that omits the keys must leave tags/properties intact.
+    response = await client.patch(
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
+        json={"title": "Renamed"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["title"] == "Renamed"
+    assert {t["id"] for t in body["tags"]} == {tag.id}
+    assert {p["property_id"] for p in body["properties"]} == {defn.id}
+
+    # An explicit empty list clears them.
+    response = await client.patch(
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
+        json={"tag_ids": [], "property_values": []},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tags"] == []
+    assert body["properties"] == []
+
+
+@pytest.mark.integration
 async def test_create_task_requires_project_access(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

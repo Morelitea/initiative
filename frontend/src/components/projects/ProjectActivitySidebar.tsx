@@ -1,6 +1,5 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { formatDistanceToNow } from "date-fns";
 import { ChevronRight, MessageSquare } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -14,8 +13,8 @@ import {
   projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet,
 } from "@/api/generated/projects/projects";
 import { Button } from "@/components/ui/button";
+import { RelativeTime } from "@/components/ui/relative-time";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuilds } from "@/hooks/useGuilds";
 import { guildPath } from "@/lib/guildUrl";
 import { cn } from "@/lib/utils";
@@ -28,7 +27,6 @@ export const ProjectActivitySidebar = ({ projectId }: ProjectActivitySidebarProp
   const { activeGuildId } = useGuilds();
   const guildId = useActiveGuildId();
   const { t } = useTranslation(["projects", "common"]);
-  const dateLocale = useDateLocale();
   const [collapsed, setCollapsed] = useState(true);
   const isEnabled = Boolean(projectId && !collapsed);
 
@@ -133,12 +131,7 @@ export const ProjectActivitySidebar = ({ projectId }: ProjectActivitySidebarProp
                     >
                       <div className="flex items-center justify-between text-muted-foreground text-xs">
                         <span className="font-medium text-foreground">{authorName}</span>
-                        <span>
-                          {formatDistanceToNow(new Date(entry.created_at), {
-                            addSuffix: true,
-                            locale: dateLocale,
-                          })}
-                        </span>
+                        <RelativeTime date={entry.created_at} showTitle={false} />
                       </div>
                       <p className="text-foreground text-sm">
                         {t("activitySidebar.commentedOn")}{" "}

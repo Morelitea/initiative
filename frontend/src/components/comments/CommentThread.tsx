@@ -1,11 +1,10 @@
-import { formatDistanceToNow } from "date-fns";
 import { Pencil, Reply, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { useDateLocale } from "@/hooks/useDateLocale";
+import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { getInitialsForUser, getUserDisplayName, isAnonymizedUser } from "@/lib/userDisplay";
 
@@ -49,7 +48,7 @@ export const CommentThread = ({
   projectNames = new Map(),
 }: CommentThreadProps) => {
   const { t } = useTranslation(["documents", "common"]);
-  const dateLocale = useDateLocale();
+  const relativeCreatedAt = useRelativeTime(comment.created_at);
   const [isReplying, setIsReplying] = useState(false);
   const [replyContent, setReplyContent] = useState("");
   const [isEditing, setIsEditing] = useState(false);
@@ -100,10 +99,7 @@ export const CommentThread = ({
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground text-xs">
               <span className="font-medium text-foreground">{displayName}</span>
               <span className="whitespace-nowrap">
-                {formatDistanceToNow(new Date(comment.created_at), {
-                  addSuffix: true,
-                  locale: dateLocale,
-                })}
+                {relativeCreatedAt}
                 {isEdited && (
                   <span className="ml-1 text-muted-foreground">{t("comments.edited")}</span>
                 )}

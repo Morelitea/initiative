@@ -1,5 +1,4 @@
 import type { ColumnDef } from "@tanstack/react-table";
-import { formatDistanceToNow } from "date-fns";
 import { Copy, Download, RefreshCcw, Trash2 } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -28,8 +27,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
-import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuilds } from "@/hooks/useGuilds";
+import { useRelativeTime } from "@/hooks/useRelativeTime";
 import {
   useApproveUser,
   useExportGuildUsersCsv,
@@ -46,10 +45,32 @@ const inviteLinkForCode = (code: string) => {
   return `${normalizedBase}/invite/${encodeURIComponent(code)}`;
 };
 
+/**
+ * Live "N uses · expires M" line for one invite. A component (not an inline
+ * hook) so `useRelativeTime` can run per invite inside the invites map.
+ */
+const InviteUsesLine = ({
+  uses,
+  maxUses,
+  expiresAt,
+}: {
+  uses: number;
+  maxUses: number | null;
+  expiresAt: string | null;
+}) => {
+  const { t } = useTranslation("guilds");
+  const relativeExpiry = useRelativeTime(expiresAt);
+  const expires = expiresAt != null ? relativeExpiry : t("users.neverExpires");
+  return (
+    <p className="text-muted-foreground">
+      {t("users.usesFormat", { uses, max: maxUses ?? "∞", expires })}
+    </p>
+  );
+};
+
 export const SettingsUsersPage = () => {
   const { user } = useAuth();
   const { t } = useTranslation("guilds");
-  const dateLocale = useDateLocale();
 
   const { activeGuild } = useGuilds();
   // Guild admin check is based on guild membership role only (independent from platform role)
@@ -367,13 +388,6 @@ export const SettingsUsersPage = () => {
           <div className="space-y-3">
             {inviteRows.map((invite) => {
               const link = inviteLinkForCode(invite.code);
-              const expires =
-                invite.expires_at != null
-                  ? formatDistanceToNow(new Date(invite.expires_at), {
-                      addSuffix: true,
-                      locale: dateLocale,
-                    })
-                  : t("users.neverExpires");
               return (
                 <div
                   key={invite.id}
@@ -381,13 +395,11 @@ export const SettingsUsersPage = () => {
                 >
                   <div>
                     <p className="font-medium">{link}</p>
-                    <p className="text-muted-foreground">
-                      {t("users.usesFormat", {
-                        uses: invite.uses,
-                        max: invite.max_uses ?? "\u221e",
-                        expires,
-                      })}
-                    </p>
+                    <InviteUsesLine
+                      uses={invite.uses}
+                      maxUses={invite.max_uses ?? null}
+                      expiresAt={invite.expires_at ?? null}
+                    />
                   </div>
                   <div className="flex gap-2">
                     <Button

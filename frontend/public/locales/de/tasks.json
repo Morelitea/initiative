@@ -112,7 +112,11 @@
     "descriptionGenerated": "Beschreibung generiert",
     "generateDescriptionError": "Beschreibung konnte nicht generiert werden",
     "commentsError": "Kommentare können derzeit nicht geladen werden.",
-    "taskStatusRequired": "Aufgabenstatus ist erforderlich"
+    "taskStatusRequired": "Aufgabenstatus ist erforderlich",
+    "unsavedTitle": "Nicht gespeicherte Änderungen verwerfen?",
+    "unsavedBody": "Sie haben nicht gespeicherte Änderungen an dieser Aufgabe. Wenn Sie jetzt gehen, gehen sie verloren.",
+    "unsavedLeave": "Verlassen",
+    "unsavedStay": "Bleiben"
   },
   "myTasks": {
     "title": "Meine Aufgaben",
@@ -251,5 +255,21 @@
     "selected_other": "{{count}} Aufgaben ausgewählt",
     "editTags": "Tags bearbeiten",
     "archiving": "Wird archiviert…"
+  },
+  "taskForm": {
+    "titleLabel": "Titel",
+    "titlePlaceholder": "Aufgabentitel",
+    "descriptionLabel": "Beschreibung",
+    "descriptionPlaceholder": "Weitere Details hinzufügen (optional)",
+    "advancedDetails": "Erweiterte Details",
+    "statusLabel": "Status",
+    "selectStatus": "Status auswählen",
+    "priorityLabel": "Priorität",
+    "assigneesLabel": "Zuständige",
+    "assigneesEmptyMessage": "Keine Mitglieder gefunden",
+    "startDateLabel": "Startdatum",
+    "dueDateLabel": "Fälligkeitsdatum",
+    "tagsLabel": "Tags",
+    "tagsPlaceholder": "Tags hinzufügen"
   }
 }

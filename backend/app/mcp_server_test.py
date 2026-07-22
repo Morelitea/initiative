@@ -6,10 +6,14 @@ asserts the RouteMap curation holds: tools cover only projects/tasks/initiatives
 no destructive, bulk, AI-generation, or property/tag mutations leak through.
 """
 
+import json
+
 import pytest
+from fastmcp.tools.base import ToolResult
+from mcp.types import TextContent
 
 from app.main import app
-from app.mcp_server import build_mcp_server
+from app.mcp_server import Base64FilterMiddleware, _strip_base64, build_mcp_server
 
 # A tool is a "write" if its operationId begins with one of these verbs.
 _WRITE_PREFIXES = (
@@ -71,3 +75,55 @@ async def test_mcp_write_tools_are_the_curated_safe_set():
     # Exactly the safe set — no delete/archive-all/reorder/duplicate/AI/property
     # mutation may appear.
     assert writes == _SAFE_WRITES, f"write surface changed: {sorted(writes)}"
+
+
+@pytest.mark.unit
+def test_strip_base64_removes_suffixed_keys_recursively():
+    payload = {
+        "title": "t",
+        "guild": {"id": 3, "name": "g", "icon_base64": "AAAA"},
+        "assignees": [
+            {"id": 1, "email": "a@example.com", "avatar_base64": "BBBB"},
+            {"id": 2, "email": "b@example.com", "avatar_base64": None},
+        ],
+        "count_base64_ish": "kept",  # only an exact suffix match is stripped
+    }
+    stripped = _strip_base64(payload)
+
+    assert "icon_base64" not in stripped["guild"]
+    assert all("avatar_base64" not in a for a in stripped["assignees"])
+    # Non-base64 fields (including a lookalike key) are preserved.
+    assert stripped["guild"] == {"id": 3, "name": "g"}
+    assert stripped["assignees"][0] == {"id": 1, "email": "a@example.com"}
+    assert stripped["count_base64_ish"] == "kept"
+    # Input is not mutated.
+    assert "icon_base64" in payload["guild"]
+
+
+@pytest.mark.unit
+async def test_base64_filter_middleware_strips_content_and_structured():
+    payload = {"guild": {"icon_base64": "AAAA", "name": "g"}}
+    result = ToolResult(
+        content=[TextContent(type="text", text=json.dumps(payload))],
+        structured_content=payload,
+    )
+
+    async def call_next(_context):
+        return result
+
+    out = await Base64FilterMiddleware().on_call_tool(None, call_next)
+
+    assert out.structured_content == {"guild": {"name": "g"}}
+    assert json.loads(out.content[0].text) == {"guild": {"name": "g"}}
+
+
+@pytest.mark.unit
+async def test_base64_filter_middleware_passes_through_non_json_text():
+    result = ToolResult(content=[TextContent(type="text", text="plain not json")])
+
+    async def call_next(_context):
+        return result
+
+    out = await Base64FilterMiddleware().on_call_tool(None, call_next)
+
+    assert out.content[0].text == "plain not json"
