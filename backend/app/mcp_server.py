@@ -17,16 +17,21 @@ See ``history/mcp-server-design.md``.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import json
+from typing import TYPE_CHECKING, Any
 
 import httpx
 from fastmcp import FastMCP
 from fastmcp.server.dependencies import get_http_headers
+from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 from fastmcp.server.providers.openapi import MCPType, RouteMap
+from fastmcp.tools.base import ToolResult
+from mcp.types import TextContent
 
 from app.core.config import PROJECT_NAME
 
 if TYPE_CHECKING:
+    import mcp.types as mt
     from fastapi import FastAPI
 
 # Read surface: every GET route carrying these FastAPI tags becomes a tool.
@@ -58,6 +63,80 @@ _ROUTE_MAPS = [
 ]
 
 
+# Base64 image blobs (avatar/guild icons) can dwarf the useful part of a
+# payload — a single guild ``icon_base64`` is often larger than the rest of a
+# task read combined. They're never actionable to an MCP client, so strip any
+# ``*_base64`` field before the result reaches the caller, keeping the context
+# they consume for the fields that matter.
+_BASE64_SUFFIX = "_base64"
+
+
+def _strip_base64(value: Any) -> Any:
+    """Recursively drop any dict key ending in ``_base64``.
+
+    Returns a new structure; the input is left untouched. Matching by suffix
+    (not a fixed name list) means a future base64 field is filtered by
+    construction, without another edit here.
+    """
+    if isinstance(value, dict):
+        return {
+            k: _strip_base64(v)
+            for k, v in value.items()
+            if not (isinstance(k, str) and k.endswith(_BASE64_SUFFIX))
+        }
+    if isinstance(value, list):
+        return [_strip_base64(v) for v in value]
+    return value
+
+
+class Base64FilterMiddleware(Middleware):
+    """Strip ``*_base64`` fields from every tool result.
+
+    Route-backed tools return the raw route JSON, which carries avatar/guild
+    icon data URIs. Filtering here — after the route (and its RLS gates) have
+    run — is purely cosmetic to the payload: it removes only inert image blobs,
+    never anything a caller acts on.
+    """
+
+    async def on_call_tool(
+        self,
+        context: MiddlewareContext[mt.CallToolRequestParams],
+        call_next: CallNext[mt.CallToolRequestParams, ToolResult],
+    ) -> ToolResult:
+        result = await call_next(context)
+
+        structured = result.structured_content
+        if structured is not None:
+            structured = _strip_base64(structured)
+
+        content: list[Any] = []
+        for block in result.content:
+            # Text blocks hold the JSON body for route-backed tools; strip the
+            # parsed form and re-serialize. Non-JSON text and non-text blocks
+            # pass through untouched.
+            if isinstance(block, TextContent):
+                try:
+                    parsed = json.loads(block.text)
+                except (ValueError, TypeError):
+                    content.append(block)
+                    continue
+                content.append(
+                    TextContent(
+                        type="text",
+                        text=json.dumps(_strip_base64(parsed), default=str),
+                    )
+                )
+            else:
+                content.append(block)
+
+        return ToolResult(
+            content=content,
+            structured_content=structured,
+            meta=result.meta,
+            is_error=result.is_error,
+        )
+
+
 async def _forward_authorization(request: httpx.Request) -> None:
     """Forward the caller's PAT to the in-process upstream route call.
 
@@ -75,9 +154,11 @@ def build_mcp_server(app: "FastAPI") -> FastMCP:
 
     The app must already have its routers included so the RouteMap can see them.
     """
-    return FastMCP.from_fastapi(
+    server = FastMCP.from_fastapi(
         app=app,
         name=PROJECT_NAME,
         route_maps=_ROUTE_MAPS,
         httpx_client_kwargs={"event_hooks": {"request": [_forward_authorization]}},
     )
+    server.add_middleware(Base64FilterMiddleware())
+    return server
