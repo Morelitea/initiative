@@ -10,7 +10,7 @@ from app.schemas.tenant.task_status import TaskStatusRead
 from app.schemas.platform.guild import GuildSummary
 from app.schemas.tenant.subtask import TaskSubtaskProgress
 from app.schemas.tenant.tag import TagSummary
-from app.schemas.tenant.property import PropertySummary
+from app.schemas.tenant.property import PropertySummary, PropertyValueInput
 
 from app.models.tenant.task import TaskPriority
 from app.models.platform.user import UserStatus
@@ -131,6 +131,8 @@ class TaskCreate(TaskBase):
     project_id: int
     assignee_ids: List[int] = Field(default_factory=list)
     task_status_id: Optional[int] = None
+    tag_ids: List[int] = Field(default_factory=list, max_length=100)
+    property_values: List[PropertyValueInput] = Field(default_factory=list)
 
 
 class TaskUpdate(SanitizedBaseModel):
@@ -144,6 +146,9 @@ class TaskUpdate(SanitizedBaseModel):
     recurrence: Optional[TaskRecurrence | None] = None
     recurrence_strategy: Optional[Literal["fixed", "rolling"]] = None
     is_archived: Optional[bool] = None
+    # PATCH semantics: None = "leave unchanged"; a list (incl. []) = replace-all.
+    tag_ids: Optional[List[int]] = Field(default=None, max_length=100)
+    property_values: Optional[List[PropertyValueInput]] = None
 
 
 class TaskMoveRequest(SanitizedBaseModel):

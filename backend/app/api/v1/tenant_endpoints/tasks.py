@@ -1921,7 +1921,9 @@ async def create_task(
             session, project.id
         )
 
-    task_data = task_in.model_dump(exclude={"assignee_ids", "task_status_id"})
+    task_data = task_in.model_dump(
+        exclude={"assignee_ids", "task_status_id", "tag_ids", "property_values"}
+    )
 
     # Serialize recurrence to JSON if present
     if task_data.get("recurrence") is not None:
@@ -1951,6 +1953,36 @@ async def create_task(
                 project_name=project.name,
                 guild_id=guild_context.guild_id,
             )
+
+    # Attach tags and custom properties in the same transaction. Both services
+    # mutate the session without committing; a raised HTTPException (invalid
+    # tag/property) rolls back so no orphan task is persisted.
+    try:
+        if task_in.tag_ids:
+            await tags_service.set_entity_tags(
+                session,
+                tags_service.TAG_LINKS["task"],
+                guild_id=guild_context.guild_id,
+                entity_id=task.id,
+                tag_ids=task_in.tag_ids,
+            )
+        if task_in.property_values:
+            initiative_id = project.initiative_id if project else None
+            if initiative_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=TaskMessages.NOT_FOUND,
+                )
+            await properties_service.set_task_property_values(
+                session,
+                task,
+                task_in.property_values,
+                initiative_id,
+            )
+    except HTTPException:
+        await session.rollback()
+        raise
+
     await _touch_project(session, task_in.project_id)
     await session.commit()
     task = await _fetch_task(session, task.id, guild_context.guild_id)
@@ -2023,6 +2055,8 @@ async def update_task(
 
     update_data = task_in.model_dump(exclude_unset=True)
     assignee_ids = update_data.pop("assignee_ids", None)
+    tag_ids = update_data.pop("tag_ids", None)
+    property_values = update_data.pop("property_values", None)
     previous_status_category = task.task_status.category if task.task_status else None
     new_status_id = update_data.pop("task_status_id", None)
 
@@ -2087,10 +2121,51 @@ async def update_task(
                 project_name=project.name,
                 guild_id=guild_context.guild_id,
             )
+
+    # Replace tags/properties when the client sent them (PATCH semantics:
+    # absent/None = leave unchanged; a list = replace-all). Both services
+    # mutate the session without committing; roll back on validation errors.
+    try:
+        if tag_ids is not None:
+            await tags_service.set_entity_tags(
+                session,
+                tags_service.TAG_LINKS["task"],
+                guild_id=guild_context.guild_id,
+                entity_id=task.id,
+                tag_ids=tag_ids,
+            )
+        if property_values is not None:
+            initiative_id = task.project.initiative_id if task.project else None
+            if initiative_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=TaskMessages.NOT_FOUND,
+                )
+            await properties_service.set_task_property_values(
+                session,
+                task,
+                task_in.property_values or [],
+                initiative_id,
+            )
+    except HTTPException:
+        await session.rollback()
+        raise
+
+    # The services above issue bulk DELETEs on the junction/value rows, leaving
+    # the ORM-loaded collections stale. Expire them so ``session.add(task)``
+    # below doesn't cascade the now-deleted instances (they reload fresh in the
+    # populate_existing fetch that builds the response).
+    if tag_ids is not None:
+        session.expire(task, ["tag_links"])
+    if property_values is not None:
+        session.expire(task, ["property_values"])
+
     await _touch_project(session, task.project_id, timestamp=now)
     session.add(task)
     await session.commit()
-    task = await _fetch_task(session, task.id, guild_context.guild_id)
+    task = await _fetch_task(
+        session, task.id, guild_context.guild_id, populate_existing=True
+    )
     if task is None:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

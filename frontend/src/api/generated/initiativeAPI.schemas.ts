@@ -3214,6 +3214,9 @@ export interface TaskCreate {
   project_id: number;
   assignee_ids?: number[];
   task_status_id?: number | null;
+  /** @maxItems 100 */
+  tag_ids?: number[];
+  property_values?: PropertyValueInput[];
 }
 
 export interface TaskListResponse {
@@ -3353,6 +3356,8 @@ export interface TaskUpdate {
   recurrence?: TaskRecurrenceInput | null;
   recurrence_strategy?: TaskUpdateRecurrenceStrategy;
   is_archived?: boolean | null;
+  tag_ids?: number[] | null;
+  property_values?: PropertyValueInput[] | null;
 }
 
 /**

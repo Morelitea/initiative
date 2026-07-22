@@ -112,7 +112,11 @@
     "descriptionGenerated": "Description générée",
     "generateDescriptionError": "Impossible de générer la description",
     "commentsError": "Impossible de charger les commentaires pour l'instant.",
-    "taskStatusRequired": "Le statut de la tâche est requis"
+    "taskStatusRequired": "Le statut de la tâche est requis",
+    "unsavedTitle": "Abandonner les modifications non enregistrées ?",
+    "unsavedBody": "Vous avez des modifications non enregistrées sur cette tâche. Si vous partez maintenant, elles seront perdues.",
+    "unsavedLeave": "Quitter",
+    "unsavedStay": "Rester"
   },
   "myTasks": {
     "title": "Mes tâches",
@@ -251,5 +255,21 @@
     "selected_other": "{{count}} tâches sélectionnées",
     "editTags": "Modifier les étiquettes",
     "archiving": "Archivage…"
+  },
+  "taskForm": {
+    "titleLabel": "Titre",
+    "titlePlaceholder": "Titre de la tâche",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "Ajouter plus de détails (facultatif)",
+    "advancedDetails": "Détails avancés",
+    "statusLabel": "Statut",
+    "selectStatus": "Sélectionner un statut",
+    "priorityLabel": "Priorité",
+    "assigneesLabel": "Assignés",
+    "assigneesEmptyMessage": "Aucun membre trouvé",
+    "startDateLabel": "Date de début",
+    "dueDateLabel": "Date d'échéance",
+    "tagsLabel": "Étiquettes",
+    "tagsPlaceholder": "Ajouter des étiquettes"
   }
 }
