@@ -183,6 +183,10 @@ export const TaskEditPage = () => {
   // Lets the delete/move/duplicate flows navigate without tripping the
   // unsaved-changes guard.
   const bypassGuardRef = useRef(false);
+  // Track which task the form was last seeded from, and whether it currently
+  // holds unsaved edits, so a background refetch doesn't overwrite them.
+  const seededTaskIdRef = useRef<number | null>(null);
+  const isDirtyRef = useRef(false);
   const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [moveContext, setMoveContext] = useState<MoveTaskVariables | null>(null);
@@ -221,6 +225,14 @@ export const TaskEditPage = () => {
   useEffect(() => {
     if (taskQuery.data) {
       const task = taskQuery.data;
+      // Don't clobber unsaved edits: a background refetch of the same task
+      // must not overwrite pending field/tag/property changes. Only reseed
+      // when this is a different task, or the form has no unsaved edits.
+      const isNewTask = seededTaskIdRef.current !== task.id;
+      if (!isNewTask && isDirtyRef.current) {
+        return;
+      }
+      seededTaskIdRef.current = task.id;
       setTitle(task.title);
       setDescription(task.description ?? "");
       setStatusId(task.task_status_id);
@@ -486,6 +498,9 @@ export const TaskEditPage = () => {
     propertyValues,
   });
   const isDirty = !isReadOnly && savedSnapshot !== null && currentSnapshot !== savedSnapshot;
+  // Mirror into a ref so the task-load effect can read the latest dirtiness
+  // without adding it to the effect's dependency list.
+  isDirtyRef.current = isDirty;
 
   // Block in-app navigation while there are unsaved edits (unless a delete /
   // move / duplicate flow explicitly opted out via bypassGuardRef).

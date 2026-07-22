@@ -469,6 +469,12 @@ export const ProjectTasksSection = ({
     [composerValue, defaultStatusId]
   );
 
+  // Close and discard the composer draft so reopening starts fresh.
+  const closeComposer = useCallback(() => {
+    setComposerValue(emptyTaskFormValue({ statusId: defaultStatusId }));
+    setIsComposerOpen(false);
+  }, [defaultStatusId]);
+
   // Patch the locally-overridden task list with a server-confirmed update so
   // the board/calendar reflects it immediately (and drop the task if it no
   // longer matches the active status filter).
@@ -1093,7 +1099,10 @@ export const ProjectTasksSection = ({
 
       {canEditTaskDetails ? (
         <>
-          <Dialog open={isComposerOpen} onOpenChange={setIsComposerOpen}>
+          <Dialog
+            open={isComposerOpen}
+            onOpenChange={(open) => (open ? setIsComposerOpen(true) : closeComposer())}
+          >
             <ProjectTaskComposer
               canWrite={canWriteProject}
               isArchived={projectIsArchived}
@@ -1143,7 +1152,7 @@ export const ProjectTasksSection = ({
                 }
                 createTask.mutate(payload as never);
               }}
-              onCancel={() => setIsComposerOpen(false)}
+              onCancel={closeComposer}
             />
           </Dialog>
           <Dialog open={isBulkEditDialogOpen} onOpenChange={setIsBulkEditDialogOpen}>
