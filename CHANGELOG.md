@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.58.2] - 2026-07-22
+
 ### Fixed
 
 - The in-app MCP server's base64 filter now **nulls** `*_base64` fields instead of dropping the keys. Removing the keys made a tool's structured output violate its own (schema-required) shape, so every task or user-bearing listing failed with `'avatar_base64' is a required property`. The image blob is still stripped from the payload; the field is just kept as `null`.
