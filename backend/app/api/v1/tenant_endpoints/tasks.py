@@ -22,7 +22,7 @@ from app.db.query import (
     parse_conditions,
     parse_sort_fields,
 )
-from app.schemas.query import FilterCondition, FilterOp, SortDir
+from app.schemas.query import FilterOp, SortDir
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import (
@@ -986,39 +986,6 @@ async def _allowed_project_ids(
     return {pid for pid in result.all() if pid is not None}
 
 
-def _property_value_filter_clauses(
-    property_value_conditions: list,
-    property_definitions: dict,
-) -> list:
-    """Compile ``property_values`` conditions to SA WHERE clauses for tasks.
-
-    Shared between the global and non-global list paths so the global
-    paths also honor custom-property filters. Task conditions arrive with
-    ``{"property_id": pid, "value": raw}`` payloads — unwrap that and
-    delegate to :func:`properties_service.build_single_property_clause`
-    so the compiled predicate stays in lockstep with docs/events.
-    """
-    clauses = []
-    for cond in property_value_conditions:
-        if not isinstance(cond.value, dict):
-            continue
-        pid_raw = cond.value.get("property_id")
-        raw_value = cond.value.get("value")
-        try:
-            pid = int(pid_raw)
-        except (TypeError, ValueError):
-            continue
-        defn = property_definitions.get(pid)
-        if defn is None:
-            continue
-        clause = properties_service.build_single_property_clause(
-            "task", pid, cond.op, raw_value, defn
-        )
-        if clause is not None:
-            clauses.append(clause)
-    return clauses
-
-
 def _global_task_options():
     return (
         selectinload(Task.project)
@@ -1051,6 +1018,9 @@ async def _gather_global_task_reads(
     ``(Task, date_group)`` rows *without* ORDER BY and the merged set is sorted
     once, globally, by :func:`_sort_global_task_reads` before pagination.
     Annotation + conversion happen inside each guild's routed context.
+
+    ``build_query`` receives the guild id so it can compile the guild-local
+    filter fields (tag/property subqueries resolve against that guild's schema).
     """
     target_guilds = await member_guild_ids(
         session, current_user.id, restrict_to=guild_ids
@@ -1059,7 +1029,7 @@ async def _gather_global_task_reads(
     async def _fetch(
         guild_session: AsyncSession, _guild_id: int
     ) -> list[tuple[TaskListRead, int]]:
-        rows = list((await guild_session.exec(build_query())).all())
+        rows = list((await guild_session.exec(build_query(_guild_id))).all())
         tasks = [row[0] for row in rows]
         await _annotate_tasks(guild_session, tasks)
         tags_service.annotate_tags(tasks)
@@ -1084,12 +1054,8 @@ async def _list_global_tasks(
     session: SessionDep,
     current_user: User,
     *,
-    project_id: Optional[int],
-    priorities: Optional[List[TaskPriority]],
-    status_category: Optional[List[TaskStatusCategory]],
-    initiative_ids: Optional[List[int]],
+    user_conditions: list,
     guild_ids: Optional[List[int]],
-    property_value_conditions: list | None = None,
     property_definitions: dict | None = None,
     include_archived: bool = False,
     page: int = 1,
@@ -1101,33 +1067,26 @@ async def _list_global_tasks(
 ) -> tuple[list[TaskListRead], int, int]:
     """Tasks assigned to the user, across every guild they belong to.
 
-    ``start_after``/``start_before`` window the set to tasks whose start or due
-    date falls inside — used by the ``/me`` calendar aggregate (the global path
-    ignores arbitrary ``conditions``, so the window travels as explicit params).
+    ``user_conditions`` are applied per guild via :func:`apply_filters` using the
+    same field set as the guild-scoped list, so any Task field — ``due_date``,
+    ``title``, ``priority``, ``status_category``, property values, … — filters
+    here too. ``start_after``/``start_before`` window the set to tasks whose
+    start or due date falls inside — used by the ``/me`` calendar aggregate (the
+    window travels as explicit params so a caller never has to encode it in
+    ``conditions``).
     """
-    conditions = [
+    base_conditions = [
         TaskAssignee.user_id == current_user.id,
         Project.is_archived.is_(False),
         Project.is_template.is_(False),
     ]
     if not include_archived:
-        conditions.append(Task.is_archived.is_(False))
-    if project_id is not None:
-        conditions.append(Task.project_id == project_id)
-    if priorities:
-        conditions.append(Task.priority.in_(tuple(priorities)))
-    if initiative_ids:
-        conditions.append(Project.initiative_id.in_(tuple(initiative_ids)))
+        base_conditions.append(Task.is_archived.is_(False))
     window = _task_calendar_window_clause(start_after, start_before)
     if window is not None:
-        conditions.append(window)
-    conditions.extend(
-        _property_value_filter_clauses(
-            property_value_conditions or [], property_definitions or {}
-        )
-    )
+        base_conditions.append(window)
 
-    def _build():
+    def _build(guild_id: int):
         # Carry the SQL-computed date_group out for the cross-guild sort; ORDER
         # BY is omitted because _sort_global_task_reads orders the merged set.
         stmt = (
@@ -1135,12 +1094,19 @@ async def _list_global_tasks(
             .join(TaskAssignee, TaskAssignee.task_id == Task.id)
             .join(Task.project)
             .join(Project.initiative)
+            .where(*base_conditions)
+            .options(*_global_task_options())
         )
-        if status_category:
-            stmt = stmt.join(TaskStatus, Task.task_status_id == TaskStatus.id).where(
-                TaskStatus.category.in_(tuple(status_category))
-            )
-        return stmt.where(*conditions).options(*_global_task_options())
+        return apply_filters(
+            stmt,
+            Task,
+            user_conditions,
+            allowed_fields=_build_task_filter_fields(
+                guild_id=guild_id,
+                current_user_id=current_user.id,
+                property_definitions=property_definitions or {},
+            ),
+        )
 
     return await _gather_global_task_reads(
         session,
@@ -1157,12 +1123,8 @@ async def _list_global_created_tasks(
     session: SessionDep,
     current_user: User,
     *,
-    project_id: Optional[int],
-    priorities: Optional[List[TaskPriority]],
-    status_category: Optional[List[TaskStatusCategory]],
-    initiative_ids: Optional[List[int]],
+    user_conditions: list,
     guild_ids: Optional[List[int]],
-    property_value_conditions: list | None = None,
     property_definitions: dict | None = None,
     include_archived: bool = False,
     page: int = 1,
@@ -1170,39 +1132,39 @@ async def _list_global_created_tasks(
     sort_fields: list | None = None,
     tz: str | None = None,
 ) -> tuple[list[TaskListRead], int, int]:
-    """Tasks created by the user, across every guild they belong to."""
-    conditions = [
+    """Tasks created by the user, across every guild they belong to.
+
+    ``user_conditions`` are applied per guild via :func:`apply_filters` (same
+    field set as the guild-scoped list), so any Task field filters here too.
+    """
+    base_conditions = [
         Task.created_by_id == current_user.id,
         Project.is_archived.is_(False),
         Project.is_template.is_(False),
     ]
     if not include_archived:
-        conditions.append(Task.is_archived.is_(False))
-    if project_id is not None:
-        conditions.append(Task.project_id == project_id)
-    if priorities:
-        conditions.append(Task.priority.in_(tuple(priorities)))
-    if initiative_ids:
-        conditions.append(Project.initiative_id.in_(tuple(initiative_ids)))
-    conditions.extend(
-        _property_value_filter_clauses(
-            property_value_conditions or [], property_definitions or {}
-        )
-    )
+        base_conditions.append(Task.is_archived.is_(False))
 
-    def _build():
+    def _build(guild_id: int):
         # Carry the SQL-computed date_group out for the cross-guild sort; ORDER
         # BY is omitted because _sort_global_task_reads orders the merged set.
         stmt = (
             select(Task, _date_group_expression(tz).label("date_group"))
             .join(Task.project)
             .join(Project.initiative)
+            .where(*base_conditions)
+            .options(*_global_task_options())
         )
-        if status_category:
-            stmt = stmt.join(TaskStatus, Task.task_status_id == TaskStatus.id).where(
-                TaskStatus.category.in_(tuple(status_category))
-            )
-        return stmt.where(*conditions).options(*_global_task_options())
+        return apply_filters(
+            stmt,
+            Task,
+            user_conditions,
+            allowed_fields=_build_task_filter_fields(
+                guild_id=guild_id,
+                current_user_id=current_user.id,
+                property_definitions=property_definitions or {},
+            ),
+        )
 
     return await _gather_global_task_reads(
         session,
@@ -1223,12 +1185,11 @@ class _TaskListQuery:
     user_conditions: list
     sort_fields: Optional[list]
     tz: Optional[str]
+    # project_id narrows which projects the guild path checks access on; guild_ids
+    # restricts the cross-guild fan-out. Every other field filters through
+    # ``user_conditions`` via apply_filters, so no other scalar is extracted here.
     project_id: Optional[int]
-    priorities: Optional[list]
-    status_category: Optional[list]
-    initiative_ids: Optional[list]
     guild_ids: Optional[list]
-    property_value_conditions: list
     property_definitions: dict
     # Every property_values leaf's definition id (nested groups included), so the
     # deferred cross-guild loader resolves exactly what the limit check counted.
@@ -1288,13 +1249,6 @@ async def _parse_task_list_query(
                 property_ids_needed.append(int(cond.value.get("property_id")))
             except (TypeError, ValueError):
                 continue
-    # The cross-guild path AND-s these into its statement by hand, so it can
-    # only take top-level leaves — a grouped one isn't an unconditional filter.
-    property_value_conditions = [
-        cond
-        for cond in user_conditions
-        if isinstance(cond, FilterCondition) and cond.field == "property_values"
-    ]
     if defer_property_definitions:
         property_definitions_map: dict[int, PropertyDefinition] = {}
     else:
@@ -1308,11 +1262,7 @@ async def _parse_task_list_query(
         sort_fields=sort_fields,
         tz=tz,
         project_id=extract_condition_value(user_conditions, "project_id"),
-        priorities=extract_condition_value(user_conditions, "priority"),
-        status_category=extract_condition_value(user_conditions, "status_category"),
-        initiative_ids=extract_condition_value(user_conditions, "initiative_ids"),
         guild_ids=extract_condition_value(user_conditions, "guild_ids"),
-        property_value_conditions=property_value_conditions,
         property_definitions=property_definitions_map,
         property_ids_needed=property_ids_needed,
     )
@@ -1544,12 +1494,8 @@ async def list_my_tasks(
     items, total_count, actual_page = await _list_global_tasks(
         session,
         current_user,
-        project_id=q.project_id,
-        priorities=q.priorities,
-        status_category=q.status_category,
-        initiative_ids=q.initiative_ids,
+        user_conditions=q.user_conditions,
         guild_ids=q.guild_ids,
-        property_value_conditions=q.property_value_conditions,
         property_definitions=q.property_definitions,
         include_archived=include_archived,
         page=page,
@@ -1589,12 +1535,8 @@ async def list_my_created_tasks(
     items, total_count, actual_page = await _list_global_created_tasks(
         session,
         current_user,
-        project_id=q.project_id,
-        priorities=q.priorities,
-        status_category=q.status_category,
-        initiative_ids=q.initiative_ids,
+        user_conditions=q.user_conditions,
         guild_ids=q.guild_ids,
-        property_value_conditions=q.property_value_conditions,
         property_definitions=q.property_definitions,
         include_archived=include_archived,
         page=page,
@@ -1727,12 +1669,8 @@ async def query_my_tasks_list(
     items, _total, _page = await _list_global_tasks(
         session,
         current_user,
-        project_id=q.project_id,
-        priorities=q.priorities,
-        status_category=q.status_category,
-        initiative_ids=q.initiative_ids,
+        user_conditions=q.user_conditions,
         guild_ids=q.guild_ids,
-        property_value_conditions=q.property_value_conditions,
         property_definitions=q.property_definitions,
         include_archived=include_archived,
         page=1,
