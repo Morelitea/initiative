@@ -208,6 +208,63 @@ async def test_list_my_tasks_priority_filter(
 
 
 @pytest.mark.integration
+async def test_list_my_tasks_due_date_filter_across_guilds(
+    client: AsyncClient, session: AsyncSession
+):
+    """GET /me/tasks honors a due_date condition across every guild.
+
+    Regression: the cross-guild aggregate only applied a fixed whitelist of
+    extracted scalars and silently dropped every other field, so a ``due_date``
+    filter returned the caller's entire assigned set. The aggregate now applies
+    the full condition set per guild via apply_filters, matching the
+    guild-scoped list.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    overdue = now - timedelta(days=2)
+    upcoming = now + timedelta(days=10)
+
+    user = await create_user(session, email="user@example.com")
+    guild1, _, project1 = await _setup_guild_with_project(
+        session, user, guild_name="Guild 1"
+    )
+    _guild2, _, project2 = await _setup_guild_with_project(
+        session, user, guild_name="Guild 2"
+    )
+
+    # One overdue + one upcoming in each guild, so a working filter must reach
+    # across guilds and cannot pass by only matching one guild's rows.
+    g1_overdue = await _create_task(
+        session, project1, "g1 overdue", created_by_id=user.id, due_date=overdue
+    )
+    g1_upcoming = await _create_task(
+        session, project1, "g1 upcoming", created_by_id=user.id, due_date=upcoming
+    )
+    g2_overdue = await _create_task(
+        session, project2, "g2 overdue", created_by_id=user.id, due_date=overdue
+    )
+    g2_upcoming = await _create_task(
+        session, project2, "g2 upcoming", created_by_id=user.id, due_date=upcoming
+    )
+    for task in (g1_overdue, g1_upcoming, g2_overdue, g2_upcoming):
+        await _assign(session, task, user.id)
+
+    headers = get_auth_headers(user)
+    conditions = json.dumps(
+        [{"field": "due_date", "op": "lt", "value": now.isoformat()}]
+    )
+    # Pass via params so httpx URL-encodes the "+" in the ISO offset.
+    response = await client.get(
+        "/api/v1/me/tasks", params={"conditions": conditions}, headers=headers
+    )
+
+    assert response.status_code == 200, response.text
+    task_ids = {t["id"] for t in response.json()["items"]}
+    assert task_ids == {g1_overdue.id, g2_overdue.id}
+
+
+@pytest.mark.integration
 async def test_list_my_tasks_guild_ids_filter(
     client: AsyncClient, session: AsyncSession
 ):

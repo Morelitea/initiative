@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.58.2] - 2026-07-22
+
+### Fixed
+
+- The in-app MCP server's base64 filter now **nulls** `*_base64` fields instead of dropping the keys. Removing the keys made a tool's structured output violate its own (schema-required) shape, so every task or user-bearing listing failed with `'avatar_base64' is a required property`. The image blob is still stripped from the payload; the field is just kept as `null`.
+- MCP list tools (tasks, `/me` tasks) now present their `conditions` and `sorting` parameters as JSON strings, so filtering and sorting through the MCP server work. They were typed as arrays (for the frontend), which the MCP request builder serialized with Python `str()` — single-quoted, invalid JSON — so every filtered or sorted list call was rejected with `QUERY_INVALID_CONDITIONS` / `QUERY_INVALID_SORT_FIELDS`.
+- The cross-guild **My Tasks** / **Created Tasks** lists (`/me/tasks`, `/me/tasks/created`) now honor every `conditions` field — `due_date`, `title`, and the rest — instead of only a fixed handful (`project_id`, `priority`, `status_category`, `initiative_ids`, `guild_ids`, property values). Any other filter was silently ignored, so e.g. filtering "my tasks" by due date returned the full assigned list. The aggregate now applies the same filter set as the guild-scoped list, per guild.
+
 ## [0.58.1] - 2026-07-22
 
 ### Added
