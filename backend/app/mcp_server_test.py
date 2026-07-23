@@ -13,7 +13,7 @@ from fastmcp.tools.base import ToolResult
 from mcp.types import TextContent
 
 from app.main import app
-from app.mcp_server import Base64FilterMiddleware, _strip_base64, build_mcp_server
+from app.mcp_server import Base64FilterMiddleware, _redact_base64, build_mcp_server
 
 # A tool is a "write" if its operationId begins with one of these verbs.
 _WRITE_PREFIXES = (
@@ -78,7 +78,7 @@ async def test_mcp_write_tools_are_the_curated_safe_set():
 
 
 @pytest.mark.unit
-def test_strip_base64_removes_suffixed_keys_recursively():
+def test_redact_base64_nulls_suffixed_keys_recursively():
     payload = {
         "title": "t",
         "guild": {"id": 3, "name": "g", "icon_base64": "AAAA"},
@@ -86,22 +86,23 @@ def test_strip_base64_removes_suffixed_keys_recursively():
             {"id": 1, "email": "a@example.com", "avatar_base64": "BBBB"},
             {"id": 2, "email": "b@example.com", "avatar_base64": None},
         ],
-        "count_base64_ish": "kept",  # only an exact suffix match is stripped
+        "count_base64_ish": "kept",  # only an exact suffix match is redacted
     }
-    stripped = _strip_base64(payload)
+    redacted = _redact_base64(payload)
 
-    assert "icon_base64" not in stripped["guild"]
-    assert all("avatar_base64" not in a for a in stripped["assignees"])
-    # Non-base64 fields (including a lookalike key) are preserved.
-    assert stripped["guild"] == {"id": 3, "name": "g"}
-    assert stripped["assignees"][0] == {"id": 1, "email": "a@example.com"}
-    assert stripped["count_base64_ish"] == "kept"
+    # Keys are kept but nulled — so the structured output still satisfies a
+    # schema that declares (and may require) these fields.
+    assert redacted["guild"] == {"id": 3, "name": "g", "icon_base64": None}
+    assert [a["avatar_base64"] for a in redacted["assignees"]] == [None, None]
+    # Non-base64 fields (including a lookalike key) keep their values.
+    assert redacted["assignees"][0]["email"] == "a@example.com"
+    assert redacted["count_base64_ish"] == "kept"
     # Input is not mutated.
-    assert "icon_base64" in payload["guild"]
+    assert payload["guild"]["icon_base64"] == "AAAA"
 
 
 @pytest.mark.unit
-async def test_base64_filter_middleware_strips_content_and_structured():
+async def test_base64_filter_middleware_redacts_content_and_structured():
     payload = {"guild": {"icon_base64": "AAAA", "name": "g"}}
     result = ToolResult(
         content=[TextContent(type="text", text=json.dumps(payload))],
@@ -113,8 +114,31 @@ async def test_base64_filter_middleware_strips_content_and_structured():
 
     out = await Base64FilterMiddleware().on_call_tool(None, call_next)
 
-    assert out.structured_content == {"guild": {"name": "g"}}
-    assert json.loads(out.content[0].text) == {"guild": {"name": "g"}}
+    assert out.structured_content == {"guild": {"icon_base64": None, "name": "g"}}
+    assert json.loads(out.content[0].text) == {
+        "guild": {"icon_base64": None, "name": "g"}
+    }
+
+
+@pytest.mark.unit
+async def test_list_tools_expose_conditions_and_sorting_as_json_strings():
+    # main._inject_query_schemas retypes these to arrays for the REST/Orval
+    # surface; the MCP tool must present them as JSON strings instead, or the
+    # request builder serializes an array via Python str() (single-quoted) and
+    # the backend's json.loads rejects it. Assert every tool that has them uses
+    # a string schema.
+    tools = await build_mcp_server(app).list_tools()
+    seen = 0
+    for tool in tools:
+        props = (tool.parameters or {}).get("properties", {})
+        for name in ("conditions", "sorting"):
+            schema = props.get(name)
+            if schema is not None:
+                seen += 1
+                assert schema.get("type") == "string", (
+                    f"{tool.name}.{name} should be a JSON string, got {schema}"
+                )
+    assert seen, "expected at least one tool exposing conditions/sorting"
 
 
 @pytest.mark.unit

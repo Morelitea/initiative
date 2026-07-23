@@ -68,37 +68,49 @@ _ROUTE_MAPS = [
 
 # Base64 image blobs (avatar/guild icons) can dwarf the useful part of a
 # payload — a single guild ``icon_base64`` is often larger than the rest of a
-# task read combined. They're never actionable to an MCP client, so strip any
+# task read combined. They're never actionable to an MCP client, so redact any
 # ``*_base64`` field before the result reaches the caller, keeping the context
 # they consume for the fields that matter.
+#
+# We null the value rather than *drop the key*: a tool's structured output is
+# validated against the tool's output schema, and these fields are declared
+# there (``json_schema_serialization_defaults_required=True`` even lists them as
+# required — nullable, but present). Removing the key makes the structured
+# content violate its own schema, which the client rejects ("'avatar_base64' is
+# a required property"); nulling keeps it schema-valid while dropping the blob.
 _BASE64_SUFFIX = "_base64"
 
 
-def _strip_base64(value: Any) -> Any:
-    """Recursively drop any dict key ending in ``_base64``.
+def _redact_base64(value: Any) -> Any:
+    """Recursively null any dict value whose key ends in ``_base64``.
 
     Returns a new structure; the input is left untouched. Matching by suffix
-    (not a fixed name list) means a future base64 field is filtered by
-    construction, without another edit here.
+    (not a fixed name list) means a future base64 field is redacted by
+    construction, without another edit here. The key is kept (set to ``None``)
+    so the result still satisfies the tool's output schema.
     """
     if isinstance(value, dict):
         return {
-            k: _strip_base64(v)
+            k: (
+                None
+                if isinstance(k, str) and k.endswith(_BASE64_SUFFIX)
+                else _redact_base64(v)
+            )
             for k, v in value.items()
-            if not (isinstance(k, str) and k.endswith(_BASE64_SUFFIX))
         }
     if isinstance(value, list):
-        return [_strip_base64(v) for v in value]
+        return [_redact_base64(v) for v in value]
     return value
 
 
 class Base64FilterMiddleware(Middleware):
-    """Strip ``*_base64`` fields from every tool result.
+    """Redact ``*_base64`` fields (to ``null``) from every tool result.
 
     Route-backed tools return the raw route JSON, which carries avatar/guild
     icon data URIs. Filtering here — after the route (and its RLS gates) have
-    run — is purely cosmetic to the payload: it removes only inert image blobs,
-    never anything a caller acts on.
+    run — is purely cosmetic to the payload: it nulls only inert image blobs,
+    never anything a caller acts on, and leaves the keys present so structured
+    output stays valid against the tool's schema.
     """
 
     async def on_call_tool(
@@ -110,11 +122,11 @@ class Base64FilterMiddleware(Middleware):
 
         structured = result.structured_content
         if structured is not None:
-            structured = _strip_base64(structured)
+            structured = _redact_base64(structured)
 
         content: list[Any] = []
         for block in result.content:
-            # Text blocks hold the JSON body for route-backed tools; strip the
+            # Text blocks hold the JSON body for route-backed tools; redact the
             # parsed form and re-serialize. Non-JSON text and non-text blocks
             # pass through untouched.
             if isinstance(block, TextContent):
@@ -126,7 +138,7 @@ class Base64FilterMiddleware(Middleware):
                 content.append(
                     TextContent(
                         type="text",
-                        text=json.dumps(_strip_base64(parsed), default=str),
+                        text=json.dumps(_redact_base64(parsed), default=str),
                     )
                 )
             else:
@@ -152,6 +164,53 @@ async def _forward_authorization(request: httpx.Request) -> None:
         request.headers["authorization"] = auth
 
 
+# The list endpoints take ``conditions``/``sorting`` as a JSON *string* query
+# param, but ``main._inject_query_schemas`` retypes them to arrays-of-objects in
+# the OpenAPI so the frontend's axios serializer JSON-encodes them. The MCP
+# request builder doesn't do that JSON-encoding: handed an array argument it
+# serializes each item with Python ``str()`` (single-quoted, e.g.
+# ``{'field': 'due_date'}``), which the backend's ``json.loads`` rejects — every
+# filtered/sorted list call 400s. Presenting the param to the model as a plain
+# JSON string instead makes it send a string the builder forwards verbatim (valid
+# JSON the backend parses). This touches only the MCP tool surface; the REST +
+# Orval types keep the rich array schema.
+_JSON_STRING_PARAMS = {
+    "conditions": (
+        "JSON-encoded array of filter conditions, AND-ed together. Each item: "
+        '{"field": "<column>", "op": '
+        '"eq"|"lt"|"lte"|"gt"|"gte"|"in_"|"ilike"|"is_null", "value": <val>}. '
+        'An item with a "conditions" key is a group: '
+        '{"logic": "and"|"or", "conditions": [...]}. '
+        'Example: [{"field": "due_date", "op": "lt", "value": "2026-07-22"}]'
+    ),
+    "sorting": (
+        "JSON-encoded array of sort fields. Each item: "
+        '{"field": "<column>", "dir": "asc"|"desc"}. '
+        'Example: [{"field": "due_date", "dir": "asc"}]'
+    ),
+}
+
+
+def _stringify_json_query_params(route: object, component: object) -> None:
+    """Retype array ``conditions``/``sorting`` tool params to JSON strings.
+
+    A FastMCP ``mcp_component_fn`` (build-time): mutates each tool's input schema
+    in place so the model passes a JSON string the request builder forwards as
+    valid JSON, rather than an array it would mis-serialize. See the note on
+    ``_JSON_STRING_PARAMS``.
+    """
+    params = getattr(component, "parameters", None)
+    if not isinstance(params, dict):
+        return
+    props = params.get("properties")
+    if not isinstance(props, dict):
+        return
+    for name, description in _JSON_STRING_PARAMS.items():
+        schema = props.get(name)
+        if isinstance(schema, dict) and schema.get("type") == "array":
+            props[name] = {"type": "string", "description": description}
+
+
 def build_mcp_server(app: "FastAPI") -> FastMCP:
     """Build the route-backed, read-only MCP server from the FastAPI ``app``.
 
@@ -161,6 +220,7 @@ def build_mcp_server(app: "FastAPI") -> FastMCP:
         app=app,
         name=PROJECT_NAME,
         route_maps=_ROUTE_MAPS,
+        mcp_component_fn=_stringify_json_query_params,
         httpx_client_kwargs={"event_hooks": {"request": [_forward_authorization]}},
     )
     server.add_middleware(Base64FilterMiddleware())

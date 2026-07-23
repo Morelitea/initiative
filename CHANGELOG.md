@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The in-app MCP server's base64 filter now **nulls** `*_base64` fields instead of dropping the keys. Removing the keys made a tool's structured output violate its own (schema-required) shape, so every task or user-bearing listing failed with `'avatar_base64' is a required property`. The image blob is still stripped from the payload; the field is just kept as `null`.
+- MCP list tools (tasks, `/me` tasks) now present their `conditions` and `sorting` parameters as JSON strings, so filtering and sorting through the MCP server work. They were typed as arrays (for the frontend), which the MCP request builder serialized with Python `str()` — single-quoted, invalid JSON — so every filtered or sorted list call was rejected with `QUERY_INVALID_CONDITIONS` / `QUERY_INVALID_SORT_FIELDS`.
+
 ## [0.58.1] - 2026-07-22
 
 ### Added
