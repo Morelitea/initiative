@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The new-task dialog's **Status** dropdown now resets when you switch projects. Because the task section is reused as you move between projects, a status you had picked (or the previous project's default) could linger and be submitted against the new project, whose statuses have different ids. The composer now drops any status that doesn't belong to the active project and falls back to that project's default.
+
 ## [0.58.2] - 2026-07-22
 
 ### Fixed
