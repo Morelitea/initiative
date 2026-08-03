@@ -158,3 +158,33 @@ async def test_falls_back_to_next_validated_address():
 
     assert response.status_code == 200
     assert seen == ["93.184.216.34", "93.184.216.35"]
+
+
+@pytest.mark.unit
+async def test_connect_timeout_does_not_fall_back():
+    """A connect timeout is not retried across addresses — it has already
+    consumed the caller's budget — so the request fails without multiplying
+    the timeout over every validated address."""
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.url.host)
+        raise httpx.ConnectTimeout("timed out", request=request)
+
+    infos = [
+        (2, 0, 0, "", ("93.184.216.34", 0)),
+        (2, 0, 0, "", ("93.184.216.35", 0)),
+    ]
+    with patch(
+        "app.services.webhook_target_url.socket.getaddrinfo", return_value=infos
+    ):
+        with pytest.raises(httpx.ConnectTimeout):
+            await request_public_target(
+                "POST",
+                "https://cdn.example.com/deliver",
+                content=b"{}",
+                timeout=5.0,
+                transport=httpx.MockTransport(handler),
+            )
+
+    assert seen == ["93.184.216.34"]  # stopped after the timeout; no fallback

@@ -126,21 +126,18 @@ def _addresses_from_getaddrinfo_results(infos: list, host: str) -> list[_IPAddre
 def _enforce_policy(host: str, scheme: str, addresses: list[_IPAddress]) -> None:
     """Apply the scheme + address policy to a resolved target.
 
-    A non-public address (private/loopback/link-local/...) is refused
-    unless the dev escape hatch is on, in which case a local target may
-    use http or https. Plain http to a *public* host is never permitted,
-    even with the escape hatch — its scope is local/private targets. A
-    mixed public/private set is treated as private (refused as a whole
-    when the hatch is off)."""
-    has_private = any(not _is_public_address(a) for a in addresses)
-    if has_private:
-        if not _allow_private_targets():
-            offending = next(a for a in addresses if not _is_public_address(a))
-            raise WebhookTargetUrlPrivateError(
-                f"host {host!r} resolves to non-public address {offending}"
-            )
-        return
-    if scheme != "https":
+    Non-public addresses (private/loopback/link-local/...) require the dev
+    escape hatch. Public addresses require https — plain http is only ever
+    allowed when no resolved address is public, so a mixed set over http is
+    rejected even with the hatch on (any address may be connected to)."""
+    public = [a for a in addresses if _is_public_address(a)]
+    non_public = [a for a in addresses if not _is_public_address(a)]
+
+    if non_public and not _allow_private_targets():
+        raise WebhookTargetUrlPrivateError(
+            f"host {host!r} resolves to non-public address {non_public[0]}"
+        )
+    if public and scheme != "https":
         raise WebhookTargetUrlError(
             f"plain http to public host {host!r} is not permitted"
         )

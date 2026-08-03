@@ -226,3 +226,35 @@ def test_dev_flag_still_rejects_http_to_public(monkeypatch):
     ):
         with pytest.raises(WebhookTargetUrlError):
             assert_target_url_is_public("http://hooks.example.com/in")
+
+
+@pytest.mark.unit
+def test_dev_flag_rejects_http_to_mixed_public_private(monkeypatch):
+    """Dev flag on: a host resolving to both public and private addresses
+    over http is rejected — http is only allowed when no resolved address
+    is public (any address in the set may be connected to)."""
+    _enable_dev_flag(monkeypatch)
+    fake_infos = [
+        (2, 0, 0, "", ("93.184.216.34", 0)),  # public
+        (2, 0, 0, "", ("10.0.0.5", 0)),  # private
+    ]
+    with patch(
+        "app.services.webhook_target_url.socket.getaddrinfo", return_value=fake_infos
+    ):
+        with pytest.raises(WebhookTargetUrlError):
+            assert_target_url_is_public("http://mixed.example.com/hook")
+
+
+@pytest.mark.unit
+def test_dev_flag_allows_https_to_mixed(monkeypatch):
+    """Dev flag on: https to a mixed public/private set is fine — the
+    scheme guarantees encryption regardless of which address is used."""
+    _enable_dev_flag(monkeypatch)
+    fake_infos = [
+        (2, 0, 0, "", ("93.184.216.34", 0)),
+        (2, 0, 0, "", ("10.0.0.5", 0)),
+    ]
+    with patch(
+        "app.services.webhook_target_url.socket.getaddrinfo", return_value=fake_infos
+    ):
+        assert_target_url_is_public("https://mixed.example.com/hook")

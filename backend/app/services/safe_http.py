@@ -92,12 +92,14 @@ async def request_public_target(
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> httpx.Response:
     """Send a request to a validated public target. The host is resolved
-    once; the request connects to a validated address and falls back to the
-    other validated addresses if one is unreachable. ``transport`` is
-    injectable for tests."""
+    once; the request connects to a validated address and, if one fails
+    fast (connection refused / unreachable), falls back to the other
+    validated addresses. A connect *timeout* is not retried — it has
+    already consumed the caller's budget — so total wall time stays bounded
+    by ``timeout``. ``transport`` is injectable for tests."""
     original = httpx.URL(url)
     target = await resolve_validated_target_async(url)
-    last_exc: Exception | None = None
+    last_exc: httpx.ConnectError | None = None
     async with httpx.AsyncClient(
         timeout=timeout, follow_redirects=False, transport=transport
     ) as client:
@@ -113,8 +115,8 @@ async def request_public_target(
             )
             try:
                 return await client.send(request)
-            except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
-                # This validated address is unreachable; try the next one.
+            except httpx.ConnectError as exc:
+                # Fast failure for this validated address; try the next one.
                 last_exc = exc
     if last_exc is not None:
         raise last_exc
