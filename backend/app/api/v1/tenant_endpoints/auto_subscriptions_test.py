@@ -1,7 +1,7 @@
 """Integration tests for the webhook subscription endpoints.
 
-These cover the two security properties the routes enforce on top of
-RLS: SSRF rejection on ``target_url`` and the creator-or-admin gate on
+These cover the two properties the routes enforce on top of RLS:
+target-URL validation on ``target_url`` and the creator-or-admin gate on
 mutations. CRUD round-trips themselves are exercised by the dispatcher
 tests (which create rows via the same service layer).
 """
@@ -17,15 +17,6 @@ from app.models.platform.guild import GuildRole
 from app.testing import Actor
 
 
-@pytest.fixture(autouse=True)
-def _force_prod_flag(monkeypatch):
-    """Pin the SSRF dev flag to False so tests assert on production
-    semantics regardless of local ``.env``."""
-    from app.core import config as config_module
-
-    monkeypatch.setattr(config_module.settings, "WEBHOOK_ALLOW_PRIVATE_TARGETS", False)
-
-
 async def _authed_post(client: AsyncClient, actor: Actor, body: dict):
     return await client.post(
         actor.g("/auto/subscriptions"), json=body, headers=actor.headers
@@ -34,9 +25,7 @@ async def _authed_post(client: AsyncClient, actor: Actor, body: dict):
 
 @pytest.mark.integration
 async def test_create_rejects_loopback_target_url(client: AsyncClient, acting_user):
-    """Registering a target that resolves to loopback must 400. Without
-    this guard, every guild member could redirect outbound dispatches to
-    internal services."""
+    """Registering a target that resolves to loopback must 400."""
     a = await acting_user(guild_role=GuildRole.admin)
 
     response = await _authed_post(
@@ -52,16 +41,15 @@ async def test_create_rejects_loopback_target_url(client: AsyncClient, acting_us
 
 
 @pytest.mark.integration
-async def test_create_rejects_metadata_endpoint(client: AsyncClient, acting_user):
-    """The cloud-metadata endpoint is the canonical SSRF target — keep
-    it explicitly in the test suite so a regression is loud."""
+async def test_create_rejects_link_local_target(client: AsyncClient, acting_user):
+    """A link-local address must be rejected at registration."""
     a = await acting_user(guild_role=GuildRole.admin)
 
     response = await _authed_post(
         client,
         a,
         body={
-            "target_url": "https://169.254.169.254/latest/meta-data/iam/",
+            "target_url": "https://169.254.169.254/",
             "event_types": ["task.created"],
         },
     )

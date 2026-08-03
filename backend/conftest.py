@@ -78,6 +78,12 @@ HANDOFF_TEST_PUBLIC_PEM = (
 settings.HANDOFF_SIGNING_PRIVATE_KEY_PEM = HANDOFF_TEST_PRIVATE_PEM
 settings.HANDOFF_SIGNING_KEY_ID = "test-handoff-key"
 
+# Pin the dev-only webhook/AI target escape hatch OFF so the suite asserts
+# production target policy (https + public addresses) regardless of a local
+# ``.env`` that enables it. Tests exercising the flag-on path re-set it via
+# ``monkeypatch`` for their own scope.
+settings.WEBHOOK_ALLOW_PRIVATE_TARGETS = False
+
 # --- Test-infrastructure superuser ---------------------------------------------
 # The suite needs cluster-superuser powers the APP must never hold: CREATE
 # DATABASE per worker, raw setup/assertion writes on FORCE-RLS tables (the
