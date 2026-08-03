@@ -16,6 +16,7 @@ from app.models.tenant.task import Task
 from app.models.platform.user import User
 from app.schemas.ai_settings import AIProvider
 from app.services.ai_settings import resolve_ai_settings
+from app.services.safe_http import request_public_target
 from app.services.webhook_target_url import (
     WebhookTargetUrlError,
     WebhookTargetUrlPrivateError,
@@ -38,9 +39,8 @@ async def _validate_generation_base_url(
     provider: AIProvider | None,
     base_url: str | None,
 ) -> None:
-    # Ollama is platform-admin-only (guild/user can no longer select it),
-    # so its base_url is operator-controlled and trusted. Only custom
-    # providers still flow user-supplied URLs that need the SSRF guard.
+    # Only the custom provider uses a caller-supplied base URL, so only it
+    # is validated here; Ollama's base URL is operator-configured.
     if provider != AIProvider.custom or not base_url:
         return
     try:
@@ -868,14 +868,24 @@ async def _generate_ollama_summary(
 # ---------------------------------------------------------------------------
 
 
-async def _generate_custom_subtasks(
+async def _custom_chat_completion(
+    *,
     api_key: str | None,
     base_url: str | None,
     model: str | None,
     system_prompt: str,
     user_content: str,
-) -> list[str]:
-    """Generate subtasks using custom OpenAI-compatible API."""
+    temperature: float,
+    max_tokens: int,
+    timeout: float,
+) -> str:
+    """POST an OpenAI-compatible chat completion to a caller-supplied
+    ``base_url`` and return the message content.
+
+    The request goes through :func:`request_public_target`, which resolves
+    the host once and connects to that validated address, keeping the
+    hostname for TLS.
+    """
     if not base_url:
         raise AIGenerationError("Base URL is required for custom provider")
 
@@ -885,26 +895,28 @@ async def _generate_custom_subtasks(
         headers["Authorization"] = f"Bearer {api_key}"
 
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                f"{url}/chat/completions",
-                headers=headers,
-                json={
-                    "model": model or "default",
-                    "messages": _openai_messages(system_prompt, user_content),
-                    "temperature": 0.7,
-                    "max_tokens": 500,
-                },
-            )
+        response = await request_public_target(
+            "POST",
+            f"{url}/chat/completions",
+            headers=headers,
+            json={
+                "model": model or "default",
+                "messages": _openai_messages(system_prompt, user_content),
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            },
+            timeout=timeout,
+        )
 
-            if response.status_code == 401:
-                raise AIGenerationError("Invalid API key")
-            elif response.status_code != 200:
-                raise AIGenerationError(f"API error: {response.status_code}")
+        if response.status_code == 401:
+            raise AIGenerationError("Invalid API key")
+        elif response.status_code != 200:
+            raise AIGenerationError(f"API error: {response.status_code}")
 
-            data = response.json()
-            content = data["choices"][0]["message"]["content"]
-            return _parse_subtasks_response(content)
+        data = response.json()
+        return data["choices"][0]["message"]["content"]
+    except (WebhookTargetUrlError, WebhookTargetUrlPrivateError) as exc:
+        raise AIGenerationError(AIMessages.INVALID_BASE_URL) from exc
     except httpx.ConnectError:
         raise AIGenerationError(f"Could not connect to {url}")
     except httpx.TimeoutException:
@@ -913,6 +925,27 @@ async def _generate_custom_subtasks(
         raise
     except Exception as e:
         raise AIGenerationError(f"Request failed: {str(e)}")
+
+
+async def _generate_custom_subtasks(
+    api_key: str | None,
+    base_url: str | None,
+    model: str | None,
+    system_prompt: str,
+    user_content: str,
+) -> list[str]:
+    """Generate subtasks using a custom OpenAI-compatible API."""
+    content = await _custom_chat_completion(
+        api_key=api_key,
+        base_url=base_url,
+        model=model,
+        system_prompt=system_prompt,
+        user_content=user_content,
+        temperature=0.7,
+        max_tokens=500,
+        timeout=30.0,
+    )
+    return _parse_subtasks_response(content)
 
 
 async def _generate_custom_description(
@@ -922,44 +955,18 @@ async def _generate_custom_description(
     system_prompt: str,
     user_content: str,
 ) -> str:
-    """Generate description using custom OpenAI-compatible API."""
-    if not base_url:
-        raise AIGenerationError("Base URL is required for custom provider")
-
-    url = base_url.rstrip("/")
-    headers = {"Content-Type": "application/json"}
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
-
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                f"{url}/chat/completions",
-                headers=headers,
-                json={
-                    "model": model or "default",
-                    "messages": _openai_messages(system_prompt, user_content),
-                    "temperature": 0.7,
-                    "max_tokens": 500,
-                },
-            )
-
-            if response.status_code == 401:
-                raise AIGenerationError("Invalid API key")
-            elif response.status_code != 200:
-                raise AIGenerationError(f"API error: {response.status_code}")
-
-            data = response.json()
-            text = data["choices"][0]["message"]["content"].strip()
-            return _truncate_output(text, _MAX_DESCRIPTION_LENGTH)
-    except httpx.ConnectError:
-        raise AIGenerationError(f"Could not connect to {url}")
-    except httpx.TimeoutException:
-        raise AIGenerationError("Request timed out")
-    except AIGenerationError:
-        raise
-    except Exception as e:
-        raise AIGenerationError(f"Request failed: {str(e)}")
+    """Generate a description using a custom OpenAI-compatible API."""
+    content = await _custom_chat_completion(
+        api_key=api_key,
+        base_url=base_url,
+        model=model,
+        system_prompt=system_prompt,
+        user_content=user_content,
+        temperature=0.7,
+        max_tokens=500,
+        timeout=30.0,
+    )
+    return _truncate_output(content.strip(), _MAX_DESCRIPTION_LENGTH)
 
 
 async def _generate_custom_summary(
@@ -969,44 +976,18 @@ async def _generate_custom_summary(
     system_prompt: str,
     user_content: str,
 ) -> str:
-    """Generate summary using custom OpenAI-compatible API."""
-    if not base_url:
-        raise AIGenerationError("Base URL is required for custom provider")
-
-    url = base_url.rstrip("/")
-    headers = {"Content-Type": "application/json"}
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
-
-    try:
-        async with httpx.AsyncClient(timeout=90.0) as client:
-            response = await client.post(
-                f"{url}/chat/completions",
-                headers=headers,
-                json={
-                    "model": model or "default",
-                    "messages": _openai_messages(system_prompt, user_content),
-                    "temperature": 0.5,
-                    "max_tokens": 1000,
-                },
-            )
-
-            if response.status_code == 401:
-                raise AIGenerationError("Invalid API key")
-            elif response.status_code != 200:
-                raise AIGenerationError(f"API error: {response.status_code}")
-
-            data = response.json()
-            text = data["choices"][0]["message"]["content"].strip()
-            return _truncate_output(text, _MAX_SUMMARY_LENGTH)
-    except httpx.ConnectError:
-        raise AIGenerationError(f"Could not connect to {url}")
-    except httpx.TimeoutException:
-        raise AIGenerationError("Request timed out")
-    except AIGenerationError:
-        raise
-    except Exception as e:
-        raise AIGenerationError(f"Request failed: {str(e)}")
+    """Generate a summary using a custom OpenAI-compatible API."""
+    content = await _custom_chat_completion(
+        api_key=api_key,
+        base_url=base_url,
+        model=model,
+        system_prompt=system_prompt,
+        user_content=user_content,
+        temperature=0.5,
+        max_tokens=1000,
+        timeout=90.0,
+    )
+    return _truncate_output(content.strip(), _MAX_SUMMARY_LENGTH)
 
 
 # ---------------------------------------------------------------------------

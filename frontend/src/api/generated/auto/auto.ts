@@ -45,10 +45,9 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
  * in the service layer. The caller's guild comes from
  * ``GuildContext`` — the body never carries it.
  *
- * SSRF guard: ``target_url`` must resolve to a public unicast address.
- * Hostnames pointing at private / loopback / link-local space are
- * rejected so a guild member can't aim deliveries at internal services
- * or cloud-metadata endpoints.
+ * Target policy: ``target_url`` must be https and resolve to a public
+ * unicast address; private, loopback and link-local addresses are
+ * rejected.
  * @summary Create Subscription
  */
 export const createSubscriptionApiV1GGuildIdAutoSubscriptionsPost = (
