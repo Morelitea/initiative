@@ -103,21 +103,19 @@ async def _insert_user(conn, email: str, *, key: str) -> int:
     return await conn.scalar(
         text(
             "INSERT INTO public.users "
-            "(email_hash, email_encrypted, ai_api_key_encrypted, hashed_password, "
-            " created_at, updated_at) "
-            "VALUES (:h, :e, :a, 'x', now(), now()) RETURNING id"
+            "(email_hash, email_encrypted, hashed_password, created_at, updated_at) "
+            "VALUES (:h, :e, 'x', now(), now()) RETURNING id"
         ),
         {
             "h": hash_email(email, secret_key=key),
             "e": encrypt_field(email, SALT_EMAIL, secret_key=key),
-            "a": encrypt_field("user-ai-key", SALT_AI_API_KEY, secret_key=key),
         },
     )
 
 
 async def test_rotate_user_email_hash_and_fernet_columns(engine, monkeypatch):
-    """A user seeded under OLD has its email pair AND ai key re-keyed to NEW; the
-    recomputed email_hash matches a NEW-key lookup. Second run is idempotent."""
+    """A user seeded under OLD has its email pair re-keyed to NEW; the recomputed
+    email_hash matches a NEW-key lookup. Second run is idempotent."""
     email = "rot-user@example.com"
     old_hash = hash_email(email, secret_key=OLD)
     user_id = None
@@ -127,13 +125,13 @@ async def test_rotate_user_email_hash_and_fernet_columns(engine, monkeypatch):
 
         _use_keys(monkeypatch, old=OLD, new=NEW)
         summary = await rotate_secret_key()
-        assert summary.rotated >= 2  # email pair (counts once) + ai key
+        assert summary.rotated >= 1  # email pair (counts once)
 
         async with engine.connect() as conn:
-            h, e, a = (
+            h, e = (
                 await conn.execute(
                     text(
-                        "SELECT email_hash, email_encrypted, ai_api_key_encrypted "
+                        "SELECT email_hash, email_encrypted "
                         "FROM public.users WHERE id = :i"
                     ),
                     {"i": user_id},
@@ -144,7 +142,6 @@ async def test_rotate_user_email_hash_and_fernet_columns(engine, monkeypatch):
         assert h == hash_email(email, secret_key=NEW)
         assert h != old_hash
         assert decrypt_field(e, SALT_EMAIL, secret_key=NEW) == email
-        assert decrypt_field(a, SALT_AI_API_KEY, secret_key=NEW) == "user-ai-key"
 
         # Idempotent: a second run re-keys nothing (this row is already under NEW).
         again = await rotate_secret_key()
@@ -205,10 +202,12 @@ async def test_dry_run_reports_but_does_not_write(engine, monkeypatch):
 
 
 async def test_rotate_visits_per_guild_schema_settings(engine, monkeypatch):
-    """guild_settings is guild-scoped, so its live rows live in guild_<id> schemas —
-    the sweep re-keys them there. Post-squash there is no public copy of a guild
-    table in the rotation set: guild data is re-keyed ONLY through its guild schema,
-    never an unrouted public pathway."""
+    """The guild AI key columns are guild-scoped, so they live in guild_<id>
+    schemas — the sweep re-keys them there. This covers both a guild-level table
+    (guild_ai_connections) and the own-row-RLS member-key table
+    (guild_ai_member_keys): the per-guild sweep sets current_guild_role='admin'
+    so the own-row policy admits the maintenance sweep. Guild data is re-keyed
+    ONLY through its guild schema, never an unrouted public pathway."""
     gid = None
     try:
         async with engine.begin() as conn:
@@ -220,19 +219,32 @@ async def test_rotate_visits_per_guild_schema_settings(engine, monkeypatch):
         await provision_guild(gid)  # creates the guild_<id> schema (own transaction)
         schema = guild_schema_name(gid)
         async with engine.begin() as conn:
-            # FK checks off so we can seed without a schema-local guild row.
+            # FK checks off so we can seed without a schema-local guild/user row.
             await conn.execute(
                 text("SELECT set_config('session_replication_role', 'replica', true)")
             )
             await conn.execute(
                 text(
-                    f'INSERT INTO "{schema}".guild_settings '  # noqa: S608
-                    "(guild_id, created_at, updated_at, ai_api_key_encrypted) "
-                    "VALUES (:g, now(), now(), :a)"
+                    f'INSERT INTO "{schema}".guild_ai_connections '  # noqa: S608
+                    "(guild_id, label, provider, api_key_encrypted, enabled, "
+                    " is_default, created_at, updated_at) "
+                    "VALUES (:g, 'c', 'openai', :a, true, false, now(), now())"
                 ),
                 {
                     "g": gid,
                     "a": encrypt_field("guild-ai", SALT_AI_API_KEY, secret_key=OLD),
+                },
+            )
+            await conn.execute(
+                text(
+                    f'INSERT INTO "{schema}".guild_ai_member_keys '  # noqa: S608
+                    "(guild_id, user_id, connection_scope, connection_id, "
+                    " api_key_encrypted, created_at, updated_at) "
+                    "VALUES (:g, 1, 'guild', 1, :a, now(), now())"
+                ),
+                {
+                    "g": gid,
+                    "a": encrypt_field("member-ai", SALT_AI_API_KEY, secret_key=OLD),
                 },
             )
 
@@ -240,14 +252,22 @@ async def test_rotate_visits_per_guild_schema_settings(engine, monkeypatch):
         await rotate_secret_key()
 
         async with engine.connect() as conn:
-            ct = await conn.scalar(
+            conn_ct = await conn.scalar(
                 text(
-                    f'SELECT ai_api_key_encrypted FROM "{schema}".guild_settings '
+                    f'SELECT api_key_encrypted FROM "{schema}".guild_ai_connections '
                     "WHERE guild_id = :g"
                 ),
                 {"g": gid},
             )
-        assert decrypt_field(ct, SALT_AI_API_KEY, secret_key=NEW) == "guild-ai"
+            member_ct = await conn.scalar(
+                text(
+                    f'SELECT api_key_encrypted FROM "{schema}".guild_ai_member_keys '
+                    "WHERE guild_id = :g"
+                ),
+                {"g": gid},
+            )
+        assert decrypt_field(conn_ct, SALT_AI_API_KEY, secret_key=NEW) == "guild-ai"
+        assert decrypt_field(member_ct, SALT_AI_API_KEY, secret_key=NEW) == "member-ai"
 
         # The per-guild sweep assumes guild_<id> roles on pooled system-engine
         # connections; a fresh checkout afterwards must run as the plain system

@@ -53,28 +53,15 @@ class AppSetting(SQLModel, table=True):
         default=None, sa_column=Column(String(255), nullable=True)
     )
 
-    # AI Settings
-    ai_enabled: bool = Field(
-        default=False,
-        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    # AI config ownership mode: "platform" (the operator's connections apply to
+    # every guild), "guild" (each guild admin configures its own), or "disabled".
+    # Provider config itself lives in platform_ai_connections /
+    # guild_ai_connections; only the mode + member-key policy live here.
+    ai_config_mode: str = Field(
+        default="disabled",
+        sa_column=Column(String(20), nullable=False, server_default="disabled"),
     )
-    ai_provider: Optional[str] = Field(
-        default=None, sa_column=Column(String(50), nullable=True)
-    )
-    ai_api_key_encrypted: Optional[str] = Field(
-        default=None, sa_column=Column(String(2000), nullable=True)
-    )
-    ai_base_url: Optional[str] = Field(
-        default=None, sa_column=Column(String(1000), nullable=True)
-    )
-    ai_model: Optional[str] = Field(
-        default=None, sa_column=Column(String(500), nullable=True)
-    )
-    ai_allow_guild_override: bool = Field(
-        default=True,
-        sa_column=Column(Boolean, nullable=False, server_default="true"),
-    )
-    ai_allow_user_override: bool = Field(
+    ai_allow_member_keys: bool = Field(
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
     )

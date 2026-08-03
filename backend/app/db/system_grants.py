@@ -76,6 +76,12 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     "access_grants": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # singleton config: seeded + updated, never deleted
     "app_settings": frozenset({"SELECT", "INSERT", "UPDATE"}),
+    # operator AI connections: the request path never queries this directly —
+    # the resolve step reads it via an in-process cache loaded on the system
+    # engine (SELECT), and the secret-key rotation re-encrypts its key column on
+    # the system engine (UPDATE). CRUD writes run owner-scoped as platform_owner
+    # via RLS, not the system engine.
+    "platform_ai_connections": frozenset({"SELECT", "UPDATE"}),
     # OIDC sync reads mappings; the settings endpoints manage them
     "oidc_claim_mappings": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # login provider registry (successor to app_settings.oidc_*): fully managed
@@ -139,6 +145,9 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     "user_api_keys": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     "auto_delegation_jti_blocklist": frozenset({"SELECT", "INSERT"}),
     "app_settings": frozenset({"SELECT"}),
+    # operator AI connections are owner-managed + system-engine-read only; the
+    # bare pre-routing login role never touches them
+    "platform_ai_connections": None,
     "guilds": frozenset({"SELECT"}),
     "guild_invites": frozenset({"SELECT"}),
     "guild_memberships": frozenset({"SELECT"}),
