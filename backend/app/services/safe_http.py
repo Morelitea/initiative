@@ -35,17 +35,20 @@ async def build_validated_request(
     headers: dict[str, str] | None = None,
     content: bytes | None = None,
     json: Any = None,
+    allow_private: bool = False,
 ) -> httpx.Request:
     """Resolve and validate ``url``, then build a request whose connection
     target is the validated address, keeping the hostname for TLS SNI,
-    certificate verification, and the ``Host`` header.
+    certificate verification, and the ``Host`` header. ``allow_private``
+    permits private/loopback targets (still pinned) for operator-configured
+    destinations.
 
     Raises :class:`~app.services.webhook_target_url.WebhookTargetUrlError`
     or :class:`~app.services.webhook_target_url.WebhookTargetUrlPrivateError`
     for a disallowed target.
     """
     original = httpx.URL(url)
-    target = await resolve_validated_target_async(url)
+    target = await resolve_validated_target_async(url, allow_private=allow_private)
     return _pin_request(
         method,
         original,
@@ -90,15 +93,18 @@ async def request_public_target(
     json: Any = None,
     timeout: httpx.Timeout | float,
     transport: httpx.AsyncBaseTransport | None = None,
+    allow_private: bool = False,
 ) -> httpx.Response:
     """Send a request to a validated public target. The host is resolved
     once; the request connects to a validated address and, if one fails
     fast (connection refused / unreachable), falls back to the other
     validated addresses. A connect *timeout* is not retried — it has
     already consumed the caller's budget — so total wall time stays bounded
-    by ``timeout``. ``transport`` is injectable for tests."""
+    by ``timeout``. ``allow_private`` permits private/loopback targets (still
+    pinned) for operator-configured destinations. ``transport`` is injectable
+    for tests."""
     original = httpx.URL(url)
-    target = await resolve_validated_target_async(url)
+    target = await resolve_validated_target_async(url, allow_private=allow_private)
     last_exc: httpx.ConnectError | None = None
     async with httpx.AsyncClient(
         timeout=timeout, follow_redirects=False, transport=transport
