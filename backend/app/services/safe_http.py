@@ -116,4 +116,8 @@ async def request_public_target(
             except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
                 # This validated address is unreachable; try the next one.
                 last_exc = exc
-    raise last_exc
+    if last_exc is not None:
+        raise last_exc
+    # Unreachable: resolve_validated_target_async guarantees at least one
+    # address, so the loop always sets last_exc on total failure.
+    raise RuntimeError(f"no validated address to connect to for {url!r}")
