@@ -905,6 +905,117 @@ async def test_backup_rejects_invalid_and_bomb_zips(
     assert unsupported.json()["detail"] == "IMPORT_SCHEMA_VERSION_UNSUPPORTED"
 
 
+async def test_backup_rejects_asset_key_with_path_components(
+    client, acting_user, session
+):
+    """An asset storage_key is both the uploads-row identity and the storage
+    write target; the backends key by basename. A backup whose key carries path
+    components is rejected whole at upload, leaving an existing blob of the same
+    basename untouched and creating no second uploads row."""
+    from sqlmodel import select
+
+    from app.models.tenant.upload import Upload
+    from app.testing import route_session_to_guild
+    from app.testing.factories import create_upload
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    original = b"%PDF-original"
+    get_guild_storage(a.guild.id).write(
+        "keep.pdf", original, content_type="application/pdf"
+    )
+    await create_upload(
+        session,
+        a.guild,
+        a.user,
+        filename="keep.pdf",
+        size_bytes=len(original),
+        content_type="application/pdf",
+    )
+
+    manifest = _minimal_manifest(
+        assets=[
+            {
+                "path": "assets/nested/keep.pdf",
+                "storage_key": "nested/keep.pdf",
+                "original_filename": "keep.pdf",
+                "content_type": "application/pdf",
+                "size_bytes": len(original),
+                "referenced_by": [],
+            }
+        ],
+    )
+    zip_bytes = _make_backup_zip(
+        manifest, {"assets/nested/keep.pdf": b"REPLACED-BYTES"}
+    )
+    resp = await _upload_backup(client, a, zip_bytes)
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "IMPORT_ZIP_INVALID"
+
+    blob = get_guild_storage(a.guild.id).open_readable("keep.pdf")
+    assert blob is not None and blob.path.read_bytes() == original
+    await route_session_to_guild(session, a.guild.id)
+    rows = (
+        await session.exec(select(Upload).where(Upload.guild_id == a.guild.id))
+    ).all()
+    assert [u.filename for u in rows] == ["keep.pdf"]
+
+
+def test_reject_non_flat_asset_keys_unit():
+    """The one choke point both plan and apply funnel through: flat keys pass;
+    a storage_key or file-entry asset with path components raises."""
+    from app.schemas.tenant.backup_export import (
+        BackupManifest,
+        ManifestAsset,
+        ManifestEntry,
+    )
+    from app.services.import_engine.backup import _reject_non_flat_asset_keys
+    from app.services.import_engine.contract import ImportEngineError
+
+    def _manifest(assets=None, entries=None):
+        return BackupManifest(
+            type="initiative-backup",
+            schema_version=1,
+            app_version="0.0.0-test",
+            exported_at="2026-07-15T00:00:00+00:00",
+            guild={"id": 1, "name": "g"},
+            include_uploads=True,
+            initiatives=[],
+            entries=entries or [],
+            assets=assets or [],
+            skipped=[],
+        )
+
+    def _asset(storage_key):
+        return ManifestAsset(path=f"assets/{storage_key}", storage_key=storage_key)
+
+    def _file_entry(asset_ref):
+        return ManifestEntry(
+            path=asset_ref,
+            tool="document",
+            type="file",
+            entity_id=1,
+            title="f",
+            initiative_id=1,
+            asset=asset_ref,
+        )
+
+    # Flat keys pass (a legit export only ever emits these).
+    _reject_non_flat_asset_keys(_manifest(assets=[_asset("abc123.pdf")]))
+    _reject_non_flat_asset_keys(_manifest(entries=[_file_entry("assets/abc123.pdf")]))
+
+    # Path components in the asset key (incl. self-collision spellings) reject.
+    for bad in ("nested/keep.pdf", "a/b/keep.pdf", "./keep.pdf"):
+        with pytest.raises(ImportEngineError) as exc:
+            _reject_non_flat_asset_keys(_manifest(assets=[_asset(bad)]))
+        assert exc.value.code == "IMPORT_ZIP_INVALID"
+
+    # And in a file entry's asset reference.
+    with pytest.raises(ImportEngineError):
+        _reject_non_flat_asset_keys(
+            _manifest(entries=[_file_entry("assets/nested/keep.pdf")])
+        )
+
+
 async def test_backup_confirm_include_map_skips_tools(
     client, acting_user, session, monkeypatch, role_session
 ):
