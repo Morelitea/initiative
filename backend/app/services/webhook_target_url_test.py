@@ -213,3 +213,16 @@ def test_https_to_private_flag_off_is_private():
     scheme is fine, the address is not)."""
     with pytest.raises(WebhookTargetUrlPrivateError):
         assert_target_url_is_public("https://10.0.0.1/hook")
+
+
+@pytest.mark.unit
+def test_dev_flag_still_rejects_http_to_public(monkeypatch):
+    """The dev flag's scope is local/private targets; plain http to a
+    public host stays rejected even with it on."""
+    _enable_dev_flag(monkeypatch)
+    fake_infos = [(2, 0, 0, "", ("93.184.216.34", 0))]
+    with patch(
+        "app.services.webhook_target_url.socket.getaddrinfo", return_value=fake_infos
+    ):
+        with pytest.raises(WebhookTargetUrlError):
+            assert_target_url_is_public("http://hooks.example.com/in")

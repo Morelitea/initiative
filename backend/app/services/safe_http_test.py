@@ -127,3 +127,34 @@ async def test_dev_flag_pins_private_local_target(monkeypatch):
     assert request.url.host == "127.0.0.1"
     assert request.url.scheme == "http"
     assert request.headers["host"] == "localhost:8201"
+
+
+@pytest.mark.unit
+async def test_falls_back_to_next_validated_address():
+    """If the first validated address is unreachable, the request retries
+    the other validated addresses instead of failing outright."""
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.url.host)
+        if request.url.host == "93.184.216.34":
+            raise httpx.ConnectError("refused", request=request)
+        return httpx.Response(200, json={"ok": True})
+
+    infos = [
+        (2, 0, 0, "", ("93.184.216.34", 0)),
+        (2, 0, 0, "", ("93.184.216.35", 0)),
+    ]
+    with patch(
+        "app.services.webhook_target_url.socket.getaddrinfo", return_value=infos
+    ):
+        response = await request_public_target(
+            "POST",
+            "https://cdn.example.com/deliver",
+            content=b"{}",
+            timeout=5.0,
+            transport=httpx.MockTransport(handler),
+        )
+
+    assert response.status_code == 200
+    assert seen == ["93.184.216.34", "93.184.216.35"]

@@ -46,16 +46,38 @@ async def build_validated_request(
     """
     original = httpx.URL(url)
     target = await resolve_validated_target_async(url)
-    pinned_url = original.copy_with(host=target.pinned_ip)
+    return _pin_request(
+        method,
+        original,
+        target.pinned_ip,
+        target.hostname,
+        headers=headers,
+        content=content,
+        json=json,
+    )
+
+
+def _pin_request(
+    method: str,
+    original: httpx.URL,
+    ip: str,
+    hostname: str,
+    *,
+    headers: dict[str, str] | None,
+    content: bytes | None,
+    json: Any,
+) -> httpx.Request:
+    """Build a request aimed at ``ip`` while keeping ``hostname`` for TLS
+    SNI, certificate verification, and the ``Host`` header."""
     merged = dict(headers or {})
     merged["Host"] = _authority(original)
     return httpx.Request(
         method,
-        pinned_url,
+        original.copy_with(host=ip),
         headers=merged,
         content=content,
         json=json,
-        extensions={"sni_hostname": target.hostname},
+        extensions={"sni_hostname": hostname},
     )
 
 
@@ -69,12 +91,29 @@ async def request_public_target(
     timeout: httpx.Timeout | float,
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> httpx.Response:
-    """Send a request to a validated public target, connected to the
-    address that was checked. ``transport`` is injectable for tests."""
-    request = await build_validated_request(
-        method, url, headers=headers, content=content, json=json
-    )
+    """Send a request to a validated public target. The host is resolved
+    once; the request connects to a validated address and falls back to the
+    other validated addresses if one is unreachable. ``transport`` is
+    injectable for tests."""
+    original = httpx.URL(url)
+    target = await resolve_validated_target_async(url)
+    last_exc: Exception | None = None
     async with httpx.AsyncClient(
         timeout=timeout, follow_redirects=False, transport=transport
     ) as client:
-        return await client.send(request)
+        for address in target.addresses:
+            request = _pin_request(
+                method,
+                original,
+                str(address),
+                target.hostname,
+                headers=headers,
+                content=content,
+                json=json,
+            )
+            try:
+                return await client.send(request)
+            except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+                # This validated address is unreachable; try the next one.
+                last_exc = exc
+    raise last_exc
