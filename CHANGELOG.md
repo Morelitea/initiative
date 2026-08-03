@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.58.3] - 2026-08-03
+
+### Fixed
+
+- The new-task dialog's **Status** dropdown now resets when you switch projects. Because the task section is reused as you move between projects, a status you had picked (or the previous project's default) could linger and be submitted against the new project, whose statuses have different ids. The composer now drops any status that doesn't belong to the active project and falls back to that project's default.
+
+### Security
+
+- Backup import now validates every upload asset key as a flat filename and uses one canonical key for its database lookup, uniqueness check, and storage write. A backup whose asset key carried path components is rejected as malformed, keeping an imported upload's database record and the stored file it points at in agreement.
+- Hardened outbound webhook delivery and the custom AI provider so each request connects to the exact address validated against the target policy (https + public unicast); the original hostname is kept for TLS verification and the `Host` header. Both routes now share a single guarded egress helper.
+
 ## [0.58.2] - 2026-07-22
 
 ### Fixed

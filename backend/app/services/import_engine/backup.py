@@ -115,7 +115,25 @@ def read_manifest(archive: zipfile.ZipFile) -> BackupManifest:
         MIN_SUPPORTED_IMPORT_VERSION <= manifest.schema_version <= BACKUP_SCHEMA_VERSION
     ):
         raise ImportEngineError(ImportEngineMessages.IMPORT_SCHEMA_VERSION_UNSUPPORTED)
+    _reject_non_flat_asset_keys(manifest)
     return manifest
+
+
+def _reject_non_flat_asset_keys(manifest: BackupManifest) -> None:
+    """A backup asset key is both the ``uploads`` row identity and the storage
+    write target; the storage backends reduce it to ``Path(key).name``, so it
+    must already be flat for the two to match. Legit exports only ever emit flat
+    keys, so a key with path components is a malformed backup — reject it."""
+    from app.services.storage import is_flat_storage_key
+
+    for asset in manifest.assets:
+        if not is_flat_storage_key(asset.storage_key):
+            raise ImportEngineError(ImportEngineMessages.IMPORT_ZIP_INVALID)
+    for entry in manifest.entries:
+        if entry.asset is not None and not is_flat_storage_key(
+            entry.asset.removeprefix("assets/")
+        ):
+            raise ImportEngineError(ImportEngineMessages.IMPORT_ZIP_INVALID)
 
 
 def plan_backup(

@@ -37,10 +37,10 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.tenant.webhook_subscription import WebhookSubscription
+from app.services.safe_http import request_public_target
 from app.services.webhook_target_url import (
     WebhookTargetUrlError,
     WebhookTargetUrlPrivateError,
-    assert_target_url_is_public_async,
 )
 
 logger = logging.getLogger(__name__)
@@ -70,22 +70,11 @@ async def _deliver(
     """POST one envelope to one target. Logs and swallows any error so
     one bad subscriber can't break the rest of the dispatch.
 
-    The ``target_url`` is re-validated here even though the API layer
-    already checked at create/update time. DNS can change underneath us,
-    so a previously-public hostname could now point at internal space —
-    re-resolving immediately before the request closes the rebinding
-    window.
+    Delivery goes through :func:`request_public_target`, which resolves
+    the target host once and connects to that validated address. The
+    target is re-checked here (not only at create/update time) because a
+    hostname's resolution can change between registration and delivery.
     """
-    try:
-        await assert_target_url_is_public_async(target_url)
-    except (WebhookTargetUrlError, WebhookTargetUrlPrivateError) as exc:
-        logger.warning(
-            "webhook delivery skipped — target failed pre-flight check: target=%s err=%s",
-            target_url,
-            exc,
-        )
-        return
-
     body = json.dumps(envelope, default=str, separators=(",", ":")).encode("utf-8")
     timestamp = str(int(datetime.now(timezone.utc).timestamp()))
     signature = _sign(secret, timestamp, body)
@@ -99,21 +88,35 @@ async def _deliver(
     }
 
     try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-            response = await client.post(target_url, content=body, headers=headers)
-            if response.status_code >= 400:
-                logger.warning(
-                    "webhook delivery non-2xx: target=%s event=%s status=%s",
-                    target_url,
-                    envelope["event_type"],
-                    response.status_code,
-                )
+        response = await request_public_target(
+            "POST",
+            target_url,
+            headers=headers,
+            content=body,
+            timeout=_TIMEOUT,
+        )
+    except (WebhookTargetUrlError, WebhookTargetUrlPrivateError) as exc:
+        logger.warning(
+            "webhook delivery skipped — target failed validation: target=%s err=%s",
+            target_url,
+            exc,
+        )
+        return
     except Exception as exc:  # noqa: BLE001 — best-effort delivery
         logger.warning(
             "webhook delivery failed: target=%s event=%s err=%s",
             target_url,
             envelope["event_type"],
             exc,
+        )
+        return
+
+    if response.status_code >= 400:
+        logger.warning(
+            "webhook delivery non-2xx: target=%s event=%s status=%s",
+            target_url,
+            envelope["event_type"],
+            response.status_code,
         )
 
 

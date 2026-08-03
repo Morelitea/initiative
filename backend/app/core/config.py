@@ -619,13 +619,12 @@ class Settings(BaseSettings):
     # ADVANCED_TOOL_URL pattern: the OSS core defers to an external service.
     BILLING_URL: str | None = None
 
-    # Local-dev escape hatch for the webhook SSRF guard. When TRUE, the
-    # dispatcher accepts ``http://`` and private/loopback/link-local
-    # targets — needed only for round-tripping with auto running on
-    # ``http://localhost:9002`` where there's no TLS cert and the
-    # address is non-public by definition. Default FALSE; production
-    # deployments MUST NOT enable this — plain http lets a MITM strip
-    # the signature header and forge payloads.
+    # Local-dev only: when true, outbound webhook / custom-AI targets may
+    # use http and resolve to private/loopback addresses, for round-tripping
+    # with a locally run initiative-auto (its receiver at
+    # ``http://localhost:8201``). Default false; production keeps the
+    # https + public-address policy. The connection is pinned to the
+    # resolved address regardless of this setting.
     WEBHOOK_ALLOW_PRIVATE_TARGETS: bool = False
 
     BEHIND_PROXY: bool = (

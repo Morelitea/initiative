@@ -1,31 +1,22 @@
-"""Validation helpers for webhook target URLs.
+"""Validation and safe resolution for outbound target URLs.
 
-The dispatcher POSTs to operator-supplied URLs from inside Initiative's
-network. Without a guard, a guild member could register
-``http://169.254.169.254/`` (cloud metadata) or ``http://localhost:6379``
-(an internal Redis) as a target — every matching event would then trigger
-a server-side request to that address. Even though the response body
-isn't surfaced to the caller (delivery is fire-and-log), this enables
-internal port scanning and metadata-credential scraping.
+Some outbound requests go to URLs a guild member can set (webhook
+delivery targets and the custom AI provider base URL). These helpers
+constrain such URLs to public destinations and resolve them so the
+caller connects to exactly the address that was validated.
 
-The defense:
+Policy: only ``https`` is accepted, and the host must resolve to public
+unicast addresses (private, loopback, link-local, multicast, reserved
+and unspecified are rejected). When a name resolves to several
+addresses, all of them must pass. A local-dev setting
+(``WEBHOOK_ALLOW_PRIVATE_TARGETS``) relaxes both for round-tripping with
+a locally run initiative-auto; address pinning still applies.
 
-* Only ``https://`` is accepted by default, so signed payloads always
-  ride an encrypted transport.
-* At create/update time we resolve the hostname and reject any address
-  that isn't a public unicast IP (private, loopback, link-local, etc.).
-* The same check runs again immediately before delivery in case DNS
-  changed underneath us (rebinding) or a previously-public hostname now
-  points at internal space.
-
-The async variant (:func:`assert_target_url_is_public_async`) must be
-used from any code path that runs on the event loop — :func:`socket.getaddrinfo`
-is blocking and will stall every other coroutine until the resolver
-returns. The sync variant exists for migrations / scripts / tests.
-
-This is conservative — public DNS that resolves to multiple addresses
-must have *all* of them pass. Operators who legitimately need to point a
-hook at an internal address should run a public-facing relay.
+``resolve_validated_target(_async)`` returns the approved addresses so
+the caller can connect to one of them directly (see
+:mod:`app.services.safe_http`). Use the async variant from coroutine
+code — :func:`socket.getaddrinfo` is blocking; the sync variant is for
+scripts and tests.
 """
 
 from __future__ import annotations
@@ -33,12 +24,15 @@ from __future__ import annotations
 import asyncio
 import ipaddress
 import socket
+from dataclasses import dataclass
 from urllib.parse import urlparse
+
+_IPAddress = ipaddress.IPv4Address | ipaddress.IPv6Address
 
 
 class WebhookTargetUrlError(ValueError):
     """Raised when a target URL is structurally invalid (bad scheme,
-    missing host, unparseable port, etc.)."""
+    missing host, unresolvable, unparseable port, etc.)."""
 
 
 class WebhookTargetUrlPrivateError(ValueError):
@@ -47,23 +41,37 @@ class WebhookTargetUrlPrivateError(ValueError):
     layer can return a more specific error code."""
 
 
-_ACCEPTED_SCHEMES = frozenset({"https", "http"})
+@dataclass(frozen=True)
+class ValidatedTarget:
+    """A target URL that passed policy. ``addresses`` are all public
+    unicast; ``hostname`` is the original host to use for TLS SNI,
+    certificate verification, and the ``Host`` header when connecting to
+    one of ``addresses``."""
+
+    hostname: str
+    addresses: tuple[_IPAddress, ...]
+
+    @property
+    def pinned_ip(self) -> str:
+        """The address to connect to. Every address passed policy, so the
+        first one is used."""
+        return str(self.addresses[0])
 
 
-def _allow_private_targets() -> bool:
-    """Resolve the dev escape hatch lazily so monkeypatching ``settings``
-    in tests works. Reading at call time also lets a deployed-process
-    config-reload effort pick up the new value (we don't reload yet, but
-    nothing here forecloses it)."""
-    from app.core.config import settings
+def _unwrap_mapped(ip: _IPAddress) -> _IPAddress:
+    """Return the embedded IPv4 for an IPv4-mapped IPv6 address
+    (``::ffff:10.0.0.1``), else the address unchanged. ``ipaddress``
+    classifies the mapped form by IPv6 rules, so its ``.is_private`` etc.
+    do not reflect the embedded IPv4 — unwrap before classifying."""
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
+        return ip.ipv4_mapped
+    return ip
 
-    return settings.WEBHOOK_ALLOW_PRIVATE_TARGETS
 
-
-def _is_public_address(ip: ipaddress._BaseAddress) -> bool:
-    """Return True only for public unicast addresses we're willing to
-    POST to. Everything else (private, loopback, link-local, multicast,
-    reserved, unspecified) is blocked."""
+def _is_public_address(ip: _IPAddress) -> bool:
+    """True only for public unicast addresses. Everything else (private,
+    loopback, link-local, multicast, reserved, unspecified) is refused."""
+    ip = _unwrap_mapped(ip)
     return not (
         ip.is_private
         or ip.is_loopback
@@ -74,42 +82,40 @@ def _is_public_address(ip: ipaddress._BaseAddress) -> bool:
     )
 
 
-def _parse_and_check_scheme(url: str) -> tuple[str, str]:
-    """Parse the URL and validate scheme + presence of hostname.
+def _allow_private_targets() -> bool:
+    """Local-dev escape hatch, read at call time so tests can monkeypatch
+    ``settings``. When true, http and private/loopback targets are
+    permitted (for round-tripping with a locally run initiative-auto)."""
+    from app.core.config import settings
 
-    With the dev flag off (production), reject anything other than
-    ``https`` immediately — this preserves the structural-invalid
-    error type for ``http://private-ip`` URLs (a plain ``http`` target
-    is structurally wrong regardless of where it points). With the
-    flag on, both ``http`` and ``https`` are tentatively accepted; the
-    final scheme + address combination is decided in
-    :func:`_enforce_address_policy` after DNS resolves, so we can bind
-    the ``http`` allowance to private targets specifically.
-    """
+    return settings.WEBHOOK_ALLOW_PRIVATE_TARGETS
+
+
+def _parse_host(url: str) -> tuple[str, str]:
+    """Parse the URL and return ``(scheme, hostname)``. Only ``https`` is
+    accepted unless the dev escape hatch tentatively permits ``http``; the
+    address policy then restricts that ``http`` allowance to non-public
+    targets."""
     parsed = urlparse(url)
-    allowed = _ACCEPTED_SCHEMES if _allow_private_targets() else frozenset({"https"})
+    allowed = ("https", "http") if _allow_private_targets() else ("https",)
     if parsed.scheme not in allowed:
-        allowed_desc = "https or http" if _allow_private_targets() else "https"
+        want = "https or http" if _allow_private_targets() else "https"
         raise WebhookTargetUrlError(
-            f"unsupported scheme: {parsed.scheme!r} ({allowed_desc} required)"
+            f"unsupported scheme: {parsed.scheme!r} ({want} required)"
         )
     if not parsed.hostname:
         raise WebhookTargetUrlError("missing hostname")
-    return parsed.hostname, parsed.scheme
+    return parsed.scheme, parsed.hostname
 
 
-def _addresses_from_getaddrinfo_results(
-    infos: list, host: str
-) -> list[ipaddress._BaseAddress]:
-    """Convert a ``getaddrinfo`` result list to a list of ``ipaddress``
-    objects, stripping IPv6 zone identifiers."""
-    addresses: list[ipaddress._BaseAddress] = []
+def _addresses_from_getaddrinfo_results(infos: list, host: str) -> list[_IPAddress]:
+    """Convert a ``getaddrinfo`` result list to ``ipaddress`` objects,
+    stripping IPv6 zone identifiers."""
+    addresses: list[_IPAddress] = []
     for family, _type, _proto, _canon, sockaddr in infos:
         if family == socket.AF_INET:
             addresses.append(ipaddress.IPv4Address(sockaddr[0]))
         elif family == socket.AF_INET6:
-            # sockaddr[0] for v6 may include zone id (``fe80::1%eth0``);
-            # ipaddress accepts the bare numeric form so strip it.
             addr_str = sockaddr[0].split("%", 1)[0]
             addresses.append(ipaddress.IPv6Address(addr_str))
     if not addresses:
@@ -117,76 +123,41 @@ def _addresses_from_getaddrinfo_results(
     return addresses
 
 
-def _enforce_address_policy(
-    host: str,
-    scheme: str,
-    addresses: list[ipaddress._BaseAddress],
-) -> None:
-    """Apply the combined scheme + address policy to a resolved target.
+def _enforce_policy(host: str, scheme: str, addresses: list[_IPAddress]) -> None:
+    """Apply the scheme + address policy to a resolved target.
 
-    Two rules combine here:
+    Non-public addresses (private/loopback/link-local/...) require the dev
+    escape hatch. Public addresses require https — plain http is only ever
+    allowed when no resolved address is public, so a mixed set over http is
+    rejected even with the hatch on (any address may be connected to)."""
+    public = [a for a in addresses if _is_public_address(a)]
+    non_public = [a for a in addresses if not _is_public_address(a)]
 
-    * **No private addresses** unless the dev escape hatch is on. The
-      "any private blocks all" rule still applies: a hostname that
-      resolves to a mixed public/private set is rejected as a whole,
-      not decided by whichever address httpx happens to pick.
-    * **No plain http to public hosts, ever.** The dev flag deliberately
-      doesn't relax this — its scope is local / private targets only,
-      where there's no useful TLS to be had between Initiative and auto.
-
-    The matrix:
-
-    | flag | scheme | resolves to | result |
-    |------|--------|-------------|--------|
-    | off  | https  | public      | accept |
-    | off  | https  | private     | reject (private) |
-    | off  | http   | any         | reject (http) |
-    | on   | https  | public      | accept |
-    | on   | https  | private     | accept |
-    | on   | http   | public      | reject (http to public is forbidden) |
-    | on   | http   | private     | accept (the dev case) |
-    """
-    has_private = any(not _is_public_address(a) for a in addresses)
-
-    if has_private:
-        if not _allow_private_targets():
-            offending = next(a for a in addresses if not _is_public_address(a))
-            raise WebhookTargetUrlPrivateError(
-                f"host {host!r} resolves to non-public address {offending}"
-            )
-        # dev flag is on — http or https are both fine for private targets.
-        return
-
-    # All addresses are public.
-    if scheme != "https":
+    if non_public and not _allow_private_targets():
+        raise WebhookTargetUrlPrivateError(
+            f"host {host!r} resolves to non-public address {non_public[0]}"
+        )
+    if public and scheme != "https":
         raise WebhookTargetUrlError(
-            f"plain http to public host {host!r} is not permitted "
-            f"(MITM would strip the signature)"
+            f"plain http to public host {host!r} is not permitted"
         )
 
 
-def _resolve_literal_or_none(
-    host: str,
-) -> list[ipaddress._BaseAddress] | None:
+def _literal_or_none(host: str) -> list[_IPAddress] | None:
     """If ``host`` is an IP literal, return ``[ip]``; otherwise ``None``
-    so the caller can do a real DNS lookup."""
+    so the caller does a DNS lookup."""
     try:
         return [ipaddress.ip_address(host)]
     except ValueError:
         return None
 
 
-def assert_target_url_is_public(url: str) -> None:
-    """Synchronous SSRF guard. Use only outside the event loop.
-
-    Raises :class:`WebhookTargetUrlError` for malformed input or a
-    scheme/address combination that can't be permitted (e.g. plain
-    http to a public host), :class:`WebhookTargetUrlPrivateError` when
-    the host resolves into private/loopback/link-local space and the
-    dev flag isn't set.
-    """
-    host, scheme = _parse_and_check_scheme(url)
-    addresses = _resolve_literal_or_none(host)
+def resolve_validated_target(url: str) -> ValidatedTarget:
+    """Resolve ``url`` and apply the target policy. Use outside the event
+    loop. Raises :class:`WebhookTargetUrlError` for malformed input or
+    :class:`WebhookTargetUrlPrivateError` for non-public addresses."""
+    scheme, host = _parse_host(url)
+    addresses = _literal_or_none(host)
     if addresses is None:
         try:
             infos = socket.getaddrinfo(host, None)
@@ -195,17 +166,15 @@ def assert_target_url_is_public(url: str) -> None:
                 f"could not resolve host {host!r}: {exc}"
             ) from exc
         addresses = _addresses_from_getaddrinfo_results(infos, host)
-    _enforce_address_policy(host, scheme, addresses)
+    _enforce_policy(host, scheme, addresses)
+    return ValidatedTarget(hostname=host, addresses=tuple(addresses))
 
 
-async def assert_target_url_is_public_async(url: str) -> None:
-    """Async SSRF guard for use inside coroutines.
-
-    DNS resolution runs in a thread executor so the event loop stays
-    free. Behaviour and exceptions match :func:`assert_target_url_is_public`.
-    """
-    host, scheme = _parse_and_check_scheme(url)
-    addresses = _resolve_literal_or_none(host)
+async def resolve_validated_target_async(url: str) -> ValidatedTarget:
+    """Async form of :func:`resolve_validated_target`. DNS runs in a
+    thread so the event loop stays free."""
+    scheme, host = _parse_host(url)
+    addresses = _literal_or_none(host)
     if addresses is None:
         try:
             infos = await asyncio.to_thread(socket.getaddrinfo, host, None)
@@ -214,4 +183,16 @@ async def assert_target_url_is_public_async(url: str) -> None:
                 f"could not resolve host {host!r}: {exc}"
             ) from exc
         addresses = _addresses_from_getaddrinfo_results(infos, host)
-    _enforce_address_policy(host, scheme, addresses)
+    _enforce_policy(host, scheme, addresses)
+    return ValidatedTarget(hostname=host, addresses=tuple(addresses))
+
+
+def assert_target_url_is_public(url: str) -> None:
+    """Policy check only, discarding the resolution. For create/update
+    validation where no connection is made yet."""
+    resolve_validated_target(url)
+
+
+async def assert_target_url_is_public_async(url: str) -> None:
+    """Async policy check only. See :func:`assert_target_url_is_public`."""
+    await resolve_validated_target_async(url)

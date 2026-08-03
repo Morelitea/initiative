@@ -52,6 +52,14 @@ _STREAM_CHUNK = 64 * 1024
 _S3_MISSING_CODES = {"404", "NoSuchKey", "NoSuchBucket", "NotFound"}
 
 
+def is_flat_storage_key(key: str) -> bool:
+    """True if ``key`` has no path components — it already equals its own
+    basename. Both backends key objects by ``Path(key).name``, so a value used
+    as both a stored identity and a storage key must be flat for the two to
+    refer to the same object."""
+    return bool(key) and Path(key).name == key
+
+
 def content_disposition_attachment(filename: str) -> str:
     """Build a safe ``attachment`` Content-Disposition value.
 

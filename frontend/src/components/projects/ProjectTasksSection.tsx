@@ -451,14 +451,24 @@ export const ProjectTasksSection = ({
   });
 
   // Seed the composer's status from the project default whenever it opens so
-  // the user starts at the default but can override it.
+  // the user starts at the default but can override it. Also reset a status
+  // that belongs to a different project — this section instance is reused when
+  // navigating between projects, so a status id picked in the previous project
+  // would otherwise linger and be submitted against the new one.
   useEffect(() => {
     if (isComposerOpen) {
-      setComposerValue((prev) =>
-        prev.statusId == null ? { ...prev, statusId: defaultStatusId } : prev
-      );
+      setComposerValue((prev) => {
+        if (prev.statusId == null) {
+          return { ...prev, statusId: defaultStatusId };
+        }
+        const belongsToProject = sortedTaskStatuses.some((status) => status.id === prev.statusId);
+        if (!belongsToProject && sortedTaskStatuses.length > 0) {
+          return { ...prev, statusId: defaultStatusId };
+        }
+        return prev;
+      });
     }
-  }, [isComposerOpen, defaultStatusId]);
+  }, [isComposerOpen, defaultStatusId, sortedTaskStatuses]);
 
   // Dirty = the composer differs from a fresh form seeded at the default
   // status. Used to keep a backdrop click from discarding in-progress input.
