@@ -121,6 +121,12 @@ def upgrade() -> None:
             "GRANT SELECT, UPDATE ON TABLE public.platform_ai_connections TO app_admin",
             "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "
             f'public.platform_ai_connections TO "{owner}"',
+            # The owner INSERTs rows, so it needs the id sequence too (base-role
+            # inheritance doesn't cover it); lock the sequence down to match.
+            "REVOKE ALL ON SEQUENCE public.platform_ai_connections_id_seq "
+            f'FROM app_guild_base, "{base}", app_user',
+            "GRANT USAGE, SELECT ON SEQUENCE "
+            f'public.platform_ai_connections_id_seq TO "{owner}"',
             "DROP POLICY IF EXISTS platform_ai_connections_owner "
             "ON public.platform_ai_connections",
             "CREATE POLICY platform_ai_connections_owner "
