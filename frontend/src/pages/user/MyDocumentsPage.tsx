@@ -1,6 +1,6 @@
 import { keepPreviousData } from "@tanstack/react-query";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
-import type { ColumnDef, SortingState } from "@tanstack/react-table";
+import type { ColumnDef } from "@tanstack/react-table";
 import { ChevronDown, Filter, Loader2, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -24,33 +24,11 @@ import { RelativeTime } from "@/components/ui/relative-time";
 import { useDefaultFiltersOpen } from "@/hooks/useDefaultFiltersOpen";
 import { useGlobalDocuments, usePrefetchGlobalDocuments } from "@/hooks/useDocuments";
 import { useGuilds } from "@/hooks/useGuilds";
-import { useViewPreference } from "@/hooks/useViewPreference";
 import { guildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
+import { useGlobalListFilters } from "@/pages/user/useGlobalListFilters";
 
 const MY_DOCUMENTS_FILTERS_KEY = "initiative-my-documents-filters";
-type StoredPrefs = {
-  guildFilters: number[];
-  sortBy: string | undefined;
-  sortDir: string | undefined;
-};
-const FILTER_DEFAULTS: StoredPrefs = {
-  guildFilters: [],
-  sortBy: undefined,
-  sortDir: undefined,
-};
-
-const sanitizeStoredPrefs = (raw: unknown): StoredPrefs => {
-  if (raw === null || typeof raw !== "object") return FILTER_DEFAULTS;
-  const v = raw as Partial<StoredPrefs>;
-  return {
-    guildFilters: Array.isArray(v.guildFilters)
-      ? v.guildFilters.filter((x): x is number => typeof x === "number")
-      : [],
-    sortBy: typeof v.sortBy === "string" ? v.sortBy : undefined,
-    sortDir: typeof v.sortDir === "string" ? v.sortDir : undefined,
-  };
-};
 const PAGE_SIZE = 20;
 
 /** Map DataTable column IDs to backend sort field names */
@@ -58,11 +36,6 @@ const SORT_FIELD_MAP: Record<string, string> = {
   title: "title",
   updatedAt: "updated_at",
 };
-
-/** Reverse map: backend field name → column ID */
-const SORT_FIELD_REVERSE: Record<string, string> = Object.fromEntries(
-  Object.entries(SORT_FIELD_MAP).map(([col, field]) => [field, col])
-);
 
 export const MyDocumentsPage = () => {
   const { t } = useTranslation(["documents", "common"]);
@@ -77,33 +50,8 @@ export const MyDocumentsPage = () => {
     await invalidateAllDocuments();
   }, []);
 
-  const [storedPrefsRaw, setStoredPrefs] = useViewPreference<StoredPrefs>(
-    MY_DOCUMENTS_FILTERS_KEY,
-    FILTER_DEFAULTS
-  );
-  const storedPrefs = useMemo(() => sanitizeStoredPrefs(storedPrefsRaw), [storedPrefsRaw]);
-  const { guildFilters, sortBy, sortDir } = storedPrefs;
-  const setGuildFilters = useCallback(
-    (next: number[] | ((prev: number[]) => number[])) =>
-      setStoredPrefs((prev) => {
-        const safe = sanitizeStoredPrefs(prev);
-        return {
-          ...safe,
-          guildFilters: typeof next === "function" ? next(safe.guildFilters) : next,
-        };
-      }),
-    [setStoredPrefs]
-  );
-  const setSortBy = useCallback(
-    (next: string | undefined) =>
-      setStoredPrefs((prev) => ({ ...sanitizeStoredPrefs(prev), sortBy: next })),
-    [setStoredPrefs]
-  );
-  const setSortDir = useCallback(
-    (next: string | undefined) =>
-      setStoredPrefs((prev) => ({ ...sanitizeStoredPrefs(prev), sortDir: next })),
-    [setStoredPrefs]
-  );
+  const { guildFilters, sortBy, sortDir, setGuildFilters, handleSortingChange, initialSorting } =
+    useGlobalListFilters(MY_DOCUMENTS_FILTERS_KEY, SORT_FIELD_MAP);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -111,22 +59,6 @@ export const MyDocumentsPage = () => {
 
   const [page, setPageState] = useState(() => searchParams.page ?? 1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
-
-  const handleSortingChange = useCallback(
-    (sorting: SortingState) => {
-      if (sorting.length > 0) {
-        const field = SORT_FIELD_MAP[sorting[0].id];
-        if (field) {
-          setSortBy(field);
-          setSortDir(sorting[0].desc ? "desc" : "asc");
-        }
-      } else {
-        setSortBy(undefined);
-        setSortDir(undefined);
-      }
-    },
-    [setSortDir, setSortBy]
-  );
 
   // Debounce search input
   useEffect(() => {
@@ -315,13 +247,6 @@ export const MyDocumentsPage = () => {
     ],
     [t, guilds, docGuildPath]
   );
-
-  const initialSorting = useMemo(() => {
-    if (!sortBy) return undefined;
-    const colId = SORT_FIELD_REVERSE[sortBy];
-    if (!colId) return undefined;
-    return [{ id: colId, desc: sortDir === "desc" }];
-  }, [sortDir, sortBy]);
 
   const isInitialLoad = documentsQuery.isLoading && !documentsQuery.data;
   const isRefetching = documentsQuery.isFetching && !isInitialLoad;
