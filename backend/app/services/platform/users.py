@@ -26,6 +26,8 @@ from app.models.platform.notification import Notification
 from app.models.tenant.project_order import ProjectOrder
 from app.models.tenant.project_activity import ProjectFavorite
 from app.models.tenant.recent_view import RecentView
+from app.models.tenant.ai_member_key import GuildAIMemberKey
+from app.models.tenant.ai_member_pref import GuildAIMemberPref
 from app.models.platform.api_key import UserApiKey
 from app.models.platform.user_token import UserToken
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
@@ -639,6 +641,17 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
         session.expunge_all()
         await set_rls_context(session, guild_id=gid, guild_role="admin")
         await anonymize_user_mentions(session, user_id=user_id)
+        # Drop the user's AI credentials (member API keys) + connection
+        # preference in this guild — the encrypted keys are a secret we must not
+        # leave behind. The CASCADE FK to public.users is a soft cross-schema ref
+        # (dropped in the guild schema), so it never fires; delete explicitly,
+        # routed as guild admin so the own-row RLS admits it.
+        await session.exec(
+            delete(GuildAIMemberKey).where(GuildAIMemberKey.user_id == user_id)
+        )
+        await session.exec(
+            delete(GuildAIMemberPref).where(GuildAIMemberPref.user_id == user_id)
+        )
     session.expunge_all()
     await set_rls_context(session)
 
@@ -677,7 +690,6 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     user.full_name = None
     user.avatar_base64 = None
     user.avatar_url = None
-    user.ai_api_key_encrypted = None
 
     # Reset notification + interface preferences to defaults so the row
     # doesn't leak the user's behavioural profile.
@@ -1092,6 +1104,15 @@ async def hard_delete_user(
             delete(ProjectFavorite).where(ProjectFavorite.user_id == user_id)
         )
         await session.exec(delete(RecentView).where(RecentView.user_id == user_id))
+        # AI credentials (member API keys) + connection preference for this
+        # guild. CASCADE to public.users is a soft cross-schema ref (dropped in
+        # the guild schema), so it never fires — delete explicitly.
+        await session.exec(
+            delete(GuildAIMemberKey).where(GuildAIMemberKey.user_id == user_id)
+        )
+        await session.exec(
+            delete(GuildAIMemberPref).where(GuildAIMemberPref.user_id == user_id)
+        )
         await session.exec(
             delete(TaskAssignmentDigestItem).where(
                 TaskAssignmentDigestItem.user_id == user_id

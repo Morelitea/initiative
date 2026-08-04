@@ -20,7 +20,6 @@ from app.services.safe_http import request_public_target
 from app.services.webhook_target_url import (
     WebhookTargetUrlError,
     WebhookTargetUrlPrivateError,
-    assert_target_url_is_public_async,
 )
 
 # Maximum output lengths to prevent excessive LLM responses
@@ -33,20 +32,6 @@ class AIGenerationError(Exception):
     """Raised when AI generation fails."""
 
     pass
-
-
-async def _validate_generation_base_url(
-    provider: AIProvider | None,
-    base_url: str | None,
-) -> None:
-    # Only the custom provider uses a caller-supplied base URL, so only it
-    # is validated here; Ollama's base URL is operator-configured.
-    if provider != AIProvider.custom or not base_url:
-        return
-    try:
-        await assert_target_url_is_public_async(base_url)
-    except (WebhookTargetUrlError, WebhookTargetUrlPrivateError) as exc:
-        raise AIGenerationError(AIMessages.INVALID_BASE_URL) from exc
 
 
 async def generate_subtasks(
@@ -70,8 +55,6 @@ async def generate_subtasks(
     if not resolved.provider:
         raise AIGenerationError("No AI provider configured")
 
-    await _validate_generation_base_url(resolved.provider, resolved.base_url)
-
     locale = getattr(user, "locale", None) or "en"
     system_prompt, user_content = _build_subtasks_prompt(
         task, initiative_name, project_name, locale=locale
@@ -92,12 +75,15 @@ async def generate_subtasks(
             user_content=user_content,
         )
     elif resolved.provider == AIProvider.ollama:
-        return await _generate_ollama_subtasks(
+        content = await _ollama_chat(
             base_url=resolved.base_url or "http://localhost:11434",
             model=resolved.model or "llama3.2",
             system_prompt=system_prompt,
             user_content=user_content,
+            timeout=60.0,
+            allow_private=resolved.allow_private,
         )
+        return _parse_subtasks_response(content)
     elif resolved.provider == AIProvider.custom:
         return await _generate_custom_subtasks(
             api_key=resolved.api_key,
@@ -105,6 +91,7 @@ async def generate_subtasks(
             model=resolved.model,
             system_prompt=system_prompt,
             user_content=user_content,
+            allow_private=resolved.allow_private,
         )
     else:
         raise AIGenerationError(f"Unsupported AI provider: {resolved.provider}")
@@ -131,8 +118,6 @@ async def generate_description(
     if not resolved.provider:
         raise AIGenerationError("No AI provider configured")
 
-    await _validate_generation_base_url(resolved.provider, resolved.base_url)
-
     locale = getattr(user, "locale", None) or "en"
     system_prompt, user_content = _build_description_prompt(
         task, initiative_name, project_name, locale=locale
@@ -153,12 +138,15 @@ async def generate_description(
             user_content=user_content,
         )
     elif resolved.provider == AIProvider.ollama:
-        return await _generate_ollama_description(
+        content = await _ollama_chat(
             base_url=resolved.base_url or "http://localhost:11434",
             model=resolved.model or "llama3.2",
             system_prompt=system_prompt,
             user_content=user_content,
+            timeout=60.0,
+            allow_private=resolved.allow_private,
         )
+        return _truncate_output(content.strip(), _MAX_DESCRIPTION_LENGTH)
     elif resolved.provider == AIProvider.custom:
         return await _generate_custom_description(
             api_key=resolved.api_key,
@@ -166,6 +154,7 @@ async def generate_description(
             model=resolved.model,
             system_prompt=system_prompt,
             user_content=user_content,
+            allow_private=resolved.allow_private,
         )
     else:
         raise AIGenerationError(f"Unsupported AI provider: {resolved.provider}")
@@ -189,8 +178,6 @@ async def generate_document_summary(
 
     if not resolved.provider:
         raise AIGenerationError("No AI provider configured")
-
-    await _validate_generation_base_url(resolved.provider, resolved.base_url)
 
     # Convert Lexical JSON to markdown for better AI comprehension
     markdown_content = lexical_to_markdown(document_content)
@@ -217,12 +204,15 @@ async def generate_document_summary(
             user_content=user_content,
         )
     elif resolved.provider == AIProvider.ollama:
-        return await _generate_ollama_summary(
+        content = await _ollama_chat(
             base_url=resolved.base_url or "http://localhost:11434",
             model=resolved.model or "llama3.2",
             system_prompt=system_prompt,
             user_content=user_content,
+            timeout=120.0,
+            allow_private=resolved.allow_private,
         )
+        return _truncate_output(content.strip(), _MAX_SUMMARY_LENGTH)
     elif resolved.provider == AIProvider.custom:
         return await _generate_custom_summary(
             api_key=resolved.api_key,
@@ -230,6 +220,7 @@ async def generate_document_summary(
             model=resolved.model,
             system_prompt=system_prompt,
             user_content=user_content,
+            allow_private=resolved.allow_private,
         )
     else:
         raise AIGenerationError(f"Unsupported AI provider: {resolved.provider}")
@@ -755,106 +746,44 @@ async def _generate_anthropic_summary(
 # ---------------------------------------------------------------------------
 
 
-async def _generate_ollama_subtasks(
+async def _ollama_chat(
+    *,
     base_url: str,
     model: str,
     system_prompt: str,
     user_content: str,
-) -> list[str]:
-    """Generate subtasks using Ollama API."""
-    url = base_url.rstrip("/")
-
-    try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                f"{url}/api/chat",
-                json={
-                    "model": model,
-                    "messages": _openai_messages(system_prompt, user_content),
-                    "stream": False,
-                },
-            )
-
-            if response.status_code != 200:
-                raise AIGenerationError(f"Ollama API error: {response.status_code}")
-
-            data = response.json()
-            content = data["message"]["content"]
-            return _parse_subtasks_response(content)
-    except httpx.ConnectError:
-        raise AIGenerationError(f"Could not connect to Ollama at {url}")
-    except httpx.TimeoutException:
-        raise AIGenerationError("Ollama request timed out")
-    except AIGenerationError:
-        raise
-    except Exception as e:
-        raise AIGenerationError(f"Ollama request failed: {str(e)}")
-
-
-async def _generate_ollama_description(
-    base_url: str,
-    model: str,
-    system_prompt: str,
-    user_content: str,
+    timeout: float,
+    allow_private: bool,
 ) -> str:
-    """Generate description using Ollama API."""
+    """POST an Ollama ``/api/chat`` completion and return the message content.
+
+    Goes through :func:`request_public_target`, which resolves the host once and
+    connects to that validated address (keeping the hostname for TLS).
+    ``allow_private`` is server-computed (true only for an operator Ollama
+    connection), never from request input.
+    """
     url = base_url.rstrip("/")
-
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                f"{url}/api/chat",
-                json={
-                    "model": model,
-                    "messages": _openai_messages(system_prompt, user_content),
-                    "stream": False,
-                },
-            )
+        response = await request_public_target(
+            "POST",
+            f"{url}/api/chat",
+            json={
+                "model": model,
+                "messages": _openai_messages(system_prompt, user_content),
+                "stream": False,
+            },
+            timeout=timeout,
+            allow_private=allow_private,
+        )
 
-            if response.status_code != 200:
-                raise AIGenerationError(f"Ollama API error: {response.status_code}")
+        if response.status_code != 200:
+            raise AIGenerationError(f"Ollama API error: {response.status_code}")
 
-            data = response.json()
-            text = data["message"]["content"].strip()
-            return _truncate_output(text, _MAX_DESCRIPTION_LENGTH)
+        return response.json()["message"]["content"]
+    except (WebhookTargetUrlError, WebhookTargetUrlPrivateError) as exc:
+        raise AIGenerationError(AIMessages.INVALID_BASE_URL) from exc
     except httpx.ConnectError:
-        raise AIGenerationError(f"Could not connect to Ollama at {url}")
-    except httpx.TimeoutException:
-        raise AIGenerationError("Ollama request timed out")
-    except AIGenerationError:
-        raise
-    except Exception as e:
-        raise AIGenerationError(f"Ollama request failed: {str(e)}")
-
-
-async def _generate_ollama_summary(
-    base_url: str,
-    model: str,
-    system_prompt: str,
-    user_content: str,
-) -> str:
-    """Generate summary using Ollama API."""
-    url = base_url.rstrip("/")
-
-    try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            response = await client.post(
-                f"{url}/api/chat",
-                json={
-                    "model": model,
-                    "messages": _openai_messages(system_prompt, user_content),
-                    "stream": False,
-                },
-            )
-
-            if response.status_code != 200:
-                raise AIGenerationError(f"Ollama API error: {response.status_code}")
-
-            data = response.json()
-            text = data["message"]["content"].strip()
-            return _truncate_output(text, _MAX_SUMMARY_LENGTH)
-    except httpx.ConnectError:
-        raise AIGenerationError(f"Could not connect to Ollama at {url}")
+        raise AIGenerationError("Could not connect to Ollama")
     except httpx.TimeoutException:
         raise AIGenerationError("Ollama request timed out")
     except AIGenerationError:
@@ -878,13 +807,15 @@ async def _custom_chat_completion(
     temperature: float,
     max_tokens: int,
     timeout: float,
+    allow_private: bool = False,
 ) -> str:
-    """POST an OpenAI-compatible chat completion to a caller-supplied
+    """POST an OpenAI-compatible chat completion to a stored connection's
     ``base_url`` and return the message content.
 
     The request goes through :func:`request_public_target`, which resolves
     the host once and connects to that validated address, keeping the
-    hostname for TLS.
+    hostname for TLS. A ``custom`` connection is always public
+    (``allow_private`` stays false); the parameter exists for symmetry.
     """
     if not base_url:
         raise AIGenerationError("Base URL is required for custom provider")
@@ -906,6 +837,7 @@ async def _custom_chat_completion(
                 "max_tokens": max_tokens,
             },
             timeout=timeout,
+            allow_private=allow_private,
         )
 
         if response.status_code == 401:
@@ -933,6 +865,8 @@ async def _generate_custom_subtasks(
     model: str | None,
     system_prompt: str,
     user_content: str,
+    *,
+    allow_private: bool = False,
 ) -> list[str]:
     """Generate subtasks using a custom OpenAI-compatible API."""
     content = await _custom_chat_completion(
@@ -944,6 +878,7 @@ async def _generate_custom_subtasks(
         temperature=0.7,
         max_tokens=500,
         timeout=30.0,
+        allow_private=allow_private,
     )
     return _parse_subtasks_response(content)
 
@@ -954,6 +889,8 @@ async def _generate_custom_description(
     model: str | None,
     system_prompt: str,
     user_content: str,
+    *,
+    allow_private: bool = False,
 ) -> str:
     """Generate a description using a custom OpenAI-compatible API."""
     content = await _custom_chat_completion(
@@ -965,6 +902,7 @@ async def _generate_custom_description(
         temperature=0.7,
         max_tokens=500,
         timeout=30.0,
+        allow_private=allow_private,
     )
     return _truncate_output(content.strip(), _MAX_DESCRIPTION_LENGTH)
 
@@ -975,6 +913,8 @@ async def _generate_custom_summary(
     model: str | None,
     system_prompt: str,
     user_content: str,
+    *,
+    allow_private: bool = False,
 ) -> str:
     """Generate a summary using a custom OpenAI-compatible API."""
     content = await _custom_chat_completion(
@@ -986,6 +926,7 @@ async def _generate_custom_summary(
         temperature=0.5,
         max_tokens=1000,
         timeout=90.0,
+        allow_private=allow_private,
     )
     return _truncate_output(content.strip(), _MAX_SUMMARY_LENGTH)
 

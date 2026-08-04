@@ -91,15 +91,17 @@ def _allow_private_targets() -> bool:
     return settings.WEBHOOK_ALLOW_PRIVATE_TARGETS
 
 
-def _parse_host(url: str) -> tuple[str, str]:
+def _parse_host(url: str, *, allow_private: bool = False) -> tuple[str, str]:
     """Parse the URL and return ``(scheme, hostname)``. Only ``https`` is
-    accepted unless the dev escape hatch tentatively permits ``http``; the
+    accepted unless a private target is permitted (per-call ``allow_private``
+    or the dev escape hatch), which also tentatively allows ``http``; the
     address policy then restricts that ``http`` allowance to non-public
     targets."""
     parsed = urlparse(url)
-    allowed = ("https", "http") if _allow_private_targets() else ("https",)
+    http_ok = allow_private or _allow_private_targets()
+    allowed = ("https", "http") if http_ok else ("https",)
     if parsed.scheme not in allowed:
-        want = "https or http" if _allow_private_targets() else "https"
+        want = "https or http" if http_ok else "https"
         raise WebhookTargetUrlError(
             f"unsupported scheme: {parsed.scheme!r} ({want} required)"
         )
@@ -123,17 +125,25 @@ def _addresses_from_getaddrinfo_results(infos: list, host: str) -> list[_IPAddre
     return addresses
 
 
-def _enforce_policy(host: str, scheme: str, addresses: list[_IPAddress]) -> None:
+def _enforce_policy(
+    host: str,
+    scheme: str,
+    addresses: list[_IPAddress],
+    *,
+    allow_private: bool = False,
+) -> None:
     """Apply the scheme + address policy to a resolved target.
 
-    Non-public addresses (private/loopback/link-local/...) require the dev
-    escape hatch. Public addresses require https — plain http is only ever
-    allowed when no resolved address is public, so a mixed set over http is
-    rejected even with the hatch on (any address may be connected to)."""
+    Non-public addresses (private/loopback/link-local/...) require
+    ``allow_private`` (per-call, e.g. an operator-configured internal
+    destination) or the dev escape hatch. Public addresses always require
+    https — plain http is only ever allowed when no resolved address is
+    public, so a mixed set over http is rejected regardless (any address may
+    be connected to)."""
     public = [a for a in addresses if _is_public_address(a)]
     non_public = [a for a in addresses if not _is_public_address(a)]
 
-    if non_public and not _allow_private_targets():
+    if non_public and not (allow_private or _allow_private_targets()):
         raise WebhookTargetUrlPrivateError(
             f"host {host!r} resolves to non-public address {non_public[0]}"
         )
@@ -152,11 +162,16 @@ def _literal_or_none(host: str) -> list[_IPAddress] | None:
         return None
 
 
-def resolve_validated_target(url: str) -> ValidatedTarget:
+def resolve_validated_target(
+    url: str, *, allow_private: bool = False
+) -> ValidatedTarget:
     """Resolve ``url`` and apply the target policy. Use outside the event
-    loop. Raises :class:`WebhookTargetUrlError` for malformed input or
-    :class:`WebhookTargetUrlPrivateError` for non-public addresses."""
-    scheme, host = _parse_host(url)
+    loop. ``allow_private`` permits private/loopback targets (still pinned)
+    for operator-configured destinations. Raises
+    :class:`WebhookTargetUrlError` for malformed input or
+    :class:`WebhookTargetUrlPrivateError` for a disallowed non-public
+    address."""
+    scheme, host = _parse_host(url, allow_private=allow_private)
     addresses = _literal_or_none(host)
     if addresses is None:
         try:
@@ -166,14 +181,16 @@ def resolve_validated_target(url: str) -> ValidatedTarget:
                 f"could not resolve host {host!r}: {exc}"
             ) from exc
         addresses = _addresses_from_getaddrinfo_results(infos, host)
-    _enforce_policy(host, scheme, addresses)
+    _enforce_policy(host, scheme, addresses, allow_private=allow_private)
     return ValidatedTarget(hostname=host, addresses=tuple(addresses))
 
 
-async def resolve_validated_target_async(url: str) -> ValidatedTarget:
+async def resolve_validated_target_async(
+    url: str, *, allow_private: bool = False
+) -> ValidatedTarget:
     """Async form of :func:`resolve_validated_target`. DNS runs in a
     thread so the event loop stays free."""
-    scheme, host = _parse_host(url)
+    scheme, host = _parse_host(url, allow_private=allow_private)
     addresses = _literal_or_none(host)
     if addresses is None:
         try:
@@ -183,16 +200,18 @@ async def resolve_validated_target_async(url: str) -> ValidatedTarget:
                 f"could not resolve host {host!r}: {exc}"
             ) from exc
         addresses = _addresses_from_getaddrinfo_results(infos, host)
-    _enforce_policy(host, scheme, addresses)
+    _enforce_policy(host, scheme, addresses, allow_private=allow_private)
     return ValidatedTarget(hostname=host, addresses=tuple(addresses))
 
 
-def assert_target_url_is_public(url: str) -> None:
+def assert_target_url_is_public(url: str, *, allow_private: bool = False) -> None:
     """Policy check only, discarding the resolution. For create/update
     validation where no connection is made yet."""
-    resolve_validated_target(url)
+    resolve_validated_target(url, allow_private=allow_private)
 
 
-async def assert_target_url_is_public_async(url: str) -> None:
+async def assert_target_url_is_public_async(
+    url: str, *, allow_private: bool = False
+) -> None:
     """Async policy check only. See :func:`assert_target_url_is_public`."""
-    await resolve_validated_target_async(url)
+    await resolve_validated_target_async(url, allow_private=allow_private)

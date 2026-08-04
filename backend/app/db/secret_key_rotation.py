@@ -71,7 +71,8 @@ logger = logging.getLogger(__name__)
 # them would be a write of guild data on an unrouted public pathway. A legacy backup
 # left under the old key is fine — it holds stale secrets, not live content.
 _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
-    ("users", "ai_api_key_encrypted", SALT_AI_API_KEY),
+    # Operator AI connection keys (platform config mode).
+    ("platform_ai_connections", "api_key_encrypted", SALT_AI_API_KEY),
     # The IdP refresh token lives on the identity link (the legacy
     # users.oidc_refresh_token_encrypted column is dropped).
     ("federated_identity_secrets", "refresh_token_encrypted", SALT_OIDC_REFRESH_TOKEN),
@@ -79,13 +80,16 @@ _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
     # legacy app_settings.oidc_client_secret_encrypted column is dropped).
     ("auth_provider_secrets", "client_secret_encrypted", SALT_OIDC_CLIENT_SECRET),
     ("app_settings", "smtp_password_encrypted", SALT_SMTP_PASSWORD),
-    ("app_settings", "ai_api_key_encrypted", SALT_AI_API_KEY),
     ("guild_invites", "invitee_email_encrypted", SALT_EMAIL),
 ]
 
-# Columns rotated once per ``guild_<id>`` schema (the live copies).
+# Columns rotated once per ``guild_<id>`` schema (the live copies). The member
+# key table carries own-row RLS, so the per-guild sweep sets
+# ``app.current_guild_role='admin'`` (see rotate_secret_key) to satisfy its admin
+# leg — otherwise the SET ROLE into guild_<id> would RLS-filter it to 0 rows.
 _GUILD_SCHEMA_COLUMNS: list[tuple[str, str, bytes]] = [
-    ("guild_settings", "ai_api_key_encrypted", SALT_AI_API_KEY),
+    ("guild_ai_connections", "api_key_encrypted", SALT_AI_API_KEY),
+    ("guild_ai_member_keys", "api_key_encrypted", SALT_AI_API_KEY),
 ]
 
 
@@ -346,6 +350,15 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
                     await conn_.execute(
                         text("SELECT set_config('role', :r, true)"),
                         {"r": guild_role_name(gid)},
+                    )
+                    # guild_ai_member_keys carries own-row RLS; the admin leg
+                    # (current_guild_role='admin') lets this full-authority
+                    # maintenance sweep see every member's row. Without it the
+                    # SET ROLE into guild_<id> filters the table to 0 rows.
+                    await conn_.execute(
+                        text(
+                            "SELECT set_config('app.current_guild_role', 'admin', true)"
+                        )
                     )
                 for table, column, salt in _GUILD_SCHEMA_COLUMNS:
                     summary.columns.append(

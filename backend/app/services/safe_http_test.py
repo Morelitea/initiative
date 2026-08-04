@@ -13,7 +13,10 @@ import httpx
 import pytest
 
 from app.services.safe_http import build_validated_request, request_public_target
-from app.services.webhook_target_url import WebhookTargetUrlPrivateError
+from app.services.webhook_target_url import (
+    WebhookTargetUrlError,
+    WebhookTargetUrlPrivateError,
+)
 
 
 def _resolves_to(ip: str):
@@ -188,3 +191,53 @@ async def test_connect_timeout_does_not_fall_back():
             )
 
     assert seen == ["93.184.216.34"]  # stopped after the timeout; no fallback
+
+
+@pytest.mark.unit
+async def test_allow_private_permits_and_pins_private_target():
+    """allow_private lets an operator-configured internal target through,
+    still pinned to the resolved address with the hostname preserved."""
+    with _resolves_to("10.0.0.5"):
+        request = await build_validated_request(
+            "POST",
+            "https://ollama.internal/api/chat",
+            content=b"{}",
+            allow_private=True,
+        )
+    assert request.url.host == "10.0.0.5"
+    assert request.headers["host"] == "ollama.internal"
+
+
+@pytest.mark.unit
+async def test_allow_private_permits_http_to_private():
+    """With allow_private an operator ``http://internal`` target is accepted
+    and pinned (Ollama on a private host with no TLS)."""
+    with _resolves_to("10.0.0.5"):
+        request = await build_validated_request(
+            "POST",
+            "http://ollama.internal:11434/api/chat",
+            content=b"{}",
+            allow_private=True,
+        )
+    assert request.url.host == "10.0.0.5"
+    assert request.url.scheme == "http"
+
+
+@pytest.mark.unit
+async def test_allow_private_still_rejects_http_to_public():
+    """allow_private does not relax the http-to-public prohibition."""
+    with _resolves_to("93.184.216.34"):
+        with pytest.raises(WebhookTargetUrlError):
+            await build_validated_request(
+                "POST", "http://hooks.example.com/in", content=b"", allow_private=True
+            )
+
+
+@pytest.mark.unit
+async def test_private_target_still_refused_without_allow_private():
+    """Default (allow_private=False) still refuses a private target."""
+    with _resolves_to("10.0.0.5"):
+        with pytest.raises(WebhookTargetUrlPrivateError):
+            await build_validated_request(
+                "POST", "https://internal.example.com/x", content=b""
+            )

@@ -1,420 +1,100 @@
-import { type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { AIProvider, GuildAISettingsUpdate } from "@/api/generated/initiativeAPI.schemas";
-import { Button } from "@/components/ui/button";
+import {
+  AIConnectionManager,
+  type ConnectionMutations,
+} from "@/components/settings/AIConnectionManager";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ModelCombobox } from "@/components/ui/model-combobox";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import {
-  useFetchAIModels,
-  useGuildAISettings,
-  useTestAIConnection,
-  useUpdateGuildAISettings,
+  useCreateGuildConnection,
+  useDeleteGuildConnection,
+  useFetchGuildConnectionModels,
+  useGuildConnections,
+  useMemberAI,
+  useTestGuildConnection,
+  useUpdateGuildConnection,
 } from "@/hooks/useAISettings";
 import { useGuilds } from "@/hooks/useGuilds";
-import { getModelsForProvider, getProvidersForScope, PROVIDER_CONFIGS } from "@/lib/ai-providers";
-import { toast } from "@/lib/chesterToast";
-import { getErrorMessage } from "@/lib/errorMessage";
+import { getProvidersForScope } from "@/lib/ai-providers";
 
-interface FormState {
-  enabled: boolean | null;
-  provider: AIProvider | "";
-  apiKey: string;
-  baseUrl: string;
-  model: string;
-  allowUserOverride: boolean | null;
-  useInheritedSettings: boolean;
-}
-
-const DEFAULT_STATE: FormState = {
-  enabled: null,
-  provider: "",
-  apiKey: "",
-  baseUrl: "",
-  model: "",
-  allowUserOverride: null,
-  useInheritedSettings: true,
-};
-
+/**
+ * Guild-ADMIN AI surface: manage the guild's own AI connections (destinations)
+ * when the platform is in `guild` mode. A member's personal key lives under
+ * their profile settings ("My AI keys"), not here.
+ */
 export const SettingsGuildAIPage = () => {
   const { t } = useTranslation("settings");
-  const { activeGuild, activeGuildId } = useGuilds();
-  const isGuildAdmin = activeGuild?.role === "admin";
-  const guildId = activeGuildId;
-  const [formState, setFormState] = useState<FormState>(DEFAULT_STATE);
-  const [hasExistingKey, setHasExistingKey] = useState(false);
-  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const { activeGuild, activeGuildReadOnly } = useGuilds();
+  const guildId = useActiveGuildId();
+  const isGuildAdmin = activeGuild?.role === "admin" && !activeGuildReadOnly;
 
-  const settingsQuery = useGuildAISettings(guildId, { enabled: isGuildAdmin });
+  // The member view is the readable-by-anyone source of the global AI mode.
+  const modeQuery = useMemberAI(guildId, { enabled: isGuildAdmin });
+  const mode = modeQuery.data?.mode;
+  const canManageConnections = mode === "guild";
 
-  useEffect(() => {
-    if (settingsQuery.data) {
-      const data = settingsQuery.data;
-      const hasOwnSettings =
-        data.enabled !== null ||
-        data.provider !== null ||
-        data.has_api_key ||
-        data.base_url !== null ||
-        data.model !== null;
-
-      setFormState({
-        enabled: data.enabled ?? null,
-        provider: data.provider ?? "",
-        apiKey: "",
-        baseUrl: data.base_url ?? "",
-        model: data.model ?? "",
-        allowUserOverride: data.allow_user_override ?? null,
-        useInheritedSettings: !hasOwnSettings,
-      });
-      setHasExistingKey(data.has_api_key);
-    }
-  }, [settingsQuery.data]);
-
-  const updateMutation = useUpdateGuildAISettings({
-    onSuccess: (data) => {
-      toast.success(t("guildAI.saveSuccess"));
-      setFormState((prev) => ({ ...prev, apiKey: "" }));
-      setHasExistingKey(data.has_api_key);
-    },
-    onError: (error: Error) => {
-      toast.error(getErrorMessage(error, "settings:ai.saveError"));
-    },
+  const connectionsQuery = useGuildConnections({
+    enabled: Boolean(isGuildAdmin) && canManageConnections,
   });
 
-  const testMutation = useTestAIConnection({
-    onSuccess: (data) => {
-      if (data.success) {
-        toast.success(data.message);
-        if (data.available_models) {
-          setAvailableModels(data.available_models);
-        }
-      } else {
-        toast.error(data.message);
-      }
-    },
-    onError: () => toast.error(t("ai.testError")),
-  });
-
-  const fetchModelsMutation = useFetchAIModels({
-    onSuccess: (data) => {
-      if (data.models.length > 0) {
-        setAvailableModels(data.models);
-      }
-    },
-  });
+  const mutations: ConnectionMutations = {
+    create: useCreateGuildConnection(),
+    update: useUpdateGuildConnection(),
+    remove: useDeleteGuildConnection(),
+    test: useTestGuildConnection(),
+    fetchModels: useFetchGuildConnectionModels(),
+  };
 
   if (!isGuildAdmin) {
-    return <p className="text-muted-foreground text-sm">{t("ai.adminOnlyGuild")}</p>;
+    return <p className="text-muted-foreground text-sm">{t("guildAI.adminOnly")}</p>;
   }
 
-  if (settingsQuery.isLoading) {
+  if (modeQuery.isLoading) {
     return <p className="text-muted-foreground text-sm">{t("ai.loading")}</p>;
   }
 
-  if (settingsQuery.isError) {
+  if (modeQuery.isError || !modeQuery.data) {
     return <p className="text-destructive text-sm">{t("ai.loadError")}</p>;
   }
 
-  if (!settingsQuery.data) {
-    return <p className="text-muted-foreground text-sm">{t("ai.noSettings")}</p>;
-  }
-
-  if (!settingsQuery.data.can_override) {
+  if (mode === "disabled") {
     return (
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle>{t("ai.title")}</CardTitle>
-          <CardDescription>{t("ai.managedByPlatform")}</CardDescription>
+          <CardTitle>{t("guildAI.title")}</CardTitle>
+          <CardDescription>{t("guildAI.disabledDescription")}</CardDescription>
         </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground text-sm">{t("ai.adminDisabledGuild")}</p>
-          <div className="mt-4 space-y-2">
-            <p className="text-sm">
-              <span className="font-medium">{t("ai.statusLabel")}</span>{" "}
-              {settingsQuery.data.effective_enabled ? t("ai.enabled") : t("ai.disabled")}
-            </p>
-            {settingsQuery.data.effective_provider && (
-              <p className="text-sm">
-                <span className="font-medium">{t("ai.providerLabel")}</span>{" "}
-                {settingsQuery.data.effective_provider}
-              </p>
-            )}
-            {settingsQuery.data.effective_model && (
-              <p className="text-sm">
-                <span className="font-medium">{t("ai.modelLabel")}</span>{" "}
-                {settingsQuery.data.effective_model}
-              </p>
-            )}
-          </div>
-        </CardContent>
       </Card>
     );
   }
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    if (formState.useInheritedSettings) {
-      updateMutation.mutate({ clear_settings: true });
-      return;
-    }
-
-    const payload: GuildAISettingsUpdate = {
-      enabled: formState.enabled,
-      provider: formState.provider || null,
-      base_url: formState.baseUrl || null,
-      model: formState.model || null,
-      allow_user_override: formState.allowUserOverride,
-    };
-    if (formState.apiKey) {
-      payload.api_key = formState.apiKey;
-    }
-    updateMutation.mutate(payload);
-  };
-
-  const handleTestConnection = () => {
-    const provider = formState.useInheritedSettings
-      ? settingsQuery.data?.effective_provider
-      : formState.provider;
-    if (!provider) return;
-    testMutation.mutate({
-      provider,
-      api_key: formState.apiKey || null,
-      base_url: formState.useInheritedSettings
-        ? settingsQuery.data?.effective_base_url
-        : formState.baseUrl || null,
-      model: formState.useInheritedSettings
-        ? settingsQuery.data?.effective_model
-        : formState.model || null,
-    });
-  };
-
-  const handleFetchModels = () => {
-    const provider = formState.useInheritedSettings
-      ? settingsQuery.data?.effective_provider
-      : formState.provider;
-    if (!provider || fetchModelsMutation.isPending) return;
-    fetchModelsMutation.mutate({
-      provider,
-      api_key: formState.apiKey || null,
-      base_url: formState.useInheritedSettings
-        ? settingsQuery.data?.effective_base_url
-        : formState.baseUrl || null,
-    });
-  };
-
-  const activeProvider = formState.useInheritedSettings
-    ? settingsQuery.data?.effective_provider
-    : formState.provider;
-  const getModelOptions = () => getModelsForProvider(activeProvider ?? "", availableModels);
-
-  const providerConfig = activeProvider ? PROVIDER_CONFIGS[activeProvider] : null;
-  const showApiKeyField = providerConfig?.requiresApiKey ?? false;
-  const showBaseUrlField = providerConfig?.requiresBaseUrl ?? false;
+  if (mode === "platform") {
+    return (
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>{t("guildAI.title")}</CardTitle>
+          <CardDescription>{t("guildAI.managedByPlatform")}</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
 
   return (
     <Card className="shadow-sm">
       <CardHeader>
-        <CardTitle>{t("guildAI.title")}</CardTitle>
-        <CardDescription>{t("guildAI.description")}</CardDescription>
+        <CardTitle>{t("guildAI.connectionsTitle")}</CardTitle>
+        <CardDescription>{t("guildAI.connectionsDescription")}</CardDescription>
       </CardHeader>
       <CardContent>
-        <form className="space-y-6" onSubmit={handleSubmit}>
-          <div className="flex items-center justify-between rounded-md border px-4 py-3">
-            <div>
-              <p className="font-medium">{t("ai.usePlatformSettings")}</p>
-              <p className="text-muted-foreground text-sm">
-                {t("ai.usePlatformSettingsDescription")}
-              </p>
-            </div>
-            <Switch
-              checked={formState.useInheritedSettings}
-              onCheckedChange={(checked) => {
-                const useInherited = Boolean(checked);
-                if (useInherited) {
-                  // Switching to inherited - clear custom values
-                  setFormState((prev) => ({ ...prev, useInheritedSettings: true }));
-                } else {
-                  // Switching to custom - initialize with effective values
-                  setFormState((prev) => ({
-                    ...prev,
-                    useInheritedSettings: false,
-                    enabled: settingsQuery.data?.effective_enabled ?? false,
-                    provider: settingsQuery.data?.effective_provider ?? "",
-                    baseUrl: settingsQuery.data?.effective_base_url ?? "",
-                    model: settingsQuery.data?.effective_model ?? "",
-                  }));
-                }
-              }}
-            />
-          </div>
-
-          {formState.useInheritedSettings && (
-            <div className="rounded-md border bg-muted/50 p-4">
-              <p className="mb-2 font-medium text-muted-foreground text-sm">
-                {t("ai.inheritedSettings")}
-              </p>
-              <div className="space-y-1 text-sm">
-                <p>
-                  <span className="font-medium">{t("ai.statusLabel")}</span>{" "}
-                  {settingsQuery.data.effective_enabled ? t("ai.enabled") : t("ai.disabled")}
-                </p>
-                {settingsQuery.data.effective_provider && (
-                  <p>
-                    <span className="font-medium">{t("ai.providerLabel")}</span>{" "}
-                    {settingsQuery.data.effective_provider}
-                  </p>
-                )}
-                {settingsQuery.data.effective_model && (
-                  <p>
-                    <span className="font-medium">{t("ai.modelLabel")}</span>{" "}
-                    {settingsQuery.data.effective_model}
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {!formState.useInheritedSettings && (
-            <>
-              <div className="flex items-center justify-between rounded-md border px-4 py-3">
-                <div>
-                  <p className="font-medium">{t("ai.enableAI")}</p>
-                  <p className="text-muted-foreground text-sm">
-                    {t("ai.enableAIGuildDescription")}
-                  </p>
-                </div>
-                <Switch
-                  checked={formState.enabled ?? false}
-                  onCheckedChange={(checked) =>
-                    setFormState((prev) => ({ ...prev, enabled: Boolean(checked) }))
-                  }
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="ai-provider">{t("ai.providerFieldLabel")}</Label>
-                <Select
-                  value={formState.provider}
-                  onValueChange={(value) => {
-                    // Ignore Radix Select's spurious "" reset (fired by the
-                    // hidden bubble input before SelectItems mount).
-                    if (!value) return;
-                    const config = PROVIDER_CONFIGS[value as AIProvider];
-                    setFormState((prev) => ({
-                      ...prev,
-                      provider: value as AIProvider,
-                      baseUrl: config?.defaultBaseUrl ?? "",
-                    }));
-                    setAvailableModels([]);
-                  }}
-                >
-                  <SelectTrigger id="ai-provider">
-                    <SelectValue placeholder={t("ai.providerPlaceholder")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {getProvidersForScope("guild").map((key) => (
-                      <SelectItem key={key} value={key}>
-                        {PROVIDER_CONFIGS[key].label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {showApiKeyField && (
-                <div className="space-y-2">
-                  <Label htmlFor="ai-api-key">{t("ai.apiKeyLabel")}</Label>
-                  <Input
-                    id="ai-api-key"
-                    type="password"
-                    value={formState.apiKey}
-                    onChange={(event) =>
-                      setFormState((prev) => ({ ...prev, apiKey: event.target.value }))
-                    }
-                    placeholder={
-                      hasExistingKey
-                        ? t("ai.apiKeyPlaceholderExisting")
-                        : t("ai.apiKeyPlaceholderNewShort")
-                    }
-                  />
-                  <p className="text-muted-foreground text-xs">
-                    {hasExistingKey ? t("ai.apiKeyHelpExistingShort") : t("ai.apiKeyHelpNewShort")}
-                  </p>
-                </div>
-              )}
-
-              {showBaseUrlField && (
-                <div className="space-y-2">
-                  <Label htmlFor="ai-base-url">{t("ai.baseUrlLabel")}</Label>
-                  <Input
-                    id="ai-base-url"
-                    value={formState.baseUrl}
-                    onChange={(event) =>
-                      setFormState((prev) => ({ ...prev, baseUrl: event.target.value }))
-                    }
-                    placeholder={providerConfig?.defaultBaseUrl ?? "https://api.example.com/v1"}
-                  />
-                </div>
-              )}
-
-              {activeProvider && (
-                <div className="space-y-2">
-                  <Label>{t("ai.modelLabel")}</Label>
-                  <ModelCombobox
-                    models={getModelOptions()}
-                    value={formState.model}
-                    onValueChange={(value) => setFormState((prev) => ({ ...prev, model: value }))}
-                    placeholder={providerConfig?.modelPlaceholder ?? "Select or type a model"}
-                    onOpen={handleFetchModels}
-                    isLoading={fetchModelsMutation.isPending}
-                  />
-                </div>
-              )}
-
-              <div className="flex items-center justify-between rounded-md border px-4 py-3">
-                <div>
-                  <p className="font-medium">{t("ai.allowUserOverride")}</p>
-                  <p className="text-muted-foreground text-sm">
-                    {t("ai.allowUserOverrideDescription")}
-                  </p>
-                </div>
-                <Switch
-                  checked={formState.allowUserOverride ?? true}
-                  onCheckedChange={(checked) =>
-                    setFormState((prev) => ({ ...prev, allowUserOverride: Boolean(checked) }))
-                  }
-                />
-              </div>
-            </>
-          )}
-
-          <div className="flex gap-2">
-            <Button type="submit" disabled={updateMutation.isPending}>
-              {updateMutation.isPending ? t("ai.savingSettings") : t("ai.saveSettings")}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleTestConnection}
-              disabled={
-                testMutation.isPending || (!formState.useInheritedSettings && !activeProvider)
-              }
-            >
-              {testMutation.isPending ? t("ai.testing") : t("ai.testConnection")}
-            </Button>
-          </div>
-        </form>
+        <AIConnectionManager
+          scope="guild"
+          connections={connectionsQuery.data ?? []}
+          isLoading={connectionsQuery.isLoading}
+          isError={connectionsQuery.isError}
+          providers={getProvidersForScope("guild")}
+          mutations={mutations}
+        />
       </CardContent>
     </Card>
   );

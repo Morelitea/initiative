@@ -174,24 +174,6 @@ class User(SQLModel, table=True):
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True),
     )
-    # AI Settings (nullable = inherit from guild/platform)
-    ai_enabled: Optional[bool] = Field(
-        default=None,
-        sa_column=Column(Boolean, nullable=True),
-    )
-    ai_provider: Optional[str] = Field(
-        default=None, sa_column=Column(String(50), nullable=True)
-    )
-    ai_api_key_encrypted: Optional[str] = Field(
-        default=None, sa_column=Column(String(2000), nullable=True)
-    )
-    ai_base_url: Optional[str] = Field(
-        default=None, sa_column=Column(String(1000), nullable=True)
-    )
-    ai_model: Optional[str] = Field(
-        default=None, sa_column=Column(String(500), nullable=True)
-    )
-
     # Locale
     locale: str = Field(
         default="en",

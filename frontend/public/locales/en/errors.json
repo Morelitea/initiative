@@ -334,5 +334,8 @@
   "IMPORT_NOT_CONFIRMABLE": "This import can't be confirmed — it may have expired or already started.",
   "IMPORT_ZIP_INVALID": "This file isn't a valid Initiative backup.",
   "IMPORT_QUOTA_EXCEEDED": "The backup's files don't fit in this guild's storage.",
-  "INVALID_TAG_IDS": "One or more tags no longer exist"
+  "INVALID_TAG_IDS": "One or more tags no longer exist",
+  "AI_CONNECTION_NOT_FOUND": "AI connection not found.",
+  "AI_MEMBER_KEYS_DISABLED": "Personal API keys are disabled for this workspace.",
+  "AI_INVALID_API_KEY": "The API key was rejected. Check it and try again."
 }

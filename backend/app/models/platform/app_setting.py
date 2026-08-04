@@ -53,30 +53,23 @@ class AppSetting(SQLModel, table=True):
         default=None, sa_column=Column(String(255), nullable=True)
     )
 
-    # AI Settings
-    ai_enabled: bool = Field(
-        default=False,
-        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    # AI config ownership mode: "platform" (the operator's connections apply to
+    # every guild), "guild" (each guild admin configures its own), or "disabled".
+    # Provider config itself lives in platform_ai_connections /
+    # guild_ai_connections; only the global mode lives here. Whether members may
+    # attach their own key is a per-connection setting (allow_member_keys on the
+    # connection), not a global toggle.
+    ai_config_mode: str = Field(
+        default="disabled",
+        sa_column=Column(String(20), nullable=False, server_default="disabled"),
     )
-    ai_provider: Optional[str] = Field(
-        default=None, sa_column=Column(String(50), nullable=True)
-    )
-    ai_api_key_encrypted: Optional[str] = Field(
-        default=None, sa_column=Column(String(2000), nullable=True)
-    )
-    ai_base_url: Optional[str] = Field(
-        default=None, sa_column=Column(String(1000), nullable=True)
-    )
-    ai_model: Optional[str] = Field(
-        default=None, sa_column=Column(String(500), nullable=True)
-    )
-    ai_allow_guild_override: bool = Field(
-        default=True,
-        sa_column=Column(Boolean, nullable=False, server_default="true"),
-    )
-    ai_allow_user_override: bool = Field(
-        default=True,
-        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    # Monotonic counter bumped on every operator AI-config write (mode or
+    # platform connection). Read on the request's own (guild) session as the
+    # cross-worker cache-freshness signal, so a change is picked up by every
+    # replica at once instead of after a per-process TTL.
+    ai_config_version: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False, server_default="0"),
     )
 
     # Object storage (blob backend). "local" = filesystem under UPLOADS_DIR;
