@@ -29,12 +29,8 @@ def _reset_ai_cache():
     ai_settings_service.invalidate_platform_ai_cache()
 
 
-async def _set_mode(client, owner, mode: str, *, allow_member_keys: bool = True):
-    r = await client.put(
-        PLATFORM_MODE,
-        headers=owner.headers,
-        json={"mode": mode, "allow_member_keys": allow_member_keys},
-    )
+async def _set_mode(client, owner, mode: str):
+    r = await client.put(PLATFORM_MODE, headers=owner.headers, json={"mode": mode})
     assert r.status_code == 200, r.text
 
 
@@ -187,6 +183,78 @@ async def test_guild_admin_cannot_save_private_base_url(client, acting_user):
     )
     assert r.status_code == 400
     assert r.json()["detail"] == "AI_INVALID_BASE_URL"
+
+
+async def test_connection_that_disallows_member_keys(client, acting_user):
+    """A connection with allow_member_keys=False uses its own shared key only —
+    a member cannot attach their own key to it."""
+    owner = await acting_user()
+    await _set_mode(client, owner, "platform")
+    r = await client.post(
+        PLATFORM_CONNS,
+        headers=owner.headers,
+        json={
+            "label": "Company-only",
+            "provider": "openai",
+            "api_key": "sk-shared",
+            "is_default": True,
+            "allow_member_keys": False,
+        },
+    )
+    assert r.status_code == 200, r.text
+    conn = r.json()
+    assert conn["allow_member_keys"] is False
+    conn_id = conn["id"]
+
+    member = await acting_user(guild_role=GuildRole.member, initiative=True)
+    view = (
+        await client.get(member.g("/settings/ai/me"), headers=member.headers)
+    ).json()
+    conn_view = next(c for c in view["connections"] if c["id"] == conn_id)
+    assert conn_view["allow_member_keys"] is False
+    # Has a shared key, so no member key is required.
+    assert conn_view["requires_member_key"] is False
+
+    # Attaching a member key is refused.
+    r = await client.put(
+        member.g("/settings/ai/me/key"),
+        headers=member.headers,
+        json={"scope": "platform", "connection_id": conn_id, "api_key": "sk-mine"},
+    )
+    assert r.status_code == 403
+    assert r.json()["detail"] == "AI_MEMBER_KEYS_DISABLED"
+
+
+async def test_my_ai_aggregate_lists_connections_across_guilds(client, acting_user):
+    """GET /me/ai flattens the member's available connections across guilds,
+    carrying guild context so the client can address per-guild writes."""
+    owner = await acting_user()
+    await _set_mode(client, owner, "platform")
+    r = await client.post(
+        PLATFORM_CONNS,
+        headers=owner.headers,
+        json={
+            "label": "Shared",
+            "provider": "openai",
+            "api_key": "k",
+            "is_default": True,
+        },
+    )
+    conn_id = r.json()["id"]
+
+    member = await acting_user(guild_role=GuildRole.member, initiative=True)
+    r = await client.get("/api/v1/me/ai", headers=member.headers)
+    assert r.status_code == 200, r.text
+    rows = r.json()
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["guild_id"] == member.guild.id
+    assert row["guild_name"] == member.guild.name
+    assert row["scope"] == "platform"
+    assert row["connection_id"] == conn_id
+    assert row["label"] == "Shared"
+    # Never leaks the key itself.
+    assert "api_key" not in row
 
 
 async def test_disabled_mode_hides_ai(client, acting_user):

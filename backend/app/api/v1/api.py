@@ -23,6 +23,7 @@ from app.api.v1.tenant_endpoints import (
     exports,
     imports,
     initiatives,
+    me_ai,
     me_trash,
     projects,
     property_definitions,
@@ -178,5 +179,6 @@ me_router.include_router(projects.me_router, tags=["projects"])
 me_router.include_router(calendar_events.me_router, tags=["calendar-events"])
 me_router.include_router(calendar_entries.me_router, tags=["calendar-entries"])
 me_router.include_router(me_trash.me_router, tags=["trash"])
+me_router.include_router(me_ai.me_router, tags=["ai-settings"])
 me_router.include_router(users.me_router, tags=["users"])
 api_router.include_router(me_router)

@@ -50,27 +50,25 @@ def upgrade() -> None:
         sa.Column("api_key_encrypted", sa.String(length=2000), nullable=True),
         sa.Column("enabled", sa.Boolean(), server_default="true", nullable=False),
         sa.Column("is_default", sa.Boolean(), server_default="false", nullable=False),
+        sa.Column(
+            "allow_member_keys",
+            sa.Boolean(),
+            server_default="true",
+            nullable=False,
+        ),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id"),
     )
 
-    # 2. New app_settings mode columns (existing row gets the server defaults).
+    # 2. New app_settings mode column (existing row gets the server default).
+    # Whether members may bring their own key is per-connection, not global.
     op.add_column(
         "app_settings",
         sa.Column(
             "ai_config_mode",
             sa.String(length=20),
             server_default="disabled",
-            nullable=False,
-        ),
-    )
-    op.add_column(
-        "app_settings",
-        sa.Column(
-            "ai_allow_member_keys",
-            sa.Boolean(),
-            server_default="true",
             nullable=False,
         ),
     )
@@ -203,7 +201,6 @@ def downgrade() -> None:
                 nullable=False,
             )
         )
-        batch_op.drop_column("ai_allow_member_keys")
         batch_op.drop_column("ai_config_mode")
 
     op.execute("DROP TABLE IF EXISTS public.platform_ai_connections CASCADE")

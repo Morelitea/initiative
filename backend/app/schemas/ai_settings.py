@@ -55,6 +55,9 @@ class AIConnectionResponse(SanitizedBaseModel):
     has_api_key: bool = False
     enabled: bool = True
     is_default: bool = False
+    # When false, members can't attach their own key — this connection uses its
+    # own shared key only.
+    allow_member_keys: bool = True
 
 
 class AIConnectionCreate(SanitizedBaseModel):
@@ -65,6 +68,7 @@ class AIConnectionCreate(SanitizedBaseModel):
     api_key: Optional[RawTextStr] = None
     enabled: bool = True
     is_default: bool = False
+    allow_member_keys: bool = True
 
 
 class AIConnectionUpdate(SanitizedBaseModel):
@@ -75,6 +79,7 @@ class AIConnectionUpdate(SanitizedBaseModel):
     api_key: Optional[RawTextStr] = None
     enabled: Optional[bool] = None
     is_default: Optional[bool] = None
+    allow_member_keys: Optional[bool] = None
 
 
 # --- Platform mode (operator-set, on app_settings) ---------------------------
@@ -82,12 +87,10 @@ class PlatformAIModeResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     mode: AIConfigMode = AIConfigMode.disabled
-    allow_member_keys: bool = True
 
 
 class PlatformAIModeUpdate(SanitizedBaseModel):
     mode: AIConfigMode
-    allow_member_keys: bool = True
 
 
 # --- Member surface (attach a key + pick a connection) -----------------------
@@ -106,6 +109,8 @@ class MemberAIConnectionView(SanitizedBaseModel):
     model: Optional[str] = None
     has_member_key: bool = False
     requires_member_key: bool = False
+    # Whether the member may attach their own key to this connection.
+    allow_member_keys: bool = True
     is_selected: bool = False
 
 
@@ -113,9 +118,31 @@ class MemberAIView(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     mode: AIConfigMode = AIConfigMode.disabled
-    allow_member_keys: bool = True
     enabled: bool = False
     connections: list[MemberAIConnectionView] = []
+
+
+class MyAIConnectionRow(SanitizedBaseModel):
+    """One connection available to the member in one guild — a flat row for the
+    cross-guild personal "My AI" view (``GET /me/ai``). Every connection the
+    member can use is listed, including shared-key ones they can't attach to
+    (``allow_member_keys=false``), so they can see what they have access to.
+    Writes stay guild-scoped, addressed by ``guild_id`` + ``scope`` +
+    ``connection_id`` (mirrors the My Tasks / My Trash pattern)."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    guild_id: int
+    guild_name: str
+    scope: ConnectionScope
+    connection_id: int
+    label: str
+    provider: AIProvider
+    model: Optional[str] = None
+    allow_member_keys: bool = True
+    has_member_key: bool = False
+    requires_member_key: bool = False
+    is_selected: bool = False
 
 
 class MemberAIKeyUpdate(SanitizedBaseModel):

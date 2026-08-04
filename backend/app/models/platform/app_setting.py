@@ -56,14 +56,12 @@ class AppSetting(SQLModel, table=True):
     # AI config ownership mode: "platform" (the operator's connections apply to
     # every guild), "guild" (each guild admin configures its own), or "disabled".
     # Provider config itself lives in platform_ai_connections /
-    # guild_ai_connections; only the mode + member-key policy live here.
+    # guild_ai_connections; only the global mode lives here. Whether members may
+    # attach their own key is a per-connection setting (allow_member_keys on the
+    # connection), not a global toggle.
     ai_config_mode: str = Field(
         default="disabled",
         sa_column=Column(String(20), nullable=False, server_default="disabled"),
-    )
-    ai_allow_member_keys: bool = Field(
-        default=True,
-        sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
 
     # Object storage (blob backend). "local" = filesystem under UPLOADS_DIR;

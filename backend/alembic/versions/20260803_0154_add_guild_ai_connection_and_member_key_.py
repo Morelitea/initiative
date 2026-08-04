@@ -29,6 +29,12 @@ def _apply_upgrade() -> None:
         sa.Column("api_key_encrypted", sa.String(length=2000), nullable=True),
         sa.Column("enabled", sa.Boolean(), server_default="true", nullable=False),
         sa.Column("is_default", sa.Boolean(), server_default="false", nullable=False),
+        sa.Column(
+            "allow_member_keys",
+            sa.Boolean(),
+            server_default="true",
+            nullable=False,
+        ),
         sa.Column("created_by_user_id", sa.Integer(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),

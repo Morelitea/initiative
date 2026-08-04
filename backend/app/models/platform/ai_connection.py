@@ -40,6 +40,12 @@ class PlatformAIConnection(SQLModel, table=True):
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
+    # Whether members may attach their own key to this connection. When false,
+    # this connection uses its own shared key only (members can't override).
+    allow_member_keys: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),

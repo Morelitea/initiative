@@ -90,12 +90,12 @@ class _ConnRow:
     api_key_encrypted: str | None
     enabled: bool
     is_default: bool
+    allow_member_keys: bool
 
 
 @dataclass(frozen=True)
 class _PlatformConfig:
     mode: str
-    allow_member_keys: bool
     connections: tuple[_ConnRow, ...]
 
 
@@ -111,22 +111,17 @@ async def _load_platform_config() -> _PlatformConfig:
         await conn.execute(text("SELECT set_config('role', 'none', false)"))
         row = (
             await conn.execute(
-                text(
-                    "SELECT ai_config_mode, ai_allow_member_keys "
-                    "FROM public.app_settings WHERE id = 1"
-                )
+                text("SELECT ai_config_mode FROM public.app_settings WHERE id = 1")
             )
         ).first()
         if row is None:
-            return _PlatformConfig(
-                mode="disabled", allow_member_keys=True, connections=()
-            )
-        mode, allow_member_keys = row[0], bool(row[1])
+            return _PlatformConfig(mode="disabled", connections=())
+        mode = row[0]
         conn_rows = (
             await conn.execute(
                 text(
                     "SELECT id, label, provider, base_url, model, "
-                    "api_key_encrypted, enabled, is_default "
+                    "api_key_encrypted, enabled, is_default, allow_member_keys "
                     "FROM public.platform_ai_connections ORDER BY id"
                 )
             )
@@ -142,12 +137,11 @@ async def _load_platform_config() -> _PlatformConfig:
             api_key_encrypted=r[5],
             enabled=bool(r[6]),
             is_default=bool(r[7]),
+            allow_member_keys=bool(r[8]),
         )
         for r in conn_rows
     )
-    return _PlatformConfig(
-        mode=mode, allow_member_keys=allow_member_keys, connections=connections
-    )
+    return _PlatformConfig(mode=mode, connections=connections)
 
 
 async def get_platform_ai_config(*, force: bool = False) -> _PlatformConfig:
@@ -183,6 +177,7 @@ def _conn_from_guild(row: GuildAIConnection) -> _ConnRow:
         api_key_encrypted=row.api_key_encrypted,
         enabled=row.enabled,
         is_default=row.is_default,
+        allow_member_keys=row.allow_member_keys,
     )
 
 
@@ -282,9 +277,10 @@ async def resolve_ai_settings(
         )
 
     # Member key for the chosen connection (guild-local, own-row RLS), else the
-    # connection's own shared key.
+    # connection's own shared key. Per-connection: a connection that disallows
+    # member keys always uses its own shared key.
     member_key: str | None = None
-    if cfg.allow_member_keys:
+    if chosen.allow_member_keys:
         mk = (
             await session.exec(
                 select(GuildAIMemberKey).where(
@@ -339,10 +335,7 @@ async def get_resolved_ai_settings_response(
 # ---------------------------------------------------------------------------
 async def get_platform_ai_mode(session: AsyncSession) -> PlatformAIModeResponse:
     settings = await get_app_settings(session)
-    return PlatformAIModeResponse(
-        mode=AIConfigMode(settings.ai_config_mode),
-        allow_member_keys=settings.ai_allow_member_keys,
-    )
+    return PlatformAIModeResponse(mode=AIConfigMode(settings.ai_config_mode))
 
 
 async def update_platform_ai_mode(
@@ -350,13 +343,10 @@ async def update_platform_ai_mode(
 ) -> PlatformAIModeResponse:
     settings = await get_app_settings(session)
     settings.ai_config_mode = payload.mode.value
-    settings.ai_allow_member_keys = payload.allow_member_keys
     session.add(settings)
     await session.commit()
     invalidate_platform_ai_cache()
-    return PlatformAIModeResponse(
-        mode=payload.mode, allow_member_keys=payload.allow_member_keys
-    )
+    return PlatformAIModeResponse(mode=payload.mode)
 
 
 def _platform_conn_response(row: PlatformAIConnection) -> AIConnectionResponse:
@@ -370,6 +360,7 @@ def _platform_conn_response(row: PlatformAIConnection) -> AIConnectionResponse:
         has_api_key=bool(row.api_key_encrypted),
         enabled=row.enabled,
         is_default=row.is_default,
+        allow_member_keys=row.allow_member_keys,
     )
 
 
@@ -401,6 +392,7 @@ async def create_platform_connection(
         ),
         enabled=payload.enabled,
         is_default=payload.is_default,
+        allow_member_keys=payload.allow_member_keys,
     )
     if payload.is_default:
         await _clear_platform_default(session)
@@ -451,6 +443,8 @@ async def update_platform_connection(
         )
     if "enabled" in data and payload.enabled is not None:
         row.enabled = payload.enabled
+    if "allow_member_keys" in data and payload.allow_member_keys is not None:
+        row.allow_member_keys = payload.allow_member_keys
     if "is_default" in data and payload.is_default is not None:
         if payload.is_default:
             await _clear_platform_default(session)
@@ -485,6 +479,7 @@ def _guild_conn_response(row: GuildAIConnection) -> AIConnectionResponse:
         has_api_key=bool(row.api_key_encrypted),
         enabled=row.enabled,
         is_default=row.is_default,
+        allow_member_keys=row.allow_member_keys,
     )
 
 
@@ -531,6 +526,7 @@ async def create_guild_connection(
         ),
         enabled=payload.enabled,
         is_default=payload.is_default,
+        allow_member_keys=payload.allow_member_keys,
     )
     if payload.is_default:
         await _clear_guild_default(session)
@@ -567,6 +563,8 @@ async def update_guild_connection(
         )
     if "enabled" in data and payload.enabled is not None:
         row.enabled = payload.enabled
+    if "allow_member_keys" in data and payload.allow_member_keys is not None:
+        row.allow_member_keys = payload.allow_member_keys
     if "is_default" in data and payload.is_default is not None:
         if payload.is_default:
             await _clear_guild_default(session)
@@ -613,9 +611,7 @@ async def get_member_ai_view(
         else AIConfigMode.disabled
     )
     if mode == AIConfigMode.disabled:
-        return MemberAIView(
-            mode=mode, allow_member_keys=cfg.allow_member_keys, enabled=False
-        )
+        return MemberAIView(mode=mode, enabled=False)
 
     conns = [
         c
@@ -651,19 +647,17 @@ async def get_member_ai_view(
             provider=AIProvider(c.provider),
             model=c.model,
             has_member_key=(c.scope, c.id) in member_keys,
-            requires_member_key=not c.api_key_encrypted,
+            # A member must supply a key only when the connection has no shared
+            # key of its own AND allows member keys.
+            requires_member_key=not c.api_key_encrypted and c.allow_member_keys,
+            allow_member_keys=c.allow_member_keys,
             is_selected=selected == (c.scope, c.id),
         )
         for c in conns
     ]
 
     resolved = await resolve_ai_settings(session, user, guild_id)
-    return MemberAIView(
-        mode=mode,
-        allow_member_keys=cfg.allow_member_keys,
-        enabled=resolved.enabled,
-        connections=views,
-    )
+    return MemberAIView(mode=mode, enabled=resolved.enabled, connections=views)
 
 
 async def _require_active_connection(
@@ -683,10 +677,11 @@ async def _require_active_connection(
 async def set_member_key(
     session: AsyncSession, user: User, guild_id: int, payload: MemberAIKeyUpdate
 ) -> MemberAIView:
-    cfg = await get_platform_ai_config()
-    if not cfg.allow_member_keys:
+    conn = await _require_active_connection(
+        session, payload.scope, payload.connection_id
+    )
+    if not conn.allow_member_keys:
         raise HTTPException(status_code=403, detail=AIMessages.MEMBER_KEYS_DISABLED)
-    await _require_active_connection(session, payload.scope, payload.connection_id)
     normalized = payload.api_key.strip()
     if not normalized:
         raise HTTPException(status_code=400, detail=AIMessages.INVALID_API_KEY)
@@ -981,6 +976,7 @@ async def test_platform_connection(
         api_key_encrypted=row.api_key_encrypted,
         enabled=row.enabled,
         is_default=row.is_default,
+        allow_member_keys=row.allow_member_keys,
     )
     key = (
         decrypt_field(conn.api_key_encrypted, SALT_AI_API_KEY)
@@ -1060,5 +1056,6 @@ async def test_member_connection(
         api_key_encrypted=None,
         enabled=True,
         is_default=False,
+        allow_member_keys=True,
     )
     return await _probe(conn, resolved.api_key)
