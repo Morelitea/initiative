@@ -3,7 +3,7 @@ import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { ResourceGrantSchema } from "@/api/generated/initiativeAPI.schemas";
+import type { ResourceGrantSchema, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { CreateAccessSection } from "@/components/access/CreateAccessSection";
 import { DEFAULT_GRANTS } from "@/components/access/grants";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import type { DialogProps } from "@/types/dialog";
 import type { TranslateFn } from "@/types/i18n";
@@ -47,6 +48,8 @@ export type ToolCreatePayload = {
  * another: its i18n namespace/keys, element-id prefix, and create-mutation hook.
  */
 export interface CreateToolConfig<TRead> {
+  /** The tool being created — drives the picker's creatable-initiative filter. */
+  tool: Tool;
   /** i18n namespace for this tool's strings (e.g. "queues"). */
   namespace: FlatNamespace;
   /** Key for the dialog title and the submit button label. */
@@ -86,7 +89,7 @@ export const CreateToolDialog = <TRead,>({
   onSuccess,
   config,
 }: CreateToolDialogProps<TRead>) => {
-  const { namespace, titleKey, descriptionKey, idPrefix, useCreate } = config;
+  const { tool, namespace, titleKey, descriptionKey, idPrefix, useCreate } = config;
   // The namespace and several keys are supplied by config (dynamic per tool), so
   // use the loose translation signature rather than the statically-typed keys.
   const { t: translate } = useTranslation(namespace);
@@ -101,6 +104,10 @@ export const CreateToolDialog = <TRead,>({
 
   const initiativesQuery = useInitiatives();
   const initiatives = initiativesQuery.data ?? [];
+
+  // The picker only offers initiatives the user may actually create this tool
+  // in (server-computed create flags; folds in the tool's master switch).
+  const { creatableInitiatives } = useToolCreateAccess(tool);
 
   const effectiveInitiativeId =
     initiativeId ?? (selectedInitiativeId ? Number(selectedInitiativeId) : null);
@@ -193,7 +200,7 @@ export const CreateToolDialog = <TRead,>({
                   <SelectValue placeholder={t("selectInitiative")} />
                 </SelectTrigger>
                 <SelectContent>
-                  {initiatives.map((initiative) => (
+                  {creatableInitiatives.map((initiative) => (
                     <SelectItem key={initiative.id} value={String(initiative.id)}>
                       {initiative.name}
                     </SelectItem>

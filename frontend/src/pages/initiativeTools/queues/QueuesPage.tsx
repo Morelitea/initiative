@@ -18,13 +18,11 @@ import {
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAuth } from "@/hooks/useAuth";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import { getDefaultFiltersVisibility } from "@/hooks/useDefaultFiltersOpen";
 import { useGridSelection } from "@/hooks/useGridSelection";
-import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
+import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { INITIATIVE_FILTER_ALL, useInitiativeFilter } from "@/hooks/useInitiativeFilter";
-import { canCreateTool, useMyInitiativePermissions } from "@/hooks/useInitiativeRoles";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useQueuesList } from "@/hooks/useQueues";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -37,8 +35,6 @@ type QueuesViewProps = {
 export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) => {
   const { t } = useTranslation(["queues", "common", "access"]);
   const router = useRouter();
-  const { user } = useAuth();
-  const { permissionsFor } = useInitiativeAccess();
   const gp = useGuildPath();
   const searchParams = useSearch({ strict: false }) as {
     initiativeId?: string;
@@ -51,10 +47,6 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
   const { initiativeFilter, setInitiativeFilter, filteredInitiativeId } = useInitiativeFilter({
     lockedInitiativeId,
   });
-
-  const { data: filteredInitiativePermissions } = useMyInitiativePermissions(
-    !lockedInitiativeId && filteredInitiativeId ? filteredInitiativeId : null
-  );
 
   const searchParamsRef = useRef(searchParams);
   searchParamsRef.current = searchParams;
@@ -108,31 +100,13 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
     return map;
   }, [initiatives]);
 
-  // Initiatives the user can create queues in — resolved through the shared
-  // access helper so guild admins are included and frozen (read-only) guilds
-  // drop their create affordances.
-  const creatableInitiatives = useMemo(() => {
-    if (!user) return [];
-    return initiatives.filter((initiative) => permissionsFor(initiative)[Tool.queue].create);
-  }, [initiatives, user, permissionsFor]);
-
-  // Determine if user can create queues
-  const canCreateQueues = useMemo(() => {
-    if (canCreate !== undefined) return canCreate;
-    if (filteredInitiativeId && filteredInitiativePermissions) {
-      return canCreateTool(filteredInitiativePermissions, Tool.queue);
-    }
-    if (lockedInitiativeId) {
-      return creatableInitiatives.some((initiative) => initiative.id === lockedInitiativeId);
-    }
-    return creatableInitiatives.length > 0;
-  }, [
-    canCreate,
-    filteredInitiativeId,
-    filteredInitiativePermissions,
-    lockedInitiativeId,
-    creatableInitiatives,
-  ]);
+  // Canonical create answer: the locked/filtered initiative's server-computed
+  // create flag, or (in the "All" view) whether any visible initiative grants
+  // it. An explicit canCreate prop (e.g. from InitiativeDetailPage) wins.
+  const { canCreate: canCreateDerived } = useToolCreateAccess(Tool.queue, {
+    initiativeId: lockedInitiativeId ?? filteredInitiativeId,
+  });
+  const canCreateQueues = canCreate ?? canCreateDerived;
 
   const {
     open: createDialogOpen,

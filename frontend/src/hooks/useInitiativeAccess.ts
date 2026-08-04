@@ -1,8 +1,9 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 
 import type { InitiativeRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
+import { useInitiatives } from "@/hooks/useInitiatives";
 import {
   isToolEnabled,
   TOOL_REGISTRY,
@@ -120,4 +121,44 @@ export function useInitiativeAccess() {
   );
 
   return { isGuildAdmin, isGrantGuild, grantReadWrite, filterVisible, permissionsFor, canManage };
+}
+
+/**
+ * Canonical "can the current user create <tool>" answer for pages and create
+ * dialogs. Creation always targets an initiative, so the answer has two
+ * shapes: with a specific initiative in context (a locked page or a filter
+ * selection) it is that initiative's server-computed create flag, read via
+ * `permissionsFor`; with none (an "All" view) it is "can create in at least
+ * one initiative" — the create dialog's initiative picker chooses the target.
+ *
+ * `creatableInitiatives` backs those pickers: the visible initiatives whose
+ * create flag is on for this tool. The flag already folds in the initiative's
+ * master switch, so initiatives with the tool disabled drop out.
+ */
+export function useToolCreateAccess(
+  tool: Tool,
+  { initiativeId, enabled }: { initiativeId?: number | null; enabled?: boolean } = {}
+) {
+  const { user } = useAuth();
+  const { filterVisible, permissionsFor } = useInitiativeAccess();
+  const initiativesQuery = useInitiatives(enabled === undefined ? undefined : { enabled });
+
+  const creatableInitiatives = useMemo(() => {
+    if (!user) return [];
+    return filterVisible(initiativesQuery.data).filter(
+      (initiative) => permissionsFor(initiative)[tool].create
+    );
+  }, [user, initiativesQuery.data, filterVisible, permissionsFor, tool]);
+
+  const canCreate = useMemo(() => {
+    if (initiativeId) {
+      const initiative = (initiativesQuery.data ?? []).find((item) => item.id === initiativeId);
+      // Unknown until the list loads — keep create affordances hidden rather
+      // than briefly offering a create the server would refuse.
+      return initiative ? permissionsFor(initiative)[tool].create : false;
+    }
+    return creatableInitiatives.length > 0;
+  }, [initiativeId, initiativesQuery.data, permissionsFor, tool, creatableInitiatives]);
+
+  return { canCreate, creatableInitiatives };
 }

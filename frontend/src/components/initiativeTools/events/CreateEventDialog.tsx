@@ -8,6 +8,7 @@ import type {
   TaskListReadRecurrenceStrategy,
   TaskRecurrenceOutput,
 } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { CreateAccessSection } from "@/components/access/CreateAccessSection";
 import { DEFAULT_GRANTS } from "@/components/access/grants";
 import { MemberMultiSelect } from "@/components/members/MemberSearchSelect";
@@ -34,6 +35,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
 import { useCreateCalendarEvent } from "@/hooks/useCalendarEvents";
+import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import type { DialogProps } from "@/types/dialog";
 
 import {
@@ -47,7 +49,10 @@ import {
 } from "./eventDateTime";
 
 type CreateEventDialogProps = DialogProps & {
-  initiativeId: number;
+  /** If provided, the initiative is locked and the picker is hidden. */
+  initiativeId?: number;
+  /** If provided, pre-selects this initiative (but the user can change it). */
+  defaultInitiativeId?: number;
   defaultStartDate?: string;
   defaultStartTime?: string;
   onSuccess?: (event: CalendarEventRead) => void;
@@ -57,6 +62,7 @@ export const CreateEventDialog = ({
   open,
   onOpenChange,
   initiativeId,
+  defaultInitiativeId,
   defaultStartDate,
   defaultStartTime,
   onSuccess,
@@ -77,6 +83,16 @@ export const CreateEventDialog = ({
   const [recurrenceStrategy, setRecurrenceStrategy] =
     useState<TaskListReadRecurrenceStrategy>("fixed");
   const [grants, setGrants] = useState<ResourceGrantSchema[]>([...DEFAULT_GRANTS]);
+  const [selectedInitiativeId, setSelectedInitiativeId] = useState(
+    defaultInitiativeId ? String(defaultInitiativeId) : ""
+  );
+
+  // Initiatives the current user may create events in — backs the picker
+  // shown when no initiative is locked (the "All" calendar view).
+  const { creatableInitiatives } = useToolCreateAccess(Tool.calendar_event, { enabled: open });
+
+  const effectiveInitiativeId =
+    initiativeId ?? (selectedInitiativeId ? Number(selectedInitiativeId) : null);
 
   // Attendee candidates come from the initiative-scoped member typeahead
   // (MemberMultiSelect below) — every initiative member may attend. Event DAC
@@ -86,6 +102,9 @@ export const CreateEventDialog = ({
     if (open) {
       // The creator attends their own event by default.
       setAttendeeIds(user ? [user.id] : []);
+      if (defaultInitiativeId) {
+        setSelectedInitiativeId(String(defaultInitiativeId));
+      }
       if (defaultStartDate) {
         setStartDate(defaultStartDate);
         setEndDate(defaultStartDate);
@@ -107,8 +126,9 @@ export const CreateEventDialog = ({
       setRecurrence(null);
       setRecurrenceStrategy("fixed");
       setGrants([...DEFAULT_GRANTS]);
+      setSelectedInitiativeId(defaultInitiativeId ? String(defaultInitiativeId) : "");
     }
-  }, [open, defaultStartDate, defaultStartTime, user]);
+  }, [open, defaultInitiativeId, defaultStartDate, defaultStartTime, user]);
 
   // Apply a new start date/time, shifting the end so the event keeps its
   // current length (a 90-minute event stays 90 minutes; a multi-day event keeps
@@ -151,11 +171,11 @@ export const CreateEventDialog = ({
   });
 
   const isCreating = createEvent.isPending;
-  const canSubmit = title.trim() && datesValid && !isCreating;
+  const canSubmit = title.trim() && datesValid && !!effectiveInitiativeId && !isCreating;
 
   const handleSubmit = () => {
     const trimmedTitle = title.trim();
-    if (!trimmedTitle || !datesValid) return;
+    if (!trimmedTitle || !datesValid || !effectiveInitiativeId) return;
 
     let startISO: string;
     let endISO: string;
@@ -174,7 +194,7 @@ export const CreateEventDialog = ({
       start_at: startISO,
       end_at: endISO,
       all_day: allDay,
-      initiative_id: initiativeId,
+      initiative_id: effectiveInitiativeId,
       attendee_ids: attendeeIds.length > 0 ? attendeeIds : undefined,
       recurrence: recurrence
         ? {
@@ -242,6 +262,32 @@ export const CreateEventDialog = ({
               placeholder={t("locationPlaceholder")}
             />
           </div>
+
+          {initiativeId === undefined && (
+            <div className="space-y-2">
+              <Label htmlFor="create-event-initiative">{t("initiative")}</Label>
+              <Select
+                value={selectedInitiativeId}
+                onValueChange={(value) => {
+                  setSelectedInitiativeId(value);
+                  // Attendees are initiative members; a new target starts over
+                  // with just the creator.
+                  setAttendeeIds(user ? [user.id] : []);
+                }}
+              >
+                <SelectTrigger id="create-event-initiative">
+                  <SelectValue placeholder={t("selectInitiative")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {creatableInitiatives.map((initiative) => (
+                    <SelectItem key={initiative.id} value={String(initiative.id)}>
+                      {initiative.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="flex items-center gap-3">
             <Switch id="create-event-all-day" checked={allDay} onCheckedChange={setAllDay} />
@@ -338,19 +384,22 @@ export const CreateEventDialog = ({
             </div>
           )}
 
-          {/* Attendees */}
-          <div className="space-y-2">
-            <Label>{t("attendees")}</Label>
-            <MemberMultiSelect
-              scope={{ type: "initiative", initiativeId }}
-              selectedIds={attendeeIds}
-              selectedUsers={user ? [user] : undefined}
-              onChange={setAttendeeIds}
-              currentUserId={user?.id}
-              placeholder={t("addAttendee")}
-              emptyMessage={t("noAttendees")}
-            />
-          </div>
+          {/* Attendees — scoped to the target initiative's members, so wait
+              until one is chosen. */}
+          {effectiveInitiativeId != null && (
+            <div className="space-y-2">
+              <Label>{t("attendees")}</Label>
+              <MemberMultiSelect
+                scope={{ type: "initiative", initiativeId: effectiveInitiativeId }}
+                selectedIds={attendeeIds}
+                selectedUsers={user ? [user] : undefined}
+                onChange={setAttendeeIds}
+                currentUserId={user?.id}
+                placeholder={t("addAttendee")}
+                emptyMessage={t("noAttendees")}
+              />
+            </div>
+          )}
 
           {/* Recurrence */}
           <TaskRecurrenceSelector
@@ -361,7 +410,11 @@ export const CreateEventDialog = ({
             referenceDate={referenceDate}
           />
 
-          <CreateAccessSection initiativeId={initiativeId} grants={grants} onChange={setGrants} />
+          <CreateAccessSection
+            initiativeId={effectiveInitiativeId}
+            grants={grants}
+            onChange={setGrants}
+          />
         </div>
 
         <DialogFooter>
