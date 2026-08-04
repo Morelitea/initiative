@@ -28,7 +28,7 @@ import { useProject, useProjectTaskStatuses } from "@/hooks/useProjects";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
-import { Capability, hasCapability } from "@/lib/permissions";
+import { Capability, hasCapability, hasWriteAccess } from "@/lib/permissions";
 
 export const ProjectDetailPage = () => {
   const { t } = useTranslation("projects");
@@ -156,7 +156,7 @@ export const ProjectDetailPage = () => {
   const isInitiativePm = initiativeMembership?.role === "project_manager";
   const myLevel = project?.my_permission_level;
   // Pure DAC: write access requires owner or write permission level
-  const hasWritePermission = myLevel === "owner" || myLevel === "write";
+  const hasWritePermission = hasWriteAccess(myLevel);
 
   // Pure DAC: settings/write access based on permission level
   const canManageSettings = hasWritePermission;

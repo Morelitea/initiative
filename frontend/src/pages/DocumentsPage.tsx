@@ -46,6 +46,7 @@ import { useInitiatives } from "@/hooks/useInitiatives";
 import { useTags } from "@/hooks/useTags";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { useGuildPath } from "@/lib/guildUrl";
+import { hasWriteAccess } from "@/lib/permissions";
 import { buildTagTree, collectDescendantTagIds, findNodeByPath } from "@/lib/tagTree";
 
 const INITIATIVE_FILTER_ALL = "all";
@@ -441,9 +442,7 @@ export const DocumentsView = ({
     if (!user || selectedDocuments.length === 0) {
       return false;
     }
-    return selectedDocuments.every(
-      (doc) => doc.my_permission_level === "owner" || doc.my_permission_level === "write"
-    );
+    return selectedDocuments.every((doc) => hasWriteAccess(doc.my_permission_level));
   }, [selectedDocuments, user]);
 
   const canEditSelectedDocuments = canDuplicateSelectedDocuments;

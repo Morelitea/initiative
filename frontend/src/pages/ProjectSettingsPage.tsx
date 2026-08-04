@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { useProject } from "@/hooks/useProjects";
 import { useGuildPath } from "@/lib/guildUrl";
+import { hasWriteAccess } from "@/lib/permissions";
 
 export const ProjectSettingsPage = () => {
   const { projectId } = useParams({ strict: false }) as { projectId: string };
@@ -51,13 +52,12 @@ export const ProjectSettingsPage = () => {
   }
 
   const isOwner = project.owner_id === user?.id;
-  const myLevel = project.my_permission_level;
   // Pure DAC: write access requires owner or write permission level
-  const hasWriteAccess = myLevel === "owner" || myLevel === "write";
+  const canWrite = hasWriteAccess(project.my_permission_level);
   // Pure DAC: write permission grants access to manage settings
-  const canManageTaskStatuses = hasWriteAccess;
-  const canManageAccess = hasWriteAccess;
-  const canWriteProject = hasWriteAccess;
+  const canManageTaskStatuses = canWrite;
+  const canManageAccess = canWrite;
+  const canWriteProject = canWrite;
 
   if (!canManageAccess && !canWriteProject) {
     return (

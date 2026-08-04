@@ -74,3 +74,8 @@ export function canAccessAdminDashboard(user: WithCapabilities): boolean {
 export function canAccessPlatformAdmin(user: WithCapabilities): boolean {
   return canManagePlatformConfig(user) || canAccessAdminDashboard(user);
 }
+
+/** True when a server-computed per-resource permission level allows writing.
+ * Reads `my_permission_level` — never derive this client-side. */
+export const hasWriteAccess = (level: string | null | undefined): boolean =>
+  level === "owner" || level === "write";
