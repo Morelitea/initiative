@@ -334,5 +334,8 @@
   "IMPORT_NOT_CONFIRMABLE": "Cet import ne peut pas être confirmé — il a peut-être expiré ou déjà commencé.",
   "IMPORT_ZIP_INVALID": "Ce fichier n'est pas une sauvegarde Initiative valide.",
   "IMPORT_QUOTA_EXCEEDED": "Les fichiers de la sauvegarde ne tiennent pas dans le stockage de cette guilde.",
-  "INVALID_TAG_IDS": "Une ou plusieurs étiquettes n'existent plus"
+  "INVALID_TAG_IDS": "Une ou plusieurs étiquettes n'existent plus",
+  "AI_CONNECTION_NOT_FOUND": "Connexion d'IA introuvable.",
+  "AI_MEMBER_KEYS_DISABLED": "Les clés d'API personnelles sont désactivées pour cet espace de travail.",
+  "AI_INVALID_API_KEY": "La clé d'API a été refusée. Vérifiez-la et réessayez."
 }

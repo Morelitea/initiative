@@ -334,5 +334,8 @@
   "IMPORT_NOT_CONFIRMABLE": "Esta importación no se puede confirmar; puede haber caducado o ya haber comenzado.",
   "IMPORT_ZIP_INVALID": "Este archivo no es una copia de seguridad válida de Initiative.",
   "IMPORT_QUOTA_EXCEEDED": "Los archivos de la copia de seguridad no caben en el almacenamiento de este gremio.",
-  "INVALID_TAG_IDS": "Una o más etiquetas ya no existen"
+  "INVALID_TAG_IDS": "Una o más etiquetas ya no existen",
+  "AI_CONNECTION_NOT_FOUND": "No se encontró la conexión de IA.",
+  "AI_MEMBER_KEYS_DISABLED": "Las claves de API personales están desactivadas para este espacio de trabajo.",
+  "AI_INVALID_API_KEY": "La clave de API fue rechazada. Compruébala e inténtalo de nuevo."
 }

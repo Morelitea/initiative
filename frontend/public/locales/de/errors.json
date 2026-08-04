@@ -334,5 +334,8 @@
   "IMPORT_NOT_CONFIRMABLE": "Dieser Import kann nicht bestätigt werden — er ist möglicherweise abgelaufen oder bereits gestartet.",
   "IMPORT_ZIP_INVALID": "Diese Datei ist kein gültiges Initiative-Backup.",
   "IMPORT_QUOTA_EXCEEDED": "Die Dateien des Backups passen nicht in den Speicher dieser Gilde.",
-  "INVALID_TAG_IDS": "Ein oder mehrere Tags existieren nicht mehr"
+  "INVALID_TAG_IDS": "Ein oder mehrere Tags existieren nicht mehr",
+  "AI_CONNECTION_NOT_FOUND": "KI-Verbindung nicht gefunden.",
+  "AI_MEMBER_KEYS_DISABLED": "Persönliche API-Schlüssel sind für diesen Arbeitsbereich deaktiviert.",
+  "AI_INVALID_API_KEY": "Der API-Schlüssel wurde abgelehnt. Überprüfe ihn und versuche es erneut."
 }
