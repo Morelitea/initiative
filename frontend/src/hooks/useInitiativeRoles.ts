@@ -40,10 +40,7 @@ export const useInitiativeRoles = (initiativeId: number | null) => {
       initiativeId!
     ),
     queryFn: () =>
-      listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet(
-        guildId,
-        initiativeId!
-      ) as unknown as Promise<InitiativeRoleRead[]>,
+      listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet(guildId, initiativeId!),
     enabled: !!initiativeId,
     staleTime: 30 * 1000,
   });
@@ -61,7 +58,7 @@ export const useMyInitiativePermissions = (initiativeId: number | null) => {
       getMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGet(
         guildId,
         initiativeId!
-      ) as unknown as Promise<MyInitiativePermissions>,
+      ),
     enabled: !!initiativeId,
     staleTime: 60 * 1000,
   });
@@ -77,7 +74,7 @@ export const useCreateRole = (initiativeId: number) => {
         guildId,
         initiativeId,
         data
-      ) as unknown as Promise<InitiativeRoleRead>;
+      );
     },
     onSuccess: () => {
       toast.success(t("settings.roleCreated"));
@@ -100,7 +97,7 @@ export const useUpdateRole = (initiativeId: number) => {
         initiativeId,
         roleId,
         data
-      ) as unknown as Promise<InitiativeRoleRead>;
+      );
     },
     onSuccess: () => {
       toast.success(t("settings.roleUpdated"));

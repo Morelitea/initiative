@@ -21,7 +21,7 @@ import type { AppConfig } from "@/api/generated/initiativeAPI.schemas";
 export const useAppConfig = () => {
   const query = useQuery<AppConfig>({
     queryKey: getGetAppConfigApiV1ConfigGetQueryKey(),
-    queryFn: () => getAppConfigApiV1ConfigGet() as unknown as Promise<AppConfig>,
+    queryFn: () => getAppConfigApiV1ConfigGet(),
     staleTime: Infinity,
     gcTime: Infinity,
     retry: 1,

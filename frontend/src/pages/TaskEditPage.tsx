@@ -22,7 +22,6 @@ import type {
   CommentRead,
   PropertySummary,
   TagSummary,
-  TaskListRead,
   TaskListReadRecurrenceStrategy,
   TaskPriority,
   TaskRead,
@@ -291,7 +290,7 @@ export const TaskEditPage = () => {
 
   const moveTask = useMoveTask({
     onSuccess: (updatedTask) => {
-      queryClient.setQueryData<TaskListRead>(
+      queryClient.setQueryData<TaskRead>(
         getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey(guildId, parsedTaskId),
         updatedTask
       );
@@ -316,7 +315,7 @@ export const TaskEditPage = () => {
 
   const toggleArchive = useUpdateTask({
     onSuccess: (updatedTask) => {
-      queryClient.setQueryData<TaskListRead>(
+      queryClient.setQueryData<TaskRead>(
         getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey(guildId, parsedTaskId),
         updatedTask
       );

@@ -8,10 +8,6 @@ const CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
 const CURRENT_VERSION = __APP_VERSION__;
 const DISMISSED_VERSION_KEY = "initiative-dismissed-version";
 
-interface VersionResponse {
-  version: string;
-}
-
 export const useVersionCheck = () => {
   const hasShownNotification = useRef(false);
   const [updateAvailable, setUpdateAvailable] = useState<{
@@ -22,7 +18,7 @@ export const useVersionCheck = () => {
   useEffect(() => {
     const checkVersion = async () => {
       try {
-        const result = (await getVersionApiV1VersionGet()) as unknown as VersionResponse;
+        const result = await getVersionApiV1VersionGet();
         const serverVersion = result.version;
 
         // Only show update popup if server version is newer than client version

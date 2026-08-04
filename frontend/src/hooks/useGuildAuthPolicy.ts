@@ -32,8 +32,7 @@ import type { QueryOpts } from "@/types/query";
 export const useLoginProviders = (options?: QueryOpts<LoginProvidersResponse>) => {
   return useQuery<LoginProvidersResponse>({
     queryKey: getListLoginProvidersApiV1AuthProvidersGetQueryKey(),
-    queryFn: () =>
-      listLoginProvidersApiV1AuthProvidersGet() as unknown as Promise<LoginProvidersResponse>,
+    queryFn: () => listLoginProvidersApiV1AuthProvidersGet(),
     staleTime: 60_000,
     ...options,
   });
@@ -49,10 +48,7 @@ export const useGuildLoginProviders = (
 ) => {
   return useQuery<LoginProvidersResponse>({
     queryKey: getListGuildLoginProvidersApiV1AuthGGuildIdProvidersGetQueryKey(guildId),
-    queryFn: () =>
-      listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet(
-        guildId
-      ) as unknown as Promise<LoginProvidersResponse>,
+    queryFn: () => listGuildLoginProvidersApiV1AuthGGuildIdProvidersGet(guildId),
     staleTime: 60_000,
     enabled: guildId > 0,
     ...options,
@@ -63,10 +59,7 @@ export const useGuildLoginProviders = (
 export const useGuildAuthPolicy = (guildId: number, options?: QueryOpts<GuildAuthPolicyRead>) => {
   return useQuery<GuildAuthPolicyRead>({
     queryKey: getGetGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGetQueryKey(guildId),
-    queryFn: () =>
-      getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet(
-        guildId
-      ) as unknown as Promise<GuildAuthPolicyRead>,
+    queryFn: () => getGuildAuthPolicyApiV1GuildsGuildIdAuthPolicyGet(guildId),
     enabled: guildId > 0,
     ...options,
   });
@@ -93,10 +86,7 @@ export const useGuildAuthProviders = (
 ) => {
   return useQuery<AuthProviderAdminRead[]>({
     queryKey: getListGuildAuthProvidersApiV1GuildsGuildIdAuthProvidersGetQueryKey(guildId),
-    queryFn: () =>
-      listGuildAuthProvidersApiV1GuildsGuildIdAuthProvidersGet(guildId) as unknown as Promise<
-        AuthProviderAdminRead[]
-      >,
+    queryFn: () => listGuildAuthProvidersApiV1GuildsGuildIdAuthProvidersGet(guildId),
     enabled: guildId > 0,
     ...options,
   });

@@ -27,11 +27,7 @@ export const useAdvancedToolsList = (
   const guildId = useActiveGuildId();
   return useQuery<AdvancedToolListResponse>({
     queryKey: getListAdvancedToolsApiV1GGuildIdAdvancedToolsGetQueryKey(guildId, params),
-    queryFn: () =>
-      listAdvancedToolsApiV1GGuildIdAdvancedToolsGet(
-        guildId,
-        params
-      ) as unknown as Promise<AdvancedToolListResponse>,
+    queryFn: () => listAdvancedToolsApiV1GGuildIdAdvancedToolsGet(guildId, params),
     ...options,
   });
 };

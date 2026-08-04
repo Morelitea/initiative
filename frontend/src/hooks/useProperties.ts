@@ -38,8 +38,8 @@ import {
 } from "@/api/query-keys";
 import { buildUniqueOptionSlug, findOptionByLabel } from "@/components/properties/propertyHelpers";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useGuildMutation } from "@/hooks/useApiMutation";
 import { toast } from "@/lib/chesterToast";
-import { getErrorMessage } from "@/lib/errorMessage";
 import type { MutationOpts } from "@/types/mutation";
 
 // ── Queries ──────────────────────────────────────────────────────────────────
@@ -68,7 +68,7 @@ export const useProperties = (options?: { initiativeId?: number }) => {
       listPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet(
         guildId,
         hasParams ? params : undefined
-      ) as unknown as Promise<PropertyDefinitionRead[]>,
+      ),
     staleTime: 60 * 1000,
   });
 };
@@ -81,10 +81,7 @@ export const useProperty = (propertyId: number | null) => {
       propertyId!
     ),
     queryFn: () =>
-      getPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGet(
-        guildId,
-        propertyId!
-      ) as unknown as Promise<PropertyDefinitionRead>,
+      getPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGet(guildId, propertyId!),
     enabled: !!propertyId,
     staleTime: 60 * 1000,
   });
@@ -101,7 +98,7 @@ export const usePropertyEntities = (propertyId: number | null) => {
       getPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGet(
         guildId,
         propertyId!
-      ) as unknown as Promise<PropertyEntitiesResult>,
+      ),
     enabled: !!propertyId,
     staleTime: 30 * 1000,
   });
@@ -111,97 +108,67 @@ export const usePropertyEntities = (propertyId: number | null) => {
 
 export const useCreateProperty = (
   options?: MutationOpts<PropertyDefinitionRead, PropertyDefinitionCreate>
-) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-  const guildId = useActiveGuildId();
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (data: PropertyDefinitionCreate) => {
-      return createPropertyDefinitionApiV1GGuildIdPropertyDefinitionsPost(
-        guildId,
-        data
-      ) as unknown as Promise<PropertyDefinitionRead>;
+) =>
+  useGuildMutation<PropertyDefinitionRead, PropertyDefinitionCreate>(
+    {
+      mutationFn: (guildId, data) =>
+        createPropertyDefinitionApiV1GGuildIdPropertyDefinitionsPost(guildId, data),
+      invalidate: () => invalidateAllProperties(),
+      errorKey: "properties:manager.createError",
     },
-    onSuccess: (...args) => {
-      void invalidateAllProperties();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "properties:manager.createError"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useUpdateProperty = (
   options?: MutationOpts<
     PropertyDefinitionUpdateResponse,
     { propertyId: number; data: PropertyDefinitionUpdate }
   >
-) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-  const guildId = useActiveGuildId();
+) =>
+  useGuildMutation<
+    PropertyDefinitionUpdateResponse,
+    { propertyId: number; data: PropertyDefinitionUpdate }
+  >(
+    {
+      mutationFn: (guildId, { propertyId, data }) =>
+        updatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatch(
+          guildId,
+          propertyId,
+          data
+        ),
+      invalidate: () =>
+        Promise.all([
+          invalidateAllProperties(),
+          // Embedded summaries on documents/tasks/events need to pick up
+          // name/options/color changes.
+          invalidateAllDocuments(),
+          invalidateAllTasks(),
+          invalidateAllCalendarEvents(),
+        ]),
+      errorKey: "properties:manager.updateError",
+    },
+    options
+  );
 
-  return useMutation({
-    ...rest,
-    mutationFn: async ({
-      propertyId,
-      data,
-    }: {
-      propertyId: number;
-      data: PropertyDefinitionUpdate;
-    }) => {
-      return updatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatch(
-        guildId,
-        propertyId,
-        data
-      ) as unknown as Promise<PropertyDefinitionUpdateResponse>;
+export const useDeleteProperty = (options?: MutationOpts<void, number>) =>
+  useGuildMutation<void, number>(
+    {
+      mutationFn: (guildId, propertyId) =>
+        deletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdDelete(
+          guildId,
+          propertyId
+        ),
+      invalidate: () =>
+        Promise.all([
+          invalidateAllProperties(),
+          invalidateAllDocuments(),
+          invalidateAllTasks(),
+          invalidateAllCalendarEvents(),
+        ]),
+      errorKey: "properties:manager.deleteError",
     },
-    onSuccess: (...args) => {
-      void invalidateAllProperties();
-      // Embedded summaries on documents/tasks/events need to pick up
-      // name/options/color changes.
-      void invalidateAllDocuments();
-      void invalidateAllTasks();
-      void invalidateAllCalendarEvents();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "properties:manager.updateError"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
-
-export const useDeleteProperty = (options?: MutationOpts<void, number>) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-  const guildId = useActiveGuildId();
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (propertyId: number) => {
-      await deletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdDelete(
-        guildId,
-        propertyId
-      );
-    },
-    onSuccess: (...args) => {
-      void invalidateAllProperties();
-      void invalidateAllDocuments();
-      void invalidateAllTasks();
-      void invalidateAllCalendarEvents();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "properties:manager.deleteError"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );
 
 /**
  * Append a single option to a select / multi_select definition and return
@@ -268,102 +235,45 @@ export const useAppendPropertyOption = () => {
 
 export const useSetDocumentProperties = (
   options?: MutationOpts<DocumentRead, { documentId: number; values: PropertyValuesSetRequest }>
-) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-  const guildId = useActiveGuildId();
-
-  return useMutation({
-    ...rest,
-    mutationFn: async ({
-      documentId,
-      values,
-    }: {
-      documentId: number;
-      values: PropertyValuesSetRequest;
-    }) => {
-      return setDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPut(
-        guildId,
-        documentId,
-        values
-      ) as unknown as Promise<DocumentRead>;
+) =>
+  useGuildMutation<DocumentRead, { documentId: number; values: PropertyValuesSetRequest }>(
+    {
+      mutationFn: (guildId, { documentId, values }) =>
+        setDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPut(
+          guildId,
+          documentId,
+          values
+        ),
+      invalidate: (_data, vars) =>
+        Promise.all([invalidateAllDocuments(), invalidateDocument(vars.documentId)]),
+      errorKey: "properties:manager.setValuesError",
     },
-    onSuccess: (data, variables, ...rest2) => {
-      void invalidateAllDocuments();
-      void invalidateDocument(variables.documentId);
-      onSuccess?.(data, variables, ...rest2);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "properties:manager.setValuesError"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useSetTaskProperties = (
   options?: MutationOpts<TaskRead, { taskId: number; values: PropertyValuesSetRequest }>
-) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-  const guildId = useActiveGuildId();
-
-  return useMutation({
-    ...rest,
-    mutationFn: async ({
-      taskId,
-      values,
-    }: {
-      taskId: number;
-      values: PropertyValuesSetRequest;
-    }) => {
-      return setTaskPropertiesApiV1GGuildIdTasksTaskIdPropertiesPut(
-        guildId,
-        taskId,
-        values
-      ) as unknown as Promise<TaskRead>;
+) =>
+  useGuildMutation<TaskRead, { taskId: number; values: PropertyValuesSetRequest }>(
+    {
+      mutationFn: (guildId, { taskId, values }) =>
+        setTaskPropertiesApiV1GGuildIdTasksTaskIdPropertiesPut(guildId, taskId, values),
+      invalidate: (_data, vars) => Promise.all([invalidateAllTasks(), invalidateTask(vars.taskId)]),
+      errorKey: "properties:manager.setValuesError",
     },
-    onSuccess: (data, variables, ...rest2) => {
-      void invalidateAllTasks();
-      void invalidateTask(variables.taskId);
-      onSuccess?.(data, variables, ...rest2);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "properties:manager.setValuesError"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useSetEventProperties = (
   options?: MutationOpts<CalendarEventRead, { eventId: number; values: PropertyValuesSetRequest }>
-) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-  const guildId = useActiveGuildId();
-
-  return useMutation({
-    ...rest,
-    mutationFn: async ({
-      eventId,
-      values,
-    }: {
-      eventId: number;
-      values: PropertyValuesSetRequest;
-    }) => {
-      return setEventPropertiesApiV1GGuildIdCalendarEventsEventIdPropertiesPut(
-        guildId,
-        eventId,
-        values
-      ) as unknown as Promise<CalendarEventRead>;
+) =>
+  useGuildMutation<CalendarEventRead, { eventId: number; values: PropertyValuesSetRequest }>(
+    {
+      mutationFn: (guildId, { eventId, values }) =>
+        setEventPropertiesApiV1GGuildIdCalendarEventsEventIdPropertiesPut(guildId, eventId, values),
+      invalidate: (_data, vars) =>
+        Promise.all([invalidateAllCalendarEvents(), invalidateCalendarEvent(vars.eventId)]),
+      errorKey: "properties:manager.setValuesError",
     },
-    onSuccess: (data, variables, ...rest2) => {
-      void invalidateAllCalendarEvents();
-      void invalidateCalendarEvent(variables.eventId);
-      onSuccess?.(data, variables, ...rest2);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "properties:manager.setValuesError"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );

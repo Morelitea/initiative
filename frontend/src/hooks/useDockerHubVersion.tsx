@@ -5,10 +5,6 @@ import {
   getLatestDockerhubVersionApiV1VersionLatestGet,
 } from "@/api/generated/version/version";
 
-interface VersionResponse {
-  version: string | null;
-}
-
 /**
  * Fetches the latest version tag from DockerHub via the backend API
  * Returns the latest semantic version tag (e.g., "0.3.1")
@@ -18,8 +14,7 @@ export const useDockerHubVersion = () => {
     queryKey: getGetLatestDockerhubVersionApiV1VersionLatestGetQueryKey(),
     queryFn: async () => {
       try {
-        const result =
-          (await getLatestDockerhubVersionApiV1VersionLatestGet()) as unknown as VersionResponse;
+        const result = await getLatestDockerhubVersionApiV1VersionLatestGet();
         return result.version;
       } catch (error) {
         console.error("Failed to fetch DockerHub version:", error);

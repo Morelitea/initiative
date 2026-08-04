@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 import {
   adminDeleteGuildApiV1AdminGuildsGuildIdDelete,
@@ -33,6 +33,7 @@ import {
   getCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGetQueryKey,
 } from "@/api/generated/users/users";
 import { invalidateAdminUsers, invalidateAllGuilds } from "@/api/query-keys";
+import { useApiMutation } from "@/hooks/useApiMutation";
 import { downloadBlob } from "@/lib/csv";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
@@ -43,7 +44,7 @@ import type { QueryOpts } from "@/types/query";
 export const usePlatformUsers = (options?: QueryOpts<UserRead[]>) => {
   return useQuery<UserRead[]>({
     queryKey: getListAllUsersApiV1AdminUsersGetQueryKey(),
-    queryFn: () => listAllUsersApiV1AdminUsersGet() as unknown as Promise<UserRead[]>,
+    queryFn: () => listAllUsersApiV1AdminUsersGet(),
     ...options,
   });
 };
@@ -52,8 +53,7 @@ export const usePlatformUsers = (options?: QueryOpts<UserRead[]>) => {
 export const usePlatformAdminCount = (options?: QueryOpts<PlatformAdminCountResponse>) => {
   return useQuery<PlatformAdminCountResponse>({
     queryKey: getGetPlatformAdminCountApiV1AdminPlatformAdminCountGetQueryKey(),
-    queryFn: () =>
-      getPlatformAdminCountApiV1AdminPlatformAdminCountGet() as unknown as Promise<PlatformAdminCountResponse>,
+    queryFn: () => getPlatformAdminCountApiV1AdminPlatformAdminCountGet(),
     ...options,
   });
 };
@@ -68,10 +68,7 @@ export const useUserDeletionEligibility = (userId: number) => {
   return useQuery<AdminDeletionEligibilityResponse>({
     queryKey:
       getCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetQueryKey(userId),
-    queryFn: () =>
-      checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet(
-        userId
-      ) as unknown as Promise<AdminDeletionEligibilityResponse>,
+    queryFn: () => checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet(userId),
     enabled: false,
   });
 };
@@ -85,8 +82,7 @@ export const useUserDeletionEligibility = (userId: number) => {
 export const useMyDeletionEligibility = () => {
   return useQuery<DeletionEligibilityResponse>({
     queryKey: getCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGetQueryKey(),
-    queryFn: () =>
-      checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet() as unknown as Promise<DeletionEligibilityResponse>,
+    queryFn: () => checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet(),
     enabled: false,
   });
 };
@@ -97,79 +93,45 @@ export const useMyDeletionEligibility = () => {
 export const useAdminDeleteUser = (
   userId: number,
   options?: MutationOpts<AccountDeletionResponse, AdminUserDeleteRequest>
-) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (request: AdminUserDeleteRequest) => {
-      return deleteUserApiV1AdminUsersUserIdDelete(
-        userId,
-        request
-      ) as unknown as Promise<AccountDeletionResponse>;
+) =>
+  useApiMutation<AccountDeletionResponse, AdminUserDeleteRequest>(
+    {
+      mutationFn: (request) => deleteUserApiV1AdminUsersUserIdDelete(userId, request),
+      invalidate: () => invalidateAdminUsers(),
     },
-    onSuccess: (...args) => {
-      void invalidateAdminUsers();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );
 
 /** Promote a guild member to admin (admin only). */
 export const useAdminPromoteGuildMember = (
   options?: MutationOpts<void, { guildId: number; userId: number }>
-) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async ({ guildId, userId }: { guildId: number; userId: number }) => {
-      await adminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRolePatch(
-        guildId,
-        userId,
-        { role: "admin" }
-      );
+) =>
+  useApiMutation<void, { guildId: number; userId: number }>(
+    {
+      mutationFn: ({ guildId, userId }) =>
+        adminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRolePatch(guildId, userId, {
+          role: "admin",
+        }),
+      invalidate: () => invalidateAdminUsers(),
     },
-    onSuccess: (...args) => {
-      void invalidateAdminUsers();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );
 
 /** Delete a guild that blocks a user's deletion (operator blocker resolution).
  * The guild must be one `blockedUserId` is the sole admin of. */
 export const useAdminDeleteGuild = (
   options?: MutationOpts<void, { guildId: number; blockedUserId: number }>
-) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async ({ guildId, blockedUserId }: { guildId: number; blockedUserId: number }) => {
-      await adminDeleteGuildApiV1AdminGuildsGuildIdDelete(guildId, {
-        blocked_user_id: blockedUserId,
-      });
+) =>
+  useApiMutation<void, { guildId: number; blockedUserId: number }>(
+    {
+      mutationFn: ({ guildId, blockedUserId }) =>
+        adminDeleteGuildApiV1AdminGuildsGuildIdDelete(guildId, {
+          blocked_user_id: blockedUserId,
+        }),
+      invalidate: () => Promise.all([invalidateAdminUsers(), invalidateAllGuilds()]),
     },
-    onSuccess: (...args) => {
-      void invalidateAdminUsers();
-      void invalidateAllGuilds();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );
 
 /** Delete an initiative (platform admin only).
  *
@@ -179,106 +141,56 @@ export const useAdminDeleteGuild = (
  */
 export const useAdminDeleteInitiative = (
   options?: MutationOpts<void, { initiativeId: number; guildId: number }>
-) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async ({ initiativeId, guildId }: { initiativeId: number; guildId: number }) => {
-      await adminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDelete(initiativeId, {
-        guild_id: guildId,
-      });
+) =>
+  useApiMutation<void, { initiativeId: number; guildId: number }>(
+    {
+      mutationFn: ({ initiativeId, guildId }) =>
+        adminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDelete(initiativeId, {
+          guild_id: guildId,
+        }),
+      invalidate: () => invalidateAdminUsers(),
     },
-    onSuccess: (...args) => {
-      void invalidateAdminUsers();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );
 
 /** Promote an initiative member to project manager (admin only). */
 export const useAdminPromoteInitiativeMember = (
   options?: MutationOpts<void, { initiativeId: number; userId: number; guildId: number }>
-) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async ({
-      initiativeId,
-      userId,
-      guildId,
-    }: {
-      initiativeId: number;
-      userId: number;
-      guildId: number;
-    }) => {
-      await adminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatch(
-        initiativeId,
-        userId,
-        { role: "project_manager" },
-        { guild_id: guildId }
-      );
+) =>
+  useApiMutation<void, { initiativeId: number; userId: number; guildId: number }>(
+    {
+      mutationFn: ({ initiativeId, userId, guildId }) =>
+        adminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatch(
+          initiativeId,
+          userId,
+          { role: "project_manager" },
+          { guild_id: guildId }
+        ),
+      invalidate: () => invalidateAdminUsers(),
     },
-    onSuccess: (...args) => {
-      void invalidateAdminUsers();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );
 
 /** Trigger a password reset email for a user (admin only). */
 export const useAdminTriggerPasswordReset = (
   options?: MutationOpts<VerificationSendResponse, number>
-) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (userId: number) => {
-      return triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPost(
-        userId
-      ) as unknown as Promise<VerificationSendResponse>;
+) =>
+  useApiMutation<VerificationSendResponse, number>(
+    {
+      mutationFn: (userId) => triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPost(userId),
     },
-    onSuccess: (...args) => {
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );
 
 /** Reactivate a deactivated user (admin only). */
-export const useAdminReactivateUser = (options?: MutationOpts<UserRead, number>) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (userId: number) => {
-      return reactivateUserApiV1AdminUsersUserIdReactivatePost(
-        userId
-      ) as unknown as Promise<UserRead>;
+export const useAdminReactivateUser = (options?: MutationOpts<UserRead, number>) =>
+  useApiMutation<UserRead, number>(
+    {
+      mutationFn: (userId) => reactivateUserApiV1AdminUsersUserIdReactivatePost(userId),
+      invalidate: () => invalidateAdminUsers(),
     },
-    onSuccess: (...args) => {
-      void invalidateAdminUsers();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );
 
 type ExportPlatformUsersVars = {
   params: ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams;
@@ -286,53 +198,32 @@ type ExportPlatformUsersVars = {
 };
 
 /** Download the platform users CSV from the backend and trigger a browser save. */
-export const useExportPlatformUsersCsv = (
-  options?: MutationOpts<void, ExportPlatformUsersVars>
-) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async ({ params, filename }: ExportPlatformUsersVars) => {
-      const blob = (await exportPlatformUsersCsvApiV1AdminUsersExportCsvGet(params, {
-        responseType: "blob",
-        // FastAPI expects ?user_id=1&user_id=2; axios's default `[]` suffix gets ignored.
-        paramsSerializer: { indexes: null },
-      })) as Blob;
-      downloadBlob(blob, filename);
+export const useExportPlatformUsersCsv = (options?: MutationOpts<void, ExportPlatformUsersVars>) =>
+  useApiMutation<void, ExportPlatformUsersVars>(
+    {
+      mutationFn: async ({ params, filename }) => {
+        const blob = (await exportPlatformUsersCsvApiV1AdminUsersExportCsvGet(params, {
+          responseType: "blob",
+          // FastAPI expects ?user_id=1&user_id=2; axios's default `[]` suffix gets ignored.
+          paramsSerializer: { indexes: null },
+        })) as Blob;
+        downloadBlob(blob, filename);
+      },
     },
-    onSuccess: (...args) => {
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );
 
 /** Update a user's platform role (admin only). */
 export const useAdminUpdatePlatformRole = (
   options?: MutationOpts<UserRead, { userId: number; role: UserRole }>
-) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async ({ userId, role }: { userId: number; role: UserRole }) => {
-      return updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch(userId, {
-        role,
-      } as Parameters<
-        typeof updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch
-      >[1]) as unknown as Promise<UserRead>;
+) =>
+  useApiMutation<UserRead, { userId: number; role: UserRole }>(
+    {
+      mutationFn: ({ userId, role }) =>
+        updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch(userId, {
+          role,
+        } as Parameters<typeof updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch>[1]),
+      invalidate: () => invalidateAdminUsers(),
     },
-    onSuccess: (...args) => {
-      void invalidateAdminUsers();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );

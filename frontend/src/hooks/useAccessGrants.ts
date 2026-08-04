@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   approveAccessGrantApiV1AccessGrantsGrantIdApprovePost,
@@ -15,6 +15,7 @@ import type {
   AccessGrantRead,
   BreakGlassCreate,
 } from "@/api/generated/initiativeAPI.schemas";
+import { useApiMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
 
 // Shared key prefix so any grant mutation refreshes every grant list.
@@ -52,7 +53,7 @@ export const useMyAccessGrants = () =>
         mine: true,
         limit: ACCESS_GRANTS_PAGE_SIZE,
         offset: pageParam,
-      }) as unknown as Promise<AccessGrantRead[]>,
+      }),
     initialPageParam: 0,
     getNextPageParam: nextOffset,
   });
@@ -72,7 +73,7 @@ export const useAccessGrantQueue = (status: string | undefined, opts?: { live?: 
         live: opts?.live,
         limit: ACCESS_GRANTS_PAGE_SIZE,
         offset: pageParam,
-      }) as unknown as Promise<AccessGrantRead[]>,
+      }),
     initialPageParam: 0,
     getNextPageParam: nextOffset,
   });
@@ -81,67 +82,49 @@ export const useCreateAccessRequest = (
   options?: MutationOpts<AccessGrantRead, AccessGrantCreate>
 ) => {
   const invalidate = useInvalidateAccessGrants();
-  const { onSuccess, ...rest } = options ?? {};
-  return useMutation({
-    ...rest,
-    mutationFn: (payload: AccessGrantCreate) =>
-      createAccessRequestApiV1AccessGrantsPost(payload) as unknown as Promise<AccessGrantRead>,
-    onSuccess: (...args) => {
-      void invalidate();
-      onSuccess?.(...args);
+  return useApiMutation<AccessGrantRead, AccessGrantCreate>(
+    {
+      mutationFn: (payload) => createAccessRequestApiV1AccessGrantsPost(payload),
+      invalidate: () => invalidate(),
     },
-  });
+    options
+  );
 };
 
 export const useApproveAccessGrant = (
   options?: MutationOpts<AccessGrantRead, { grantId: number; payload?: AccessGrantApprove }>
 ) => {
   const invalidate = useInvalidateAccessGrants();
-  const { onSuccess, ...rest } = options ?? {};
-  return useMutation({
-    ...rest,
-    mutationFn: ({ grantId, payload }: { grantId: number; payload?: AccessGrantApprove }) =>
-      approveAccessGrantApiV1AccessGrantsGrantIdApprovePost(
-        grantId,
-        payload ?? {}
-      ) as unknown as Promise<AccessGrantRead>,
-    onSuccess: (...args) => {
-      void invalidate();
-      onSuccess?.(...args);
+  return useApiMutation<AccessGrantRead, { grantId: number; payload?: AccessGrantApprove }>(
+    {
+      mutationFn: ({ grantId, payload }) =>
+        approveAccessGrantApiV1AccessGrantsGrantIdApprovePost(grantId, payload ?? {}),
+      invalidate: () => invalidate(),
     },
-  });
+    options
+  );
 };
 
 export const useDenyAccessGrant = (options?: MutationOpts<AccessGrantRead, number>) => {
   const invalidate = useInvalidateAccessGrants();
-  const { onSuccess, ...rest } = options ?? {};
-  return useMutation({
-    ...rest,
-    mutationFn: (grantId: number) =>
-      denyAccessGrantApiV1AccessGrantsGrantIdDenyPost(
-        grantId
-      ) as unknown as Promise<AccessGrantRead>,
-    onSuccess: (...args) => {
-      void invalidate();
-      onSuccess?.(...args);
+  return useApiMutation<AccessGrantRead, number>(
+    {
+      mutationFn: (grantId) => denyAccessGrantApiV1AccessGrantsGrantIdDenyPost(grantId),
+      invalidate: () => invalidate(),
     },
-  });
+    options
+  );
 };
 
 export const useRevokeAccessGrant = (options?: MutationOpts<AccessGrantRead, number>) => {
   const invalidate = useInvalidateAccessGrants();
-  const { onSuccess, ...rest } = options ?? {};
-  return useMutation({
-    ...rest,
-    mutationFn: (grantId: number) =>
-      revokeAccessGrantApiV1AccessGrantsGrantIdRevokePost(
-        grantId
-      ) as unknown as Promise<AccessGrantRead>,
-    onSuccess: (...args) => {
-      void invalidate();
-      onSuccess?.(...args);
+  return useApiMutation<AccessGrantRead, number>(
+    {
+      mutationFn: (grantId) => revokeAccessGrantApiV1AccessGrantsGrantIdRevokePost(grantId),
+      invalidate: () => invalidate(),
     },
-  });
+    options
+  );
 };
 
 /**
@@ -151,30 +134,22 @@ export const useRevokeAccessGrant = (options?: MutationOpts<AccessGrantRead, num
  */
 export const useBreakGlass = (options?: MutationOpts<AccessGrantRead, BreakGlassCreate>) => {
   const invalidate = useInvalidateAccessGrants();
-  const { onSuccess, ...rest } = options ?? {};
-  return useMutation({
-    ...rest,
-    mutationFn: (payload: BreakGlassCreate) =>
-      breakGlassAccessApiV1AccessGrantsBreakGlassPost(
-        payload
-      ) as unknown as Promise<AccessGrantRead>,
-    onSuccess: (...args) => {
-      void invalidate();
-      onSuccess?.(...args);
+  return useApiMutation<AccessGrantRead, BreakGlassCreate>(
+    {
+      mutationFn: (payload) => breakGlassAccessApiV1AccessGrantsBreakGlassPost(payload),
+      invalidate: () => invalidate(),
     },
-  });
+    options
+  );
 };
 
 export const useCancelAccessRequest = (options?: MutationOpts<void, number>) => {
   const invalidate = useInvalidateAccessGrants();
-  const { onSuccess, ...rest } = options ?? {};
-  return useMutation({
-    ...rest,
-    mutationFn: (grantId: number) =>
-      cancelAccessRequestApiV1AccessGrantsGrantIdDelete(grantId) as unknown as Promise<void>,
-    onSuccess: (...args) => {
-      void invalidate();
-      onSuccess?.(...args);
+  return useApiMutation<void, number>(
+    {
+      mutationFn: (grantId) => cancelAccessRequestApiV1AccessGrantsGrantIdDelete(grantId),
+      invalidate: () => invalidate(),
     },
-  });
+    options
+  );
 };

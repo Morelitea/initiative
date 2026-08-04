@@ -54,6 +54,7 @@ import {
   invalidateProject,
 } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useGuildMutation } from "@/hooks/useApiMutation";
 import { toast } from "@/lib/chesterToast";
 import { autocompleteDocuments, type DocumentAutocomplete } from "@/lib/documentUtils";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -82,11 +83,7 @@ export const useDocument = (documentId: number | null, options?: QueryOpts<Docum
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<DocumentRead>({
     queryKey: getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryKey(guildId, documentId!),
-    queryFn: () =>
-      readDocumentApiV1GGuildIdDocumentsDocumentIdGet(
-        guildId,
-        documentId!
-      ) as unknown as Promise<DocumentRead>,
+    queryFn: () => readDocumentApiV1GGuildIdDocumentsDocumentIdGet(guildId, documentId!),
     enabled: documentId !== null && Number.isFinite(documentId) && userEnabled,
     ...rest,
   });
@@ -99,11 +96,7 @@ export const useDocumentCounts = (
   const guildId = useActiveGuildId();
   return useQuery<DocumentCountsResponse>({
     queryKey: getGetDocumentCountsApiV1GGuildIdDocumentsCountsGetQueryKey(guildId, params),
-    queryFn: () =>
-      getDocumentCountsApiV1GGuildIdDocumentsCountsGet(
-        guildId,
-        params
-      ) as unknown as Promise<DocumentCountsResponse>,
+    queryFn: () => getDocumentCountsApiV1GGuildIdDocumentsCountsGet(guildId, params),
     ...options,
   });
 };
@@ -116,9 +109,7 @@ export const useDocumentCountsByInitiative = (
     queryKey:
       getGetDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGetQueryKey(guildId),
     queryFn: () =>
-      getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet(
-        guildId
-      ) as unknown as Promise<InitiativeGroupedCountsResponse>,
+      getDocumentCountsByInitiativeApiV1GGuildIdDocumentsCountsByInitiativeGet(guildId),
     ...options,
   });
 };
@@ -206,11 +197,7 @@ export const useDocumentBacklinks = (
       guildId,
       documentId
     ),
-    queryFn: () =>
-      getBacklinksApiV1GGuildIdDocumentsDocumentIdBacklinksGet(
-        guildId,
-        documentId
-      ) as unknown as Promise<DocumentBacklink[]>,
+    queryFn: () => getBacklinksApiV1GGuildIdDocumentsDocumentIdBacklinksGet(guildId, documentId),
     ...options,
   });
 };
@@ -239,8 +226,7 @@ export const useGlobalDocuments = (
 ) => {
   return useQuery<DocumentListResponse>({
     queryKey: getListMyDocumentsApiV1MeDocumentsGetQueryKey(params),
-    queryFn: () =>
-      listMyDocumentsApiV1MeDocumentsGet(params) as unknown as Promise<DocumentListResponse>,
+    queryFn: () => listMyDocumentsApiV1MeDocumentsGet(params),
     ...options,
   });
 };
@@ -250,8 +236,7 @@ export const usePrefetchGlobalDocuments = () => {
   return (params?: ListMyDocumentsApiV1MeDocumentsGetParams) => {
     return qc.prefetchQuery({
       queryKey: getListMyDocumentsApiV1MeDocumentsGetQueryKey(params),
-      queryFn: () =>
-        listMyDocumentsApiV1MeDocumentsGet(params) as unknown as Promise<DocumentListResponse>,
+      queryFn: () => listMyDocumentsApiV1MeDocumentsGet(params),
       staleTime: 30_000,
     });
   };
@@ -327,14 +312,14 @@ export const useCreateDocument = (options?: MutationOpts<DocumentRead, CreateDoc
 
       if (template_id) {
         // Copy from template
-        newDocument = (await copyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPost(
+        newDocument = await copyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPost(
           guildId,
           template_id,
           {
             target_initiative_id: initiative_id,
             title,
           }
-        )) as unknown as DocumentRead;
+        );
         // Template copy can't carry grants in payload — apply separately
         const failures = await applyDocumentGrants(guildId, newDocument.id, grants);
         if (failures > 0) {
@@ -350,10 +335,7 @@ export const useCreateDocument = (options?: MutationOpts<DocumentRead, CreateDoc
           ...(content ? { content } : {}),
           ...(grants.length > 0 ? { grants } : {}),
         };
-        newDocument = (await createDocumentApiV1GGuildIdDocumentsPost(
-          guildId,
-          payload
-        )) as unknown as DocumentRead;
+        newDocument = await createDocumentApiV1GGuildIdDocumentsPost(guildId, payload);
       }
 
       // Auto-attach to project if specified
@@ -407,10 +389,10 @@ export const useUploadDocument = (options?: MutationOpts<DocumentRead, UploadDoc
         title,
         initiative_id,
       };
-      const newDocument = (await uploadDocumentFileApiV1GGuildIdDocumentsUploadPost(
+      const newDocument = await uploadDocumentFileApiV1GGuildIdDocumentsUploadPost(
         guildId,
         uploadBody
-      )) as unknown as DocumentRead;
+      );
 
       // Upload can't carry grants in payload — apply separately
       const failures = await applyDocumentGrants(guildId, newDocument.id, grants);
@@ -459,10 +441,7 @@ export const useDocumentVersions = (
       documentId!
     ),
     queryFn: () =>
-      listDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGet(
-        guildId,
-        documentId!
-      ) as unknown as Promise<DocumentFileVersionRead[]>,
+      listDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGet(guildId, documentId!),
     enabled: documentId !== null && Number.isFinite(documentId) && userEnabled,
     ...rest,
   });
@@ -483,7 +462,7 @@ export const useUploadDocumentVersion = (
         guildId,
         documentId,
         body
-      ) as unknown as Promise<DocumentFileVersionRead>;
+      );
     },
     onSuccess: (...args) => {
       const documentId = args[1].documentId;
@@ -547,11 +526,7 @@ export const useUpdateDocument = (
   return useMutation({
     ...rest,
     mutationFn: async ({ documentId, data }: { documentId: number; data: DocumentUpdate }) => {
-      return updateDocumentApiV1GGuildIdDocumentsDocumentIdPatch(
-        guildId,
-        documentId,
-        data
-      ) as unknown as Promise<DocumentRead>;
+      return updateDocumentApiV1GGuildIdDocumentsDocumentIdPatch(guildId, documentId, data);
     },
     onSuccess: (...args) => {
       const [updated, vars] = args;
@@ -617,12 +592,11 @@ export const useCopyDocument = (
     ...rest,
     mutationFn: async (documents: { id: number; initiative_id: number; title: string }[]) => {
       const results = await Promise.all(
-        documents.map(
-          (doc) =>
-            copyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPost(guildId, doc.id, {
-              target_initiative_id: doc.initiative_id,
-              title: `${doc.title} (copy)`,
-            }) as unknown as Promise<DocumentRead>
+        documents.map((doc) =>
+          copyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPost(guildId, doc.id, {
+            target_initiative_id: doc.initiative_id,
+            title: `${doc.title} (copy)`,
+          })
         )
       );
       return results;
@@ -645,97 +619,53 @@ export const useCopyDocument = (
 export const useDuplicateDocument = (
   documentId: number,
   options?: MutationOpts<DocumentRead, { title: string }>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async ({ title }: { title: string }) => {
-      return duplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePost(guildId, documentId, {
-        title,
-      }) as unknown as Promise<DocumentRead>;
+) =>
+  useGuildMutation<DocumentRead, { title: string }>(
+    {
+      mutationFn: (guildId, { title }) =>
+        duplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePost(guildId, documentId, {
+          title,
+        }),
+      invalidate: () => invalidateAllDocuments(),
     },
-    onSuccess: (...args) => {
-      void invalidateAllDocuments();
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useCopyDocumentToInitiative = (
   documentId: number,
   options?: MutationOpts<DocumentRead, { target_initiative_id: number; title: string }>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (data: { target_initiative_id: number; title: string }) => {
-      return copyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPost(
-        guildId,
-        documentId,
-        data
-      ) as unknown as Promise<DocumentRead>;
+) =>
+  useGuildMutation<DocumentRead, { target_initiative_id: number; title: string }>(
+    {
+      mutationFn: (guildId, data) =>
+        copyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPost(guildId, documentId, data),
+      invalidate: () => invalidateAllDocuments(),
     },
-    onSuccess: (...args) => {
-      void invalidateAllDocuments();
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useGenerateDocumentSummary = (
   documentId: number,
   options?: MutationOpts<GenerateDocumentSummaryResponse, void>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async () => {
-      return generateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPost(
-        guildId,
-        documentId
-      ) as unknown as Promise<GenerateDocumentSummaryResponse>;
+) =>
+  useGuildMutation<GenerateDocumentSummaryResponse, void>(
+    {
+      mutationFn: (guildId) =>
+        generateSummaryApiV1GGuildIdDocumentsDocumentIdAiSummaryPost(guildId, documentId),
     },
-    onSuccess,
-    onError,
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useSetDocumentGrants = (
   documentId: number,
   options?: MutationOpts<DocumentRead, ResourceGrantSchema[]>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (grants: ResourceGrantSchema[]) => {
-      return setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut(
-        guildId,
-        documentId,
-        grants
-      ) as unknown as Promise<DocumentRead>;
+) =>
+  useGuildMutation<DocumentRead, ResourceGrantSchema[]>(
+    {
+      mutationFn: (guildId, grants) =>
+        setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut(guildId, documentId, grants),
+      invalidate: () => Promise.all([invalidateDocument(documentId), invalidateAllDocuments()]),
+      errorKey: "documents:settings.updateAccessError",
     },
-    onSuccess: (...args) => {
-      void invalidateDocument(documentId);
-      void invalidateAllDocuments();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "documents:settings.updateAccessError"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );

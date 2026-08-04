@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 import {
   createAuthProviderApiV1SettingsAuthProvidersPost,
@@ -76,6 +76,7 @@ import {
   invalidatePlatformGuilds,
   invalidateStorageSettings,
 } from "@/api/query-keys";
+import { useApiMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -114,8 +115,7 @@ export interface ChangelogEntry {
 export const useOidcSettings = (options?: QueryOpts<OIDCSettingsResponse>) => {
   return useQuery<OIDCSettingsResponse>({
     queryKey: getGetOidcSettingsApiV1SettingsAuthGetQueryKey(),
-    queryFn: () =>
-      getOidcSettingsApiV1SettingsAuthGet() as unknown as Promise<OIDCSettingsResponse>,
+    queryFn: () => getOidcSettingsApiV1SettingsAuthGet(),
     ...options,
   });
 };
@@ -123,10 +123,7 @@ export const useOidcSettings = (options?: QueryOpts<OIDCSettingsResponse>) => {
 export const useAuthProviders = (options?: QueryOpts<AuthProviderAdminRead[]>) => {
   return useQuery<AuthProviderAdminRead[]>({
     queryKey: getListAuthProvidersApiV1SettingsAuthProvidersGetQueryKey(),
-    queryFn: () =>
-      listAuthProvidersApiV1SettingsAuthProvidersGet() as unknown as Promise<
-        AuthProviderAdminRead[]
-      >,
+    queryFn: () => listAuthProvidersApiV1SettingsAuthProvidersGet(),
     ...options,
   });
 };
@@ -134,14 +131,16 @@ export const useAuthProviders = (options?: QueryOpts<AuthProviderAdminRead[]>) =
 export const useOidcMappings = () => {
   return useQuery<OIDCMappingsResponse>({
     queryKey: getGetOidcMappingsApiV1SettingsOidcMappingsGetQueryKey(),
-    queryFn: () =>
-      getOidcMappingsApiV1SettingsOidcMappingsGet() as unknown as Promise<OIDCMappingsResponse>,
+    queryFn: () => getOidcMappingsApiV1SettingsOidcMappingsGet(),
   });
 };
 
 export const useOidcMappingOptions = () => {
   return useQuery<MappingOptions>({
     queryKey: getGetOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGetQueryKey(),
+    // The backend endpoint has no typed response model (plain dict), so the
+    // generated type is an index signature; the local MappingOptions interface
+    // narrows it. Remove the cast once the backend declares a response schema.
     queryFn: () =>
       getOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGet() as unknown as Promise<MappingOptions>,
   });
@@ -150,8 +149,7 @@ export const useOidcMappingOptions = () => {
 export const useEmailSettings = (options?: QueryOpts<EmailSettingsResponse>) => {
   return useQuery<EmailSettingsResponse>({
     queryKey: getGetEmailSettingsApiV1SettingsEmailGetQueryKey(),
-    queryFn: () =>
-      getEmailSettingsApiV1SettingsEmailGet() as unknown as Promise<EmailSettingsResponse>,
+    queryFn: () => getEmailSettingsApiV1SettingsEmailGet(),
     ...options,
   });
 };
@@ -159,8 +157,7 @@ export const useEmailSettings = (options?: QueryOpts<EmailSettingsResponse>) => 
 export const useStorageSettings = (options?: QueryOpts<StorageSettingsResponse>) => {
   return useQuery<StorageSettingsResponse>({
     queryKey: getGetStorageSettingsApiV1SettingsStorageGetQueryKey(),
-    queryFn: () =>
-      getStorageSettingsApiV1SettingsStorageGet() as unknown as Promise<StorageSettingsResponse>,
+    queryFn: () => getStorageSettingsApiV1SettingsStorageGet(),
     ...options,
   });
 };
@@ -168,8 +165,7 @@ export const useStorageSettings = (options?: QueryOpts<StorageSettingsResponse>)
 export const useStorageBackfillStatus = (options?: QueryOpts<StorageBackfillStatusResponse>) => {
   return useQuery<StorageBackfillStatusResponse>({
     queryKey: getGetStorageBackfillStatusApiV1SettingsStorageBackfillGetQueryKey(),
-    queryFn: () =>
-      getStorageBackfillStatusApiV1SettingsStorageBackfillGet() as unknown as Promise<StorageBackfillStatusResponse>,
+    queryFn: () => getStorageBackfillStatusApiV1SettingsStorageBackfillGet(),
     ...options,
   });
 };
@@ -177,8 +173,7 @@ export const useStorageBackfillStatus = (options?: QueryOpts<StorageBackfillStat
 export const useInterfaceSettings = (options?: QueryOpts<InterfaceSettingsResponse>) => {
   return useQuery<InterfaceSettingsResponse>({
     queryKey: getGetInterfaceSettingsApiV1SettingsInterfaceGetQueryKey(),
-    queryFn: () =>
-      getInterfaceSettingsApiV1SettingsInterfaceGet() as unknown as Promise<InterfaceSettingsResponse>,
+    queryFn: () => getInterfaceSettingsApiV1SettingsInterfaceGet(),
     ...options,
   });
 };
@@ -186,7 +181,7 @@ export const useInterfaceSettings = (options?: QueryOpts<InterfaceSettingsRespon
 export const useFcmConfig = () => {
   return useQuery<FCMConfigResponse>({
     queryKey: getGetFcmConfigApiV1SettingsFcmConfigGetQueryKey(),
-    queryFn: () => getFcmConfigApiV1SettingsFcmConfigGet() as unknown as Promise<FCMConfigResponse>,
+    queryFn: () => getFcmConfigApiV1SettingsFcmConfigGet(),
     staleTime: 5 * 60 * 1000,
   });
 };
@@ -199,10 +194,7 @@ export const useFcmConfig = () => {
 export const usePlatformGuilds = (options?: QueryOpts<PlatformGuildStorageRead[]>) => {
   return useQuery<PlatformGuildStorageRead[]>({
     queryKey: getListPlatformGuildStorageApiV1SettingsGuildsGetQueryKey(),
-    queryFn: () =>
-      listPlatformGuildStorageApiV1SettingsGuildsGet() as unknown as Promise<
-        PlatformGuildStorageRead[]
-      >,
+    queryFn: () => listPlatformGuildStorageApiV1SettingsGuildsGet(),
     ...options,
   });
 };
@@ -213,10 +205,11 @@ export const useChangelog = (
 ) => {
   return useQuery<{ entries: ChangelogEntry[] }>({
     queryKey: getGetChangelogApiV1ChangelogGetQueryKey(params),
+    // The backend endpoint has no typed response model (plain dict); the local
+    // ChangelogEntry shape narrows it. Remove the cast once the backend
+    // declares a response schema.
     queryFn: () =>
-      getChangelogApiV1ChangelogGet(params) as unknown as Promise<{
-        entries: ChangelogEntry[];
-      }>,
+      getChangelogApiV1ChangelogGet(params) as unknown as Promise<{ entries: ChangelogEntry[] }>,
     ...options,
   });
 };
@@ -225,310 +218,194 @@ export const useChangelog = (
 
 export const useUpdateOidcSettings = (
   options?: MutationOpts<OIDCSettingsResponse, OIDCSettingsUpdate>
-) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (data: OIDCSettingsUpdate) => {
-      return updateOidcSettingsApiV1SettingsAuthPut(
-        data as Parameters<typeof updateOidcSettingsApiV1SettingsAuthPut>[0]
-      ) as unknown as Promise<OIDCSettingsResponse>;
+) =>
+  useApiMutation<OIDCSettingsResponse, OIDCSettingsUpdate>(
+    {
+      mutationFn: (data) =>
+        updateOidcSettingsApiV1SettingsAuthPut(
+          data as Parameters<typeof updateOidcSettingsApiV1SettingsAuthPut>[0]
+        ),
+      invalidate: () => invalidateAuthSettings(),
     },
-    onSuccess: (...args) => {
-      void invalidateAuthSettings();
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useCreateAuthProvider = (
   options?: MutationOpts<AuthProviderAdminRead, AuthProviderCreate>
-) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (data: AuthProviderCreate) => {
-      return createAuthProviderApiV1SettingsAuthProvidersPost(
-        data
-      ) as unknown as Promise<AuthProviderAdminRead>;
+) =>
+  useApiMutation<AuthProviderAdminRead, AuthProviderCreate>(
+    {
+      mutationFn: (data) => createAuthProviderApiV1SettingsAuthProvidersPost(data),
+      invalidate: () => invalidateAuthProviders(),
     },
-    onSuccess: (...args) => {
-      void invalidateAuthProviders();
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useUpdateAuthProvider = (
   options?: MutationOpts<AuthProviderAdminRead, { providerId: number; data: AuthProviderUpdate }>
-) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+) =>
+  useApiMutation<AuthProviderAdminRead, { providerId: number; data: AuthProviderUpdate }>(
+    {
+      mutationFn: ({ providerId, data }) =>
+        updateAuthProviderApiV1SettingsAuthProvidersProviderIdPatch(providerId, data),
+      invalidate: () => invalidateAuthProviders(),
+    },
+    options
+  );
 
-  return useMutation({
-    ...rest,
-    mutationFn: async ({ providerId, data }: { providerId: number; data: AuthProviderUpdate }) => {
-      return updateAuthProviderApiV1SettingsAuthProvidersProviderIdPatch(
-        providerId,
-        data
-      ) as unknown as Promise<AuthProviderAdminRead>;
+export const useDeleteAuthProvider = (options?: MutationOpts<void, number>) =>
+  useApiMutation<void, number>(
+    {
+      mutationFn: (providerId) =>
+        deleteAuthProviderApiV1SettingsAuthProvidersProviderIdDelete(providerId),
+      invalidate: () => invalidateAuthProviders(),
     },
-    onSuccess: (...args) => {
-      void invalidateAuthProviders();
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
-
-export const useDeleteAuthProvider = (options?: MutationOpts<void, number>) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (providerId: number) => {
-      await deleteAuthProviderApiV1SettingsAuthProvidersProviderIdDelete(providerId);
-    },
-    onSuccess: (...args) => {
-      void invalidateAuthProviders();
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useUpdateInterfaceSettings = (
   options?: MutationOpts<InterfaceSettingsResponse, InterfaceSettingsUpdate>
-) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (data: InterfaceSettingsUpdate) => {
-      return updateInterfaceSettingsApiV1SettingsInterfacePut(
-        data as Parameters<typeof updateInterfaceSettingsApiV1SettingsInterfacePut>[0]
-      ) as unknown as Promise<InterfaceSettingsResponse>;
+) =>
+  useApiMutation<InterfaceSettingsResponse, InterfaceSettingsUpdate>(
+    {
+      mutationFn: (data) =>
+        updateInterfaceSettingsApiV1SettingsInterfacePut(
+          data as Parameters<typeof updateInterfaceSettingsApiV1SettingsInterfacePut>[0]
+        ),
+      invalidate: () => invalidateInterfaceSettings(),
     },
-    onSuccess: (...args) => {
-      void invalidateInterfaceSettings();
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useUpdateEmailSettings = (
   options?: MutationOpts<EmailSettingsResponse, EmailSettingsUpdate>
-) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (data: EmailSettingsUpdate) => {
-      return updateEmailSettingsApiV1SettingsEmailPut(
-        data as Parameters<typeof updateEmailSettingsApiV1SettingsEmailPut>[0]
-      ) as unknown as Promise<EmailSettingsResponse>;
+) =>
+  useApiMutation<EmailSettingsResponse, EmailSettingsUpdate>(
+    {
+      mutationFn: (data) =>
+        updateEmailSettingsApiV1SettingsEmailPut(
+          data as Parameters<typeof updateEmailSettingsApiV1SettingsEmailPut>[0]
+        ),
+      invalidate: () => invalidateEmailSettings(),
     },
-    onSuccess: (...args) => {
-      void invalidateEmailSettings();
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useSendTestEmail = (
   options?: MutationOpts<void, Parameters<typeof sendTestEmailApiV1SettingsEmailTestPost>[0]>
-) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (data: Parameters<typeof sendTestEmailApiV1SettingsEmailTestPost>[0]) => {
-      await sendTestEmailApiV1SettingsEmailTestPost(data);
+) =>
+  useApiMutation<void, Parameters<typeof sendTestEmailApiV1SettingsEmailTestPost>[0]>(
+    {
+      mutationFn: async (data) => {
+        await sendTestEmailApiV1SettingsEmailTestPost(data);
+      },
     },
-    onSuccess,
-    onError,
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useUpdateStorageSettings = (
   options?: MutationOpts<StorageSettingsResponse, StorageSettingsUpdate>
-) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (data: StorageSettingsUpdate) => {
-      return updateStorageSettingsApiV1SettingsStoragePut(
-        data as Parameters<typeof updateStorageSettingsApiV1SettingsStoragePut>[0]
-      ) as unknown as Promise<StorageSettingsResponse>;
+) =>
+  useApiMutation<StorageSettingsResponse, StorageSettingsUpdate>(
+    {
+      mutationFn: (data) =>
+        updateStorageSettingsApiV1SettingsStoragePut(
+          data as Parameters<typeof updateStorageSettingsApiV1SettingsStoragePut>[0]
+        ),
+      invalidate: () => invalidateStorageSettings(),
     },
-    onSuccess: (...args) => {
-      void invalidateStorageSettings();
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useTestStorageConnection = (
   options?: MutationOpts<StorageTestResponse, StorageSettingsUpdate>
-) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (data: StorageSettingsUpdate) => {
-      return testStorageConnectionApiV1SettingsStorageTestPost(
-        data as Parameters<typeof testStorageConnectionApiV1SettingsStorageTestPost>[0]
-      ) as unknown as Promise<StorageTestResponse>;
+) =>
+  useApiMutation<StorageTestResponse, StorageSettingsUpdate>(
+    {
+      mutationFn: (data) =>
+        testStorageConnectionApiV1SettingsStorageTestPost(
+          data as Parameters<typeof testStorageConnectionApiV1SettingsStorageTestPost>[0]
+        ),
     },
-    onSuccess,
-    onError,
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useStartStorageBackfill = (
   options?: MutationOpts<StorageBackfillStatusResponse, void>
-) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async () => {
-      return startStorageBackfillApiV1SettingsStorageBackfillPost() as unknown as Promise<StorageBackfillStatusResponse>;
+) =>
+  useApiMutation<StorageBackfillStatusResponse, void>(
+    {
+      mutationFn: () => startStorageBackfillApiV1SettingsStorageBackfillPost(),
     },
-    onSuccess,
-    onError,
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useUpdateGuildStorage = (
   options?: MutationOpts<
     PlatformGuildStorageRead,
     { guildId: number; data: PlatformGuildStorageUpdate }
   >
-) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async ({
-      guildId,
-      data,
-    }: {
-      guildId: number;
-      data: PlatformGuildStorageUpdate;
-    }) => {
-      return updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch(
-        guildId,
-        data as Parameters<typeof updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch>[1]
-      ) as unknown as Promise<PlatformGuildStorageRead>;
+) =>
+  useApiMutation<PlatformGuildStorageRead, { guildId: number; data: PlatformGuildStorageUpdate }>(
+    {
+      mutationFn: ({ guildId, data }) =>
+        updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch(
+          guildId,
+          data as Parameters<typeof updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch>[1]
+        ),
+      invalidate: () => invalidatePlatformGuilds(),
     },
-    onSuccess: (...args) => {
-      void invalidatePlatformGuilds();
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
+    options
+  );
 
 // ── OIDC Claim Mapping Mutations ────────────────────────────────────────────
 
-export const useUpdateOidcClaimPath = (options?: MutationOpts<void, OIDCClaimPathUpdate>) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (data: OIDCClaimPathUpdate) => {
-      await updateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut(data);
+export const useUpdateOidcClaimPath = (options?: MutationOpts<void, OIDCClaimPathUpdate>) =>
+  useApiMutation<void, OIDCClaimPathUpdate>(
+    {
+      mutationFn: async (data) => {
+        await updateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut(data);
+      },
+      invalidate: () => invalidateOidcMappings(),
     },
-    onSuccess: (...args) => {
-      void invalidateOidcMappings();
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useCreateOidcMapping = (
   options?: MutationOpts<OIDCClaimMappingRead, OIDCClaimMappingCreate>
-) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (data: OIDCClaimMappingCreate) => {
-      return createOidcMappingApiV1SettingsOidcMappingsPost(
-        data as Parameters<typeof createOidcMappingApiV1SettingsOidcMappingsPost>[0]
-      ) as unknown as Promise<OIDCClaimMappingRead>;
+) =>
+  useApiMutation<OIDCClaimMappingRead, OIDCClaimMappingCreate>(
+    {
+      mutationFn: (data) =>
+        createOidcMappingApiV1SettingsOidcMappingsPost(
+          data as Parameters<typeof createOidcMappingApiV1SettingsOidcMappingsPost>[0]
+        ),
+      invalidate: () => invalidateOidcMappings(),
     },
-    onSuccess: (...args) => {
-      void invalidateOidcMappings();
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useUpdateOidcMapping = (
   options?: MutationOpts<OIDCClaimMappingRead, { mappingId: number; data: OIDCClaimMappingUpdate }>
-) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+) =>
+  useApiMutation<OIDCClaimMappingRead, { mappingId: number; data: OIDCClaimMappingUpdate }>(
+    {
+      mutationFn: ({ mappingId, data }) =>
+        updateOidcMappingApiV1SettingsOidcMappingsMappingIdPut(
+          mappingId,
+          data as Parameters<typeof updateOidcMappingApiV1SettingsOidcMappingsMappingIdPut>[1]
+        ),
+      invalidate: () => invalidateOidcMappings(),
+    },
+    options
+  );
 
-  return useMutation({
-    ...rest,
-    mutationFn: async ({
-      mappingId,
-      data,
-    }: {
-      mappingId: number;
-      data: OIDCClaimMappingUpdate;
-    }) => {
-      return updateOidcMappingApiV1SettingsOidcMappingsMappingIdPut(
-        mappingId,
-        data as Parameters<typeof updateOidcMappingApiV1SettingsOidcMappingsMappingIdPut>[1]
-      ) as unknown as Promise<OIDCClaimMappingRead>;
+export const useDeleteOidcMapping = (options?: MutationOpts<void, number>) =>
+  useApiMutation<void, number>(
+    {
+      mutationFn: (mappingId) =>
+        deleteOidcMappingApiV1SettingsOidcMappingsMappingIdDelete(mappingId),
+      invalidate: () => invalidateOidcMappings(),
     },
-    onSuccess: (...args) => {
-      void invalidateOidcMappings();
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
-
-export const useDeleteOidcMapping = (options?: MutationOpts<void, number>) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (mappingId: number) => {
-      await deleteOidcMappingApiV1SettingsOidcMappingsMappingIdDelete(mappingId);
-    },
-    onSuccess: (...args) => {
-      void invalidateOidcMappings();
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
+    options
+  );

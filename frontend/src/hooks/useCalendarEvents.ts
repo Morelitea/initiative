@@ -1,4 +1,4 @@
-import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import {
   createCalendarEventApiV1GGuildIdCalendarEventsPost,
@@ -27,8 +27,7 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { invalidateAllCalendarEvents, invalidateCalendarEvent } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { toast } from "@/lib/chesterToast";
-import { getErrorMessage } from "@/lib/errorMessage";
+import { useGuildMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -41,11 +40,7 @@ export const useCalendarEventsList = (
   const guildId = useActiveGuildId();
   return useQuery<CalendarEventListResponse>({
     queryKey: getListCalendarEventsApiV1GGuildIdCalendarEventsGetQueryKey(guildId, params),
-    queryFn: () =>
-      listCalendarEventsApiV1GGuildIdCalendarEventsGet(
-        guildId,
-        params
-      ) as unknown as Promise<CalendarEventListResponse>,
+    queryFn: () => listCalendarEventsApiV1GGuildIdCalendarEventsGet(guildId, params),
     placeholderData: keepPreviousData,
     ...options,
   });
@@ -57,10 +52,7 @@ export const useGlobalCalendarEventsList = (
 ) => {
   return useQuery<CalendarEventListResponse>({
     queryKey: getListMyCalendarEventsApiV1MeCalendarEventsGetQueryKey(params),
-    queryFn: () =>
-      listMyCalendarEventsApiV1MeCalendarEventsGet(
-        params
-      ) as unknown as Promise<CalendarEventListResponse>,
+    queryFn: () => listMyCalendarEventsApiV1MeCalendarEventsGet(params),
     placeholderData: keepPreviousData,
     ...options,
   });
@@ -74,11 +66,7 @@ export const useCalendarEvent = (
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<CalendarEventRead>({
     queryKey: getReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGetQueryKey(guildId, eventId!),
-    queryFn: () =>
-      readCalendarEventApiV1GGuildIdCalendarEventsEventIdGet(
-        guildId,
-        eventId!
-      ) as unknown as Promise<CalendarEventRead>,
+    queryFn: () => readCalendarEventApiV1GGuildIdCalendarEventsEventIdGet(guildId, eventId!),
     enabled: eventId !== null && Number.isFinite(eventId) && userEnabled,
     ...rest,
   });
@@ -86,60 +74,35 @@ export const useCalendarEvent = (
 
 // ── Mutations ───────────────────────────────────────────────────────────────
 
+const invalidateEventAndList = (eventId: number) =>
+  Promise.all([invalidateCalendarEvent(eventId), invalidateAllCalendarEvents()]);
+
 export const useCreateCalendarEvent = (
   options?: MutationOpts<CalendarEventRead, CalendarEventCreate>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (data: CalendarEventCreate) => {
-      return createCalendarEventApiV1GGuildIdCalendarEventsPost(
-        guildId,
-        data
-      ) as unknown as Promise<CalendarEventRead>;
+) =>
+  useGuildMutation<CalendarEventRead, CalendarEventCreate>(
+    {
+      mutationFn: (guildId, data) =>
+        createCalendarEventApiV1GGuildIdCalendarEventsPost(guildId, data),
+      invalidate: () => invalidateAllCalendarEvents(),
+      errorKey: "calendarEvents:error",
     },
-    onSuccess: (...args) => {
-      void invalidateAllCalendarEvents();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "calendarEvents:error"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useUpdateCalendarEvent = (
   eventId: number,
   options?: MutationOpts<CalendarEventRead, CalendarEventUpdate>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (data: CalendarEventUpdate) => {
-      return updateCalendarEventApiV1GGuildIdCalendarEventsEventIdPatch(
-        guildId,
-        eventId,
-        data
-      ) as unknown as Promise<CalendarEventRead>;
+) =>
+  useGuildMutation<CalendarEventRead, CalendarEventUpdate>(
+    {
+      mutationFn: (guildId, data) =>
+        updateCalendarEventApiV1GGuildIdCalendarEventsEventIdPatch(guildId, eventId, data),
+      invalidate: () => invalidateEventAndList(eventId),
+      errorKey: "calendarEvents:error",
     },
-    onSuccess: (...args) => {
-      void invalidateCalendarEvent(eventId);
-      void invalidateAllCalendarEvents();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "calendarEvents:error"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );
 
 /**
  * Update an event identified per-call (the event id travels in the mutation
@@ -148,168 +111,84 @@ export const useUpdateCalendarEvent = (
  */
 export const useRescheduleCalendarEvent = (
   options?: MutationOpts<CalendarEventRead, { eventId: number; data: CalendarEventUpdate }>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+) =>
+  useGuildMutation<CalendarEventRead, { eventId: number; data: CalendarEventUpdate }>(
+    {
+      mutationFn: (guildId, { eventId, data }) =>
+        updateCalendarEventApiV1GGuildIdCalendarEventsEventIdPatch(guildId, eventId, data),
+      invalidate: (_data, { eventId }) => invalidateEventAndList(eventId),
+      errorKey: "calendarEvents:error",
+    },
+    options
+  );
 
-  return useMutation({
-    ...rest,
-    mutationFn: async ({ eventId, data }: { eventId: number; data: CalendarEventUpdate }) =>
-      updateCalendarEventApiV1GGuildIdCalendarEventsEventIdPatch(
-        guildId,
-        eventId,
-        data
-      ) as unknown as Promise<CalendarEventRead>,
-    onSuccess: (...args) => {
-      void invalidateCalendarEvent(args[1].eventId);
-      void invalidateAllCalendarEvents();
-      onSuccess?.(...args);
+export const useDeleteCalendarEvent = (options?: MutationOpts<void, number>) =>
+  useGuildMutation<void, number>(
+    {
+      mutationFn: (guildId, eventId) =>
+        deleteCalendarEventApiV1GGuildIdCalendarEventsEventIdDelete(guildId, eventId),
+      invalidate: () => invalidateAllCalendarEvents(),
+      errorKey: "calendarEvents:error",
     },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "calendarEvents:error"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
-
-export const useDeleteCalendarEvent = (options?: MutationOpts<void, number>) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (eventId: number) => {
-      await deleteCalendarEventApiV1GGuildIdCalendarEventsEventIdDelete(guildId, eventId);
-    },
-    onSuccess: (...args) => {
-      void invalidateAllCalendarEvents();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "calendarEvents:error"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );
 
 // ── Association Mutations ───────────────────────────────────────────────────
 
 export const useSetEventAttendees = (
   eventId: number,
   options?: MutationOpts<CalendarEventRead, number[]>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (userIds: number[]) => {
-      return setAttendeesApiV1GGuildIdCalendarEventsEventIdAttendeesPut(
-        guildId,
-        eventId,
-        userIds
-      ) as unknown as Promise<CalendarEventRead>;
+) =>
+  useGuildMutation<CalendarEventRead, number[]>(
+    {
+      mutationFn: (guildId, userIds) =>
+        setAttendeesApiV1GGuildIdCalendarEventsEventIdAttendeesPut(guildId, eventId, userIds),
+      invalidate: () => invalidateEventAndList(eventId),
+      errorKey: "calendarEvents:error",
     },
-    onSuccess: (...args) => {
-      void invalidateCalendarEvent(eventId);
-      void invalidateAllCalendarEvents();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "calendarEvents:error"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useUpdateEventRSVP = (
   eventId: number,
   options?: MutationOpts<CalendarEventRead, CalendarEventRSVPUpdate>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (data: CalendarEventRSVPUpdate) => {
-      return updateRsvpApiV1GGuildIdCalendarEventsEventIdRsvpPatch(
-        guildId,
-        eventId,
-        data
-      ) as unknown as Promise<CalendarEventRead>;
+) =>
+  useGuildMutation<CalendarEventRead, CalendarEventRSVPUpdate>(
+    {
+      mutationFn: (guildId, data) =>
+        updateRsvpApiV1GGuildIdCalendarEventsEventIdRsvpPatch(guildId, eventId, data),
+      invalidate: () => invalidateEventAndList(eventId),
+      errorKey: "calendarEvents:error",
     },
-    onSuccess: (...args) => {
-      void invalidateCalendarEvent(eventId);
-      void invalidateAllCalendarEvents();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "calendarEvents:error"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useSetEventDocuments = (
   eventId: number,
   options?: MutationOpts<CalendarEventRead, number[]>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (documentIds: number[]) => {
-      return setDocumentsApiV1GGuildIdCalendarEventsEventIdDocumentsPut(
-        guildId,
-        eventId,
-        documentIds
-      ) as unknown as Promise<CalendarEventRead>;
+) =>
+  useGuildMutation<CalendarEventRead, number[]>(
+    {
+      mutationFn: (guildId, documentIds) =>
+        setDocumentsApiV1GGuildIdCalendarEventsEventIdDocumentsPut(guildId, eventId, documentIds),
+      invalidate: () => invalidateEventAndList(eventId),
+      errorKey: "calendarEvents:error",
     },
-    onSuccess: (...args) => {
-      void invalidateCalendarEvent(eventId);
-      void invalidateAllCalendarEvents();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "calendarEvents:error"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );
 
 // ── Grants Mutation (unified resource sharing) ──────────────────────────────
 
 export const useSetCalendarEventGrants = (
   eventId: number,
   options?: MutationOpts<CalendarEventRead, ResourceGrantSchema[]>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (grants: ResourceGrantSchema[]) => {
-      return setCalendarEventGrantsApiV1GGuildIdCalendarEventsEventIdGrantsPut(
-        guildId,
-        eventId,
-        grants
-      ) as unknown as Promise<CalendarEventRead>;
+) =>
+  useGuildMutation<CalendarEventRead, ResourceGrantSchema[]>(
+    {
+      mutationFn: (guildId, grants) =>
+        setCalendarEventGrantsApiV1GGuildIdCalendarEventsEventIdGrantsPut(guildId, eventId, grants),
+      invalidate: () => invalidateEventAndList(eventId),
+      errorKey: "calendarEvents:error",
     },
-    onSuccess: (...args) => {
-      void invalidateCalendarEvent(eventId);
-      void invalidateAllCalendarEvents();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "calendarEvents:error"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );

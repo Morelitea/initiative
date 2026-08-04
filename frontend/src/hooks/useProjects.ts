@@ -60,8 +60,7 @@ import {
   invalidateProjectTaskStatuses,
 } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { toast } from "@/lib/chesterToast";
-import { getErrorMessage } from "@/lib/errorMessage";
+import { useGuildMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -74,11 +73,7 @@ export const useProjects = (
   const guildId = useActiveGuildId();
   return useQuery<ProjectListResponse>({
     queryKey: getListProjectsApiV1GGuildIdProjectsGetQueryKey(guildId, params),
-    queryFn: () =>
-      listProjectsApiV1GGuildIdProjectsGet(
-        guildId,
-        params
-      ) as unknown as Promise<ProjectListResponse>,
+    queryFn: () => listProjectsApiV1GGuildIdProjectsGet(guildId, params),
     ...options,
   });
 };
@@ -90,10 +85,7 @@ export const useProjectCountsByInitiative = (
   return useQuery<InitiativeGroupedCountsResponse>({
     queryKey:
       getGetProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGetQueryKey(guildId),
-    queryFn: () =>
-      getProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGet(
-        guildId
-      ) as unknown as Promise<InitiativeGroupedCountsResponse>,
+    queryFn: () => getProjectCountsByInitiativeApiV1GGuildIdProjectsCountsByInitiativeGet(guildId),
     ...options,
   });
 };
@@ -111,11 +103,7 @@ export const useProject = (projectId: number | null, options?: QueryOpts<Project
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<ProjectRead>({
     queryKey: getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey(guildId, projectId!),
-    queryFn: () =>
-      readProjectApiV1GGuildIdProjectsProjectIdGet(
-        guildId,
-        projectId!
-      ) as unknown as Promise<ProjectRead>,
+    queryFn: () => readProjectApiV1GGuildIdProjectsProjectIdGet(guildId, projectId!),
     enabled: projectId !== null && Number.isFinite(projectId) && userEnabled,
     ...rest,
   });
@@ -125,10 +113,7 @@ export const useWritableProjects = (options?: QueryOpts<ProjectRead[]>) => {
   const guildId = useActiveGuildId();
   return useQuery<ProjectRead[]>({
     queryKey: getListWritableProjectsApiV1GGuildIdProjectsWritableGetQueryKey(guildId),
-    queryFn: () =>
-      listWritableProjectsApiV1GGuildIdProjectsWritableGet(guildId) as unknown as Promise<
-        ProjectRead[]
-      >,
+    queryFn: () => listWritableProjectsApiV1GGuildIdProjectsWritableGet(guildId),
     staleTime: 60 * 1000,
     ...options,
   });
@@ -142,10 +127,7 @@ export const useFavoriteProjects = (options?: QueryOpts<ProjectRead[]>) => {
   const guildId = useActiveGuildId();
   return useQuery<ProjectRead[]>({
     queryKey: getFavoriteProjectsApiV1GGuildIdProjectsFavoritesGetQueryKey(guildId),
-    queryFn: () =>
-      favoriteProjectsApiV1GGuildIdProjectsFavoritesGet(guildId) as unknown as Promise<
-        ProjectRead[]
-      >,
+    queryFn: () => favoriteProjectsApiV1GGuildIdProjectsFavoritesGet(guildId),
     staleTime: 30 * 1000,
     ...options,
   });
@@ -163,10 +145,7 @@ export const useProjectTaskStatuses = (
       projectId!
     ),
     queryFn: () =>
-      listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet(
-        guildId,
-        projectId!
-      ) as unknown as Promise<TaskStatusRead[]>,
+      listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet(guildId, projectId!),
     enabled: projectId !== null && Number.isFinite(projectId) && userEnabled,
     ...rest,
   });
@@ -186,11 +165,7 @@ export const useProjectActivity = (
       params
     ),
     queryFn: () =>
-      projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet(
-        guildId,
-        projectId,
-        params
-      ) as unknown as Promise<ProjectActivityResponse>,
+      projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet(guildId, projectId, params),
     enabled: Number.isFinite(projectId) && userEnabled,
     ...rest,
   });
@@ -204,8 +179,7 @@ export const useGlobalProjects = (
 ) => {
   return useQuery<ProjectListResponse>({
     queryKey: getListMyProjectsApiV1MeProjectsGetQueryKey(params),
-    queryFn: () =>
-      listMyProjectsApiV1MeProjectsGet(params) as unknown as Promise<ProjectListResponse>,
+    queryFn: () => listMyProjectsApiV1MeProjectsGet(params),
     ...options,
   });
 };
@@ -215,8 +189,7 @@ export const usePrefetchGlobalProjects = () => {
   return (params?: ListMyProjectsApiV1MeProjectsGetParams) => {
     return qc.prefetchQuery({
       queryKey: getListMyProjectsApiV1MeProjectsGetQueryKey(params),
-      queryFn: () =>
-        listMyProjectsApiV1MeProjectsGet(params) as unknown as Promise<ProjectListResponse>,
+      queryFn: () => listMyProjectsApiV1MeProjectsGet(params),
       staleTime: 30_000,
     });
   };
@@ -226,29 +199,15 @@ export const usePrefetchGlobalProjects = () => {
 
 export const useCreateProject = (
   options?: MutationOpts<ProjectRead, Parameters<typeof createProjectApiV1GGuildIdProjectsPost>[1]>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (data: Parameters<typeof createProjectApiV1GGuildIdProjectsPost>[1]) => {
-      return createProjectApiV1GGuildIdProjectsPost(
-        guildId,
-        data
-      ) as unknown as Promise<ProjectRead>;
+) =>
+  useGuildMutation<ProjectRead, Parameters<typeof createProjectApiV1GGuildIdProjectsPost>[1]>(
+    {
+      mutationFn: (guildId, data) => createProjectApiV1GGuildIdProjectsPost(guildId, data),
+      invalidate: () => invalidateAllProjects(),
+      errorKey: "projects:createDialog.createError",
     },
-    onSuccess: (...args) => {
-      void invalidateAllProjects();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "projects:createDialog.createError"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useUpdateProject = (
   options?: MutationOpts<
@@ -258,93 +217,55 @@ export const useUpdateProject = (
       data: Parameters<typeof updateProjectApiV1GGuildIdProjectsProjectIdPatch>[2];
     }
   >
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async ({
-      projectId,
-      data,
-    }: {
+) =>
+  useGuildMutation<
+    ProjectRead,
+    {
       projectId: number;
       data: Parameters<typeof updateProjectApiV1GGuildIdProjectsProjectIdPatch>[2];
-    }) => {
-      return updateProjectApiV1GGuildIdProjectsProjectIdPatch(
-        guildId,
-        projectId,
-        data
-      ) as unknown as Promise<ProjectRead>;
+    }
+  >(
+    {
+      mutationFn: (guildId, { projectId, data }) =>
+        updateProjectApiV1GGuildIdProjectsProjectIdPatch(guildId, projectId, data),
+      invalidate: () => invalidateAllProjects(),
+      errorKey: "projects:settings.details.updateError",
     },
-    onSuccess: (...args) => {
-      void invalidateAllProjects();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "projects:settings.details.updateError"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );
 
-export const useDeleteProject = (options?: MutationOpts<void, number>) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+export const useDeleteProject = (options?: MutationOpts<void, number>) =>
+  useGuildMutation<void, number>(
+    {
+      mutationFn: (guildId, projectId) =>
+        deleteProjectApiV1GGuildIdProjectsProjectIdDelete(guildId, projectId),
+      invalidate: () => invalidateAllProjects(),
+      errorKey: "projects:detail.loadError",
+    },
+    options
+  );
 
-  return useMutation({
-    ...rest,
-    mutationFn: async (projectId: number) => {
-      await deleteProjectApiV1GGuildIdProjectsProjectIdDelete(guildId, projectId);
+export const useArchiveProject = (options?: MutationOpts<void, number>) =>
+  useGuildMutation<void, number>(
+    {
+      mutationFn: async (guildId, projectId) => {
+        await archiveProjectApiV1GGuildIdProjectsProjectIdArchivePost(guildId, projectId);
+      },
+      invalidate: () => invalidateAllProjects(),
     },
-    onSuccess: (...args) => {
-      void invalidateAllProjects();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "projects:detail.loadError"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );
 
-export const useArchiveProject = (options?: MutationOpts<void, number>) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (projectId: number) => {
-      await archiveProjectApiV1GGuildIdProjectsProjectIdArchivePost(guildId, projectId);
+export const useUnarchiveProject = (options?: MutationOpts<void, number>) =>
+  useGuildMutation<void, number>(
+    {
+      mutationFn: async (guildId, projectId) => {
+        await unarchiveProjectApiV1GGuildIdProjectsProjectIdUnarchivePost(guildId, projectId);
+      },
+      invalidate: () => invalidateAllProjects(),
     },
-    onSuccess: (...args) => {
-      void invalidateAllProjects();
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
-
-export const useUnarchiveProject = (options?: MutationOpts<void, number>) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (projectId: number) => {
-      await unarchiveProjectApiV1GGuildIdProjectsProjectIdUnarchivePost(guildId, projectId);
-    },
-    onSuccess: (...args) => {
-      void invalidateAllProjects();
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useDuplicateProject = (
   options?: MutationOpts<
@@ -354,33 +275,21 @@ export const useDuplicateProject = (
       data: Parameters<typeof duplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePost>[2];
     }
   >
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async ({
-      projectId,
-      data,
-    }: {
+) =>
+  useGuildMutation<
+    ProjectRead,
+    {
       projectId: number;
       data: Parameters<typeof duplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePost>[2];
-    }) => {
-      return duplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePost(
-        guildId,
-        projectId,
-        data
-      ) as unknown as Promise<ProjectRead>;
+    }
+  >(
+    {
+      mutationFn: (guildId, { projectId, data }) =>
+        duplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePost(guildId, projectId, data),
+      invalidate: () => invalidateAllProjects(),
     },
-    onSuccess: (...args) => {
-      void invalidateAllProjects();
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useReorderProjects = (options?: MutationOpts<void, number[]>) => {
   const guildId = useActiveGuildId();
@@ -503,7 +412,7 @@ export const useToggleProjectPin = (options?: MutationOpts<ProjectRead, TogglePi
     mutationFn: async ({ projectId, nextState }: TogglePinArgs) => {
       return updateProjectApiV1GGuildIdProjectsProjectIdPatch(guildId, projectId, {
         pinned: nextState,
-      }) as unknown as Promise<ProjectRead>;
+      });
     },
     onSuccess: (...args) => {
       const data = args[0];
@@ -538,194 +447,121 @@ export const useToggleProjectPin = (options?: MutationOpts<ProjectRead, TogglePi
 export const useSetProjectGrants = (
   projectId: number,
   options?: MutationOpts<ProjectRead, ResourceGrantSchema[]>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (grants: ResourceGrantSchema[]) => {
-      return setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut(
-        guildId,
-        projectId,
-        grants
-      ) as unknown as Promise<ProjectRead>;
+) =>
+  useGuildMutation<ProjectRead, ResourceGrantSchema[]>(
+    {
+      mutationFn: (guildId, grants) =>
+        setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut(guildId, projectId, grants),
+      invalidate: () => Promise.all([invalidateProject(projectId), invalidateAllProjects()]),
+      errorKey: "projects:settings.access.updateError",
     },
-    onSuccess: (...args) => {
-      void invalidateProject(projectId);
-      void invalidateAllProjects();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "projects:settings.access.updateError"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );
 
 // ── Project Document Mutations ──────────────────────────────────────────────
 
-export const useAttachProjectDocument = (
-  projectId: number,
-  options?: MutationOpts<void, number>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+const invalidateProjectAndDocuments = (projectId: number) =>
+  Promise.all([invalidateProject(projectId), invalidateAllDocuments()]);
 
-  return useMutation({
-    ...rest,
-    mutationFn: async (documentId: number) => {
-      await attachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdPost(
-        guildId,
-        projectId,
-        documentId
-      );
+export const useAttachProjectDocument = (projectId: number, options?: MutationOpts<void, number>) =>
+  useGuildMutation<void, number>(
+    {
+      mutationFn: async (guildId, documentId) => {
+        await attachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdPost(
+          guildId,
+          projectId,
+          documentId
+        );
+      },
+      invalidate: () => invalidateProjectAndDocuments(projectId),
+      errorKey: "projects:documents.attachError",
     },
-    onSuccess: (...args) => {
-      void invalidateProject(projectId);
-      void invalidateAllDocuments();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "projects:documents.attachError"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );
 
-export const useDetachProjectDocument = (
-  projectId: number,
-  options?: MutationOpts<void, number>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (documentId: number) => {
-      await detachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdDelete(
-        guildId,
-        projectId,
-        documentId
-      );
+export const useDetachProjectDocument = (projectId: number, options?: MutationOpts<void, number>) =>
+  useGuildMutation<void, number>(
+    {
+      mutationFn: async (guildId, documentId) => {
+        await detachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdDelete(
+          guildId,
+          projectId,
+          documentId
+        );
+      },
+      invalidate: () => invalidateProjectAndDocuments(projectId),
+      errorKey: "projects:documents.detachError",
     },
-    onSuccess: (...args) => {
-      void invalidateProject(projectId);
-      void invalidateAllDocuments();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "projects:documents.detachError"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );
 
 // ── Task Status Mutations ───────────────────────────────────────────────────
+
+const invalidateStatusesAndTasks = (projectId: number) =>
+  Promise.all([invalidateProjectTaskStatuses(projectId), invalidateAllTasks()]);
 
 export const useCreateTaskStatus = (
   projectId: number,
   options?: MutationOpts<TaskStatusRead, TaskStatusCreate>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (data: TaskStatusCreate) => {
-      return createTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesPost(
-        guildId,
-        projectId,
-        data
-      ) as unknown as Promise<TaskStatusRead>;
+) =>
+  useGuildMutation<TaskStatusRead, TaskStatusCreate>(
+    {
+      mutationFn: (guildId, data) =>
+        createTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesPost(guildId, projectId, data),
+      invalidate: () => invalidateStatusesAndTasks(projectId),
     },
-    onSuccess: (...args) => {
-      void invalidateProjectTaskStatuses(projectId);
-      void invalidateAllTasks();
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useUpdateTaskStatus = (
   projectId: number,
   options?: MutationOpts<TaskStatusRead, { statusId: number; data: TaskStatusUpdate }>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async ({ statusId, data }: { statusId: number; data: TaskStatusUpdate }) => {
-      return updateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdPatch(
-        guildId,
-        projectId,
-        statusId,
-        data
-      ) as unknown as Promise<TaskStatusRead>;
+) =>
+  useGuildMutation<TaskStatusRead, { statusId: number; data: TaskStatusUpdate }>(
+    {
+      mutationFn: (guildId, { statusId, data }) =>
+        updateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdPatch(
+          guildId,
+          projectId,
+          statusId,
+          data
+        ),
+      invalidate: () => invalidateProjectTaskStatuses(projectId),
     },
-    onSuccess: (...args) => {
-      void invalidateProjectTaskStatuses(projectId);
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useDeleteTaskStatus = (
   projectId: number,
   options?: MutationOpts<void, { statusId: number; data: TaskStatusDeleteRequest }>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async ({ statusId, data }: { statusId: number; data: TaskStatusDeleteRequest }) => {
-      await deleteTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdDelete(
-        guildId,
-        projectId,
-        statusId,
-        data
-      );
+) =>
+  useGuildMutation<void, { statusId: number; data: TaskStatusDeleteRequest }>(
+    {
+      mutationFn: (guildId, { statusId, data }) =>
+        deleteTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdDelete(
+          guildId,
+          projectId,
+          statusId,
+          data
+        ),
+      invalidate: () => invalidateStatusesAndTasks(projectId),
     },
-    onSuccess: (...args) => {
-      void invalidateProjectTaskStatuses(projectId);
-      void invalidateAllTasks();
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useReorderTaskStatuses = (
   projectId: number,
   options?: MutationOpts<TaskStatusRead[], TaskStatusReorderRequest>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (data: TaskStatusReorderRequest) => {
-      return reorderTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesReorderPost(
-        guildId,
-        projectId,
-        data
-      ) as unknown as Promise<TaskStatusRead[]>;
+) =>
+  useGuildMutation<TaskStatusRead[], TaskStatusReorderRequest>(
+    {
+      mutationFn: (guildId, data) =>
+        reorderTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesReorderPost(
+          guildId,
+          projectId,
+          data
+        ),
+      invalidate: () => invalidateProjectTaskStatuses(projectId),
     },
-    onSuccess: (...args) => {
-      void invalidateProjectTaskStatuses(projectId);
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
+    options
+  );
