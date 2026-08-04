@@ -1,20 +1,18 @@
 """force RLS on user_api_keys; move it to the system engine only
 
-``user_api_keys`` is a pre-auth credential store: it is validated by
-``token_hash`` *before the user is known*, so the lookup can't run under an
-own-row policy — it runs BYPASSRLS on the system engine (``app_admin``), exactly
-like ``auth_sessions``. This migration makes the DB the enforcement point:
+``user_api_keys`` is looked up by ``token_hash`` before the request's user is
+resolved, so its access runs on the system engine (``app_admin``, BYPASSRLS)
+rather than a request role — the same arrangement as ``auth_sessions``. This
+migration makes that the enforced shape at the DB layer:
 
-* ``ENABLE`` + ``FORCE ROW LEVEL SECURITY`` with **no** request-role policy, so
-  only the BYPASSRLS system engine can read/write rows (owners obey RLS too).
-* ``REVOKE ALL`` from the request-path roles — the two directly-granted login
-  roles (``app_user``) and the base roles the routed ``guild_<id>`` /
-  ``platform_<tier>`` roles inherit from (``app_guild_base``, ``platform_base``)
-  — so no request-path role can touch the table (grant *and* RLS both deny).
-* ``app_admin`` keeps full DML (it previously held only SELECT/DELETE; the auth
-  lookup + create now run there too). Its USAGE on the id sequence
-  (legacy-named ``admin_api_keys_id_seq``) is already granted; re-granted here so
-  the INSERT path is self-contained.
+* ``ENABLE`` + ``FORCE ROW LEVEL SECURITY`` with no request-role policy (owners
+  obey RLS too), so only the system engine reads or writes rows.
+* ``REVOKE ALL`` from the request-path roles — ``app_user`` and the base roles
+  the routed ``guild_<id>`` / ``platform_<tier>`` roles inherit from
+  (``app_guild_base``, ``platform_base``) — on the table and its (legacy-named
+  ``admin_api_keys_id_seq``) id sequence.
+* ``app_admin`` keeps full DML (previously SELECT/DELETE; the lookup and create
+  run there now) and USAGE on the id sequence.
 
 Registry mirror: ``SHARED_TABLE_SYSTEM_GRANTS['user_api_keys']`` becomes full
 DML and ``SHARED_TABLE_APP_USER_GRANTS['user_api_keys']`` becomes ``None`` (see

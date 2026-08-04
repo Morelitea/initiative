@@ -1,10 +1,10 @@
-"""RLS / role-security test for the user_api_keys credential store.
+"""RLS / role-security test for the user_api_keys table.
 
-Locks in the app_admin-only wall (migration 20260803_0156): the request path
-cannot touch API keys at all, so the token hash can never be read off the
-request path and no user can reach another user's keys at the DB layer. Key
-lookup is a pre-auth match by ``token_hash`` (user unknown), so it runs on the
-system engine — there is deliberately no request-path access, own-row or not.
+Locks in the arrangement from migration 20260803_0156: ``user_api_keys`` has no
+request-path grant and no policy, so request roles have no access to it — the
+table is reached only on the system engine (the lookup is a pre-auth match by
+``token_hash``, before the user is resolved). Asserts the request-path denial at
+the DB layer.
 
 Style mirrors ``auth_sessions_rls_test``: SET ROLE platform_<tier> drops to a
 non-superuser role so RLS + table GRANTs are enforced like the request path.
@@ -58,9 +58,8 @@ async def _make_key_row(session, user_id: int, token: str) -> None:
 
 
 async def test_user_api_keys_unreadable_on_request_path(session):
-    """No request-path grant: even the highest platform tier is denied at the
-    grant layer, so the token hash can never be read off the request path and
-    one user can't reach another's keys. The superuser setup session (like the
+    """No request-path grant and no policy: every platform tier is denied at the
+    DB layer, the key's own user included. The superuser setup session (like the
     system engine) still sees the row."""
     owner = await create_user(session)
     other = await create_user(session)

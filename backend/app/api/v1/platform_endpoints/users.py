@@ -912,12 +912,10 @@ async def list_my_api_keys(
     session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> ApiKeyListResponse:
-    """List all API keys for the current user.
-
-    ``user_api_keys`` is a system-engine-only table (no request-path grant, no
-    own-row policy), so key management runs on ``AdminSessionDep``; the explicit
-    ``user_id`` filter in the service is the ownership scope.
-    """
+    """List all API keys for the current user."""
+    # user_api_keys is a system-engine-only table (no request-path grant, no
+    # own-row policy), so key management runs on AdminSessionDep; the explicit
+    # user_id filter in the service is the ownership scope.
     keys = await api_keys_service.list_api_keys(session, user=current_user)
     return ApiKeyListResponse(keys=keys)
 
@@ -932,12 +930,10 @@ async def create_my_api_key(
     session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> ApiKeyCreateResponse:
-    """Create a new API key for the current user.
-
-    Runs on the system engine — ``user_api_keys`` carries no request-path grant
-    (see ``list_my_api_keys``); ownership is enforced by the ``current_user``
-    scoping below and in the service.
-    """
+    """Create a new API key for the current user."""
+    # Runs on the system engine (user_api_keys has no request-path grant, see
+    # list_my_api_keys); the current_user scoping below and in the service is
+    # the ownership boundary.
     if payload.guild_id is not None:
         # A guild-bound key must target a guild the caller belongs to. Membership
         # is in the public guild_memberships table (readable on the system
@@ -968,11 +964,9 @@ async def delete_my_api_key(
     session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> None:
-    """Delete an API key for the current user.
-
-    System-engine session (see ``list_my_api_keys``); the service's ``user_id``
-    filter scopes the delete to the caller's own keys.
-    """
+    """Delete an API key for the current user."""
+    # System-engine session (see list_my_api_keys); the service's user_id filter
+    # scopes the delete to the caller's own keys.
     deleted = await api_keys_service.delete_api_key(
         session, user=current_user, api_key_id=api_key_id
     )
