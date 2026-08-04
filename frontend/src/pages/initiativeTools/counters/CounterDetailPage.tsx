@@ -25,13 +25,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useCounterGroupRealtime } from "@/hooks/useCounterGroupRealtime";
 import {
   useCounterGroup,
   useResetCounter,
   useSetCount,
   useSteppedCount,
 } from "@/hooks/useCounters";
+import { useCounterGroupRealtime } from "@/hooks/useResourceRealtime";
 import { getContrastingTextColor } from "@/lib/counter-color";
 import { isAtMax, isAtMin } from "@/lib/counter-math";
 import { useGuildPath } from "@/lib/guildUrl";

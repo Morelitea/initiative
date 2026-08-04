@@ -29,7 +29,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useInitiatives } from "@/hooks/useInitiatives";
-import { useQueueRealtime } from "@/hooks/useQueueRealtime";
 import {
   useAdvanceTurn,
   useHoldCurrent,
@@ -44,6 +43,7 @@ import {
 } from "@/hooks/useQueues";
 import { useQueueView } from "@/hooks/useQueueView";
 import { useRecordRecentView } from "@/hooks/useRecents";
+import { useQueueRealtime } from "@/hooks/useResourceRealtime";
 import { toast } from "@/lib/chesterToast";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { exportFilenameStem } from "@/lib/exportDownload";

@@ -41,7 +41,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useCounterGroupRealtime } from "@/hooks/useCounterGroupRealtime";
 import {
   useCounterGroup,
   useDeleteCounter,
@@ -53,6 +52,7 @@ import {
   useUpdateCounter,
 } from "@/hooks/useCounters";
 import { useRecordRecentView } from "@/hooks/useRecents";
+import { useCounterGroupRealtime } from "@/hooks/useResourceRealtime";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { exportFilenameStem } from "@/lib/exportDownload";
 import { useGuildPath } from "@/lib/guildUrl";

@@ -1,7 +1,6 @@
 import { useParams } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 
-import { API_BASE_URL } from "@/api/client";
 import {
   invalidateAllDocuments,
   invalidateAllProjects,
@@ -12,6 +11,7 @@ import {
   invalidateProjectActivity,
   invalidateTaskComments,
 } from "@/api/query-keys";
+import { buildGuildWsUrl } from "@/lib/wsUrl";
 
 import { useAuth } from "./useAuth";
 
@@ -23,21 +23,8 @@ const buildWebsocketUrl = (guildId: number) => {
     return null;
   }
   try {
-    const base =
-      API_BASE_URL.startsWith("http://") || API_BASE_URL.startsWith("https://")
-        ? new URL(API_BASE_URL)
-        : new URL(API_BASE_URL, window.location.origin);
-
-    const normalizedPath = base.pathname.endsWith("/")
-      ? base.pathname.slice(0, -1)
-      : base.pathname || "/api/v1";
-
-    base.protocol = base.protocol === "https:" ? "wss:" : "ws:";
-    base.pathname = `${normalizedPath}/g/${guildId}/events/updates`;
-    base.search = "";
-    base.hash = "";
-    // Token is sent via MSG_AUTH message, not URL params (for security)
-    return base.toString();
+    // Token is sent via MSG_AUTH message, not URL params
+    return buildGuildWsUrl(guildId, "events/updates");
   } catch {
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
     return `${protocol}://${window.location.host}/api/v1/g/${guildId}/events/updates`;
