@@ -39,8 +39,8 @@ import {
   useDocumentsList,
   usePrefetchDocumentsList,
 } from "@/hooks/useDocuments";
-import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
+import { INITIATIVE_FILTER_ALL, useInitiativeFilter } from "@/hooks/useInitiativeFilter";
 import { canCreateTool, useMyInitiativePermissions } from "@/hooks/useInitiativeRoles";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useTags } from "@/hooks/useTags";
@@ -48,7 +48,6 @@ import { useViewPreference } from "@/hooks/useViewPreference";
 import { useGuildPath } from "@/lib/guildUrl";
 import { buildTagTree, collectDescendantTagIds, findNodeByPath } from "@/lib/tagTree";
 
-const INITIATIVE_FILTER_ALL = "all";
 const DOCUMENT_VIEW_KEY = "documents:view-mode";
 
 /** Map DataTable column IDs to backend sort field names */
@@ -73,7 +72,6 @@ export const DocumentsView = ({
   const router = useRouter();
   const prefetchDocuments = usePrefetchDocumentsList();
   const { user } = useAuth();
-  const { activeGuildId } = useGuilds();
   // Shared access helper — honors guild-admin / PAM / membership so this page
   // never re-derives access from raw membership flags.
   const { filterVisible, permissionsFor, isGuildAdmin, isGrantGuild } = useInitiativeAccess();
@@ -84,35 +82,19 @@ export const DocumentsView = ({
     page?: number;
   };
   const lockedInitiativeId = typeof fixedInitiativeId === "number" ? fixedInitiativeId : null;
-  const [initiativeFilter, setInitiativeFilter] = useState<string>(
-    lockedInitiativeId ? String(lockedInitiativeId) : INITIATIVE_FILTER_ALL
-  );
-  // Parse the filtered initiative ID for permission checks
-  const filteredInitiativeId =
-    initiativeFilter !== INITIATIVE_FILTER_ALL ? Number(initiativeFilter) : null;
+  // The initiative filter consumes ?initiativeId — and, unlike the other tool
+  // lists, clearing the param (e.g. clicking "All Documents" from an
+  // initiative-scoped view) resets it back to ALL rather than staying pinned to
+  // the initiative we arrived from.
+  const { initiativeFilter, setInitiativeFilter, filteredInitiativeId } = useInitiativeFilter({
+    lockedInitiativeId,
+    resetOnParamCleared: true,
+  });
   const { data: filteredInitiativePermissions } = useMyInitiativePermissions(
     !lockedInitiativeId && filteredInitiativeId ? filteredInitiativeId : null
   );
   const searchParamsRef = useRef(searchParams);
   searchParamsRef.current = searchParams;
-  const lastConsumedParams = useRef<string>("");
-  const prevGuildIdRef = useRef<number | null>(activeGuildId);
-
-  // Sync the initiative filter to the URL's ?initiativeId. A specific id filters
-  // to it; clearing the param — e.g. clicking "All Documents" from an
-  // initiative-scoped view — resets to ALL. Tracking lastConsumedParams lets the
-  // filter dropdown override the selection without the URL re-pinning it, while
-  // still resetting on real navigation. Without the reset the filter stayed
-  // pinned to the initiative we arrived from, so All Documents showed only that
-  // initiative's docs until a manual refresh.
-  useEffect(() => {
-    if (lockedInitiativeId) return;
-    const urlInitiativeId = searchParams.initiativeId;
-    const paramKey = urlInitiativeId || "";
-    if (paramKey === lastConsumedParams.current) return;
-    lastConsumedParams.current = paramKey;
-    setInitiativeFilter(urlInitiativeId || INITIATIVE_FILTER_ALL);
-  }, [searchParams, lockedInitiativeId]);
   const [searchQuery, setSearchQuery] = useState("");
   const [filtersOpen, setFiltersOpen] = useDefaultFiltersOpen();
 
@@ -255,24 +237,6 @@ export const DocumentsView = ({
       setTreeSelectedPaths(new Set());
     }
   }, [viewMode]);
-
-  useEffect(() => {
-    if (lockedInitiativeId) {
-      const lockedValue = String(lockedInitiativeId);
-      setInitiativeFilter((prev) => (prev === lockedValue ? prev : lockedValue));
-    }
-  }, [lockedInitiativeId]);
-
-  // Reset initiative filter when guild changes (initiative IDs are guild-specific)
-  useEffect(() => {
-    const prevGuildId = prevGuildIdRef.current;
-    prevGuildIdRef.current = activeGuildId;
-    // Only reset if guild actually changed (not on initial mount)
-    if (prevGuildId !== null && prevGuildId !== activeGuildId && !lockedInitiativeId) {
-      setInitiativeFilter(INITIATIVE_FILTER_ALL);
-      lastConsumedParams.current = "";
-    }
-  }, [activeGuildId, lockedInitiativeId]);
 
   // In tags view, the tree does its own client-side filtering, so skip backend tag filters
   // When fixedTagIds is provided, always use them regardless of view mode
