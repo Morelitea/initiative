@@ -72,6 +72,16 @@ def upgrade() -> None:
             nullable=False,
         ),
     )
+    # Cross-worker cache-freshness signal (bumped on every operator AI write).
+    op.add_column(
+        "app_settings",
+        sa.Column(
+            "ai_config_version",
+            sa.Integer(),
+            server_default="0",
+            nullable=False,
+        ),
+    )
 
     # 3. Preserve a configured+enabled platform provider into a connection row,
     #    and switch the mode to platform. Runs before RLS is enabled on the new
@@ -201,6 +211,7 @@ def downgrade() -> None:
                 nullable=False,
             )
         )
+        batch_op.drop_column("ai_config_version")
         batch_op.drop_column("ai_config_mode")
 
     op.execute("DROP TABLE IF EXISTS public.platform_ai_connections CASCADE")

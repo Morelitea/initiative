@@ -63,6 +63,14 @@ class AppSetting(SQLModel, table=True):
         default="disabled",
         sa_column=Column(String(20), nullable=False, server_default="disabled"),
     )
+    # Monotonic counter bumped on every operator AI-config write (mode or
+    # platform connection). Read on the request's own (guild) session as the
+    # cross-worker cache-freshness signal, so a change is picked up by every
+    # replica at once instead of after a per-process TTL.
+    ai_config_version: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False, server_default="0"),
+    )
 
     # Object storage (blob backend). "local" = filesystem under UPLOADS_DIR;
     # "s3" = any S3-compatible store. Seeded from the STORAGE_BACKEND / S3_* env

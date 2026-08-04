@@ -18,18 +18,19 @@ Resolution (member M generating in guild G):
 
 from __future__ import annotations
 
-import time
+import logging
 from dataclasses import dataclass
 
 import httpx
 from fastapi import HTTPException
 from sqlalchemy import text
-from sqlmodel import select
+from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import SALT_AI_API_KEY, decrypt_field, encrypt_field
 from app.core.messages import AIMessages
 from app.db import session as db_session
+from app.db.schema_provisioning import guild_role_name, guild_schema_name
 from app.models.platform.ai_connection import PlatformAIConnection
 from app.models.platform.user import User
 from app.models.tenant.ai_connection import GuildAIConnection
@@ -60,6 +61,8 @@ from app.services.webhook_target_url import (
     WebhookTargetUrlPrivateError,
     assert_target_url_is_public_async,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_optional_string(value: str | None) -> str | None:
@@ -96,27 +99,23 @@ class _ConnRow:
 @dataclass(frozen=True)
 class _PlatformConfig:
     mode: str
+    version: int
     connections: tuple[_ConnRow, ...]
 
 
-_CACHE_TTL_SECONDS = 30.0
+# Only the admin-only operator CONNECTIONS are cached (the expensive read). The
+# mode + a monotonic version live on app_settings, which every role can read, so
+# each request reads them fresh on its own (guild) session and reloads the cached
+# connections only when the version moves. An operator change therefore reaches
+# every worker/replica at once — there is no per-process staleness window.
 _cache: _PlatformConfig | None = None
-_cache_loaded_at: float = 0.0
 
 
-async def _load_platform_config() -> _PlatformConfig:
-    """Read the global mode + operator connections on the system engine."""
+async def _load_platform_connections() -> tuple[_ConnRow, ...]:
+    """Read the operator connections on the system engine (admin-only table)."""
     async with db_session.admin_engine.connect() as conn:
         # Pooled connection: shed any guild role a prior checkout assumed.
         await conn.execute(text("SELECT set_config('role', 'none', false)"))
-        row = (
-            await conn.execute(
-                text("SELECT ai_config_mode FROM public.app_settings WHERE id = 1")
-            )
-        ).first()
-        if row is None:
-            return _PlatformConfig(mode="disabled", connections=())
-        mode = row[0]
         conn_rows = (
             await conn.execute(
                 text(
@@ -126,7 +125,7 @@ async def _load_platform_config() -> _PlatformConfig:
                 )
             )
         ).all()
-    connections = tuple(
+    return tuple(
         _ConnRow(
             scope="platform",
             id=r[0],
@@ -141,29 +140,92 @@ async def _load_platform_config() -> _PlatformConfig:
         )
         for r in conn_rows
     )
-    return _PlatformConfig(mode=mode, connections=connections)
 
 
-async def get_platform_ai_config(*, force: bool = False) -> _PlatformConfig:
-    global _cache, _cache_loaded_at
-    now = time.monotonic()
-    if (
-        not force
-        and _cache is not None
-        and (now - _cache_loaded_at) < _CACHE_TTL_SECONDS
-    ):
+async def get_platform_ai_config(session: AsyncSession) -> _PlatformConfig:
+    """Resolve the global mode + (in platform mode) operator connections.
+
+    ``mode`` + ``version`` come from ``app_settings`` on the caller's own session
+    (cheap, always fresh, seen by every worker). Only platform mode needs the
+    operator connections, cached and reloaded whenever ``version`` changes.
+    """
+    global _cache
+    settings = await get_app_settings(session)
+    mode, version = settings.ai_config_mode, settings.ai_config_version
+    if mode != AIConfigMode.platform.value:
+        return _PlatformConfig(mode=mode, version=version, connections=())
+    if _cache is not None and _cache.version == version:
         return _cache
-    cfg = await _load_platform_config()
-    _cache = cfg
-    _cache_loaded_at = now
-    return cfg
+    _cache = _PlatformConfig(
+        mode=mode,
+        version=version,
+        connections=await _load_platform_connections(),
+    )
+    return _cache
 
 
 def invalidate_platform_ai_cache() -> None:
-    """Drop the cached platform config after an operator write."""
-    global _cache, _cache_loaded_at
+    """Drop the cached operator connections. Belt-and-suspenders after an
+    operator write in the serving worker; cross-worker freshness is guaranteed by
+    the version bump, so other replicas reload on their next read."""
+    global _cache
     _cache = None
-    _cache_loaded_at = 0.0
+
+
+async def _bump_ai_config_version(session: AsyncSession) -> None:
+    """Advance the version so every worker's cache reloads on its next read.
+    Called on every operator write that changes the mode or a platform
+    connection. The caller owns the commit."""
+    settings = await get_app_settings(session)
+    settings.ai_config_version += 1
+    session.add(settings)
+
+
+_MEMBER_TABLES = ("guild_ai_member_keys", "guild_ai_member_prefs")
+
+
+async def _purge_platform_connection_member_data(connection_id: int) -> None:
+    """Delete every member key/pref that referenced a now-deleted platform
+    connection, across all guild schemas. Runs on the system engine, assuming
+    each guild's role with the admin GUC so the own-row RLS admits the sweep
+    (mirrors the secret-key rotation loop). Best-effort per guild — a failing
+    schema is logged and skipped; the rows are inert once the connection is gone.
+    """
+    engine = db_session.admin_engine
+    async with engine.connect() as conn:
+        await conn.execute(text("SELECT set_config('role', 'none', false)"))
+        guild_ids = (
+            (await conn.execute(text("SELECT id FROM public.guilds ORDER BY id")))
+            .scalars()
+            .all()
+        )
+    for gid in guild_ids:
+        schema = guild_schema_name(gid)
+        try:
+            async with engine.begin() as wconn:
+                await wconn.execute(
+                    text("SELECT set_config('role', :r, true)"),
+                    {"r": guild_role_name(gid)},
+                )
+                await wconn.execute(
+                    text("SELECT set_config('app.current_guild_role', 'admin', true)")
+                )
+                for table in _MEMBER_TABLES:
+                    await wconn.execute(
+                        # schema comes from guild_schema_name(int) — never user input.
+                        text(
+                            f'DELETE FROM "{schema}".{table} '  # noqa: S608
+                            "WHERE connection_scope = 'platform' "
+                            "AND connection_id = :cid"
+                        ),
+                        {"cid": connection_id},
+                    )
+        except Exception:
+            logger.exception(
+                "failed to purge platform connection %s member data in %s",
+                connection_id,
+                schema,
+            )
 
 
 def _conn_from_guild(row: GuildAIConnection) -> _ConnRow:
@@ -234,7 +296,7 @@ async def resolve_ai_settings(
     if guild_id is None:
         return ResolvedAISettings(enabled=False, source="disabled")
 
-    cfg = await get_platform_ai_config()
+    cfg = await get_platform_ai_config(session)
     if cfg.mode not in ("platform", "guild"):
         return ResolvedAISettings(enabled=False, source="disabled")
 
@@ -351,6 +413,7 @@ async def update_platform_ai_mode(
 ) -> PlatformAIModeResponse:
     settings = await get_app_settings(session)
     settings.ai_config_mode = payload.mode.value
+    settings.ai_config_version += 1
     session.add(settings)
     await session.commit()
     invalidate_platform_ai_cache()
@@ -406,6 +469,7 @@ async def create_platform_connection(
     if payload.is_default:
         await _clear_platform_default(session)
     session.add(row)
+    await _bump_ai_config_version(session)
     await session.commit()
     await session.refresh(row)
     invalidate_platform_ai_cache()
@@ -460,6 +524,7 @@ async def update_platform_connection(
         row.is_default = payload.is_default
     _enforce_key_ownership(row)
     session.add(row)
+    await _bump_ai_config_version(session)
     await session.commit()
     await session.refresh(row)
     invalidate_platform_ai_cache()
@@ -471,7 +536,12 @@ async def delete_platform_connection(session: AsyncSession, connection_id: int) 
     if row is None:
         raise HTTPException(status_code=404, detail=AIMessages.CONNECTION_NOT_FOUND)
     await session.delete(row)
+    await _bump_ai_config_version(session)
     await session.commit()
+    # Members attach their own key to a platform connection per guild, so the
+    # member rows live in every guild schema — purge them so a deleted connection
+    # leaves no orphaned member secrets behind.
+    await _purge_platform_connection_member_data(connection_id)
     invalidate_platform_ai_cache()
 
 
@@ -592,6 +662,21 @@ async def delete_guild_connection(session: AsyncSession, connection_id: int) -> 
     if row is None:
         raise HTTPException(status_code=404, detail=AIMessages.CONNECTION_NOT_FOUND)
     await session.delete(row)
+    # Purge member keys/prefs that referenced it (same guild schema). The routed
+    # session is guild-admin, so the own-row RLS admits deleting every member's
+    # row. Leaves no orphaned member secret behind.
+    await session.exec(
+        delete(GuildAIMemberKey).where(
+            GuildAIMemberKey.connection_scope == ConnectionScope.guild.value,
+            GuildAIMemberKey.connection_id == connection_id,
+        )
+    )
+    await session.exec(
+        delete(GuildAIMemberPref).where(
+            GuildAIMemberPref.connection_scope == ConnectionScope.guild.value,
+            GuildAIMemberPref.connection_id == connection_id,
+        )
+    )
     await session.commit()
 
 
@@ -616,7 +701,7 @@ async def _active_connections(
 async def get_member_ai_view(
     session: AsyncSession, user: User, guild_id: int
 ) -> MemberAIView:
-    cfg = await get_platform_ai_config()
+    cfg = await get_platform_ai_config(session)
     mode = (
         AIConfigMode(cfg.mode)
         if cfg.mode in ("platform", "guild")
@@ -677,7 +762,7 @@ async def _require_active_connection(
 ) -> _ConnRow:
     """The (scope, id) a member references MUST be an enabled connection in the
     active mode — a member can't attach a key to an arbitrary id."""
-    cfg = await get_platform_ai_config()
+    cfg = await get_platform_ai_config(session)
     if cfg.mode != scope.value:
         raise HTTPException(status_code=400, detail=AIMessages.CONNECTION_NOT_FOUND)
     for c in await _active_connections(session, cfg):

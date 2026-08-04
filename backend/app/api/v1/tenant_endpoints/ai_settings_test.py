@@ -281,6 +281,77 @@ async def test_my_ai_aggregate_lists_connections_across_guilds(client, acting_us
     assert "api_key" not in row
 
 
+async def _member_key_rows(session, guild_id, connection_id):
+    from sqlmodel import select
+
+    from app.models.tenant.ai_member_key import GuildAIMemberKey
+    from app.testing.schema_harness import route_session_to_guild
+
+    await route_session_to_guild(session, guild_id)
+    return (
+        await session.exec(
+            select(GuildAIMemberKey).where(
+                GuildAIMemberKey.connection_id == connection_id
+            )
+        )
+    ).all()
+
+
+async def test_deleting_platform_connection_purges_member_keys(
+    client, acting_user, session
+):
+    """Deleting a connection must not leave orphaned member secrets — the
+    per-guild member key rows are purged across every guild."""
+    owner = await acting_user()
+    await _set_mode(client, owner, "platform")
+    r = await client.post(
+        PLATFORM_CONNS,
+        headers=owner.headers,
+        json={"label": "BYO", "provider": "openai", "is_default": True},
+    )
+    conn_id = r.json()["id"]
+
+    member = await acting_user(guild_role=GuildRole.member, initiative=True)
+    r = await client.put(
+        member.g("/settings/ai/me/key"),
+        headers=member.headers,
+        json={"scope": "platform", "connection_id": conn_id, "api_key": "sk-mine"},
+    )
+    assert r.status_code == 200, r.text
+    assert len(await _member_key_rows(session, member.guild.id, conn_id)) == 1
+
+    r = await client.delete(f"{PLATFORM_CONNS}/{conn_id}", headers=owner.headers)
+    assert r.status_code == 204
+    assert await _member_key_rows(session, member.guild.id, conn_id) == []
+
+
+async def test_deleting_guild_connection_purges_member_keys(
+    client, acting_user, session
+):
+    owner = await acting_user()
+    await _set_mode(client, owner, "guild")
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    r = await client.post(
+        admin.g("/settings/ai/connections"),
+        headers=admin.headers,
+        json={"label": "Team", "provider": "openai"},
+    )
+    conn_id = r.json()["id"]
+    r = await client.put(
+        admin.g("/settings/ai/me/key"),
+        headers=admin.headers,
+        json={"scope": "guild", "connection_id": conn_id, "api_key": "sk-admin"},
+    )
+    assert r.status_code == 200, r.text
+    assert len(await _member_key_rows(session, admin.guild.id, conn_id)) == 1
+
+    r = await client.delete(
+        admin.g(f"/settings/ai/connections/{conn_id}"), headers=admin.headers
+    )
+    assert r.status_code == 204
+    assert await _member_key_rows(session, admin.guild.id, conn_id) == []
+
+
 async def test_disabled_mode_hides_ai(client, acting_user):
     owner = await acting_user()
     await _set_mode(client, owner, "disabled")
