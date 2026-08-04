@@ -18,9 +18,8 @@ import { useCounterGroupsList } from "@/hooks/useCounters";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import { getDefaultFiltersVisibility } from "@/hooks/useDefaultFiltersOpen";
 import { useGridSelection } from "@/hooks/useGridSelection";
-import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
+import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiativeFilter } from "@/hooks/useInitiativeFilter";
-import { canCreateTool, useMyInitiativePermissions } from "@/hooks/useInitiativeRoles";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useGuildPath } from "@/lib/guildUrl";
 
@@ -33,7 +32,6 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
   const { t } = useTranslation(["counterGroups", "common", "access"]);
   const router = useRouter();
   const gp = useGuildPath();
-  const { permissionsFor } = useInitiativeAccess();
 
   const lockedInitiativeId = typeof fixedInitiativeId === "number" ? fixedInitiativeId : null;
 
@@ -41,8 +39,6 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
     lockedInitiativeId,
   });
   const effectiveInitiativeId = lockedInitiativeId ?? filteredInitiativeId;
-
-  const { data: initiativePerms } = useMyInitiativePermissions(effectiveInitiativeId);
 
   const groupsQuery = useCounterGroupsList({
     ...(effectiveInitiativeId ? { initiative_id: effectiveInitiativeId } : {}),
@@ -60,16 +56,13 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
     return map;
   }, [initiatives]);
 
-  const canCreateGroups = useMemo(() => {
-    if (canCreate !== undefined) return canCreate;
-    if (effectiveInitiativeId && initiativePerms) {
-      return canCreateTool(initiativePerms, Tool.counter_group);
-    }
-    // No initiative filter: creatable if the shared access helper allows
-    // creating in ANY counter-enabled initiative (honors guild-admin, PAM
-    // grants, and frozen read-only guilds).
-    return initiatives.some((initiative) => permissionsFor(initiative)[Tool.counter_group].create);
-  }, [canCreate, effectiveInitiativeId, initiativePerms, initiatives, permissionsFor]);
+  // Canonical create answer: the locked/filtered initiative's server-computed
+  // create flag, or (in the "All" view) whether any visible initiative grants
+  // it. An explicit canCreate prop (e.g. from InitiativeDetailPage) wins.
+  const { canCreate: canCreateDerived } = useToolCreateAccess(Tool.counter_group, {
+    initiativeId: effectiveInitiativeId,
+  });
+  const canCreateGroups = canCreate ?? canCreateDerived;
 
   const {
     open: createOpen,

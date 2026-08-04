@@ -107,6 +107,7 @@ import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useAuth } from "@/hooks/useAuth";
 import { useCollaboration } from "@/hooks/useCollaboration";
 import { useGuilds } from "@/hooks/useGuilds";
+import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { uploadAttachment } from "@/lib/attachmentUtils";
@@ -141,6 +142,7 @@ export const DocumentDetailPage = () => {
   const setDocumentCache = useSetDocumentCache();
   const { user, token } = useAuth();
   const { activeGuildId } = useGuilds();
+  const { permissionsFor } = useInitiativeAccess();
   const guildId = Number(guildIdParam);
   const gp = useGuildPath();
   const sidePanel = useDocumentSidePanel();
@@ -419,19 +421,15 @@ export const DocumentDetailPage = () => {
     return hasWriteAccess(document.my_permission_level);
   }, [document, user]);
 
-  // Check if user can create documents in this initiative
+  // Whether the user can create documents in this document's initiative —
+  // via the shared access helper, so guild admins and PAM grantees are
+  // included regardless of any membership row.
   const canCreateDocuments = useMemo(() => {
-    if (!document?.initiative || !user) {
+    if (!document?.initiative) {
       return false;
     }
-    // Check if user has create_documents permission via their role
-    const membership = document.initiative.members?.find((m) => m.user?.id === user.id);
-    if (!membership) {
-      return false;
-    }
-    // can_create_documents is populated from the initiative membership role
-    return membership.can_create_documents ?? false;
-  }, [document?.initiative, user]);
+    return permissionsFor(document.initiative)[Tool.document].create;
+  }, [document?.initiative, permissionsFor]);
 
   // Wikilink navigation handler
   const handleWikilinkNavigate = useCallback(

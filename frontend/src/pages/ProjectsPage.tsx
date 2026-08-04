@@ -56,8 +56,7 @@ import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import { useDefaultFiltersOpen } from "@/hooks/useDefaultFiltersOpen";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { useGuilds } from "@/hooks/useGuilds";
-import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
-import { canCreateTool, useMyInitiativePermissions } from "@/hooks/useInitiativeRoles";
+import { useInitiativeAccess, useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import {
   useArchivedProjects,
@@ -91,7 +90,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   // Single source of truth for "what can I do in each initiative" — honors
   // guild-admin / PAM / membership so this page never re-derives access from
   // raw membership flags (which would wrongly exclude guild admins).
-  const { filterVisible, permissionsFor, isGuildAdmin, isGrantGuild } = useInitiativeAccess();
+  const { isGuildAdmin, isGrantGuild } = useInitiativeAccess();
   const gp = useGuildPath();
   const searchParams = useSearch({ strict: false }) as { create?: string; initiativeId?: string };
   const lockedInitiativeId = typeof fixedInitiativeId === "number" ? fixedInitiativeId : null;
@@ -141,9 +140,6 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   // Parse the filtered initiative ID for permission checks
   const filteredInitiativeId =
     initiativeFilter !== INITIATIVE_FILTER_ALL ? Number(initiativeFilter) : null;
-  const { data: filteredInitiativePermissions } = useMyInitiativePermissions(
-    !lockedInitiativeId && filteredInitiativeId ? filteredInitiativeId : null
-  );
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const lastConsumedFilterParams = useRef<string>("");
   const prevGuildIdRef = useRef<number | null>(activeGuildId);
@@ -232,23 +228,18 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   const projectsQuery = useProjects();
 
   // This is a guild-scoped page and the initiatives list is cheap + cached, so
-  // fetch it unconditionally. Manager state is derived below from the payload
-  // via the shared access helper (permissionsFor(...).canCreateProjects), which
-  // already honors guild-admin / PAM grants — no need to pre-gate on a claimed
-  // manager role from user.initiative_roles (the /users/me object no longer
-  // populates that field: initiative membership is guild-schema content).
+  // fetch it unconditionally. Create access is derived from the same payload
+  // by useToolCreateAccess, which already honors guild-admin / PAM grants — no
+  // need to pre-gate on a claimed manager role from user.initiative_roles (the
+  // /users/me object no longer populates that field: initiative membership is
+  // guild-schema content).
   const initiativesQuery = useInitiatives();
-  // Initiatives the user can create projects in — resolved through the shared
-  // access helper so guild admins are included regardless of any membership row.
-  const creatableInitiatives = useMemo(() => {
-    if (!initiativesQuery.data || !user) {
-      return [];
-    }
-    return filterVisible(initiativesQuery.data).filter(
-      (initiative) => permissionsFor(initiative)[Tool.project].create
-    );
-  }, [initiativesQuery.data, user, filterVisible, permissionsFor]);
-  const isProjectManager = creatableInitiatives.length > 0;
+  // Canonical create answer: the locked/filtered initiative's server-computed
+  // create flag, or (in the "All" view) whether any visible initiative grants
+  // it. `creatableInitiatives` feeds the create dialog's initiative picker.
+  const { canCreate: canCreateDerived, creatableInitiatives } = useToolCreateAccess(Tool.project, {
+    initiativeId: lockedInitiativeId ?? filteredInitiativeId,
+  });
 
   // Check if user can view projects for the filtered initiative
   const canViewProjects = useMemo(() => {
@@ -280,19 +271,9 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     isGrantGuild,
   ]);
 
-  // Use explicit canCreate prop if provided (from role permissions), otherwise check filtered initiative permissions
-  const canCreateProjects = useMemo(() => {
-    // If explicit prop provided (e.g., from InitiativeDetailPage), use it
-    if (canCreate !== undefined) {
-      return canCreate;
-    }
-    // If a specific initiative is filtered, check permissions for that initiative
-    if (filteredInitiativeId && filteredInitiativePermissions) {
-      return canCreateTool(filteredInitiativePermissions, Tool.project);
-    }
-    // Fall back to legacy check (user is PM in any initiative)
-    return isProjectManager;
-  }, [canCreate, filteredInitiativeId, filteredInitiativePermissions, isProjectManager]);
+  // An explicit canCreate prop (e.g. from InitiativeDetailPage) wins; otherwise
+  // use the canonical derivation above.
+  const canCreateProjects = canCreate ?? canCreateDerived;
 
   // Drive the app-wide bottom-nav add button for this route.
   useRegisterPrimaryCreateAction(

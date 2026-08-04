@@ -1,4 +1,5 @@
 import type { QueueRead } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   type CreateToolConfig,
   CreateToolDialog,
@@ -16,6 +17,7 @@ type CreateQueueDialogProps = DialogProps & {
 };
 
 const QUEUE_CONFIG: CreateToolConfig<QueueRead> = {
+  tool: Tool.queue,
   namespace: "queues",
   titleKey: "createQueue",
   descriptionKey: "noQueuesDescription",

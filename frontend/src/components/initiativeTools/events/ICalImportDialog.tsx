@@ -1,7 +1,8 @@
 import { AlertCircle, CheckCircle2, FileText, Upload } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { apiMutator } from "@/api/mutator";
 import { invalidateAllCalendarEvents } from "@/api/query-keys";
 import { Button } from "@/components/ui/button";
@@ -20,8 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useAuth } from "@/hooks/useAuth";
-import { useInitiatives } from "@/hooks/useInitiatives";
+import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { toast } from "@/lib/chesterToast";
 import type { DialogProps } from "@/types/dialog";
 
@@ -57,7 +57,6 @@ export const ICalImportDialog = ({
   fixedInitiativeId,
 }: ICalImportDialogProps) => {
   const { t } = useTranslation(["calendarEvents", "common"]);
-  const { user } = useAuth();
 
   const [step, setStep] = useState<Step>("upload");
   const [icsContent, setIcsContent] = useState("");
@@ -79,15 +78,10 @@ export const ICalImportDialog = ({
     }
   }, [open, fixedInitiativeId]);
 
-  const initiativesQuery = useInitiatives({ enabled: open });
-  const creatableInitiatives = useMemo(() => {
-    if (!user) return [];
-    return (initiativesQuery.data ?? []).filter(
-      (init) =>
-        init.calendar_events_enabled &&
-        init.members.some((m) => m.user.id === user.id && m.role === "project_manager")
-    );
-  }, [initiativesQuery.data, user]);
+  // Import creates events, so the target picker offers exactly the
+  // initiatives whose server-computed create flag is on (folds in the
+  // calendar master switch and the guild-admin / PAM legs).
+  const { creatableInitiatives } = useToolCreateAccess(Tool.calendar_event, { enabled: open });
 
   const MAX_ICS_SIZE = 2_000_000;
 

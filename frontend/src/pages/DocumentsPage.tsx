@@ -39,9 +39,8 @@ import {
   useDocumentsList,
   usePrefetchDocumentsList,
 } from "@/hooks/useDocuments";
-import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
+import { useInitiativeAccess, useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { INITIATIVE_FILTER_ALL, useInitiativeFilter } from "@/hooks/useInitiativeFilter";
-import { canCreateTool, useMyInitiativePermissions } from "@/hooks/useInitiativeRoles";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useTags } from "@/hooks/useTags";
 import { useViewPreference } from "@/hooks/useViewPreference";
@@ -75,7 +74,7 @@ export const DocumentsView = ({
   const { user } = useAuth();
   // Shared access helper — honors guild-admin / PAM / membership so this page
   // never re-derives access from raw membership flags.
-  const { filterVisible, permissionsFor, isGuildAdmin, isGrantGuild } = useInitiativeAccess();
+  const { isGuildAdmin, isGrantGuild } = useInitiativeAccess();
   const gp = useGuildPath();
   const searchParams = useSearch({ strict: false }) as {
     initiativeId?: string;
@@ -91,9 +90,6 @@ export const DocumentsView = ({
     lockedInitiativeId,
     resetOnParamCleared: true,
   });
-  const { data: filteredInitiativePermissions } = useMyInitiativePermissions(
-    !lockedInitiativeId && filteredInitiativeId ? filteredInitiativeId : null
-  );
   const searchParamsRef = useRef(searchParams);
   searchParamsRef.current = searchParams;
   const [searchQuery, setSearchQuery] = useState("");
@@ -341,16 +337,12 @@ export const DocumentsView = ({
 
   const initiativesQuery = useInitiatives();
 
-  // Initiatives the user can create documents in — resolved through the shared
-  // access helper so guild admins are included regardless of any membership row.
-  const creatableInitiatives = useMemo(() => {
-    if (!initiativesQuery.data || !user) {
-      return [];
-    }
-    return filterVisible(initiativesQuery.data).filter(
-      (initiative) => permissionsFor(initiative)[Tool.document].create
-    );
-  }, [initiativesQuery.data, user, filterVisible, permissionsFor]);
+  // Canonical create answer: the locked/filtered initiative's server-computed
+  // create flag, or (in the "All" view) whether any visible initiative grants
+  // it. `creatableInitiatives` feeds the create dialog's initiative picker.
+  const { canCreate: canCreateDerived, creatableInitiatives } = useToolCreateAccess(Tool.document, {
+    initiativeId: lockedInitiativeId ?? filteredInitiativeId,
+  });
 
   const [createDialogInitiativeId, setCreateDialogInitiativeId] = useState<number | undefined>(
     lockedInitiativeId ?? undefined
@@ -444,28 +436,9 @@ export const DocumentsView = ({
     isGrantGuild,
   ]);
 
-  // Use explicit canCreate prop if provided (from role permissions), otherwise check filtered initiative permissions
-  const canCreateDocuments = useMemo(() => {
-    // If explicit prop provided (e.g., from InitiativeDetailPage), use it
-    if (canCreate !== undefined) {
-      return canCreate;
-    }
-    // If a specific initiative is filtered, check permissions for that initiative
-    if (filteredInitiativeId && filteredInitiativePermissions) {
-      return canCreateTool(filteredInitiativePermissions, Tool.document);
-    }
-    // Fall back to legacy check (user is PM in any initiative)
-    if (lockedInitiativeId) {
-      return creatableInitiatives.some((initiative) => initiative.id === lockedInitiativeId);
-    }
-    return creatableInitiatives.length > 0;
-  }, [
-    canCreate,
-    filteredInitiativeId,
-    filteredInitiativePermissions,
-    lockedInitiativeId,
-    creatableInitiatives,
-  ]);
+  // An explicit canCreate prop (e.g. from InitiativeDetailPage) wins; otherwise
+  // use the canonical derivation above.
+  const canCreateDocuments = canCreate ?? canCreateDerived;
 
   // Drive the app-wide bottom-nav add button for this route.
   useRegisterPrimaryCreateAction(

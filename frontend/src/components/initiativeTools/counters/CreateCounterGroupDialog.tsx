@@ -1,4 +1,5 @@
 import type { CounterGroupRead } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   type CreateToolConfig,
   CreateToolDialog,
@@ -13,6 +14,7 @@ type CreateCounterGroupDialogProps = DialogProps & {
 };
 
 const COUNTER_GROUP_CONFIG: CreateToolConfig<CounterGroupRead> = {
+  tool: Tool.counter_group,
   namespace: "counterGroups",
   titleKey: "createGroup",
   descriptionKey: "noGroupsDescription",

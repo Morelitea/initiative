@@ -47,7 +47,8 @@ import { useRescheduleCalendarEvent } from "@/hooks/useCalendarEvents";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import { getDefaultFiltersVisibility } from "@/hooks/useDefaultFiltersOpen";
 import { useGridSelection } from "@/hooks/useGridSelection";
-import { canCreateTool, useMyInitiativePermissions } from "@/hooks/useInitiativeRoles";
+import { useInitiativeAccess, useToolCreateAccess } from "@/hooks/useInitiativeAccess";
+import { useInitiatives } from "@/hooks/useInitiatives";
 import { useProjects } from "@/hooks/useProjects";
 import { useUpdateTask } from "@/hooks/useTasks";
 import { useViewPreference } from "@/hooks/useViewPreference";
@@ -130,7 +131,8 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
   const initiativeId =
     fixedInitiativeId ?? (searchParams.initiativeId ? Number(searchParams.initiativeId) : null);
 
-  const { data: initiativePermissions } = useMyInitiativePermissions(initiativeId);
+  const { permissionsFor } = useInitiativeAccess();
+  const initiativesQuery = useInitiatives();
 
   const searchParamsRef = useRef(searchParams);
   searchParamsRef.current = searchParams;
@@ -263,25 +265,26 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
   // Same param shape the sidebar and dashboard use, so this shares their cache.
   const projectsQuery = useProjects(undefined, { enabled: showTasks, staleTime: 30_000 });
 
-  const canCreateEvents = useMemo(() => {
-    if (canCreate !== undefined) return canCreate;
-    if (initiativeId && initiativePermissions) {
-      return canCreateTool(initiativePermissions, Tool.calendar_event);
-    }
-    return false;
-  }, [canCreate, initiativeId, initiativePermissions]);
+  // Canonical create answer: the selected initiative's server-computed create
+  // flag, or (in the "All" view) whether any visible initiative grants it —
+  // the create dialog's initiative picker chooses the target. An explicit
+  // canCreate prop (e.g. from InitiativeDetailPage) wins.
+  const { canCreate: canCreateDerived } = useToolCreateAccess(Tool.calendar_event, {
+    initiativeId,
+  });
+  const canCreateEvents = canCreate ?? canCreateDerived;
 
   // Tasks belong to projects; the precise per-project edit permission is
   // enforced by the backend on drop. Here we gate task-chip dragging on
   // project-create permission as a proxy, so users who can't manage project
   // content don't get draggable task chips. Decoupled from canCreateEvents so
-  // event-create and task-edit are judged independently.
+  // event-create and task-edit are judged independently. The "All" view keeps
+  // chips non-draggable — its tasks span initiatives with differing access.
   const canEditTasks = useMemo(() => {
-    if (initiativeId && initiativePermissions) {
-      return canCreateTool(initiativePermissions, Tool.project);
-    }
-    return false;
-  }, [initiativeId, initiativePermissions]);
+    if (!initiativeId) return false;
+    const initiative = initiativesQuery.data?.find((item) => item.id === initiativeId);
+    return initiative ? permissionsFor(initiative)[Tool.project].create : false;
+  }, [initiativeId, initiativesQuery.data, permissionsFor]);
 
   // --- Merge events + tasks into calendar entries ---
   const calendarEntries = useMemo<CalendarEntry[]>(() => {
@@ -373,7 +376,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
 
   // Drive the app-wide bottom-nav add button for this route.
   useRegisterPrimaryCreateAction(
-    canCreateEvents && initiativeId
+    canCreateEvents
       ? {
           run: () => {
             setCreateDefaultDate(null);
@@ -389,7 +392,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
   };
 
   const handleSlotClick = (date: Date) => {
-    if (!canCreateEvents || !initiativeId) return;
+    if (!canCreateEvents) return;
     setCreateDefaultDate(date);
     setCreateDialogOpen(true);
   };
@@ -643,15 +646,14 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
         </div>
       )}
 
-      {initiativeId && (
-        <CreateEventDialog
-          open={createDialogOpen}
-          onOpenChange={handleCreateDialogOpenChange}
-          initiativeId={initiativeId}
-          defaultStartDate={defaultStartDate}
-          onSuccess={handleEventCreated}
-        />
-      )}
+      <CreateEventDialog
+        open={createDialogOpen}
+        onOpenChange={handleCreateDialogOpenChange}
+        initiativeId={fixedInitiativeId}
+        defaultInitiativeId={initiativeId ?? undefined}
+        defaultStartDate={defaultStartDate}
+        onSuccess={handleEventCreated}
+      />
 
       <BulkEditAccessDialog
         open={bulkAccessOpen}
