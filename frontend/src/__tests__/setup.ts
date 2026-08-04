@@ -132,6 +132,20 @@ if (!HTMLElement.prototype.scrollIntoView) {
   HTMLElement.prototype.scrollIntoView = () => {};
 }
 
+// jsdom's Blob implements arrayBuffer() but not stream(). MSW hands mocked
+// blob bodies to Node's Response constructor, which calls stream() on them.
+if (typeof Blob.prototype.stream !== "function") {
+  Blob.prototype.stream = function stream(this: Blob) {
+    const blob = this;
+    return new ReadableStream<Uint8Array>({
+      async start(controller) {
+        controller.enqueue(new Uint8Array(await blob.arrayBuffer()));
+        controller.close();
+      },
+    });
+  };
+}
+
 // ---------------------------------------------------------------------------
 // MSW lifecycle
 // ---------------------------------------------------------------------------
