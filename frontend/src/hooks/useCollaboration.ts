@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
 
-import { API_BASE_URL } from "@/api/client";
+import { buildGuildWsUrl } from "@/lib/wsUrl";
 import {
   type CollaborationProvider,
   type CollaboratorInfo,
@@ -89,23 +89,14 @@ export function useCollaboration({
   // Check if we have all required values
   const isReady = Boolean(enabled && user && activeGuildId && documentId);
 
-  // Build the WebSocket URL (memoized to detect changes)
-  // Token is NOT included in URL for security - sent via MSG_AUTH message instead
+  // Build the WebSocket URL (memoized to detect changes). The token is sent
+  // via MSG_AUTH message, not URL params; the guild is the /g/{guildId} path
+  // segment.
   const wsUrl = useMemo(() => {
     if (!isReady || !activeGuildId) {
       return null;
     }
-    // Build WebSocket URL - use Vite's proxy in development
-    const isAbsolute = API_BASE_URL.startsWith("http://") || API_BASE_URL.startsWith("https://");
-    const url = isAbsolute ? new URL(API_BASE_URL) : new URL(API_BASE_URL, window.location.origin);
-    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-    const normalizedPath = url.pathname.endsWith("/")
-      ? url.pathname.slice(0, -1)
-      : url.pathname || "/api/v1";
-    url.pathname = `${normalizedPath}/g/${activeGuildId}/collaboration/documents/${documentId}/collaborate`;
-    // Note: the token is sent via MSG_AUTH message, not URL params; the guild
-    // is the /g/{guildId} path segment.
-    return url.toString();
+    return buildGuildWsUrl(activeGuildId, `collaboration/documents/${documentId}/collaborate`);
   }, [isReady, activeGuildId, documentId]);
 
   // Auth params to pass to the provider (sent via MSG_AUTH message)
