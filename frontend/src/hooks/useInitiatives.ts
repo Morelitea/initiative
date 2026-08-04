@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 
 import type {
   InitiativeCreate,
-  InitiativeMemberRead,
   InitiativeRead,
   UserPublic,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -27,6 +26,7 @@ import {
   invalidateInitiativeMembers,
 } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useGuildMutation } from "@/hooks/useApiMutation";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import type { MutationOpts } from "@/types/mutation";
@@ -38,8 +38,7 @@ export const useInitiatives = (options?: QueryOpts<InitiativeRead[]>) => {
   const guildId = useActiveGuildId();
   return useQuery<InitiativeRead[]>({
     queryKey: getListInitiativesApiV1GGuildIdInitiativesGetQueryKey(guildId),
-    queryFn: () =>
-      listInitiativesApiV1GGuildIdInitiativesGet(guildId) as unknown as Promise<InitiativeRead[]>,
+    queryFn: () => listInitiativesApiV1GGuildIdInitiativesGet(guildId),
     ...options,
   });
 };
@@ -57,8 +56,7 @@ export const useInitiativesForGuild = (
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<InitiativeRead[]>({
     queryKey: getListInitiativesApiV1GGuildIdInitiativesGetQueryKey(guildId!),
-    queryFn: () =>
-      listInitiativesApiV1GGuildIdInitiativesGet(guildId!) as unknown as Promise<InitiativeRead[]>,
+    queryFn: () => listInitiativesApiV1GGuildIdInitiativesGet(guildId!),
     enabled: !!guildId && userEnabled,
     ...rest,
   });
@@ -72,11 +70,7 @@ export const useInitiative = (initiativeId: number | null, options?: QueryOpts<I
       guildId,
       initiativeId!
     ),
-    queryFn: () =>
-      getInitiativeApiV1GGuildIdInitiativesInitiativeIdGet(
-        guildId,
-        initiativeId!
-      ) as unknown as Promise<InitiativeRead>,
+    queryFn: () => getInitiativeApiV1GGuildIdInitiativesInitiativeIdGet(guildId, initiativeId!),
     enabled: initiativeId !== null && Number.isFinite(initiativeId) && userEnabled,
     ...rest,
   });
@@ -94,16 +88,16 @@ export const useInitiativeMembers = (
       initiativeId!
     ),
     queryFn: () =>
-      getInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGet(
-        guildId,
-        initiativeId!
-      ) as unknown as Promise<UserPublic[]>,
+      getInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGet(guildId, initiativeId!),
     enabled: initiativeId !== null && Number.isFinite(initiativeId) && userEnabled,
     ...rest,
   });
 };
 
 // ── Mutations ───────────────────────────────────────────────────────────────
+
+const invalidateInitiativeMembersAndList = (initiativeId: number) =>
+  Promise.all([invalidateInitiativeMembers(initiativeId), invalidateAllInitiatives()]);
 
 export const useCreateInitiative = (options?: MutationOpts<InitiativeRead, InitiativeCreate>) => {
   const { t } = useTranslation("initiatives");
@@ -115,10 +109,7 @@ export const useCreateInitiative = (options?: MutationOpts<InitiativeRead, Initi
     // The generated InitiativeCreate carries one `{plural}_enabled` field per
     // toggleable tool — no hand-maintained field list to drift.
     mutationFn: async (data: InitiativeCreate) => {
-      return createInitiativeApiV1GGuildIdInitiativesPost(
-        guildId,
-        data
-      ) as unknown as Promise<InitiativeRead>;
+      return createInitiativeApiV1GGuildIdInitiativesPost(guildId, data);
     },
     onSuccess: (...args) => {
       toast.success(t("createDialog.created", { name: args[0].name }));
@@ -141,62 +132,41 @@ export const useUpdateInitiative = (
       data: Parameters<typeof updateInitiativeApiV1GGuildIdInitiativesInitiativeIdPatch>[2];
     }
   >
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async ({
-      initiativeId,
-      data,
-    }: {
+) =>
+  useGuildMutation<
+    InitiativeRead,
+    {
       initiativeId: number;
       data: Parameters<typeof updateInitiativeApiV1GGuildIdInitiativesInitiativeIdPatch>[2];
-    }) => {
-      return updateInitiativeApiV1GGuildIdInitiativesInitiativeIdPatch(
-        guildId,
-        initiativeId,
-        data
-      ) as unknown as Promise<InitiativeRead>;
+    }
+  >(
+    {
+      mutationFn: (guildId, { initiativeId, data }) =>
+        updateInitiativeApiV1GGuildIdInitiativesInitiativeIdPatch(guildId, initiativeId, data),
+      invalidate: (_data, { initiativeId }) =>
+        Promise.all([invalidateAllInitiatives(), invalidateInitiative(initiativeId)]),
+      errorKey: "initiatives:settings.updateError",
     },
-    onSuccess: (...args) => {
-      void invalidateAllInitiatives();
-      void invalidateInitiative(args[1].initiativeId);
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "initiatives:settings.updateError"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );
 
-export const useDeleteInitiative = (options?: MutationOpts<void, number>) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+export const useDeleteInitiative = (options?: MutationOpts<void, number>) =>
+  useGuildMutation<void, number>(
+    {
+      mutationFn: (guildId, initiativeId) =>
+        deleteInitiativeApiV1GGuildIdInitiativesInitiativeIdDelete(guildId, initiativeId),
+      invalidate: () => invalidateAllInitiatives(),
+      errorKey: "initiatives:settings.deleteError",
+    },
+    options
+  );
 
-  return useMutation({
-    ...rest,
-    mutationFn: async (initiativeId: number) => {
-      await deleteInitiativeApiV1GGuildIdInitiativesInitiativeIdDelete(guildId, initiativeId);
-    },
-    onSuccess: (...args) => {
-      void invalidateAllInitiatives();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "initiatives:settings.deleteError"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
-
+// Note: the add/update member endpoints return the full updated InitiativeRead
+// (roster included), not a single member row — the hooks type what the API
+// actually sends.
 export const useAddInitiativeMember = (
   options?: MutationOpts<
-    InitiativeMemberRead,
+    InitiativeRead,
     {
       initiativeId: number;
       data: Parameters<
@@ -204,65 +174,48 @@ export const useAddInitiativeMember = (
       >[2];
     }
   >
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async ({
-      initiativeId,
-      data,
-    }: {
+) =>
+  useGuildMutation<
+    InitiativeRead,
+    {
       initiativeId: number;
       data: Parameters<
         typeof addInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersPost
       >[2];
-    }) => {
-      return addInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersPost(
-        guildId,
-        initiativeId,
-        data
-      ) as unknown as Promise<InitiativeMemberRead>;
+    }
+  >(
+    {
+      mutationFn: (guildId, { initiativeId, data }) =>
+        addInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersPost(
+          guildId,
+          initiativeId,
+          data
+        ),
+      invalidate: (_data, { initiativeId }) => invalidateInitiativeMembersAndList(initiativeId),
     },
-    onSuccess: (...args) => {
-      void invalidateInitiativeMembers(args[1].initiativeId);
-      void invalidateAllInitiatives();
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useRemoveInitiativeMember = (
   options?: MutationOpts<void, { initiativeId: number; userId: number }>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async ({ initiativeId, userId }: { initiativeId: number; userId: number }) => {
-      await removeInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdDelete(
-        guildId,
-        initiativeId,
-        userId
-      );
+) =>
+  useGuildMutation<void, { initiativeId: number; userId: number }>(
+    {
+      mutationFn: async (guildId, { initiativeId, userId }) => {
+        await removeInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdDelete(
+          guildId,
+          initiativeId,
+          userId
+        );
+      },
+      invalidate: (_data, { initiativeId }) => invalidateInitiativeMembersAndList(initiativeId),
     },
-    onSuccess: (...args) => {
-      void invalidateInitiativeMembers(args[1].initiativeId);
-      void invalidateAllInitiatives();
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useUpdateInitiativeMember = (
   options?: MutationOpts<
-    InitiativeMemberRead,
+    InitiativeRead,
     {
       initiativeId: number;
       userId: number;
@@ -271,36 +224,26 @@ export const useUpdateInitiativeMember = (
       >[3];
     }
   >
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async ({
-      initiativeId,
-      userId,
-      data,
-    }: {
+) =>
+  useGuildMutation<
+    InitiativeRead,
+    {
       initiativeId: number;
       userId: number;
       data: Parameters<
         typeof updateInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdPatch
       >[3];
-    }) => {
-      return updateInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdPatch(
-        guildId,
-        initiativeId,
-        userId,
-        data
-      ) as unknown as Promise<InitiativeMemberRead>;
+    }
+  >(
+    {
+      mutationFn: (guildId, { initiativeId, userId, data }) =>
+        updateInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdPatch(
+          guildId,
+          initiativeId,
+          userId,
+          data
+        ),
+      invalidate: (_data, { initiativeId }) => invalidateInitiativeMembersAndList(initiativeId),
     },
-    onSuccess: (...args) => {
-      void invalidateInitiativeMembers(args[1].initiativeId);
-      void invalidateAllInitiatives();
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
+    options
+  );

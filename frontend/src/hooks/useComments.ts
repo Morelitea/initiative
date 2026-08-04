@@ -1,4 +1,4 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   createCommentApiV1GGuildIdCommentsPost,
@@ -16,15 +16,12 @@ import type {
   ListCommentsApiV1GGuildIdCommentsGetParams,
   MentionEntityType,
   MentionSuggestion,
-  MentionSuggestionListResponse,
   RecentActivityEntry,
   RecentCommentsApiV1GGuildIdCommentsRecentGetParams,
 } from "@/api/generated/initiativeAPI.schemas";
 import { invalidateAllComments } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { toast } from "@/lib/chesterToast";
-import { getErrorMessage } from "@/lib/errorMessage";
-import { castQueryFn } from "@/lib/query-utils";
+import { useGuildMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -37,9 +34,7 @@ export const useComments = (
   const guildId = useActiveGuildId();
   return useQuery<CommentRead[]>({
     queryKey: getListCommentsApiV1GGuildIdCommentsGetQueryKey(guildId, params),
-    queryFn: castQueryFn<CommentRead[]>(() =>
-      listCommentsApiV1GGuildIdCommentsGet(guildId, params)
-    ),
+    queryFn: () => listCommentsApiV1GGuildIdCommentsGet(guildId, params),
     ...options,
   });
 };
@@ -51,9 +46,7 @@ export const useRecentComments = (
   const guildId = useActiveGuildId();
   return useQuery<RecentActivityEntry[]>({
     queryKey: getRecentCommentsApiV1GGuildIdCommentsRecentGetQueryKey(guildId, params),
-    queryFn: castQueryFn<RecentActivityEntry[]>(() =>
-      recentCommentsApiV1GGuildIdCommentsRecentGet(guildId, params)
-    ),
+    queryFn: () => recentCommentsApiV1GGuildIdCommentsRecentGet(guildId, params),
     staleTime: 30 * 1000,
     ...options,
   });
@@ -75,11 +68,11 @@ export const useMentionSuggestions = (
     // The endpoint returns a paginated envelope; the pickers only need the
     // first page's items.
     queryFn: async () => {
-      const res = (await searchMentionablesApiV1GGuildIdCommentsMentionsSearchGet(guildId, {
+      const res = await searchMentionablesApiV1GGuildIdCommentsMentionsSearchGet(guildId, {
         entity_type: type,
         initiative_id: initiativeId,
         q: query,
-      })) as unknown as MentionSuggestionListResponse;
+      });
       return res.items ?? [];
     },
     staleTime: 30_000,
@@ -119,29 +112,15 @@ export const useCommentsCache = (params: ListCommentsApiV1GGuildIdCommentsGetPar
 
 export const useCreateComment = (
   options?: MutationOpts<CommentRead, Parameters<typeof createCommentApiV1GGuildIdCommentsPost>[1]>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (data: Parameters<typeof createCommentApiV1GGuildIdCommentsPost>[1]) => {
-      return createCommentApiV1GGuildIdCommentsPost(
-        guildId,
-        data
-      ) as unknown as Promise<CommentRead>;
+) =>
+  useGuildMutation<CommentRead, Parameters<typeof createCommentApiV1GGuildIdCommentsPost>[1]>(
+    {
+      mutationFn: (guildId, data) => createCommentApiV1GGuildIdCommentsPost(guildId, data),
+      invalidate: () => invalidateAllComments(),
+      errorKey: "common:error",
     },
-    onSuccess: (...args) => {
-      void invalidateAllComments();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "common:error"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useUpdateComment = (
   options?: MutationOpts<
@@ -151,54 +130,30 @@ export const useUpdateComment = (
       data: Parameters<typeof updateCommentApiV1GGuildIdCommentsCommentIdPatch>[2];
     }
   >
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async ({
-      commentId,
-      data,
-    }: {
+) =>
+  useGuildMutation<
+    CommentRead,
+    {
       commentId: number;
       data: Parameters<typeof updateCommentApiV1GGuildIdCommentsCommentIdPatch>[2];
-    }) => {
-      return updateCommentApiV1GGuildIdCommentsCommentIdPatch(
-        guildId,
-        commentId,
-        data
-      ) as unknown as Promise<CommentRead>;
+    }
+  >(
+    {
+      mutationFn: (guildId, { commentId, data }) =>
+        updateCommentApiV1GGuildIdCommentsCommentIdPatch(guildId, commentId, data),
+      invalidate: () => invalidateAllComments(),
+      errorKey: "common:error",
     },
-    onSuccess: (...args) => {
-      void invalidateAllComments();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "common:error"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );
 
-export const useDeleteComment = (options?: MutationOpts<void, number>) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (commentId: number) => {
-      await deleteCommentApiV1GGuildIdCommentsCommentIdDelete(guildId, commentId);
+export const useDeleteComment = (options?: MutationOpts<void, number>) =>
+  useGuildMutation<void, number>(
+    {
+      mutationFn: (guildId, commentId) =>
+        deleteCommentApiV1GGuildIdCommentsCommentIdDelete(guildId, commentId),
+      invalidate: () => invalidateAllComments(),
+      errorKey: "common:error",
     },
-    onSuccess: (...args) => {
-      void invalidateAllComments();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "common:error"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );

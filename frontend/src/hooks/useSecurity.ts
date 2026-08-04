@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 import {
   getListDeviceTokensApiV1AuthDeviceTokensGetQueryKey,
@@ -16,6 +16,7 @@ import {
   getListMyApiKeysApiV1UsersMeApiKeysGetQueryKey,
   listMyApiKeysApiV1UsersMeApiKeysGet,
 } from "@/api/generated/users/users";
+import { useApiMutation } from "@/hooks/useApiMutation";
 import { queryClient } from "@/lib/queryClient";
 import type { MutationOpts } from "@/types/mutation";
 
@@ -29,15 +30,14 @@ export const DEVICE_TOKENS_QUERY_KEY = getListDeviceTokensApiV1AuthDeviceTokensG
 export const useMyApiKeys = () => {
   return useQuery<ApiKeyListResponse>({
     queryKey: API_KEYS_QUERY_KEY,
-    queryFn: () => listMyApiKeysApiV1UsersMeApiKeysGet() as unknown as Promise<ApiKeyListResponse>,
+    queryFn: () => listMyApiKeysApiV1UsersMeApiKeysGet(),
   });
 };
 
 export const useDeviceTokens = () => {
   return useQuery<DeviceTokenInfo[]>({
     queryKey: DEVICE_TOKENS_QUERY_KEY,
-    queryFn: () =>
-      listDeviceTokensApiV1AuthDeviceTokensGet() as unknown as Promise<DeviceTokenInfo[]>,
+    queryFn: () => listDeviceTokensApiV1AuthDeviceTokensGet(),
   });
 };
 
@@ -50,61 +50,32 @@ type CreateApiKeyVars = {
   guild_id?: number | null;
 };
 
-export const useCreateApiKey = (options?: MutationOpts<ApiKeyCreateResponse, CreateApiKeyVars>) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+export const useCreateApiKey = (options?: MutationOpts<ApiKeyCreateResponse, CreateApiKeyVars>) =>
+  useApiMutation<ApiKeyCreateResponse, CreateApiKeyVars>(
+    {
+      mutationFn: (data) =>
+        createMyApiKeyApiV1UsersMeApiKeysPost(
+          data as Parameters<typeof createMyApiKeyApiV1UsersMeApiKeysPost>[0]
+        ),
+      invalidate: () => queryClient.invalidateQueries({ queryKey: API_KEYS_QUERY_KEY }),
+    },
+    options
+  );
 
-  return useMutation({
-    ...rest,
-    mutationFn: async (data: CreateApiKeyVars) => {
-      return createMyApiKeyApiV1UsersMeApiKeysPost(
-        data as Parameters<typeof createMyApiKeyApiV1UsersMeApiKeysPost>[0]
-      ) as unknown as Promise<ApiKeyCreateResponse>;
+export const useDeleteApiKey = (options?: MutationOpts<void, number>) =>
+  useApiMutation<void, number>(
+    {
+      mutationFn: (apiKeyId) => deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete(apiKeyId),
+      invalidate: () => queryClient.invalidateQueries({ queryKey: API_KEYS_QUERY_KEY }),
     },
-    onSuccess: (...args) => {
-      void queryClient.invalidateQueries({ queryKey: API_KEYS_QUERY_KEY });
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );
 
-export const useDeleteApiKey = (options?: MutationOpts<void, number>) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (apiKeyId: number) => {
-      await deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete(apiKeyId);
+export const useRevokeDeviceToken = (options?: MutationOpts<void, number>) =>
+  useApiMutation<void, number>(
+    {
+      mutationFn: (tokenId) => revokeDeviceTokenApiV1AuthDeviceTokensTokenIdDelete(tokenId),
+      invalidate: () => queryClient.invalidateQueries({ queryKey: DEVICE_TOKENS_QUERY_KEY }),
     },
-    onSuccess: (...args) => {
-      void queryClient.invalidateQueries({ queryKey: API_KEYS_QUERY_KEY });
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
-
-export const useRevokeDeviceToken = (options?: MutationOpts<void, number>) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (tokenId: number) => {
-      await revokeDeviceTokenApiV1AuthDeviceTokensTokenIdDelete(tokenId);
-    },
-    onSuccess: (...args) => {
-      void queryClient.invalidateQueries({ queryKey: DEVICE_TOKENS_QUERY_KEY });
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );

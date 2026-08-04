@@ -40,7 +40,7 @@ import type { QueryOpts } from "@/types/query";
 export const useMyTrashList = (options?: QueryOpts<TrashListResponse>) =>
   useQuery<TrashListResponse>({
     queryKey: getListMyTrashApiV1MeTrashGetQueryKey(),
-    queryFn: () => listMyTrashApiV1MeTrashGet() as unknown as Promise<TrashListResponse>,
+    queryFn: () => listMyTrashApiV1MeTrashGet(),
     ...options,
   });
 
@@ -53,8 +53,7 @@ export const useGuildTrashList = (options?: QueryOpts<TrashListResponse>) => {
   const guildId = useActiveGuildId();
   return useQuery<TrashListResponse>({
     queryKey: getListGuildTrashApiV1GGuildIdTrashGetQueryKey(guildId),
-    queryFn: () =>
-      listGuildTrashApiV1GGuildIdTrashGet(guildId) as unknown as Promise<TrashListResponse>,
+    queryFn: () => listGuildTrashApiV1GGuildIdTrashGet(guildId),
     ...options,
   });
 };
@@ -104,12 +103,14 @@ export const useRestoreTrashEntity = (
     ...rest,
     mutationFn: async ({ guildId, entityType, entityId, body }: RestoreTrashVars) => {
       try {
+        // The restore endpoint's OpenAPI response is untyped (plain dict), so
+        // narrow the payload to the local union here.
         return (await restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost(
           guildId,
           entityType,
           entityId,
           body ?? {}
-        )) as unknown as RestoreTrashResponse;
+        )) as RestoreTrashResponse;
       } catch (err) {
         // The needs-reassignment branch is a successful interaction shape
         // (the user just needs to pick an owner) but the API correctly
@@ -165,11 +166,11 @@ export const usePurgeTrashEntity = (options?: MutationOpts<void, PurgeTrashVars>
   return useMutation({
     ...rest,
     mutationFn: async ({ guildId, entityType, entityId }: PurgeTrashVars) => {
-      return purgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete(
+      await purgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete(
         guildId,
         entityType,
         entityId
-      ) as unknown as Promise<void>;
+      );
     },
     onSuccess: (...args) => {
       const [, variables] = args;

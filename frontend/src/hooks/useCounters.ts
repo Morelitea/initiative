@@ -101,11 +101,7 @@ export const useCounterGroupsList = (
   const guildId = useActiveGuildId();
   return useQuery<CounterGroupListResponse>({
     queryKey: getListCounterGroupsApiV1GGuildIdCounterGroupsGetQueryKey(guildId, params),
-    queryFn: () =>
-      listCounterGroupsApiV1GGuildIdCounterGroupsGet(
-        guildId,
-        params
-      ) as unknown as Promise<CounterGroupListResponse>,
+    queryFn: () => listCounterGroupsApiV1GGuildIdCounterGroupsGet(guildId, params),
     placeholderData: keepPreviousData,
     ...options,
   });
@@ -121,9 +117,7 @@ export const useCounterGroupCountsByInitiative = (
         guildId
       ),
     queryFn: () =>
-      getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet(
-        guildId
-      ) as unknown as Promise<InitiativeGroupedCountsResponse>,
+      getCounterGroupCountsByInitiativeApiV1GGuildIdCounterGroupsCountsByInitiativeGet(guildId),
     ...options,
   });
 };
@@ -133,11 +127,7 @@ export const useCounterGroup = (groupId: number | null, options?: QueryOpts<Coun
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<CounterGroupRead>({
     queryKey: getReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetQueryKey(guildId, groupId!),
-    queryFn: () =>
-      readCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet(
-        guildId,
-        groupId!
-      ) as unknown as Promise<CounterGroupRead>,
+    queryFn: () => readCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet(guildId, groupId!),
     enabled: groupId !== null && Number.isFinite(groupId) && userEnabled,
     ...rest,
   });

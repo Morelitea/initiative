@@ -26,6 +26,7 @@ import type {
   FilterCondition,
   ListTasksApiV1GGuildIdTasksGetParams,
   TaskListRead,
+  TaskRead,
   TaskReorderRequest,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -89,6 +90,7 @@ import { useViewPreference } from "@/hooks/useViewPreference";
 import { toast } from "@/lib/chesterToast";
 import { getProjectColor } from "@/lib/projectColor";
 import { getItem, setItem } from "@/lib/storage";
+import { taskReadToListRow } from "@/lib/taskUtils";
 
 type ViewMode = "table" | "kanban" | "calendar" | "gantt";
 
@@ -445,7 +447,7 @@ export const ProjectTasksSection = ({
     onSuccess: (newTask) => {
       setComposerValue(emptyTaskFormValue({ statusId: defaultStatusId }));
       setIsComposerOpen(false);
-      setLocalOverride((prev) => [...(prev ?? projectTasks), newTask]);
+      setLocalOverride((prev) => [...(prev ?? projectTasks), taskReadToListRow(newTask)]);
       toast.success(t("tasks.taskCreated"));
     },
   });
@@ -489,14 +491,15 @@ export const ProjectTasksSection = ({
   // the board/calendar reflects it immediately (and drop the task if it no
   // longer matches the active status filter).
   const applyTaskUpdateToLocal = useCallback(
-    (updatedTask: TaskListRead) => {
+    (updatedTask: TaskRead) => {
       setLocalOverride((prev) => {
         const base = prev ?? projectTasks;
         if (!base.length) return prev;
         const matchesFilters =
           statusFilters.length === 0 || statusFilters.includes(updatedTask.task_status_id);
         if (matchesFilters) {
-          return base.map((task) => (task.id === updatedTask.id ? updatedTask : task));
+          const row = taskReadToListRow(updatedTask);
+          return base.map((task) => (task.id === row.id ? row : task));
         }
         return base.filter((task) => task.id !== updatedTask.id);
       });

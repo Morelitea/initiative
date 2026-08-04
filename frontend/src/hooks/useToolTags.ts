@@ -1,5 +1,3 @@
-import { useMutation } from "@tanstack/react-query";
-
 import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { setToolTagsApiV1GGuildIdToolsToolToolIdTagsPut } from "@/api/generated/tools/tools";
@@ -15,9 +13,7 @@ import {
   invalidateCounterGroup,
   invalidateQueue,
 } from "@/api/query-keys";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { toast } from "@/lib/chesterToast";
-import { getErrorMessage } from "@/lib/errorMessage";
+import { useGuildMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
 
 /**
@@ -56,24 +52,15 @@ const TOOL_TAG_INVALIDATORS: Record<Tool, (id: number) => void> = {
 export const useSetToolTags = (
   tool: Tool,
   options?: MutationOpts<TagSummary[], { id: number; tagIds: number[] }>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation<TagSummary[], Error, { id: number; tagIds: number[] }>({
-    ...rest,
-    mutationFn: async ({ id, tagIds }) =>
-      setToolTagsApiV1GGuildIdToolsToolToolIdTagsPut(guildId, tool, id, {
-        tag_ids: tagIds,
-      }) as unknown as Promise<TagSummary[]>,
-    onSuccess: (...args) => {
-      TOOL_TAG_INVALIDATORS[tool](args[1].id);
-      onSuccess?.(...args);
+) =>
+  useGuildMutation<TagSummary[], { id: number; tagIds: number[] }>(
+    {
+      mutationFn: (guildId, { id, tagIds }) =>
+        setToolTagsApiV1GGuildIdToolsToolToolIdTagsPut(guildId, tool, id, {
+          tag_ids: tagIds,
+        }),
+      invalidate: (_data, vars) => TOOL_TAG_INVALIDATORS[tool](vars.id),
+      errorKey: "tags:toolTagsError",
     },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "tags:toolTagsError"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );

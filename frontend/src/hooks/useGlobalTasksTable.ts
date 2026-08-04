@@ -249,7 +249,7 @@ export function useGlobalTasksTable({ view, storageKeyPrefix }: UseGlobalTasksTa
 
   const tasksQuery = useQuery<TaskListResponse>({
     queryKey: getMyTasksQueryKey(tasksParams),
-    queryFn: () => listMyTasks(tasksParams) as unknown as Promise<TaskListResponse>,
+    queryFn: () => listMyTasks(tasksParams),
     placeholderData: keepPreviousData,
   });
 
@@ -263,7 +263,7 @@ export function useGlobalTasksTable({ view, storageKeyPrefix }: UseGlobalTasksTa
 
       void localQueryClient.prefetchQuery({
         queryKey: getMyTasksQueryKey(prefetchParams),
-        queryFn: () => listMyTasks(prefetchParams) as unknown as Promise<TaskListResponse>,
+        queryFn: () => listMyTasks(prefetchParams),
         staleTime: 30_000,
       });
     },
@@ -311,10 +311,10 @@ export function useGlobalTasksTable({ view, storageKeyPrefix }: UseGlobalTasksTa
     }
     // Explicit guild address: the project lives in the task's guild, which
     // need not be the user's current context on these cross-guild pages.
-    const statuses = (await listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet(
+    const statuses = await listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet(
       guildId,
       projectId
-    )) as unknown as TaskStatusRead[];
+    );
     const merged = cached
       ? [
           ...cached.statuses,

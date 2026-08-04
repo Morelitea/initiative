@@ -26,11 +26,7 @@ export const useCalendarEntries = (
   const guildId = useActiveGuildId();
   return useQuery<CalendarEntriesResponse>({
     queryKey: getListCalendarEntriesApiV1GGuildIdCalendarEntriesGetQueryKey(guildId, params),
-    queryFn: () =>
-      listCalendarEntriesApiV1GGuildIdCalendarEntriesGet(
-        guildId,
-        params
-      ) as unknown as Promise<CalendarEntriesResponse>,
+    queryFn: () => listCalendarEntriesApiV1GGuildIdCalendarEntriesGet(guildId, params),
     placeholderData: keepPreviousData,
     ...options,
   });
@@ -46,10 +42,7 @@ export const useMyCalendarEntries = (
 ) => {
   return useQuery<CalendarEntriesResponse>({
     queryKey: getListMyCalendarEntriesApiV1MeCalendarEntriesGetQueryKey(params),
-    queryFn: () =>
-      listMyCalendarEntriesApiV1MeCalendarEntriesGet(
-        params
-      ) as unknown as Promise<CalendarEntriesResponse>,
+    queryFn: () => listMyCalendarEntriesApiV1MeCalendarEntriesGet(params),
     placeholderData: keepPreviousData,
     ...options,
   });
