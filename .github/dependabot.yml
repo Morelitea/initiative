@@ -22,6 +22,30 @@ updates:
       semver-major-days: 7
       semver-minor-days: 5
       semver-patch-days: 3
+    # Bump package families as a single PR. lexical and capacitor are released
+    # in lockstep (mixed versions within the family are a broken state); the
+    # rest are grouped to cut PR noise.
+    groups:
+      lexical:
+        patterns:
+          - "lexical"
+          - "@lexical/*"
+      capacitor:
+        patterns:
+          - "@capacitor/*"
+          - "@capacitor-community/*"
+      radix-ui:
+        patterns:
+          - "@radix-ui/*"
+      tanstack:
+        patterns:
+          - "@tanstack/*"
+      dnd-kit:
+        patterns:
+          - "@dnd-kit/*"
+      testing-library:
+        patterns:
+          - "@testing-library/*"
     # Dev-only build tools — vulnerabilities in these don't affect production.
     # Security alerts for these are dismissed via auto-triage rules in
     # Settings > Advanced Security > Dependabot rules.
