@@ -1,9 +1,10 @@
 import { Link, Outlet, useLocation, useRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
+import { SettingsTabsNav } from "@/components/settings/SettingsTabsNav";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
+import { matchActiveTab } from "@/lib/tabs";
 
 const userSettingsTabs = [
   { value: "profile", labelKey: "layout.tabs.profile", path: "/profile" },
@@ -33,12 +34,13 @@ export const UserSettingsLayout = () => {
     );
   }
 
+  const tabs = userSettingsTabs.map((tab) => ({
+    value: tab.value,
+    label: t(tab.labelKey),
+    path: tab.path,
+  }));
   const normalizedPath = location.pathname.replace(/\/+$/, "") || "/";
-  const tabsBySpecificity = [...userSettingsTabs].sort((a, b) => b.path.length - a.path.length);
-  const activeTab =
-    tabsBySpecificity.find(
-      (tab) => normalizedPath === tab.path || normalizedPath.startsWith(`${tab.path}/`)
-    )?.value ?? "registration";
+  const activeTab = matchActiveTab(tabs, normalizedPath, "registration");
 
   return (
     <div className="space-y-6">
@@ -46,26 +48,13 @@ export const UserSettingsLayout = () => {
         <h1 className="font-semibold text-3xl tracking-tight">{t("layout.title")}</h1>
         <p className="text-muted-foreground text-sm">{t("layout.subtitle")}</p>
       </div>
-      <Tabs
-        value={activeTab}
-        onValueChange={(value) => {
-          const tab = userSettingsTabs.find((item) => item.value === value);
-          if (tab) {
-            router.navigate({ to: tab.path });
-          }
-        }}
+      <SettingsTabsNav
+        tabs={tabs}
+        activeTab={activeTab}
+        onNavigate={(path) => router.navigate({ to: path })}
       >
-        <div className="-mx-4 overflow-x-auto pb-2 md:mx-0 md:overflow-visible">
-          <TabsList className="w-full min-w-max justify-start gap-2 px-1 md:min-w-0">
-            {userSettingsTabs.map((tab) => (
-              <TabsTrigger key={tab.value} value={tab.value} className="shrink-0">
-                {t(tab.labelKey)}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </div>
         <Outlet />
-      </Tabs>
+      </SettingsTabsNav>
     </div>
   );
 };
