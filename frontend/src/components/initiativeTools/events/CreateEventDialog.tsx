@@ -8,15 +8,10 @@ import type {
   TaskListReadRecurrenceStrategy,
   TaskRecurrenceOutput,
 } from "@/api/generated/initiativeAPI.schemas";
-import { ShareControl } from "@/components/access/ShareControl";
+import { CreateAccessSection } from "@/components/access/CreateAccessSection";
+import { DEFAULT_GRANTS } from "@/components/access/grants";
 import { MemberMultiSelect } from "@/components/members/MemberSearchSelect";
 import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import {
@@ -81,13 +76,11 @@ export const CreateEventDialog = ({
   const [recurrence, setRecurrence] = useState<TaskRecurrenceOutput | null>(null);
   const [recurrenceStrategy, setRecurrenceStrategy] =
     useState<TaskListReadRecurrenceStrategy>("fixed");
-  const [grants, setGrants] = useState<ResourceGrantSchema[]>([
-    { all_initiative_members: true, level: "read" },
-  ]);
+  const [grants, setGrants] = useState<ResourceGrantSchema[]>([...DEFAULT_GRANTS]);
 
   // Attendee candidates come from the initiative-scoped member typeahead
   // (MemberMultiSelect below) — every initiative member may attend. Event DAC
-  // (the ShareControl below) is a separate concern tracked in #948.
+  // (the access section below) is a separate concern tracked in #948.
 
   useEffect(() => {
     if (open) {
@@ -113,7 +106,7 @@ export const CreateEventDialog = ({
       setAttendeeIds([]);
       setRecurrence(null);
       setRecurrenceStrategy("fixed");
-      setGrants([{ all_initiative_members: true, level: "read" }]);
+      setGrants([...DEFAULT_GRANTS]);
     }
   }, [open, defaultStartDate, defaultStartTime, user]);
 
@@ -368,14 +361,7 @@ export const CreateEventDialog = ({
             referenceDate={referenceDate}
           />
 
-          <Accordion type="single" collapsible defaultValue="advanced">
-            <AccordionItem value="advanced" className="border-b-0">
-              <AccordionTrigger>{t("common:createAccess.advancedOptions")}</AccordionTrigger>
-              <AccordionContent>
-                <ShareControl initiativeId={initiativeId} grants={grants} onChange={setGrants} />
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
+          <CreateAccessSection initiativeId={initiativeId} grants={grants} onChange={setGrants} />
         </div>
 
         <DialogFooter>
