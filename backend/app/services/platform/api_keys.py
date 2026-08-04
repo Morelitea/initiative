@@ -83,27 +83,39 @@ async def authenticate_api_key(
     Returns the key alongside the user so callers can enforce its scope
     (``read_only`` / ``guild_id``) — the user object alone carries no record of
     which credential authenticated the request.
+
+    ``user_api_keys`` is a pre-auth credential store (looked up by ``token_hash``
+    before the user is known), so it carries no request-path grant and no own-row
+    policy — the lookup runs on the system engine (``AdminSessionLocal``), like
+    ``auth_sessions``. The resolved ``User`` is loaded on the caller's request
+    ``session`` so it stays attached for the rest of the request; only the
+    detached ``api_key``'s already-loaded scope columns are read downstream.
     """
+    from app.db.session import AdminSessionLocal
+
     token_hash = _hash_token(token)
-    statement = select(UserApiKey).where(
-        UserApiKey.token_hash == token_hash, UserApiKey.is_active.is_(True)
-    )
-    result = await session.exec(statement)
-    api_key = result.one_or_none()
-    if not api_key:
-        return None
+    async with AdminSessionLocal() as admin_session:
+        statement = select(UserApiKey).where(
+            UserApiKey.token_hash == token_hash, UserApiKey.is_active.is_(True)
+        )
+        api_key = (await admin_session.exec(statement)).one_or_none()
+        if not api_key:
+            return None
 
-    now = datetime.now(timezone.utc)
-    if api_key.expires_at and api_key.expires_at <= now:
-        return None
+        now = datetime.now(timezone.utc)
+        if api_key.expires_at and api_key.expires_at <= now:
+            return None
 
-    user_result = await session.exec(select(User).where(User.id == api_key.user_id))
-    user = user_result.one_or_none()
-    if not user or user.status != UserStatus.active:
-        return None
+        user = (
+            await session.exec(select(User).where(User.id == api_key.user_id))
+        ).one_or_none()
+        if not user or user.status != UserStatus.active:
+            return None
 
-    api_key.last_used_at = now
-    await session.commit()
+        # Record use only once an active user is confirmed (matches prior order).
+        api_key.last_used_at = now
+        await admin_session.commit()
+
     return user, api_key
 
 

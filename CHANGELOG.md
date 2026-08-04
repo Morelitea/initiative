@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 - AI provider credentials are now stored per member inside their guild's isolated database schema under row-level security, are never returned by the API (only whether a key is set), and are purged when a user is deleted or anonymized. A connection's destination (provider and base URL) is always set by the mode's owner, so a member's key is only ever sent to that owner-set destination. Every outbound AI call — subtask/description/summary generation, connection tests, and model listing — flows through the shared guarded egress that connects only to the policy-validated address; private or internal addresses are permitted only for an operator-configured local (Ollama) model, never for a guild admin or member.
+- Personal API keys are now stored behind database row-level security and are reachable only through the system engine — the request path holds no grant on the table at all — matching the server-side session store. Creating, listing, deleting, and authenticating with API keys is unchanged.
 
 ## [0.58.3] - 2026-08-03
 
