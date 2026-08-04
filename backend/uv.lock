@@ -1201,7 +1201,7 @@ requires-dist = [
     { name = "bcrypt", specifier = "==5.0.0" },
     { name = "boto3", specifier = ">=1.35,<2" },
     { name = "email-validator", specifier = ">=2.3.0,<3" },
-    { name = "fastapi", specifier = ">=0.136.1,<0.141" },
+    { name = "fastapi", specifier = ">=0.136.1,<0.142" },
     { name = "fastmcp", specifier = ">=3.4.2" },
     { name = "google-auth", specifier = ">=2.53.0" },
     { name = "greenlet", specifier = ">=3.0" },
@@ -1224,7 +1224,7 @@ requires-dist = [
     { name = "sqlmodel", specifier = ">=0.0.38,<0.0.40" },
     { name = "typst", specifier = ">=0.15.0" },
     { name = "tzdata", specifier = ">=2026.2" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.41.0,<0.52" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.41.0,<0.53" },
 ]
 
 [package.metadata.requires-dev]
