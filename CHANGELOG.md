@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.59.0] - 2026-08-03
+
 ### Changed
 
 - **AI configuration is now connection-based with a single app-wide mode.** An operator chooses whether AI providers are configured at the **platform** level (the operator's connections apply to every guild), **per guild** (each guild admin configures its own), or **disabled** — one mode app-wide, mirroring the sign-in posture. A connection defines the provider, model, and an optional shared key; guild members attach **their own API key** and pick which connection they use, and never set the destination themselves. Standalone per-user AI (outside a guild) has been removed. An existing platform or guild provider is migrated into a connection automatically and its key is preserved; per-user AI keys are not migrated.
