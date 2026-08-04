@@ -2,14 +2,9 @@ import { type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { InitiativeRead, ResourceGrantSchema } from "@/api/generated/initiativeAPI.schemas";
-import { ShareControl } from "@/components/access/ShareControl";
+import { CreateAccessSection } from "@/components/access/CreateAccessSection";
+import { DEFAULT_GRANTS } from "@/components/access/grants";
 import { EmojiPicker } from "@/components/EmojiPicker";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -62,9 +57,7 @@ export const CreateProjectDialog = ({
   const [initiativeId, setInitiativeId] = useState<string | null>(defaultInitiativeId);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(NO_TEMPLATE_VALUE);
   const [isTemplateProject, setIsTemplateProject] = useState(false);
-  const [grants, setGrants] = useState<ResourceGrantSchema[]>([
-    { all_initiative_members: true, level: "read" },
-  ]);
+  const [grants, setGrants] = useState<ResourceGrantSchema[]>([...DEFAULT_GRANTS]);
 
   const templatesQuery = useTemplateProjects();
 
@@ -136,7 +129,7 @@ export const CreateProjectDialog = ({
             );
             setSelectedTemplateId(NO_TEMPLATE_VALUE);
             setIsTemplateProject(false);
-            setGrants([{ all_initiative_members: true, level: "read" }]);
+            setGrants([...DEFAULT_GRANTS]);
             onCreated();
           },
         }
@@ -273,18 +266,11 @@ export const CreateProjectDialog = ({
                 }}
               />
             </div>
-            <Accordion type="single" collapsible defaultValue="advanced">
-              <AccordionItem value="advanced" className="border-b-0">
-                <AccordionTrigger>{t("common:createAccess.advancedOptions")}</AccordionTrigger>
-                <AccordionContent>
-                  <ShareControl
-                    initiativeId={initiativeId ? Number(initiativeId) : null}
-                    grants={grants}
-                    onChange={setGrants}
-                  />
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
+            <CreateAccessSection
+              initiativeId={initiativeId ? Number(initiativeId) : null}
+              grants={grants}
+              onChange={setGrants}
+            />
             <div className="flex flex-wrap items-center gap-2">
               {createProject.isError ? (
                 <p className="text-destructive text-sm">{t("createDialog.createError")}</p>

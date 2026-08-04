@@ -18,13 +18,8 @@ import type {
   InitiativeRead,
   ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
-import { ShareControl } from "@/components/access/ShareControl";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
+import { CreateAccessSection } from "@/components/access/CreateAccessSection";
+import { DEFAULT_GRANTS } from "@/components/access/grants";
 import { AsyncCombobox } from "@/components/ui/async-combobox";
 import { Button } from "@/components/ui/button";
 import {
@@ -100,9 +95,7 @@ export const CreateDocumentDialog = ({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [smartLinkUrl, setSmartLinkUrl] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [grants, setGrants] = useState<ResourceGrantSchema[]>([
-    { all_initiative_members: true, level: "read" },
-  ]);
+  const [grants, setGrants] = useState<ResourceGrantSchema[]>([...DEFAULT_GRANTS]);
 
   // Determine effective initiative ID
   const effectiveInitiativeId =
@@ -161,7 +154,7 @@ export const CreateDocumentDialog = ({
       setSelectedFile(null);
       setSmartLinkUrl("");
       setCreateDialogTab("new");
-      setGrants([{ all_initiative_members: true, level: "read" }]);
+      setGrants([...DEFAULT_GRANTS]);
     }
   }, [open, defaultInitiativeId]);
 
@@ -482,18 +475,12 @@ export const CreateDocumentDialog = ({
           </TabsContent>
         </Tabs>
 
-        <Accordion type="single" collapsible>
-          <AccordionItem value="advanced" className="border-b-0">
-            <AccordionTrigger>{t("common:createAccess.advancedOptions")}</AccordionTrigger>
-            <AccordionContent>
-              <ShareControl
-                initiativeId={effectiveInitiativeId}
-                grants={grants}
-                onChange={setGrants}
-              />
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
+        <CreateAccessSection
+          initiativeId={effectiveInitiativeId}
+          grants={grants}
+          onChange={setGrants}
+          defaultOpen={false}
+        />
 
         <DialogFooter>
           {createDialogTab === "new" ? (

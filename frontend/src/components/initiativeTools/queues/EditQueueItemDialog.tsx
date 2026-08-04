@@ -1,13 +1,10 @@
 import { Loader2, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { QueueItemRead, TagSummary } from "@/api/generated/initiativeAPI.schemas";
-import {
-  ENTITY_PICKER_PAGE_SIZE,
-  type LinkedEntity,
-  LinkedEntityPicker,
-} from "@/components/initiativeTools/queues/LinkedEntityPicker";
+import type { QueueItemRead } from "@/api/generated/initiativeAPI.schemas";
+import { LinkedEntityPicker } from "@/components/initiativeTools/queues/LinkedEntityPicker";
+import { useQueueItemForm } from "@/components/initiativeTools/queues/useQueueItemForm";
 import { TagPicker } from "@/components/tags/TagPicker";
 import { Button } from "@/components/ui/button";
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
@@ -25,8 +22,6 @@ import { Label } from "@/components/ui/label";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { useDocumentAutocomplete } from "@/hooks/useDocuments";
-import { useInitiativeMembers } from "@/hooks/useInitiatives";
 import {
   useDeleteQueueItem,
   useSetQueueItemDocuments,
@@ -34,10 +29,8 @@ import {
   useSetQueueItemTasks,
   useUpdateQueueItem,
 } from "@/hooks/useQueues";
-import { useTaskAutocomplete } from "@/hooks/useTasks";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
-import { getUserDisplayName } from "@/lib/userDisplay";
 import type { DialogProps } from "@/types/dialog";
 
 type EditQueueItemDialogProps = DialogProps & {
@@ -60,75 +53,37 @@ export const EditQueueItemDialog = ({
   const { t } = useTranslation(["queues", "common"]);
   const gp = useGuildPath();
 
-  const [label, setLabel] = useState(item.label);
-  const [position, setPosition] = useState(String(item.position));
-  const [color, setColor] = useState(item.color ?? "#6366F1");
-  const [notes, setNotes] = useState(item.notes ?? "");
-  const [isVisible, setIsVisible] = useState(item.is_visible);
-  const [selectedTags, setSelectedTags] = useState<TagSummary[]>(item.tags);
-  const [userId, setUserId] = useState<number | null>(item.user_id);
-  // Selections carry their titles: the typeahead only returns rows matching
-  // the live query, so a chip's label can't be looked up from the results.
-  // The item's own links already ship theirs.
-  const [selectedDocs, setSelectedDocs] = useState<LinkedEntity[]>(() =>
-    item.documents.map((d) => ({ id: d.document_id, title: d.title }))
-  );
-  const [selectedTasks, setSelectedTasks] = useState<LinkedEntity[]>(() =>
-    item.tasks.map((t) => ({ id: t.task_id, title: t.title }))
-  );
+  const {
+    label,
+    setLabel,
+    position,
+    setPosition,
+    color,
+    setColor,
+    notes,
+    setNotes,
+    isVisible,
+    setIsVisible,
+    selectedTags,
+    setSelectedTags,
+    userId,
+    setUserId,
+    selectedDocs,
+    setSelectedDocs,
+    selectedTasks,
+    setSelectedTasks,
+    setDocSearch,
+    setDocPickerOpen,
+    setTaskSearch,
+    setTaskPickerOpen,
+    memberItems,
+    docResults,
+    docsLoading,
+    taskResults,
+    tasksLoading,
+  } = useQueueItemForm({ open, initiativeId, item });
+
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-
-  const [docSearch, setDocSearch] = useState("");
-  const [docPickerOpen, setDocPickerOpen] = useState(false);
-  const [taskSearch, setTaskSearch] = useState("");
-  const [taskPickerOpen, setTaskPickerOpen] = useState(false);
-
-  // Sync state when item prop changes
-  useEffect(() => {
-    if (open) {
-      setLabel(item.label);
-      setPosition(String(item.position));
-      setColor(item.color ?? "#6366F1");
-      setNotes(item.notes ?? "");
-      setIsVisible(item.is_visible);
-      setSelectedTags(item.tags);
-      setUserId(item.user_id);
-      setSelectedDocs(item.documents.map((d) => ({ id: d.document_id, title: d.title })));
-      setSelectedTasks(item.tasks.map((tk) => ({ id: tk.task_id, title: tk.title })));
-    }
-  }, [open, item]);
-
-  // Fetch initiative members for user picker
-  const membersQuery = useInitiativeMembers(initiativeId);
-  const memberItems = useMemo(
-    () =>
-      (membersQuery.data ?? []).map((member) => ({
-        value: String(member.id),
-        label: getUserDisplayName(member),
-      })),
-    [membersQuery.data]
-  );
-
-  // Document picker — server typeahead, only while the picker is open.
-  const docsQuery = useDocumentAutocomplete(initiativeId, docSearch, {
-    enabled: open && docPickerOpen,
-    limit: ENTITY_PICKER_PAGE_SIZE,
-  });
-  const docResults = useMemo(
-    () => (docsQuery.data ?? []).map((doc) => ({ id: doc.id, title: doc.title })),
-    [docsQuery.data]
-  );
-
-  // Task picker — server typeahead over titles within this initiative.
-  const tasksQuery = useTaskAutocomplete(taskSearch, {
-    initiativeId,
-    enabled: open && taskPickerOpen,
-    limit: ENTITY_PICKER_PAGE_SIZE,
-  });
-  const taskResults = useMemo(
-    () => (tasksQuery.data ?? []).map((task) => ({ id: task.id, title: task.title })),
-    [tasksQuery.data]
-  );
 
   const setTags = useSetQueueItemTags(queueId);
   const setDocuments = useSetQueueItemDocuments(queueId);
@@ -333,7 +288,7 @@ export const EditQueueItemDialog = ({
               selected={selectedDocs}
               onChange={setSelectedDocs}
               results={docResults}
-              loading={docsQuery.isFetching}
+              loading={docsLoading}
               onSearchChange={setDocSearch}
               onOpenChange={setDocPickerOpen}
               hrefFor={(id) => gp(`/documents/${id}`)}
@@ -347,7 +302,7 @@ export const EditQueueItemDialog = ({
               selected={selectedTasks}
               onChange={setSelectedTasks}
               results={taskResults}
-              loading={tasksQuery.isFetching}
+              loading={tasksLoading}
               onSearchChange={setTaskSearch}
               onOpenChange={setTaskPickerOpen}
               hrefFor={(id) => gp(`/tasks/${id}`)}
