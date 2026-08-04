@@ -63,6 +63,7 @@
     "parseError": "Este archivo no es una exportación reconocida de Initiative.",
     "wrongTool": "Este archivo es una exportación de {{type}}: impórtalo desde la página de esa herramienta.",
     "fileTooLarge": "Este archivo es demasiado grande para importar.",
+    "limitUnavailable": "No se pudieron cargar los límites de subida. Comprueba tu conexión e inténtalo de nuevo.",
     "preview": "{{title}} · {{type}}",
     "targetInitiative": "Importar en",
     "selectInitiative": "Elige una iniciativa",
