@@ -56,6 +56,7 @@ import { useCounterGroupRealtime } from "@/hooks/useResourceRealtime";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { exportFilenameStem } from "@/lib/exportDownload";
 import { useGuildPath } from "@/lib/guildUrl";
+import { hasWriteAccess } from "@/lib/permissions";
 import { toolExportEndpoint } from "@/lib/tools";
 
 const layoutStorageKey = (groupId: number) => `counter-group-${groupId}-layout`;
@@ -129,7 +130,7 @@ export function CounterGroupDetailPage() {
     recordViewMutation.mutate(viewedGroupId);
   }, [viewedGroupId, recordViewMutation.mutate]);
 
-  const canWrite = group?.my_permission_level === "owner" || group?.my_permission_level === "write";
+  const canWrite = hasWriteAccess(group?.my_permission_level);
   const canManage = group?.my_permission_level === "owner";
 
   // Drive the app-wide bottom-nav add button for this route.

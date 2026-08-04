@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
+import { hasWriteAccess } from "@/lib/permissions";
 
 interface BulkAccessBarProps {
   count: number;
@@ -55,8 +56,5 @@ export function BulkAccessBar({
 
 /** Selected items can have their sharing managed only by an owner/editor. */
 export function canManageSharing(items: { my_permission_level?: string | null }[]): boolean {
-  return (
-    items.length > 0 &&
-    items.every((i) => i.my_permission_level === "write" || i.my_permission_level === "owner")
-  );
+  return items.length > 0 && items.every((i) => hasWriteAccess(i.my_permission_level));
 }

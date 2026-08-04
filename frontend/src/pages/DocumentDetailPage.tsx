@@ -114,6 +114,7 @@ import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { findNewMentions } from "@/lib/mentionUtils";
+import { hasWriteAccess } from "@/lib/permissions";
 import { getItem, removeItem, setItem } from "@/lib/storage";
 import { resolveHeaderlessApiUrl, resolveUploadUrl } from "@/lib/uploadUrl";
 import { getUserDisplayName } from "@/lib/userDisplay";
@@ -398,8 +399,7 @@ export const DocumentDetailPage = () => {
     }
     // Server-computed: already capped at "read" when the guild's content is
     // frozen (read_only lifecycle status) or access is via a read-level grant.
-    const myLevel = document.my_permission_level;
-    return myLevel === "owner" || myLevel === "write";
+    return hasWriteAccess(document.my_permission_level);
   }, [document, user]);
   const isDirty =
     canEditDocument &&
@@ -416,8 +416,7 @@ export const DocumentDetailPage = () => {
       return false;
     }
     // Pure DAC: users with write or owner permission can moderate comments
-    const myLevel = document.my_permission_level;
-    return myLevel === "owner" || myLevel === "write";
+    return hasWriteAccess(document.my_permission_level);
   }, [document, user]);
 
   // Check if user can create documents in this initiative

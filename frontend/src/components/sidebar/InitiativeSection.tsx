@@ -19,6 +19,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useAppConfig } from "@/hooks/useAppConfig";
 import type { InitiativeToolAccess } from "@/hooks/useInitiativeAccess";
 import { guildPath } from "@/lib/guildUrl";
+import { hasWriteAccess } from "@/lib/permissions";
 import { getItem, setItem } from "@/lib/storage";
 import {
   SIDEBAR_TOOLS,
@@ -64,8 +65,7 @@ export const InitiativeSection = memo(
     // Pure DAC: check if user has write access to a specific project
     const canManageProject = (project: ProjectRead): boolean => {
       if (!userId) return false;
-      const level = project.my_permission_level;
-      return level === "owner" || level === "write";
+      return hasWriteAccess(project.my_permission_level);
     };
 
     /** Whether a tool's row renders at all — the member can view it AND (for

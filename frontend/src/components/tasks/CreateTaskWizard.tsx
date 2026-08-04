@@ -18,6 +18,7 @@ import { useInitiativesForGuild } from "@/hooks/useInitiatives";
 import { useGlobalProjects } from "@/hooks/useProjects";
 import { guildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
+import { hasWriteAccess } from "@/lib/permissions";
 import { getItem, removeItem, setItem } from "@/lib/storage";
 
 // ── Module-level opener (same pattern as CommandCenter) ─────────────────────
@@ -166,7 +167,7 @@ export const CreateTaskWizard = () => {
         (p) =>
           p.initiative_id === selectedInitiativeId &&
           !p.is_archived &&
-          (p.my_permission_level === "owner" || p.my_permission_level === "write")
+          hasWriteAccess(p.my_permission_level)
       ),
     [accumulatedProjects, selectedInitiativeId]
   );

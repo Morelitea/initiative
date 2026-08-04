@@ -69,6 +69,7 @@ import {
 import { useTags } from "@/hooks/useTags";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { useGuildPath } from "@/lib/guildUrl";
+import { hasWriteAccess } from "@/lib/permissions";
 
 const INITIATIVE_FILTER_ALL = "all";
 const PROJECT_SORT_KEY = "project:list:sort";
@@ -306,7 +307,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   // Helper function for per-project DAC checks
   const hasProjectWritePermission = (project: ProjectRead): boolean => {
     if (!user) return false;
-    return project.my_permission_level === "owner" || project.my_permission_level === "write";
+    return hasWriteAccess(project.my_permission_level);
   };
 
   const templatesQuery = useTemplateProjects();

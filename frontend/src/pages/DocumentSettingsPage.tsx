@@ -34,7 +34,7 @@ import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
-import { Capability, hasCapability } from "@/lib/permissions";
+import { Capability, hasCapability, hasWriteAccess } from "@/lib/permissions";
 
 export const DocumentSettingsPage = () => {
   const { t } = useTranslation(["documents", "common"]);
@@ -68,8 +68,7 @@ export const DocumentSettingsPage = () => {
     if (!document || !user) {
       return false;
     }
-    const myLevel = document.my_permission_level;
-    return myLevel === "owner" || myLevel === "write";
+    return hasWriteAccess(document.my_permission_level);
   }, [document, user]);
 
   // Pure DAC: only owners can delete/duplicate documents
@@ -78,15 +77,6 @@ export const DocumentSettingsPage = () => {
       return false;
     }
     return document.my_permission_level === "owner";
-  }, [document, user]);
-
-  // Pure DAC: check if user has write access
-  const hasWriteAccess = useMemo(() => {
-    if (!document || !user) {
-      return false;
-    }
-    const myLevel = document.my_permission_level;
-    return myLevel === "owner" || myLevel === "write";
   }, [document, user]);
 
   const manageableInitiatives = useMemo(() => {
@@ -286,8 +276,8 @@ export const DocumentSettingsPage = () => {
         <DocumentSettingsDetailsTab
           isTemplate={isTemplate}
           onTemplateToggle={handleTemplateToggle}
-          templateToggleDisabled={!hasWriteAccess || updateTemplate.isPending}
-          hasWriteAccess={hasWriteAccess}
+          templateToggleDisabled={!canManageDocument || updateTemplate.isPending}
+          hasWriteAccess={canManageDocument}
           documentTags={documentTags}
           onTagsChange={handleTagsChange}
         />

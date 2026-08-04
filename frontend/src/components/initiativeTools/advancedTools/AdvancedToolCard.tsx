@@ -7,6 +7,7 @@ import { TagBadge } from "@/components/tags/TagBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useGuildPath } from "@/lib/guildUrl";
+import { hasWriteAccess } from "@/lib/permissions";
 
 import { EditAdvancedToolTagsDialog } from "./EditAdvancedToolTagsDialog";
 
@@ -19,7 +20,7 @@ export const AdvancedToolCard = ({ tool }: AdvancedToolCardProps) => {
   const gp = useGuildPath();
   const [tagsDialogOpen, setTagsDialogOpen] = useState(false);
 
-  const canWrite = tool.my_permission_level === "owner" || tool.my_permission_level === "write";
+  const canWrite = hasWriteAccess(tool.my_permission_level);
 
   return (
     <>
