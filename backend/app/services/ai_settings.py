@@ -194,6 +194,14 @@ def _allow_private_for(provider: AIProvider, scope: str) -> bool:
     return provider == AIProvider.ollama and scope == "platform"
 
 
+def _enforce_key_ownership(row) -> None:  # noqa: ANN001 (Platform/Guild connection)
+    """A connection's key is EITHER shared (admin-set) OR member-supplied, never
+    both. The ``allow_member_keys`` toggle is the switch: when it's on, members
+    bring their own key, so any shared key is cleared."""
+    if row.allow_member_keys:
+        row.api_key_encrypted = None
+
+
 # ---------------------------------------------------------------------------
 # Base URL validation for a stored connection
 # ---------------------------------------------------------------------------
@@ -394,6 +402,7 @@ async def create_platform_connection(
         is_default=payload.is_default,
         allow_member_keys=payload.allow_member_keys,
     )
+    _enforce_key_ownership(row)
     if payload.is_default:
         await _clear_platform_default(session)
     session.add(row)
@@ -449,6 +458,7 @@ async def update_platform_connection(
         if payload.is_default:
             await _clear_platform_default(session)
         row.is_default = payload.is_default
+    _enforce_key_ownership(row)
     session.add(row)
     await session.commit()
     await session.refresh(row)
@@ -528,6 +538,7 @@ async def create_guild_connection(
         is_default=payload.is_default,
         allow_member_keys=payload.allow_member_keys,
     )
+    _enforce_key_ownership(row)
     if payload.is_default:
         await _clear_guild_default(session)
     session.add(row)
@@ -569,6 +580,7 @@ async def update_guild_connection(
         if payload.is_default:
             await _clear_guild_default(session)
         row.is_default = payload.is_default
+    _enforce_key_ownership(row)
     session.add(row)
     await session.commit()
     await session.refresh(row)

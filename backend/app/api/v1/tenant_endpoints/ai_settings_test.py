@@ -48,6 +48,7 @@ async def test_platform_connection_key_never_returned(client, acting_user):
             "api_key": "sk-super-secret",
             "enabled": True,
             "is_default": True,
+            "allow_member_keys": False,
         },
     )
     assert r.status_code == 200, r.text
@@ -78,6 +79,7 @@ async def test_member_sees_platform_connection_without_key(client, acting_user):
             "model": "gpt-4o",
             "api_key": "sk-secret",
             "is_default": True,
+            "allow_member_keys": False,
         },
     )
 
@@ -223,6 +225,28 @@ async def test_connection_that_disallows_member_keys(client, acting_user):
     )
     assert r.status_code == 403
     assert r.json()["detail"] == "AI_MEMBER_KEYS_DISABLED"
+
+
+async def test_shared_key_and_member_keys_are_mutually_exclusive(client, acting_user):
+    """A connection's key is EITHER shared OR member-supplied, never both. If a
+    key is sent together with allow_member_keys=True, the toggle wins and the
+    shared key is dropped."""
+    owner = await acting_user()
+    await _set_mode(client, owner, "platform")
+    r = await client.post(
+        PLATFORM_CONNS,
+        headers=owner.headers,
+        json={
+            "label": "Conflicted",
+            "provider": "openai",
+            "api_key": "sk-should-be-ignored",
+            "allow_member_keys": True,
+        },
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["allow_member_keys"] is True
+    assert body["has_api_key"] is False  # shared key dropped in favor of BYO
 
 
 async def test_my_ai_aggregate_lists_connections_across_guilds(client, acting_user):
