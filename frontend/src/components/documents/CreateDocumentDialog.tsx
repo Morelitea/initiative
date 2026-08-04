@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import {
   useCreateDocument,
   useTemplateAutocomplete,
@@ -80,6 +81,7 @@ export const CreateDocumentDialog = ({
   initiatives = [],
 }: CreateDocumentDialogProps) => {
   const { t } = useTranslation(["documents", "common"]);
+  const { maxUploadBytes } = useAppConfig();
 
   const [createDialogTab, setCreateDialogTab] = useState<"new" | "upload" | "smartLink">("new");
   const [newTitle, setNewTitle] = useState("");
@@ -195,8 +197,7 @@ export const CreateDocumentDialog = ({
   const handleFileSelect = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const maxSize = 50 * 1024 * 1024;
-      if (file.size > maxSize) {
+      if (maxUploadBytes !== null && file.size > maxUploadBytes) {
         toast.error(t("create.fileTooLarge"));
         e.target.value = "";
         return;

@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { toast } from "@/lib/chesterToast";
@@ -28,8 +29,12 @@ import { getErrorMessage } from "@/lib/errorMessage";
 import { queryClient } from "@/lib/queryClient";
 import { toolEnvelopeType, toolForEnvelopeType } from "@/lib/tools";
 
-// Client-side guard against pathological files stalling file.text()/JSON.parse.
-const MAX_BYTES = 50 * 1024 * 1024;
+// The real upload cap is server-owned and arrives via /api/v1/config
+// (max_upload_bytes). Until it has loaded, file.text()/JSON.parse below still
+// need SOME bound to run safely in the browser — this deliberately
+// conservative degraded-mode budget covers that window. It is not a copy of
+// the server limit and must stay well below any plausible value of it.
+const DEGRADED_PARSE_BUDGET_BYTES = 10 * 1024 * 1024;
 
 interface ParsedEnvelope {
   type?: string;
@@ -66,6 +71,7 @@ export function EnvelopeImportDialog({
 }: EnvelopeImportDialogProps) {
   const { t } = useTranslation(["imports", "common"]);
   const guildId = useActiveGuildId();
+  const { maxUploadBytes } = useAppConfig();
   const initiativesQuery = useInitiatives();
   const { filterVisible, permissionsFor } = useInitiativeAccess();
 
@@ -118,9 +124,20 @@ export function EnvelopeImportDialog({
       setFileName("");
       return;
     }
-    if (file.size > MAX_BYTES) {
+    // Guard the fully client-side file.text()/JSON.parse below. The server's
+    // cap applies once known; before then the conservative degraded budget
+    // holds, and an over-budget file gets the "limits couldn't load" message
+    // rather than a misleading "too large".
+    const parseLimit = maxUploadBytes ?? DEGRADED_PARSE_BUDGET_BYTES;
+    if (file.size > parseLimit) {
       setFileName(file.name);
-      setParseError(t("imports:envelope.fileTooLarge"));
+      setParseError(
+        t(
+          maxUploadBytes === null
+            ? "imports:envelope.limitUnavailable"
+            : "imports:envelope.fileTooLarge"
+        )
+      );
       return;
     }
     setFileName(file.name);

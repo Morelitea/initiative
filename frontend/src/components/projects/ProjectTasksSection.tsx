@@ -75,6 +75,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
+import { useDefaultFiltersOpen } from "@/hooks/useDefaultFiltersOpen";
 import { useTags } from "@/hooks/useTags";
 import {
   useArchiveDoneTasks,
@@ -166,13 +167,6 @@ const TASK_VIEW_OPTIONS: TaskViewOption[] = [
   { value: "calendar", labelKey: "tasks.viewCalendar", icon: Calendar },
   { value: "gantt", labelKey: "tasks.viewGantt", icon: GanttChart },
 ];
-
-const getDefaultFiltersVisibility = () => {
-  if (typeof window === "undefined") {
-    return true;
-  }
-  return window.matchMedia("(min-width: 640px)").matches;
-};
 
 type ProjectTasksSectionProps = {
   projectId: number;
@@ -266,7 +260,7 @@ export const ProjectTasksSection = ({
     // filter pruning lives in the property filter UI itself (it needs the
     // property definitions, which aren't fetched here).
   }, [filtersLoaded, tagsLoaded, tags, sortedTaskStatuses, filters, setStoredFilters]);
-  const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
+  const [filtersOpen, setFiltersOpen] = useDefaultFiltersOpen();
   const [localOverride, setLocalOverride] = useState<TaskListRead[] | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(initialComposerOpen ?? false);
   useEffect(() => {
@@ -384,23 +378,6 @@ export const ProjectTasksSection = ({
   useEffect(() => {
     setLocalOverride(null);
   }, [projectTasks]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    const mediaQuery = window.matchMedia("(min-width: 640px)");
-    const handleChange = (event: MediaQueryListEvent) => {
-      setFiltersOpen(event.matches);
-    };
-    setFiltersOpen(mediaQuery.matches);
-    if (typeof mediaQuery.addEventListener === "function") {
-      mediaQuery.addEventListener("change", handleChange);
-      return () => mediaQuery.removeEventListener("change", handleChange);
-    }
-    mediaQuery.addListener(handleChange);
-    return () => mediaQuery.removeListener(handleChange);
-  }, []);
 
   useEffect(() => {
     if (!collapsedStorageKey) {

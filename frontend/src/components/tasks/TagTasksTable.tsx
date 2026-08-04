@@ -27,6 +27,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { DataTable } from "@/components/ui/data-table";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
+import { useDefaultFiltersOpen } from "@/hooks/useDefaultFiltersOpen";
 import { useGuilds } from "@/hooks/useGuilds";
 import { usePrefetchTasks, useTasks, useUpdateTask } from "@/hooks/useTasks";
 import { toast } from "@/lib/chesterToast";
@@ -42,13 +43,6 @@ const statusFallbackOrder: Record<TaskStatusCategory, TaskStatusCategory[]> = {
 };
 
 const DEFAULT_STATUS_FILTERS: TaskStatusCategory[] = ["backlog", "todo", "in_progress"];
-
-const getDefaultFiltersVisibility = () => {
-  if (typeof window === "undefined") {
-    return true;
-  }
-  return window.matchMedia("(min-width: 640px)").matches;
-};
 
 type TagTasksTableProps = {
   tagId: number;
@@ -78,7 +72,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
 
   const [statusFilters, setStatusFilters] = useState<TaskStatusCategory[]>(DEFAULT_STATUS_FILTERS);
   const [priorityFilters, setPriorityFilters] = useState<TaskPriority[]>([]);
-  const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
+  const [filtersOpen, setFiltersOpen] = useDefaultFiltersOpen();
 
   const [page, setPageState] = useState(() => searchParams.page ?? 1);
   const [pageSize, setPageSize] = useState(TAG_TASKS_PAGE_SIZE);
@@ -449,21 +443,6 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
       },
     },
   ];
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const mediaQuery = window.matchMedia("(min-width: 640px)");
-    const handleChange = (event: MediaQueryListEvent) => {
-      setFiltersOpen(event.matches);
-    };
-    setFiltersOpen(mediaQuery.matches);
-    if (typeof mediaQuery.addEventListener === "function") {
-      mediaQuery.addEventListener("change", handleChange);
-      return () => mediaQuery.removeEventListener("change", handleChange);
-    }
-    mediaQuery.addListener(handleChange);
-    return () => mediaQuery.removeListener(handleChange);
-  }, []);
 
   const isInitialLoad = tasksQuery.isLoading && !tasksQuery.data;
 

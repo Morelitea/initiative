@@ -63,6 +63,7 @@
     "parseError": "Ce fichier n'est pas un export Initiative reconnu.",
     "wrongTool": "Ce fichier est un export {{type}} — importez-le depuis la page de cet outil.",
     "fileTooLarge": "Ce fichier est trop volumineux pour être importé.",
+    "limitUnavailable": "Impossible de charger les limites d'envoi. Vérifiez votre connexion et réessayez.",
     "preview": "{{title}} · {{type}}",
     "targetInitiative": "Importer dans",
     "selectInitiative": "Choisir une initiative",

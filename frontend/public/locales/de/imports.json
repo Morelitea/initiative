@@ -63,6 +63,7 @@
     "parseError": "Diese Datei ist kein bekannter Initiative-Export.",
     "wrongTool": "Diese Datei ist ein {{type}}-Export — importiere sie über die Seite dieses Werkzeugs.",
     "fileTooLarge": "Diese Datei ist zu groß zum Importieren.",
+    "limitUnavailable": "Die Upload-Limits konnten nicht geladen werden. Prüfe deine Verbindung und versuche es erneut.",
     "preview": "{{title}} · {{type}}",
     "targetInitiative": "Importieren in",
     "selectInitiative": "Initiative wählen",

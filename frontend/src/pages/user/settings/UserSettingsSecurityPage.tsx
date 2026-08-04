@@ -36,20 +36,7 @@ import {
   useRevokeDeviceToken,
 } from "@/hooks/useSecurity";
 import { toast } from "@/lib/chesterToast";
-
-const formatDateTime = (value?: string | null) => {
-  if (!value) {
-    return "—";
-  }
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
-};
+import { formatDateTime } from "@/lib/formatDate";
 
 const computeStatus = (key: ApiKeyMetadata) => {
   if (!key.is_active) {
@@ -372,7 +359,7 @@ export const UserSettingsSecurityPage = () => {
                             ? formatDateTime(key.last_used_at)
                             : t("security.never")}
                         </td>
-                        <td className="py-3 pr-4">{formatDateTime(key.expires_at)}</td>
+                        <td className="py-3 pr-4">{formatDateTime(key.expires_at) || "—"}</td>
                         <td className="py-3 text-right">
                           <Button
                             type="button"

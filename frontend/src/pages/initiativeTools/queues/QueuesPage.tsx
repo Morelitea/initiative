@@ -8,6 +8,7 @@ import { invalidateAllQueues } from "@/api/query-keys";
 import { BulkAccessBar, canManageSharing } from "@/components/access/BulkAccessBar";
 import { BulkEditAccessDialog } from "@/components/access/BulkEditAccessDialog";
 import { SelectableGridItem } from "@/components/access/SelectableGridItem";
+import { PaginationBar } from "@/components/documents/PaginationBar";
 import { BulkExportButton } from "@/components/exports/BulkExportButton";
 import { ToolImportAction } from "@/components/imports/ToolImportAction";
 import { CreateQueueDialog } from "@/components/initiativeTools/queues/CreateQueueDialog";
@@ -21,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
+import { getDefaultFiltersVisibility } from "@/hooks/useDefaultFiltersOpen";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
@@ -79,6 +81,7 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
   }, [searchParams, lockedInitiativeId]);
 
   const [page, setPageState] = useState(() => searchParams.page ?? 1);
+  const [pageSize, setPageSize] = useState(20);
 
   const setPage = useCallback(
     (updater: number | ((prev: number) => number)) => {
@@ -125,7 +128,7 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
       ? { initiative_id: Number(initiativeFilter) }
       : {}),
     page,
-    page_size: 20,
+    page_size: pageSize,
   });
 
   const initiativesQuery = useInitiatives();
@@ -176,8 +179,6 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
   } = useCreateFromSearchParam();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const getDefaultFiltersVisibility = () =>
-    typeof window !== "undefined" && window.matchMedia("(min-width: 640px)").matches;
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
 
   // Drive the app-wide bottom-nav add button for this route.
@@ -193,8 +194,6 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
 
   const totalCount = queuesQuery.data?.total_count ?? 0;
   const hasNext = queuesQuery.data?.has_next ?? false;
-  const pageSize = 20;
-  const totalPages = pageSize > 0 ? Math.ceil(totalCount / pageSize) : 1;
 
   // Client-side filtering by search query and status
   const queues = useMemo(() => {
@@ -308,30 +307,18 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
             ))}
           </div>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-              >
-                {t("previous")}
-              </Button>
-              <span className="text-muted-foreground text-sm">
-                {page} / {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => p + 1)}
-                disabled={!hasNext}
-              >
-                {t("next")}
-              </Button>
-            </div>
-          )}
+          <PaginationBar
+            page={page}
+            pageSize={pageSize}
+            totalCount={totalCount}
+            hasNext={hasNext}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setPage(1);
+            }}
+            onPrefetchPage={() => {}}
+          />
         </>
       ) : totalCount > 0 ? (
         <p className="text-muted-foreground text-sm">{t("filters.noMatchingQueues")}</p>

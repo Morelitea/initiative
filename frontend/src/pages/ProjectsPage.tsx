@@ -53,6 +53,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
+import { useDefaultFiltersOpen } from "@/hooks/useDefaultFiltersOpen";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
@@ -75,12 +76,6 @@ const PROJECT_SORT_KEY = "project:list:sort";
 const PROJECT_SEARCH_KEY = "project:list:search";
 const PROJECT_VIEW_KEY = "project:list:view-mode";
 const PROJECT_TAG_FILTERS_KEY = "project:list:tag-filters";
-const getDefaultFiltersVisibility = () => {
-  if (typeof window === "undefined") {
-    return true;
-  }
-  return window.matchMedia("(min-width: 640px)").matches;
-};
 
 type ProjectsViewProps = {
   fixedInitiativeId?: number;
@@ -199,7 +194,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     [setPersistedViewMode]
   );
   const [tabValue, setTabValue] = useState<"active" | "templates" | "archive">("active");
-  const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
+  const [filtersOpen, setFiltersOpen] = useDefaultFiltersOpen();
 
   const [persistedTagFilters, setPersistedTagFilters] = useViewPreference<number[]>(
     PROJECT_TAG_FILTERS_KEY,
@@ -339,23 +334,6 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     lockedInitiativeId,
     setIsComposerOpen,
   ]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    const mediaQuery = window.matchMedia("(min-width: 640px)");
-    const handleChange = (event: MediaQueryListEvent) => {
-      setFiltersOpen(event.matches);
-    };
-    setFiltersOpen(mediaQuery.matches);
-    if (typeof mediaQuery.addEventListener === "function") {
-      mediaQuery.addEventListener("change", handleChange);
-      return () => mediaQuery.removeEventListener("change", handleChange);
-    }
-    mediaQuery.addListener(handleChange);
-    return () => mediaQuery.removeListener(handleChange);
-  }, []);
 
   const reorderProjects = useReorderProjects();
 
