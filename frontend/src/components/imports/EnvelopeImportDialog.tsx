@@ -21,15 +21,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { queryClient } from "@/lib/queryClient";
 import { toolEnvelopeType, toolForEnvelopeType } from "@/lib/tools";
-
-// Client-side guard against pathological files stalling file.text()/JSON.parse.
-const MAX_BYTES = 50 * 1024 * 1024;
 
 interface ParsedEnvelope {
   type?: string;
@@ -66,6 +64,7 @@ export function EnvelopeImportDialog({
 }: EnvelopeImportDialogProps) {
   const { t } = useTranslation(["imports", "common"]);
   const guildId = useActiveGuildId();
+  const { maxUploadBytes } = useAppConfig();
   const initiativesQuery = useInitiatives();
   const { filterVisible, permissionsFor } = useInitiativeAccess();
 
@@ -118,7 +117,8 @@ export function EnvelopeImportDialog({
       setFileName("");
       return;
     }
-    if (file.size > MAX_BYTES) {
+    // Guard against pathological files stalling file.text()/JSON.parse.
+    if (maxUploadBytes !== null && file.size > maxUploadBytes) {
       setFileName(file.name);
       setParseError(t("imports:envelope.fileTooLarge"));
       return;

@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCounterGroupsList } from "@/hooks/useCounters";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
+import { getDefaultFiltersVisibility } from "@/hooks/useDefaultFiltersOpen";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
@@ -125,8 +126,6 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
     canCreateGroups ? { run: () => setCreateOpen(true), label: t("createGroup") } : null
   );
 
-  const getDefaultFiltersVisibility = () =>
-    typeof window !== "undefined" && window.matchMedia("(min-width: 640px)").matches;
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
 
   const groups = useMemo(() => {

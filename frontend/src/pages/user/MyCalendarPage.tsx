@@ -26,6 +26,7 @@ import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { useAuth } from "@/hooks/useAuth";
 import { useMyCalendarEntries } from "@/hooks/useCalendarEntries";
+import { getDefaultFiltersVisibility } from "@/hooks/useDefaultFiltersOpen";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { toast } from "@/lib/chesterToast";
@@ -71,9 +72,6 @@ const sanitizeStoredPrefs = (raw: unknown): StoredPrefs => {
     guildFilters: Array.isArray(v.guildFilters) ? v.guildFilters : PREFS_DEFAULTS.guildFilters,
   };
 };
-
-const getDefaultFiltersVisibility = () =>
-  typeof window !== "undefined" && window.matchMedia("(min-width: 640px)").matches;
 
 export const MyCalendarPage = () => {
   const { t } = useTranslation(["tasks", "calendarEvents", "common"]);

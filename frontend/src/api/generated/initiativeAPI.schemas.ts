@@ -538,6 +538,7 @@ export interface AppConfig {
   advanced_tool?: AdvancedToolConfig | null;
   captcha?: CaptchaConfig | null;
   billing?: BillingConfig | null;
+  max_upload_bytes: number;
 }
 
 export interface ArchiveDoneResponse {

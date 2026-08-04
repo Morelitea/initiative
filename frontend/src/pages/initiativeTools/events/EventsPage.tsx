@@ -45,6 +45,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCalendarEntries } from "@/hooks/useCalendarEntries";
 import { useRescheduleCalendarEvent } from "@/hooks/useCalendarEvents";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
+import { getDefaultFiltersVisibility } from "@/hooks/useDefaultFiltersOpen";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { canCreateTool, useMyInitiativePermissions } from "@/hooks/useInitiativeRoles";
 import { useProjects } from "@/hooks/useProjects";
@@ -155,9 +156,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
   const [propertyFilters, setPropertyFilters] = useState<PropertyFilterCondition[]>(
     () => storedPrefs.propertyFilters
   );
-  const [filtersOpen, setFiltersOpen] = useState(
-    () => typeof window !== "undefined" && window.matchMedia("(min-width: 640px)").matches
-  );
+  const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
 
   // Reset project filter when initiative changes (project IDs are initiative-scoped)
   const prevInitiativeId = useRef(initiativeId);

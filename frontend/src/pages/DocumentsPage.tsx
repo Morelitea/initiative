@@ -31,6 +31,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
+import { useDefaultFiltersOpen } from "@/hooks/useDefaultFiltersOpen";
 import {
   useCopyDocument,
   useDeleteDocument,
@@ -56,12 +57,6 @@ const SORT_FIELD_MAP: Record<string, string> = {
   "last updated": "updated_at",
 };
 const DOCUMENT_TAG_FILTERS_KEY = "documents:tag-filters";
-const getDefaultDocumentFiltersVisibility = () => {
-  if (typeof window === "undefined") {
-    return true;
-  }
-  return window.matchMedia("(min-width: 640px)").matches;
-};
 
 type DocumentsViewProps = {
   fixedInitiativeId?: number;
@@ -119,7 +114,7 @@ export const DocumentsView = ({
     setInitiativeFilter(urlInitiativeId || INITIATIVE_FILTER_ALL);
   }, [searchParams, lockedInitiativeId]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filtersOpen, setFiltersOpen] = useState(getDefaultDocumentFiltersVisibility);
+  const [filtersOpen, setFiltersOpen] = useDefaultFiltersOpen();
 
   // View mode and tag filters are server-persisted in the normal case.
   // When fixedTagIds is provided (tag detail page), the view is forced
@@ -515,23 +510,6 @@ export const DocumentsView = ({
       ? { run: () => setCreateDialogOpen(true), label: t("page.newDocument") }
       : null
   );
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    const mediaQuery = window.matchMedia("(min-width: 640px)");
-    const handleChange = (event: MediaQueryListEvent) => {
-      setFiltersOpen(event.matches);
-    };
-    setFiltersOpen(mediaQuery.matches);
-    if (typeof mediaQuery.addEventListener === "function") {
-      mediaQuery.addEventListener("change", handleChange);
-      return () => mediaQuery.removeEventListener("change", handleChange);
-    }
-    mediaQuery.addListener(handleChange);
-    return () => mediaQuery.removeListener(handleChange);
-  }, []);
 
   const handleDocumentCreated = (document: { id: number }) => {
     router.navigate({

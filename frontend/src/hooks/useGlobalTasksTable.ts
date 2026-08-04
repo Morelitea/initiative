@@ -22,6 +22,7 @@ import {
   listMyTasksApiV1MeTasksGet,
 } from "@/api/generated/tasks/tasks";
 import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
+import { useDefaultFiltersOpen } from "@/hooks/useDefaultFiltersOpen";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useUpdateTaskInGuild } from "@/hooks/useTasks";
 import { useViewPreference } from "@/hooks/useViewPreference";
@@ -70,13 +71,6 @@ const sanitizeStoredPrefs = (raw: unknown): StoredPrefs => {
       : FILTER_DEFAULTS.propertyFilters,
     sorting: Array.isArray(v.sorting) ? v.sorting : FILTER_DEFAULTS.sorting,
   };
-};
-
-const getDefaultFiltersVisibility = () => {
-  if (typeof window === "undefined") {
-    return true;
-  }
-  return window.matchMedia("(min-width: 640px)").matches;
 };
 
 const PAGE_SIZE = 20;
@@ -148,7 +142,7 @@ export function useGlobalTasksTable({ view, storageKeyPrefix }: UseGlobalTasksTa
   const setPropertyFilters = useMemo(() => makeSetter("propertyFilters"), [makeSetter]);
   const setSorting = useMemo(() => makeSetter("sorting"), [makeSetter]);
 
-  const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
+  const [filtersOpen, setFiltersOpen] = useDefaultFiltersOpen();
 
   // --- Pagination state ---
   const [page, setPageState] = useState(() => searchParams.page ?? 1);
@@ -388,24 +382,6 @@ export function useGlobalTasksTable({ view, storageKeyPrefix }: UseGlobalTasksTa
   // Archived/template projects are excluded server-side by both global
   // scopes, so the rows come back ready to render.
   const displayTasks = tasks;
-
-  // --- Responsive filter visibility ---
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    const mediaQuery = window.matchMedia("(min-width: 640px)");
-    const handleChange = (event: MediaQueryListEvent) => {
-      setFiltersOpen(event.matches);
-    };
-    setFiltersOpen(mediaQuery.matches);
-    if (typeof mediaQuery.addEventListener === "function") {
-      mediaQuery.addEventListener("change", handleChange);
-      return () => mediaQuery.removeEventListener("change", handleChange);
-    }
-    mediaQuery.addListener(handleChange);
-    return () => mediaQuery.removeListener(handleChange);
-  }, []);
 
   // --- Derived loading / error states ---
   const isInitialLoad = tasksQuery.isLoading && !tasksQuery.data;

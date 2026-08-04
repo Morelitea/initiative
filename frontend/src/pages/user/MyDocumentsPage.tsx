@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { RelativeTime } from "@/components/ui/relative-time";
+import { useDefaultFiltersOpen } from "@/hooks/useDefaultFiltersOpen";
 import { useGlobalDocuments, usePrefetchGlobalDocuments } from "@/hooks/useDocuments";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useViewPreference } from "@/hooks/useViewPreference";
@@ -62,13 +63,6 @@ const SORT_FIELD_MAP: Record<string, string> = {
 const SORT_FIELD_REVERSE: Record<string, string> = Object.fromEntries(
   Object.entries(SORT_FIELD_MAP).map(([col, field]) => [field, col])
 );
-
-const getDefaultFiltersVisibility = () => {
-  if (typeof window === "undefined") {
-    return true;
-  }
-  return window.matchMedia("(min-width: 640px)").matches;
-};
 
 export const MyDocumentsPage = () => {
   const { t } = useTranslation(["documents", "common"]);
@@ -113,7 +107,7 @@ export const MyDocumentsPage = () => {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
+  const [filtersOpen, setFiltersOpen] = useDefaultFiltersOpen();
 
   const [page, setPageState] = useState(() => searchParams.page ?? 1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
@@ -321,24 +315,6 @@ export const MyDocumentsPage = () => {
     ],
     [t, guilds, docGuildPath]
   );
-
-  // Responsive filter visibility
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    const mediaQuery = window.matchMedia("(min-width: 640px)");
-    const handleChange = (event: MediaQueryListEvent) => {
-      setFiltersOpen(event.matches);
-    };
-    setFiltersOpen(mediaQuery.matches);
-    if (typeof mediaQuery.addEventListener === "function") {
-      mediaQuery.addEventListener("change", handleChange);
-      return () => mediaQuery.removeEventListener("change", handleChange);
-    }
-    mediaQuery.addListener(handleChange);
-    return () => mediaQuery.removeListener(handleChange);
-  }, []);
 
   const initialSorting = useMemo(() => {
     if (!sortBy) return undefined;

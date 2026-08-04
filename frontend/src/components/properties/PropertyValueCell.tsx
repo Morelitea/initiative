@@ -8,8 +8,8 @@ import {
   PropertyType,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getInitials } from "@/lib/initials";
-import { resolveUploadUrl } from "@/lib/uploadUrl";
+import { formatDate, formatDateTime } from "@/lib/formatDate";
+import { getAvatarSrc, getInitialsForUser, getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 
 import { isEmptyPropertyValue } from "./propertyHelpers";
@@ -36,16 +36,6 @@ const formatNumber = (raw: unknown): string => {
     if (Number.isFinite(parsed)) return new Intl.NumberFormat().format(parsed);
   }
   return "";
-};
-
-const formatDate = (raw: unknown, withTime: boolean): string => {
-  if (typeof raw !== "string" || !raw) return "";
-  const date = new Date(raw);
-  if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    ...(withTime ? { timeStyle: "short" } : {}),
-  }).format(date);
 };
 
 const coerceOptionMap = (options: PropertyOption[] | null | undefined) => {
@@ -200,11 +190,11 @@ export const PropertyValueCell = ({
       break;
     }
     case PropertyType.date: {
-      body = <span>{formatDate(value, false)}</span>;
+      body = <span>{formatDate(value)}</span>;
       break;
     }
     case PropertyType.datetime: {
-      body = <span>{formatDate(value, true)}</span>;
+      body = <span>{formatDateTime(value)}</span>;
       break;
     }
     case PropertyType.select: {
@@ -244,13 +234,13 @@ export const PropertyValueCell = ({
       if (!user) {
         body = <span className="text-muted-foreground italic">{t("cell.emptyValue")}</span>;
       } else {
-        const name = user.full_name ?? `#${user.id}`;
-        const userAvatarSrc = resolveUploadUrl(user.avatar_url) || user.avatar_base64 || undefined;
+        const name = getUserDisplayName(user, `#${user.id}`);
+        const userAvatarSrc = getAvatarSrc(user);
         body = (
           <span className="inline-flex max-w-full items-center gap-2 truncate">
             <Avatar className="h-5 w-5 text-[10px]">
               {userAvatarSrc ? <AvatarImage src={userAvatarSrc} alt={name} /> : null}
-              <AvatarFallback userId={user.id}>{getInitials(user.full_name)}</AvatarFallback>
+              <AvatarFallback userId={user.id}>{getInitialsForUser(user)}</AvatarFallback>
             </Avatar>
             <span className="truncate">{name}</span>
           </span>

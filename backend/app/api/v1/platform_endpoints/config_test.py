@@ -12,6 +12,7 @@ import pytest
 from httpx import AsyncClient
 
 from app.core.config import settings
+from app.services.tenant.attachments import MAX_DOCUMENT_FILE_SIZE
 
 
 @pytest.mark.integration
@@ -36,7 +37,18 @@ async def test_config_returns_no_advanced_tool_when_url_unset(
         "advanced_tool": None,
         "captcha": None,
         "billing": None,
+        "max_upload_bytes": MAX_DOCUMENT_FILE_SIZE,
     }
+
+
+@pytest.mark.integration
+async def test_config_exposes_upload_cap(client: AsyncClient):
+    """The SPA reads the server-enforced upload cap from config so the limit
+    has a single source of truth (no mirrored frontend constant)."""
+    response = await client.get("/api/v1/config")
+
+    assert response.status_code == 200
+    assert response.json()["max_upload_bytes"] == MAX_DOCUMENT_FILE_SIZE
 
 
 @pytest.mark.integration
