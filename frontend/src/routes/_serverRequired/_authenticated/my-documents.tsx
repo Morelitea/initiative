@@ -9,11 +9,8 @@ import type {
   UserViewPreferencesMap,
 } from "@/api/generated/initiativeAPI.schemas";
 import { VIEW_PREFERENCES_QUERY_KEY } from "@/hooks/useViewPreference";
+import { type PageSearch, validatePage } from "@/lib/routeSearch";
 import { getItem } from "@/lib/storage";
-
-type MyDocumentsSearchParams = {
-  page?: number;
-};
 
 const STORAGE_KEY = "initiative-my-documents-filters";
 const PAGE_SIZE = 20;
@@ -47,13 +44,8 @@ function readPrefetchFilters(queryClient: {
 }
 
 export const Route = createFileRoute("/_serverRequired/_authenticated/my-documents")({
-  validateSearch: (search: Record<string, unknown>): MyDocumentsSearchParams => ({
-    page:
-      typeof search.page === "number" && search.page >= 1
-        ? search.page
-        : typeof search.page === "string" && Number(search.page) >= 1
-          ? Number(search.page)
-          : undefined,
+  validateSearch: (search: Record<string, unknown>): PageSearch => ({
+    page: validatePage(search.page),
   }),
   loader: async ({ context }) => {
     const { queryClient } = context;

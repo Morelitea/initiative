@@ -2,7 +2,7 @@ import { Navigate, Outlet, useLocation, useRouter } from "@tanstack/react-router
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SettingsTabsNav } from "@/components/settings/SettingsTabsNav";
 import { useAuth } from "@/hooks/useAuth";
 import {
   Capability,
@@ -10,6 +10,7 @@ import {
   canManagePlatformConfig,
   hasCapability,
 } from "@/lib/permissions";
+import { matchActiveTab } from "@/lib/tabs";
 
 /**
  * App-wide *configuration* area: authentication, branding, email, and AI.
@@ -44,19 +45,12 @@ export const PlatformSettingsLayout = () => {
   if (!canManagePlatformConfig(user)) {
     // Send operational staff to their dashboard; everyone else to guild settings.
     return (
-      <Navigate
-        to={canAccessAdminDashboard(user) ? "/settings/admin" : "/settings/guild"}
-        replace
-      />
+      <Navigate to={canAccessAdminDashboard(user) ? "/settings/admin" : "/settings"} replace />
     );
   }
 
   const normalizedPath = location.pathname.replace(/\/+$/, "") || "/";
-  const activeTab =
-    [...tabs]
-      .sort((a, b) => b.path.length - a.path.length)
-      .find((tab) => normalizedPath === tab.path || normalizedPath.startsWith(`${tab.path}/`))
-      ?.value ?? "auth";
+  const activeTab = matchActiveTab(tabs, normalizedPath, "auth");
 
   return (
     <div className="space-y-6">
@@ -64,25 +58,11 @@ export const PlatformSettingsLayout = () => {
         <h1 className="font-semibold text-3xl tracking-tight">{t("platformLayout.title")}</h1>
         <p className="text-muted-foreground">{t("platformLayout.subtitle")}</p>
       </div>
-      <Tabs
-        value={activeTab}
-        onValueChange={(value) => {
-          const tab = tabs.find((item) => item.value === value);
-          if (tab) {
-            router.navigate({ to: tab.path });
-          }
-        }}
-      >
-        <div className="-mx-4 overflow-x-auto pb-2 md:mx-0 md:overflow-visible">
-          <TabsList className="w-full min-w-max justify-start gap-2 px-1 md:min-w-0">
-            {tabs.map((tab) => (
-              <TabsTrigger key={tab.value} value={tab.value} className="shrink-0">
-                {tab.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </div>
-      </Tabs>
+      <SettingsTabsNav
+        tabs={tabs}
+        activeTab={activeTab}
+        onNavigate={(path) => router.navigate({ to: path })}
+      />
       <Outlet />
     </div>
   );

@@ -2,12 +2,13 @@ import { Outlet, useLocation, useParams, useRouter } from "@tanstack/react-route
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { SettingsTabsNav } from "@/components/settings/SettingsTabsNav";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInterfaceSettings } from "@/hooks/useSettings";
 import { extractSubPath, guildPath, isGuildScopedPath } from "@/lib/guildUrl";
+import { matchActiveTab } from "@/lib/tabs";
 
 export const GuildSettingsLayout = () => {
   const { t } = useTranslation(["settings"]);
@@ -125,24 +126,18 @@ export const GuildSettingsLayout = () => {
 
   // Map normalized sub-paths to tab values
   const tabSubPaths = [
-    { value: "guild", subPath: "/settings" },
-    { value: "ai", subPath: "/settings/ai" },
-    { value: "users", subPath: "/settings/users" },
-    { value: "auth", subPath: "/settings/auth" },
-    { value: "initiatives", subPath: "/settings/initiatives" },
-    { value: "trash", subPath: "/settings/trash" },
-    { value: "data", subPath: "/settings/data" },
-    { value: "advanced-tool", subPath: "/settings/advanced-tool" },
-    { value: "danger-zone", subPath: "/settings/danger-zone" },
+    { value: "guild", path: "/settings" },
+    { value: "ai", path: "/settings/ai" },
+    { value: "users", path: "/settings/users" },
+    { value: "auth", path: "/settings/auth" },
+    { value: "initiatives", path: "/settings/initiatives" },
+    { value: "trash", path: "/settings/trash" },
+    { value: "data", path: "/settings/data" },
+    { value: "advanced-tool", path: "/settings/advanced-tool" },
+    { value: "danger-zone", path: "/settings/danger-zone" },
   ];
 
-  const activeTab =
-    [...tabSubPaths]
-      .sort((a, b) => b.subPath.length - a.subPath.length)
-      .find((tab) => normalizedPath === tab.subPath || normalizedPath.startsWith(`${tab.subPath}/`))
-      ?.value ??
-    availableTabs[0]?.value ??
-    "guild";
+  const activeTab = matchActiveTab(tabSubPaths, normalizedPath, availableTabs[0]?.value ?? "guild");
 
   // A read-only or suspended guild shows the admin a prominent notice pointing
   // them to the platform operator (the status reaches admins only — see the
@@ -173,25 +168,11 @@ export const GuildSettingsLayout = () => {
           <p className="font-bold text-destructive text-sm">{statusNotice.message}</p>
         )}
       </div>
-      <Tabs
-        value={activeTab}
-        onValueChange={(value) => {
-          const tab = guildSettingsTabs.find((item) => item.value === value);
-          if (tab) {
-            router.navigate({ to: tab.path });
-          }
-        }}
-      >
-        <div className="-mx-4 overflow-x-auto pb-2 md:mx-0 md:overflow-visible">
-          <TabsList className="w-full min-w-max justify-start gap-2 px-1 md:min-w-0">
-            {availableTabs.map((tab) => (
-              <TabsTrigger key={tab.value} value={tab.value} className="shrink-0">
-                {tab.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </div>
-      </Tabs>
+      <SettingsTabsNav
+        tabs={availableTabs}
+        activeTab={activeTab}
+        onNavigate={(path) => router.navigate({ to: path })}
+      />
       <Outlet />
     </div>
   );
