@@ -47,7 +47,9 @@ _RLS_SHARED_TABLES = {
     "guild_memberships",
     "guilds",
     "oidc_claim_mappings",
+    "platform_ai_connections",
     "storage_backfill_state",
+    "user_api_keys",
     "user_view_preferences",
     "users",
 }

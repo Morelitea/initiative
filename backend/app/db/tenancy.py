@@ -79,6 +79,7 @@ SHARED_TABLES: frozenset[str] = frozenset(
         "guild_auth_policies",  # per-guild sign-in requirement, read pre-routing by the gate
         # Platform-wide
         "app_settings",  # OIDC / SMTP / branding config
+        "platform_ai_connections",  # operator AI connections (platform config mode)
         "access_grants",  # PAM — inherently cross-guild (request -> approve -> scoped)
         "notifications",  # per-user inbox spanning guilds (carries guild_id after split)
         # Billing write boundary (external billing service, initiative_billing role)
@@ -99,6 +100,9 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # soft_delete_admin_purge), never a membership scope. See the rendered RLS DDL.
         # Guild-wide config / data (no initiative scope)
         "guild_settings",
+        "guild_ai_connections",  # guild admin's AI connections (guild config mode);
+        # guild-wide config, no initiative scope. The api_key ciphertext is never
+        # returned by the API (reads expose only has_key).
         "webhook_subscriptions",  # guild integration config; initiative_id nullable
         "tags",  # tags are guild-level, shared across initiatives (purge-guarded)
         "uploads",  # guild blob store: no FK to any initiative entity (documents
@@ -121,6 +125,11 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         "import_jobs",  # same shape as export_jobs: a backup import spans
         # initiatives, and the row's options/plan/report text plus the staged
         # payload it gates must not be guild-wide-readable.
+        # Member-owned AI rows (also in OWN_ROW_TABLES): a member's own key /
+        # connection preference. One member must not read another's key ciphertext
+        # or pref, so these carry own_row_* policies (owner OR guild admin).
+        "guild_ai_member_keys",
+        "guild_ai_member_prefs",
     }
 )
 
@@ -134,6 +143,8 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
 OWN_ROW_TABLES: dict[str, str] = {
     "export_jobs": "created_by_id",
     "import_jobs": "created_by_id",
+    "guild_ai_member_keys": "user_id",
+    "guild_ai_member_prefs": "user_id",
 }
 
 # --- Guild-scoped (derived) -------------------------------------------------

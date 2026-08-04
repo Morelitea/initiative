@@ -232,7 +232,7 @@ export const invalidateOidcMappings = () =>
 // so its list lives in the personal/platform family, not under any /g/ key.
 export const invalidatePlatformGuilds = () => invalidatePersonalExact([`/api/v1/settings/guilds`]);
 
-// ── AI Settings (platform is personal; guild/user/resolved are guild-scoped) ──────
+// ── AI Settings (platform config is personal; guild/member/resolved are guild-scoped) ──
 
 export const invalidateAllAISettings = () =>
   Promise.all([
@@ -240,15 +240,27 @@ export const invalidateAllAISettings = () =>
     invalidateGuildPrefix("/api/v1/settings/ai"),
   ]);
 
-export const invalidatePlatformAISettings = () =>
-  invalidatePersonalExact([`/api/v1/settings/ai/platform`]);
+// The platform owner's global mode + `allow_member_keys` (personal/platform).
+export const invalidatePlatformAIMode = () =>
+  invalidatePersonalExact([`/api/v1/settings/ai/platform/mode`]);
 
-export const invalidateGuildAISettings = () => invalidateGuildExact([`/api/v1/settings/ai/guild`]);
+// The operator-defined connections list (personal/platform).
+export const invalidatePlatformAIConnections = () =>
+  invalidatePersonalExact([`/api/v1/settings/ai/platform/connections`]);
 
-export const invalidateUserAISettings = () => invalidateGuildExact([`/api/v1/settings/ai/user`]);
+// A guild admin's own connections list (guild-scoped: `/g/{id}/settings/ai/connections`).
+export const invalidateGuildAIConnections = () =>
+  invalidateGuildExact([`/api/v1/settings/ai/connections`]);
+
+// The member's own view: selected connection, per-connection key state, on/off.
+export const invalidateMemberAI = () => invalidateGuildExact([`/api/v1/settings/ai/me`]);
 
 export const invalidateResolvedAISettings = () =>
   invalidateGuildExact([`/api/v1/settings/ai/resolved`]);
+
+// The cross-guild personal aggregate powering the "My AI" page (a flat `/me/ai`
+// list across every guild the user belongs to) — personal, never guild-scoped.
+export const invalidateMyAI = () => invalidatePersonalExact([`/api/v1/me/ai`]);
 
 // ── Users / Admin (personal / platform) ──────────────────────────────────────────
 

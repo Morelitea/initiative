@@ -1,314 +1,136 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { AIProvider, PlatformAISettingsUpdate } from "@/api/generated/initiativeAPI.schemas";
+import type { AIConfigMode } from "@/api/generated/initiativeAPI.schemas";
+import {
+  AIConnectionManager,
+  type ConnectionMutations,
+} from "@/components/settings/AIConnectionManager";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ModelCombobox } from "@/components/ui/model-combobox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import {
-  useFetchAIModels,
-  usePlatformAISettings,
-  useTestAIConnection,
-  useUpdatePlatformAISettings,
+  useCreatePlatformConnection,
+  useDeletePlatformConnection,
+  useFetchPlatformConnectionModels,
+  usePlatformAIMode,
+  usePlatformConnections,
+  useTestPlatformConnection,
+  useUpdatePlatformAIMode,
+  useUpdatePlatformConnection,
 } from "@/hooks/useAISettings";
 import { useAuth } from "@/hooks/useAuth";
-import { getModelsForProvider, getProvidersForScope, PROVIDER_CONFIGS } from "@/lib/ai-providers";
+import { getProvidersForScope } from "@/lib/ai-providers";
 import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 import { Capability, hasCapability } from "@/lib/permissions";
 
-interface FormState {
-  enabled: boolean;
-  provider: AIProvider | "";
-  apiKey: string;
-  baseUrl: string;
-  model: string;
-  allowGuildOverride: boolean;
-  allowUserOverride: boolean;
-}
-
-const DEFAULT_STATE: FormState = {
-  enabled: false,
-  provider: "",
-  apiKey: "",
-  baseUrl: "",
-  model: "",
-  allowGuildOverride: true,
-  allowUserOverride: true,
-};
+const MODES: AIConfigMode[] = ["disabled", "platform", "guild"];
 
 export const SettingsAIPage = () => {
   const { t } = useTranslation("settings");
   const { user } = useAuth();
-  const isPlatformAdmin = hasCapability(user, Capability.configManage);
-  const [formState, setFormState] = useState<FormState>(DEFAULT_STATE);
-  const [hasExistingKey, setHasExistingKey] = useState(false);
-  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const isPlatformOwner = hasCapability(user, Capability.configManage);
 
-  const settingsQuery = usePlatformAISettings({ enabled: isPlatformAdmin });
+  const modeQuery = usePlatformAIMode({ enabled: isPlatformOwner });
+  const [mode, setMode] = useState<AIConfigMode>("disabled");
 
   useEffect(() => {
-    if (settingsQuery.data) {
-      const data = settingsQuery.data;
-      setFormState({
-        enabled: data.enabled,
-        provider: data.provider ?? "",
-        apiKey: "",
-        baseUrl: data.base_url ?? "",
-        model: data.model ?? "",
-        allowGuildOverride: data.allow_guild_override,
-        allowUserOverride: data.allow_user_override,
-      });
-      setHasExistingKey(data.has_api_key);
+    if (modeQuery.data) {
+      setMode(modeQuery.data.mode);
     }
-  }, [settingsQuery.data]);
+  }, [modeQuery.data]);
 
-  const updateMutation = useUpdatePlatformAISettings({
-    onSuccess: (data) => {
-      toast.success(t("ai.saveSuccess"));
-      setFormState((prev) => ({ ...prev, apiKey: "" }));
-      setHasExistingKey(data.has_api_key);
-    },
-    onError: () => toast.error(t("ai.saveError")),
+  const updateMode = useUpdatePlatformAIMode({
+    onSuccess: () => toast.success(t("platformAI.modeSaved")),
+    onError: (error) => toast.error(getErrorMessage(error, "settings:platformAI.modeSaveError")),
   });
 
-  const testMutation = useTestAIConnection({
-    onSuccess: (data) => {
-      if (data.success) {
-        toast.success(data.message);
-        if (data.available_models) {
-          setAvailableModels(data.available_models);
-        }
-      } else {
-        toast.error(data.message);
-      }
-    },
-    onError: () => toast.error(t("ai.testError")),
+  const savedMode = modeQuery.data?.mode;
+  const connectionsQuery = usePlatformConnections({
+    enabled: isPlatformOwner && savedMode === "platform",
   });
 
-  const fetchModelsMutation = useFetchAIModels({
-    onSuccess: (data) => {
-      if (data.models.length > 0) {
-        setAvailableModels(data.models);
-      }
-    },
-  });
+  const mutations: ConnectionMutations = {
+    create: useCreatePlatformConnection(),
+    update: useUpdatePlatformConnection(),
+    remove: useDeletePlatformConnection(),
+    test: useTestPlatformConnection(),
+    fetchModels: useFetchPlatformConnectionModels(),
+  };
 
-  if (!isPlatformAdmin) {
-    return <p className="text-muted-foreground text-sm">{t("ai.adminOnlyPlatform")}</p>;
+  if (!isPlatformOwner) {
+    return <p className="text-muted-foreground text-sm">{t("platformAI.adminOnly")}</p>;
   }
 
-  if (settingsQuery.isLoading) {
+  if (modeQuery.isLoading) {
     return <p className="text-muted-foreground text-sm">{t("ai.loading")}</p>;
   }
 
-  if (settingsQuery.isError || !settingsQuery.data) {
+  if (modeQuery.isError || !modeQuery.data) {
     return <p className="text-destructive text-sm">{t("ai.loadError")}</p>;
   }
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const payload: PlatformAISettingsUpdate = {
-      enabled: formState.enabled,
-      provider: formState.provider || null,
-      base_url: formState.baseUrl || null,
-      model: formState.model || null,
-      allow_guild_override: formState.allowGuildOverride,
-      allow_user_override: formState.allowUserOverride,
-    };
-    if (formState.apiKey) {
-      payload.api_key = formState.apiKey;
-    }
-    updateMutation.mutate(payload);
+  const isDirty = mode !== modeQuery.data.mode;
+
+  const handleSave = () => {
+    updateMode.mutate({ mode });
   };
-
-  const handleTestConnection = () => {
-    if (!formState.provider) return;
-    testMutation.mutate({
-      provider: formState.provider,
-      api_key: formState.apiKey || null,
-      base_url: formState.baseUrl || null,
-      model: formState.model || null,
-    });
-  };
-
-  const handleFetchModels = () => {
-    if (!formState.provider || fetchModelsMutation.isPending) return;
-    fetchModelsMutation.mutate({
-      provider: formState.provider,
-      api_key: formState.apiKey || null,
-      base_url: formState.baseUrl || null,
-    });
-  };
-
-  const getModelOptions = () => getModelsForProvider(formState.provider, availableModels);
-
-  const providerConfig = formState.provider ? PROVIDER_CONFIGS[formState.provider] : null;
-  const showApiKeyField = providerConfig?.requiresApiKey ?? false;
-  const showBaseUrlField = providerConfig?.requiresBaseUrl ?? false;
 
   return (
-    <Card className="shadow-sm">
-      <CardHeader>
-        <CardTitle>{t("ai.title")}</CardTitle>
-        <CardDescription>{t("platformAI.description")}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="space-y-6" onSubmit={handleSubmit}>
-          <div className="flex items-center justify-between rounded-md border px-4 py-3">
-            <div>
-              <p className="font-medium">{t("ai.enableAI")}</p>
-              <p className="text-muted-foreground text-sm">{t("ai.enableAIPlatformDescription")}</p>
-            </div>
-            <Switch
-              checked={formState.enabled}
-              onCheckedChange={(checked) =>
-                setFormState((prev) => ({ ...prev, enabled: Boolean(checked) }))
-              }
+    <div className="space-y-6">
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>{t("platformAI.title")}</CardTitle>
+          <CardDescription>{t("platformAI.description")}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <fieldset className="space-y-3">
+            <legend className="font-medium text-sm">{t("platformAI.modeLabel")}</legend>
+            <RadioGroup value={mode} onValueChange={(value) => setMode(value as AIConfigMode)}>
+              {MODES.map((value) => (
+                <Label
+                  key={value}
+                  htmlFor={`ai-mode-${value}`}
+                  className="flex cursor-pointer items-start gap-3 rounded-md border px-4 py-3 font-normal has-[:checked]:border-primary"
+                >
+                  <RadioGroupItem id={`ai-mode-${value}`} value={value} className="mt-0.5" />
+                  <span className="space-y-1">
+                    <span className="block font-medium">{t(`platformAI.mode_${value}`)}</span>
+                    <span className="block text-muted-foreground text-sm">
+                      {t(`platformAI.mode_${value}_description`)}
+                    </span>
+                  </span>
+                </Label>
+              ))}
+            </RadioGroup>
+          </fieldset>
+
+          <Button type="button" onClick={handleSave} disabled={updateMode.isPending || !isDirty}>
+            {updateMode.isPending ? t("platformAI.savingMode") : t("platformAI.saveMode")}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {savedMode === "platform" && (
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle>{t("platformAI.connectionsTitle")}</CardTitle>
+            <CardDescription>{t("platformAI.connectionsDescription")}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AIConnectionManager
+              scope="platform"
+              connections={connectionsQuery.data ?? []}
+              isLoading={connectionsQuery.isLoading}
+              isError={connectionsQuery.isError}
+              providers={getProvidersForScope("platform")}
+              mutations={mutations}
             />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="ai-provider">{t("ai.providerFieldLabel")}</Label>
-            <Select
-              value={formState.provider}
-              onValueChange={(value) => {
-                // Radix Select fires onValueChange("") via its hidden bubble
-                // input when the controlled value is set before SelectItems
-                // mount. None of our items have value="", so ignore that call.
-                if (!value) return;
-                const config = PROVIDER_CONFIGS[value as AIProvider];
-                setFormState((prev) => ({
-                  ...prev,
-                  provider: value as AIProvider,
-                  baseUrl: config?.defaultBaseUrl ?? "",
-                }));
-                setAvailableModels([]);
-              }}
-            >
-              <SelectTrigger id="ai-provider">
-                <SelectValue placeholder={t("ai.providerPlaceholder")} />
-              </SelectTrigger>
-              <SelectContent>
-                {getProvidersForScope("platform").map((key) => (
-                  <SelectItem key={key} value={key}>
-                    {PROVIDER_CONFIGS[key].label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {showApiKeyField && (
-            <div className="space-y-2">
-              <Label htmlFor="ai-api-key">{t("ai.apiKeyLabel")}</Label>
-              <Input
-                id="ai-api-key"
-                type="password"
-                value={formState.apiKey}
-                onChange={(event) =>
-                  setFormState((prev) => ({ ...prev, apiKey: event.target.value }))
-                }
-                placeholder={
-                  hasExistingKey
-                    ? t("ai.apiKeyPlaceholderExisting")
-                    : t("ai.apiKeyPlaceholderNewShort")
-                }
-              />
-              <p className="text-muted-foreground text-xs">
-                {hasExistingKey ? t("ai.apiKeyHelpExistingShort") : t("ai.apiKeyHelpNewShort")}
-              </p>
-            </div>
-          )}
-
-          {showBaseUrlField && (
-            <div className="space-y-2">
-              <Label htmlFor="ai-base-url">{t("ai.baseUrlLabel")}</Label>
-              <Input
-                id="ai-base-url"
-                value={formState.baseUrl}
-                onChange={(event) =>
-                  setFormState((prev) => ({ ...prev, baseUrl: event.target.value }))
-                }
-                placeholder={providerConfig?.defaultBaseUrl ?? "https://api.example.com/v1"}
-              />
-              {formState.provider === "ollama" &&
-                formState.baseUrl.trim().toLowerCase().startsWith("http://") && (
-                  <p className="text-sm text-yellow-600 dark:text-yellow-500">
-                    {t("ai.httpWarning")}
-                  </p>
-                )}
-            </div>
-          )}
-
-          {formState.provider && (
-            <div className="space-y-2">
-              <Label>{t("ai.modelLabel")}</Label>
-              <ModelCombobox
-                models={getModelOptions()}
-                value={formState.model}
-                onValueChange={(value) => setFormState((prev) => ({ ...prev, model: value }))}
-                placeholder={providerConfig?.modelPlaceholder ?? "Select or type a model"}
-                onOpen={handleFetchModels}
-                isLoading={fetchModelsMutation.isPending}
-              />
-            </div>
-          )}
-
-          <div className="flex items-center justify-between rounded-md border px-4 py-3">
-            <div>
-              <p className="font-medium">{t("ai.allowGuildOverride")}</p>
-              <p className="text-muted-foreground text-sm">
-                {t("ai.allowGuildOverrideDescription")}
-              </p>
-            </div>
-            <Switch
-              checked={formState.allowGuildOverride}
-              onCheckedChange={(checked) =>
-                setFormState((prev) => ({ ...prev, allowGuildOverride: Boolean(checked) }))
-              }
-            />
-          </div>
-
-          <div className="flex items-center justify-between rounded-md border px-4 py-3">
-            <div>
-              <p className="font-medium">{t("ai.allowUserOverridePlatform")}</p>
-              <p className="text-muted-foreground text-sm">
-                {t("ai.allowUserOverridePlatformDescription")}
-              </p>
-            </div>
-            <Switch
-              checked={formState.allowUserOverride}
-              onCheckedChange={(checked) =>
-                setFormState((prev) => ({ ...prev, allowUserOverride: Boolean(checked) }))
-              }
-            />
-          </div>
-
-          <div className="flex gap-2">
-            <Button type="submit" disabled={updateMutation.isPending}>
-              {updateMutation.isPending ? t("ai.savingSettings") : t("ai.saveSettings")}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleTestConnection}
-              disabled={testMutation.isPending || !formState.provider}
-            >
-              {testMutation.isPending ? t("ai.testing") : t("ai.testConnection")}
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 };

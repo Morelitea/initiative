@@ -62,6 +62,10 @@ from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.advanced_tool import AdvancedTool
 from app.models.tenant.export_job import ExportJob
 from app.models.tenant.import_job import ImportJob
+from app.models.platform.ai_connection import PlatformAIConnection
+from app.models.tenant.ai_connection import GuildAIConnection
+from app.models.tenant.ai_member_key import GuildAIMemberKey
+from app.models.tenant.ai_member_pref import GuildAIMemberPref
 
 __all__ = [
     "User",
@@ -126,4 +130,8 @@ __all__ = [
     "BillingJti",
     "TaskAssignmentDigestItem",
     "WebhookSubscription",
+    "PlatformAIConnection",
+    "GuildAIConnection",
+    "GuildAIMemberKey",
+    "GuildAIMemberPref",
 ]

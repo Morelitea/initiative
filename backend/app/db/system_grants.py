@@ -76,6 +76,12 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     "access_grants": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # singleton config: seeded + updated, never deleted
     "app_settings": frozenset({"SELECT", "INSERT", "UPDATE"}),
+    # operator AI connections: the request path never queries this directly —
+    # the resolve step reads it via an in-process cache loaded on the system
+    # engine (SELECT), and the secret-key rotation re-encrypts its key column on
+    # the system engine (UPDATE). CRUD writes run owner-scoped as platform_owner
+    # via RLS, not the system engine.
+    "platform_ai_connections": frozenset({"SELECT", "UPDATE"}),
     # OIDC sync reads mappings; the settings endpoints manage them
     "oidc_claim_mappings": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # login provider registry (successor to app_settings.oidc_*): fully managed
@@ -104,7 +110,10 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     "notifications": frozenset({"SELECT", "INSERT", "DELETE"}),
     "user_tokens": frozenset({"SELECT", "INSERT", "DELETE"}),
     "push_tokens": frozenset({"SELECT", "INSERT", "DELETE"}),
-    "user_api_keys": frozenset({"SELECT", "DELETE"}),
+    # pre-auth credential store — validated by token_hash before the user is
+    # known, so the lookup + create + deactivate all run on the system engine
+    # (no request-path grant, no own-row policy), like auth_sessions
+    "user_api_keys": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # SELECT/INSERT for the redemption path; DELETE for the shared jti janitor
     # (app.services.platform.jti_purge) that prunes expired rows — expired
     # jtis are inert (the JWT's own exp refuses replay before the blocklist is
@@ -136,9 +145,14 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # system engine — see security_invariants_test.
     "users": frozenset({"SELECT"}),
     "user_tokens": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
-    "user_api_keys": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # system-engine-only credential store; the request path never touches it
+    # (auth lookup + management endpoints run on app_admin), like auth_sessions
+    "user_api_keys": None,
     "auto_delegation_jti_blocklist": frozenset({"SELECT", "INSERT"}),
     "app_settings": frozenset({"SELECT"}),
+    # operator AI connections are owner-managed + system-engine-read only; the
+    # bare pre-routing login role never touches them
+    "platform_ai_connections": None,
     "guilds": frozenset({"SELECT"}),
     "guild_invites": frozenset({"SELECT"}),
     "guild_memberships": frozenset({"SELECT"}),

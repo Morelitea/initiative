@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.59.0] - 2026-08-03
+
+### Changed
+
+- **AI configuration is now connection-based with a single app-wide mode.** An operator chooses whether AI providers are configured at the **platform** level (the operator's connections apply to every guild), **per guild** (each guild admin configures its own), or **disabled** — one mode app-wide, mirroring the sign-in posture. A connection defines the provider, model, and an optional shared key; guild members attach **their own API key** and pick which connection they use, and never set the destination themselves. Standalone per-user AI (outside a guild) has been removed. An existing platform or guild provider is migrated into a connection automatically and its key is preserved; per-user AI keys are not migrated.
+
+### Security
+
+- AI provider credentials are now stored per member inside their guild's isolated database schema under row-level security, are never returned by the API (only whether a key is set), and are purged when a user is deleted or anonymized. A connection's destination (provider and base URL) is always set by the mode's owner, so a member's key is only ever sent to that owner-set destination. Every outbound AI call — subtask/description/summary generation, connection tests, and model listing — flows through the shared guarded egress that connects only to the policy-validated address; private or internal addresses are permitted only for an operator-configured local (Ollama) model, never for a guild admin or member.
+- Personal API keys are now stored behind database row-level security and are reachable only through the system engine — the request path holds no grant on the table at all — matching the server-side session store. Creating, listing, deleting, and authenticating with API keys is unchanged.
+
 ## [0.58.3] - 2026-08-03
 
 ### Fixed

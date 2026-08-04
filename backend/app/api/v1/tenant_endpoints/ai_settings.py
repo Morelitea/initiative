@@ -1,17 +1,19 @@
-"""Guild- and user-level AI settings endpoints.
+"""Guild-scoped AI config endpoints, mounted under ``/g/{guild_id}/settings``.
 
-The guild and user legs of the hierarchical AI-settings cascade, mounted
-under ``/g/{guild_id}/settings``:
-- Guild level: guild admins
-- User level: any authenticated user (if allowed)
+Two surfaces:
+- **Guild admin** — CRUD of ``guild_ai_connections`` (used when the global mode
+  is ``guild``). A connection's ``base_url`` is validated public-only, so a
+  guild admin can never persist a private/internal target.
+- **Member** (any authenticated guild member) — attach an own key + pick a
+  connection (``/ai/me``). Members never set a destination.
 
-The platform leg (app-wide, owner-only) lives in
-``platform_endpoints/ai_settings.py`` and is mounted top-level.
+The global mode + operator connections (``platform`` mode) live in
+``platform_endpoints/ai_settings.py``.
 """
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 
 from app.api.deps import (
     GuildContext,
@@ -21,165 +23,169 @@ from app.api.deps import (
     require_guild_roles,
 )
 from app.models.platform.guild import GuildRole
-from app.core.capabilities import Capability, user_has_capability
 from app.models.platform.user import User
 from app.schemas.ai_settings import (
-    AIModelsRequest,
+    AIConnectionCreate,
+    AIConnectionResponse,
+    AIConnectionTestResponse,
+    AIConnectionUpdate,
     AIModelsResponse,
-    AITestConnectionRequest,
-    AITestConnectionResponse,
-    GuildAISettingsResponse,
-    GuildAISettingsUpdate,
+    ConnectionScope,
+    MemberAIKeyUpdate,
+    MemberAIPrefUpdate,
+    MemberAIView,
     ResolvedAISettingsResponse,
-    UserAISettingsResponse,
-    UserAISettingsUpdate,
 )
 from app.services import ai_settings as ai_settings_service
 
 router = APIRouter()
 
-# The guild settings surface: real guild admins OR a ``support`` (scoped PAM)
+# Guild connection management: real guild admins OR a ``support`` (scoped PAM)
 # grantee. Reads work for any support grant; writes are denied at the Postgres
 # role level for a read grant (it assumes ``guild_<id>_ro``), so the read/write
-# split is DB-enforced and needs no app-layer grant check here.
-GuildSettingsContext = Annotated[
+# split is DB-enforced.
+GuildAdminContext = Annotated[
     GuildContext, Depends(require_guild_roles(GuildRole.admin, GuildRole.support))
 ]
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
+GuildMemberContext = Annotated[GuildContext, Depends(get_guild_membership)]
+CurrentUser = Annotated[User, Depends(get_current_active_user)]
 
 
-# Guild-level endpoints (guild admin only)
-@router.get("/ai/guild", response_model=GuildAISettingsResponse)
-async def get_guild_ai_settings(
+# --- Guild connections (guild admin — guild config mode) ---------------------
+@router.get("/ai/connections", response_model=list[AIConnectionResponse])
+async def list_guild_connections(
     session: RLSSessionDep,
-    guild_ctx: GuildSettingsContext,
-) -> GuildAISettingsResponse:
-    """Get guild-level AI settings. Guild admin, or a support grantee."""
-    return await ai_settings_service.get_guild_ai_settings(session, guild_ctx.guild_id)
+    _ctx: GuildAdminContext,
+) -> list[AIConnectionResponse]:
+    return await ai_settings_service.list_guild_connections(session)
 
 
-@router.put("/ai/guild", response_model=GuildAISettingsResponse)
-async def update_guild_ai_settings(
-    payload: GuildAISettingsUpdate,
+@router.post("/ai/connections", response_model=AIConnectionResponse)
+async def create_guild_connection(
+    payload: AIConnectionCreate,
     session: RLSSessionDep,
-    guild_ctx: GuildSettingsContext,
-) -> GuildAISettingsResponse:
-    """Update guild-level AI settings. Guild admin, or a support grantee whose
-    grant is ``read_write`` — a read grant is routed into the SELECT-only
-    ``guild_<id>_ro`` role, so the write is denied at the database layer."""
-    try:
-        data = payload.model_dump(exclude_unset=True)
-        api_key_provided = "api_key" in data
-        return await ai_settings_service.update_guild_ai_settings(
-            session, guild_ctx.guild_id, payload, api_key_provided=api_key_provided
-        )
-    except PermissionError as e:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
-
-
-# User-level endpoints (any authenticated user)
-@router.get("/ai/user", response_model=UserAISettingsResponse)
-async def get_user_ai_settings(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> UserAISettingsResponse:
-    """Get user-level AI settings."""
-    return await ai_settings_service.get_user_ai_settings(
-        session, current_user, guild_context.guild_id
+    ctx: GuildAdminContext,
+    user: CurrentUser,
+) -> AIConnectionResponse:
+    return await ai_settings_service.create_guild_connection(
+        session, ctx.guild_id, user.id, payload
     )
 
 
-@router.put("/ai/user", response_model=UserAISettingsResponse)
-async def update_user_ai_settings(
-    payload: UserAISettingsUpdate,
+@router.put("/ai/connections/{connection_id}", response_model=AIConnectionResponse)
+async def update_guild_connection(
+    connection_id: int,
+    payload: AIConnectionUpdate,
     session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> UserAISettingsResponse:
-    """Update user-level AI settings."""
-    try:
-        data = payload.model_dump(exclude_unset=True)
-        api_key_provided = "api_key" in data
-        return await ai_settings_service.update_user_ai_settings(
-            session,
-            current_user,
-            payload,
-            guild_context.guild_id,
-            api_key_provided=api_key_provided,
-        )
-    except PermissionError as e:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    _ctx: GuildAdminContext,
+) -> AIConnectionResponse:
+    return await ai_settings_service.update_guild_connection(
+        session, connection_id, payload
+    )
 
 
-# Resolved settings endpoint (any authenticated user)
+@router.delete(
+    "/ai/connections/{connection_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_guild_connection(
+    connection_id: int,
+    session: RLSSessionDep,
+    _ctx: GuildAdminContext,
+) -> None:
+    await ai_settings_service.delete_guild_connection(session, connection_id)
+
+
+@router.post(
+    "/ai/connections/{connection_id}/test", response_model=AIConnectionTestResponse
+)
+async def test_guild_connection(
+    connection_id: int,
+    session: RLSSessionDep,
+    _ctx: GuildAdminContext,
+) -> AIConnectionTestResponse:
+    return await ai_settings_service.test_guild_connection(session, connection_id)
+
+
+@router.post("/ai/connections/{connection_id}/models", response_model=AIModelsResponse)
+async def fetch_guild_connection_models(
+    connection_id: int,
+    session: RLSSessionDep,
+    _ctx: GuildAdminContext,
+) -> AIModelsResponse:
+    return await ai_settings_service.fetch_guild_connection_models(
+        session, connection_id
+    )
+
+
+# --- Member surface (any authenticated guild member) -------------------------
+@router.get("/ai/me", response_model=MemberAIView)
+async def get_member_ai(
+    session: RLSSessionDep,
+    ctx: GuildMemberContext,
+    user: CurrentUser,
+) -> MemberAIView:
+    """List the connections available to the member (no keys), whether they've
+    attached their own key to each, and which one is selected."""
+    return await ai_settings_service.get_member_ai_view(session, user, ctx.guild_id)
+
+
+@router.put("/ai/me/key", response_model=MemberAIView)
+async def set_member_key(
+    payload: MemberAIKeyUpdate,
+    session: RLSSessionDep,
+    ctx: GuildMemberContext,
+    user: CurrentUser,
+) -> MemberAIView:
+    """Attach/replace the member's own key for a connection."""
+    return await ai_settings_service.set_member_key(
+        session, user, ctx.guild_id, payload
+    )
+
+
+@router.delete("/ai/me/key/{scope}/{connection_id}", response_model=MemberAIView)
+async def delete_member_key(
+    scope: ConnectionScope,
+    connection_id: int,
+    session: RLSSessionDep,
+    ctx: GuildMemberContext,
+    user: CurrentUser,
+) -> MemberAIView:
+    return await ai_settings_service.delete_member_key(
+        session, user, ctx.guild_id, scope, connection_id
+    )
+
+
+@router.put("/ai/me/pref", response_model=MemberAIView)
+async def set_member_pref(
+    payload: MemberAIPrefUpdate,
+    session: RLSSessionDep,
+    ctx: GuildMemberContext,
+    user: CurrentUser,
+) -> MemberAIView:
+    """Pick the connection the member uses and whether AI is on for them."""
+    return await ai_settings_service.set_member_pref(
+        session, user, ctx.guild_id, payload
+    )
+
+
+@router.post("/ai/me/test", response_model=AIConnectionTestResponse)
+async def test_member_ai(
+    session: RLSSessionDep,
+    ctx: GuildMemberContext,
+    user: CurrentUser,
+) -> AIConnectionTestResponse:
+    """Test the member's currently-selected connection with their effective key."""
+    return await ai_settings_service.test_member_connection(session, user, ctx.guild_id)
+
+
+# --- Resolved settings (any authenticated guild member) ----------------------
 @router.get("/ai/resolved", response_model=ResolvedAISettingsResponse)
 async def get_resolved_ai_settings(
     session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    ctx: GuildMemberContext,
+    user: CurrentUser,
 ) -> ResolvedAISettingsResponse:
-    """Get resolved (effective) AI settings for the current user.
-
-    This returns the final computed settings without exposing API keys.
-    """
+    """Resolved (effective) AI settings for the member, without the API key."""
     return await ai_settings_service.get_resolved_ai_settings_response(
-        session, current_user, guild_context.guild_id
+        session, user, ctx.guild_id
     )
-
-
-# Test connection endpoint (any authenticated user)
-@router.post("/ai/test", response_model=AITestConnectionResponse)
-async def test_ai_connection(
-    payload: AITestConnectionRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> AITestConnectionResponse:
-    """Test connection to an AI provider.
-
-    If no API key is provided in the request, it will use the existing
-    key from the user's resolved settings.
-    """
-    api_key = payload.api_key
-    if not api_key:
-        resolved = await ai_settings_service.resolve_ai_settings(
-            session, current_user, guild_context.guild_id
-        )
-        api_key = resolved.api_key
-
-    bypass_ssrf = user_has_capability(current_user, Capability.CONFIG_MANAGE)
-    return await ai_settings_service.test_ai_connection(
-        payload, existing_api_key=api_key, bypass_ssrf=bypass_ssrf
-    )
-
-
-# Fetch models endpoint (any authenticated user)
-@router.post("/ai/models", response_model=AIModelsResponse)
-async def fetch_ai_models(
-    payload: AIModelsRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> AIModelsResponse:
-    """Fetch available models from an AI provider.
-
-    If no API key is provided in the request, it will use the existing
-    key from the user's resolved settings.
-    """
-    api_key = payload.api_key
-    if not api_key:
-        resolved = await ai_settings_service.resolve_ai_settings(
-            session, current_user, guild_context.guild_id
-        )
-        api_key = resolved.api_key
-
-    bypass_ssrf = user_has_capability(current_user, Capability.CONFIG_MANAGE)
-    models, error = await ai_settings_service.fetch_models(
-        payload.provider,
-        api_key,
-        payload.base_url,
-        bypass_ssrf=bypass_ssrf,
-    )
-
-    return AIModelsResponse(models=models, error=error)

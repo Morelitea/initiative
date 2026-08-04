@@ -1,0 +1,144 @@
+import { Plug, Plus } from "lucide-react";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+
+import type {
+  AIConnectionResponse,
+  AIProvider,
+  ConnectionScope,
+} from "@/api/generated/initiativeAPI.schemas";
+import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
+
+import { AIConnectionDialog } from "./AIConnectionDialog";
+import { AIConnectionRow } from "./AIConnectionRow";
+import type { ConnectionMutations } from "./aiConnection.types";
+
+export type { ConnectionMutations } from "./aiConnection.types";
+
+interface AIConnectionManagerProps {
+  scope: ConnectionScope;
+  connections: AIConnectionResponse[];
+  isLoading: boolean;
+  isError: boolean;
+  /** Providers selectable in this scope (platform allows Ollama, guild does not). */
+  providers: AIProvider[];
+  mutations: ConnectionMutations;
+}
+
+/**
+ * Thin orchestrator for a list of AI connections: renders the rows, owns the
+ * add/edit dialog and delete confirmation, and delegates all field/submit logic
+ * to `AIConnectionDialog`. Platform and guild pages reuse it via `scope`.
+ */
+export const AIConnectionManager = ({
+  scope,
+  connections,
+  isLoading,
+  isError,
+  providers,
+  mutations,
+}: AIConnectionManagerProps) => {
+  const { t } = useTranslation("settings");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<AIConnectionResponse | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<AIConnectionResponse | null>(null);
+
+  const openCreate = () => {
+    setEditing(null);
+    setDialogOpen(true);
+  };
+
+  const openEdit = (connection: AIConnectionResponse) => {
+    setEditing(connection);
+    setDialogOpen(true);
+  };
+
+  const handleTest = (connection: AIConnectionResponse) => {
+    mutations.test.mutate(connection.id, {
+      onSuccess: (data) => {
+        if (data.success) {
+          toast.success(data.message || t("ai.testSuccess"));
+        } else {
+          toast.error(data.message || t("ai.testError"));
+        }
+      },
+      onError: (error) => toast.error(getErrorMessage(error, "settings:ai.testError")),
+    });
+  };
+
+  const confirmDelete = () => {
+    if (!pendingDelete) return;
+    mutations.remove.mutate(pendingDelete.id, {
+      onSuccess: () => {
+        toast.success(t("aiConnections.deleted"));
+        setPendingDelete(null);
+      },
+      onError: (error) => toast.error(getErrorMessage(error, "settings:aiConnections.deleteError")),
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <h3 className="font-medium">{t("aiConnections.title")}</h3>
+          <p className="text-muted-foreground text-sm">{t("aiConnections.subtitle")}</p>
+        </div>
+        <Button type="button" onClick={openCreate} className="shrink-0">
+          <Plus className="mr-1 h-4 w-4" />
+          {t("aiConnections.add")}
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <p className="text-muted-foreground text-sm">{t("aiConnections.loading")}</p>
+      ) : isError ? (
+        <p className="text-destructive text-sm">{t("aiConnections.loadError")}</p>
+      ) : connections.length === 0 ? (
+        <div className="flex flex-col items-center gap-2 rounded-md border border-dashed px-4 py-8 text-center">
+          <Plug className="h-6 w-6 text-muted-foreground" />
+          <p className="text-muted-foreground text-sm">{t("aiConnections.empty")}</p>
+        </div>
+      ) : (
+        <ul className="space-y-2">
+          {connections.map((connection) => (
+            <AIConnectionRow
+              key={connection.id}
+              connection={connection}
+              isTesting={mutations.test.isPending && mutations.test.variables === connection.id}
+              testDisabled={mutations.test.isPending}
+              onTest={() => handleTest(connection)}
+              onEdit={() => openEdit(connection)}
+              onDelete={() => setPendingDelete(connection)}
+            />
+          ))}
+        </ul>
+      )}
+
+      <AIConnectionDialog
+        key={editing ? `edit-${editing.id}` : "create"}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        scope={scope}
+        providers={providers}
+        connection={editing}
+        mutations={mutations}
+      />
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => !open && setPendingDelete(null)}
+        title={t("aiConnections.deleteTitle")}
+        description={t("aiConnections.deleteDescription", { label: pendingDelete?.label ?? "" })}
+        confirmLabel={t("aiConnections.delete")}
+        cancelLabel={t("aiConnections.cancel")}
+        onConfirm={confirmDelete}
+        isLoading={mutations.remove.isPending}
+        destructive
+      />
+    </div>
+  );
+};
