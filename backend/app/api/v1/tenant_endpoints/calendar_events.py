@@ -53,6 +53,7 @@ from app.schemas.tenant.ical import (
     ICalParseResult,
 )
 from app.schemas.tenant.property import PropertyValuesSetRequest
+from app.schemas.tenant.tag import TagSetRequest
 from app.api import resource_access
 from app.core.tools import Tool
 from app.models.tenant.resource_grant import ResourceGrant
@@ -906,6 +907,34 @@ async def set_documents(
         guild_context.guild_id,
         current_user.id,
     )
+    await session.commit()
+    hydrated = await _refetch_event(session, event.id)
+    return serialize_calendar_event(hydrated, user_id=current_user.id)
+
+
+@router.put("/{event_id}/tags", response_model=CalendarEventRead)
+async def set_event_tags(
+    event_id: int,
+    tags_in: TagSetRequest,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> CalendarEventRead:
+    """Set the tags for an event. Replaces all existing tags with the provided
+    list. Events are content-level extras (like tasks), so they keep a
+    hand-written tag route instead of the generic ``/tools/{tool}`` one."""
+    event = await _get_event_or_404(
+        session, event_id, current_user, guild_context, access="write"
+    )
+    await tags_service.set_entity_tags(
+        session,
+        tags_service.EXTRA_TAG_LINKS["calendar_event"],
+        guild_id=guild_context.guild_id,
+        entity_id=event.id,
+        tag_ids=tags_in.tag_ids,
+    )
+    event.updated_at = datetime.now(timezone.utc)
+    session.add(event)
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
     return serialize_calendar_event(hydrated, user_id=current_user.id)

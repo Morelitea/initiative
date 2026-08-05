@@ -85,10 +85,11 @@ async def test_list_events_summary_includes_tags(
 
     tag = await create_tag(session, guild, name="Priority", color="#ff0000")
 
-    # Assign the tag to the event (via the generic tool tags route). Events stay
-    # taggable even though they are no longer a first-class Tool.
+    # Assign the tag via the event's own tags route. Events stay taggable even
+    # though they are no longer a first-class Tool (content-level extra, like
+    # tasks — the generic /tools route no longer accepts them).
     assign = await client.put(
-        a.g(f"/tools/calendar_event/{event.id}/tags"),
+        a.g(f"/calendar-events/{event.id}/tags"),
         headers=a.headers,
         json={"tag_ids": [tag.id]},
     )

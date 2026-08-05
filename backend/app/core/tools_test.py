@@ -203,6 +203,7 @@ def test_the_generic_tool_tags_route_is_the_only_tool_set_tags_surface():
     extras = {
         "/api/v1/g/{guild_id}/tasks/{task_id}/tags",
         "/api/v1/g/{guild_id}/queues/{queue_id}/items/{item_id}/tags",
+        "/api/v1/g/{guild_id}/calendar-events/{event_id}/tags",
     }
     assert put_tag_paths == {generic} | extras
 

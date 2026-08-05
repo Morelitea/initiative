@@ -1609,30 +1609,29 @@ async def test_bulk_project_selection_exports_backup_zip(
 async def _events_enabled(session, initiative):
     """Calendar events are a toggleable tool (off by default) — flip the
     initiative's master switch so the enumeration includes it."""
-    initiative.calendar_events_enabled = True
+    initiative.calendars_enabled = True
     session.add(initiative)
     await session.commit()
 
 
-async def test_calendar_event_export_ics_and_json(
-    client: AsyncClient, acting_user, session
-):
-    """Events export as one multi-event iCalendar file (RRULE + attendee
-    RSVPs preserved) or one importable envelope — both through the engine."""
+async def test_calendar_export_ics_and_json(client: AsyncClient, acting_user, session):
+    """A calendar exports as one multi-event iCalendar file (RRULE preserved)
+    or one importable envelope carrying the calendar plus every event."""
     import json
 
-    from app.testing.factories import create_calendar_event
-
     from app.testing.factories import (
+        create_calendar,
+        create_calendar_event,
         create_calendar_event_property_value,
         create_property_definition,
     )
 
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     await _events_enabled(session, a.initiative)
+    calendar = await create_calendar(session, a.initiative, a.user, name="Raid Nights")
     recurring_event = await create_calendar_event(
         session,
-        a.initiative,
+        calendar,
         a.user,
         title="Session 13",
         description="Return to the castle",
@@ -1643,16 +1642,16 @@ async def test_calendar_event_export_ics_and_json(
     await create_calendar_event_property_value(
         session, recurring_event, definition, value_text="Table 3"
     )
-    await create_calendar_event(session, a.initiative, a.user, title="One-shot night")
+    await create_calendar_event(session, calendar, a.user, title="One-shot night")
 
     ics = await client.get(
-        a.g("/exports/calendar-event"),
+        a.g("/exports/calendar"),
         headers=a.headers,
         params={"format": "ics"},
     )
     assert ics.status_code == 200
     assert ics.headers["content-type"].startswith("text/calendar")
-    assert 'filename="calendar-events-' in ics.headers["content-disposition"]
+    assert 'filename="raid_nights-' in ics.headers["content-disposition"]
     body = ics.content.decode("utf-8")
     assert body.startswith("BEGIN:VCALENDAR")
     assert body.count("BEGIN:VEVENT") == 2
@@ -1661,14 +1660,15 @@ async def test_calendar_event_export_ics_and_json(
     assert "LOCATION:Roll20" in body
 
     js = await client.get(
-        a.g("/exports/calendar-event"),
+        a.g("/exports/calendar"),
         headers=a.headers,
         params={"format": "json"},
     )
     assert js.status_code == 200
     envelope = json.loads(js.content)
-    assert envelope["type"] == "initiative-calendar-events"
+    assert envelope["type"] == "initiative-calendar"
     assert envelope["schema_version"] == 1
+    assert envelope["name"] == "Raid Nights"
     titles = {e["title"] for e in envelope["events"]}
     assert titles == {"Session 13", "One-shot night"}
     recurring = next(e for e in envelope["events"] if e["title"] == "Session 13")
@@ -1680,16 +1680,16 @@ async def test_calendar_event_export_ics_and_json(
     ]
 
 
-async def test_calendar_event_export_applies_per_event_sharing(
+async def test_calendar_export_applies_calendar_sharing(
     client: AsyncClient, acting_user, session
 ):
-    """Per-event sharing holds for exports: an event not shared with the
-    exporter stays OUT of their export-all — while a guild admin still sees
-    everything."""
+    """Calendar sharing holds for exports: a calendar not shared with the
+    exporter stays OUT of their export-all — while a guild admin still
+    reaches it by explicit selection."""
     from sqlalchemy import delete as sa_delete
 
     from app.models.tenant.resource_grant import ResourceGrant
-    from app.testing.factories import create_calendar_event
+    from app.testing.factories import create_calendar, create_calendar_event
 
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     await _events_enabled(session, a.initiative)
@@ -1699,72 +1699,84 @@ async def test_calendar_event_export_applies_per_event_sharing(
         initiative=a.initiative,
         initiative_role="member",
     )
-    shared = await create_calendar_event(session, a.initiative, a.user, title="Open")
-    secret = await create_calendar_event(session, a.initiative, a.user, title="Secret")
+    open_cal = await create_calendar(session, a.initiative, a.user, name="Open")
+    secret_cal = await create_calendar(session, a.initiative, a.user, name="Secret")
+    await create_calendar_event(session, open_cal, a.user, title="Open session")
+    secret = await create_calendar_event(session, secret_cal, a.user, title="Hidden")
     # Strip every grant except the creator's own — b can no longer see it.
     # (is_distinct_from: role grants carry a NULL user_id, which a plain
     # ``!=`` would silently skip.)
     await session.exec(
         sa_delete(ResourceGrant).where(
-            ResourceGrant.resource_type == "calendar_event",
-            ResourceGrant.resource_id == secret.id,
+            ResourceGrant.resource_type == "calendar",
+            ResourceGrant.resource_id == secret_cal.id,
             ResourceGrant.user_id.is_distinct_from(a.user.id),
         )
     )
     await session.commit()
-    assert shared.id
+    assert secret.id
 
     import json
 
     resp = await client.get(
-        a.g("/exports/calendar-event"),
+        a.g("/exports/calendar"),
         headers=b.headers,
         params={"format": "json"},
     )
     assert resp.status_code == 200
-    titles = {e["title"] for e in json.loads(resp.content)["events"]}
-    assert titles == {"Open"}  # Secret excluded — the DAC gap fix
+    envelope = json.loads(resp.content)
+    assert envelope["name"] == "Open"
+    assert {e["title"] for e in envelope["events"]} == {"Open session"}
 
-    # Explicitly requesting the hidden id is refused outright.
+    # Explicitly requesting the hidden calendar is refused outright.
     denied = await client.get(
-        a.g("/exports/calendar-event"),
+        a.g("/exports/calendar"),
         headers=b.headers,
-        params={"format": "ics", "calendar_event_ids": [secret.id]},
+        params={"format": "ics", "calendar_ids": [secret_cal.id]},
     )
     assert denied.status_code == 403
 
     admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
     admin_resp = await client.get(
-        a.g("/exports/calendar-event"),
+        a.g("/exports/calendar"),
         headers=admin.headers,
-        params={"format": "json"},
+        params={"format": "json", "calendar_ids": [secret_cal.id]},
     )
-    admin_titles = {e["title"] for e in json.loads(admin_resp.content)["events"]}
-    assert admin_titles == {"Open", "Secret"}
+    assert admin_resp.status_code == 200
+    admin_env = json.loads(admin_resp.content)
+    assert {e["title"] for e in admin_env["events"]} == {"Hidden"}
 
 
-async def test_calendar_event_export_initiative_filter(
+async def test_calendar_export_initiative_filter(
     client: AsyncClient, acting_user, session
 ):
     import json
 
-    from app.testing.factories import create_calendar_event, create_initiative
+    from app.testing.factories import (
+        create_calendar,
+        create_calendar_event,
+        create_initiative,
+    )
 
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     await _events_enabled(session, a.initiative)
     other = await create_initiative(
-        session, a.guild, a.user, name="Side quests", calendar_events_enabled=True
+        session, a.guild, a.user, name="Side quests", calendars_enabled=True
     )
-    await create_calendar_event(session, a.initiative, a.user, title="Main event")
-    await create_calendar_event(session, other, a.user, title="Side event")
+    main_cal = await create_calendar(session, a.initiative, a.user, name="Main Cal")
+    side_cal = await create_calendar(session, other, a.user, name="Side Cal")
+    await create_calendar_event(session, main_cal, a.user, title="Main event")
+    await create_calendar_event(session, side_cal, a.user, title="Side event")
 
     resp = await client.get(
-        a.g("/exports/calendar-event"),
+        a.g("/exports/calendar"),
         headers=a.headers,
         params={"format": "json", "initiative_id": a.initiative.id},
     )
-    titles = {e["title"] for e in json.loads(resp.content)["events"]}
-    assert titles == {"Main event"}
+    assert resp.status_code == 200
+    envelope = json.loads(resp.content)
+    assert envelope["name"] == "Main Cal"
+    assert {e["title"] for e in envelope["events"]} == {"Main event"}
 
 
 async def test_smart_link_exports_importable_json_envelope(
@@ -1874,7 +1886,7 @@ async def _all_tools_enabled(session, initiative):
     initiative's master switches so the aggregate enumeration includes them."""
     initiative.queues_enabled = True
     initiative.counter_groups_enabled = True
-    initiative.calendar_events_enabled = True
+    initiative.calendars_enabled = True
     session.add(initiative)
     await session.commit()
 
@@ -1882,6 +1894,7 @@ async def _all_tools_enabled(session, initiative):
 async def _populate_initiative(session, a, initiative):
     """One entity per tool inside the given initiative."""
     from app.testing.factories import (
+        create_calendar,
         create_calendar_event,
         create_counter_group,
         create_document,
@@ -1895,7 +1908,8 @@ async def _populate_initiative(session, a, initiative):
     await create_document(session, initiative, a.user, title="Campaign Notes")
     await create_queue(session, initiative, a.user, name="Turn Order")
     await create_counter_group(session, initiative, a.user, name="Party Gold")
-    await create_calendar_event(session, initiative, a.user, title="Session Zero")
+    calendar = await create_calendar(session, initiative, a.user, name="Raid Nights")
+    await create_calendar_event(session, calendar, a.user, title="Session Zero")
 
 
 async def _rendered_zip(client, a, monkeypatch, role_session, resp):
@@ -1948,7 +1962,7 @@ async def test_initiative_backup_zip_layout_and_manifest(
         "document": "included",
         "queue": "included",
         "counter_group": "included",
-        "calendar_event": "included",
+        "calendar": "included",
     }
 
     # Every manifest entry is in the archive, and vice versa (minus manifest).
@@ -1964,7 +1978,7 @@ async def test_initiative_backup_zip_layout_and_manifest(
         "initiative-document",
         "initiative-queue",
         "initiative-counter-group",
-        "initiative-calendar-events",
+        "initiative-calendar",
     }
 
     # Spot-check envelopes round-trip through the archive paths.
@@ -1975,11 +1989,11 @@ async def test_initiative_backup_zip_layout_and_manifest(
     doc_env = json.loads(archive.read(by_type["initiative-document"]["path"]))
     assert doc_env["type"] == "initiative-document"
     assert doc_env["title"] == "Campaign Notes"
-    events_env = json.loads(archive.read(by_type["initiative-calendar-events"]["path"]))
-    assert [e["title"] for e in events_env["events"]] == ["Session Zero"]
-    assert by_type["initiative-calendar-events"]["path"].endswith(
-        "/calendar-events.json"
-    )
+    calendar_env = json.loads(archive.read(by_type["initiative-calendar"]["path"]))
+    assert calendar_env["name"] == "Raid Nights"
+    assert [e["title"] for e in calendar_env["events"]] == ["Session Zero"]
+    assert by_type["initiative-calendar"]["path"].endswith(".initiative-calendar.json")
+    assert "/calendars/" in by_type["initiative-calendar"]["path"]
 
 
 async def test_initiative_backup_includes_read_only_projects(
@@ -2334,7 +2348,7 @@ async def test_report_mode_mixed_formats_zip(
                     "project": "pdf",
                     "queue": "csv",
                     "counter_group": "xlsx",
-                    "calendar_event": "ics",
+                    "calendar": "ics",
                     "document": {"native": "md"},
                 }
             ),
@@ -2452,7 +2466,7 @@ async def test_estimate_reports_counts_uploads_and_ceilings(
         "document": 2,  # Campaign Notes + the file doc
         "queue": 1,
         "counter_group": 1,
-        "calendar_event": 1,
+        "calendar": 1,
     }
     assert not any(t["disabled"] for t in body["tools"].values())
     assert body["uploads_count"] == 1
@@ -2500,7 +2514,7 @@ async def test_empty_initiative_backup_is_manifest_only_zip(
     tools = manifest["initiatives"][0]["tools"]
     assert tools["project"] == "included"  # core tools have no off switch
     assert tools["queue"] == "disabled"
-    assert tools["calendar_event"] == "disabled"
+    assert tools["calendar"] == "disabled"
 
 
 async def test_guild_export_admin_revoked_fails_closed(
