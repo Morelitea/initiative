@@ -270,9 +270,11 @@ export const CreateEventDialog = ({
                 value={selectedInitiativeId}
                 onValueChange={(value) => {
                   setSelectedInitiativeId(value);
-                  // Attendees are initiative members; a new target starts over
-                  // with just the creator.
+                  // Attendees and access grants are initiative-scoped; a new
+                  // target starts over with just the creator and default
+                  // access.
                   setAttendeeIds(user ? [user.id] : []);
+                  setGrants([...DEFAULT_GRANTS]);
                 }}
               >
                 <SelectTrigger id="create-event-initiative">

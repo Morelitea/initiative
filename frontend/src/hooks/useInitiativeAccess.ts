@@ -4,6 +4,7 @@ import type { InitiativeRead, Tool } from "@/api/generated/initiativeAPI.schemas
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiatives } from "@/hooks/useInitiatives";
+import { Capability, hasCapability } from "@/lib/permissions";
 import {
   isToolEnabled,
   TOOL_REGISTRY,
@@ -63,6 +64,14 @@ export function useInitiativeAccess() {
   const isGuildAdmin = activeGuild?.role === "admin";
   const isGrantGuild = activeGuild?.accessType === "grant";
   const grantReadWrite = isGrantGuild && activeGuild?.grantAccessLevel === "read_write";
+  // A read_write grant is *break-glass* — the holder acts as a full guild
+  // admin for its window — only when held by a `data.bypass` user; the
+  // backend routes it as a synthetic guild admin. Any other grant (the
+  // request→approve flow) is scoped: it edits existing content only, so
+  // authoring new tools stays off. Both inputs are server-computed (the
+  // grant's access level and UserRead.capabilities), mirroring the backend's
+  // own break-glass rule.
+  const isBreakGlass = grantReadWrite && hasCapability(user, Capability.dataBypass);
   // Content writes are frozen server-side (read_only lifecycle status) for
   // real members — admins included. Grant entries never carry the flag (PAM /
   // break-glass override the status), so no accessType check is needed.
@@ -93,7 +102,7 @@ export function useInitiativeAccess() {
     (initiative: InitiativeRead): InitiativeToolAccess => {
       if (!user) return readOnlyDefault;
       if (isGuildAdmin) return fullAccess(initiative, !contentReadOnly);
-      if (isGrantGuild) return fullAccess(initiative, grantReadWrite);
+      if (isGrantGuild) return fullAccess(initiative, isBreakGlass);
       const membership = initiative.members.find((m) => m.user.id === user.id);
       if (!membership) return readOnlyDefault;
       return Object.fromEntries(
@@ -106,7 +115,7 @@ export function useInitiativeAccess() {
         ])
       ) as InitiativeToolAccess;
     },
-    [user, isGuildAdmin, isGrantGuild, grantReadWrite, contentReadOnly]
+    [user, isGuildAdmin, isGrantGuild, isBreakGlass, contentReadOnly]
   );
 
   /** Whether the user can manage (PM/admin) a specific initiative. A grant

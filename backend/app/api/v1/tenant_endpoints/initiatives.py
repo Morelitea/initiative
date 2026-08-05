@@ -25,7 +25,6 @@ from app.core.security import (
 )
 from app.core.config import settings
 from app.core.tools import CORE_TOOLS, TOGGLEABLE_TOOLS, Tool
-from app.models.platform.access_grant import AccessLevel
 from app.models.tenant.document import Document
 from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceGrant, ResourceAccessLevel
@@ -666,23 +665,19 @@ async def get_my_initiative_permissions(
             advanced_tools_enabled=initiative.advanced_tools_enabled,
         )
 
-    # PAM grantee: time-bound, guild-wide access with no membership row. They
-    # can view every section (gated by the initiative's feature switches);
-    # create affordances follow the grant's access level. A grant never confers
-    # management.
+    # Scoped PAM grantee: time-bound, guild-wide access with no membership
+    # row. They can view every section (gated by the initiative's feature
+    # switches), and a read_write grant edits *existing* content only —
+    # authoring a new tool is an initiative-role permission a grantee never
+    # holds, so every create flag stays off. (Break-glass never reaches this
+    # branch: it is routed as a synthetic guild admin and answered above.)
+    # A grant never confers management.
     if guild_context.is_pam:
-        can_write = (
-            guild_context.grant is not None
-            and guild_context.grant.access_level == AccessLevel.read_write.value
-        )
         return MyInitiativePermissions(
             is_manager=False,
             permissions={
                 **{PermissionKey(t.view_permission): tool_available(t) for t in Tool},
-                **{
-                    PermissionKey(t.create_permission): tool_available(t) and can_write
-                    for t in Tool
-                },
+                **{PermissionKey(t.create_permission): False for t in Tool},
             },
             advanced_tools_enabled=initiative.advanced_tools_enabled,
         )
