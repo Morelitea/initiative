@@ -13,7 +13,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
+import { guildMayWriteContent } from "@/hooks/useInitiativeAccess";
 import { useInitiativesForGuild } from "@/hooks/useInitiatives";
 import { useGlobalProjects } from "@/hooks/useProjects";
 import { guildPath } from "@/lib/guildUrl";
@@ -76,7 +78,17 @@ type Step = "select-guild" | "select-initiative" | "select-project";
 export const CreateTaskWizard = () => {
   const { t } = useTranslation("tasks");
   const router = useRouter();
-  const { guilds } = useGuilds();
+  const { user } = useAuth();
+  const { guilds: allGuilds } = useGuilds();
+  // A task is child content of a project, so it needs content-write access
+  // somewhere in the guild. Drop guilds where writes are impossible (frozen, or
+  // a read-only PAM grant); the project step then applies the precise per-project
+  // DAC check. A scoped read_write grant is kept — it can create tasks in
+  // projects it can write.
+  const guilds = useMemo(
+    () => allGuilds.filter((guild) => guildMayWriteContent(guild, user)),
+    [allGuilds, user]
+  );
 
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>("select-guild");

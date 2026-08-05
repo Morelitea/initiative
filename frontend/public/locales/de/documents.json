@@ -260,7 +260,7 @@
     "selectInitiative": "Wähle eine Initiative",
     "lastUsed": "Zuletzt verwendet",
     "back": "Zurück",
-    "noInitiatives": "Keine Initiativen in dieser Gilde gefunden."
+    "noInitiatives": "Keine Initiativen hier, zu denen du Dokumente hinzufügen kannst."
   },
   "viewer": {
     "loadError": "Dokument kann nicht geladen werden",
