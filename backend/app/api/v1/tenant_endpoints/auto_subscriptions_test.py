@@ -8,6 +8,8 @@ tests (which create rows via the same service layer).
 
 from __future__ import annotations
 
+import socket
+from contextlib import contextmanager
 from unittest.mock import patch
 
 import pytest
@@ -15,6 +17,34 @@ from httpx import AsyncClient
 
 from app.models.platform.guild import GuildRole
 from app.testing import Actor
+
+_WEBHOOK_HOST = "hooks.example.com"
+# A public unicast IPv4 (example.com) with a real stream socket type/proto, so
+# constructing a socket from the tuple is valid.
+_FAKE_INFOS = [
+    (socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("93.184.216.34", 0))
+]
+
+
+@contextmanager
+def _mock_public_dns():
+    """Resolve the webhook host to a fixed public IP without hitting the network.
+
+    The patch target is the shared ``socket`` module, so a blanket
+    ``return_value`` would also answer asyncpg's own ``getaddrinfo`` for the DB
+    host mid-request — feeding it a bogus address (and a ``type=0`` tuple that
+    ``socket.socket`` rejects). Scope the fake to the webhook host and pass every
+    other lookup through to the real resolver.
+    """
+    real_getaddrinfo = socket.getaddrinfo
+
+    def fake(host, *args, **kwargs):
+        if host == _WEBHOOK_HOST:
+            return _FAKE_INFOS
+        return real_getaddrinfo(host, *args, **kwargs)
+
+    with patch("app.services.webhook_target_url.socket.getaddrinfo", side_effect=fake):
+        yield
 
 
 async def _authed_post(client: AsyncClient, actor: Actor, body: dict):
@@ -84,11 +114,7 @@ async def test_create_accepts_public_target_when_dns_resolves_public(
     what we're asserting on."""
     a = await acting_user(guild_role=GuildRole.admin)
 
-    fake_infos = [(2, 0, 0, "", ("93.184.216.34", 0))]  # example.com IPv4
-    with patch(
-        "app.services.webhook_target_url.socket.getaddrinfo",
-        return_value=fake_infos,
-    ):
+    with _mock_public_dns():
         response = await _authed_post(
             client,
             a,
@@ -112,11 +138,7 @@ async def test_non_owner_member_cannot_delete(client: AsyncClient, acting_user):
     creator = await acting_user(guild_role=GuildRole.admin)
     other = await acting_user(guild_role=GuildRole.member, guild=creator.guild)
 
-    fake_infos = [(2, 0, 0, "", ("93.184.216.34", 0))]
-    with patch(
-        "app.services.webhook_target_url.socket.getaddrinfo",
-        return_value=fake_infos,
-    ):
+    with _mock_public_dns():
         created = await _authed_post(
             client,
             creator,
@@ -143,11 +165,7 @@ async def test_non_owner_member_cannot_update(client: AsyncClient, acting_user):
     creator = await acting_user(guild_role=GuildRole.admin)
     other = await acting_user(guild_role=GuildRole.member, guild=creator.guild)
 
-    fake_infos = [(2, 0, 0, "", ("93.184.216.34", 0))]
-    with patch(
-        "app.services.webhook_target_url.socket.getaddrinfo",
-        return_value=fake_infos,
-    ):
+    with _mock_public_dns():
         created = await _authed_post(
             client,
             creator,
@@ -178,11 +196,7 @@ async def test_guild_admin_can_delete_others_subscription(
     creator = await acting_user(guild_role=GuildRole.member)
     admin = await acting_user(guild_role=GuildRole.admin, guild=creator.guild)
 
-    fake_infos = [(2, 0, 0, "", ("93.184.216.34", 0))]
-    with patch(
-        "app.services.webhook_target_url.socket.getaddrinfo",
-        return_value=fake_infos,
-    ):
+    with _mock_public_dns():
         created = await _authed_post(
             client,
             creator,
@@ -206,11 +220,7 @@ async def test_creator_can_update_own_subscription(client: AsyncClient, acting_u
     """The happy path: the creator can mutate their own subscription."""
     a = await acting_user(guild_role=GuildRole.member)
 
-    fake_infos = [(2, 0, 0, "", ("93.184.216.34", 0))]
-    with patch(
-        "app.services.webhook_target_url.socket.getaddrinfo",
-        return_value=fake_infos,
-    ):
+    with _mock_public_dns():
         created = await _authed_post(
             client,
             a,

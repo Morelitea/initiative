@@ -29,7 +29,7 @@ from app.testing import (
 
 pytestmark = pytest.mark.integration
 
-AI_SETTINGS = "/ai/guild"
+AI_SETTINGS = "/ai/connections"
 
 
 async def _live_grant(
@@ -55,15 +55,6 @@ async def _live_grant(
 
 def _ai_url(guild_id: int) -> str:
     return f"/api/v1/g/{guild_id}/settings{AI_SETTINGS}"
-
-
-async def _materialize_ai_settings(client: AsyncClient, guild_id: int, admin) -> None:
-    """The AI-settings row is lazily created on first read. Production seeds it
-    at guild creation; the test factory doesn't, so a read grant (routed into
-    the SELECT-only role) can't create it. Materialize it via an admin read
-    first so the support-read path is a pure SELECT."""
-    resp = await client.get(_ai_url(guild_id), headers=get_auth_headers(admin))
-    assert resp.status_code == 200, resp.text
 
 
 # ---------------------------------------------------------------------------
@@ -106,9 +97,9 @@ async def test_break_glass_stays_admin_not_support(session: AsyncSession):
 async def test_support_read_grant_reads_guild_settings(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """A support (read) grantee can READ the guild settings surface."""
+    """A support (read) grantee can READ the guild AI settings surface (the
+    connection list)."""
     admin = await acting_user(guild_role=GuildRole.admin)
-    await _materialize_ai_settings(client, admin.guild.id, admin.user)
 
     support = await create_user(session, role=UserRole.support)
     await _live_grant(session, user=support, guild=admin.guild, level="read")
@@ -121,17 +112,17 @@ async def test_support_read_grant_cannot_write_guild_settings(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A support (read) grantee is routed into the SELECT-only role, so a
-    settings WRITE is denied at the database layer → generic 403."""
+    settings WRITE (creating a connection) is denied at the database layer →
+    generic 403."""
     admin = await acting_user(guild_role=GuildRole.admin)
-    await _materialize_ai_settings(client, admin.guild.id, admin.user)
 
     support = await create_user(session, role=UserRole.support)
     await _live_grant(session, user=support, guild=admin.guild, level="read")
 
-    resp = await client.put(
+    resp = await client.post(
         _ai_url(admin.guild.id),
         headers=get_auth_headers(support),
-        json={"enabled": True},
+        json={"label": "x", "provider": "openai"},
     )
     assert resp.status_code == 403, resp.text
     assert resp.json()["detail"] == GuildMessages.GUILD_ACCESS_DENIED
@@ -141,21 +132,21 @@ async def test_support_read_write_grant_writes_guild_settings(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A support (read_write) grantee — held by a non-bypass user, so NOT
-    break-glass — can WRITE the guild settings surface (the guild_<id>_support
-    role has UPDATE on guild_settings; a read grant on _ro does not)."""
+    break-glass — can WRITE the guild AI settings surface (the
+    guild_<id>_support role has DML on guild_ai_connections; a read grant on
+    _ro does not)."""
     admin = await acting_user(guild_role=GuildRole.admin)
-    await _materialize_ai_settings(client, admin.guild.id, admin.user)
 
     support = await create_user(session, role=UserRole.support)
     await _live_grant(session, user=support, guild=admin.guild, level="read_write")
 
-    resp = await client.put(
+    resp = await client.post(
         _ai_url(admin.guild.id),
         headers=get_auth_headers(support),
-        json={"enabled": True},
+        json={"label": "Team", "provider": "openai"},
     )
     assert resp.status_code == 200, resp.text
-    assert resp.json()["enabled"] is True
+    assert resp.json()["label"] == "Team"
 
 
 async def test_plain_member_still_denied_guild_settings(
