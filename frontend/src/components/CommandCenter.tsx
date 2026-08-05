@@ -29,6 +29,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useGuilds } from "@/hooks/useGuilds";
+import { useGlobalCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useRecents } from "@/hooks/useRecents";
 import { useTaskAutocomplete, useTasks } from "@/hooks/useTasks";
 import { commandFilter } from "@/lib/fuzzyMatch";
@@ -52,6 +53,7 @@ export function CommandCenter() {
   const router = useRouter();
   const { user } = useAuth();
   const { activeGuild, activeGuildId } = useGuilds();
+  const globalCreate = useGlobalCreateAccess();
   const getGuildPath = useGuildPath();
 
   // Switch into "guild-wide title search" mode once the debounced query is at
@@ -230,28 +232,33 @@ export function CommandCenter() {
       <CommandList>
         <CommandEmpty>{t("noResults")}</CommandEmpty>
 
-        {/* Actions */}
+        {/* Actions — each shown only when the user can land its wizard
+            somewhere (cmdk hides the group if it ends up empty). */}
         <CommandGroup heading={t("groups.actions")}>
-          <CommandItem
-            value="action-add-task"
-            onSelect={() => {
-              setOpen(false);
-              getOpenCreateTaskWizard()?.();
-            }}
-          >
-            <Plus className="text-muted-foreground" />
-            <span>{t("actions.addTask")}</span>
-          </CommandItem>
-          <CommandItem
-            value="action-add-document"
-            onSelect={() => {
-              setOpen(false);
-              getOpenCreateDocumentWizard()?.();
-            }}
-          >
-            <FilePlus className="text-muted-foreground" />
-            <span>{t("actions.addDocument")}</span>
-          </CommandItem>
+          {globalCreate.task && (
+            <CommandItem
+              value="action-add-task"
+              onSelect={() => {
+                setOpen(false);
+                getOpenCreateTaskWizard()?.();
+              }}
+            >
+              <Plus className="text-muted-foreground" />
+              <span>{t("actions.addTask")}</span>
+            </CommandItem>
+          )}
+          {globalCreate.document && (
+            <CommandItem
+              value="action-add-document"
+              onSelect={() => {
+                setOpen(false);
+                getOpenCreateDocumentWizard()?.();
+              }}
+            >
+              <FilePlus className="text-muted-foreground" />
+              <span>{t("actions.addDocument")}</span>
+            </CommandItem>
+          )}
         </CommandGroup>
 
         {/* Suggested — mixed recents across projects/documents/queues/counter

@@ -260,7 +260,7 @@
     "selectInitiative": "Selecciona una iniciativa",
     "lastUsed": "Último usado",
     "back": "Atrás",
-    "noInitiatives": "No se encontraron iniciativas en este gremio."
+    "noInitiatives": "No hay iniciativas aquí a las que puedas añadir documentos."
   },
   "viewer": {
     "loadError": "No se pudo cargar el documento",

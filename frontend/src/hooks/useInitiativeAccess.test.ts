@@ -3,7 +3,13 @@ import { describe, expect, it, vi } from "vitest";
 
 import { buildInitiative, buildUser } from "@/__tests__/factories";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
-import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
+import type { GuildEntry } from "@/hooks/useGuilds";
+import {
+  guildMayAuthorTools,
+  guildMayWriteContent,
+  useGlobalCreateAccess,
+  useInitiativeAccess,
+} from "@/hooks/useInitiativeAccess";
 
 const mockUseAuth = vi.fn();
 const mockUseGuilds = vi.fn();
@@ -70,5 +76,79 @@ describe("useInitiativeAccess grant classification", () => {
     const access = result.current.permissionsFor(buildInitiative());
 
     expect(access[Tool.project]).toEqual({ view: true, create: false });
+  });
+});
+
+// Minimal switcher entries for the cheap, entry-point create gates.
+const memberGuild = (over: Partial<GuildEntry> = {}) =>
+  ({ id: 1, role: "member", ...over }) as GuildEntry;
+const adminGuild = (over: Partial<GuildEntry> = {}) =>
+  ({ id: 1, role: "admin", ...over }) as GuildEntry;
+const grantEntry = (level: "read" | "read_write") =>
+  ({ id: 1, role: "member", accessType: "grant", grantAccessLevel: level }) as GuildEntry;
+
+describe("guild create gates (cheap, switcher-only)", () => {
+  const member = buildUser({ role: "member" });
+  const operator = buildUser({ role: "operator" }); // holds data.bypass
+
+  it("keeps a plain member for both authoring and writing", () => {
+    expect(guildMayAuthorTools(memberGuild(), member)).toBe(true);
+    expect(guildMayWriteContent(memberGuild(), member)).toBe(true);
+  });
+
+  it("drops a frozen guild for both gates", () => {
+    const frozen = memberGuild({ content_read_only: true });
+    expect(guildMayAuthorTools(frozen, member)).toBe(false);
+    expect(guildMayWriteContent(frozen, member)).toBe(false);
+  });
+
+  it("keeps an admin for both gates", () => {
+    expect(guildMayAuthorTools(adminGuild(), member)).toBe(true);
+    expect(guildMayWriteContent(adminGuild(), member)).toBe(true);
+  });
+
+  it("lets a scoped read_write grant write but not author", () => {
+    // The #881 rule: a scoped grant edits existing content (tasks in existing
+    // projects) but never authors a new tool. data.bypass makes it break-glass.
+    const scoped = grantEntry("read_write");
+    expect(guildMayAuthorTools(scoped, member)).toBe(false);
+    expect(guildMayWriteContent(scoped, member)).toBe(true);
+    expect(guildMayAuthorTools(scoped, operator)).toBe(true); // break-glass authors
+  });
+
+  it("denies a read grant both gates", () => {
+    const read = grantEntry("read");
+    expect(guildMayAuthorTools(read, operator)).toBe(false);
+    expect(guildMayWriteContent(read, operator)).toBe(false);
+  });
+});
+
+describe("useGlobalCreateAccess", () => {
+  it("is false for both when every guild is frozen or read-only-granted", () => {
+    mockUseAuth.mockReturnValue({ user: buildUser({ role: "member" }) });
+    mockUseGuilds.mockReturnValue({
+      guilds: [memberGuild({ id: 1, content_read_only: true }), grantEntry("read")],
+    });
+
+    const { result } = renderHook(() => useGlobalCreateAccess());
+    expect(result.current).toEqual({ document: false, task: false });
+  });
+
+  it("separates authoring from writing for a scoped read_write grant", () => {
+    // Only guild is a scoped read_write grant: can create tasks (write) but not
+    // author documents.
+    mockUseAuth.mockReturnValue({ user: buildUser({ role: "member" }) });
+    mockUseGuilds.mockReturnValue({ guilds: [grantEntry("read_write")] });
+
+    const { result } = renderHook(() => useGlobalCreateAccess());
+    expect(result.current).toEqual({ document: false, task: true });
+  });
+
+  it("is true for both when a member guild is present", () => {
+    mockUseAuth.mockReturnValue({ user: buildUser({ role: "member" }) });
+    mockUseGuilds.mockReturnValue({ guilds: [memberGuild()] });
+
+    const { result } = renderHook(() => useGlobalCreateAccess());
+    expect(result.current).toEqual({ document: true, task: true });
   });
 });
