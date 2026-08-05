@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session, with_loader_criteria
 from sqlalchemy.orm.session import ORMExecuteState
 from sqlmodel import SQLModel, select as sqlmodel_select
 
+from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
@@ -44,6 +45,7 @@ SOFT_DELETE_MODELS: Sequence[type[SQLModel]] = (
     Tag,
     Queue,
     QueueItem,
+    Calendar,
     CalendarEvent,
     CounterGroup,
     Counter,

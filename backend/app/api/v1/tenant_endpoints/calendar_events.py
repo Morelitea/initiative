@@ -1,8 +1,9 @@
 """Calendar event endpoints — CRUD, attendees, tags, and documents.
 
-Initiative-scoped calendar events. Creation is gated at the initiative level
-(calendar_events_enabled + create_calendar_events); per-event access is the unified resource-grant
-DAC (``resource_grants`` + ``PUT /{id}/grants``), like the other resources.
+Events live inside a calendar and carry no grants of their own: read access is
+read on the parent calendar, and every write is write on the parent calendar —
+exactly the way tasks inherit project access. Sharing is managed on the
+calendar (``PUT /calendars/{id}/grants``), never per event.
 """
 
 import logging
@@ -22,6 +23,7 @@ from app.api.deps import (
     GuildContext,
 )
 from app.db.session import get_admin_session
+from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import (
     CalendarEvent,
     CalendarEventAttendee,
@@ -30,11 +32,11 @@ from app.models.tenant.calendar_event import (
     RSVPStatus,
 )
 from app.models.platform.guild import GuildRole
-from app.models.tenant.initiative import Initiative, PermissionKey
+from app.models.tenant.initiative import Initiative
 from app.models.tenant.property import CalendarEventPropertyValue
 from app.models.platform.user import User
 from app.core import role_context
-from app.core.messages import CalendarEventMessages, InitiativeMessages
+from app.core.messages import CalendarEventMessages
 from app.schemas.tenant.calendar_event import (
     CalendarEventCreate,
     CalendarEventUpdate,
@@ -51,19 +53,16 @@ from app.schemas.tenant.ical import (
     ICalParseResult,
 )
 from app.schemas.tenant.property import PropertyValuesSetRequest
-from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.api import resource_access
 from app.core.tools import Tool
-from app.models.tenant.resource_grant import ResourceGrant, ResourceAccessLevel
+from app.models.tenant.resource_grant import ResourceGrant
 from app.services import permissions as permissions_service
 from app.services.tenant import calendar_events as events_service
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.services.tenant import ical_service
 from app.services import notifications as notifications_service
 from app.services.tenant import properties as properties_service
-from app.services.tenant import recent_views as recent_views_service
 from app.services.tenant import tags as tags_service
-from app.schemas.tenant.recent_view import RecentViewWrite
 from app.services import rls as rls_service
 
 router = APIRouter()
@@ -82,50 +81,6 @@ GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 # ---------------------------------------------------------------------------
 
 
-async def _get_initiative_for_event(
-    session: RLSSessionDep,
-    initiative_id: int,
-) -> Initiative:
-    stmt = (
-        select(Initiative)
-        .where(Initiative.id == initiative_id)
-        .options(
-            selectinload(Initiative.memberships),
-            selectinload(Initiative.roles),
-        )
-    )
-    result = await session.exec(stmt)
-    initiative = result.one_or_none()
-    if not initiative:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=InitiativeMessages.NOT_FOUND,
-        )
-    return initiative
-
-
-async def _check_initiative_permission(
-    session: RLSSessionDep,
-    initiative: Initiative,
-    user: User,
-    guild_context: GuildContext,
-    permission_key: PermissionKey,
-) -> None:
-    if rls_service.is_guild_admin(guild_context.role):
-        return
-    has_perm = await rls_service.check_initiative_permission(
-        session,
-        initiative_id=initiative.id,
-        user=user,
-        permission_key=permission_key,
-    )
-    if not has_perm:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=CalendarEventMessages.CREATE_PERMISSION_REQUIRED,
-        )
-
-
 async def _get_event_or_404(
     session: RLSSessionDep,
     event_id: int,
@@ -140,12 +95,34 @@ async def _get_event_or_404(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=CalendarEventMessages.NOT_FOUND,
         )
-    # Feature gate + per-event DAC. Writes additionally gate on create_calendar_events in
-    # the handler, so read access here is sufficient.
+    # Feature gate + DAC, both resolved on the parent calendar: read to see the
+    # event, write for any mutation.
     resource_access.authorize(
-        Tool.calendar_event, event, user, access=access, guild_role=guild_context.role
+        Tool.calendar,
+        event.calendar,
+        user,
+        access=access,
+        guild_role=guild_context.role,
     )
     return event
+
+
+async def _get_writable_calendar(
+    session: RLSSessionDep,
+    calendar_id: int,
+    user: User,
+    guild_context: GuildContext,
+) -> Calendar:
+    """Load a calendar and require write access — the gate for creating or
+    moving events into it."""
+    return await resource_access.load_authorized(
+        session,
+        Tool.calendar,
+        calendar_id,
+        user,
+        guild_context,
+        access="write",
+    )
 
 
 async def _refetch_event(session: RLSSessionDep, event_id: int) -> CalendarEvent:
@@ -181,16 +158,16 @@ def _cross_guild_event_dac_clause(guild_id: int, user_id: int):
     """DAC visibility clause for the cross-guild ``/me`` calendar views.
 
     Mirrors the per-guild ``list_calendar_events`` filter: a non-admin member
-    sees only events granted to them (own user grant or via an initiative role);
-    a guild admin sees all (the ``initiative_access`` admin leg, driven by the
-    role ``gather_across_guilds`` set). Returns ``None`` (no extra filter) for
-    admins. PAM never applies here — ``gather_across_guilds`` only visits guilds
-    the user is a real member of.
+    sees only events in calendars granted to them (own user grant or via an
+    initiative role); a guild admin sees all (the ``initiative_access`` admin
+    leg, driven by the role ``gather_across_guilds`` set). Returns ``None`` (no
+    extra filter) for admins. PAM never applies here — ``gather_across_guilds``
+    only visits guilds the user is a real member of.
     """
     if role_context.active_guild_role(guild_id) == GuildRole.admin.value:
         return None
-    return CalendarEvent.id.in_(
-        permissions_service.visible_resource_ids_subquery("calendar_event", user_id)
+    return CalendarEvent.calendar_id.in_(
+        permissions_service.visible_resource_ids_subquery("calendar", user_id)
     )
 
 
@@ -213,7 +190,7 @@ async def query_my_calendar_events(
 
     def _fetch(guild_session, guild_id):  # type: ignore[no-untyped-def]
         conditions = [
-            Initiative.calendar_events_enabled == True,  # noqa: E712
+            Initiative.calendars_enabled == True,  # noqa: E712
         ]
         if start_after is not None:
             conditions.append(CalendarEvent.start_at >= start_after)
@@ -224,7 +201,8 @@ async def query_my_calendar_events(
             conditions.append(dac_clause)
         stmt = (
             select(CalendarEvent)
-            .join(Initiative, Initiative.id == CalendarEvent.initiative_id)
+            .join(Calendar, Calendar.id == CalendarEvent.calendar_id)
+            .join(Initiative, Initiative.id == Calendar.initiative_id)
             .where(*conditions)
             .options(*_calendar_event_loader_options())
         )
@@ -301,7 +279,7 @@ async def export_my_calendar_events_ics(
 
     def _fetch(guild_session, guild_id):  # type: ignore[no-untyped-def]
         conditions = [
-            Initiative.calendar_events_enabled == True,  # noqa: E712
+            Initiative.calendars_enabled == True,  # noqa: E712
         ]
         if start_after is not None:
             conditions.append(CalendarEvent.start_at >= start_after)
@@ -312,7 +290,8 @@ async def export_my_calendar_events_ics(
             conditions.append(dac_clause)
         stmt = (
             select(CalendarEvent)
-            .join(Initiative, Initiative.id == CalendarEvent.initiative_id)
+            .join(Calendar, Calendar.id == CalendarEvent.calendar_id)
+            .join(Initiative, Initiative.id == Calendar.initiative_id)
             .where(*conditions)
             .options(
                 selectinload(CalendarEvent.attendees).selectinload(
@@ -380,20 +359,16 @@ async def import_ical_events(
     guild_context: GuildContextDep,
     body: ICalImportRequest,
 ) -> ICalImportResult:
-    """Import events from an .ics file into an initiative."""
-    initiative = await _get_initiative_for_event(session, body.initiative_id)
-    await _check_initiative_permission(
-        session,
-        initiative,
-        current_user,
-        guild_context,
-        PermissionKey.create_calendar_events,
+    """Import events from an .ics file into a calendar. Requires write access
+    on the target calendar."""
+    calendar = await _get_writable_calendar(
+        session, body.calendar_id, current_user, guild_context
     )
 
     try:
         events, errors, skipped = ical_service.build_calendar_events(
             content=body.ics_content,
-            initiative_id=body.initiative_id,
+            calendar_id=calendar.id,
             guild_id=guild_context.guild_id,
             created_by_id=current_user.id,
         )
@@ -431,15 +406,19 @@ async def import_ical_events(
 def _calendar_event_loader_options():
     """Eager-load options shared by the list + aggregate event queries.
 
-    Loads attendees, initiative memberships (needed by my_permission_level),
-    tags, grants, and custom property values so serialization never triggers an
-    async lazy-load.
+    Loads attendees, the parent calendar (grants + initiative memberships —
+    what my_permission_level needs), tags, and custom property values so
+    serialization never triggers an async lazy-load.
     """
     return (
         selectinload(CalendarEvent.attendees).selectinload(CalendarEventAttendee.user),
-        selectinload(CalendarEvent.initiative).selectinload(Initiative.memberships),
+        selectinload(CalendarEvent.calendar)
+        .selectinload(Calendar.grants)
+        .selectinload(ResourceGrant.role),
+        selectinload(CalendarEvent.calendar)
+        .selectinload(Calendar.initiative)
+        .selectinload(Initiative.memberships),
         selectinload(CalendarEvent.tag_links).selectinload(CalendarEventTag.tag),
-        selectinload(CalendarEvent.grants).selectinload(ResourceGrant.role),
         selectinload(CalendarEvent.property_values).selectinload(
             CalendarEventPropertyValue.property_definition
         ),
@@ -455,6 +434,7 @@ async def query_guild_calendar_events(
     guild_context: GuildContext,
     *,
     initiative_id: Optional[int] = None,
+    calendar_ids: Optional[List[int]] = None,
     start_after: Optional[datetime] = None,
     start_before: Optional[datetime] = None,
     property_filters: Optional[str] = None,
@@ -473,15 +453,28 @@ async def query_guild_calendar_events(
 
     if initiative_id is not None:
         initiative = await session.get(Initiative, initiative_id)
-        if initiative and not initiative.calendar_events_enabled:
+        if initiative and not initiative.calendars_enabled:
             return [], 0
-        conditions.append(CalendarEvent.initiative_id == initiative_id)
-    else:
         conditions.append(
-            CalendarEvent.initiative_id.in_(
-                select(Initiative.id).where(Initiative.calendar_events_enabled == True)  # noqa: E712
+            CalendarEvent.calendar_id.in_(
+                select(Calendar.id).where(Calendar.initiative_id == initiative_id)
             )
         )
+    else:
+        conditions.append(
+            CalendarEvent.calendar_id.in_(
+                select(Calendar.id).where(
+                    Calendar.initiative_id.in_(
+                        select(Initiative.id).where(
+                            Initiative.calendars_enabled == True  # noqa: E712
+                        )
+                    )
+                )
+            )
+        )
+
+    if calendar_ids:
+        conditions.append(CalendarEvent.calendar_id.in_(tuple(set(calendar_ids))))
 
     if start_after is not None:
         conditions.append(CalendarEvent.start_at >= start_after)
@@ -509,13 +502,13 @@ async def query_guild_calendar_events(
                 )
             )
 
-    # DAC: non-admins (and non-PAM) see only events they're granted (own or via a
-    # role). Admin/PAM see all via the guild scope + RLS.
+    # DAC: non-admins (and non-PAM) see only events in calendars they're
+    # granted (own or via a role). Admin/PAM see all via the guild scope + RLS.
     if not rls_service.is_guild_admin(guild_context.role) and not guild_context.is_pam:
         conditions.append(
-            CalendarEvent.id.in_(
+            CalendarEvent.calendar_id.in_(
                 permissions_service.visible_resource_ids_subquery(
-                    "calendar_event", current_user.id
+                    "calendar", current_user.id
                 )
             )
         )
@@ -543,18 +536,20 @@ async def list_calendar_events(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     initiative_id: Optional[int] = Query(default=None),
+    calendar_ids: Optional[List[int]] = Query(default=None),
     start_after: Optional[datetime] = Query(default=None),
     start_before: Optional[datetime] = Query(default=None),
     property_filters: Optional[str] = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
 ) -> CalendarEventListResponse:
-    """List calendar events. RLS + initiative membership handle access."""
+    """List calendar events. RLS + calendar DAC handle access."""
     events, total_count = await query_guild_calendar_events(
         session,
         current_user,
         guild_context,
         initiative_id=initiative_id,
+        calendar_ids=calendar_ids,
         start_after=start_after,
         start_before=start_before,
         property_filters=property_filters,
@@ -593,19 +588,9 @@ async def create_calendar_event(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> CalendarEventRead:
-    """Create a calendar event. Requires create_calendar_events permission."""
-    initiative = await _get_initiative_for_event(session, event_in.initiative_id)
-    if not initiative.calendar_events_enabled:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=CalendarEventMessages.FEATURE_DISABLED,
-        )
-    await _check_initiative_permission(
-        session,
-        initiative,
-        current_user,
-        guild_context,
-        PermissionKey.create_calendar_events,
+    """Create a calendar event. Requires write access on the calendar."""
+    await _get_writable_calendar(
+        session, event_in.calendar_id, current_user, guild_context
     )
 
     recurrence_json = None
@@ -614,7 +599,7 @@ async def create_calendar_event(
 
     event = CalendarEvent(
         guild_id=guild_context.guild_id,
-        initiative_id=initiative.id,
+        calendar_id=event_in.calendar_id,
         created_by_id=current_user.id,
         title=event_in.title.strip(),
         description=event_in.description,
@@ -627,32 +612,8 @@ async def create_calendar_event(
     )
     session.add(event)
     await session.flush()
-
-    # Per-event DAC: the creator always owns it. The rest of the sharing flows
-    # through the unified grant list — exactly the way edits do.
-    session.add(
-        ResourceGrant(
-            resource_type="calendar_event",
-            resource_id=event.id,
-            user_id=current_user.id,
-            level=ResourceAccessLevel.owner,
-            guild_id=guild_context.guild_id,
-            initiative_id=initiative.id,
-        )
-    )
-    await session.flush()
-
-    # Apply the initial sharing exactly the way edits do — one grant list, one
-    # code path (defaults to Viewer for all members, set on CalendarEventCreate).
-    await permissions_service.replace_resource_grants(
-        session,
-        resource_type="calendar_event",
-        resource_id=event.id,
-        guild_id=guild_context.guild_id,
-        initiative_id=initiative.id,
-        owner_id=current_user.id,
-        grants=event_in.grants,
-    )
+    # Attendee validation reads event.calendar.initiative_id.
+    await session.refresh(event, attribute_names=["calendar"])
 
     if event_in.attendee_ids:
         await events_service.set_event_attendees(
@@ -664,7 +625,7 @@ async def create_calendar_event(
     if event_in.tag_ids:
         await tags_service.set_entity_tags(
             session,
-            tags_service.TOOL_TAG_LINKS[Tool.calendar_event],
+            tags_service.EXTRA_TAG_LINKS["calendar_event"],
             guild_id=guild_context.guild_id,
             entity_id=event.id,
             tag_ids=event_in.tag_ids,
@@ -703,14 +664,10 @@ async def update_calendar_event(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> CalendarEventRead:
-    """Update a calendar event. Requires create_calendar_events permission on the initiative."""
-    event = await _get_event_or_404(session, event_id, current_user, guild_context)
-    await _check_initiative_permission(
-        session,
-        await _get_initiative_for_event(session, event.initiative_id),
-        current_user,
-        guild_context,
-        PermissionKey.create_calendar_events,
+    """Update a calendar event. Requires write access on the calendar (and on
+    the target calendar when moving the event)."""
+    event = await _get_event_or_404(
+        session, event_id, current_user, guild_context, access="write"
     )
 
     # Snapshot fields that drive the "updated"/"rescheduled" notification before
@@ -723,6 +680,18 @@ async def update_calendar_event(
 
     updated = False
     update_data = event_in.model_dump(exclude_unset=True)
+
+    if (
+        "calendar_id" in update_data
+        and update_data["calendar_id"] is not None
+        and update_data["calendar_id"] != event.calendar_id
+    ):
+        # Moving between calendars needs write on the destination too.
+        await _get_writable_calendar(
+            session, update_data["calendar_id"], current_user, guild_context
+        )
+        event.calendar_id = update_data["calendar_id"]
+        updated = True
 
     for field in (
         "title",
@@ -797,17 +766,12 @@ async def delete_calendar_event(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
-    """Soft-delete a calendar event. Requires create_calendar_events permission or guild admin."""
+    """Soft-delete a calendar event. Requires write access on the calendar."""
     from app.services.platform import guilds as guilds_service
     from app.services.tenant.soft_delete import soft_delete_entity
 
-    event = await _get_event_or_404(session, event_id, current_user, guild_context)
-    await _check_initiative_permission(
-        session,
-        await _get_initiative_for_event(session, event.initiative_id),
-        current_user,
-        guild_context,
-        PermissionKey.create_calendar_events,
+    event = await _get_event_or_404(
+        session, event_id, current_user, guild_context, access="write"
     )
     retention_days = await guilds_service.get_guild_retention_days(
         session, guild_context.guild_id
@@ -849,14 +813,9 @@ async def set_attendees(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> CalendarEventRead:
-    """Set attendees. Requires create_calendar_events permission."""
-    event = await _get_event_or_404(session, event_id, current_user, guild_context)
-    await _check_initiative_permission(
-        session,
-        await _get_initiative_for_event(session, event.initiative_id),
-        current_user,
-        guild_context,
-        PermissionKey.create_calendar_events,
+    """Set attendees. Requires write access on the calendar."""
+    event = await _get_event_or_404(
+        session, event_id, current_user, guild_context, access="write"
     )
     old_ids = {a.user_id for a in event.attendees}
     await events_service.set_event_attendees(
@@ -886,7 +845,8 @@ async def update_rsvp(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> CalendarEventRead:
-    """Update the current user's RSVP status. Any initiative member can RSVP."""
+    """Update the current user's RSVP status. Read access on the calendar
+    suffices — RSVPing is answering an invitation, not editing the event."""
     event = await _get_event_or_404(session, event_id, current_user, guild_context)
 
     stmt = select(CalendarEventAttendee).where(
@@ -936,13 +896,8 @@ async def set_documents(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> CalendarEventRead:
-    event = await _get_event_or_404(session, event_id, current_user, guild_context)
-    await _check_initiative_permission(
-        session,
-        await _get_initiative_for_event(session, event.initiative_id),
-        current_user,
-        guild_context,
-        PermissionKey.create_calendar_events,
+    event = await _get_event_or_404(
+        session, event_id, current_user, guild_context, access="write"
     )
     await events_service.set_event_documents(
         session,
@@ -971,93 +926,16 @@ async def set_event_properties(
 ) -> CalendarEventRead:
     """Replace-all set of property values on an event.
 
-    Mirrors the tasks/documents shape: any initiative member with
-    ``create_calendar_events`` (or guild admin) can attach values; cross-initiative
-    definitions return 404 DEFINITION_NOT_FOUND via the service layer.
+    Mirrors the tasks/documents shape: anyone with write access on the calendar
+    (or guild admin) can attach values; cross-initiative definitions return 404
+    DEFINITION_NOT_FOUND via the service layer.
     """
-    event = await _get_event_or_404(session, event_id, current_user, guild_context)
-    await _check_initiative_permission(
-        session,
-        await _get_initiative_for_event(session, event.initiative_id),
-        current_user,
-        guild_context,
-        PermissionKey.create_calendar_events,
+    event = await _get_event_or_404(
+        session, event_id, current_user, guild_context, access="write"
     )
     await properties_service.set_event_property_values(
-        session, event, payload.values, initiative_id=event.initiative_id
+        session, event, payload.values, initiative_id=event.calendar.initiative_id
     )
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
     return serialize_calendar_event(hydrated, user_id=current_user.id)
-
-
-# ---------------------------------------------------------------------------
-# Sharing (resource grants)
-# ---------------------------------------------------------------------------
-
-
-@router.put("/{event_id}/grants", response_model=CalendarEventRead)
-async def set_calendar_event_grants(
-    event_id: int,
-    grants: List[ResourceGrantSchema],
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> CalendarEventRead:
-    """Replace the event's entire sharing state in one call — the body is the
-    full list of grants (all-initiative-members / per-user / per-role). Every
-    non-owner grant is rebuilt from it; the owner is always preserved.
-    """
-    await resource_access.set_resource_grants(
-        session, Tool.calendar_event, event_id, current_user, guild_context, grants
-    )
-    hydrated = await _refetch_event(session, event_id)
-    return serialize_calendar_event(hydrated, user_id=current_user.id)
-
-
-# ---------------------------------------------------------------------------
-# Recent-view tracking (powers the layout header tabs bar)
-# ---------------------------------------------------------------------------
-
-
-@router.post("/{event_id}/view", response_model=RecentViewWrite)
-async def record_calendar_event_view(
-    event_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> RecentViewWrite:
-    event = await _get_event_or_404(
-        session, event_id, current_user, guild_context, access="read"
-    )
-    record = await recent_views_service.record_view(
-        session,
-        user_id=current_user.id,
-        entity_type="calendar_event",
-        entity_id=event.id,
-        persist=not guild_context.is_pam,
-        limit=current_user.recent_tabs_limit,
-    )
-    return RecentViewWrite(
-        entity_type="calendar_event",
-        entity_id=event.id,
-        last_viewed_at=record.last_viewed_at,
-    )
-
-
-@router.delete("/{event_id}/view", status_code=status.HTTP_204_NO_CONTENT)
-async def clear_calendar_event_view(
-    event_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> None:
-    event = await _get_event_or_404(
-        session, event_id, current_user, guild_context, access="read"
-    )
-    await recent_views_service.clear_view(
-        session,
-        user_id=current_user.id,
-        entity_type="calendar_event",
-        entity_id=event.id,
-    )

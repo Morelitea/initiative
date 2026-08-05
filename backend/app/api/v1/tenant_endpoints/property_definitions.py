@@ -18,6 +18,7 @@ from app.api.deps import (
     get_guild_membership,
 )
 from app.core.messages import PropertyMessages
+from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.document import Document
 from app.models.platform.guild import GuildRole
@@ -383,9 +384,9 @@ async def get_property_entities(
         for doc in documents
     ]
 
-    # Events are scoped directly by initiative (no project indirection); RLS
-    # on calendar_event_property_values already constrains visibility to
-    # initiatives the caller belongs to, matching the task/doc treatment.
+    # Events resolve their initiative through the parent calendar (the same
+    # project indirection tasks have); RLS on calendar_event_property_values
+    # already constrains visibility to initiatives the caller belongs to.
     events_stmt = (
         select(CalendarEvent)
         .join(
@@ -393,7 +394,7 @@ async def get_property_entities(
             CalendarEventPropertyValue.event_id == CalendarEvent.id,
         )
         .where(CalendarEventPropertyValue.property_id == defn.id)
-        .options(selectinload(CalendarEvent.initiative))
+        .options(selectinload(CalendarEvent.calendar).selectinload(Calendar.initiative))
     )
     events_result = await session.exec(events_stmt)
     events = events_result.all()
@@ -401,10 +402,15 @@ async def get_property_entities(
         TaggedEventSummary(
             id=event.id,
             title=event.title,
-            initiative_id=event.initiative_id,
-            initiative_name=event.initiative.name if event.initiative else None,
+            initiative_id=event.calendar.initiative_id,
+            initiative_name=(
+                event.calendar.initiative.name
+                if event.calendar and event.calendar.initiative
+                else None
+            ),
         )
         for event in events
+        if event.calendar is not None
     ]
 
     return PropertyEntitiesResult(

@@ -9,8 +9,7 @@ from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 from app.models.tenant._mixins import SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.models.tenant.initiative import Initiative
-    from app.models.tenant.resource_grant import ResourceGrant
+    from app.models.tenant.calendar import Calendar
     from app.models.tenant.property import CalendarEventPropertyValue
     from app.models.platform.user import User
     from app.models.tenant.tag import Tag
@@ -18,10 +17,10 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class CalendarEvent(SoftDeleteMixin, table=True):
-    """Initiative-scoped calendar event (Google Calendar-like).
+    """Event inside a calendar (Google Calendar-like).
 
-    Access today: initiative members (calendar_events_enabled) read, the create_calendar_events role
-    permission writes. Per-event DAC arrives with the resource_grants repoint.
+    Events carry no grants of their own: access derives entirely from the
+    parent calendar's DAC, the same way tasks inherit project access.
     """
 
     __tablename__ = "calendar_events"
@@ -29,7 +28,7 @@ class CalendarEvent(SoftDeleteMixin, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
-    initiative_id: int = Field(foreign_key="initiatives.id", nullable=False, index=True)
+    calendar_id: int = Field(foreign_key="calendars.id", nullable=False, index=True)
     title: str = Field(nullable=False, max_length=255)
     description: Optional[str] = Field(
         default=None, sa_column=Column(Text, nullable=True)
@@ -63,7 +62,7 @@ class CalendarEvent(SoftDeleteMixin, table=True):
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
 
-    initiative: Optional["Initiative"] = Relationship(back_populates="calendar_events")
+    calendar: Optional["Calendar"] = Relationship(back_populates="events")
     creator: Optional["User"] = Relationship()
     attendees: List["CalendarEventAttendee"] = Relationship(
         back_populates="calendar_event",
@@ -80,15 +79,6 @@ class CalendarEvent(SoftDeleteMixin, table=True):
     property_values: List["CalendarEventPropertyValue"] = Relationship(
         back_populates="calendar_event",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    grants: List["ResourceGrant"] = Relationship(
-        sa_relationship_kwargs={
-            "primaryjoin": (
-                "and_(foreign(ResourceGrant.resource_id) == CalendarEvent.id, "
-                "ResourceGrant.resource_type == 'calendar_event')"
-            ),
-            "viewonly": True,
-        }
     )
 
 

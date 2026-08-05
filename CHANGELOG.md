@@ -7,10 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The Events tool is now Calendars.** A calendar is a shareable container for events — like a project contains tasks — with its own name, description, and color. Sharing moves from individual events to the calendar: whoever can see a calendar sees its events, and whoever can edit it can create, edit, and move events inside it. Attendees are unchanged (invitations and RSVPs stay per event) but never affect who can see an event. The calendar page lists your calendars alongside a derived, read-only calendar per project showing its task dates, each with its own visibility toggle. Existing events are preserved: every initiative that had events gets a renamable "Default Calendar" containing them, readable by all initiative members with initiative managers as owners — events that were previously shared more narrowly become visible to their whole initiative, so admins should move sensitive events into a restricted calendar after upgrading.
+
 ### Fixed
 
-- Create buttons and initiative pickers for projects, documents, events, queues, and counter groups now consistently follow your actual per-initiative create permission. Members whose custom role grants creation see the affordances everywhere they apply, and buttons or picker entries the server would reject no longer appear.
-- The Events calendar now offers event creation in the all-initiatives view when you can create events in at least one initiative — the create dialog gains an initiative picker to choose the target, matching the other tools.
+- Create buttons and initiative pickers for projects, documents, calendars, queues, and counter groups now consistently follow your actual per-initiative create permission. Members whose custom role grants creation see the affordances everywhere they apply, and buttons or picker entries the server would reject no longer appear.
 
 ## [0.59.0] - 2026-08-03
 

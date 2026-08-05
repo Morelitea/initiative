@@ -30,6 +30,7 @@ from sqlmodel import select
 from app.db.session import AdminSessionLocal, set_rls_context
 from app.db.soft_delete_filter import select_including_deleted
 from app.models.tenant.advanced_tool import AdvancedTool
+from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
@@ -69,6 +70,7 @@ _PURGE_TOP_DOWN = (
     QueueItem,
     Comment,
     Tag,
+    Calendar,
     CalendarEvent,
     CounterGroup,
     Counter,

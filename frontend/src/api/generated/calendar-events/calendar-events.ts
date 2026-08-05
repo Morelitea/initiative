@@ -35,8 +35,6 @@ import type {
   ListCalendarEventsApiV1GGuildIdCalendarEventsGetParams,
   ListMyCalendarEventsApiV1MeCalendarEventsGetParams,
   PropertyValuesSetRequest,
-  RecentViewWrite,
-  ResourceGrantSchema,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -154,7 +152,8 @@ export const useParseIcalFileApiV1GGuildIdCalendarEventsImportParsePost = <
   );
 };
 /**
- * Import events from an .ics file into an initiative.
+ * Import events from an .ics file into a calendar. Requires write access
+ * on the target calendar.
  * @summary Import Ical Events
  */
 export const importIcalEventsApiV1GGuildIdCalendarEventsImportPost = (
@@ -248,7 +247,7 @@ export const useImportIcalEventsApiV1GGuildIdCalendarEventsImportPost = <
   );
 };
 /**
- * List calendar events. RLS + initiative membership handle access.
+ * List calendar events. RLS + calendar DAC handle access.
  * @summary List Calendar Events
  */
 export const listCalendarEventsApiV1GGuildIdCalendarEventsGet = (
@@ -422,7 +421,7 @@ export function useListCalendarEventsApiV1GGuildIdCalendarEventsGet<
 }
 
 /**
- * Create a calendar event. Requires create_calendar_events permission.
+ * Create a calendar event. Requires write access on the calendar.
  * @summary Create Calendar Event
  */
 export const createCalendarEventApiV1GGuildIdCalendarEventsPost = (
@@ -694,7 +693,8 @@ export function useReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGet<
 }
 
 /**
- * Update a calendar event. Requires create_calendar_events permission on the initiative.
+ * Update a calendar event. Requires write access on the calendar (and on
+ * the target calendar when moving the event).
  * @summary Update Calendar Event
  */
 export const updateCalendarEventApiV1GGuildIdCalendarEventsEventIdPatch = (
@@ -794,7 +794,7 @@ export const useUpdateCalendarEventApiV1GGuildIdCalendarEventsEventIdPatch = <
   );
 };
 /**
- * Soft-delete a calendar event. Requires create_calendar_events permission or guild admin.
+ * Soft-delete a calendar event. Requires write access on the calendar.
  * @summary Delete Calendar Event
  */
 export const deleteCalendarEventApiV1GGuildIdCalendarEventsEventIdDelete = (
@@ -885,7 +885,7 @@ export const useDeleteCalendarEventApiV1GGuildIdCalendarEventsEventIdDelete = <
   );
 };
 /**
- * Set attendees. Requires create_calendar_events permission.
+ * Set attendees. Requires write access on the calendar.
  * @summary Set Attendees
  */
 export const setAttendeesApiV1GGuildIdCalendarEventsEventIdAttendeesPut = (
@@ -986,7 +986,8 @@ export const useSetAttendeesApiV1GGuildIdCalendarEventsEventIdAttendeesPut = <
   );
 };
 /**
- * Update the current user's RSVP status. Any initiative member can RSVP.
+ * Update the current user's RSVP status. Read access on the calendar
+ * suffices — RSVPing is answering an invitation, not editing the event.
  * @summary Update Rsvp
  */
 export const updateRsvpApiV1GGuildIdCalendarEventsEventIdRsvpPatch = (
@@ -1188,9 +1189,9 @@ export const useSetDocumentsApiV1GGuildIdCalendarEventsEventIdDocumentsPut = <
 /**
  * Replace-all set of property values on an event.
  *
- * Mirrors the tasks/documents shape: any initiative member with
- * ``create_calendar_events`` (or guild admin) can attach values; cross-initiative
- * definitions return 404 DEFINITION_NOT_FOUND via the service layer.
+ * Mirrors the tasks/documents shape: anyone with write access on the calendar
+ * (or guild admin) can attach values; cross-initiative definitions return 404
+ * DEFINITION_NOT_FOUND via the service layer.
  * @summary Set Event Properties
  */
 export const setEventPropertiesApiV1GGuildIdCalendarEventsEventIdPropertiesPut = (
@@ -1287,295 +1288,6 @@ export const useSetEventPropertiesApiV1GGuildIdCalendarEventsEventIdPropertiesPu
 > => {
   return useMutation(
     getSetEventPropertiesApiV1GGuildIdCalendarEventsEventIdPropertiesPutMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Replace the event's entire sharing state in one call — the body is the
- * full list of grants (all-initiative-members / per-user / per-role). Every
- * non-owner grant is rebuilt from it; the owner is always preserved.
- * @summary Set Calendar Event Grants
- */
-export const setCalendarEventGrantsApiV1GGuildIdCalendarEventsEventIdGrantsPut = (
-  guildId: number,
-  eventId: number,
-  resourceGrantSchema: BodyType<ResourceGrantSchema[]>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<CalendarEventRead>(
-    {
-      url: `/api/v1/g/${guildId}/calendar-events/${eventId}/grants`,
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      data: resourceGrantSchema,
-      signal,
-    },
-    options
-  );
-};
-
-export const getSetCalendarEventGrantsApiV1GGuildIdCalendarEventsEventIdGrantsPutMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setCalendarEventGrantsApiV1GGuildIdCalendarEventsEventIdGrantsPut>>,
-    TError,
-    { guildId: number; eventId: number; data: BodyType<ResourceGrantSchema[]> },
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof setCalendarEventGrantsApiV1GGuildIdCalendarEventsEventIdGrantsPut>>,
-  TError,
-  { guildId: number; eventId: number; data: BodyType<ResourceGrantSchema[]> },
-  TContext
-> => {
-  const mutationKey = ["setCalendarEventGrantsApiV1GGuildIdCalendarEventsEventIdGrantsPut"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setCalendarEventGrantsApiV1GGuildIdCalendarEventsEventIdGrantsPut>>,
-    { guildId: number; eventId: number; data: BodyType<ResourceGrantSchema[]> }
-  > = (props) => {
-    const { guildId, eventId, data } = props ?? {};
-
-    return setCalendarEventGrantsApiV1GGuildIdCalendarEventsEventIdGrantsPut(
-      guildId,
-      eventId,
-      data,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type SetCalendarEventGrantsApiV1GGuildIdCalendarEventsEventIdGrantsPutMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof setCalendarEventGrantsApiV1GGuildIdCalendarEventsEventIdGrantsPut>>
-  >;
-export type SetCalendarEventGrantsApiV1GGuildIdCalendarEventsEventIdGrantsPutMutationBody =
-  BodyType<ResourceGrantSchema[]>;
-export type SetCalendarEventGrantsApiV1GGuildIdCalendarEventsEventIdGrantsPutMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Set Calendar Event Grants
- */
-export const useSetCalendarEventGrantsApiV1GGuildIdCalendarEventsEventIdGrantsPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setCalendarEventGrantsApiV1GGuildIdCalendarEventsEventIdGrantsPut>>,
-      TError,
-      { guildId: number; eventId: number; data: BodyType<ResourceGrantSchema[]> },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof setCalendarEventGrantsApiV1GGuildIdCalendarEventsEventIdGrantsPut>>,
-  TError,
-  { guildId: number; eventId: number; data: BodyType<ResourceGrantSchema[]> },
-  TContext
-> => {
-  return useMutation(
-    getSetCalendarEventGrantsApiV1GGuildIdCalendarEventsEventIdGrantsPutMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * @summary Record Calendar Event View
- */
-export const recordCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewPost = (
-  guildId: number,
-  eventId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<RecentViewWrite>(
-    { url: `/api/v1/g/${guildId}/calendar-events/${eventId}/view`, method: "POST", signal },
-    options
-  );
-};
-
-export const getRecordCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof recordCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewPost>>,
-    TError,
-    { guildId: number; eventId: number },
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof recordCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewPost>>,
-  TError,
-  { guildId: number; eventId: number },
-  TContext
-> => {
-  const mutationKey = ["recordCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewPost"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof recordCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewPost>>,
-    { guildId: number; eventId: number }
-  > = (props) => {
-    const { guildId, eventId } = props ?? {};
-
-    return recordCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewPost(
-      guildId,
-      eventId,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type RecordCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewPostMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof recordCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewPost>>
-  >;
-
-export type RecordCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewPostMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Record Calendar Event View
- */
-export const useRecordCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof recordCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewPost>>,
-      TError,
-      { guildId: number; eventId: number },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof recordCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewPost>>,
-  TError,
-  { guildId: number; eventId: number },
-  TContext
-> => {
-  return useMutation(
-    getRecordCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewPostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * @summary Clear Calendar Event View
- */
-export const clearCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewDelete = (
-  guildId: number,
-  eventId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<void>(
-    { url: `/api/v1/g/${guildId}/calendar-events/${eventId}/view`, method: "DELETE", signal },
-    options
-  );
-};
-
-export const getClearCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewDeleteMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof clearCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewDelete>
-      >,
-      TError,
-      { guildId: number; eventId: number },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<ReturnType<typeof clearCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewDelete>>,
-    TError,
-    { guildId: number; eventId: number },
-    TContext
-  > => {
-    const mutationKey = ["clearCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewDelete"];
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
-
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<typeof clearCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewDelete>
-      >,
-      { guildId: number; eventId: number }
-    > = (props) => {
-      const { guildId, eventId } = props ?? {};
-
-      return clearCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewDelete(
-        guildId,
-        eventId,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
-  };
-
-export type ClearCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewDeleteMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof clearCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewDelete>>
-  >;
-
-export type ClearCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Clear Calendar Event View
- */
-export const useClearCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewDelete = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof clearCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewDelete>
-      >,
-      TError,
-      { guildId: number; eventId: number },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof clearCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewDelete>>,
-  TError,
-  { guildId: number; eventId: number },
-  TContext
-> => {
-  return useMutation(
-    getClearCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewDeleteMutationOptions(options),
     queryClient
   );
 };

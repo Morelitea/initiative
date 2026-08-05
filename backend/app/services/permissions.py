@@ -48,7 +48,7 @@ from app.core.messages import (
     DocumentMessages,
     QueueMessages,
     CounterMessages,
-    CalendarEventMessages,
+    CalendarMessages,
 )
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 
@@ -306,12 +306,12 @@ DAC_RESOURCES: dict[Tool, DacResource] = {
         CounterMessages.OWNER_REQUIRED,
         CounterMessages.WRITE_ACCESS_REQUIRED,
     ),
-    Tool.calendar_event: DacResource(
-        Tool.calendar_event,
-        False,
-        CalendarEventMessages.PERMISSION_REQUIRED,
-        CalendarEventMessages.OWNER_REQUIRED,
-        CalendarEventMessages.WRITE_ACCESS_REQUIRED,
+    Tool.calendar: DacResource(
+        Tool.calendar,
+        True,
+        CalendarMessages.PERMISSION_REQUIRED,
+        CalendarMessages.OWNER_REQUIRED,
+        CalendarMessages.WRITE_ACCESS_REQUIRED,
     ),
     Tool.advanced_tool: DacResource(
         Tool.advanced_tool,
@@ -596,9 +596,9 @@ def compute_document_permission(
     return compute_permission(DAC_RESOURCES[Tool.document], document, user_id)
 
 
-def compute_calendar_event_permission(event: Any, user_id: int) -> str | None:
-    """Effective calendar-event permission string for the client (delegates to the engine)."""
-    return compute_permission(DAC_RESOURCES[Tool.calendar_event], event, user_id)
+def compute_calendar_permission(calendar: Any, user_id: int) -> str | None:
+    """Effective calendar permission string for the client (delegates to the engine)."""
+    return compute_permission(DAC_RESOURCES[Tool.calendar], calendar, user_id)
 
 
 def require_document_access(

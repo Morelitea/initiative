@@ -29,7 +29,7 @@ from app.api.deps import (
     get_guild_membership,
 )
 from app.core.tools import Tool
-from app.models.tenant.calendar_event import CalendarEvent
+from app.models.tenant.calendar import Calendar
 from app.models.tenant.counter import CounterGroup
 from app.models.tenant.document import Document
 from app.models.platform.guild import GuildMembership, GuildRole
@@ -128,20 +128,18 @@ async def _enrich_recent_rows(
         result = await session.exec(stmt)
         counter_group_map = {g.id: g for g in result.all()}
 
-    event_map: Dict[int, CalendarEvent] = {}
-    if event_ids := ids_by_type.get("calendar_event"):
+    calendar_map: Dict[int, Calendar] = {}
+    if calendar_ids := ids_by_type.get("calendar"):
         stmt = (
-            select(CalendarEvent)
-            .where(CalendarEvent.id.in_(event_ids))
+            select(Calendar)
+            .where(Calendar.id.in_(calendar_ids))
             .options(
-                selectinload(CalendarEvent.grants).selectinload(ResourceGrant.role),
-                selectinload(CalendarEvent.initiative).selectinload(
-                    Initiative.memberships
-                ),
+                selectinload(Calendar.grants).selectinload(ResourceGrant.role),
+                selectinload(Calendar.initiative).selectinload(Initiative.memberships),
             )
         )
         result = await session.exec(stmt)
-        event_map = {e.id: e for e in result.all()}
+        calendar_map = {c.id: c for c in result.all()}
 
     guild_role = GuildRole.admin if is_guild_admin else None
 
@@ -245,15 +243,15 @@ async def _enrich_recent_rows(
                     last_viewed_at=row.last_viewed_at,
                 )
             )
-        elif row.entity_type == "calendar_event":
-            event = event_map.get(row.entity_id)
-            if event is None:
+        elif row.entity_type == "calendar":
+            calendar = calendar_map.get(row.entity_id)
+            if calendar is None:
                 continue
             if not is_guild_admin:
                 try:
                     permissions_service.require_access(
-                        permissions_service.DAC_RESOURCES[Tool.calendar_event],
-                        event,
+                        permissions_service.DAC_RESOURCES[Tool.calendar],
+                        calendar,
                         current_user,
                         access="read",
                     )
@@ -263,10 +261,10 @@ async def _enrich_recent_rows(
                     continue
             items.append(
                 RecentItemRead.model_construct(
-                    entity_type="calendar_event",
-                    entity_id=event.id,
-                    guild_id=event.guild_id,
-                    name=event.title,
+                    entity_type="calendar",
+                    entity_id=calendar.id,
+                    guild_id=calendar.guild_id,
+                    name=calendar.name,
                     last_viewed_at=row.last_viewed_at,
                 )
             )

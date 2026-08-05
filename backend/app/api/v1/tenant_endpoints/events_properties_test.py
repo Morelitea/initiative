@@ -23,6 +23,7 @@ from app.models.tenant.property import (
     PropertyType,
 )
 from app.testing import (
+    create_calendar,
     create_calendar_event,
     create_guild_membership,
     create_initiative,
@@ -32,22 +33,25 @@ from app.testing import (
 
 
 async def _enable_events(session: AsyncSession, initiative):
-    """Toggle the events feature flag on and persist it."""
-    initiative.calendar_events_enabled = True
+    """Toggle the calendars feature flag on and persist it."""
+    initiative.calendars_enabled = True
     session.add(initiative)
     await session.commit()
     await session.refresh(initiative)
 
 
 async def _setup_event(session, acting_user):
-    """Boilerplate: admin user, guild, events-enabled initiative, event.
+    """Boilerplate: admin user, guild, calendars-enabled initiative, calendar,
+    event.
 
-    Returns ``(actor, initiative, event)`` — ``actor`` carries user/guild/headers.
+    Returns ``(actor, initiative, calendar, event)`` — ``actor`` carries
+    user/guild/headers.
     """
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _enable_events(session, a.initiative)
-    event = await create_calendar_event(session, a.initiative, a.user, title="E")
-    return a, a.initiative, event
+    calendar = await create_calendar(session, a.initiative, a.user)
+    event = await create_calendar_event(session, calendar, a.user, title="E")
+    return a, a.initiative, calendar, event
 
 
 # ---------------------------------------------------------------------------
@@ -59,7 +63,7 @@ async def _setup_event(session, acting_user):
 async def test_put_event_properties_sets_values(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a, initiative, event = await _setup_event(session, acting_user)
+    a, initiative, _calendar, event = await _setup_event(session, acting_user)
 
     text_defn = await create_property_definition(
         session, initiative, name="Note", type=PropertyType.text
@@ -89,7 +93,7 @@ async def test_put_event_properties_sets_values(
 async def test_put_event_properties_empty_clears_existing(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a, initiative, event = await _setup_event(session, acting_user)
+    a, initiative, _calendar, event = await _setup_event(session, acting_user)
 
     defn = await create_property_definition(
         session, initiative, name="Tag", type=PropertyType.text
@@ -121,7 +125,7 @@ async def test_put_event_properties_attach_without_value_persists_row(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Attaching without a value should still create the attached-empty row."""
-    a, initiative, event = await _setup_event(session, acting_user)
+    a, initiative, _calendar, event = await _setup_event(session, acting_user)
     defn = await create_property_definition(
         session, initiative, name="Empty", type=PropertyType.text
     )
@@ -151,7 +155,7 @@ async def test_put_event_properties_attach_without_value_persists_row(
 async def test_put_event_date_rejects_garbage(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a, initiative, event = await _setup_event(session, acting_user)
+    a, initiative, _calendar, event = await _setup_event(session, acting_user)
     defn = await create_property_definition(
         session, initiative, name="D", type=PropertyType.date
     )
@@ -169,7 +173,7 @@ async def test_put_event_date_rejects_garbage(
 async def test_put_event_user_reference_non_initiative_member_rejected(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a, initiative, event = await _setup_event(session, acting_user)
+    a, initiative, _calendar, event = await _setup_event(session, acting_user)
 
     outsider = await create_user(session, email="outsider@example.com")
     await create_guild_membership(
@@ -203,7 +207,8 @@ async def test_put_event_cross_initiative_definition_rejected(
     init_a = a.initiative
     await _enable_events(session, init_a)
     init_b = await create_initiative(session, a.guild, a.user, name="B")
-    event_a = await create_calendar_event(session, init_a, a.user, title="Ea")
+    calendar_a = await create_calendar(session, init_a, a.user)
+    event_a = await create_calendar_event(session, calendar_a, a.user, title="Ea")
 
     defn_b = await create_property_definition(session, init_b, name="Foreign")
 
@@ -225,7 +230,7 @@ async def test_put_event_cross_initiative_definition_rejected(
 async def test_event_read_embeds_property_values(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a, initiative, event = await _setup_event(session, acting_user)
+    a, initiative, _calendar, event = await _setup_event(session, acting_user)
     defn = await create_property_definition(
         session, initiative, name="Topic", type=PropertyType.text
     )
@@ -246,10 +251,10 @@ async def test_event_read_embeds_property_values(
 async def test_list_events_filter_by_property_text_eq(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a, initiative, _ = await _setup_event(session, acting_user)
+    a, initiative, calendar, _ = await _setup_event(session, acting_user)
 
-    match = await create_calendar_event(session, initiative, a.user, title="Match")
-    skip = await create_calendar_event(session, initiative, a.user, title="Skip")
+    match = await create_calendar_event(session, calendar, a.user, title="Match")
+    skip = await create_calendar_event(session, calendar, a.user, title="Skip")
 
     defn = await create_property_definition(
         session, initiative, name="Topic", type=PropertyType.text
@@ -286,13 +291,11 @@ async def test_list_events_filter_by_property_text_eq(
 async def test_list_events_filter_is_empty_matches_unset(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a, initiative, _ = await _setup_event(session, acting_user)
+    a, initiative, calendar, _ = await _setup_event(session, acting_user)
 
-    with_value = await create_calendar_event(
-        session, initiative, a.user, title="WithVal"
-    )
+    with_value = await create_calendar_event(session, calendar, a.user, title="WithVal")
     without_value = await create_calendar_event(
-        session, initiative, a.user, title="Blank"
+        session, calendar, a.user, title="Blank"
     )
 
     defn = await create_property_definition(
@@ -333,7 +336,7 @@ async def test_initiative_purge_cascades_event_property_values(
     """Soft-deleting then hard-purging an initiative should cascade-delete
     event property values via FK CASCADE. (Soft-delete alone keeps the
     rows so a restore brings everything back.)"""
-    a, initiative, event = await _setup_event(session, acting_user)
+    a, initiative, _calendar, event = await _setup_event(session, acting_user)
     defn = await create_property_definition(
         session, initiative, name="Topic", type=PropertyType.text
     )

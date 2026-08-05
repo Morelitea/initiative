@@ -70,6 +70,16 @@ def via_queue_item(fk: str = "queue_item_id") -> PathBuilder:
     )
 
 
+def via_event_calendar(fk: str = "calendar_event_id") -> PathBuilder:
+    """Two hops: ``table.<fk> -> calendar_events -> calendars.initiative_id``."""
+    return lambda t, w: (
+        f"EXISTS (SELECT 1 FROM calendar_events ce "
+        f"JOIN calendars cal ON cal.id = ce.calendar_id "
+        f"WHERE ce.id = {t}.{fk} "
+        f"AND {_access('cal.initiative_id', w)})"
+    )
+
+
 def via_property(entity_from: str, entity_pred: str, entity_init: str) -> PathBuilder:
     """Property-value rows: join the entity and ``property_definitions`` and
     require both resolve to the SAME initiative, then check access on it.
@@ -149,7 +159,7 @@ INITIATIVE_PATHS: dict[str, PathBuilder] = {
     "documents": direct(),
     "queues": direct(),
     "counter_groups": direct(),
-    "calendar_events": direct(),
+    "calendars": direct(),
     "property_definitions": direct(),
     "resource_grants": direct(),
     # Advanced tools: initiative_id is NULLABLE — a NULL row is guild-wide, and
@@ -175,10 +185,9 @@ INITIATIVE_PATHS: dict[str, PathBuilder] = {
     # One hop -> advanced_tools (initiative_id nullable: a guild-wide tool's
     # tags resolve to the admin/PAM legs only, mirroring the parent row)
     "advanced_tool_tags": via("advanced_tools", "advanced_tool_id"),
-    # One hop -> calendar_events
-    "calendar_event_attendees": via("calendar_events", "calendar_event_id"),
-    "calendar_event_documents": via("calendar_events", "calendar_event_id"),
-    "calendar_event_tags": via("calendar_events", "calendar_event_id"),
+    # One hop -> calendars
+    "calendar_events": via("calendars", "calendar_id"),
+    "calendar_tags": via("calendars", "calendar_id"),
     # Two hops -> tasks -> projects
     "subtasks": via_task_project("task_id"),
     "task_assignees": via_task_project("task_id"),
@@ -187,6 +196,10 @@ INITIATIVE_PATHS: dict[str, PathBuilder] = {
     "queue_item_documents": via_queue_item("queue_item_id"),
     "queue_item_tags": via_queue_item("queue_item_id"),
     "queue_item_tasks": via_queue_item("queue_item_id"),
+    # Two hops -> calendar_events -> calendars
+    "calendar_event_attendees": via_event_calendar("calendar_event_id"),
+    "calendar_event_documents": via_event_calendar("calendar_event_id"),
+    "calendar_event_tags": via_event_calendar("calendar_event_id"),
     # Property values (entity + property_definitions, same-initiative)
     "document_property_values": via_property(
         "documents d", "d.id = {t}.document_id", "d.initiative_id"
@@ -197,7 +210,9 @@ INITIATIVE_PATHS: dict[str, PathBuilder] = {
         "pr.initiative_id",
     ),
     "calendar_event_property_values": via_property(
-        "calendar_events ce", "ce.id = {t}.event_id", "ce.initiative_id"
+        "calendar_events ce JOIN calendars cal ON cal.id = ce.calendar_id",
+        "ce.id = {t}.event_id",
+        "cal.initiative_id",
     ),
     # Multi-parent
     "comments": comments_path(),
@@ -205,7 +220,7 @@ INITIATIVE_PATHS: dict[str, PathBuilder] = {
     "project_orders": via("projects", "project_id"),
     "project_favorites": via("projects", "project_id"),
     "task_assignment_digest_items": via("projects", "project_id"),
-    "event_reminder_dispatches": via("calendar_events", "event_id"),
+    "event_reminder_dispatches": via_event_calendar("event_id"),
     "recent_views": recent_views_path(),
 }
 

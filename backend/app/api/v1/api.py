@@ -15,6 +15,7 @@ from app.api.v1.tenant_endpoints import (
     auto_subscriptions,
     calendar_entries,
     calendar_events,
+    calendars,
     collaboration,
     comments,
     counters,
@@ -130,6 +131,7 @@ guild_router.include_router(queues.router, prefix="/queues", tags=["queues"])
 guild_router.include_router(
     counters.router, prefix="/counter-groups", tags=["counters"]
 )
+guild_router.include_router(calendars.router, prefix="/calendars", tags=["calendars"])
 guild_router.include_router(
     calendar_events.router, prefix="/calendar-events", tags=["calendar-events"]
 )

@@ -12,7 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
 from app.testing import (
-    create_calendar_event,
+    create_calendar,
     create_guild,
     create_guild_membership,
     create_project,
@@ -220,32 +220,33 @@ async def test_clear_recent_is_guild_addressed(
 
 
 @pytest.mark.integration
-async def test_record_and_list_recent_calendar_event(
+async def test_record_and_list_recent_calendar(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
+    """Calendars (the container tool) are recentable; events are not."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True)
-    a.initiative.calendar_events_enabled = True
+    a.initiative.calendars_enabled = True
     session.add(a.initiative)
     await session.commit()
-    event = await create_calendar_event(session, a.initiative, a.user, title="E1")
+    calendar = await create_calendar(session, a.initiative, a.user, name="C1")
 
-    r = await client.post(a.g(f"/calendar-events/{event.id}/view"), headers=a.headers)
+    r = await client.post(a.g(f"/calendars/{calendar.id}/view"), headers=a.headers)
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["entity_type"] == "calendar_event"
-    assert body["entity_id"] == event.id
+    assert body["entity_type"] == "calendar"
+    assert body["entity_id"] == calendar.id
 
     r = await client.get("/api/v1/recents/", headers=a.headers)
     assert r.status_code == 200
     items = r.json()
     assert any(
-        i["entity_type"] == "calendar_event"
-        and i["entity_id"] == event.id
-        and i["name"] == "E1"
+        i["entity_type"] == "calendar"
+        and i["entity_id"] == calendar.id
+        and i["name"] == "C1"
         for i in items
     )
 
-    r = await client.delete(a.g(f"/calendar-events/{event.id}/view"), headers=a.headers)
+    r = await client.delete(a.g(f"/calendars/{calendar.id}/view"), headers=a.headers)
     assert r.status_code == 204
     r = await client.get("/api/v1/recents/", headers=a.headers)
-    assert all(i["entity_type"] != "calendar_event" for i in r.json())
+    assert all(i["entity_type"] != "calendar" for i in r.json())
