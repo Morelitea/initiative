@@ -47,6 +47,7 @@ from app.schemas.tenant.trash import (
     EntityType,
     RestoreNeedsReassignmentResponse,
     RestoreRequest,
+    RestoreResponse,
     TrashItem,
     TrashListResponse,
 )
@@ -289,6 +290,7 @@ async def _load_trash_entity(
 @router.post(
     "/{entity_type}/{entity_id}/restore",
     status_code=status.HTTP_200_OK,
+    response_model=RestoreResponse,
     responses={
         status.HTTP_409_CONFLICT: {
             "model": RestoreNeedsReassignmentResponse,
@@ -353,7 +355,7 @@ async def restore_trash_entity(
         )
 
     await session.commit()
-    return {"restored": True}
+    return RestoreResponse(restored=True)
 
 
 @router.delete(

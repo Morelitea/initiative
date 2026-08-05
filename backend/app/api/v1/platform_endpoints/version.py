@@ -8,6 +8,7 @@ import httpx
 from fastapi import APIRouter
 
 from app.core.version import __version__
+from app.schemas.platform.version import ChangelogEntry, ChangelogResponse
 
 router = APIRouter()
 
@@ -68,9 +69,7 @@ async def get_latest_dockerhub_version() -> dict[str, Optional[str]]:
 
 
 @router.get("/changelog")
-def get_changelog(
-    version: Optional[str] = None, limit: int = 1
-) -> dict[str, list[dict]]:
+def get_changelog(version: Optional[str] = None, limit: int = 1) -> ChangelogResponse:
     """
     Get changelog entries.
 
@@ -91,7 +90,7 @@ def get_changelog(
             )
 
         if not changelog_path.exists():
-            return {"entries": []}
+            return ChangelogResponse(entries=[])
 
         content = changelog_path.read_text()
 
@@ -101,7 +100,7 @@ def get_changelog(
         pattern = r"## \[([^\]]+)\] - ([^\n]+)\n(.*?)(?=\n## |\Z)"
         matches = re.findall(pattern, content, re.DOTALL)
 
-        entries = []
+        entries: list[ChangelogEntry] = []
         max_entries = limit if not version else len(matches)
 
         for version_num, date, changes in matches:
@@ -109,15 +108,16 @@ def get_changelog(
             if version and version_num != version:
                 continue
 
-            entry = {"version": version_num, "date": date, "changes": changes.strip()}
-            entries.append(entry)
+            entries.append(
+                ChangelogEntry(version=version_num, date=date, changes=changes.strip())
+            )
 
             # If we've collected enough entries, stop
             if len(entries) >= max_entries:
                 break
 
-        return {"entries": entries}
+        return ChangelogResponse(entries=entries)
 
     except Exception as e:
         print(f"Failed to read changelog: {e}")
-        return {"entries": []}
+        return ChangelogResponse(entries=[])
