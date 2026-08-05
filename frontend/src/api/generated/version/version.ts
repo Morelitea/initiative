@@ -18,7 +18,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
-  GetChangelogApiV1ChangelogGet200,
+  ChangelogResponse,
   GetChangelogApiV1ChangelogGetParams,
   GetLatestDockerhubVersionApiV1VersionLatestGet200,
   GetVersionApiV1VersionGet200,
@@ -328,7 +328,7 @@ export const getChangelogApiV1ChangelogGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GetChangelogApiV1ChangelogGet200>(
+  return apiMutator<ChangelogResponse>(
     { url: `/api/v1/changelog`, method: "GET", params, signal },
     options
   );

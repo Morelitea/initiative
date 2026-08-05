@@ -24,26 +24,26 @@ import type {
   EmailSettingsResponse,
   EmailSettingsUpdate,
   EmailTestRequest,
+  EmailTestResponse,
   FCMConfigResponse,
-  GetOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGet200,
   HTTPValidationError,
   InterfaceSettingsResponse,
   InterfaceSettingsUpdate,
   OIDCClaimMappingCreate,
   OIDCClaimMappingRead,
   OIDCClaimMappingUpdate,
+  OIDCClaimPathResponse,
   OIDCClaimPathUpdate,
+  OIDCMappingOptionsResponse,
   OIDCMappingsResponse,
   OIDCSettingsResponse,
   OIDCSettingsUpdate,
   PlatformGuildStorageRead,
   PlatformGuildStorageUpdate,
-  SendTestEmailApiV1SettingsEmailTestPost200,
   StorageBackfillStatusResponse,
   StorageSettingsResponse,
   StorageSettingsUpdate,
   StorageTestResponse,
-  UpdateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut200,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -778,7 +778,7 @@ export const sendTestEmailApiV1SettingsEmailTestPost = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<SendTestEmailApiV1SettingsEmailTestPost200>(
+  return apiMutator<EmailTestResponse>(
     {
       url: `/api/v1/settings/email/test`,
       method: "POST",
@@ -2064,7 +2064,7 @@ export const updateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<UpdateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut200>(
+  return apiMutator<OIDCClaimPathResponse>(
     {
       url: `/api/v1/settings/oidc-mappings/claim-path`,
       method: "PUT",
@@ -2334,7 +2334,7 @@ export const getOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GetOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGet200>(
+  return apiMutator<OIDCMappingOptionsResponse>(
     { url: `/api/v1/settings/oidc-mappings/options`, method: "GET", signal },
     options
   );

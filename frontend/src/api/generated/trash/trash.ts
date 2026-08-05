@@ -24,6 +24,7 @@ import type {
   HTTPValidationError,
   RestoreNeedsReassignmentResponse,
   RestoreRequest,
+  RestoreResponse,
   TrashListResponse,
 } from "../initiativeAPI.schemas";
 
@@ -234,7 +235,7 @@ export const restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost =
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<unknown>(
+  return apiMutator<RestoreResponse>(
     {
       url: `/api/v1/g/${guildId}/trash/${entityType}/${entityId}/restore`,
       method: "POST",
