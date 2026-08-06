@@ -720,7 +720,8 @@ export interface CalendarCreate {
    */
   name: string;
   description?: string | null;
-  color?: string | null;
+  /** @maxLength 32 */
+  color?: string;
   initiative_id: number;
   tag_ids?: number[] | null;
   grants?: ResourceGrantSchema[];
@@ -1130,7 +1131,8 @@ export interface CalendarSummary {
    */
   name: string;
   description: string | null;
-  color: string | null;
+  /** @maxLength 32 */
+  color: string;
   id: number;
   initiative_id: number;
   guild_id: number;
@@ -1157,7 +1159,8 @@ export interface CalendarRead {
    */
   name: string;
   description: string | null;
-  color: string | null;
+  /** @maxLength 32 */
+  color: string;
   id: number;
   initiative_id: number;
   guild_id: number;

@@ -49,7 +49,10 @@ from app.core.security import get_password_hash  # noqa: E402
 from app.db.schema_provisioning import provision_guild  # noqa: E402
 from app.db.session import AdminSessionLocal, set_rls_context  # noqa: E402
 from app.db.tenancy import GUILD_SCOPED_TABLES  # noqa: E402
-from app.models.tenant.calendar import Calendar  # noqa: E402
+from app.models.tenant.calendar import (  # noqa: E402
+    DEFAULT_CALENDAR_COLOR,
+    Calendar,
+)
 from app.models.tenant.calendar_event import (  # noqa: E402
     CalendarEvent,
     CalendarEventAttendee,
