@@ -25,16 +25,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useCounterGroupRealtime } from "@/hooks/useCounterGroupRealtime";
 import {
   useCounterGroup,
   useResetCounter,
   useSetCount,
   useSteppedCount,
 } from "@/hooks/useCounters";
+import { useCounterGroupRealtime } from "@/hooks/useResourceRealtime";
 import { getContrastingTextColor } from "@/lib/counter-color";
 import { isAtMax, isAtMin } from "@/lib/counter-math";
 import { useGuildPath } from "@/lib/guildUrl";
+import { hasWriteAccess } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
 const SWIPE_THRESHOLD_PX = 60;
@@ -77,7 +78,7 @@ export function CounterDetailPage() {
   );
   const counter = currentIndex >= 0 ? counters[currentIndex] : null;
 
-  const canWrite = group?.my_permission_level === "owner" || group?.my_permission_level === "write";
+  const canWrite = hasWriteAccess(group?.my_permission_level);
 
   const goToCounter = (index: number) => {
     if (counters.length === 0 || !guildId || !groupId) return;

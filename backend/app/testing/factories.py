@@ -26,6 +26,7 @@ from app.core.security import (
     get_password_hash,
     mint_access_token,
 )
+from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
@@ -768,9 +769,67 @@ async def create_task_property_value(
     return row
 
 
-async def create_calendar_event(
+async def create_calendar(
     session: AsyncSession,
     initiative: Initiative,
+    creator: User,
+    *,
+    name: str | None = None,
+    commit: bool = True,
+    **overrides: Any,
+) -> Calendar:
+    """Create a test calendar with sensible defaults.
+
+    Mirrors the create endpoint's default sharing: the creator owns it and
+    every initiative member can read it. The initiative is expected to be
+    calendars-enabled — callers that need to test the feature flag should
+    toggle that on the passed-in ``initiative``.
+    """
+    await route_session_to_guild(session, initiative.guild_id)
+
+    defaults = {
+        "guild_id": initiative.guild_id,
+        "initiative_id": initiative.id,
+        "created_by_id": creator.id,
+        "name": name or f"Calendar {datetime.now(timezone.utc).timestamp()}",
+    }
+
+    data = {**defaults, **overrides}
+    calendar = Calendar(**data)
+    session.add(calendar)
+
+    if commit:
+        await session.commit()
+        await session.refresh(calendar)
+
+        session.add(
+            ResourceGrant(
+                resource_type="calendar",
+                resource_id=calendar.id,
+                user_id=creator.id,
+                level=ResourceAccessLevel.owner,
+                guild_id=calendar.guild_id,
+                initiative_id=calendar.initiative_id,
+            )
+        )
+        session.add(
+            ResourceGrant(
+                resource_type="calendar",
+                resource_id=calendar.id,
+                all_initiative_members=True,
+                level=ResourceAccessLevel.read,
+                guild_id=calendar.guild_id,
+                initiative_id=calendar.initiative_id,
+            )
+        )
+        await session.commit()
+
+    return calendar
+
+
+async def create_calendar_event(
+    session: AsyncSession,
+    calendar: Calendar,
     creator: User,
     *,
     title: str | None = None,
@@ -780,16 +839,15 @@ async def create_calendar_event(
     """Create a test calendar event with sensible defaults.
 
     Defaults to a one-hour event starting "now"; callers that care about
-    the timing should override ``start_at`` / ``end_at``. The initiative
-    is expected to be events-enabled — callers that need to test the
-    feature flag should toggle that on the passed-in ``initiative``.
+    the timing should override ``start_at`` / ``end_at``. Events carry no
+    grants of their own — access derives from the parent ``calendar``.
     """
-    await route_session_to_guild(session, initiative.guild_id)
+    await route_session_to_guild(session, calendar.guild_id)
 
     now = datetime.now(timezone.utc)
     defaults = {
-        "guild_id": initiative.guild_id,
-        "initiative_id": initiative.id,
+        "guild_id": calendar.guild_id,
+        "calendar_id": calendar.id,
         "created_by_id": creator.id,
         "title": title or f"Event {now.timestamp()}",
         "start_at": now,
@@ -804,43 +862,6 @@ async def create_calendar_event(
     if commit:
         await session.commit()
         await session.refresh(event)
-
-        # Per-event DAC grants, mirroring the create endpoint: creator owns it,
-        # each initiative role gets write (managers) or read.
-        from app.models.tenant.initiative import InitiativeRoleModel
-        from sqlmodel import select
-
-        session.add(
-            ResourceGrant(
-                resource_type="calendar_event",
-                resource_id=event.id,
-                user_id=creator.id,
-                level=ResourceAccessLevel.owner,
-                guild_id=event.guild_id,
-                initiative_id=event.initiative_id,
-            )
-        )
-        roles = (
-            await session.exec(
-                select(InitiativeRoleModel).where(
-                    InitiativeRoleModel.initiative_id == initiative.id
-                )
-            )
-        ).all()
-        for role in roles:
-            session.add(
-                ResourceGrant(
-                    resource_type="calendar_event",
-                    resource_id=event.id,
-                    role_id=role.id,
-                    level=ResourceAccessLevel.write
-                    if role.is_manager
-                    else ResourceAccessLevel.read,
-                    guild_id=event.guild_id,
-                    initiative_id=event.initiative_id,
-                )
-            )
-        await session.commit()
 
     return event
 

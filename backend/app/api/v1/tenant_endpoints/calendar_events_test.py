@@ -1,8 +1,11 @@
-"""Integration tests for calendar-event tag serialization on the list summary.
+"""Integration tests for calendar-event endpoints.
 
-The list endpoints return ``CalendarEventSummary``; these assert that tags
-assigned to an event are eager-loaded and embedded in the summary (not just
-the full ``CalendarEventRead`` detail response).
+Events live inside a calendar (the shareable container) and carry no grants of
+their own — read/write access is inherited from the parent calendar, the way
+tasks inherit project access. These tests cover event creation (which requires
+write on the target calendar), the attendee/RSVP notification flows, tag
+serialization on the list summary, and the cross-guild ``/me`` calendar list's
+DAC filter (which now keys off calendar sharing, not per-event grants).
 """
 
 import pytest
@@ -13,10 +16,10 @@ from sqlalchemy import text
 
 from app.db.schema_provisioning import guild_schema_name
 from app.models.platform.guild import GuildRole
-from app.models.tenant.initiative import InitiativeRoleModel
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.resource_grant import ResourceGrant
 from app.testing import (
+    create_calendar,
     create_calendar_event,
     create_tag,
     get_auth_headers,
@@ -35,19 +38,24 @@ async def _notifications_for(
     return list(result.all())
 
 
-async def _enable_events(session: AsyncSession, initiative):
-    """Toggle the events feature flag on and persist it."""
-    initiative.calendar_events_enabled = True
+async def _enable_calendars(session: AsyncSession, initiative, creator):
+    """Turn the calendars tool on and return a calendar owned by ``creator``.
+
+    ``create_calendar`` seeds the creator-owner grant + an all-initiative-members
+    read grant, mirroring the create endpoint's default sharing."""
+    initiative.calendars_enabled = True
     session.add(initiative)
     await session.commit()
     await session.refresh(initiative)
+    return await create_calendar(session, initiative, creator)
 
 
 async def _setup_organizer_and_attendee(session, acting_user):
-    """Events-enabled initiative with an admin organizer and a member attendee.
+    """Calendars-enabled initiative with an admin organizer and a member
+    attendee, plus a calendar owned by the organizer.
 
-    Returns ``(organizer, attendee, guild, initiative)`` where organizer and
-    attendee are ``Actor`` instances (``.user``/``.headers``)."""
+    Returns ``(organizer, attendee, guild, initiative, calendar)`` where
+    organizer and attendee are ``Actor`` instances (``.user``/``.headers``)."""
     organizer = await acting_user(guild_role=GuildRole.admin, initiative=True)
     attendee = await acting_user(
         guild_role=GuildRole.member,
@@ -55,31 +63,33 @@ async def _setup_organizer_and_attendee(session, acting_user):
         initiative=organizer.initiative,
         initiative_role="member",
     )
-    await _enable_events(session, organizer.initiative)
-    return organizer, attendee, organizer.guild, organizer.initiative
+    calendar = await _enable_calendars(session, organizer.initiative, organizer.user)
+    return organizer, attendee, organizer.guild, organizer.initiative, calendar
 
 
 async def _setup_event(session, acting_user):
-    """admin user, guild, events-enabled initiative, event.
+    """admin user, guild, calendars-enabled initiative, calendar, event.
 
-    Returns ``(actor, guild, initiative, event)``."""
+    Returns ``(actor, guild, initiative, calendar, event)``."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _enable_events(session, a.initiative)
-    event = await create_calendar_event(session, a.initiative, a.user, title="E")
-    return a, a.guild, a.initiative, event
+    calendar = await _enable_calendars(session, a.initiative, a.user)
+    event = await create_calendar_event(session, calendar, a.user, title="E")
+    return a, a.guild, a.initiative, calendar, event
 
 
 @pytest.mark.integration
 async def test_list_events_summary_includes_tags(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a, guild, initiative, event = await _setup_event(session, acting_user)
+    a, guild, initiative, calendar, event = await _setup_event(session, acting_user)
 
     tag = await create_tag(session, guild, name="Priority", color="#ff0000")
 
-    # Assign the tag to the event (via the generic tool tags route).
+    # Assign the tag via the event's own tags route. Events stay taggable even
+    # though they are no longer a first-class Tool (content-level extra, like
+    # tasks — the generic /tools route no longer accepts them).
     assign = await client.put(
-        a.g(f"/tools/calendar_event/{event.id}/tags"),
+        a.g(f"/calendar-events/{event.id}/tags"),
         headers=a.headers,
         json={"tag_ids": [tag.id]},
     )
@@ -103,7 +113,7 @@ async def test_list_events_summary_tags_default_empty(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """An event with no tags still serializes ``tags: []`` in the summary."""
-    a, guild, initiative, event = await _setup_event(session, acting_user)
+    a, guild, initiative, calendar, event = await _setup_event(session, acting_user)
 
     response = await client.get(
         a.g(f"/calendar-events/?initiative_id={initiative.id}"),
@@ -118,15 +128,19 @@ async def test_list_events_summary_tags_default_empty(
 async def test_create_event_notifies_attendees_not_creator(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    organizer, attendee, guild, initiative = await _setup_organizer_and_attendee(
-        session, acting_user
-    )
+    (
+        organizer,
+        attendee,
+        guild,
+        initiative,
+        calendar,
+    ) = await _setup_organizer_and_attendee(session, acting_user)
 
     response = await client.post(
         organizer.g("/calendar-events/"),
         headers=organizer.headers,
         json={
-            "initiative_id": initiative.id,
+            "calendar_id": calendar.id,
             "title": "Kickoff",
             "start_at": "2026-07-01T15:00:00Z",
             "end_at": "2026-07-01T16:00:00Z",
@@ -156,15 +170,19 @@ async def test_create_multi_day_timed_event_is_allowed(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A timed (non-all-day) event may now span more than 24 hours / cross days."""
-    organizer, _attendee, guild, initiative = await _setup_organizer_and_attendee(
-        session, acting_user
-    )
+    (
+        organizer,
+        _attendee,
+        guild,
+        initiative,
+        calendar,
+    ) = await _setup_organizer_and_attendee(session, acting_user)
 
     response = await client.post(
         organizer.g("/calendar-events/"),
         headers=organizer.headers,
         json={
-            "initiative_id": initiative.id,
+            "calendar_id": calendar.id,
             "title": "Conference",
             "start_at": "2026-07-01T14:00:00Z",
             "end_at": "2026-07-03T16:00:00Z",
@@ -182,15 +200,19 @@ async def test_create_event_rejects_end_before_start(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """end_at before start_at is still rejected."""
-    organizer, _attendee, guild, initiative = await _setup_organizer_and_attendee(
-        session, acting_user
-    )
+    (
+        organizer,
+        _attendee,
+        guild,
+        initiative,
+        calendar,
+    ) = await _setup_organizer_and_attendee(session, acting_user)
 
     response = await client.post(
         organizer.g("/calendar-events/"),
         headers=organizer.headers,
         json={
-            "initiative_id": initiative.id,
+            "calendar_id": calendar.id,
             "title": "Backwards",
             "start_at": "2026-07-03T16:00:00Z",
             "end_at": "2026-07-01T14:00:00Z",
@@ -201,14 +223,94 @@ async def test_create_event_rejects_end_before_start(
 
 
 @pytest.mark.integration
+async def test_create_event_requires_calendar_write(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A member with only read on the calendar can't create events in it."""
+    (
+        organizer,
+        attendee,
+        guild,
+        initiative,
+        calendar,
+    ) = await _setup_organizer_and_attendee(session, acting_user)
+
+    # The default all-members grant is read-only, so the member attendee has
+    # read but not write.
+    response = await client.post(
+        attendee.g("/calendar-events/"),
+        headers=attendee.headers,
+        json={
+            "calendar_id": calendar.id,
+            "title": "Sneaky",
+            "start_at": "2026-07-01T15:00:00Z",
+            "end_at": "2026-07-01T16:00:00Z",
+            "all_day": False,
+        },
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "CALENDAR_WRITE_ACCESS_REQUIRED"
+
+
+@pytest.mark.integration
+async def test_move_event_between_calendars_requires_write_on_both(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Moving an event to another calendar (PATCH calendar_id) needs write on
+    the destination too — a member with read-only there is refused."""
+    a, guild, initiative, source, event = await _setup_event(session, acting_user)
+
+    # A second calendar the actor (guild admin) owns → the move succeeds.
+    dest = await create_calendar(session, initiative, a.user, name="Dest")
+    moved = await client.patch(
+        a.g(f"/calendar-events/{event.id}"),
+        headers=a.headers,
+        json={"calendar_id": dest.id},
+    )
+    assert moved.status_code == 200
+    assert moved.json()["calendar_id"] == dest.id
+
+    # A member with only read on the destination cannot move an event into it.
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=guild,
+        initiative=initiative,
+        initiative_role="member",
+    )
+    # Give the member write on the source so the block is clearly the
+    # destination gate, not the source.
+    grant = await client.put(
+        a.g(f"/calendars/{source.id}/grants"),
+        headers=a.headers,
+        json=[
+            {"all_initiative_members": True, "level": "read"},
+            {"user_id": member.user.id, "level": "write"},
+        ],
+    )
+    assert grant.status_code == 200
+    member_event = await create_calendar_event(session, source, a.user, title="Mine")
+
+    denied = await client.patch(
+        member.g(f"/calendar-events/{member_event.id}"),
+        headers=member.headers,
+        json={"calendar_id": dest.id},
+    )
+    assert denied.status_code == 403
+
+
+@pytest.mark.integration
 async def test_update_event_time_notifies_attendees_as_rescheduled(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    organizer, attendee, guild, initiative = await _setup_organizer_and_attendee(
-        session, acting_user
-    )
+    (
+        organizer,
+        attendee,
+        guild,
+        initiative,
+        calendar,
+    ) = await _setup_organizer_and_attendee(session, acting_user)
     event = await create_calendar_event(
-        session, initiative, organizer.user, title="Review"
+        session, calendar, organizer.user, title="Review"
     )
     await client.put(
         organizer.g(f"/calendar-events/{event.id}/attendees"),
@@ -234,11 +336,15 @@ async def test_update_event_time_notifies_attendees_as_rescheduled(
 async def test_delete_event_notifies_attendees(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    organizer, attendee, guild, initiative = await _setup_organizer_and_attendee(
-        session, acting_user
-    )
+    (
+        organizer,
+        attendee,
+        guild,
+        initiative,
+        calendar,
+    ) = await _setup_organizer_and_attendee(session, acting_user)
     event = await create_calendar_event(
-        session, initiative, organizer.user, title="Retro"
+        session, calendar, organizer.user, title="Retro"
     )
     await client.put(
         organizer.g(f"/calendar-events/{event.id}/attendees"),
@@ -262,11 +368,15 @@ async def test_update_event_skips_declined_attendees(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """An attendee who declined doesn't get reschedule/update notifications."""
-    organizer, attendee, guild, initiative = await _setup_organizer_and_attendee(
-        session, acting_user
-    )
+    (
+        organizer,
+        attendee,
+        guild,
+        initiative,
+        calendar,
+    ) = await _setup_organizer_and_attendee(session, acting_user)
     event = await create_calendar_event(
-        session, initiative, organizer.user, title="Review"
+        session, calendar, organizer.user, title="Review"
     )
     await client.put(
         organizer.g(f"/calendar-events/{event.id}/attendees"),
@@ -298,11 +408,15 @@ async def test_delete_event_skips_declined_attendees(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """An attendee who declined doesn't get the cancellation notice."""
-    organizer, attendee, guild, initiative = await _setup_organizer_and_attendee(
-        session, acting_user
-    )
+    (
+        organizer,
+        attendee,
+        guild,
+        initiative,
+        calendar,
+    ) = await _setup_organizer_and_attendee(session, acting_user)
     event = await create_calendar_event(
-        session, initiative, organizer.user, title="Retro"
+        session, calendar, organizer.user, title="Retro"
     )
     await client.put(
         organizer.g(f"/calendar-events/{event.id}/attendees"),
@@ -331,12 +445,14 @@ async def test_delete_event_skips_declined_attendees(
 async def test_rsvp_notifies_organizer(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    organizer, attendee, guild, initiative = await _setup_organizer_and_attendee(
-        session, acting_user
-    )
-    event = await create_calendar_event(
-        session, initiative, organizer.user, title="Demo"
-    )
+    (
+        organizer,
+        attendee,
+        guild,
+        initiative,
+        calendar,
+    ) = await _setup_organizer_and_attendee(session, acting_user)
+    event = await create_calendar_event(session, calendar, organizer.user, title="Demo")
     await client.put(
         organizer.g(f"/calendar-events/{event.id}/attendees"),
         headers=organizer.headers,
@@ -361,10 +477,10 @@ async def test_rsvp_notifies_organizer(
 async def test_global_calendar_events_reads_guild_schema(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """The cross-guild /global list must read events from the per-guild schema
+    """The cross-guild /me list must read events from the per-guild schema
     (schema-per-guild), not the frozen public backup. The factory writes the
-    event into guild_<id>; /global aggregates per guild and must surface it."""
-    a, guild, initiative, event = await _setup_event(session, acting_user)
+    event into guild_<id>; /me aggregates per guild and must surface it."""
+    a, guild, initiative, calendar, event = await _setup_event(session, acting_user)
     response = await client.get(
         "/api/v1/me/calendar-events", headers=get_auth_headers(a.user)
     )
@@ -374,12 +490,13 @@ async def test_global_calendar_events_reads_guild_schema(
 
 
 @pytest.mark.integration
-async def test_my_calendar_events_filters_events_without_member_grant(
+async def test_my_calendar_events_filters_events_without_calendar_grant(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """The cross-guild /me list applies the same per-event DAC filter as the
-    per-guild list: a non-admin member doesn't see an event they hold no grant
-    for (even though they're an initiative member and RLS shows the row)."""
+    """The cross-guild /me list applies the same calendar DAC filter as the
+    per-guild list: a non-admin member doesn't see an event in a calendar they
+    hold no grant for (even though they're an initiative member and RLS shows
+    the row). Events inherit calendar access; they carry no grants of their own."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
     member = await acting_user(
         guild_role=GuildRole.member,
@@ -389,27 +506,18 @@ async def test_my_calendar_events_filters_events_without_member_grant(
     )
     guild = admin.guild
     initiative = admin.initiative
-    await _enable_events(session, initiative)
-    event = await create_calendar_event(
-        session, initiative, admin.user, title="NoGrant"
-    )
+    calendar = await _enable_calendars(session, initiative, admin.user)
+    event = await create_calendar_event(session, calendar, admin.user, title="NoGrant")
 
-    # Strip the member-role grant so the member has no path to this event.
+    # Strip the all-initiative-members read grant so the member has no path to
+    # this calendar (only the creator-owner grant remains).
     schema = guild_schema_name(guild.id)
-    member_role = (
-        await session.exec(
-            select(InitiativeRoleModel).where(
-                InitiativeRoleModel.initiative_id == initiative.id,
-                InitiativeRoleModel.name == "member",
-            )
-        )
-    ).one()
     await session.exec(text(f'SET search_path TO "{schema}", public'))
     await session.exec(
         delete(ResourceGrant).where(
-            ResourceGrant.resource_type == "calendar_event",
-            ResourceGrant.resource_id == event.id,
-            ResourceGrant.role_id == member_role.id,
+            ResourceGrant.resource_type == "calendar",
+            ResourceGrant.resource_id == calendar.id,
+            ResourceGrant.all_initiative_members == True,  # noqa: E712
         )
     )
     await session.exec(text("SET search_path TO public"))
@@ -443,10 +551,8 @@ async def test_my_calendar_events_admin_sees_events_outside_their_initiatives(
         guild_role=GuildRole.member, guild=admin.guild, initiative=True
     )
     initiative = other.initiative
-    await _enable_events(session, initiative)
-    event = await create_calendar_event(
-        session, initiative, other.user, title="Foreign"
-    )
+    calendar = await _enable_calendars(session, initiative, other.user)
+    event = await create_calendar_event(session, calendar, other.user, title="Foreign")
 
     resp = await client.get(
         "/api/v1/me/calendar-events", headers=get_auth_headers(admin.user)

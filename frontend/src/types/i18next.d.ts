@@ -3,7 +3,7 @@ import "i18next";
 import type access from "../../public/locales/en/access.json";
 import type advancedTools from "../../public/locales/en/advancedTools.json";
 import type auth from "../../public/locales/en/auth.json";
-import type calendarEvents from "../../public/locales/en/calendarEvents.json";
+import type calendars from "../../public/locales/en/calendars.json";
 import type command from "../../public/locales/en/command.json";
 import type common from "../../public/locales/en/common.json";
 import type counterGroups from "../../public/locales/en/counterGroups.json";
@@ -46,7 +46,7 @@ declare module "i18next" {
       documents: typeof documents;
       errors: typeof errors;
       exports: typeof exports_;
-      calendarEvents: typeof calendarEvents;
+      calendars: typeof calendars;
       guilds: typeof guilds;
       import: typeof importNs;
       imports: typeof importsNs;

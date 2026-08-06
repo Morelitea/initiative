@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import {
   useDeleteDocumentVersion,
   useDocumentVersions,
@@ -48,7 +49,6 @@ pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
 // Accepted file types for uploading a new version (mirrors CreateDocumentDialog).
 const VERSION_UPLOAD_ACCEPT =
   ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.html,.htm,.png,.jpg,.jpeg,.gif,.webp,.svg,.md,.markdown";
-const MAX_VERSION_FILE_SIZE = 50 * 1024 * 1024;
 
 interface FileDocumentViewerProps {
   documentId: number;
@@ -86,6 +86,7 @@ export const FileDocumentViewer = ({
   isOwner = false,
 }: FileDocumentViewerProps) => {
   const { t } = useTranslation(["documents", "common"]);
+  const { maxUploadBytes } = useAppConfig();
 
   // ── Version history ─────────────────────────────────────────────────────
   const { data: versions } = useDocumentVersions(documentId);
@@ -207,7 +208,7 @@ export const FileDocumentViewer = ({
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (file.size > MAX_VERSION_FILE_SIZE) {
+    if (maxUploadBytes !== null && file.size > maxUploadBytes) {
       toast.error(t("create.fileTooLarge"));
       return;
     }

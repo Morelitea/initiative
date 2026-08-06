@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 
-import type { UserStatsResponse } from "@/api/generated/initiativeAPI.schemas";
 import {
   getGetUserStatsApiV1MeStatsGetQueryKey,
   getUserStatsApiV1MeStatsGet,
@@ -11,7 +10,7 @@ export function useUserStats(guildId?: number | null) {
 
   return useQuery({
     queryKey: getGetUserStatsApiV1MeStatsGetQueryKey(params),
-    queryFn: () => getUserStatsApiV1MeStatsGet(params) as unknown as Promise<UserStatsResponse>,
+    queryFn: () => getUserStatsApiV1MeStatsGet(params),
     staleTime: 5 * 60 * 1000,
   });
 }

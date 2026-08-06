@@ -29,12 +29,15 @@ from app.schemas.platform.settings import (
     EmailSettingsResponse,
     EmailSettingsUpdate,
     EmailTestRequest,
+    EmailTestResponse,
     InterfaceSettingsResponse,
     InterfaceSettingsUpdate,
     OIDCClaimMappingCreate,
     OIDCClaimMappingRead,
     OIDCClaimMappingUpdate,
+    OIDCClaimPathResponse,
     OIDCClaimPathUpdate,
+    OIDCMappingOptionsResponse,
     OIDCMappingsResponse,
     OIDCSettingsResponse,
     OIDCSettingsUpdate,
@@ -210,7 +213,7 @@ async def send_test_email(
     payload: EmailTestRequest,
     session: UserSessionDep,
     _admin: ConfigManageDep,
-) -> dict:
+) -> EmailTestResponse:
     settings_obj = await app_settings_service.get_app_settings(session)
     recipient = payload.recipient or settings_obj.smtp_test_recipient
     if not recipient:
@@ -234,7 +237,7 @@ async def send_test_email(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=SettingsMessages.EMAIL_SEND_FAILED,
         ) from exc
-    return {"status": "sent"}
+    return EmailTestResponse(status="sent")
 
 
 # --- Object storage ---
@@ -620,13 +623,13 @@ async def update_oidc_claim_path(
     payload: OIDCClaimPathUpdate,
     session: AdminSessionDep,
     _admin: ConfigManageDep,
-) -> dict:
+) -> OIDCClaimPathResponse:
     # The role-claim path lives on the platform provider row; setting it
     # before the provider is configured creates a dormant skeleton row.
     claim_path = await platform_provider_service.set_platform_claim_path(
         session, payload.claim_path
     )
-    return {"claim_path": claim_path}
+    return OIDCClaimPathResponse(claim_path=claim_path)
 
 
 @router.post(
@@ -817,7 +820,7 @@ async def delete_oidc_mapping(
 async def get_oidc_mapping_options(
     session: AdminSessionDep,
     _admin: ConfigManageDep,
-) -> dict:
+) -> OIDCMappingOptionsResponse:
     """Return all guilds, initiatives, and initiative roles for the mapping form."""
     # Guilds live in shared public; materialize them before routing into any guild
     # schema (routing expunges the ORM objects).
@@ -860,8 +863,8 @@ async def get_oidc_mapping_options(
         # reset to the neutral admin baseline like every write path in this file.
         await _reset_admin_session(session)
 
-    return {
-        "guilds": guild_payload,
-        "initiatives": initiatives_payload,
-        "initiative_roles": roles_payload,
-    }
+    return OIDCMappingOptionsResponse(
+        guilds=guild_payload,
+        initiatives=initiatives_payload,
+        initiative_roles=roles_payload,
+    )

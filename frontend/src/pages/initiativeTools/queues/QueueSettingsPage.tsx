@@ -26,6 +26,7 @@ import { useDeleteQueue, useQueue, useSetQueueGrants, useUpdateQueue } from "@/h
 import { useSetToolTags } from "@/hooks/useToolTags";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
+import { hasWriteAccess } from "@/lib/permissions";
 
 export const QueueSettingsPage = () => {
   const { t } = useTranslation(["queues", "common", "access"]);
@@ -37,8 +38,7 @@ export const QueueSettingsPage = () => {
   const queueQuery = useQueue(Number.isFinite(parsedId) ? parsedId : null);
   const queue = queueQuery.data;
 
-  const canManage =
-    queue?.my_permission_level === "owner" || queue?.my_permission_level === "write";
+  const canManage = hasWriteAccess(queue?.my_permission_level);
   const isOwner = queue?.my_permission_level === "owner";
 
   // ── Details ────────────────────────────────────────────────────────────

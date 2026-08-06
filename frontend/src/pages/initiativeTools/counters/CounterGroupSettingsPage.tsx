@@ -40,6 +40,7 @@ import {
 import { useSetToolTags } from "@/hooks/useToolTags";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
+import { hasWriteAccess } from "@/lib/permissions";
 
 export function CounterGroupSettingsPage() {
   const { t } = useTranslation(["counterGroups", "common", "access"]);
@@ -53,8 +54,7 @@ export function CounterGroupSettingsPage() {
   const groupQuery = useCounterGroup(Number.isFinite(parsedId) ? parsedId : null);
   const group = groupQuery.data;
 
-  const canManage =
-    group?.my_permission_level === "owner" || group?.my_permission_level === "write";
+  const canManage = hasWriteAccess(group?.my_permission_level);
   const isOwner = group?.my_permission_level === "owner";
 
   // ── Details tab ────────────────────────────────────────────────────────

@@ -1,13 +1,8 @@
 import { Loader2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
-import {
-  ENTITY_PICKER_PAGE_SIZE,
-  type LinkedEntity,
-  LinkedEntityPicker,
-} from "@/components/initiativeTools/queues/LinkedEntityPicker";
+import { LinkedEntityPicker } from "@/components/initiativeTools/queues/LinkedEntityPicker";
+import { useQueueItemForm } from "@/components/initiativeTools/queues/useQueueItemForm";
 import { TagPicker } from "@/components/tags/TagPicker";
 import { Button } from "@/components/ui/button";
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
@@ -24,13 +19,9 @@ import { Label } from "@/components/ui/label";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { useDocumentAutocomplete } from "@/hooks/useDocuments";
-import { useInitiativeMembers } from "@/hooks/useInitiatives";
 import { useCreateQueueItem } from "@/hooks/useQueues";
-import { useTaskAutocomplete } from "@/hooks/useTasks";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
-import { getUserDisplayName } from "@/lib/userDisplay";
 import type { DialogProps } from "@/types/dialog";
 
 type AddQueueItemDialogProps = DialogProps & {
@@ -49,69 +40,35 @@ export const AddQueueItemDialog = ({
   const { t } = useTranslation(["queues", "common"]);
   const gp = useGuildPath();
 
-  const [label, setLabel] = useState("");
-  const [position, setPosition] = useState("");
-  const [color, setColor] = useState("#6366F1");
-  const [notes, setNotes] = useState("");
-  const [isVisible, setIsVisible] = useState(true);
-  const [selectedTags, setSelectedTags] = useState<TagSummary[]>([]);
-  const [userId, setUserId] = useState<number | null>(null);
-  // Selections carry their titles: the typeahead only returns rows matching
-  // the live query, so a chip's label can't be looked up from the results.
-  const [selectedDocs, setSelectedDocs] = useState<LinkedEntity[]>([]);
-  const [selectedTasks, setSelectedTasks] = useState<LinkedEntity[]>([]);
-
-  const [docSearch, setDocSearch] = useState("");
-  const [docPickerOpen, setDocPickerOpen] = useState(false);
-  const [taskSearch, setTaskSearch] = useState("");
-  const [taskPickerOpen, setTaskPickerOpen] = useState(false);
-
-  // Reset form when dialog closes
-  useEffect(() => {
-    if (!open) {
-      setLabel("");
-      setPosition("");
-      setColor("#6366F1");
-      setNotes("");
-      setIsVisible(true);
-      setSelectedTags([]);
-      setUserId(null);
-      setSelectedDocs([]);
-      setSelectedTasks([]);
-    }
-  }, [open]);
-
-  // Fetch initiative members for user picker
-  const membersQuery = useInitiativeMembers(initiativeId);
-  const memberItems = useMemo(
-    () =>
-      (membersQuery.data ?? []).map((member) => ({
-        value: String(member.id),
-        label: getUserDisplayName(member),
-      })),
-    [membersQuery.data]
-  );
-
-  // Document picker — server typeahead, only while the picker is open.
-  const docsQuery = useDocumentAutocomplete(initiativeId, docSearch, {
-    enabled: open && docPickerOpen,
-    limit: ENTITY_PICKER_PAGE_SIZE,
-  });
-  const docResults = useMemo(
-    () => (docsQuery.data ?? []).map((doc) => ({ id: doc.id, title: doc.title })),
-    [docsQuery.data]
-  );
-
-  // Task picker — server typeahead over titles within this initiative.
-  const tasksQuery = useTaskAutocomplete(taskSearch, {
-    initiativeId,
-    enabled: open && taskPickerOpen,
-    limit: ENTITY_PICKER_PAGE_SIZE,
-  });
-  const taskResults = useMemo(
-    () => (tasksQuery.data ?? []).map((task) => ({ id: task.id, title: task.title })),
-    [tasksQuery.data]
-  );
+  const {
+    label,
+    setLabel,
+    position,
+    setPosition,
+    color,
+    setColor,
+    notes,
+    setNotes,
+    isVisible,
+    setIsVisible,
+    selectedTags,
+    setSelectedTags,
+    userId,
+    setUserId,
+    selectedDocs,
+    setSelectedDocs,
+    selectedTasks,
+    setSelectedTasks,
+    setDocSearch,
+    setDocPickerOpen,
+    setTaskSearch,
+    setTaskPickerOpen,
+    memberItems,
+    docResults,
+    docsLoading,
+    taskResults,
+    tasksLoading,
+  } = useQueueItemForm({ open, initiativeId });
 
   const createItem = useCreateQueueItem(queueId, {
     onSuccess: () => {
@@ -254,7 +211,7 @@ export const AddQueueItemDialog = ({
             selected={selectedDocs}
             onChange={setSelectedDocs}
             results={docResults}
-            loading={docsQuery.isFetching}
+            loading={docsLoading}
             onSearchChange={setDocSearch}
             onOpenChange={setDocPickerOpen}
             hrefFor={(id) => gp(`/documents/${id}`)}
@@ -267,7 +224,7 @@ export const AddQueueItemDialog = ({
             selected={selectedTasks}
             onChange={setSelectedTasks}
             results={taskResults}
-            loading={tasksQuery.isFetching}
+            loading={tasksLoading}
             onSearchChange={setTaskSearch}
             onOpenChange={setTaskPickerOpen}
             hrefFor={(id) => gp(`/tasks/${id}`)}

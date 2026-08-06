@@ -69,8 +69,8 @@ def _project_target_path(project_id: int | None) -> str:
 
 def _event_target_path(event_id: int | None) -> str:
     if event_id is None:
-        return "/calendar"
-    return f"/events/{event_id}"
+        return "/calendars"
+    return f"/calendar-events/{event_id}"
 
 
 def _initiative_target_path(initiative_id: int | None) -> str:

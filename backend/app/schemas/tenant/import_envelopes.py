@@ -1,7 +1,7 @@
 """Import-side pydantic mirrors of the export envelopes.
 
 Each model parses the dict shape its export adapter emits (see
-``services/export/adapters/{document,queue,counter_group,calendar_event}.py``)
+``services/export/adapters/{document,queue,counter_group,calendar}.py``)
 with ``extra="ignore"``: informational export fields (queue member/document/
 task display text, event ids and timestamps, linked document titles) parse
 and drop — they reference guild-local state an import cannot rebind.
@@ -125,13 +125,15 @@ class EventEnvelopeItem(SanitizedBaseModel):
     start_at: str
     end_at: str
     all_day: bool = False
-    color: Optional[str] = None
     recurrence: Optional[dict[str, Any]] = None
     attendees: list[EventEnvelopeAttendee] = []
     tags: list[str] = []
     properties: list[EnvelopePropertyValue] = []
 
 
-class CalendarEventsEnvelope(_EnvelopeBase):
-    type: Literal["initiative-calendar-events"]
+class CalendarEnvelope(_EnvelopeBase):
+    type: Literal["initiative-calendar"]
+    name: str
+    description: Optional[str] = None
+    color: Optional[str] = None
     events: list[EventEnvelopeItem] = []

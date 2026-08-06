@@ -23,7 +23,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.platform.guild import Guild
     from app.models.tenant.document import Document
     from app.models.tenant.queue import Queue
-    from app.models.tenant.calendar_event import CalendarEvent
+    from app.models.tenant.calendar import Calendar
     from app.models.tenant.counter import CounterGroup
 
 
@@ -231,7 +231,7 @@ class Initiative(_InitiativeToolSwitchColumns, SoftDeleteMixin, table=True):
         back_populates="initiative",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
-    calendar_events: List["CalendarEvent"] = Relationship(
+    calendars: List["Calendar"] = Relationship(
         back_populates="initiative",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )

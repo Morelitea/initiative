@@ -17,6 +17,7 @@ EntityType = Literal[
     "tag",
     "queue",
     "queue_item",
+    "calendar",
     "calendar_event",
     "counter_group",
     "counter",
@@ -52,6 +53,15 @@ class TrashListResponse(SanitizedBaseModel):
 
 class RestoreRequest(SanitizedBaseModel):
     new_owner_id: Optional[int] = None
+
+
+class RestoreResponse(SanitizedBaseModel):
+    """200 payload for a successful restore. The needs-reassignment case is a
+    409 with :class:`RestoreNeedsReassignmentResponse` instead."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    restored: bool
 
 
 class RestoreOwnerCandidate(SanitizedBaseModel):

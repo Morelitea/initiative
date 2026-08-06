@@ -32,6 +32,7 @@ from app.models.tenant.queue import (
     QueueItemDocument,
     QueueItemTask,
 )
+from app.models.tenant.calendar import Calendar, CalendarTag
 from app.models.tenant.calendar_event import (
     CalendarEvent,
     CalendarEventAttendee,
@@ -114,6 +115,8 @@ __all__ = [
     "QueueItemTag",
     "QueueItemDocument",
     "QueueItemTask",
+    "Calendar",
+    "CalendarTag",
     "CalendarEvent",
     "CalendarEventAttendee",
     "CalendarEventTag",

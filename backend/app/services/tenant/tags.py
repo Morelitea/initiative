@@ -1,9 +1,9 @@
 """One code path for tag assignment across every taggable surface.
 
 ``TOOL_TAG_LINKS`` is the registry: **every** ``Tool`` is taggable — a new tool
-that forgets to wire tags fails ``tools_test.py`` — and the two content-level
-extras (tasks, queue items) are deliberately hard-coded in ``EXTRA_TAG_LINKS``
-(they are sub-resources of a tool, not tools themselves). Everything an
+that forgets to wire tags fails ``tools_test.py`` — and the content-level
+extras (tasks, queue items, calendar events) are deliberately hard-coded in
+``EXTRA_TAG_LINKS`` (they are sub-resources of a tool, not tools themselves). Everything an
 assignment surface needs — validation, replace-all, copy, bulk add/remove,
 serialization — lives here, so per-entity endpoints are wiring only.
 
@@ -25,6 +25,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.messages import TagMessages
 from app.core.tools import Tool
 from app.models.tenant.advanced_tool import AdvancedTool, AdvancedToolTag
+from app.models.tenant.calendar import Calendar, CalendarTag
 from app.models.tenant.calendar_event import CalendarEvent, CalendarEventTag
 from app.models.tenant.counter import CounterGroup, CounterGroupTag
 from app.models.tenant.document import Document
@@ -82,9 +83,7 @@ TOOL_TAG_LINKS: dict[Tool, TagLinkSpec] = {
     Tool.document: TagLinkSpec(Document, DocumentTag, "document_id"),
     Tool.queue: TagLinkSpec(Queue, QueueTag, "queue_id"),
     Tool.counter_group: TagLinkSpec(CounterGroup, CounterGroupTag, "counter_group_id"),
-    Tool.calendar_event: TagLinkSpec(
-        CalendarEvent, CalendarEventTag, "calendar_event_id"
-    ),
+    Tool.calendar: TagLinkSpec(Calendar, CalendarTag, "calendar_id"),
     Tool.advanced_tool: TagLinkSpec(AdvancedTool, AdvancedToolTag, "advanced_tool_id"),
 }
 
@@ -93,6 +92,7 @@ TOOL_TAG_LINKS: dict[Tool, TagLinkSpec] = {
 EXTRA_TAG_LINKS: dict[str, TagLinkSpec] = {
     "task": TagLinkSpec(Task, TaskTag, "task_id"),
     "queue_item": TagLinkSpec(QueueItem, QueueItemTag, "queue_item_id"),
+    "calendar_event": TagLinkSpec(CalendarEvent, CalendarEventTag, "calendar_event_id"),
 }
 
 # Keyed by the wire name (`Tool.value` or the extra's key) — the bulk endpoint's

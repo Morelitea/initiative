@@ -34,6 +34,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.db.soft_delete_filter import select_including_deleted
 from app.models.tenant._mixins import SoftDeleteMixin
 from app.models.tenant.advanced_tool import AdvancedTool
+from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
 from app.models.tenant.document import Document
@@ -55,10 +56,11 @@ CASCADE_CHILDREN: dict[type, list[tuple[type, str]]] = {
         (Project, "initiative_id"),
         (Document, "initiative_id"),
         (Queue, "initiative_id"),
-        (CalendarEvent, "initiative_id"),
+        (Calendar, "initiative_id"),
         (CounterGroup, "initiative_id"),
     ],
     Project: [(Task, "project_id")],
+    Calendar: [(CalendarEvent, "calendar_id")],
     Document: [(Comment, "document_id")],
     Task: [(Comment, "task_id")],
     Queue: [(QueueItem, "queue_id")],
@@ -216,6 +218,14 @@ async def _resolve_initiative_scope(
     if isinstance(entity, Task) and entity.project_id is not None:
         stmt = select_including_deleted(Project.initiative_id).where(
             Project.id == entity.project_id
+        )
+        result = await session.exec(stmt)
+        row = result.one_or_none()
+        return int(row) if row is not None else None
+    # Calendar-scoped → look up calendar.initiative_id.
+    if isinstance(entity, CalendarEvent) and entity.calendar_id is not None:
+        stmt = select_including_deleted(Calendar.initiative_id).where(
+            Calendar.id == entity.calendar_id
         )
         result = await session.exec(stmt)
         row = result.one_or_none()

@@ -30,8 +30,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.encryption import SALT_AI_API_KEY, decrypt_field, encrypt_field
 from app.core.messages import AIMessages
 from app.db import session as db_session
-from app.db.schema_provisioning import guild_role_name, guild_schema_name
 from app.models.platform.ai_connection import PlatformAIConnection
+from app.models.platform.guild import Guild
 from app.models.platform.user import User
 from app.models.tenant.ai_connection import GuildAIConnection
 from app.models.tenant.ai_member_key import GuildAIMemberKey
@@ -181,51 +181,41 @@ async def _bump_ai_config_version(session: AsyncSession) -> None:
     session.add(settings)
 
 
-_MEMBER_TABLES = ("guild_ai_member_keys", "guild_ai_member_prefs")
-
-
 async def _purge_platform_connection_member_data(connection_id: int) -> None:
     """Delete every member key/pref that referenced a now-deleted platform
-    connection, across all guild schemas. Runs on the system engine, assuming
-    each guild's role with the admin GUC so the own-row RLS admits the sweep
-    (mirrors the secret-key rotation loop). Best-effort per guild — a failing
-    schema is logged and skipped; the rows are inert once the connection is gone.
+    connection, across all guild schemas. Runs on the system engine, routing
+    into each guild's schema with the admin GUC so the own-row RLS admits the
+    sweep (mirrors ``soft_delete_user``'s cross-guild member cleanup). Best-effort
+    per guild — a failing schema is rolled back and logged; the rows are inert
+    once the connection is gone.
     """
-    engine = db_session.admin_engine
-    async with engine.connect() as conn:
-        await conn.execute(text("SELECT set_config('role', 'none', false)"))
-        guild_ids = (
-            (await conn.execute(text("SELECT id FROM public.guilds ORDER BY id")))
-            .scalars()
-            .all()
-        )
-    for gid in guild_ids:
-        schema = guild_schema_name(gid)
-        try:
-            async with engine.begin() as wconn:
-                await wconn.execute(
-                    text("SELECT set_config('role', :r, true)"),
-                    {"r": guild_role_name(gid)},
+    async with db_session.AdminSessionLocal() as session:
+        guild_ids = (await session.exec(select(Guild.id).order_by(Guild.id))).all()
+        for gid in guild_ids:
+            try:
+                await db_session.set_rls_context(
+                    session, guild_id=gid, guild_role="admin"
                 )
-                await wconn.execute(
-                    text("SELECT set_config('app.current_guild_role', 'admin', true)")
-                )
-                for table in _MEMBER_TABLES:
-                    await wconn.execute(
-                        # schema comes from guild_schema_name(int) — never user input.
-                        text(
-                            f'DELETE FROM "{schema}".{table} '  # noqa: S608
-                            "WHERE connection_scope = 'platform' "
-                            "AND connection_id = :cid"
-                        ),
-                        {"cid": connection_id},
+                await session.exec(
+                    delete(GuildAIMemberKey).where(
+                        GuildAIMemberKey.connection_scope == "platform",
+                        GuildAIMemberKey.connection_id == connection_id,
                     )
-        except Exception:
-            logger.exception(
-                "failed to purge platform connection %s member data in %s",
-                connection_id,
-                schema,
-            )
+                )
+                await session.exec(
+                    delete(GuildAIMemberPref).where(
+                        GuildAIMemberPref.connection_scope == "platform",
+                        GuildAIMemberPref.connection_id == connection_id,
+                    )
+                )
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                logger.exception(
+                    "failed to purge platform connection %s member data in guild %s",
+                    connection_id,
+                    gid,
+                )
 
 
 def _conn_from_guild(row: GuildAIConnection) -> _ConnRow:

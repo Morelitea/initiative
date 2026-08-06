@@ -6,7 +6,7 @@ import type {
   TaggedEntitiesResponse,
   TagRead,
   TagUpdate,
-  TaskListRead,
+  TaskRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
   createTagApiV1GGuildIdTagsPost,
@@ -22,7 +22,7 @@ import {
 import { setTaskTagsApiV1GGuildIdTasksTaskIdTagsPut } from "@/api/generated/tasks/tasks";
 import {
   invalidateAllAdvancedTools,
-  invalidateAllCalendarEvents,
+  invalidateAllCalendars,
   invalidateAllCounterGroups,
   invalidateAllDocuments,
   invalidateAllProjects,
@@ -31,6 +31,7 @@ import {
   invalidateAllTasks,
 } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useGuildMutation } from "@/hooks/useApiMutation";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import type { MutationOpts } from "@/types/mutation";
@@ -43,7 +44,7 @@ const invalidateTagBearers = () => {
   void invalidateAllDocuments();
   void invalidateAllQueues();
   void invalidateAllCounterGroups();
-  void invalidateAllCalendarEvents();
+  void invalidateAllCalendars();
   void invalidateAllAdvancedTools();
 };
 
@@ -51,7 +52,7 @@ export const useTags = (options?: { enabled?: boolean }) => {
   const guildId = useActiveGuildId();
   return useQuery<TagRead[]>({
     queryKey: getListTagsApiV1GGuildIdTagsGetQueryKey(guildId),
-    queryFn: () => listTagsApiV1GGuildIdTagsGet(guildId) as unknown as Promise<TagRead[]>,
+    queryFn: () => listTagsApiV1GGuildIdTagsGet(guildId),
     staleTime: 60 * 1000,
     enabled: options?.enabled ?? true,
   });
@@ -61,32 +62,21 @@ export const useTag = (tagId: number | null) => {
   const guildId = useActiveGuildId();
   return useQuery<TagRead>({
     queryKey: getGetTagApiV1GGuildIdTagsTagIdGetQueryKey(guildId, tagId!),
-    queryFn: () => getTagApiV1GGuildIdTagsTagIdGet(guildId, tagId!) as unknown as Promise<TagRead>,
+    queryFn: () => getTagApiV1GGuildIdTagsTagIdGet(guildId, tagId!),
     enabled: !!tagId,
     staleTime: 60 * 1000,
   });
 };
 
-export const useCreateTag = (options?: MutationOpts<TagRead, TagCreate>) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (data: TagCreate) => {
-      return createTagApiV1GGuildIdTagsPost(guildId, data) as unknown as Promise<TagRead>;
+export const useCreateTag = (options?: MutationOpts<TagRead, TagCreate>) =>
+  useGuildMutation<TagRead, TagCreate>(
+    {
+      mutationFn: (guildId, data) => createTagApiV1GGuildIdTagsPost(guildId, data),
+      invalidate: () => invalidateAllTags(),
+      errorKey: "tags:createError",
     },
-    onSuccess: (...args) => {
-      void invalidateAllTags();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "tags:createError"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useUpdateTag = (
   options?: MutationOpts<TagRead, { tagId: number; data: TagUpdate }>
@@ -98,11 +88,7 @@ export const useUpdateTag = (
   return useMutation({
     ...rest,
     mutationFn: async ({ tagId, data }: { tagId: number; data: TagUpdate }) => {
-      return updateTagApiV1GGuildIdTagsTagIdPatch(
-        guildId,
-        tagId,
-        data
-      ) as unknown as Promise<TagRead>;
+      return updateTagApiV1GGuildIdTagsTagIdPatch(guildId, tagId, data);
     },
     onSuccess: (...args) => {
       toast.success(t("updated"));
@@ -151,39 +137,25 @@ export const useDeleteTag = (
 };
 
 export const useSetTaskTags = (
-  options?: MutationOpts<TaskListRead, { taskId: number; tagIds: number[] }>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async ({ taskId, tagIds }: { taskId: number; tagIds: number[] }) => {
-      return setTaskTagsApiV1GGuildIdTasksTaskIdTagsPut(guildId, taskId, {
-        tag_ids: tagIds,
-      }) as unknown as Promise<TaskListRead>;
+  options?: MutationOpts<TaskRead, { taskId: number; tagIds: number[] }>
+) =>
+  useGuildMutation<TaskRead, { taskId: number; tagIds: number[] }>(
+    {
+      mutationFn: (guildId, { taskId, tagIds }) =>
+        setTaskTagsApiV1GGuildIdTasksTaskIdTagsPut(guildId, taskId, {
+          tag_ids: tagIds,
+        }),
+      invalidate: () => invalidateAllTasks(),
+      errorKey: "tags:taskTagsError",
     },
-    onSuccess: (...args) => {
-      void invalidateAllTasks();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "tags:taskTagsError"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
+    options
+  );
 
 export const useTagEntities = (tagId: number | null) => {
   const guildId = useActiveGuildId();
   return useQuery<TaggedEntitiesResponse>({
     queryKey: getGetTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGetQueryKey(guildId, tagId!),
-    queryFn: () =>
-      getTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGet(
-        guildId,
-        tagId!
-      ) as unknown as Promise<TaggedEntitiesResponse>,
+    queryFn: () => getTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGet(guildId, tagId!),
     enabled: !!tagId,
     staleTime: 30 * 1000,
   });

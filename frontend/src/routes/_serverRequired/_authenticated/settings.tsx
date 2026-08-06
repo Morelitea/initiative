@@ -1,10 +1,13 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+
+import { redirectToActiveGuild } from "@/lib/routeGuards";
 
 export const Route = createFileRoute("/_serverRequired/_authenticated/settings")({
-  beforeLoad: ({ location }) => {
-    // Only redirect if we're at exactly /settings, not a child route like /settings/admin
-    if (location.pathname === "/settings" || location.pathname === "/settings/") {
-      throw redirect({ to: "/settings/guild" });
+  beforeLoad: (opts) => {
+    // Only redirect when we're at exactly /settings, not a child route like
+    // /settings/admin. Forward straight to the active guild's settings.
+    if (opts.location.pathname === "/settings" || opts.location.pathname === "/settings/") {
+      redirectToActiveGuild("/g/$guildId/settings")(opts);
     }
   },
 });

@@ -35,6 +35,7 @@
     "tag": "Tag",
     "queue": "Queue",
     "queue_item": "Queue item",
+    "calendar": "Calendar",
     "calendar_event": "Calendar event",
     "counter_group": "Counter group",
     "counter": "Counter",

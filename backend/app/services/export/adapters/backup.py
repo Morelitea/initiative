@@ -20,7 +20,7 @@ with one ``initiatives/`` entry, so ONE import path serves both)::
     initiatives/{id}-{slug}/documents/{id}-{slug}.json
     initiatives/{id}-{slug}/queues/{id}-{slug}.initiative-queue.json
     initiatives/{id}-{slug}/counter-groups/{id}-{slug}.initiative-counter-group.json
-    initiatives/{id}-{slug}/calendar-events.json
+    initiatives/{id}-{slug}/calendars/{id}-{slug}.initiative-calendar.json
     assets/{storage_key}                            (include_uploads only)
 
 Authorization: the initiative source requires the creator to reach each
@@ -55,14 +55,14 @@ from app.services.export.i18n import localize_now
 from app.services.platform.csv_export import safe_filename_component
 
 # Tool keys as they appear in the selector's include/formats maps.
-_TOOLS = ("project", "document", "queue", "counter_group", "calendar_event")
+_TOOLS = ("project", "document", "queue", "counter_group", "calendar")
 
 # Report-mode format sets per tool (documents are per-type, validated below).
 _REPORT_FORMATS: dict[str, frozenset[str]] = {
     "project": frozenset({"pdf", "csv", "xlsx"}),
     "queue": frozenset({"pdf", "csv", "xlsx", "md"}),
     "counter_group": frozenset({"pdf", "csv", "xlsx", "md"}),
-    "calendar_event": frozenset({"ics", "json"}),
+    "calendar": frozenset({"ics", "json"}),
 }
 _DOCUMENT_REPORT_FORMATS: dict[str, frozenset[str]] = {
     "native": frozenset({"pdf", "md", "docx"}),
@@ -215,7 +215,7 @@ async def _enumerate(
     session: AsyncSession, user: User, guild_id: int, params: dict, initiatives
 ) -> dict[str, dict[int, list[int]]]:
     """Per tool, per initiative: the entity ids the creator may export."""
-    from app.services.tenant.calendar_events import list_event_ids_for_export
+    from app.services.tenant.calendars import list_calendar_ids_for_export
     from app.services.tenant.counters import list_counter_group_ids_for_export
     from app.services.tenant.documents import list_document_ids_for_export
     from app.services.tenant.project_export import list_project_ids_for_export
@@ -241,8 +241,8 @@ async def _enumerate(
             if not _included(params, tool):
                 continue
             ids[tool][initiative.id] = await enumerate_ids([initiative.id])
-        if _included(params, "calendar_event") and initiative.calendar_events_enabled:
-            ids["calendar_event"][initiative.id] = await list_event_ids_for_export(
+        if _included(params, "calendar") and initiative.calendars_enabled:
+            ids["calendar"][initiative.id] = await list_calendar_ids_for_export(
                 session, user, guild_id, initiative_id=initiative.id
             )
     return ids
@@ -445,7 +445,7 @@ class _ScopeBuilder:
         await self._add_documents(initiative, folder)
         await self._add_queues(initiative, folder)
         await self._add_counter_groups(initiative, folder)
-        await self._add_calendar_events(initiative, folder)
+        await self._add_calendars(initiative, folder)
 
     # -- per-tool chunks -----------------------------------------------------
 
@@ -653,66 +653,41 @@ class _ScopeBuilder:
             else:
                 self._append_report(item, f"{path_stem}.{fmt}", fmt, "counter_group")
 
-    async def _add_calendar_events(self, initiative, folder: str) -> None:
-        if not _included(self.params, "calendar_event"):
+    async def _add_calendars(self, initiative, folder: str) -> None:
+        if not _included(self.params, "calendar"):
             return
-        if not initiative.calendar_events_enabled:
+        if not initiative.calendars_enabled:
             return
-        from app.services.tenant.calendar_events import (
-            get_event_for_export,
-            list_event_ids_for_export,
+        from app.services.export.adapters.calendar import build_calendar_item
+        from app.services.tenant.calendars import (
+            get_calendar_for_export,
+            list_calendar_ids_for_export,
         )
-        from app.services.tenant.ical_service import event_export_dict
 
-        event_ids = await list_event_ids_for_export(
+        fmt = self._tool_format("calendar", default="json")
+        date = self.now.strftime("%Y-%m-%d")
+        for calendar_id in await list_calendar_ids_for_export(
             self.session, self.user, self.guild_id, initiative_id=initiative.id
-        )
-        if not event_ids:
-            return
-        dicts = []
-        for event_id in event_ids:
+        ):
             await self._refresh_access()
-            event = await get_event_for_export(
-                self.session, self.user, self.guild_id, event_id=event_id
+            calendar = await get_calendar_for_export(
+                self.session, self.user, self.guild_id, calendar_id=calendar_id
             )
-            dicts.append(event_export_dict(event))
-
-        fmt = self._tool_format("calendar_event", default="json")
-        if fmt == "json":
-            item = RenderItem(
-                key=f"{folder}/calendar-events",
-                data={
-                    "type": "initiative-calendar-events",
-                    "schema_version": 1,
-                    "events": dicts,
-                },
-                filename=f"{folder}/calendar-events.json",
-                format="json",
-            )
-            self.items.append(item)
-            if self.mode == "backup":
-                from app.schemas.tenant.backup_export import ManifestEntry
-
-                self.entries.append(
-                    ManifestEntry(
-                        path=f"{folder}/calendar-events.json",
-                        tool="calendar_event",
-                        type="initiative-calendar-events",
-                        schema_version=1,
-                        entity_id=initiative.id,
-                        title="calendar-events",
-                        initiative_id=initiative.id,
-                    )
+            item = build_calendar_item(calendar, fmt, date)
+            path_stem = f"{folder}/calendars/{_slug(calendar.id, calendar.name)}"
+            if fmt == "json":
+                self._append_backup(
+                    item,
+                    path=f"{path_stem}.initiative-calendar.json",
+                    tool="calendar",
+                    type="initiative-calendar",
+                    schema_version=1,
+                    entity_id=calendar.id,
+                    title=calendar.name,
+                    initiative_id=initiative.id,
                 )
-        else:  # ics
-            self.items.append(
-                RenderItem(
-                    key=f"{folder}/calendar-events",
-                    data={"layout": "ical", "events": dicts},
-                    filename=f"{folder}/calendar-events.ics",
-                    format="ics",
-                )
-            )
+            else:  # ics
+                self._append_report(item, f"{path_stem}.{fmt}", fmt, "calendar")
 
     # -- helpers ---------------------------------------------------------------
 

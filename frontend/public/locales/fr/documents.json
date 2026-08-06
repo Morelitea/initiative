@@ -260,7 +260,7 @@
     "selectInitiative": "Sélectionnez une initiative",
     "lastUsed": "Dernier utilisé",
     "back": "Retour",
-    "noInitiatives": "Aucune initiative trouvée dans ce groupe."
+    "noInitiatives": "Aucune initiative ici à laquelle vous pouvez ajouter des documents."
   },
   "viewer": {
     "loadError": "Impossible de charger le document",

@@ -23,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useImportFromVikunja, useParseVikunjaJson } from "@/hooks/useImports";
 import { useProjects, useProjectTaskStatuses } from "@/hooks/useProjects";
 import { toast } from "@/lib/chesterToast";
+import { hasWriteAccess } from "@/lib/permissions";
 import type { DialogProps } from "@/types/dialog";
 
 interface VikunjaBucket {
@@ -203,7 +204,7 @@ export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogP
   const activeProjects =
     projectsQuery.data?.items?.filter((p) => {
       if (p.is_archived || p.is_template) return false;
-      return p.my_permission_level === "owner" || p.my_permission_level === "write";
+      return hasWriteAccess(p.my_permission_level);
     }) ?? [];
   const statuses = taskStatusesQuery.data ?? [];
 

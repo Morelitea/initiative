@@ -4,19 +4,12 @@ import { useTranslation } from "react-i18next";
 
 import type {
   CalendarEventRead,
-  ResourceGrantSchema,
+  CalendarSummary,
   TaskListReadRecurrenceStrategy,
   TaskRecurrenceOutput,
 } from "@/api/generated/initiativeAPI.schemas";
-import { ShareControl } from "@/components/access/ShareControl";
 import { MemberMultiSelect } from "@/components/members/MemberSearchSelect";
 import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import {
@@ -37,8 +30,11 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAuth } from "@/hooks/useAuth";
 import { useCreateCalendarEvent } from "@/hooks/useCalendarEvents";
+import { useCalendarsList } from "@/hooks/useCalendars";
+import { getItem, setItem } from "@/lib/storage";
 import type { DialogProps } from "@/types/dialog";
 
 import {
@@ -51,8 +47,20 @@ import {
   TIME_OPTIONS,
 } from "./eventDateTime";
 
+/** A calendar the user may author events in — write access on the calendar
+ * is the event-create gate (like task creation via project write). */
+export const isWritableCalendar = (calendar: CalendarSummary): boolean =>
+  calendar.my_permission_level === "write" || calendar.my_permission_level === "owner";
+
+const LAST_CALENDAR_KEY = "initiative-last-event-calendar";
+
 type CreateEventDialogProps = DialogProps & {
-  initiativeId: number;
+  /** If provided, the calendar is locked and the picker is hidden. */
+  calendarId?: number;
+  /** If provided, pre-selects this calendar (but the user can change it). */
+  defaultCalendarId?: number;
+  /** Restrict the picker to this initiative's calendars (initiative tab). */
+  initiativeId?: number;
   defaultStartDate?: string;
   defaultStartTime?: string;
   onSuccess?: (event: CalendarEventRead) => void;
@@ -61,13 +69,16 @@ type CreateEventDialogProps = DialogProps & {
 export const CreateEventDialog = ({
   open,
   onOpenChange,
+  calendarId,
+  defaultCalendarId,
   initiativeId,
   defaultStartDate,
   defaultStartTime,
   onSuccess,
 }: CreateEventDialogProps) => {
-  const { t } = useTranslation(["calendarEvents", "common"]);
+  const { t } = useTranslation(["calendars", "common"]);
   const { user } = useAuth();
+  const guildId = useActiveGuildId();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -81,13 +92,46 @@ export const CreateEventDialog = ({
   const [recurrence, setRecurrence] = useState<TaskRecurrenceOutput | null>(null);
   const [recurrenceStrategy, setRecurrenceStrategy] =
     useState<TaskListReadRecurrenceStrategy>("fixed");
-  const [grants, setGrants] = useState<ResourceGrantSchema[]>([
-    { all_initiative_members: true, level: "read" },
-  ]);
+  const [selectedCalendarId, setSelectedCalendarId] = useState(
+    defaultCalendarId ? String(defaultCalendarId) : ""
+  );
 
-  // Attendee candidates come from the initiative-scoped member typeahead
-  // (MemberMultiSelect below) — every initiative member may attend. Event DAC
-  // (the ShareControl below) is a separate concern tracked in #948.
+  // Calendars the current user may author events in (write on the calendar).
+  const calendarsQuery = useCalendarsList(
+    { page_size: 200, ...(initiativeId ? { initiative_id: initiativeId } : {}) },
+    { enabled: open }
+  );
+  const writableCalendars = useMemo(
+    () => (calendarsQuery.data?.items ?? []).filter(isWritableCalendar),
+    [calendarsQuery.data]
+  );
+
+  const effectiveCalendarId =
+    calendarId ?? (selectedCalendarId ? Number(selectedCalendarId) : null);
+  const effectiveCalendar = useMemo(
+    () =>
+      (calendarsQuery.data?.items ?? []).find((calendar) => calendar.id === effectiveCalendarId) ??
+      null,
+    [calendarsQuery.data, effectiveCalendarId]
+  );
+
+  // Default the picker: explicit default > last-used (per guild) > the only
+  // writable calendar.
+  useEffect(() => {
+    if (!open || calendarId !== undefined || selectedCalendarId) return;
+    if (defaultCalendarId) {
+      setSelectedCalendarId(String(defaultCalendarId));
+      return;
+    }
+    const lastUsed = Number(getItem(`${LAST_CALENDAR_KEY}:${guildId}`) ?? "");
+    if (lastUsed && writableCalendars.some((calendar) => calendar.id === lastUsed)) {
+      setSelectedCalendarId(String(lastUsed));
+      return;
+    }
+    if (writableCalendars.length === 1) {
+      setSelectedCalendarId(String(writableCalendars[0].id));
+    }
+  }, [open, calendarId, selectedCalendarId, defaultCalendarId, guildId, writableCalendars]);
 
   useEffect(() => {
     if (open) {
@@ -113,9 +157,9 @@ export const CreateEventDialog = ({
       setAttendeeIds([]);
       setRecurrence(null);
       setRecurrenceStrategy("fixed");
-      setGrants([{ all_initiative_members: true, level: "read" }]);
+      setSelectedCalendarId(defaultCalendarId ? String(defaultCalendarId) : "");
     }
-  }, [open, defaultStartDate, defaultStartTime, user]);
+  }, [open, defaultCalendarId, defaultStartDate, defaultStartTime, user]);
 
   // Apply a new start date/time, shifting the end so the event keeps its
   // current length (a 90-minute event stays 90 minutes; a multi-day event keeps
@@ -152,17 +196,18 @@ export const CreateEventDialog = ({
 
   const createEvent = useCreateCalendarEvent({
     onSuccess: (event) => {
+      setItem(`${LAST_CALENDAR_KEY}:${guildId}`, String(event.calendar_id));
       onOpenChange(false);
       onSuccess?.(event);
     },
   });
 
   const isCreating = createEvent.isPending;
-  const canSubmit = title.trim() && datesValid && !isCreating;
+  const canSubmit = title.trim() && datesValid && !!effectiveCalendarId && !isCreating;
 
   const handleSubmit = () => {
     const trimmedTitle = title.trim();
-    if (!trimmedTitle || !datesValid) return;
+    if (!trimmedTitle || !datesValid || !effectiveCalendarId) return;
 
     let startISO: string;
     let endISO: string;
@@ -181,7 +226,7 @@ export const CreateEventDialog = ({
       start_at: startISO,
       end_at: endISO,
       all_day: allDay,
-      initiative_id: initiativeId,
+      calendar_id: effectiveCalendarId,
       attendee_ids: attendeeIds.length > 0 ? attendeeIds : undefined,
       recurrence: recurrence
         ? {
@@ -198,7 +243,6 @@ export const CreateEventDialog = ({
             end_date: recurrence.end_date ?? undefined,
           }
         : undefined,
-      grants,
     });
   };
 
@@ -249,6 +293,38 @@ export const CreateEventDialog = ({
               placeholder={t("locationPlaceholder")}
             />
           </div>
+
+          {calendarId === undefined && (
+            <div className="space-y-2">
+              <Label htmlFor="create-event-calendar">{t("calendar")}</Label>
+              <Select
+                value={selectedCalendarId}
+                onValueChange={(value) => {
+                  setSelectedCalendarId(value);
+                  // Attendees are initiative members; a new target starts over
+                  // with just the creator.
+                  setAttendeeIds(user ? [user.id] : []);
+                }}
+              >
+                <SelectTrigger id="create-event-calendar">
+                  <SelectValue placeholder={t("selectCalendar")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {writableCalendars.map((calendar) => (
+                    <SelectItem key={calendar.id} value={String(calendar.id)}>
+                      <span className="inline-flex items-center gap-2">
+                        <span
+                          className="inline-block h-2.5 w-2.5 rounded-full"
+                          style={{ backgroundColor: calendar.color ?? "#6366f1" }}
+                        />
+                        {calendar.name}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="flex items-center gap-3">
             <Switch id="create-event-all-day" checked={allDay} onCheckedChange={setAllDay} />
@@ -345,19 +421,22 @@ export const CreateEventDialog = ({
             </div>
           )}
 
-          {/* Attendees */}
-          <div className="space-y-2">
-            <Label>{t("attendees")}</Label>
-            <MemberMultiSelect
-              scope={{ type: "initiative", initiativeId }}
-              selectedIds={attendeeIds}
-              selectedUsers={user ? [user] : undefined}
-              onChange={setAttendeeIds}
-              currentUserId={user?.id}
-              placeholder={t("addAttendee")}
-              emptyMessage={t("noAttendees")}
-            />
-          </div>
+          {/* Attendees — scoped to the target calendar's initiative members,
+              so wait until a calendar is chosen. */}
+          {effectiveCalendar != null && (
+            <div className="space-y-2">
+              <Label>{t("attendees")}</Label>
+              <MemberMultiSelect
+                scope={{ type: "initiative", initiativeId: effectiveCalendar.initiative_id }}
+                selectedIds={attendeeIds}
+                selectedUsers={user ? [user] : undefined}
+                onChange={setAttendeeIds}
+                currentUserId={user?.id}
+                placeholder={t("addAttendee")}
+                emptyMessage={t("noAttendees")}
+              />
+            </div>
+          )}
 
           {/* Recurrence */}
           <TaskRecurrenceSelector
@@ -368,14 +447,7 @@ export const CreateEventDialog = ({
             referenceDate={referenceDate}
           />
 
-          <Accordion type="single" collapsible defaultValue="advanced">
-            <AccordionItem value="advanced" className="border-b-0">
-              <AccordionTrigger>{t("common:createAccess.advancedOptions")}</AccordionTrigger>
-              <AccordionContent>
-                <ShareControl initiativeId={initiativeId} grants={grants} onChange={setGrants} />
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
+          {/* No access section: sharing lives on the calendar, not the event. */}
         </div>
 
         <DialogFooter>

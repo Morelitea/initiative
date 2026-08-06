@@ -27,6 +27,7 @@ import {
   useSetDocumentCache,
   useUpdateDocument,
 } from "@/hooks/useDocuments";
+import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { useSetToolTags } from "@/hooks/useToolTags";
@@ -34,7 +35,7 @@ import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
-import { Capability, hasCapability } from "@/lib/permissions";
+import { hasWriteAccess } from "@/lib/permissions";
 
 export const DocumentSettingsPage = () => {
   const { t } = useTranslation(["documents", "common"]);
@@ -68,8 +69,7 @@ export const DocumentSettingsPage = () => {
     if (!document || !user) {
       return false;
     }
-    const myLevel = document.my_permission_level;
-    return myLevel === "owner" || myLevel === "write";
+    return hasWriteAccess(document.my_permission_level);
   }, [document, user]);
 
   // Pure DAC: only owners can delete/duplicate documents
@@ -80,36 +80,19 @@ export const DocumentSettingsPage = () => {
     return document.my_permission_level === "owner";
   }, [document, user]);
 
-  // Pure DAC: check if user has write access
-  const hasWriteAccess = useMemo(() => {
-    if (!document || !user) {
-      return false;
-    }
-    const myLevel = document.my_permission_level;
-    return myLevel === "owner" || myLevel === "write";
-  }, [document, user]);
-
-  const manageableInitiatives = useMemo(() => {
-    const initiatives = initiativesQuery.data ?? [];
-    if (!user) {
-      return [];
-    }
-    if (hasCapability(user, Capability.dataBypass)) {
-      return initiatives;
-    }
-    return initiatives.filter((initiative) =>
-      initiative.members.some(
-        (member) => member.user.id === user.id && member.role === "project_manager"
-      )
-    );
-  }, [initiativesQuery.data, user]);
+  // Copying creates a document in the target initiative, so the target list
+  // is the initiatives whose server-computed create flag is on — minus the
+  // one the document is already in.
+  const { creatableInitiatives } = useToolCreateAccess(Tool.document, {
+    enabled: Boolean(document) && Boolean(user),
+  });
 
   const copyableInitiatives = useMemo(() => {
     if (!document) {
       return [];
     }
-    return manageableInitiatives.filter((initiative) => initiative.id !== document.initiative_id);
-  }, [document, manageableInitiatives]);
+    return creatableInitiatives.filter((initiative) => initiative.id !== document.initiative_id);
+  }, [document, creatableInitiatives]);
 
   useEffect(() => {
     if (!document) {
@@ -286,8 +269,8 @@ export const DocumentSettingsPage = () => {
         <DocumentSettingsDetailsTab
           isTemplate={isTemplate}
           onTemplateToggle={handleTemplateToggle}
-          templateToggleDisabled={!hasWriteAccess || updateTemplate.isPending}
-          hasWriteAccess={hasWriteAccess}
+          templateToggleDisabled={!canManageDocument || updateTemplate.isPending}
+          hasWriteAccess={canManageDocument}
           documentTags={documentTags}
           onTagsChange={handleTagsChange}
         />

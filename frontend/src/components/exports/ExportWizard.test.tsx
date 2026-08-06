@@ -22,7 +22,7 @@ const ESTIMATE = {
     document: { count: 5, disabled: false },
     queue: { count: 0, disabled: true },
     counter_group: { count: 2, disabled: false },
-    calendar_event: { count: 4, disabled: false },
+    calendar: { count: 4, disabled: false },
   },
   uploads_count: 1,
   uploads_bytes: 2_500_000,
@@ -163,7 +163,7 @@ describe("ExportWizard", () => {
     const formats = JSON.parse(params.get("formats")!);
     expect(formats.project).toBe("csv");
     expect(formats.document).toEqual({ native: "pdf", spreadsheet: "xlsx" });
-    expect(formats.calendar_event).toBe("ics");
+    expect(formats.calendar).toBe("ics");
     expect(params.get("include_uploads")).toBeNull();
   });
 

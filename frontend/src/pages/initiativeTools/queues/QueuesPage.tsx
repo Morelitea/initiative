@@ -5,10 +5,9 @@ import { useTranslation } from "react-i18next";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidateAllQueues } from "@/api/query-keys";
-import { BulkAccessBar, canManageSharing } from "@/components/access/BulkAccessBar";
-import { BulkEditAccessDialog } from "@/components/access/BulkEditAccessDialog";
+import { BulkAccessSection } from "@/components/access/BulkAccessSection";
 import { SelectableGridItem } from "@/components/access/SelectableGridItem";
-import { BulkExportButton } from "@/components/exports/BulkExportButton";
+import { PaginationBar } from "@/components/documents/PaginationBar";
 import { ToolImportAction } from "@/components/imports/ToolImportAction";
 import { CreateQueueDialog } from "@/components/initiativeTools/queues/CreateQueueDialog";
 import { QueueCard } from "@/components/initiativeTools/queues/QueueCard";
@@ -19,17 +18,14 @@ import {
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAuth } from "@/hooks/useAuth";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
+import { getDefaultFiltersVisibility } from "@/hooks/useDefaultFiltersOpen";
 import { useGridSelection } from "@/hooks/useGridSelection";
-import { useGuilds } from "@/hooks/useGuilds";
-import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
-import { canCreateTool, useMyInitiativePermissions } from "@/hooks/useInitiativeRoles";
+import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
+import { INITIATIVE_FILTER_ALL, useInitiativeFilter } from "@/hooks/useInitiativeFilter";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useQueuesList } from "@/hooks/useQueues";
 import { useGuildPath } from "@/lib/guildUrl";
-
-const INITIATIVE_FILTER_ALL = "all";
 
 type QueuesViewProps = {
   fixedInitiativeId?: number;
@@ -39,9 +35,6 @@ type QueuesViewProps = {
 export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) => {
   const { t } = useTranslation(["queues", "common", "access"]);
   const router = useRouter();
-  const { user } = useAuth();
-  const { activeGuildId } = useGuilds();
-  const { permissionsFor } = useInitiativeAccess();
   const gp = useGuildPath();
   const searchParams = useSearch({ strict: false }) as {
     initiativeId?: string;
@@ -51,34 +44,15 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
 
   const lockedInitiativeId = typeof fixedInitiativeId === "number" ? fixedInitiativeId : null;
 
-  const [initiativeFilter, setInitiativeFilter] = useState<string>(
-    lockedInitiativeId ? String(lockedInitiativeId) : INITIATIVE_FILTER_ALL
-  );
-
-  const filteredInitiativeId =
-    initiativeFilter !== INITIATIVE_FILTER_ALL ? Number(initiativeFilter) : null;
-
-  const { data: filteredInitiativePermissions } = useMyInitiativePermissions(
-    !lockedInitiativeId && filteredInitiativeId ? filteredInitiativeId : null
-  );
+  const { initiativeFilter, setInitiativeFilter, filteredInitiativeId } = useInitiativeFilter({
+    lockedInitiativeId,
+  });
 
   const searchParamsRef = useRef(searchParams);
   searchParamsRef.current = searchParams;
-  const lastConsumedParams = useRef<string>("");
-  const prevGuildIdRef = useRef<number | null>(activeGuildId);
-
-  // Consume ?initiativeId from URL once
-  useEffect(() => {
-    const urlInitiativeId = searchParams.initiativeId;
-    const paramKey = urlInitiativeId || "";
-
-    if (urlInitiativeId && !lockedInitiativeId && paramKey !== lastConsumedParams.current) {
-      lastConsumedParams.current = paramKey;
-      setInitiativeFilter(urlInitiativeId);
-    }
-  }, [searchParams, lockedInitiativeId]);
 
   const [page, setPageState] = useState(() => searchParams.page ?? 1);
+  const [pageSize, setPageSize] = useState(20);
 
   const setPage = useCallback(
     (updater: number | ((prev: number) => number)) => {
@@ -98,23 +72,6 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
     [router]
   );
 
-  useEffect(() => {
-    if (lockedInitiativeId) {
-      const lockedValue = String(lockedInitiativeId);
-      setInitiativeFilter((prev) => (prev === lockedValue ? prev : lockedValue));
-    }
-  }, [lockedInitiativeId]);
-
-  // Reset initiative filter when guild changes
-  useEffect(() => {
-    const prevGuildId = prevGuildIdRef.current;
-    prevGuildIdRef.current = activeGuildId;
-    if (prevGuildId !== null && prevGuildId !== activeGuildId && !lockedInitiativeId) {
-      setInitiativeFilter(INITIATIVE_FILTER_ALL);
-      lastConsumedParams.current = "";
-    }
-  }, [activeGuildId, lockedInitiativeId]);
-
   // Reset to page 1 when filters change
   useEffect(() => {
     setPage(1);
@@ -125,7 +82,7 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
       ? { initiative_id: Number(initiativeFilter) }
       : {}),
     page,
-    page_size: 20,
+    page_size: pageSize,
   });
 
   const initiativesQuery = useInitiatives();
@@ -143,31 +100,13 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
     return map;
   }, [initiatives]);
 
-  // Initiatives the user can create queues in — resolved through the shared
-  // access helper so guild admins are included and frozen (read-only) guilds
-  // drop their create affordances.
-  const creatableInitiatives = useMemo(() => {
-    if (!user) return [];
-    return initiatives.filter((initiative) => permissionsFor(initiative)[Tool.queue].create);
-  }, [initiatives, user, permissionsFor]);
-
-  // Determine if user can create queues
-  const canCreateQueues = useMemo(() => {
-    if (canCreate !== undefined) return canCreate;
-    if (filteredInitiativeId && filteredInitiativePermissions) {
-      return canCreateTool(filteredInitiativePermissions, Tool.queue);
-    }
-    if (lockedInitiativeId) {
-      return creatableInitiatives.some((initiative) => initiative.id === lockedInitiativeId);
-    }
-    return creatableInitiatives.length > 0;
-  }, [
-    canCreate,
-    filteredInitiativeId,
-    filteredInitiativePermissions,
-    lockedInitiativeId,
-    creatableInitiatives,
-  ]);
+  // Canonical create answer: the locked/filtered initiative's server-computed
+  // create flag, or (in the "All" view) whether any visible initiative grants
+  // it. An explicit canCreate prop (e.g. from InitiativeDetailPage) wins.
+  const { canCreate: canCreateDerived } = useToolCreateAccess(Tool.queue, {
+    initiativeId: lockedInitiativeId ?? filteredInitiativeId,
+  });
+  const canCreateQueues = canCreate ?? canCreateDerived;
 
   const {
     open: createDialogOpen,
@@ -176,8 +115,6 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
   } = useCreateFromSearchParam();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const getDefaultFiltersVisibility = () =>
-    typeof window !== "undefined" && window.matchMedia("(min-width: 640px)").matches;
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
 
   // Drive the app-wide bottom-nav add button for this route.
@@ -193,8 +130,6 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
 
   const totalCount = queuesQuery.data?.total_count ?? 0;
   const hasNext = queuesQuery.data?.has_next ?? false;
-  const pageSize = 20;
-  const totalPages = pageSize > 0 ? Math.ceil(totalCount / pageSize) : 1;
 
   // Client-side filtering by search query and status
   const queues = useMemo(() => {
@@ -215,7 +150,6 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
     : null;
 
   const selection = useGridSelection<(typeof queues)[number]>();
-  const [bulkAccessOpen, setBulkAccessOpen] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -275,22 +209,11 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
         <p className="text-destructive text-sm">{t("loadError")}</p>
       ) : queues.length > 0 ? (
         <>
-          {selection.active ? (
-            <BulkAccessBar
-              count={selection.selectedItems.length}
-              canManage={canManageSharing(selection.selectedItems)}
-              onEditAccess={() => setBulkAccessOpen(true)}
-              onExit={selection.exit}
-            >
-              <BulkExportButton tool={Tool.queue} ids={selection.selectedItems.map((q) => q.id)} />
-            </BulkAccessBar>
-          ) : (
-            <div className="flex justify-end">
-              <Button variant="outline" size="sm" onClick={selection.enter}>
-                {t("access:bulkBar.select")}
-              </Button>
-            </div>
-          )}
+          <BulkAccessSection
+            selection={selection}
+            tool={Tool.queue}
+            invalidate={invalidateAllQueues}
+          />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {queues.map((queue) => (
               <SelectableGridItem
@@ -308,30 +231,18 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
             ))}
           </div>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-              >
-                {t("previous")}
-              </Button>
-              <span className="text-muted-foreground text-sm">
-                {page} / {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => p + 1)}
-                disabled={!hasNext}
-              >
-                {t("next")}
-              </Button>
-            </div>
-          )}
+          <PaginationBar
+            page={page}
+            pageSize={pageSize}
+            totalCount={totalCount}
+            hasNext={hasNext}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setPage(1);
+            }}
+            onPrefetchPage={() => {}}
+          />
         </>
       ) : totalCount > 0 ? (
         <p className="text-muted-foreground text-sm">{t("filters.noMatchingQueues")}</p>
@@ -363,15 +274,6 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
           initiativeFilter !== INITIATIVE_FILTER_ALL ? Number(initiativeFilter) : undefined
         }
         onSuccess={handleQueueCreated}
-      />
-
-      <BulkEditAccessDialog
-        open={bulkAccessOpen}
-        onOpenChange={setBulkAccessOpen}
-        items={selection.selectedItems}
-        resourceType={Tool.queue}
-        invalidate={invalidateAllQueues}
-        onSuccess={selection.exit}
       />
     </div>
   );

@@ -22,7 +22,6 @@ import type {
   CommentRead,
   PropertySummary,
   TagSummary,
-  TaskListRead,
   TaskListReadRecurrenceStrategy,
   TaskPriority,
   TaskRead,
@@ -72,6 +71,7 @@ import {
 import { toast } from "@/lib/chesterToast";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
+import { hasWriteAccess } from "@/lib/permissions";
 import { queryClient } from "@/lib/queryClient";
 import {
   getAvatarSrc,
@@ -291,7 +291,7 @@ export const TaskEditPage = () => {
 
   const moveTask = useMoveTask({
     onSuccess: (updatedTask) => {
-      queryClient.setQueryData<TaskListRead>(
+      queryClient.setQueryData<TaskRead>(
         getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey(guildId, parsedTaskId),
         updatedTask
       );
@@ -316,7 +316,7 @@ export const TaskEditPage = () => {
 
   const toggleArchive = useUpdateTask({
     onSuccess: (updatedTask) => {
-      queryClient.setQueryData<TaskListRead>(
+      queryClient.setQueryData<TaskRead>(
         getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey(guildId, parsedTaskId),
         updatedTask
       );
@@ -416,8 +416,7 @@ export const TaskEditPage = () => {
 
   // Pure DAC: permissions inherited from project. Server-computed — already
   // capped at "read" when the guild's content is frozen (read_only status).
-  const myLevel = project?.my_permission_level;
-  const hasWritePermission = myLevel === "owner" || myLevel === "write";
+  const hasWritePermission = hasWriteAccess(project?.my_permission_level);
   const canWriteProject = hasWritePermission;
   const projectIsArchived = project?.is_archived ?? false;
   const isReadOnly = !canWriteProject || projectIsArchived;

@@ -26,6 +26,7 @@ import type {
   FilterCondition,
   ListTasksApiV1GGuildIdTasksGetParams,
   TaskListRead,
+  TaskRead,
   TaskReorderRequest,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -74,6 +75,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
+import { useDefaultFiltersOpen } from "@/hooks/useDefaultFiltersOpen";
 import { useTags } from "@/hooks/useTags";
 import {
   useArchiveDoneTasks,
@@ -89,6 +91,7 @@ import { useViewPreference } from "@/hooks/useViewPreference";
 import { toast } from "@/lib/chesterToast";
 import { getProjectColor } from "@/lib/projectColor";
 import { getItem, setItem } from "@/lib/storage";
+import { taskReadToListRow } from "@/lib/taskUtils";
 
 type ViewMode = "table" | "kanban" | "calendar" | "gantt";
 
@@ -164,13 +167,6 @@ const TASK_VIEW_OPTIONS: TaskViewOption[] = [
   { value: "calendar", labelKey: "tasks.viewCalendar", icon: Calendar },
   { value: "gantt", labelKey: "tasks.viewGantt", icon: GanttChart },
 ];
-
-const getDefaultFiltersVisibility = () => {
-  if (typeof window === "undefined") {
-    return true;
-  }
-  return window.matchMedia("(min-width: 640px)").matches;
-};
 
 type ProjectTasksSectionProps = {
   projectId: number;
@@ -264,7 +260,7 @@ export const ProjectTasksSection = ({
     // filter pruning lives in the property filter UI itself (it needs the
     // property definitions, which aren't fetched here).
   }, [filtersLoaded, tagsLoaded, tags, sortedTaskStatuses, filters, setStoredFilters]);
-  const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
+  const [filtersOpen, setFiltersOpen] = useDefaultFiltersOpen();
   const [localOverride, setLocalOverride] = useState<TaskListRead[] | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(initialComposerOpen ?? false);
   useEffect(() => {
@@ -384,23 +380,6 @@ export const ProjectTasksSection = ({
   }, [projectTasks]);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    const mediaQuery = window.matchMedia("(min-width: 640px)");
-    const handleChange = (event: MediaQueryListEvent) => {
-      setFiltersOpen(event.matches);
-    };
-    setFiltersOpen(mediaQuery.matches);
-    if (typeof mediaQuery.addEventListener === "function") {
-      mediaQuery.addEventListener("change", handleChange);
-      return () => mediaQuery.removeEventListener("change", handleChange);
-    }
-    mediaQuery.addListener(handleChange);
-    return () => mediaQuery.removeListener(handleChange);
-  }, []);
-
-  useEffect(() => {
     if (!collapsedStorageKey) {
       return;
     }
@@ -445,7 +424,7 @@ export const ProjectTasksSection = ({
     onSuccess: (newTask) => {
       setComposerValue(emptyTaskFormValue({ statusId: defaultStatusId }));
       setIsComposerOpen(false);
-      setLocalOverride((prev) => [...(prev ?? projectTasks), newTask]);
+      setLocalOverride((prev) => [...(prev ?? projectTasks), taskReadToListRow(newTask)]);
       toast.success(t("tasks.taskCreated"));
     },
   });
@@ -489,14 +468,15 @@ export const ProjectTasksSection = ({
   // the board/calendar reflects it immediately (and drop the task if it no
   // longer matches the active status filter).
   const applyTaskUpdateToLocal = useCallback(
-    (updatedTask: TaskListRead) => {
+    (updatedTask: TaskRead) => {
       setLocalOverride((prev) => {
         const base = prev ?? projectTasks;
         if (!base.length) return prev;
         const matchesFilters =
           statusFilters.length === 0 || statusFilters.includes(updatedTask.task_status_id);
         if (matchesFilters) {
-          return base.map((task) => (task.id === updatedTask.id ? updatedTask : task));
+          const row = taskReadToListRow(updatedTask);
+          return base.map((task) => (task.id === row.id ? row : task));
         }
         return base.filter((task) => task.id !== updatedTask.id);
       });

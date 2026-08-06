@@ -32,6 +32,7 @@ from app.api.deps import (
 from app.core.messages import TrashMessages
 from app.db.soft_delete_filter import select_including_deleted
 from app.models.tenant.advanced_tool import AdvancedTool
+from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
@@ -47,6 +48,7 @@ from app.schemas.tenant.trash import (
     EntityType,
     RestoreNeedsReassignmentResponse,
     RestoreRequest,
+    RestoreResponse,
     TrashItem,
     TrashListResponse,
 )
@@ -79,6 +81,7 @@ ENTITY_REGISTRY: dict[EntityType, tuple[type[SQLModel], str]] = {
     "tag": (Tag, "name"),
     "queue": (Queue, "name"),
     "queue_item": (QueueItem, "label"),
+    "calendar": (Calendar, "name"),
     "calendar_event": (CalendarEvent, "title"),
     "counter_group": (CounterGroup, "name"),
     "counter": (Counter, "name"),
@@ -134,7 +137,8 @@ _DEDUP_PARENTS: dict[type[SQLModel], list[tuple[type[SQLModel], str]]] = {
     ],
     Queue: [(Initiative, "initiative_id")],
     QueueItem: [(Queue, "queue_id")],
-    CalendarEvent: [(Initiative, "initiative_id")],
+    Calendar: [(Initiative, "initiative_id")],
+    CalendarEvent: [(Calendar, "calendar_id")],
     CounterGroup: [(Initiative, "initiative_id")],
     Counter: [(CounterGroup, "counter_group_id")],
     # Guild-wide advanced tools (initiative_id NULL) have no parent to cascade
@@ -289,6 +293,7 @@ async def _load_trash_entity(
 @router.post(
     "/{entity_type}/{entity_id}/restore",
     status_code=status.HTTP_200_OK,
+    response_model=RestoreResponse,
     responses={
         status.HTTP_409_CONFLICT: {
             "model": RestoreNeedsReassignmentResponse,
@@ -353,7 +358,7 @@ async def restore_trash_entity(
         )
 
     await session.commit()
-    return {"restored": True}
+    return RestoreResponse(restored=True)
 
 
 @router.delete(

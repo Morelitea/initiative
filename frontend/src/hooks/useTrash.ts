@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   RestoreNeedsReassignmentResponse,
   RestoreRequest,
+  RestoreResponse,
   TrashItemEntityType,
   TrashListResponse,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -17,6 +18,7 @@ import {
 import {
   invalidateAllAdvancedTools,
   invalidateAllCalendarEvents,
+  invalidateAllCalendars,
   invalidateAllComments,
   invalidateAllCounterGroups,
   invalidateAllDocuments,
@@ -40,7 +42,7 @@ import type { QueryOpts } from "@/types/query";
 export const useMyTrashList = (options?: QueryOpts<TrashListResponse>) =>
   useQuery<TrashListResponse>({
     queryKey: getListMyTrashApiV1MeTrashGetQueryKey(),
-    queryFn: () => listMyTrashApiV1MeTrashGet() as unknown as Promise<TrashListResponse>,
+    queryFn: () => listMyTrashApiV1MeTrashGet(),
     ...options,
   });
 
@@ -53,8 +55,7 @@ export const useGuildTrashList = (options?: QueryOpts<TrashListResponse>) => {
   const guildId = useActiveGuildId();
   return useQuery<TrashListResponse>({
     queryKey: getListGuildTrashApiV1GGuildIdTrashGetQueryKey(guildId),
-    queryFn: () =>
-      listGuildTrashApiV1GGuildIdTrashGet(guildId) as unknown as Promise<TrashListResponse>,
+    queryFn: () => listGuildTrashApiV1GGuildIdTrashGet(guildId),
     ...options,
   });
 };
@@ -75,6 +76,7 @@ const ENTITY_INVALIDATORS: Record<TrashItemEntityType, () => unknown> = {
   tag: invalidateAllTags,
   queue: invalidateAllQueues,
   queue_item: invalidateAllQueues,
+  calendar: invalidateAllCalendars,
   calendar_event: invalidateAllCalendarEvents,
   counter_group: invalidateAllCounterGroups,
   counter: invalidateAllCounterGroups,
@@ -92,7 +94,7 @@ export type RestoreTrashVars = {
 
 // 200 {restored: true} or — recovered from a 409 in mutationFn —
 // {needs_reassignment: true, ...}. The dialog branches on shape.
-export type RestoreTrashResponse = { restored: true } | RestoreNeedsReassignmentResponse;
+export type RestoreTrashResponse = RestoreResponse | RestoreNeedsReassignmentResponse;
 
 export const useRestoreTrashEntity = (
   options?: MutationOpts<RestoreTrashResponse, RestoreTrashVars>
@@ -102,14 +104,21 @@ export const useRestoreTrashEntity = (
 
   return useMutation({
     ...rest,
-    mutationFn: async ({ guildId, entityType, entityId, body }: RestoreTrashVars) => {
+    mutationFn: async ({
+      guildId,
+      entityType,
+      entityId,
+      body,
+    }: RestoreTrashVars): Promise<RestoreTrashResponse> => {
       try {
-        return (await restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost(
+        // 200 → RestoreResponse. The 409 needs-reassignment branch is caught
+        // below and its body recovered into the same union.
+        return await restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost(
           guildId,
           entityType,
           entityId,
           body ?? {}
-        )) as unknown as RestoreTrashResponse;
+        );
       } catch (err) {
         // The needs-reassignment branch is a successful interaction shape
         // (the user just needs to pick an owner) but the API correctly
@@ -124,7 +133,7 @@ export const useRestoreTrashEntity = (
           typeof data === "object" &&
           "needs_reassignment" in (data as object)
         ) {
-          return data as RestoreTrashResponse;
+          return data as RestoreNeedsReassignmentResponse;
         }
         throw err;
       }
@@ -165,11 +174,11 @@ export const usePurgeTrashEntity = (options?: MutationOpts<void, PurgeTrashVars>
   return useMutation({
     ...rest,
     mutationFn: async ({ guildId, entityType, entityId }: PurgeTrashVars) => {
-      return purgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete(
+      await purgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete(
         guildId,
         entityType,
         entityId
-      ) as unknown as Promise<void>;
+      );
     },
     onSuccess: (...args) => {
       const [, variables] = args;

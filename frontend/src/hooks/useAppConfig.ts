@@ -21,7 +21,7 @@ import type { AppConfig } from "@/api/generated/initiativeAPI.schemas";
 export const useAppConfig = () => {
   const query = useQuery<AppConfig>({
     queryKey: getGetAppConfigApiV1ConfigGetQueryKey(),
-    queryFn: () => getAppConfigApiV1ConfigGet() as unknown as Promise<AppConfig>,
+    queryFn: () => getAppConfigApiV1ConfigGet(),
     staleTime: Infinity,
     gcTime: Infinity,
     retry: 1,
@@ -39,5 +39,9 @@ export const useAppConfig = () => {
      *  the SPA hides every tier/upgrade/manage surface (the usage panel,
      *  which shows operator-set caps + usage, renders regardless). */
     billing: query.data?.billing ?? null,
+    /** Server-enforced upload size cap, for pre-flight checks. Null until the
+     *  config loads — skip the client-side check then; the server still
+     *  rejects oversized uploads. */
+    maxUploadBytes: query.data?.max_upload_bytes ?? null,
   };
 };

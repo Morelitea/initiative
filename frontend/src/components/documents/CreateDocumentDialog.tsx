@@ -18,13 +18,8 @@ import type {
   InitiativeRead,
   ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
-import { ShareControl } from "@/components/access/ShareControl";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
+import { CreateAccessSection } from "@/components/access/CreateAccessSection";
+import { DEFAULT_GRANTS } from "@/components/access/grants";
 import { AsyncCombobox } from "@/components/ui/async-combobox";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,6 +41,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import {
   useCreateDocument,
   useTemplateAutocomplete,
@@ -80,6 +76,7 @@ export const CreateDocumentDialog = ({
   initiatives = [],
 }: CreateDocumentDialogProps) => {
   const { t } = useTranslation(["documents", "common"]);
+  const { maxUploadBytes } = useAppConfig();
 
   const [createDialogTab, setCreateDialogTab] = useState<"new" | "upload" | "smartLink">("new");
   const [newTitle, setNewTitle] = useState("");
@@ -98,9 +95,7 @@ export const CreateDocumentDialog = ({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [smartLinkUrl, setSmartLinkUrl] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [grants, setGrants] = useState<ResourceGrantSchema[]>([
-    { all_initiative_members: true, level: "read" },
-  ]);
+  const [grants, setGrants] = useState<ResourceGrantSchema[]>([...DEFAULT_GRANTS]);
 
   // Determine effective initiative ID
   const effectiveInitiativeId =
@@ -159,7 +154,7 @@ export const CreateDocumentDialog = ({
       setSelectedFile(null);
       setSmartLinkUrl("");
       setCreateDialogTab("new");
-      setGrants([{ all_initiative_members: true, level: "read" }]);
+      setGrants([...DEFAULT_GRANTS]);
     }
   }, [open, defaultInitiativeId]);
 
@@ -195,8 +190,7 @@ export const CreateDocumentDialog = ({
   const handleFileSelect = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const maxSize = 50 * 1024 * 1024;
-      if (file.size > maxSize) {
+      if (maxUploadBytes !== null && file.size > maxUploadBytes) {
         toast.error(t("create.fileTooLarge"));
         e.target.value = "";
         return;
@@ -481,18 +475,12 @@ export const CreateDocumentDialog = ({
           </TabsContent>
         </Tabs>
 
-        <Accordion type="single" collapsible>
-          <AccordionItem value="advanced" className="border-b-0">
-            <AccordionTrigger>{t("common:createAccess.advancedOptions")}</AccordionTrigger>
-            <AccordionContent>
-              <ShareControl
-                initiativeId={effectiveInitiativeId}
-                grants={grants}
-                onChange={setGrants}
-              />
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
+        <CreateAccessSection
+          initiativeId={effectiveInitiativeId}
+          grants={grants}
+          onChange={setGrants}
+          defaultOpen={false}
+        />
 
         <DialogFooter>
           {createDialogTab === "new" ? (

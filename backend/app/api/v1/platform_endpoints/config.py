@@ -15,6 +15,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from app.core.config import settings
+from app.services.tenant.attachments import MAX_DOCUMENT_FILE_SIZE
 
 router = APIRouter()
 
@@ -72,6 +73,9 @@ class AppConfig(BaseModel):
     advanced_tool: Optional[AdvancedToolConfig] = None
     captcha: Optional[CaptchaConfig] = None
     billing: Optional[BillingConfig] = None
+    # The upload size cap the server enforces on file endpoints. The SPA reads
+    # it for pre-flight checks so the number lives in exactly one place.
+    max_upload_bytes: int
 
 
 # Default ports the WHATWG URL spec strips from origin strings. If the
@@ -137,4 +141,9 @@ def get_app_config() -> AppConfig:
     # billing URL. Absent ⇒ the SPA hides every tier/upgrade/manage surface.
     billing = BillingConfig(url=settings.BILLING_URL) if settings.BILLING_URL else None
 
-    return AppConfig(advanced_tool=advanced_tool, captcha=captcha, billing=billing)
+    return AppConfig(
+        advanced_tool=advanced_tool,
+        captcha=captcha,
+        billing=billing,
+        max_upload_bytes=MAX_DOCUMENT_FILE_SIZE,
+    )

@@ -337,5 +337,12 @@
   "INVALID_TAG_IDS": "Ein oder mehrere Tags existieren nicht mehr",
   "AI_CONNECTION_NOT_FOUND": "KI-Verbindung nicht gefunden.",
   "AI_MEMBER_KEYS_DISABLED": "Persönliche API-Schlüssel sind für diesen Arbeitsbereich deaktiviert.",
-  "AI_INVALID_API_KEY": "Der API-Schlüssel wurde abgelehnt. Überprüfe ihn und versuche es erneut."
+  "AI_INVALID_API_KEY": "Der API-Schlüssel wurde abgelehnt. Überprüfe ihn und versuche es erneut.",
+  "CALENDAR_NOT_FOUND": "Kalender nicht gefunden",
+  "CALENDAR_CREATE_PERMISSION_REQUIRED": "Sie haben keine Berechtigung, in dieser Initiative Kalender zu erstellen",
+  "CALENDARS_NOT_ENABLED": "Kalender sind für diese Initiative nicht aktiviert",
+  "CALENDAR_PERMISSION_REQUIRED": "Sie haben keinen Zugriff auf diesen Kalender",
+  "CALENDAR_OWNER_REQUIRED": "Nur der Kalenderbesitzer kann dies tun",
+  "CALENDAR_WRITE_ACCESS_REQUIRED": "Sie benötigen Schreibzugriff auf diesen Kalender",
+  "CALENDAR_GRANT_CANNOT_MANAGE_MEMBERS": "Temporärer Zugriff kann die Kalenderfreigabe nicht verwalten"
 }

@@ -106,8 +106,7 @@ export const useInterfaceColors = () => {
 
   const query = useQuery({
     queryKey: getGetInterfaceSettingsApiV1SettingsInterfaceGetQueryKey(),
-    queryFn: () =>
-      getInterfaceSettingsApiV1SettingsInterfaceGet() as unknown as Promise<InterfaceSettings>,
+    queryFn: () => getInterfaceSettingsApiV1SettingsInterfaceGet(),
     staleTime: 1000 * 60 * 10,
     // Don't fetch until server is configured (matters on native platforms)
     enabled: isServerConfigured && !serverLoading,

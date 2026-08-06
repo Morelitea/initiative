@@ -6,19 +6,11 @@ import {
   getTagApiV1GGuildIdTagsTagIdGet,
   getTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGet,
 } from "@/api/generated/tags/tags";
-
-type TagDetailSearchParams = {
-  page?: number;
-};
+import { type PageSearch, validatePage } from "@/lib/routeSearch";
 
 export const Route = createFileRoute("/_serverRequired/_authenticated/g/$guildId/tags_/$tagId")({
-  validateSearch: (search: Record<string, unknown>): TagDetailSearchParams => ({
-    page:
-      typeof search.page === "number" && search.page >= 1
-        ? search.page
-        : typeof search.page === "string" && Number(search.page) >= 1
-          ? Number(search.page)
-          : undefined,
+  validateSearch: (search: Record<string, unknown>): PageSearch => ({
+    page: validatePage(search.page),
   }),
   loader: async ({ context, params }) => {
     const guildId = Number(params.guildId);

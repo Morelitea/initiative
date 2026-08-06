@@ -6,6 +6,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from datetime import datetime, timedelta, timezone
 
+from app.core.tools import Tool
 from app.models.platform.access_grant import AccessGrant
 from app.models.platform.user import UserRole
 from app.testing import (
@@ -449,6 +450,82 @@ async def test_grantee_sees_guild_content(client: AsyncClient, session: AsyncSes
         f"/api/v1/g/{guild.id}/projects/{project.id}/view", headers=headers
     )
     assert resp.status_code == 200, resp.text
+
+
+@pytest.mark.integration
+async def test_scoped_read_write_grant_cannot_author_tools(
+    client: AsyncClient, session: AsyncSession
+):
+    """A scoped read_write grant edits *existing* content only. Authoring a
+    new top-level tool is an initiative-role permission a grantee never holds,
+    so ``my-permissions`` must report every create flag off (the UI keys its
+    create affordances on these flags) while view flags stay on — and an
+    actual create attempt is denied."""
+    owner = await create_user(
+        session, email="owner-scoped-rw@example.com", role=UserRole.owner
+    )
+    moderator = await create_user(
+        session, email="moderator-scoped-rw@example.com", role=UserRole.moderator
+    )
+    guild = await create_guild(session, creator=owner)
+    init = await create_initiative(session, guild, owner, name="Scoped Wing")
+    await _approved_read_grant(
+        session, user=moderator, guild=guild, owner=owner, level="read_write"
+    )
+
+    headers = get_auth_headers(moderator)
+
+    resp = await client.get(
+        f"/api/v1/g/{guild.id}/initiatives/{init.id}/my-permissions", headers=headers
+    )
+    assert resp.status_code == 200, resp.text
+    perms = resp.json()
+    assert perms["is_manager"] is False
+    for tool in Tool:
+        assert perms["permissions"][tool.create_permission] is False, (
+            f"scoped read_write grant must not author {tool.plural}"
+        )
+    # View access is unaffected — core tools stay visible.
+    assert perms["permissions"]["projects_enabled"] is True
+    assert perms["permissions"]["documents_enabled"] is True
+
+    resp = await client.post(
+        f"/api/v1/g/{guild.id}/projects/",
+        headers=headers,
+        json={"name": "Grantee Project", "initiative_id": init.id},
+    )
+    assert resp.status_code == 403, resp.text
+
+
+@pytest.mark.integration
+async def test_break_glass_grant_reports_admin_permissions(
+    client: AsyncClient, session: AsyncSession
+):
+    """A read_write grant held by a ``data.bypass`` user is break-glass: it is
+    answered from the guild-admin branch, so create flags stay on — the
+    distinction the scoped branch above must not blur."""
+    owner = await create_user(
+        session, email="owner-bg-perms@example.com", role=UserRole.owner
+    )
+    operator = await create_user(
+        session, email="operator-bg-perms@example.com", role=UserRole.operator
+    )
+    guild = await create_guild(session, creator=owner)
+    init = await create_initiative(session, guild, owner, name="Break Glass Wing")
+    await _approved_read_grant(
+        session, user=operator, guild=guild, owner=owner, level="read_write"
+    )
+
+    headers = get_auth_headers(operator)
+
+    resp = await client.get(
+        f"/api/v1/g/{guild.id}/initiatives/{init.id}/my-permissions", headers=headers
+    )
+    assert resp.status_code == 200, resp.text
+    perms = resp.json()
+    assert perms["is_manager"] is True
+    assert perms["permissions"]["create_projects"] is True
+    assert perms["permissions"]["create_documents"] is True
 
 
 @pytest.mark.integration

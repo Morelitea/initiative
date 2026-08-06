@@ -3,6 +3,7 @@ import { AlertCircle, SearchX, Settings, ShieldAlert } from "lucide-react";
 import { useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   invalidateAllTasks,
   invalidateProject,
@@ -23,12 +24,12 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/hooks/useAuth";
+import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useProject, useProjectTaskStatuses } from "@/hooks/useProjects";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
-import { Capability, hasCapability } from "@/lib/permissions";
+import { hasWriteAccess } from "@/lib/permissions";
 
 export const ProjectDetailPage = () => {
   const { t } = useTranslation("projects");
@@ -37,7 +38,7 @@ export const ProjectDetailPage = () => {
     projectId: string;
   };
   const router = useRouter();
-  const { user } = useAuth();
+  const { permissionsFor } = useInitiativeAccess();
   const gp = useGuildPath();
   const searchParams = useSearch({ strict: false }) as { create?: string };
   const parsedProjectId = Number(projectId);
@@ -150,19 +151,18 @@ export const ProjectDetailPage = () => {
     );
   }
 
-  const initiativeMembership = project.initiative?.members?.find(
-    (member) => member.user.id === user?.id
-  );
-  const isInitiativePm = initiativeMembership?.role === "project_manager";
   const myLevel = project?.my_permission_level;
   // Pure DAC: write access requires owner or write permission level
-  const hasWritePermission = myLevel === "owner" || myLevel === "write";
+  const hasWritePermission = hasWriteAccess(myLevel);
 
   // Pure DAC: settings/write access based on permission level
   const canManageSettings = hasWritePermission;
   const canWriteProject = hasWritePermission;
-  // Creating documents requires initiative PM role (backend requirement)
-  const canCreateDocuments = hasCapability(user, Capability.dataBypass) || isInitiativePm;
+  // Creating a document targets the project's initiative, so it follows that
+  // initiative's server-computed create flag.
+  const canCreateDocuments = project.initiative
+    ? permissionsFor(project.initiative)[Tool.document].create
+    : false;
   const canAttachDocuments = canWriteProject;
   // Pure DAC: any permission grants view access
   const canViewTaskDetails = Boolean(project && myLevel);

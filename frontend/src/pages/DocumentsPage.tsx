@@ -31,6 +31,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
+import { useDefaultFiltersOpen } from "@/hooks/useDefaultFiltersOpen";
 import {
   useCopyDocument,
   useDeleteDocument,
@@ -38,16 +39,15 @@ import {
   useDocumentsList,
   usePrefetchDocumentsList,
 } from "@/hooks/useDocuments";
-import { useGuilds } from "@/hooks/useGuilds";
-import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
-import { canCreateTool, useMyInitiativePermissions } from "@/hooks/useInitiativeRoles";
+import { useInitiativeAccess, useToolCreateAccess } from "@/hooks/useInitiativeAccess";
+import { INITIATIVE_FILTER_ALL, useInitiativeFilter } from "@/hooks/useInitiativeFilter";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useTags } from "@/hooks/useTags";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { useGuildPath } from "@/lib/guildUrl";
+import { hasWriteAccess } from "@/lib/permissions";
 import { buildTagTree, collectDescendantTagIds, findNodeByPath } from "@/lib/tagTree";
 
-const INITIATIVE_FILTER_ALL = "all";
 const DOCUMENT_VIEW_KEY = "documents:view-mode";
 
 /** Map DataTable column IDs to backend sort field names */
@@ -56,12 +56,6 @@ const SORT_FIELD_MAP: Record<string, string> = {
   "last updated": "updated_at",
 };
 const DOCUMENT_TAG_FILTERS_KEY = "documents:tag-filters";
-const getDefaultDocumentFiltersVisibility = () => {
-  if (typeof window === "undefined") {
-    return true;
-  }
-  return window.matchMedia("(min-width: 640px)").matches;
-};
 
 type DocumentsViewProps = {
   fixedInitiativeId?: number;
@@ -78,10 +72,9 @@ export const DocumentsView = ({
   const router = useRouter();
   const prefetchDocuments = usePrefetchDocumentsList();
   const { user } = useAuth();
-  const { activeGuildId } = useGuilds();
   // Shared access helper — honors guild-admin / PAM / membership so this page
   // never re-derives access from raw membership flags.
-  const { filterVisible, permissionsFor, isGuildAdmin, isGrantGuild } = useInitiativeAccess();
+  const { isGuildAdmin, isGrantGuild } = useInitiativeAccess();
   const gp = useGuildPath();
   const searchParams = useSearch({ strict: false }) as {
     initiativeId?: string;
@@ -89,37 +82,18 @@ export const DocumentsView = ({
     page?: number;
   };
   const lockedInitiativeId = typeof fixedInitiativeId === "number" ? fixedInitiativeId : null;
-  const [initiativeFilter, setInitiativeFilter] = useState<string>(
-    lockedInitiativeId ? String(lockedInitiativeId) : INITIATIVE_FILTER_ALL
-  );
-  // Parse the filtered initiative ID for permission checks
-  const filteredInitiativeId =
-    initiativeFilter !== INITIATIVE_FILTER_ALL ? Number(initiativeFilter) : null;
-  const { data: filteredInitiativePermissions } = useMyInitiativePermissions(
-    !lockedInitiativeId && filteredInitiativeId ? filteredInitiativeId : null
-  );
+  // The initiative filter consumes ?initiativeId — and, unlike the other tool
+  // lists, clearing the param (e.g. clicking "All Documents" from an
+  // initiative-scoped view) resets it back to ALL rather than staying pinned to
+  // the initiative we arrived from.
+  const { initiativeFilter, setInitiativeFilter, filteredInitiativeId } = useInitiativeFilter({
+    lockedInitiativeId,
+    resetOnParamCleared: true,
+  });
   const searchParamsRef = useRef(searchParams);
   searchParamsRef.current = searchParams;
-  const lastConsumedParams = useRef<string>("");
-  const prevGuildIdRef = useRef<number | null>(activeGuildId);
-
-  // Sync the initiative filter to the URL's ?initiativeId. A specific id filters
-  // to it; clearing the param — e.g. clicking "All Documents" from an
-  // initiative-scoped view — resets to ALL. Tracking lastConsumedParams lets the
-  // filter dropdown override the selection without the URL re-pinning it, while
-  // still resetting on real navigation. Without the reset the filter stayed
-  // pinned to the initiative we arrived from, so All Documents showed only that
-  // initiative's docs until a manual refresh.
-  useEffect(() => {
-    if (lockedInitiativeId) return;
-    const urlInitiativeId = searchParams.initiativeId;
-    const paramKey = urlInitiativeId || "";
-    if (paramKey === lastConsumedParams.current) return;
-    lastConsumedParams.current = paramKey;
-    setInitiativeFilter(urlInitiativeId || INITIATIVE_FILTER_ALL);
-  }, [searchParams, lockedInitiativeId]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filtersOpen, setFiltersOpen] = useState(getDefaultDocumentFiltersVisibility);
+  const [filtersOpen, setFiltersOpen] = useDefaultFiltersOpen();
 
   // View mode and tag filters are server-persisted in the normal case.
   // When fixedTagIds is provided (tag detail page), the view is forced
@@ -261,24 +235,6 @@ export const DocumentsView = ({
     }
   }, [viewMode]);
 
-  useEffect(() => {
-    if (lockedInitiativeId) {
-      const lockedValue = String(lockedInitiativeId);
-      setInitiativeFilter((prev) => (prev === lockedValue ? prev : lockedValue));
-    }
-  }, [lockedInitiativeId]);
-
-  // Reset initiative filter when guild changes (initiative IDs are guild-specific)
-  useEffect(() => {
-    const prevGuildId = prevGuildIdRef.current;
-    prevGuildIdRef.current = activeGuildId;
-    // Only reset if guild actually changed (not on initial mount)
-    if (prevGuildId !== null && prevGuildId !== activeGuildId && !lockedInitiativeId) {
-      setInitiativeFilter(INITIATIVE_FILTER_ALL);
-      lastConsumedParams.current = "";
-    }
-  }, [activeGuildId, lockedInitiativeId]);
-
   // In tags view, the tree does its own client-side filtering, so skip backend tag filters
   // When fixedTagIds is provided, always use them regardless of view mode
   const effectiveTagFilters = fixedTagIds ? fixedTagIds : viewMode === "tags" ? [] : tagFilters;
@@ -381,16 +337,12 @@ export const DocumentsView = ({
 
   const initiativesQuery = useInitiatives();
 
-  // Initiatives the user can create documents in — resolved through the shared
-  // access helper so guild admins are included regardless of any membership row.
-  const creatableInitiatives = useMemo(() => {
-    if (!initiativesQuery.data || !user) {
-      return [];
-    }
-    return filterVisible(initiativesQuery.data).filter(
-      (initiative) => permissionsFor(initiative)[Tool.document].create
-    );
-  }, [initiativesQuery.data, user, filterVisible, permissionsFor]);
+  // Canonical create answer: the locked/filtered initiative's server-computed
+  // create flag, or (in the "All" view) whether any visible initiative grants
+  // it. `creatableInitiatives` feeds the create dialog's initiative picker.
+  const { canCreate: canCreateDerived, creatableInitiatives } = useToolCreateAccess(Tool.document, {
+    initiativeId: lockedInitiativeId ?? filteredInitiativeId,
+  });
 
   const [createDialogInitiativeId, setCreateDialogInitiativeId] = useState<number | undefined>(
     lockedInitiativeId ?? undefined
@@ -446,9 +398,7 @@ export const DocumentsView = ({
     if (!user || selectedDocuments.length === 0) {
       return false;
     }
-    return selectedDocuments.every(
-      (doc) => doc.my_permission_level === "owner" || doc.my_permission_level === "write"
-    );
+    return selectedDocuments.every((doc) => hasWriteAccess(doc.my_permission_level));
   }, [selectedDocuments, user]);
 
   const canEditSelectedDocuments = canDuplicateSelectedDocuments;
@@ -486,28 +436,9 @@ export const DocumentsView = ({
     isGrantGuild,
   ]);
 
-  // Use explicit canCreate prop if provided (from role permissions), otherwise check filtered initiative permissions
-  const canCreateDocuments = useMemo(() => {
-    // If explicit prop provided (e.g., from InitiativeDetailPage), use it
-    if (canCreate !== undefined) {
-      return canCreate;
-    }
-    // If a specific initiative is filtered, check permissions for that initiative
-    if (filteredInitiativeId && filteredInitiativePermissions) {
-      return canCreateTool(filteredInitiativePermissions, Tool.document);
-    }
-    // Fall back to legacy check (user is PM in any initiative)
-    if (lockedInitiativeId) {
-      return creatableInitiatives.some((initiative) => initiative.id === lockedInitiativeId);
-    }
-    return creatableInitiatives.length > 0;
-  }, [
-    canCreate,
-    filteredInitiativeId,
-    filteredInitiativePermissions,
-    lockedInitiativeId,
-    creatableInitiatives,
-  ]);
+  // An explicit canCreate prop (e.g. from InitiativeDetailPage) wins; otherwise
+  // use the canonical derivation above.
+  const canCreateDocuments = canCreate ?? canCreateDerived;
 
   // Drive the app-wide bottom-nav add button for this route.
   useRegisterPrimaryCreateAction(
@@ -515,23 +446,6 @@ export const DocumentsView = ({
       ? { run: () => setCreateDialogOpen(true), label: t("page.newDocument") }
       : null
   );
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    const mediaQuery = window.matchMedia("(min-width: 640px)");
-    const handleChange = (event: MediaQueryListEvent) => {
-      setFiltersOpen(event.matches);
-    };
-    setFiltersOpen(mediaQuery.matches);
-    if (typeof mediaQuery.addEventListener === "function") {
-      mediaQuery.addEventListener("change", handleChange);
-      return () => mediaQuery.removeEventListener("change", handleChange);
-    }
-    mediaQuery.addListener(handleChange);
-    return () => mediaQuery.removeListener(handleChange);
-  }, []);
 
   const handleDocumentCreated = (document: { id: number }) => {
     router.navigate({

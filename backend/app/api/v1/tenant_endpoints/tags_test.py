@@ -144,7 +144,7 @@ async def test_generic_tool_tags_route_covers_every_tool(
     from app.models.tenant.advanced_tool import AdvancedTool
     from app.models.tenant.initiative import Initiative
     from app.testing import (
-        create_calendar_event,
+        create_calendar,
         create_document,
         create_project,
         route_session_to_guild,
@@ -155,7 +155,7 @@ async def test_generic_tool_tags_route_covers_every_tool(
     # remaining toggleable tools so the feature gate passes for all of them.
     await route_session_to_guild(session, a.guild.id)
     initiative = await session.get(Initiative, a.initiative.id)
-    initiative.calendar_events_enabled = True
+    initiative.calendars_enabled = True
     initiative.advanced_tools_enabled = True
     session.add(initiative)
     advanced = AdvancedTool(
@@ -173,7 +173,7 @@ async def test_generic_tool_tags_route_covers_every_tool(
         Tool.document: await create_document(session, a.initiative, a.user),
         Tool.queue: await create_queue(session, a.initiative, a.user),
         Tool.counter_group: await create_counter_group(session, a.initiative, a.user),
-        Tool.calendar_event: await create_calendar_event(session, a.initiative, a.user),
+        Tool.calendar: await create_calendar(session, a.initiative, a.user),
         Tool.advanced_tool: advanced,
     }
     assert set(entities) == set(Tool)

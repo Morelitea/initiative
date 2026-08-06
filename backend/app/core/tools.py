@@ -17,7 +17,7 @@ class Tool(str, Enum):
     document = "document"
     queue = "queue"
     counter_group = "counter_group"
-    calendar_event = "calendar_event"
+    calendar = "calendar"
     advanced_tool = "advanced_tool"
 
     @property
@@ -69,7 +69,7 @@ BULK_EXPORT_TOOLS = (
     Tool.document,
     Tool.queue,
     Tool.counter_group,
-    Tool.calendar_event,
+    Tool.calendar,
 )
 
 
@@ -79,7 +79,7 @@ BULK_EXPORT_TOOLS = (
 # the ``TagTarget`` schema enum both derive from TAG_TARGETS, so a new Tool is
 # taggable across every surface with no per-surface edit; tags_test.py fails if
 # any surface drifts.
-TAGGABLE_EXTRAS: tuple[str, ...] = ("task", "queue_item")
+TAGGABLE_EXTRAS: tuple[str, ...] = ("task", "queue_item", "calendar_event")
 TAG_TARGETS: tuple[str, ...] = tuple(t.value for t in Tool) + TAGGABLE_EXTRAS
 
 

@@ -117,7 +117,6 @@ def event_export_dict(event: CalendarEvent) -> dict:
         "start_at": event.start_at.isoformat(),
         "end_at": event.end_at.isoformat(),
         "all_day": bool(event.all_day),
-        "color": event.color,
         "recurrence": recurrence,
         "created_at": event.created_at.isoformat(),
         "updated_at": event.updated_at.isoformat(),
@@ -378,11 +377,12 @@ def parse_ical(content: str) -> ICalParseResult:
 
 def build_calendar_events(
     content: str,
-    initiative_id: int,
+    calendar_id: int,
     guild_id: int,
     created_by_id: int,
 ) -> Tuple[List[CalendarEvent], List[str], int]:
-    """Parse .ics content and build CalendarEvent model instances.
+    """Parse .ics content and build CalendarEvent model instances attached to
+    the target calendar.
 
     Returns (events, errors, skipped_count). Does NOT persist — caller handles that.
     """
@@ -403,7 +403,7 @@ def build_calendar_events(
 
             event = CalendarEvent(
                 guild_id=guild_id,
-                initiative_id=initiative_id,
+                calendar_id=calendar_id,
                 title=data["summary"][:255],
                 description=data["description"],
                 location=data["location"][:500] if data["location"] else None,

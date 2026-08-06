@@ -55,7 +55,7 @@ export const GuildContextMenu = ({ guild, children }: GuildContextMenuProps) => 
     if (guild.id !== activeGuildId) {
       await switchGuild(guild.id);
     }
-    router.navigate({ to: "/settings/guild/users" });
+    router.navigate({ to: "/g/$guildId/settings/users", params: { guildId: String(guild.id) } });
   };
 
   const handleViewInitiatives = async () => {
@@ -70,7 +70,7 @@ export const GuildContextMenu = ({ guild, children }: GuildContextMenuProps) => 
     if (guild.id !== activeGuildId) {
       await switchGuild(guild.id);
     }
-    router.navigate({ to: "/settings/guild" });
+    router.navigate({ to: "/g/$guildId/settings", params: { guildId: String(guild.id) } });
   };
 
   const handleCreateInitiative = async () => {
