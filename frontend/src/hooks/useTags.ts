@@ -22,7 +22,7 @@ import {
 import { setTaskTagsApiV1GGuildIdTasksTaskIdTagsPut } from "@/api/generated/tasks/tasks";
 import {
   invalidateAllAdvancedTools,
-  invalidateAllCalendarEvents,
+  invalidateAllCalendars,
   invalidateAllCounterGroups,
   invalidateAllDocuments,
   invalidateAllProjects,
@@ -44,7 +44,7 @@ const invalidateTagBearers = () => {
   void invalidateAllDocuments();
   void invalidateAllQueues();
   void invalidateAllCounterGroups();
-  void invalidateAllCalendarEvents();
+  void invalidateAllCalendars();
   void invalidateAllAdvancedTools();
 };
 

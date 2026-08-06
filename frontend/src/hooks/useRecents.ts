@@ -1,6 +1,6 @@
 import { type UseQueryOptions, useMutation, useQuery } from "@tanstack/react-query";
 
-import { recordCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewPost } from "@/api/generated/calendar-events/calendar-events";
+import { recordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPost } from "@/api/generated/calendars/calendars";
 import { recordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPost } from "@/api/generated/counters/counters";
 import { recordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPost } from "@/api/generated/documents/documents";
 import type { RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
@@ -38,7 +38,7 @@ const recorders: Record<RecentEntityType, (guildId: number, id: number) => Promi
   document: recordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPost,
   queue: recordQueueViewApiV1GGuildIdQueuesQueueIdViewPost,
   counter_group: recordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPost,
-  calendar_event: recordCalendarEventViewApiV1GGuildIdCalendarEventsEventIdViewPost,
+  calendar: recordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPost,
 };
 
 /**

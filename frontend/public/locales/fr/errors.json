@@ -337,5 +337,12 @@
   "INVALID_TAG_IDS": "Une ou plusieurs étiquettes n'existent plus",
   "AI_CONNECTION_NOT_FOUND": "Connexion d'IA introuvable.",
   "AI_MEMBER_KEYS_DISABLED": "Les clés d'API personnelles sont désactivées pour cet espace de travail.",
-  "AI_INVALID_API_KEY": "La clé d'API a été refusée. Vérifiez-la et réessayez."
+  "AI_INVALID_API_KEY": "La clé d'API a été refusée. Vérifiez-la et réessayez.",
+  "CALENDAR_NOT_FOUND": "Calendrier introuvable",
+  "CALENDAR_CREATE_PERMISSION_REQUIRED": "Vous n'avez pas la permission de créer des calendriers dans cette initiative",
+  "CALENDARS_NOT_ENABLED": "Les calendriers ne sont pas activés pour cette initiative",
+  "CALENDAR_PERMISSION_REQUIRED": "Vous n'avez pas accès à ce calendrier",
+  "CALENDAR_OWNER_REQUIRED": "Seul le propriétaire du calendrier peut faire cela",
+  "CALENDAR_WRITE_ACCESS_REQUIRED": "Vous avez besoin d'un accès en écriture à ce calendrier",
+  "CALENDAR_GRANT_CANNOT_MANAGE_MEMBERS": "L'accès temporaire ne peut pas gérer le partage du calendrier"
 }

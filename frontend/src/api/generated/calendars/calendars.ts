@@ -27,6 +27,7 @@ import type {
   CalendarUpdate,
   HTTPValidationError,
   ListCalendarsApiV1GGuildIdCalendarsGetParams,
+  ListMyCalendarsApiV1MeCalendarsGetParams,
   RecentViewWrite,
   ResourceGrantSchema,
 } from "../initiativeAPI.schemas";
@@ -965,3 +966,141 @@ export const useClearCalendarViewApiV1GGuildIdCalendarsCalendarIdViewDelete = <
     queryClient
   );
 };
+/**
+ * List the calendars visible to the user across all their guilds — the
+ * backing data for the My Calendar grouping panel.
+ *
+ * Mirrors ``list_my_calendar_events``: visit each member guild schema under
+ * the user's own RLS context (guild isolation + DAC hold), merge, and
+ * paginate in Python (per-schema SQL can't limit across schemas).
+ * @summary List My Calendars
+ */
+export const listMyCalendarsApiV1MeCalendarsGet = (
+  params?: ListMyCalendarsApiV1MeCalendarsGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<CalendarListResponse>(
+    { url: `/api/v1/me/calendars`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getListMyCalendarsApiV1MeCalendarsGetQueryKey = (
+  params?: ListMyCalendarsApiV1MeCalendarsGetParams
+) => {
+  return [`/api/v1/me/calendars`, ...(params ? [params] : [])] as const;
+};
+
+export const getListMyCalendarsApiV1MeCalendarsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMyCalendarsApiV1MeCalendarsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListMyCalendarsApiV1MeCalendarsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyCalendarsApiV1MeCalendarsGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListMyCalendarsApiV1MeCalendarsGetQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyCalendarsApiV1MeCalendarsGet>>> = ({
+    signal,
+  }) => listMyCalendarsApiV1MeCalendarsGet(params, requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listMyCalendarsApiV1MeCalendarsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListMyCalendarsApiV1MeCalendarsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listMyCalendarsApiV1MeCalendarsGet>>
+>;
+export type ListMyCalendarsApiV1MeCalendarsGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useListMyCalendarsApiV1MeCalendarsGet<
+  TData = Awaited<ReturnType<typeof listMyCalendarsApiV1MeCalendarsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | ListMyCalendarsApiV1MeCalendarsGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyCalendarsApiV1MeCalendarsGet>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyCalendarsApiV1MeCalendarsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listMyCalendarsApiV1MeCalendarsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMyCalendarsApiV1MeCalendarsGet<
+  TData = Awaited<ReturnType<typeof listMyCalendarsApiV1MeCalendarsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListMyCalendarsApiV1MeCalendarsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyCalendarsApiV1MeCalendarsGet>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyCalendarsApiV1MeCalendarsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listMyCalendarsApiV1MeCalendarsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMyCalendarsApiV1MeCalendarsGet<
+  TData = Awaited<ReturnType<typeof listMyCalendarsApiV1MeCalendarsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListMyCalendarsApiV1MeCalendarsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyCalendarsApiV1MeCalendarsGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List My Calendars
+ */
+
+export function useListMyCalendarsApiV1MeCalendarsGet<
+  TData = Awaited<ReturnType<typeof listMyCalendarsApiV1MeCalendarsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListMyCalendarsApiV1MeCalendarsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyCalendarsApiV1MeCalendarsGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListMyCalendarsApiV1MeCalendarsGetQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}

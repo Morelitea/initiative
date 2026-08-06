@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { endOfMonth, startOfMonth } from "date-fns";
 import { HttpResponse } from "msw";
@@ -12,7 +12,7 @@ import type { FilterCondition, FilterGroup } from "@/api/generated/initiativeAPI
 import { CALENDAR_VIEW_MODE_KEY } from "@/components/calendar";
 import { VIEW_PREFERENCES_QUERY_KEY } from "@/hooks/useViewPreference";
 
-import { EventsView } from "./EventsPage";
+import { CalendarsView } from "./CalendarsPage";
 
 const INITIATIVE_ID = 1;
 const PROJECT_ID = 1;
@@ -30,23 +30,25 @@ const inFocusMonth = (dayOffset: number) => {
  * task either appears or it doesn't. The month grid collapses a busy day into
  * "+N more", which would hide the very thing these tests check for.
  */
-function renderEvents() {
+function renderCalendars() {
   const queryClient = createTestQueryClient();
   queryClient.setQueryData(VIEW_PREFERENCES_QUERY_KEY, {
     items: { [CALENDAR_VIEW_MODE_KEY]: "list" },
   });
-  const Page = () => <EventsView fixedInitiativeId={INITIATIVE_ID} canCreate={false} />;
+  const Page = () => <CalendarsView fixedInitiativeId={INITIATIVE_ID} canCreate={false} />;
   return renderPage(Page, { queryClient });
 }
 
 /**
  * Capture every GET /calendar-entries/ and serve one union payload. The
  * aggregate returns events + all in-window tasks in a single request, so there
- * is no per-page walking to stub.
+ * is no per-page walking to stub. The page also lists the initiative's real
+ * calendars for its panel; serve an empty set unless a test provides one.
  */
 function stubEntries(
   { events = [], tasks = [] }: { events?: unknown[]; tasks?: unknown[] },
-  projects = [buildProject({ id: PROJECT_ID, initiative_id: INITIATIVE_ID, name: "Apollo" })]
+  projects = [buildProject({ id: PROJECT_ID, initiative_id: INITIATIVE_ID, name: "Apollo" })],
+  calendars: unknown[] = []
 ) {
   const requests: URLSearchParams[] = [];
   server.use(
@@ -54,6 +56,15 @@ function stubEntries(
       requests.push(new URL(request.url).searchParams);
       return HttpResponse.json({ events, tasks });
     }),
+    guildHttp.get("/calendars/", () =>
+      HttpResponse.json({
+        items: calendars,
+        total_count: calendars.length,
+        page: 1,
+        page_size: 100,
+        has_next: false,
+      })
+    ),
     guildHttp.get("/projects/", () =>
       HttpResponse.json({
         items: projects,
@@ -72,11 +83,11 @@ const parseConditions = (params: URLSearchParams) =>
 
 const isGroup = (c: FilterCondition | FilterGroup): c is FilterGroup => "conditions" in c;
 
-describe("EventsView calendar-entries query", () => {
+describe("CalendarsView calendar-entries query", () => {
   it("issues a single calendar-entries request windowed to the dates the view renders", async () => {
     const requests = stubEntries({ tasks: [] });
 
-    renderEvents();
+    renderCalendars();
 
     await waitFor(() => expect(requests.length).toBeGreaterThan(0));
 
@@ -106,40 +117,42 @@ describe("EventsView calendar-entries query", () => {
     );
     stubEntries({ tasks });
 
-    renderEvents();
+    renderCalendars();
 
     expect(await screen.findByText("Hundred and first task")).toBeInTheDocument();
     expect(screen.getByText("Task 1")).toBeInTheDocument();
   });
 
-  it("offers the initiative's projects as filter options, whatever the window holds", async () => {
-    // No task in the window belongs to Apollo — its option has to survive
-    // anyway, or the filter would vanish on any month the project is quiet.
-    stubEntries({ tasks: [] }, [
-      buildProject({ id: PROJECT_ID, initiative_id: INITIATIVE_ID, name: "Apollo" }),
-      buildProject({ id: 2, initiative_id: INITIATIVE_ID, name: "Zeus" }),
-      buildProject({
-        id: 3,
-        initiative_id: INITIATIVE_ID,
-        name: "A template",
-        is_template: true,
-      }),
-      buildProject({ id: 4, initiative_id: 99, name: "Another initiative's" }),
-    ]);
+  it("lists a task calendar per project with in-window tasks and hides its tasks when toggled off", async () => {
+    // The panel derives one read-only calendar per project FROM the tasks
+    // payload — a project with no task in the window gets no row.
+    stubEntries(
+      {
+        tasks: [
+          buildTask({
+            id: 1,
+            title: "Apollo task",
+            project_id: PROJECT_ID,
+            due_date: inFocusMonth(3),
+          }),
+        ],
+      },
+      [
+        buildProject({ id: PROJECT_ID, initiative_id: INITIATIVE_ID, name: "Apollo" }),
+        buildProject({ id: 2, initiative_id: INITIATIVE_ID, name: "Zeus" }),
+      ]
+    );
 
     const user = userEvent.setup();
-    renderEvents();
+    renderCalendars();
 
-    // The label isn't bound to the Radix trigger, so scope by their shared row.
-    const label = await screen.findByText("Project");
-    const trigger = within(label.parentElement as HTMLElement).getByRole("combobox");
-    await user.click(trigger);
+    expect(await screen.findByText("Apollo task")).toBeInTheDocument();
+    // Only Apollo has a task in the window, so only it gets a panel row.
+    expect(screen.getByText("Apollo")).toBeInTheDocument();
+    expect(screen.queryByText("Zeus")).toBeNull();
 
-    expect(await screen.findByText("Apollo")).toBeInTheDocument();
-    expect(screen.getByText("Zeus")).toBeInTheDocument();
-    // Templates are held out of the calendar's tasks, and other initiatives
-    // aren't in scope at all.
-    expect(screen.queryByText("A template")).toBeNull();
-    expect(screen.queryByText("Another initiative's")).toBeNull();
+    // Unchecking the project's calendar hides its tasks from the view.
+    await user.click(screen.getByRole("checkbox", { name: "Apollo" }));
+    await waitFor(() => expect(screen.queryByText("Apollo task")).toBeNull());
   });
 });

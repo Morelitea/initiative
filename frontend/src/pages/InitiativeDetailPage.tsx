@@ -24,7 +24,7 @@ import { toolAvailable, toolCamelPlural } from "@/lib/tools";
 import { DocumentsView } from "./DocumentsPage";
 import { AdvancedToolsView } from "./initiativeTools/advancedTools/AdvancedToolsView";
 import { CounterGroupsView } from "./initiativeTools/counters/CounterGroupsPage";
-import { EventsView } from "./initiativeTools/events/EventsPage";
+import { CalendarsView } from "./initiativeTools/events/CalendarsPage";
 import { QueuesView } from "./initiativeTools/queues/QueuesPage";
 import { ProjectsView } from "./ProjectsPage";
 
@@ -35,7 +35,7 @@ type ToolViewProps = { fixedInitiativeId: number; canCreate?: boolean };
 const TOOL_TABS: Array<[Tool, ComponentType<ToolViewProps>]> = [
   [Tool.document, DocumentsView],
   [Tool.project, ProjectsView],
-  [Tool.calendar_event, EventsView],
+  [Tool.calendar, CalendarsView],
   [Tool.queue, QueuesView],
   [Tool.counter_group, CounterGroupsView],
   [Tool.advanced_tool, AdvancedToolsView],

@@ -141,7 +141,7 @@ const rsvpBadgeVariant = (
 };
 
 export function EventDetailPage() {
-  const { t } = useTranslation(["calendarEvents", "common"]);
+  const { t } = useTranslation(["calendars", "common"]);
   const { eventId } = useParams({ strict: false }) as { eventId: string };
   const parsedId = Number(eventId);
   const navigate = useNavigate();
@@ -164,7 +164,7 @@ export function EventDetailPage() {
   const deleteEvent = useDeleteCalendarEvent({
     onSuccess: () => {
       toast.success(t("eventDeleted"));
-      void navigate({ to: gp("/calendar-events") });
+      void navigate({ to: gp("/calendars") });
     },
   });
 
@@ -201,7 +201,7 @@ export function EventDetailPage() {
 
   if (eventQuery.isError || !event) {
     const status = getHttpStatus(eventQuery.error);
-    const backTo = gp("/calendar-events");
+    const backTo = gp("/calendars");
     const backLabel = t("backToEvents");
 
     if (status === 403) {
@@ -244,7 +244,7 @@ export function EventDetailPage() {
             )}
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
-                <Link to={gp("/calendar-events")}>{t("title")}</Link>
+                <Link to={gp("/calendars")}>{t("title")}</Link>
               </BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator />

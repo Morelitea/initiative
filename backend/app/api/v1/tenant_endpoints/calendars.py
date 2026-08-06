@@ -11,6 +11,7 @@ from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
@@ -21,7 +22,11 @@ from app.api.deps import (
     get_current_active_user,
     get_guild_membership,
 )
+from app.core import role_context
 from app.core.messages import CalendarMessages, InitiativeMessages
+from app.db.session import get_admin_session
+from app.models.platform.guild import GuildRole
+from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.core.tools import Tool
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.initiative import Initiative, PermissionKey
@@ -45,7 +50,12 @@ from app.services.tenant import tags as tags_service
 
 router = APIRouter()
 
+# Cross-guild personal aggregate ("My Calendar" grouping panel), mounted under
+# /api/v1/me; routes per member guild via gather_across_guilds.
+me_router = APIRouter()
+
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
+AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 
 
 # ---------------------------------------------------------------------------
@@ -328,6 +338,75 @@ async def delete_calendar(
         retention_days=retention_days,
     )
     await session.commit()
+
+
+# ---------------------------------------------------------------------------
+# Cross-guild personal view
+# ---------------------------------------------------------------------------
+
+
+@me_router.get("/calendars", response_model=CalendarListResponse)
+async def list_my_calendars(
+    session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_ids: Optional[List[int]] = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=200, ge=1, le=200),
+) -> CalendarListResponse:
+    """List the calendars visible to the user across all their guilds — the
+    backing data for the My Calendar grouping panel.
+
+    Mirrors ``list_my_calendar_events``: visit each member guild schema under
+    the user's own RLS context (guild isolation + DAC hold), merge, and
+    paginate in Python (per-schema SQL can't limit across schemas).
+    """
+
+    def _fetch(guild_session, guild_id):  # type: ignore[no-untyped-def]
+        conditions = [Initiative.calendars_enabled == True]  # noqa: E712
+        if role_context.active_guild_role(guild_id) != GuildRole.admin.value:
+            conditions.append(
+                Calendar.id.in_(
+                    permissions_service.visible_resource_ids_subquery(
+                        "calendar", current_user.id
+                    )
+                )
+            )
+        stmt = (
+            select(Calendar)
+            .join(Initiative, Initiative.id == Calendar.initiative_id)
+            .where(*conditions)
+            .options(*calendars_service.calendar_loader_options())
+        )
+        return _exec_calendars(guild_session, stmt)
+
+    target_guilds = await member_guild_ids(
+        session, current_user.id, restrict_to=guild_ids
+    )
+    calendars = await gather_across_guilds(
+        session, current_user.id, target_guilds, _fetch
+    )
+    # Merge-sort across guilds (per-schema SQL can't order across schemas).
+    calendars.sort(key=lambda c: (c.name.lower(), c.guild_id, c.id))
+
+    total_count = len(calendars)
+    start = (page - 1) * page_size
+    page_calendars = calendars[start : start + page_size]
+    items = [
+        serialize_calendar_summary(c, user_id=current_user.id) for c in page_calendars
+    ]
+    return CalendarListResponse(
+        items=items,
+        total_count=total_count,
+        page=page,
+        page_size=page_size,
+        has_next=page * page_size < total_count,
+    )
+
+
+async def _exec_calendars(session, stmt) -> list[Calendar]:
+    """Run a Calendar select and return de-duplicated rows as a list."""
+    result = await session.exec(stmt)
+    return list(result.unique().all())
 
 
 # ---------------------------------------------------------------------------

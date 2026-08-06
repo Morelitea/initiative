@@ -4849,6 +4849,19 @@ export type ListMyProjectsApiV1MeProjectsGetParams = {
   sort_dir?: string | null;
 };
 
+export type ListMyCalendarsApiV1MeCalendarsGetParams = {
+  guild_ids?: number[] | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  page_size?: number;
+};
+
 export type ListMyCalendarEventsApiV1MeCalendarEventsGetParams = {
   guild_ids?: number[] | null;
   start_after?: string | null;

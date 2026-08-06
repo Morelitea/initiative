@@ -8,8 +8,6 @@ import type {
   PropertySummary,
   TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
-import { ShareControl } from "@/components/access/ShareControl";
 import {
   datesAreValid,
   endTimeOptionsFor,
@@ -50,16 +48,15 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   useCalendarEvent,
   useDeleteCalendarEvent,
-  useSetCalendarEventGrants,
   useSetEventAttendees,
+  useSetEventTags,
   useUpdateCalendarEvent,
 } from "@/hooks/useCalendarEvents";
-import { useSetToolTags } from "@/hooks/useToolTags";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
 
 export function EventSettingsPage() {
-  const { t } = useTranslation(["calendarEvents", "common", "access"]);
+  const { t } = useTranslation(["calendars", "common", "access"]);
   const router = useRouter();
   const gp = useGuildPath();
   const { eventId: eventIdParam } = useParams({ strict: false });
@@ -194,11 +191,7 @@ export function EventSettingsPage() {
     onSuccess: () => toast.success(t("detailsUpdated")),
   });
 
-  const setEventTags = useSetToolTags(Tool.calendar_event);
-
-  const setGrants = useSetCalendarEventGrants(eventId, {
-    onSuccess: () => toast.success(t("detailsUpdated")),
-  });
+  const setEventTags = useSetEventTags(eventId);
 
   // Tags persist immediately on change (like tasks/documents), no Save button.
   // Optimistically update, then roll back to the prior selection if the save
@@ -207,7 +200,7 @@ export function EventSettingsPage() {
     const previous = tags;
     setTags(newTags);
     setEventTags.mutate(
-      { id: eventId, tagIds: newTags.map((tag) => tag.id) },
+      { tag_ids: newTags.map((tag) => tag.id) },
       { onError: () => setTags(previous) }
     );
   };
@@ -215,7 +208,7 @@ export function EventSettingsPage() {
   const deleteEvent = useDeleteCalendarEvent({
     onSuccess: () => {
       toast.success(t("eventDeleted"));
-      void router.navigate({ to: gp("/calendar-events") });
+      void router.navigate({ to: gp("/calendars") });
     },
   });
 
@@ -255,7 +248,7 @@ export function EventSettingsPage() {
       <div className="p-8 text-center">
         <p className="text-muted-foreground">{t("notFound")}</p>
         <Button variant="link" asChild className="mt-2">
-          <Link to={gp("/calendar-events")}>{t("backToEvents")}</Link>
+          <Link to={gp("/calendars")}>{t("backToEvents")}</Link>
         </Button>
       </div>
     );
@@ -267,7 +260,7 @@ export function EventSettingsPage() {
         <BreadcrumbList>
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
-              <Link to={gp("/calendar-events")}>{t("title")}</Link>
+              <Link to={gp("/calendars")}>{t("title")}</Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
@@ -466,23 +459,6 @@ export function EventSettingsPage() {
         </CardHeader>
         <CardContent>
           <TagPicker selectedTags={tags} onChange={handleTagsChange} />
-        </CardContent>
-      </Card>
-
-      {/* Access */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("access")}</CardTitle>
-          <CardDescription>{t("access:share.settingsDescription")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ShareControl
-            initiativeId={event.initiative_id}
-            grants={event.grants}
-            ownerId={event.grants.find((g) => g.level === "owner")?.user_id ?? null}
-            onChange={(grants) => setGrants.mutate(grants)}
-            disabled={event.my_permission_level !== "owner" || setGrants.isPending}
-          />
         </CardContent>
       </Card>
 

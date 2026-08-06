@@ -35,6 +35,7 @@
     "tag": "Tag",
     "queue": "Warteschlange",
     "queue_item": "Warteschlangen-Eintrag",
+    "calendar": "Kalender",
     "calendar_event": "Kalendertermin",
     "counter_group": "Zählergruppe",
     "counter": "Zähler",

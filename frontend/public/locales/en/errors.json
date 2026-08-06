@@ -337,5 +337,12 @@
   "INVALID_TAG_IDS": "One or more tags no longer exist",
   "AI_CONNECTION_NOT_FOUND": "AI connection not found.",
   "AI_MEMBER_KEYS_DISABLED": "Personal API keys are disabled for this workspace.",
-  "AI_INVALID_API_KEY": "The API key was rejected. Check it and try again."
+  "AI_INVALID_API_KEY": "The API key was rejected. Check it and try again.",
+  "CALENDAR_NOT_FOUND": "Calendar not found",
+  "CALENDAR_CREATE_PERMISSION_REQUIRED": "You don't have permission to create calendars in this initiative",
+  "CALENDARS_NOT_ENABLED": "Calendars are not enabled for this initiative",
+  "CALENDAR_PERMISSION_REQUIRED": "You don't have access to this calendar",
+  "CALENDAR_OWNER_REQUIRED": "Only the calendar owner can do this",
+  "CALENDAR_WRITE_ACCESS_REQUIRED": "You need write access to this calendar",
+  "CALENDAR_GRANT_CANNOT_MANAGE_MEMBERS": "Temporary access can't manage calendar sharing"
 }

@@ -4,12 +4,12 @@ import { setToolTagsApiV1GGuildIdToolsToolToolIdTagsPut } from "@/api/generated/
 import {
   invalidateAdvancedTool,
   invalidateAllAdvancedTools,
-  invalidateAllCalendarEvents,
+  invalidateAllCalendars,
   invalidateAllCounterGroups,
   invalidateAllDocuments,
   invalidateAllProjects,
   invalidateAllQueues,
-  invalidateCalendarEvent,
+  invalidateCalendar,
   invalidateCounterGroup,
   invalidateQueue,
 } from "@/api/query-keys";
@@ -39,9 +39,9 @@ const TOOL_TAG_INVALIDATORS: Record<Tool, (id: number) => void> = {
     void invalidateCounterGroup(id);
     void invalidateAllCounterGroups();
   },
-  [Tool.calendar_event]: (id) => {
-    void invalidateCalendarEvent(id);
-    void invalidateAllCalendarEvents();
+  [Tool.calendar]: (id) => {
+    void invalidateCalendar(id);
+    void invalidateAllCalendars();
   },
   [Tool.advanced_tool]: (id) => {
     void invalidateAdvancedTool(id);

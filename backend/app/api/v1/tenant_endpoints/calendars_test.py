@@ -326,3 +326,51 @@ async def test_set_calendar_grants_owner_only(
         member.g(f"/calendars/{calendar.id}"), headers=member.headers
     )
     assert hidden.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Cross-guild personal view
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+async def test_my_calendars_spans_guilds_and_applies_dac(
+    client: AsyncClient, acting_user, session
+):
+    """GET /me/calendars merges the user's visible calendars across every
+    guild they belong to, with calendar sharing applied per guild."""
+    from app.testing import create_guild_membership, create_initiative_member
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    await _calendars_enabled(session, a.initiative)
+    shared = await create_calendar(session, a.initiative, a.user, name="Home Cal")
+    secret = await create_calendar(session, a.initiative, a.user, name="Secret Cal")
+
+    # Second guild the same user belongs to, with its own calendar.
+    b = await acting_user(guild_role=GuildRole.member, initiative=True)
+    await _calendars_enabled(session, b.initiative)
+    await create_guild_membership(session, user=a.user, guild=b.guild)
+    await create_initiative_member(session, b.initiative, a.user)
+    away = await create_calendar(session, b.initiative, b.user, name="Away Cal")
+
+    response = await client.get("/api/v1/me/calendars", headers=a.headers)
+    assert response.status_code == 200
+    names = {c["name"] for c in response.json()["items"]}
+    assert {shared.name, secret.name, away.name} <= names
+
+    # Strip the second actor's view of nothing — instead strip a's access to
+    # the secret calendar via its grants and confirm it drops out for a
+    # different member while a (the owner) keeps it.
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    await _strip_non_owner_grants(session, secret, a.user.id)
+    member_resp = await client.get("/api/v1/me/calendars", headers=member.headers)
+    assert member_resp.status_code == 200
+    member_names = {c["name"] for c in member_resp.json()["items"]}
+    assert shared.name in member_names
+    assert secret.name not in member_names
+    assert away.name not in member_names  # not a member of guild b

@@ -312,7 +312,7 @@ export const invalidateAllCounterGroups = () => invalidateGuildPrefix("/api/v1/c
 export const invalidateCounterGroup = (groupId: number) =>
   invalidateGuildExact([`/api/v1/counter-groups/${groupId}`]);
 
-// ── Calendar Events (guild + me) ──────────────────────────────────────────────────
+// ── Calendars & Calendar Events (guild + me) ──────────────────────────────────────
 
 // The calendar-entries aggregate unions events + task markers; refresh it too so
 // event mutations reflect on the calendar surfaces.
@@ -323,6 +323,14 @@ export const invalidateAllCalendarEvents = () =>
 
 export const invalidateCalendarEvent = (eventId: number) =>
   invalidateGuildExact([`/api/v1/calendar-events/${eventId}`]);
+
+// Calendar (the container) mutations also refresh the events + entries views —
+// renames/colors/sharing change what those surfaces show.
+export const invalidateAllCalendars = () =>
+  Promise.all([invalidateGuildPrefix("/api/v1/calendars"), invalidateAllCalendarEvents()]);
+
+export const invalidateCalendar = (calendarId: number) =>
+  invalidateGuildExact([`/api/v1/calendars/${calendarId}`]);
 
 // ── Advanced Tools (guild) ────────────────────────────────────────────────────────
 

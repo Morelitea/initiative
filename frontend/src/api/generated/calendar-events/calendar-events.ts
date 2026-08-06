@@ -35,6 +35,7 @@ import type {
   ListCalendarEventsApiV1GGuildIdCalendarEventsGetParams,
   ListMyCalendarEventsApiV1MeCalendarEventsGetParams,
   PropertyValuesSetRequest,
+  TagSetRequest,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -1183,6 +1184,108 @@ export const useSetDocumentsApiV1GGuildIdCalendarEventsEventIdDocumentsPut = <
 > => {
   return useMutation(
     getSetDocumentsApiV1GGuildIdCalendarEventsEventIdDocumentsPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Set the tags for an event. Replaces all existing tags with the provided
+ * list. Events are content-level extras (like tasks), so they keep a
+ * hand-written tag route instead of the generic ``/tools/{tool}`` one.
+ * @summary Set Event Tags
+ */
+export const setEventTagsApiV1GGuildIdCalendarEventsEventIdTagsPut = (
+  guildId: number,
+  eventId: number,
+  tagSetRequest: BodyType<TagSetRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<CalendarEventRead>(
+    {
+      url: `/api/v1/g/${guildId}/calendar-events/${eventId}/tags`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: tagSetRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSetEventTagsApiV1GGuildIdCalendarEventsEventIdTagsPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setEventTagsApiV1GGuildIdCalendarEventsEventIdTagsPut>>,
+    TError,
+    { guildId: number; eventId: number; data: BodyType<TagSetRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setEventTagsApiV1GGuildIdCalendarEventsEventIdTagsPut>>,
+  TError,
+  { guildId: number; eventId: number; data: BodyType<TagSetRequest> },
+  TContext
+> => {
+  const mutationKey = ["setEventTagsApiV1GGuildIdCalendarEventsEventIdTagsPut"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setEventTagsApiV1GGuildIdCalendarEventsEventIdTagsPut>>,
+    { guildId: number; eventId: number; data: BodyType<TagSetRequest> }
+  > = (props) => {
+    const { guildId, eventId, data } = props ?? {};
+
+    return setEventTagsApiV1GGuildIdCalendarEventsEventIdTagsPut(
+      guildId,
+      eventId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetEventTagsApiV1GGuildIdCalendarEventsEventIdTagsPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setEventTagsApiV1GGuildIdCalendarEventsEventIdTagsPut>>
+>;
+export type SetEventTagsApiV1GGuildIdCalendarEventsEventIdTagsPutMutationBody =
+  BodyType<TagSetRequest>;
+export type SetEventTagsApiV1GGuildIdCalendarEventsEventIdTagsPutMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Set Event Tags
+ */
+export const useSetEventTagsApiV1GGuildIdCalendarEventsEventIdTagsPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof setEventTagsApiV1GGuildIdCalendarEventsEventIdTagsPut>>,
+      TError,
+      { guildId: number; eventId: number; data: BodyType<TagSetRequest> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof setEventTagsApiV1GGuildIdCalendarEventsEventIdTagsPut>>,
+  TError,
+  { guildId: number; eventId: number; data: BodyType<TagSetRequest> },
+  TContext
+> => {
+  return useMutation(
+    getSetEventTagsApiV1GGuildIdCalendarEventsEventIdTagsPutMutationOptions(options),
     queryClient
   );
 };
