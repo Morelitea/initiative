@@ -25,7 +25,7 @@ import { ExportButton } from "@/components/exports/ExportButton";
 import { TOOL_EXPORT_FORMATS } from "@/components/exports/formats";
 import { ToolImportAction } from "@/components/imports/ToolImportAction";
 import {
-  CalendarListPanel,
+  CalendarPanelDropdown,
   type ProjectTaskCalendar,
 } from "@/components/initiativeTools/events/CalendarListPanel";
 import { CreateCalendarDialog } from "@/components/initiativeTools/events/CreateCalendarDialog";
@@ -512,6 +512,26 @@ export const CalendarsView = ({
         </div>
         <CollapsibleContent forceMount className="data-[state=closed]:hidden">
           <div className="mt-2 flex flex-wrap items-end gap-4 rounded-md border border-muted bg-background/40 p-3 sm:mt-0">
+            {/* Calendar visibility — real calendars + per-project task
+                calendars behind one dropdown, so the grid keeps full width. */}
+            <div className="flex items-end">
+              <CalendarPanelDropdown
+                calendars={calendars}
+                projectCalendars={projectCalendars}
+                isCalendarHidden={(calendar) => hiddenCalendarIds.has(calendar.id)}
+                isProjectHidden={(project) => hiddenProjectIds.has(project.projectId)}
+                onToggleCalendar={(calendar) =>
+                  setHiddenCalendarIds((prev) => toggleInSet(prev, calendar.id))
+                }
+                onToggleProject={(project) =>
+                  setHiddenProjectIds((prev) => toggleInSet(prev, project.projectId))
+                }
+                settingsPathFor={(calendar) => gp(`/calendars/${calendar.id}/settings`)}
+                canCreate={canCreateCalendars}
+                onCreate={() => setCreateCalendarOpen(true)}
+              />
+            </div>
+
             {/* Status filter (for tasks) */}
             <div className="w-full sm:w-48 lg:flex-1">
               <Label className="mb-2 block font-medium text-muted-foreground text-xs">
@@ -565,39 +585,17 @@ export const CalendarsView = ({
           {t("loading")}
         </div>
       ) : (
-        <div className="flex flex-col gap-4 lg:flex-row">
-          {/* Calendar list panel — real calendars + per-project task calendars. */}
-          <aside className="shrink-0 lg:w-60">
-            <CalendarListPanel
-              calendars={calendars}
-              projectCalendars={projectCalendars}
-              isCalendarHidden={(calendar) => hiddenCalendarIds.has(calendar.id)}
-              isProjectHidden={(project) => hiddenProjectIds.has(project.projectId)}
-              onToggleCalendar={(calendar) =>
-                setHiddenCalendarIds((prev) => toggleInSet(prev, calendar.id))
-              }
-              onToggleProject={(project) =>
-                setHiddenProjectIds((prev) => toggleInSet(prev, project.projectId))
-              }
-              settingsPathFor={(calendar) => gp(`/calendars/${calendar.id}/settings`)}
-              canCreate={canCreateCalendars}
-              onCreate={() => setCreateCalendarOpen(true)}
-            />
-          </aside>
-          <div className="min-w-0 flex-1">
-            <CalendarView
-              entries={calendarEntries}
-              viewMode={viewMode}
-              onViewModeChange={setViewMode}
-              focusDate={focusDate}
-              onFocusDateChange={setFocusDate}
-              onEntryClick={handleEntryClick}
-              onSlotClick={canCreateEvents ? handleSlotClick : undefined}
-              onEntryReschedule={handleEntryReschedule}
-              weekStartsOn={weekStartsOn}
-            />
-          </div>
-        </div>
+        <CalendarView
+          entries={calendarEntries}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          focusDate={focusDate}
+          onFocusDateChange={setFocusDate}
+          onEntryClick={handleEntryClick}
+          onSlotClick={canCreateEvents ? handleSlotClick : undefined}
+          onEntryReschedule={handleEntryReschedule}
+          weekStartsOn={weekStartsOn}
+        />
       )}
 
       <CreateEventDialog

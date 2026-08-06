@@ -127,6 +127,7 @@
   "deleteCalendar": "Kalender löschen",
   "deleteCalendarConfirm": "Diesen Kalender löschen? Alle seine Termine werden mit entfernt.",
   "panel": {
+    "calendars": "Kalender",
     "myCalendars": "Meine Kalender",
     "noCalendars": "Noch keine Kalender",
     "projectTasks": "Projektaufgaben",

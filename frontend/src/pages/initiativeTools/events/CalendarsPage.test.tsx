@@ -147,9 +147,12 @@ describe("CalendarsView calendar-entries query", () => {
     renderCalendars();
 
     expect(await screen.findByText("Apollo task")).toBeInTheDocument();
+
+    // The visibility panel lives behind the filter bar's Calendars dropdown.
+    await user.click(screen.getByRole("button", { name: /calendars/i }));
     // Only Apollo has a task in the window, so only it gets a panel row.
-    expect(screen.getByText("Apollo")).toBeInTheDocument();
-    expect(screen.queryByText("Zeus")).toBeNull();
+    expect(await screen.findByRole("checkbox", { name: "Apollo" })).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "Zeus" })).toBeNull();
 
     // Unchecking the project's calendar hides its tasks from the view.
     await user.click(screen.getByRole("checkbox", { name: "Apollo" }));
