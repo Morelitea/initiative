@@ -36,7 +36,7 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { toast } from "@/lib/chesterToast";
 import { guildPath, useGuildPath } from "@/lib/guildUrl";
-import { getCalendarColor, getProjectColor } from "@/lib/projectColor";
+import { getProjectColor } from "@/lib/projectColor";
 import { PRIORITY_ORDER } from "@/lib/sorting";
 import { getItem, setItem } from "@/lib/storage";
 
@@ -291,8 +291,8 @@ export const MyCalendarPage = () => {
         startAt: event.start_at,
         endAt: event.end_at,
         allDay: event.all_day,
-        // Events render in their calendar's color (stored or palette-derived).
-        color: getCalendarColor(event.calendar_id, calendar?.color),
+        // Events render in their calendar's stored color.
+        color: calendar?.color ?? "#6366f1",
         attendees: (event.attendee_previews ?? []).map((att) => ({
           name: att.name,
           avatarUrl: att.avatar_url,

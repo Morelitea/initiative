@@ -164,7 +164,7 @@ export function CalendarSettingsPage() {
             <Label htmlFor="calendar-color">{t("calendarColor")}</Label>
             <ColorPickerPopover
               id="calendar-color"
-              value={color || "#6366F1"}
+              value={color || "#6366f1"}
               onChange={setColor}
               triggerLabel={t("calendarColor")}
             />

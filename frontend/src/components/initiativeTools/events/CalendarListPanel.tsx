@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { getCalendarColor } from "@/lib/projectColor";
 
 /** A derived, read-only "calendar" for one project's tasks — rendered from the
  * calendar-entries tasks payload, never stored server-side. */
@@ -117,7 +116,7 @@ export const CalendarListPanel = ({
                   />
                   <span
                     className="h-2.5 w-2.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: getCalendarColor(calendar.id, calendar.color) }}
+                    style={{ backgroundColor: calendar.color ?? "#6366f1" }}
                   />
                   <Label
                     htmlFor={`calendar-toggle-${calendar.guild_id}-${calendar.id}`}
