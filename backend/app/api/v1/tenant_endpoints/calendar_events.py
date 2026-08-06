@@ -608,7 +608,6 @@ async def create_calendar_event(
         start_at=event_in.start_at,
         end_at=event_in.end_at,
         all_day=event_in.all_day,
-        color=event_in.color,
         recurrence=recurrence_json,
     )
     session.add(event)
@@ -701,7 +700,6 @@ async def update_calendar_event(
         "start_at",
         "end_at",
         "all_day",
-        "color",
     ):
         if field in update_data:
             value = update_data[field]

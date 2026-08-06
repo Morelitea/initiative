@@ -298,16 +298,6 @@ export function EventDetailPage() {
               <p className="text-sm">{event.location}</p>
             </div>
           )}
-
-          {event.color && (
-            <div className="flex items-center gap-3">
-              <span
-                className="inline-block h-5 w-5 shrink-0 rounded-full border"
-                style={{ backgroundColor: event.color }}
-              />
-              <span className="text-muted-foreground text-sm">{t("color")}</span>
-            </div>
-          )}
         </CardContent>
       </Card>
 

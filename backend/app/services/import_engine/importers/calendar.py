@@ -182,7 +182,6 @@ class CalendarImporter:
             start_at=start_at,
             end_at=end_at,
             all_day=item.all_day,
-            color=item.color,
             recurrence=json.dumps(item.recurrence) if item.recurrence else None,
             created_by_id=importer.id,
         )

@@ -117,7 +117,6 @@ def event_export_dict(event: CalendarEvent) -> dict:
         "start_at": event.start_at.isoformat(),
         "end_at": event.end_at.isoformat(),
         "all_day": bool(event.all_day),
-        "color": event.color,
         "recurrence": recurrence,
         "created_at": event.created_at.isoformat(),
         "updated_at": event.updated_at.isoformat(),

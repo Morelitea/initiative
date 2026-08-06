@@ -125,7 +125,6 @@ class EventEnvelopeItem(SanitizedBaseModel):
     start_at: str
     end_at: str
     all_day: bool = False
-    color: Optional[str] = None
     recurrence: Optional[dict[str, Any]] = None
     attendees: list[EventEnvelopeAttendee] = []
     tags: list[str] = []

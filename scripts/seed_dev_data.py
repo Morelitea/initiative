@@ -1339,7 +1339,7 @@ async def _create_calendar_events(
 
     Each ``event_def`` has:
         initiative_id, title, description, location, start_at, end_at,
-        all_day, color, recurrence (dict; JSON-encoded into the column),
+        all_day, recurrence (dict; JSON-encoded into the column),
         created_by (user name),
         attendees: list of {user (name), rsvp_status (optional)},
         tags: list of tag names,
@@ -1391,7 +1391,6 @@ async def _create_calendar_events(
             start_at=ed["start_at"],
             end_at=ed["end_at"],
             all_day=ed.get("all_day", False),
-            color=ed.get("color"),
             recurrence=json.dumps(recurrence_raw) if recurrence_raw else None,
             created_by_id=creator.id,
         )

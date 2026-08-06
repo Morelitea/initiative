@@ -345,8 +345,8 @@ export const CalendarsView = ({
         startAt: event.start_at,
         endAt: event.end_at,
         allDay: event.all_day,
-        // Per-event color overrides the calendar's default, Google-style.
-        color: event.color ?? calendar?.color ?? DEFAULT_EVENT_COLOR,
+        // Events render in their calendar's color.
+        color: calendar?.color ?? DEFAULT_EVENT_COLOR,
         attendees: (event.attendee_previews ?? []).map((att) => ({
           name: att.name,
           avatarUrl: att.avatar_url,
