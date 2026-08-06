@@ -1,11 +1,13 @@
 import { Link } from "@tanstack/react-router";
-import { Plus, Settings2 } from "lucide-react";
+import { CalendarDays, ChevronDown, Plus, Settings2 } from "lucide-react";
+import type { ComponentProps } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { CalendarSummary } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 /** A derived, read-only "calendar" for one project's tasks — rendered from the
  * calendar-entries tasks payload, never stored server-side. */
@@ -33,6 +35,27 @@ interface CalendarListPanelProps {
   canCreate: boolean;
   onCreate: () => void;
 }
+
+/** The calendar list panel behind a filter-bar dropdown: a "Calendars"
+ * trigger opening the visibility panel, so the calendar grid keeps the full
+ * page width. */
+export const CalendarPanelDropdown = (props: ComponentProps<typeof CalendarListPanel>) => {
+  const { t } = useTranslation("calendars");
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm">
+          <CalendarDays className="h-4 w-4" />
+          {t("panel.calendars")}
+          <ChevronDown className="h-4 w-4 opacity-60" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="max-h-96 w-80 overflow-y-auto">
+        <CalendarListPanel {...props} />
+      </PopoverContent>
+    </Popover>
+  );
+};
 
 /** The calendar page's list panel — real calendars (color, visibility,
  * settings link) and one read-only task calendar per project, Google-Calendar

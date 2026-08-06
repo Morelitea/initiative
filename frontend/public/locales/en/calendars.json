@@ -127,6 +127,7 @@
   "deleteCalendar": "Delete Calendar",
   "deleteCalendarConfirm": "Delete this calendar? All of its events go with it.",
   "panel": {
+    "calendars": "Calendars",
     "myCalendars": "My calendars",
     "noCalendars": "No calendars yet",
     "projectTasks": "Project tasks",

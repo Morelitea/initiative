@@ -20,7 +20,7 @@ import {
   calendarVisibleRange,
 } from "@/components/calendar";
 import {
-  CalendarListPanel,
+  CalendarPanelDropdown,
   type ProjectTaskCalendar,
 } from "@/components/initiativeTools/events/CalendarListPanel";
 import { PullToRefresh } from "@/components/PullToRefresh";
@@ -97,6 +97,9 @@ const readStoredVisibility = (): StoredVisibility => {
     return { hiddenCalendarKeys: [], hiddenProjectKeys: [] };
   }
 };
+
+const taskProjectKey = (guildId: number | null | undefined, projectId: number): string =>
+  `${guildId ?? 0}:${projectId}`;
 
 const toggleInSet = (prev: ReadonlySet<string>, key: string): Set<string> => {
   const next = new Set(prev);
@@ -238,14 +241,15 @@ export const MyCalendarPage = () => {
   const projectCalendars = useMemo<ProjectTaskCalendar[]>(() => {
     const seen = new Map<string, ProjectTaskCalendar>();
     for (const task of entriesQuery.data?.tasks ?? []) {
-      if (task.project_id == null || task.guild_id == null) continue;
-      const key = `${task.guild_id}:${task.project_id}`;
+      if (task.project_id == null) continue;
+      const key = taskProjectKey(task.guild_id, task.project_id);
       if (seen.has(key)) continue;
-      const guildName = multiGuild ? guildNamesById.get(task.guild_id) : undefined;
+      const guildName =
+        multiGuild && task.guild_id != null ? guildNamesById.get(task.guild_id) : undefined;
       const baseName = task.project_name ?? `#${task.project_id}`;
       seen.set(key, {
         projectId: task.project_id,
-        guildId: task.guild_id,
+        guildId: task.guild_id ?? 0,
         name: guildName ? `${baseName} · ${guildName}` : baseName,
         color: getProjectColor(task.project_id),
       });
@@ -262,7 +266,10 @@ export const MyCalendarPage = () => {
     // meta for cross-guild navigation. Not draggable here (My Calendar has no
     // reschedule handler).
     for (const task of entriesQuery.data?.tasks ?? []) {
-      if (task.project_id != null && hiddenProjectKeys.has(`${task.guild_id}:${task.project_id}`)) {
+      if (
+        task.project_id != null &&
+        hiddenProjectKeys.has(taskProjectKey(task.guild_id, task.project_id))
+      ) {
         continue;
       }
       for (const entry of buildTaskCalendarEntries(task, getProjectColor(task.project_id), false)) {
@@ -377,6 +384,41 @@ export const MyCalendarPage = () => {
           </div>
           <CollapsibleContent forceMount className="data-[state=closed]:hidden">
             <div className="mt-2 flex flex-wrap items-end gap-4 rounded-md border border-muted bg-background/40 p-3 sm:mt-0">
+              {/* Calendar visibility — the user's calendars across guilds +
+                  per-project task calendars behind one dropdown. */}
+              <div className="flex items-end">
+                <CalendarPanelDropdown
+                  calendars={calendars}
+                  projectCalendars={projectCalendars}
+                  isCalendarHidden={(calendar) =>
+                    hiddenCalendarKeys.has(`${calendar.guild_id}:${calendar.id}`)
+                  }
+                  isProjectHidden={(project) =>
+                    hiddenProjectKeys.has(taskProjectKey(project.guildId, project.projectId))
+                  }
+                  onToggleCalendar={(calendar) =>
+                    setHiddenCalendarKeys((prev) =>
+                      toggleInSet(prev, `${calendar.guild_id}:${calendar.id}`)
+                    )
+                  }
+                  onToggleProject={(project) =>
+                    setHiddenProjectKeys((prev) =>
+                      toggleInSet(prev, taskProjectKey(project.guildId, project.projectId))
+                    )
+                  }
+                  calendarLabel={(calendar) => {
+                    const guildName = multiGuild
+                      ? guildNamesById.get(calendar.guild_id)
+                      : undefined;
+                    return guildName ? `${calendar.name} · ${guildName}` : calendar.name;
+                  }}
+                  settingsPathFor={(calendar) =>
+                    guildPath(calendar.guild_id, `/calendars/${calendar.id}/settings`)
+                  }
+                  canCreate={false}
+                  onCreate={() => {}}
+                />
+              </div>
               <div className="w-full sm:w-48 lg:flex-1">
                 <Label className="mb-2 block font-medium text-muted-foreground text-xs">
                   {t("tasks:filters.filterByStatusCategory")}
@@ -431,52 +473,15 @@ export const MyCalendarPage = () => {
             <Loader2 className="h-8 w-8 animate-spin" />
           </div>
         ) : (
-          <div className="flex flex-col gap-4 lg:flex-row">
-            {/* Grouping panel — the user's calendars across guilds plus one
-                task calendar per project with tasks in the window. */}
-            <aside className="shrink-0 lg:w-60">
-              <CalendarListPanel
-                calendars={calendars}
-                projectCalendars={projectCalendars}
-                isCalendarHidden={(calendar) =>
-                  hiddenCalendarKeys.has(`${calendar.guild_id}:${calendar.id}`)
-                }
-                isProjectHidden={(project) =>
-                  hiddenProjectKeys.has(`${project.guildId}:${project.projectId}`)
-                }
-                onToggleCalendar={(calendar) =>
-                  setHiddenCalendarKeys((prev) =>
-                    toggleInSet(prev, `${calendar.guild_id}:${calendar.id}`)
-                  )
-                }
-                onToggleProject={(project) =>
-                  setHiddenProjectKeys((prev) =>
-                    toggleInSet(prev, `${project.guildId}:${project.projectId}`)
-                  )
-                }
-                calendarLabel={(calendar) => {
-                  const guildName = multiGuild ? guildNamesById.get(calendar.guild_id) : undefined;
-                  return guildName ? `${calendar.name} · ${guildName}` : calendar.name;
-                }}
-                settingsPathFor={(calendar) =>
-                  guildPath(calendar.guild_id, `/calendars/${calendar.id}/settings`)
-                }
-                canCreate={false}
-                onCreate={() => {}}
-              />
-            </aside>
-            <div className="min-w-0 flex-1">
-              <CalendarView
-                entries={calendarEntries}
-                viewMode={calendarViewMode}
-                onViewModeChange={setCalendarViewMode}
-                focusDate={focusDate}
-                onFocusDateChange={setFocusDate}
-                onEntryClick={handleEntryClick}
-                weekStartsOn={weekStartsOn}
-              />
-            </div>
-          </div>
+          <CalendarView
+            entries={calendarEntries}
+            viewMode={calendarViewMode}
+            onViewModeChange={setCalendarViewMode}
+            focusDate={focusDate}
+            onFocusDateChange={setFocusDate}
+            onEntryClick={handleEntryClick}
+            weekStartsOn={weekStartsOn}
+          />
         )}
       </div>
     </PullToRefresh>
