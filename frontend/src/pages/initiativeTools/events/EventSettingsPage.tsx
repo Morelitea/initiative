@@ -31,7 +31,6 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Input } from "@/components/ui/input";
@@ -72,7 +71,6 @@ export function EventSettingsPage() {
   const [endDate, setEndDate] = useState("");
   const [endTime, setEndTime] = useState("10:00");
   const [allDay, setAllDay] = useState(false);
-  const [color, setColor] = useState("");
   const [tags, setTags] = useState<TagSummary[]>([]);
   const [attendeeIds, setAttendeeIds] = useState<number[]>([]);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -148,7 +146,6 @@ export function EventSettingsPage() {
       setEndDate(toDateKey(end));
       setEndTime(toTimeSlotRounded(end));
       setAllDay(event.all_day);
-      setColor(event.color ?? "");
       setTags(event.tags ?? []);
       setAttendeeIds(event.attendees.map((a) => a.user_id));
     }
@@ -226,7 +223,6 @@ export function EventSettingsPage() {
       start_at: new Date(startValue).toISOString(),
       end_at: new Date(endValue).toISOString(),
       all_day: allDay,
-      color: color || undefined,
     });
   };
 
@@ -400,16 +396,6 @@ export function EventSettingsPage() {
               </div>
             </div>
           )}
-
-          <div className="space-y-2">
-            <Label htmlFor="event-color">{t("color")}</Label>
-            <ColorPickerPopover
-              id="event-color"
-              value={color || "#6366F1"}
-              onChange={setColor}
-              triggerLabel={t("color")}
-            />
-          </div>
 
           <Button onClick={handleSave} disabled={updateEvent.isPending || !datesValid}>
             {updateEvent.isPending ? (

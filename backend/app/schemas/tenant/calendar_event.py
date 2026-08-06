@@ -84,7 +84,6 @@ class CalendarEventBase(SanitizedBaseModel):
     start_at: datetime
     end_at: datetime
     all_day: bool = False
-    color: Optional[str] = None
     recurrence: Optional[EventRecurrence] = None
 
     @model_validator(mode="after")
@@ -108,7 +107,6 @@ class CalendarEventUpdate(SanitizedBaseModel):
     start_at: Optional[datetime] = None
     end_at: Optional[datetime] = None
     all_day: Optional[bool] = None
-    color: Optional[str] = None
     recurrence: Optional[EventRecurrence] = None
     # Move the event to another calendar (requires write on both calendars).
     calendar_id: Optional[int] = None
@@ -273,7 +271,6 @@ def serialize_calendar_event_summary(
         start_at=event.start_at,
         end_at=event.end_at,
         all_day=event.all_day,
-        color=event.color,
         recurrence=_parse_recurrence(event),
         calendar_id=event.calendar_id,
         initiative_id=calendar.initiative_id if calendar is not None else 0,

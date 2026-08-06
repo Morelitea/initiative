@@ -15,3 +15,9 @@ const PROJECT_COLORS = [
 
 export const getProjectColor = (projectId: number): string =>
   PROJECT_COLORS[projectId % PROJECT_COLORS.length];
+
+/** A calendar's display color: its stored color, else a stable palette color
+ *  by id. Events carry no color of their own — they always render in their
+ *  calendar's color, so this is the single place an event color comes from. */
+export const getCalendarColor = (calendarId: number, storedColor?: string | null): string =>
+  storedColor ?? PROJECT_COLORS[calendarId % PROJECT_COLORS.length];

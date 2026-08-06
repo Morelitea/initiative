@@ -36,7 +36,7 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { toast } from "@/lib/chesterToast";
 import { guildPath, useGuildPath } from "@/lib/guildUrl";
-import { getProjectColor } from "@/lib/projectColor";
+import { getCalendarColor, getProjectColor } from "@/lib/projectColor";
 import { PRIORITY_ORDER } from "@/lib/sorting";
 import { getItem, setItem } from "@/lib/storage";
 
@@ -291,8 +291,8 @@ export const MyCalendarPage = () => {
         startAt: event.start_at,
         endAt: event.end_at,
         allDay: event.all_day,
-        // Per-event color overrides the calendar's default, Google-style.
-        color: event.color ?? calendar?.color ?? "#6366f1",
+        // Events render in their calendar's color (stored or palette-derived).
+        color: getCalendarColor(event.calendar_id, calendar?.color),
         attendees: (event.attendee_previews ?? []).map((att) => ({
           name: att.name,
           avatarUrl: att.avatar_url,
@@ -330,7 +330,12 @@ export const MyCalendarPage = () => {
     [t]
   );
 
-  const isLoading = entriesQuery.isLoading && !entriesQuery.data;
+  // Wait for the calendars metadata too (same gate as the guild page):
+  // entries rendered before it resolves would flash the generic event color
+  // until each calendar's own color arrives.
+  const isLoading =
+    (entriesQuery.isLoading && !entriesQuery.data) ||
+    (calendarsQuery.isLoading && !calendarsQuery.data);
 
   const handleExport = useCallback(async () => {
     try {

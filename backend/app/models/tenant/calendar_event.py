@@ -3,7 +3,7 @@ from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, Text
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
 from app.models.tenant._mixins import SoftDeleteMixin
@@ -43,10 +43,6 @@ class CalendarEvent(SoftDeleteMixin, table=True):
     all_day: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
-    )
-    color: Optional[str] = Field(
-        default=None,
-        sa_column=Column(String(length=32), nullable=True),
     )
     recurrence: Optional[str] = Field(
         default=None,

@@ -57,7 +57,7 @@ import { useUpdateTask } from "@/hooks/useTasks";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { exportFilenameStem } from "@/lib/exportDownload";
 import { useGuildPath } from "@/lib/guildUrl";
-import { getProjectColor } from "@/lib/projectColor";
+import { getCalendarColor, getProjectColor } from "@/lib/projectColor";
 import { PRIORITY_ORDER } from "@/lib/sorting";
 import { getItem, setItem } from "@/lib/storage";
 import { toolExportEndpoint } from "@/lib/tools";
@@ -66,8 +66,6 @@ const STORAGE_KEY = "initiative-calendars-prefs";
 const VISIBILITY_KEY = "initiative-calendar-visibility";
 
 const STATUS_CATEGORIES: TaskStatusCategory[] = ["backlog", "todo", "in_progress", "done"];
-
-const DEFAULT_EVENT_COLOR = "#6366f1";
 
 interface StoredPrefs {
   statusFilters: TaskStatusCategory[];
@@ -345,8 +343,8 @@ export const CalendarsView = ({
         startAt: event.start_at,
         endAt: event.end_at,
         allDay: event.all_day,
-        // Per-event color overrides the calendar's default, Google-style.
-        color: event.color ?? calendar?.color ?? DEFAULT_EVENT_COLOR,
+        // Events render in their calendar's color (stored or palette-derived).
+        color: getCalendarColor(event.calendar_id, calendar?.color),
         attendees: (event.attendee_previews ?? []).map((att) => ({
           name: att.name,
           avatarUrl: att.avatar_url,

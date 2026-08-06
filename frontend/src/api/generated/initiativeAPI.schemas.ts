@@ -822,7 +822,6 @@ export interface CalendarEventSummary {
   start_at: string;
   end_at: string;
   all_day: boolean;
-  color: string | null;
   recurrence: EventRecurrence | null;
   id: number;
   calendar_id: number;
@@ -1059,7 +1058,6 @@ export interface CalendarEventCreate {
   start_at: string;
   end_at: string;
   all_day?: boolean;
-  color?: string | null;
   recurrence?: EventRecurrence | null;
   calendar_id: number;
   attendee_ids?: number[] | null;
@@ -1096,7 +1094,6 @@ export interface CalendarEventRead {
   start_at: string;
   end_at: string;
   all_day: boolean;
-  color: string | null;
   recurrence: EventRecurrence | null;
   id: number;
   calendar_id: number;
@@ -1122,7 +1119,6 @@ export interface CalendarEventUpdate {
   start_at?: string | null;
   end_at?: string | null;
   all_day?: boolean | null;
-  color?: string | null;
   recurrence?: EventRecurrence | null;
   calendar_id?: number | null;
 }
