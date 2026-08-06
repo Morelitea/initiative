@@ -7,12 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.60.1] - 2026-08-06
-
-### Fixed
-
-- The 0.60.0 calendar migration failed on upgraded installs ("cannot drop column initiative_id of table calendar_events") because the pre-0.60 `recent_views` row-security policies still referenced that column. The migration now drops and re-renders those policies alongside the event-table ones; deployments stuck on the failed migration start cleanly on this release with no manual intervention.
-
 ## [0.60.0] - 2026-08-05
 
 ### Changed

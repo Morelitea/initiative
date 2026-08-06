@@ -347,10 +347,8 @@ def _apply_upgrade(rls_statements: list[str]) -> None:
 
     # 5. Swap the anchor column: calendar_id becomes the identity, the direct
     #    initiative_id goes away (initiative derives via the calendar). The old
-    #    policies read initiative_id and must go first — including recent_views',
-    #    whose pre-0.60 polymorphic path has a calendar_events.initiative_id leg
-    #    (calendar_event was recentable then), so it blocks the column drop too.
-    _drop_initiative_member_policies(_EVENT_POLICY_TABLES + ("recent_views",))
+    #    policies read initiative_id and must go first.
+    _drop_initiative_member_policies(_EVENT_POLICY_TABLES)
     op.alter_column("calendar_events", "calendar_id", nullable=False)
     with op.batch_alter_table("calendar_events", schema=None) as batch_op:
         batch_op.create_index(
