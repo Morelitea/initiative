@@ -11,6 +11,7 @@ import type {
   AuthProviderAdminRead,
   AuthProviderCreate,
   AuthProviderUpdate,
+  ChangelogResponse,
   EmailSettingsResponse,
   EmailSettingsUpdate,
   FCMConfigResponse,
@@ -21,6 +22,7 @@ import type {
   OIDCClaimMappingRead,
   OIDCClaimMappingUpdate,
   OIDCClaimPathUpdate,
+  OIDCMappingOptionsResponse,
   OIDCMappingsResponse,
   OIDCSettingsResponse,
   OIDCSettingsUpdate,
@@ -80,36 +82,6 @@ import { useApiMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
-// ── Local types for untyped or loosely-typed generated responses ─────────
-
-/** Strongly-typed version of the mapping options response. */
-export interface MappingOptionItem {
-  id: number;
-  name: string;
-}
-
-export interface MappingInitiativeOption extends MappingOptionItem {
-  guild_id: number;
-}
-
-export interface MappingRoleOption extends MappingOptionItem {
-  initiative_id: number;
-  guild_id: number;
-}
-
-export interface MappingOptions {
-  guilds: MappingOptionItem[];
-  initiatives: MappingInitiativeOption[];
-  initiative_roles: MappingRoleOption[];
-}
-
-/** Changelog entry shape returned by the backend. */
-export interface ChangelogEntry {
-  version: string;
-  date: string;
-  changes: string;
-}
-
 // ── Queries ─────────────────────────────────────────────────────────────────
 
 export const useOidcSettings = (options?: QueryOpts<OIDCSettingsResponse>) => {
@@ -136,13 +108,9 @@ export const useOidcMappings = () => {
 };
 
 export const useOidcMappingOptions = () => {
-  return useQuery<MappingOptions>({
+  return useQuery<OIDCMappingOptionsResponse>({
     queryKey: getGetOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGetQueryKey(),
-    // The backend endpoint has no typed response model (plain dict), so the
-    // generated type is an index signature; the local MappingOptions interface
-    // narrows it. Remove the cast once the backend declares a response schema.
-    queryFn: () =>
-      getOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGet() as unknown as Promise<MappingOptions>,
+    queryFn: () => getOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGet(),
   });
 };
 
@@ -201,15 +169,11 @@ export const usePlatformGuilds = (options?: QueryOpts<PlatformGuildStorageRead[]
 
 export const useChangelog = (
   params: GetChangelogApiV1ChangelogGetParams,
-  options?: QueryOpts<{ entries: ChangelogEntry[] }>
+  options?: QueryOpts<ChangelogResponse>
 ) => {
-  return useQuery<{ entries: ChangelogEntry[] }>({
+  return useQuery<ChangelogResponse>({
     queryKey: getGetChangelogApiV1ChangelogGetQueryKey(params),
-    // The backend endpoint has no typed response model (plain dict); the local
-    // ChangelogEntry shape narrows it. Remove the cast once the backend
-    // declares a response schema.
-    queryFn: () =>
-      getChangelogApiV1ChangelogGet(params) as unknown as Promise<{ entries: ChangelogEntry[] }>,
+    queryFn: () => getChangelogApiV1ChangelogGet(params),
     ...options,
   });
 };

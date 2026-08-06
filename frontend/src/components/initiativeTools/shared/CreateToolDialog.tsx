@@ -195,7 +195,15 @@ export const CreateToolDialog = <TRead,>({
                 {lockedInitiative?.name ?? t("selectInitiative")}
               </div>
             ) : (
-              <Select value={selectedInitiativeId} onValueChange={setSelectedInitiativeId}>
+              <Select
+                value={selectedInitiativeId}
+                onValueChange={(value) => {
+                  setSelectedInitiativeId(value);
+                  // Access grants are initiative-scoped; a new target starts
+                  // over with default access.
+                  setGrants([...DEFAULT_GRANTS]);
+                }}
+              >
                 <SelectTrigger id={`${idPrefix}-initiative`}>
                   <SelectValue placeholder={t("selectInitiative")} />
                 </SelectTrigger>

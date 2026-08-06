@@ -260,7 +260,7 @@
     "selectInitiative": "Select an initiative",
     "lastUsed": "Last used",
     "back": "Back",
-    "noInitiatives": "No initiatives found in this guild."
+    "noInitiatives": "No initiatives here you can add documents to."
   },
   "viewer": {
     "loadError": "Unable to load document",

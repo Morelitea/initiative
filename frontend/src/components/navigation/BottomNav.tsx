@@ -17,6 +17,7 @@ import {
 import { useSidebar } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
+import { useGlobalCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useNotifications } from "@/hooks/useNotifications";
 
 const pillClass =
@@ -34,6 +35,7 @@ export function BottomNav() {
   const { setOpenMobile } = useSidebar();
   const { user } = useAuth();
   const { isCreateContext, action } = usePrimaryCreateAction();
+  const globalCreate = useGlobalCreateAccess();
 
   const notificationsQuery = useNotifications({
     refetchInterval: 30_000,
@@ -42,8 +44,11 @@ export function BottomNav() {
   const unreadCount = notificationsQuery.data?.unread_count ?? 0;
 
   // Hide the add button entirely on a create-context route where the user lacks
-  // permission. Non-create routes (no registration) fall back to the global menu.
-  const hideAdd = isCreateContext && action === null;
+  // permission. Non-create routes (no registration) fall back to the global menu,
+  // which itself hides when the user can create neither tasks nor documents in
+  // any of their guilds.
+  const canCreateGlobal = globalCreate.document || globalCreate.task;
+  const hideAdd = isCreateContext ? action === null : !canCreateGlobal;
 
   return (
     <div
@@ -112,14 +117,18 @@ export function BottomNav() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" side="top" className="mb-2">
-                <DropdownMenuItem onSelect={() => getOpenCreateTaskWizard()?.()}>
-                  <SquareCheckBig className="mr-2 h-4 w-4" />
-                  {t("bottomNav.addTask")}
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => getOpenCreateDocumentWizard()?.()}>
-                  <FilePlus className="mr-2 h-4 w-4" />
-                  {t("bottomNav.addDocument")}
-                </DropdownMenuItem>
+                {globalCreate.task && (
+                  <DropdownMenuItem onSelect={() => getOpenCreateTaskWizard()?.()}>
+                    <SquareCheckBig className="mr-2 h-4 w-4" />
+                    {t("bottomNav.addTask")}
+                  </DropdownMenuItem>
+                )}
+                {globalCreate.document && (
+                  <DropdownMenuItem onSelect={() => getOpenCreateDocumentWizard()?.()}>
+                    <FilePlus className="mr-2 h-4 w-4" />
+                    {t("bottomNav.addDocument")}
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           ))}

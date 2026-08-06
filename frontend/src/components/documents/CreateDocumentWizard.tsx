@@ -3,6 +3,7 @@ import { ChevronLeft, FileText, Loader2, Zap } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { GuildAvatar } from "@/components/guilds/GuildSidebar";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,8 +13,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
-import { useInitiativesForGuild } from "@/hooks/useInitiatives";
+import { guildMayAuthorTools, useCreatableInitiatives } from "@/hooks/useInitiativeAccess";
 import { guildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { getItem, removeItem, setItem } from "@/lib/storage";
@@ -71,7 +73,15 @@ type Step = "select-guild" | "select-initiative";
 export const CreateDocumentWizard = () => {
   const { t } = useTranslation("documents");
   const router = useRouter();
-  const { guilds } = useGuilds();
+  const { user } = useAuth();
+  const { guilds: allGuilds } = useGuilds();
+  // Only guilds the user could author a document in — drops frozen guilds and
+  // scoped PAM grants (which edit existing content but never author). The
+  // precise per-initiative call is made on the next step.
+  const guilds = useMemo(
+    () => allGuilds.filter((guild) => guildMayAuthorTools(guild, user)),
+    [allGuilds, user]
+  );
 
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>("select-guild");
@@ -104,10 +114,12 @@ export const CreateDocumentWizard = () => {
 
   // ── Data fetching ───────────────────────────────────────────────────────
 
-  const initiativesQuery = useInitiativesForGuild(
+  // Initiatives the user can actually create documents in for the selected
+  // guild — fetched lazily only once the initiative step is reached.
+  const { initiatives, isLoading: initiativesLoading } = useCreatableInitiatives(
+    Tool.document,
     step === "select-initiative" ? selectedGuildId : null
   );
-  const initiatives = useMemo(() => initiativesQuery.data ?? [], [initiativesQuery.data]);
 
   // ── Handlers ────────────────────────────────────────────────────────────
 
@@ -176,14 +188,14 @@ export const CreateDocumentWizard = () => {
     if (
       open &&
       step === "select-initiative" &&
-      !initiativesQuery.isLoading &&
+      !initiativesLoading &&
       initiatives.length === 1 &&
       autoAdvancedRef.current !== "initiative"
     ) {
       autoAdvancedRef.current = "initiative";
       handleInitiativeSelect(initiatives[0].id, initiatives[0].name);
     }
-  }, [open, step, initiatives, initiativesQuery.isLoading, handleInitiativeSelect]);
+  }, [open, step, initiatives, initiativesLoading, handleInitiativeSelect]);
 
   const handleBack = useCallback(() => {
     autoAdvancedRef.current = null;
@@ -258,7 +270,7 @@ export const CreateDocumentWizard = () => {
         {/* Step 2: Select Initiative */}
         {step === "select-initiative" && (
           <div className="space-y-2">
-            {initiativesQuery.isLoading ? (
+            {initiativesLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>

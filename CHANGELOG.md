@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Create buttons and initiative pickers for projects, documents, calendars, queues, and counter groups now consistently follow your actual per-initiative create permission. Members whose custom role grants creation see the affordances everywhere they apply, and buttons or picker entries the server would reject no longer appear.
+- The calendar page now offers event creation in the all-initiatives view when you can write to at least one calendar — the create dialog picks the target calendar, defaulting to the one you used last.
+- Platform staff acting in a guild through a scoped, time-bound access grant no longer see create buttons for new projects, documents, calendars, queues, or counter groups. Such a grant edits existing content only — the server already declined those creations, and the UI now reports the same answer instead of offering a dialog that fails on submit.
+- The global "+" quick-create for documents and tasks (the bottom-bar menu and the command palette) now follows your create permission: its items hide when you can't create the thing in any of your guilds, and the wizards list only the guilds and initiatives you can actually create in — so you no longer walk through a wizard only to be refused on submit.
 
 ## [0.59.0] - 2026-08-03
 

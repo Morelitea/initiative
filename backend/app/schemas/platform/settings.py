@@ -168,6 +168,15 @@ class EmailTestRequest(SanitizedBaseModel):
     recipient: Optional[EmailStr] = None
 
 
+class EmailTestResponse(SanitizedBaseModel):
+    """Result of a test-email send. ``status`` is ``"sent"`` on success;
+    failures surface as HTTP errors, not a status value here."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    status: str
+
+
 # --- Object storage schemas ---
 
 
@@ -263,3 +272,46 @@ class OIDCMappingsResponse(SanitizedBaseModel):
 
     claim_path: Optional[str] = None
     mappings: List[OIDCClaimMappingRead] = Field(default_factory=list)
+
+
+class OIDCClaimPathResponse(SanitizedBaseModel):
+    """The role-claim path after an update (``None`` clears it)."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    claim_path: Optional[str] = None
+
+
+# The mapping form needs every guild, initiative, and initiative role to
+# populate its target selectors. Ids collide across guild schemas, so
+# initiatives and roles carry their ``guild_id`` for the client to disambiguate.
+class OIDCMappingOptionGuild(SanitizedBaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: int
+    name: str
+
+
+class OIDCMappingOptionInitiative(SanitizedBaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: int
+    name: str
+    guild_id: int
+
+
+class OIDCMappingOptionRole(SanitizedBaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: int
+    name: str
+    initiative_id: int
+    guild_id: int
+
+
+class OIDCMappingOptionsResponse(SanitizedBaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    guilds: List[OIDCMappingOptionGuild] = Field(default_factory=list)
+    initiatives: List[OIDCMappingOptionInitiative] = Field(default_factory=list)
+    initiative_roles: List[OIDCMappingOptionRole] = Field(default_factory=list)

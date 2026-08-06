@@ -1179,6 +1179,23 @@ export interface CalendarUpdate {
   color?: string | null;
 }
 
+/**
+ * One parsed ``## [version] - date`` section of CHANGELOG.md.
+ */
+export interface ChangelogEntry {
+  version: string;
+  date: string;
+  changes: string;
+}
+
+/**
+ * The `/changelog` payload: the most recent N entries (or a single
+ * requested version).
+ */
+export interface ChangelogResponse {
+  entries: ChangelogEntry[];
+}
+
 export interface CommentAuthor {
   id: number;
   email: string;
@@ -1664,6 +1681,14 @@ export interface EmailSettingsUpdate {
 
 export interface EmailTestRequest {
   recipient?: string | null;
+}
+
+/**
+ * Result of a test-email send. ``status`` is ``"sent"`` on success;
+ * failures surface as HTTP errors, not a status value here.
+ */
+export interface EmailTestResponse {
+  status: string;
 }
 
 export type EnvelopeImportRequestEnvelope = { [key: string]: unknown };
@@ -2403,8 +2428,39 @@ export interface OIDCClaimMappingUpdate {
   initiative_role_id?: number | null;
 }
 
+/**
+ * The role-claim path after an update (``None`` clears it).
+ */
+export interface OIDCClaimPathResponse {
+  claim_path: string | null;
+}
+
 export interface OIDCClaimPathUpdate {
   claim_path?: string | null;
+}
+
+export interface OIDCMappingOptionGuild {
+  id: number;
+  name: string;
+}
+
+export interface OIDCMappingOptionInitiative {
+  id: number;
+  name: string;
+  guild_id: number;
+}
+
+export interface OIDCMappingOptionRole {
+  id: number;
+  name: string;
+  initiative_id: number;
+  guild_id: number;
+}
+
+export interface OIDCMappingOptionsResponse {
+  guilds: OIDCMappingOptionGuild[];
+  initiatives: OIDCMappingOptionInitiative[];
+  initiative_roles: OIDCMappingOptionRole[];
 }
 
 export interface OIDCMappingsResponse {
@@ -3038,6 +3094,14 @@ export interface RestoreNeedsReassignmentResponse {
 
 export interface RestoreRequest {
   new_owner_id?: number | null;
+}
+
+/**
+ * 200 payload for a successful restore. The needs-reassignment case is a
+ * 409 with :class:`RestoreNeedsReassignmentResponse` instead.
+ */
+export interface RestoreResponse {
+  restored: boolean;
 }
 
 export type StorageBackfillStatusResponseStatus =
@@ -4105,12 +4169,6 @@ export type GetChangelogApiV1ChangelogGetParams = {
   limit?: number;
 };
 
-export type GetChangelogApiV1ChangelogGet200Item = { [key: string]: unknown };
-
-export type GetChangelogApiV1ChangelogGet200 = {
-  [key: string]: GetChangelogApiV1ChangelogGet200Item[];
-};
-
 export type GetBundleManifestApiV1NativeBundleManifestGet200 = { [key: string]: unknown };
 
 export type RegisterUserApiV1AuthRegisterPostParams = {
@@ -4186,16 +4244,6 @@ export type ListAccessGrantsApiV1AccessGrantsGetParams = {
    * @minimum 0
    */
   offset?: number;
-};
-
-export type SendTestEmailApiV1SettingsEmailTestPost200 = { [key: string]: unknown };
-
-export type UpdateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut200 = {
-  [key: string]: unknown;
-};
-
-export type GetOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGet200 = {
-  [key: string]: unknown;
 };
 
 export type ListNotificationsApiV1NotificationsGetParams = {

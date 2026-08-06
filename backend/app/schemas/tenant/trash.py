@@ -55,6 +55,15 @@ class RestoreRequest(SanitizedBaseModel):
     new_owner_id: Optional[int] = None
 
 
+class RestoreResponse(SanitizedBaseModel):
+    """200 payload for a successful restore. The needs-reassignment case is a
+    409 with :class:`RestoreNeedsReassignmentResponse` instead."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    restored: bool
+
+
 class RestoreOwnerCandidate(SanitizedBaseModel):
     """A user eligible to become the restored entity's owner. Carries the
     display name so the picker needn't fetch the whole guild roster."""

@@ -150,7 +150,15 @@ export const CreateCalendarDialog = ({
           {initiativeId === undefined && (
             <div className="space-y-2">
               <Label htmlFor="create-calendar-initiative">{t("initiative")}</Label>
-              <Select value={selectedInitiativeId} onValueChange={setSelectedInitiativeId}>
+              <Select
+                value={selectedInitiativeId}
+                onValueChange={(value) => {
+                  setSelectedInitiativeId(value);
+                  // Access grants are initiative-scoped (member/role
+                  // principals); a new target starts over with default access.
+                  setGrants([...DEFAULT_GRANTS]);
+                }}
+              >
                 <SelectTrigger id="create-calendar-initiative">
                   <SelectValue placeholder={t("selectInitiative")} />
                 </SelectTrigger>
