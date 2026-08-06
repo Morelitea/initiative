@@ -7,6 +7,7 @@ from pydantic import ConfigDict, Field
 
 from app.schemas.base import SanitizedBaseModel
 
+from app.models.tenant.calendar import DEFAULT_CALENDAR_COLOR
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary, tag_summaries
 
@@ -17,9 +18,9 @@ if TYPE_CHECKING:  # pragma: no cover
 class CalendarBase(SanitizedBaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
-    # Default display color for the calendar's events; an event's own color
-    # overrides it.
-    color: Optional[str] = Field(default=None, max_length=32)
+    # The calendar's display color — its events render in it. Every calendar
+    # has one: creates default it, and the column is NOT NULL.
+    color: str = Field(default=DEFAULT_CALENDAR_COLOR, max_length=32)
 
 
 class CalendarCreate(CalendarBase):
@@ -37,7 +38,8 @@ class CalendarCreate(CalendarBase):
 class CalendarUpdate(SanitizedBaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=255)
     description: Optional[str] = None
-    color: Optional[str] = Field(default=None, max_length=32)
+    # Absent = unchanged; a null is rejected (a calendar always has a color).
+    color: Optional[str] = Field(default=None, min_length=1, max_length=32)
 
 
 class CalendarSummary(CalendarBase):

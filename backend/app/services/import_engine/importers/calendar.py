@@ -18,7 +18,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.user import User
-from app.models.tenant.calendar import Calendar
+from app.models.tenant.calendar import DEFAULT_CALENDAR_COLOR, Calendar
 from app.models.tenant.calendar_event import (
     CalendarEvent,
     CalendarEventAttendee,
@@ -83,7 +83,7 @@ class CalendarImporter:
         calendar = Calendar(
             name=unique_name(existing_names, env.name),
             description=env.description,
-            color=env.color,
+            color=env.color or DEFAULT_CALENDAR_COLOR,
             initiative_id=target_initiative.id,
             guild_id=guild_id,
             created_by_id=importer.id,

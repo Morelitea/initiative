@@ -295,7 +295,7 @@ async def update_calendar(
     if "description" in update_data:
         calendar.description = update_data["description"]
         updated = True
-    if "color" in update_data:
+    if "color" in update_data and update_data["color"] is not None:
         calendar.color = update_data["color"]
         updated = True
 

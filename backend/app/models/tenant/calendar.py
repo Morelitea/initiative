@@ -15,13 +15,16 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.tag import Tag
 
 
+DEFAULT_CALENDAR_COLOR = "#6366f1"
+
+
 class Calendar(SoftDeleteMixin, table=True):
     """Initiative-scoped calendar — the shareable container for events.
 
     A calendar is to events what a project is to tasks: DAC grants attach to
     the calendar (``resource_type='calendar'``) and events inherit access from
-    it. ``color`` is the default display color for its events; an event's own
-    ``color`` overrides it.
+    it. ``color`` is the display color for the calendar and its events, and
+    every calendar has one — NOT NULL, defaulted at the schema layer.
     """
 
     __tablename__ = "calendars"
@@ -34,9 +37,11 @@ class Calendar(SoftDeleteMixin, table=True):
     description: Optional[str] = Field(
         default=None, sa_column=Column(Text, nullable=True)
     )
-    color: Optional[str] = Field(
-        default=None,
-        sa_column=Column(String(length=32), nullable=True),
+    color: str = Field(
+        default=DEFAULT_CALENDAR_COLOR,
+        sa_column=Column(
+            String(length=32), nullable=False, server_default=DEFAULT_CALENDAR_COLOR
+        ),
     )
     created_by_id: int = Field(foreign_key="users.id", nullable=False)
     created_at: datetime = Field(
