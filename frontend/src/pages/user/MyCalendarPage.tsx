@@ -330,7 +330,12 @@ export const MyCalendarPage = () => {
     [t]
   );
 
-  const isLoading = entriesQuery.isLoading && !entriesQuery.data;
+  // Wait for the calendars metadata too (same gate as the guild page):
+  // entries rendered before it resolves would flash the generic event color
+  // until each calendar's own color arrives.
+  const isLoading =
+    (entriesQuery.isLoading && !entriesQuery.data) ||
+    (calendarsQuery.isLoading && !calendarsQuery.data);
 
   const handleExport = useCallback(async () => {
     try {
