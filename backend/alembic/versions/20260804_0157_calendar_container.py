@@ -432,8 +432,10 @@ def _apply_downgrade() -> None:
         )
 
     # The current policies read calendar_id (and join calendars, blocking its
-    # DROP TABLE below) and must go first.
-    _drop_initiative_member_policies(_EVENT_POLICY_TABLES)
+    # DROP TABLE below) and must go first. recent_views' policy resolves a
+    # recent's initiative through the recentable entity tables — calendars
+    # among them — so it blocks the table drop too.
+    _drop_initiative_member_policies(_EVENT_POLICY_TABLES + ("recent_views",))
     op.alter_column("calendar_events", "initiative_id", nullable=False)
     with op.batch_alter_table("calendar_events", schema=None) as batch_op:
         batch_op.create_index(
