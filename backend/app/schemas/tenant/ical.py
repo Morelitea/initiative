@@ -26,7 +26,7 @@ class ICalParseRequest(SanitizedBaseModel):
 
 
 class ICalImportRequest(SanitizedBaseModel):
-    initiative_id: int
+    calendar_id: int
     ics_content: RawTextStr = Field(..., max_length=2_000_000)
 
 

@@ -54,9 +54,9 @@
   "advancedTools": "Advanced Tools",
   "createAdvancedTool": "New Advanced Tool",
   "createExternally": "Created in {{name}}",
-  "calendarEvents": "Calendar",
+  "calendars": "Calendar",
   "allCalendarEvents": "All Events",
-  "createCalendarEvent": "New Event",
+  "createCalendar": "New Calendar",
   "bottomNav": {
     "label": "Quick navigation",
     "menu": "Open menu",

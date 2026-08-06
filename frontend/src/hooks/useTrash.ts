@@ -18,6 +18,7 @@ import {
 import {
   invalidateAllAdvancedTools,
   invalidateAllCalendarEvents,
+  invalidateAllCalendars,
   invalidateAllComments,
   invalidateAllCounterGroups,
   invalidateAllDocuments,
@@ -75,6 +76,7 @@ const ENTITY_INVALIDATORS: Record<TrashItemEntityType, () => unknown> = {
   tag: invalidateAllTags,
   queue: invalidateAllQueues,
   queue_item: invalidateAllQueues,
+  calendar: invalidateAllCalendars,
   calendar_event: invalidateAllCalendarEvents,
   counter_group: invalidateAllCounterGroups,
   counter: invalidateAllCounterGroups,

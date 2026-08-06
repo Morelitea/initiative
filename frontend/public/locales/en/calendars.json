@@ -110,6 +110,26 @@
     "eventsFailed_one": "{{count}} event failed",
     "eventsFailed_other": "{{count}} events failed",
     "importSuccess": "Import complete!",
-    "importError": "Import failed"
+    "importError": "Import failed",
+    "selectCalendar": "Select calendar"
+  },
+  "calendar": "Calendar",
+  "selectCalendar": "Select calendar",
+  "createCalendar": "New Calendar",
+  "calendarName": "Calendar name",
+  "calendarNamePlaceholder": "e.g. Team Schedule",
+  "calendarDescriptionPlaceholder": "What is this calendar for?",
+  "calendarColor": "Color",
+  "calendarDeleted": "Calendar deleted",
+  "calendarNotFound": "Calendar not found",
+  "backToCalendar": "Back to calendar",
+  "calendarDangerZoneDescription": "Deleting a calendar moves it and all of its events to the trash.",
+  "deleteCalendar": "Delete Calendar",
+  "deleteCalendarConfirm": "Delete this calendar? All of its events go with it.",
+  "panel": {
+    "myCalendars": "My calendars",
+    "noCalendars": "No calendars yet",
+    "projectTasks": "Project tasks",
+    "calendarSettings": "Settings for {{name}}"
   }
 }

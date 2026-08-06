@@ -48,9 +48,9 @@
   "queues": "Colas",
   "allQueues": "Todas las colas",
   "createQueue": "Nueva cola",
-  "calendarEvents": "Calendario",
+  "calendars": "Calendario",
   "allCalendarEvents": "Todos los eventos",
-  "createCalendarEvent": "Nuevo evento",
+  "createCalendar": "Nuevo calendario",
   "bottomNav": {
     "label": "Navegación rápida",
     "menu": "Abrir menú",

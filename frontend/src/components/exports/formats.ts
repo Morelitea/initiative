@@ -86,9 +86,9 @@ export const TOOL_EXPORT_FORMATS: Partial<Record<Tool, ExportFormatOption[]>> = 
     { format: "md", labelKey: "export.formatMd" },
     { format: "json", labelKey: "export.formatJson" },
   ],
-  [Tool.calendar_event]: [
-    // One combined calendar per export: standard iCalendar, or the
-    // importable envelope.
+  [Tool.calendar]: [
+    // One combined file per calendar: standard iCalendar, or the importable
+    // envelope carrying the calendar and its events.
     { format: "ics", labelKey: "export.formatIcs" },
     { format: "json", labelKey: "export.formatJson" },
   ],
@@ -126,7 +126,7 @@ export const REPORT_TOOL_FORMATS: Partial<Record<Tool, ExportFormatOption[]>> = 
     { format: "xlsx", labelKey: "export.formatXlsx" },
     { format: "md", labelKey: "export.formatMarkdown" },
   ],
-  [Tool.calendar_event]: [
+  [Tool.calendar]: [
     { format: "ics", labelKey: "export.formatIcs" },
     { format: "json", labelKey: "export.formatJson" },
   ],

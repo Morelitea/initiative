@@ -1,6 +1,8 @@
-"""``initiative-calendar-events`` importer: one envelope holds a whole
-calendar. Events apply in per-event savepoints (the ICS import's partial-
-success pattern) — a malformed event fails alone, never the batch.
+"""``initiative-calendar`` importer: one envelope holds a whole calendar —
+the calendar row (the shareable container) plus its events. The importer
+becomes the calendar's owner; events apply in per-event savepoints (the ICS
+import's partial-success pattern) so a malformed event fails alone, never the
+batch.
 
 Attendees resolve by email against the target initiative's members; the
 matched keep their RSVP, the unmatched are reported. Linked document titles
@@ -12,9 +14,11 @@ import json
 from typing import Any
 
 from pydantic import BaseModel
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.user import User
+from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import (
     CalendarEvent,
     CalendarEventAttendee,
@@ -23,36 +27,34 @@ from app.models.tenant.calendar_event import (
 )
 from app.models.tenant.initiative import Initiative, PermissionKey
 from app.models.tenant.property import CalendarEventPropertyValue
+from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.schemas.tenant.import_envelopes import (
-    CalendarEventsEnvelope,
+    CalendarEnvelope,
     EventEnvelopeItem,
 )
 from app.services.import_engine.common import (
     ensure_tag,
     load_initiative_member_emails,
     parse_datetime,
+    unique_name,
 )
-from app.services.import_engine.contract import (
-    EnvelopeImportResult,
-    ImportEngineError,
-)
+from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.importers._base import (
     parse_envelope,
     resolve_property_values,
 )
-from app.core.messages import ImportEngineMessages
 
 
-class CalendarEventsImporter:
-    envelope_type = "initiative-calendar-events"
-    permission = PermissionKey.create_calendar_events
+class CalendarImporter:
+    envelope_type = "initiative-calendar"
+    permission = PermissionKey.create_calendars
 
     def validate(self, envelope: dict[str, Any]) -> BaseModel:
-        return parse_envelope(CalendarEventsEnvelope, envelope)
+        return parse_envelope(CalendarEnvelope, envelope)
 
     def count(self, validated: BaseModel) -> int:
-        envelope: CalendarEventsEnvelope = validated  # ty: ignore[invalid-assignment] — validate() returned this model
-        return len(envelope.events)
+        envelope: CalendarEnvelope = validated  # ty: ignore[invalid-assignment] — validate() returned this model
+        return len(envelope.events) + 1
 
     async def apply(
         self,
@@ -62,10 +64,43 @@ class CalendarEventsImporter:
         target_initiative: Initiative,
         importer: User,
     ) -> EnvelopeImportResult:
-        env: CalendarEventsEnvelope = envelope  # ty: ignore[invalid-assignment] — validate() returned this model
+        env: CalendarEnvelope = envelope  # ty: ignore[invalid-assignment] — validate() returned this model
         guild_id = target_initiative.guild_id
         member_emails = await load_initiative_member_emails(
             session, initiative_id=target_initiative.id
+        )
+
+        existing_names = {
+            row
+            for row in (
+                await session.exec(
+                    select(Calendar.name).where(
+                        Calendar.initiative_id == target_initiative.id
+                    )
+                )
+            ).all()
+        }
+        calendar = Calendar(
+            name=unique_name(existing_names, env.name),
+            description=env.description,
+            color=env.color,
+            initiative_id=target_initiative.id,
+            guild_id=guild_id,
+            created_by_id=importer.id,
+        )
+        session.add(calendar)
+        await session.flush()
+
+        session.add(
+            ResourceGrant(
+                resource_type="calendar",
+                resource_id=calendar.id,
+                user_id=importer.id,
+                role_id=None,
+                level=ResourceAccessLevel.owner,
+                guild_id=guild_id,
+                initiative_id=target_initiative.id,
+            )
         )
 
         created = 0
@@ -84,7 +119,8 @@ class CalendarEventsImporter:
                     counts = await self._apply_event(
                         session,
                         item=item,
-                        initiative=target_initiative,
+                        calendar_id=calendar.id,
+                        initiative_id=target_initiative.id,
                         guild_id=guild_id,
                         importer=importer,
                         member_emails=member_emails,
@@ -101,15 +137,12 @@ class CalendarEventsImporter:
             props_matched += counts["props_matched"]
             attendees_matched += counts["attendees_matched"]
 
-        if created == 0 and env.events:
-            # Nothing survived — the envelope is effectively unimportable.
-            raise ImportEngineError(ImportEngineMessages.IMPORT_APPLY_FAILED)
-
         await session.flush()
         return EnvelopeImportResult(
-            entity_id=target_initiative.id,
-            entity_title=f"{created} events",
+            entity_id=calendar.id,
+            entity_title=calendar.name,
             created={
+                "calendars": 1,
                 "events": created,
                 "tags": tags_created,
                 "properties": props_created,
@@ -129,7 +162,8 @@ class CalendarEventsImporter:
         session: AsyncSession,
         *,
         item: EventEnvelopeItem,
-        initiative: Initiative,
+        calendar_id: int,
+        initiative_id: int,
         guild_id: int,
         importer: User,
         member_emails: dict[str, int],
@@ -140,7 +174,7 @@ class CalendarEventsImporter:
         if start_at is None or end_at is None:
             raise ValueError("unparseable event times")
         event = CalendarEvent(
-            initiative_id=initiative.id,
+            calendar_id=calendar_id,
             guild_id=guild_id,
             title=item.title,
             description=item.description,
@@ -197,7 +231,7 @@ class CalendarEventsImporter:
 
         attached = await resolve_property_values(
             session,
-            initiative_id=initiative.id,
+            initiative_id=initiative_id,
             values=item.properties,
             member_emails=member_emails,
         )

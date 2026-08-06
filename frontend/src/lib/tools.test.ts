@@ -260,8 +260,8 @@ describe("tool imports", () => {
     for (const tool of IMPORTABLE_TOOLS) {
       expect(toolForEnvelopeType(toolEnvelopeType(tool))).toBe(tool);
     }
-    // Calendar events are the plural exception; a backup type maps to no tool.
-    expect(toolEnvelopeType(Tool.calendar_event)).toBe("initiative-calendar-events");
+    // Every type is the kebab-singular now; a backup type maps to no tool.
+    expect(toolEnvelopeType(Tool.calendar)).toBe("initiative-calendar");
     expect(toolForEnvelopeType("initiative-backup")).toBeNull();
   });
 });

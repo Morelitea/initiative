@@ -38,6 +38,7 @@ from app.services.notifications import (
 )
 from app.models.platform.guild import Guild, GuildRole
 from app.testing import (
+    create_calendar,
     create_calendar_event,
     create_guild,
     create_guild_membership,
@@ -59,11 +60,12 @@ async def _dispatch(session: AsyncSession) -> None:
 async def _events_initiative(session: AsyncSession, creator):
     guild = await create_guild(session)
     initiative = await create_initiative(session, guild, creator, name="Reminders")
-    initiative.calendar_events_enabled = True
+    initiative.calendars_enabled = True
     session.add(initiative)
     await session.commit()
     await session.refresh(initiative)
-    return guild, initiative
+    calendar = await create_calendar(session, initiative, creator)
+    return guild, initiative, calendar
 
 
 async def _add_attendee(session, initiative, event, user, *, rsvp=RSVPStatus.pending):
@@ -101,7 +103,7 @@ def _unsaved_event(
     """In-memory event for the pure-unit formatting tests (never persisted)."""
     return CalendarEvent(
         guild_id=1,
-        initiative_id=1,
+        calendar_id=1,
         created_by_id=1,
         title=title,
         start_at=start_at,
@@ -170,12 +172,12 @@ async def test_event_reminder_fires_once_within_lead_window(
     attendee = await create_user(
         session, email="attendee@example.com", event_reminder_minutes_before=15
     )
-    guild, initiative = await _events_initiative(session, creator)
+    guild, initiative, calendar = await _events_initiative(session, creator)
     # Starts in 10 min; with a 15-min lead the reminder is already due.
     start_at = datetime.now(timezone.utc) + timedelta(minutes=10)
     event = await create_calendar_event(
         session,
-        initiative,
+        calendar,
         creator,
         title="Standup",
         start_at=start_at,
@@ -209,11 +211,11 @@ async def test_event_reminder_skipped_when_lead_time_off(session: AsyncSession):
     attendee.event_reminder_minutes_before = None
     session.add(attendee)
     await session.commit()
-    _, initiative = await _events_initiative(session, creator)
+    _, initiative, calendar = await _events_initiative(session, creator)
     start_at = datetime.now(timezone.utc) + timedelta(minutes=10)
     event = await create_calendar_event(
         session,
-        initiative,
+        calendar,
         creator,
         title="Sync",
         start_at=start_at,
@@ -231,12 +233,12 @@ async def test_event_reminder_not_due_when_outside_lead_window(session: AsyncSes
     attendee = await create_user(
         session, email="attendee3@example.com", event_reminder_minutes_before=15
     )
-    _, initiative = await _events_initiative(session, creator)
+    _, initiative, calendar = await _events_initiative(session, creator)
     # Starts in 2 hours; a 15-min lead means the reminder is not yet due.
     start_at = datetime.now(timezone.utc) + timedelta(hours=2)
     event = await create_calendar_event(
         session,
-        initiative,
+        calendar,
         creator,
         title="Later",
         start_at=start_at,
@@ -254,12 +256,12 @@ async def test_event_reminder_at_time_of_event_fires_at_start(session: AsyncSess
     attendee = await create_user(
         session, email="attendee5@example.com", event_reminder_minutes_before=0
     )
-    _, initiative = await _events_initiative(session, creator)
+    _, initiative, calendar = await _events_initiative(session, creator)
     # Just started (within the grace window); a 0-minute lead is due now.
     start_at = datetime.now(timezone.utc) - timedelta(seconds=30)
     event = await create_calendar_event(
         session,
-        initiative,
+        calendar,
         creator,
         title="Now",
         start_at=start_at,
@@ -277,11 +279,11 @@ async def test_event_reminder_skips_declined_attendees(session: AsyncSession):
     attendee = await create_user(
         session, email="attendee4@example.com", event_reminder_minutes_before=15
     )
-    _, initiative = await _events_initiative(session, creator)
+    _, initiative, calendar = await _events_initiative(session, creator)
     start_at = datetime.now(timezone.utc) + timedelta(minutes=10)
     event = await create_calendar_event(
         session,
-        initiative,
+        calendar,
         creator,
         title="Optional",
         start_at=start_at,
@@ -499,15 +501,16 @@ async def test_event_reminders_fire_across_a_users_guilds(session: AsyncSession)
         creator = await create_user(session, email=f"organizer-{label}@example.com")
         guild = await create_guild(session, creator=creator)
         initiative = await create_initiative(session, guild, creator, name=label)
-        initiative.calendar_events_enabled = True
+        initiative.calendars_enabled = True
         session.add(initiative)
         await session.commit()
         await session.refresh(initiative)
+        calendar = await create_calendar(session, initiative, creator)
         # Starts in 10 min; with the attendee's 15-min lead the reminder is due.
         start_at = datetime.now(timezone.utc) + timedelta(minutes=10)
         event = await create_calendar_event(
             session,
-            initiative,
+            calendar,
             creator,
             title=f"{label} Standup",
             start_at=start_at,

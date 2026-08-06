@@ -54,9 +54,9 @@ export interface ToolDef {
    */
   core: boolean;
   /**
-   * Sidebar count badge + count query. Calendar events deliberately have
-   * none (a total event count is time-window-dependent and meaningless);
-   * the advanced tool renders as a single link, not a counted collection.
+   * Sidebar count badge + count query. Calendars deliberately have none
+   * (the calendar page is one view, not a counted collection); the advanced
+   * tool renders as a single link, not a counted collection.
    */
   sidebarCount: boolean;
   /**
@@ -83,9 +83,9 @@ export interface ToolDef {
   inAppCreate: boolean;
   /**
    * Has an export-engine source: single-entity export plus bulk selection
-   * export (`{tool}_ids` selectors; calendar events export as one combined
-   * calendar rather than per-entity files). Intentional gap: the advanced
-   * tool (its content lives in the external service).
+   * export (`{tool}_ids` selectors; a calendar exports as one combined
+   * file carrying its events). Intentional gap: the advanced tool (its
+   * content lives in the external service).
    */
   bulkExport: boolean;
   /** Has an import surface: a JSON envelope of this type can be imported
@@ -143,14 +143,14 @@ export const TOOL_REGISTRY: Record<Tool, ToolDef> = {
     bulkExport: true,
     importable: true,
   },
-  [Tool.calendar_event]: {
+  [Tool.calendar]: {
     icon: CalendarDays,
     core: false,
     sidebarCount: false,
     recents: true,
     commandPalette: true,
     notifications: true,
-    personalRoute: "/my-calendar-events",
+    personalRoute: "/my-calendar",
     inAppCreate: true,
     bulkExport: true,
     importable: true,
@@ -189,7 +189,7 @@ export const IMPORTABLE_TOOLS = TOOLS.filter((t) => TOOL_REGISTRY[t].importable)
  */
 export const SIDEBAR_TOOLS: Tool[] = [
   Tool.advanced_tool,
-  Tool.calendar_event,
+  Tool.calendar,
   Tool.document,
   Tool.queue,
   Tool.counter_group,
@@ -229,12 +229,8 @@ export const toolExportEndpoint = (tool: Tool): string => `/exports/${tool.repla
 export const toolExportIdParam = (tool: Tool): string => `${tool}_id`;
 
 /** The envelope ``type`` discriminator a tool's single-entity export emits —
- * the same value its importer registers under. Calendar events export as one
- * combined (plural) envelope; every other tool is the kebab-singular. */
-export const toolEnvelopeType = (tool: Tool): string =>
-  tool === Tool.calendar_event
-    ? "initiative-calendar-events"
-    : `initiative-${tool.replaceAll("_", "-")}`;
+ * the same value its importer registers under: the kebab-singular. */
+export const toolEnvelopeType = (tool: Tool): string => `initiative-${tool.replaceAll("_", "-")}`;
 
 /** Inverse of {@link toolEnvelopeType}: which tool an envelope belongs to,
  * or null for an unknown/backup type. */

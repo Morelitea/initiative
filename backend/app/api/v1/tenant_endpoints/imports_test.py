@@ -247,31 +247,42 @@ async def test_envelope_import_roundtrips_document_types(client, acting_user, se
     assert by_title["Spec"].content == {"url": "https://example.com/spec"}
 
 
-async def test_envelope_import_roundtrips_calendar_events(client, acting_user, session):
+async def test_envelope_import_roundtrips_calendar(client, acting_user, session):
     from sqlmodel import select
 
+    from app.models.tenant.calendar import Calendar
     from app.models.tenant.calendar_event import CalendarEvent, CalendarEventAttendee
+    from app.testing.factories import create_calendar
 
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    a.initiative.calendar_events_enabled = True
+    a.initiative.calendars_enabled = True
     session.add(a.initiative)
     await session.commit()
-    await create_calendar_event(session, a.initiative, a.user, title="Session Zero")
-    await create_calendar_event(session, a.initiative, a.user, title="One-shot")
+    calendar = await create_calendar(session, a.initiative, a.user, name="Raid Nights")
+    await create_calendar_event(session, calendar, a.user, title="Session Zero")
+    await create_calendar_event(session, calendar, a.user, title="One-shot")
 
     envelope = await _export_json(
-        client, a, "/exports/calendar-event", {"initiative_id": a.initiative.id}
+        client, a, "/exports/calendar", {"initiative_id": a.initiative.id}
     )
-    assert envelope["type"] == "initiative-calendar-events"
+    assert envelope["type"] == "initiative-calendar"
 
-    target = await _second_initiative(session, a, calendar_events_enabled=True)
+    target = await _second_initiative(session, a, calendars_enabled=True)
     resp = await _import_envelope(client, a, envelope, target.id)
     assert resp.status_code == 201, resp.text
-    assert resp.json()["result"]["created"]["events"] == 2
+    created = resp.json()["result"]["created"]
+    assert created["calendars"] == 1
+    assert created["events"] == 2
 
+    imported_calendar = (
+        await session.exec(select(Calendar).where(Calendar.initiative_id == target.id))
+    ).one()
+    assert imported_calendar.name == "Raid Nights"
     imported = list(
         await session.exec(
-            select(CalendarEvent).where(CalendarEvent.initiative_id == target.id)
+            select(CalendarEvent).where(
+                CalendarEvent.calendar_id == imported_calendar.id
+            )
         )
     )
     assert {e.title for e in imported} == {"Session Zero", "One-shot"}

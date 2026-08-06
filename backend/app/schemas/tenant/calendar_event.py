@@ -9,7 +9,6 @@ from app.schemas.base import RawTextStr, SanitizedBaseModel
 
 from app.models.tenant.calendar_event import RSVPStatus
 from app.schemas.tenant.property import PropertySummary
-from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary, tag_summaries
 from app.schemas.platform.user import UserPublic
 
@@ -96,17 +95,10 @@ class CalendarEventBase(SanitizedBaseModel):
 
 
 class CalendarEventCreate(CalendarEventBase):
-    initiative_id: int
+    calendar_id: int
     attendee_ids: Optional[List[int]] = None
     tag_ids: Optional[List[int]] = None
     document_ids: Optional[List[int]] = None
-    # Initial sharing — the same grant list the PUT /grants endpoint takes.
-    # Defaults to Viewer for all initiative members.
-    grants: List[ResourceGrantSchema] = Field(
-        default_factory=lambda: [
-            ResourceGrantSchema(all_initiative_members=True, level="read")
-        ]
-    )
 
 
 class CalendarEventUpdate(SanitizedBaseModel):
@@ -118,6 +110,8 @@ class CalendarEventUpdate(SanitizedBaseModel):
     all_day: Optional[bool] = None
     color: Optional[str] = None
     recurrence: Optional[EventRecurrence] = None
+    # Move the event to another calendar (requires write on both calendars).
+    calendar_id: Optional[int] = None
 
 
 class CalendarEventAttendeePreview(SanitizedBaseModel):
@@ -145,6 +139,9 @@ class CalendarEventSummary(CalendarEventBase):
     )
 
     id: int
+    calendar_id: int
+    # Derived from the parent calendar — kept on the summary so list views can
+    # filter/group by initiative without another fetch.
     initiative_id: int
     guild_id: int
     created_by_id: int
@@ -153,9 +150,8 @@ class CalendarEventSummary(CalendarEventBase):
     attendee_previews: List[CalendarEventAttendeePreview] = Field(default_factory=list)
     property_values: List[PropertySummary] = Field(default_factory=list)
     tags: List[TagSummary] = Field(default_factory=list)
-    # The full sharing state — every resource_grants row for this event.
-    grants: List[ResourceGrantSchema] = Field(default_factory=list)
-    # The current user's effective level on this event (what *I* can do).
+    # The current user's effective level on this event — inherited from the
+    # parent calendar's sharing (events hold no grants of their own).
     my_permission_level: Optional[str] = None
     created_at: datetime
     updated_at: datetime
@@ -243,14 +239,14 @@ def serialize_calendar_event_summary(
     event: "CalendarEvent", *, user_id: Optional[int] = None
 ) -> CalendarEventSummary:
     # Local import avoids a schema -> service import cycle.
-    from app.services.permissions import (
-        compute_calendar_event_permission,
-        serialize_grants,
-    )
+    from app.services.permissions import compute_calendar_permission
 
+    # Access is inherited from the parent calendar; requires ``event.calendar``
+    # (with grants + initiative.memberships) eager-loaded.
+    calendar = event.calendar
     my_permission_level = (
-        compute_calendar_event_permission(event, user_id)
-        if user_id is not None
+        compute_calendar_permission(calendar, user_id)
+        if user_id is not None and calendar is not None
         else None
     )
     attendees_list = getattr(event, "attendees", None) or []
@@ -279,7 +275,8 @@ def serialize_calendar_event_summary(
         all_day=event.all_day,
         color=event.color,
         recurrence=_parse_recurrence(event),
-        initiative_id=event.initiative_id,
+        calendar_id=event.calendar_id,
+        initiative_id=calendar.initiative_id if calendar is not None else 0,
         guild_id=event.guild_id,
         created_by_id=event.created_by_id,
         attendee_count=len(attendees_list),
@@ -287,7 +284,6 @@ def serialize_calendar_event_summary(
         attendee_previews=previews,
         property_values=_serialize_event_properties(event),
         tags=tag_summaries(getattr(event, "tag_links", None)),
-        grants=serialize_grants(event),
         my_permission_level=my_permission_level,
         created_at=event.created_at,
         updated_at=event.updated_at,

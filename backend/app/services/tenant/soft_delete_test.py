@@ -256,6 +256,7 @@ async def test_restrictive_delete_policy_exists_on_each_soft_delete_table(
         "tags",
         "queues",
         "queue_items",
+        "calendars",
         "calendar_events",
     }
     result = await session.exec(

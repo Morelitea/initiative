@@ -294,40 +294,42 @@ async def export_counter_group(
     return _job_response(result, status_code=status.HTTP_202_ACCEPTED)
 
 
-@router.get("/calendar-event", response_model=None)
-async def export_calendar_events(
+@router.get("/calendar", response_model=None)
+async def export_calendars(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-    calendar_event_id: Optional[int] = Query(default=None),
-    calendar_event_ids: Optional[list[int]] = Query(
-        default=None, description="Bulk selection of events"
+    calendar_id: Optional[int] = Query(default=None),
+    calendar_ids: Optional[list[int]] = Query(
+        default=None, description="Bulk selection of calendars"
     ),
     initiative_id: Optional[int] = Query(
         default=None,
-        description="All exportable events in this initiative (ignored when ids given)",
+        description=(
+            "All exportable calendars in this initiative (ignored when ids given)"
+        ),
     ),
     format: Literal["ics", "json"] = Query(default="ics"),
     tz: Optional[str] = Query(
         default=None, max_length=64, description="IANA timezone for report timestamps"
     ),
 ) -> Union[Response, JSONResponse]:
-    """Export calendar events: ``ics`` is one iCalendar file (RRULE and
-    attendee RSVPs preserved); ``json`` is one importable envelope holding
-    every event. With no ids and no initiative, every event visible to the
-    caller in the guild exports — per-event sharing applies throughout. Read
-    access suffices. Small exports return the file inline; large ones return
-    ``202`` with a queued job to poll and download."""
+    """Export calendars: ``ics`` is one iCalendar file per calendar (RRULE and
+    attendee RSVPs preserved); ``json`` is one importable envelope per
+    calendar holding its events. With no ids and no initiative, every calendar
+    visible to the caller in the guild exports — calendar sharing applies
+    throughout. Read access suffices. Small exports return the file inline;
+    large ones return ``202`` with a queued job to poll and download."""
     try:
         result = await start_export(
             session,
             user=current_user,
             guild_id=guild_context.guild_id,
-            source="calendar-event",
+            source="calendar",
             format=format,
             params={
-                "calendar_event_id": calendar_event_id,
-                "calendar_event_ids": calendar_event_ids,
+                "calendar_id": calendar_id,
+                "calendar_ids": calendar_ids,
                 "initiative_id": initiative_id,
                 "tz": tz,
             },

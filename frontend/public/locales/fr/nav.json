@@ -48,9 +48,9 @@
   "queues": "Files",
   "allQueues": "Toutes les files",
   "createQueue": "Nouvelle file",
-  "calendarEvents": "Calendrier",
+  "calendars": "Calendrier",
   "allCalendarEvents": "Tous les événements",
-  "createCalendarEvent": "Nouvel événement",
+  "createCalendar": "Nouveau calendrier",
   "bottomNav": {
     "label": "Navigation rapide",
     "menu": "Ouvrir le menu",

@@ -15,7 +15,7 @@ import { useTranslation } from "react-i18next";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { useAppConfig } from "@/hooks/useAppConfig";
-import { useCalendarEventsList } from "@/hooks/useCalendarEvents";
+import { useCalendarsList } from "@/hooks/useCalendars";
 import { useCounterGroupsList } from "@/hooks/useCounters";
 import { useDocumentsList } from "@/hooks/useDocuments";
 import { useInitiatives } from "@/hooks/useInitiatives";
@@ -133,16 +133,16 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
       }));
     },
   },
-  [Tool.calendar_event]: {
-    useHeading: () => useGroupHeading(Tool.calendar_event),
+  [Tool.calendar]: {
+    useHeading: () => useGroupHeading(Tool.calendar),
     useItems: ({ enabled }) => {
-      const query = useCalendarEventsList({ page_size: 50 }, { enabled, staleTime: 60_000 });
-      return (query.data?.items ?? []).map((event) => ({
-        id: event.id,
-        label: event.title,
-        keywords: [event.description ?? ""],
+      const query = useCalendarsList({ page_size: 100 }, { enabled, staleTime: 60_000 });
+      return (query.data?.items ?? []).map((calendar) => ({
+        id: calendar.id,
+        label: calendar.name,
+        keywords: [calendar.description ?? ""],
         icon: null,
-        path: `${toolListRoute(Tool.calendar_event)}/${event.id}`,
+        path: `${toolListRoute(Tool.calendar)}/${calendar.id}`,
       }));
     },
   },

@@ -337,5 +337,12 @@
   "INVALID_TAG_IDS": "Una o más etiquetas ya no existen",
   "AI_CONNECTION_NOT_FOUND": "No se encontró la conexión de IA.",
   "AI_MEMBER_KEYS_DISABLED": "Las claves de API personales están desactivadas para este espacio de trabajo.",
-  "AI_INVALID_API_KEY": "La clave de API fue rechazada. Compruébala e inténtalo de nuevo."
+  "AI_INVALID_API_KEY": "La clave de API fue rechazada. Compruébala e inténtalo de nuevo.",
+  "CALENDAR_NOT_FOUND": "Calendario no encontrado",
+  "CALENDAR_CREATE_PERMISSION_REQUIRED": "No tienes permiso para crear calendarios en esta iniciativa",
+  "CALENDARS_NOT_ENABLED": "Los calendarios no están habilitados en esta iniciativa",
+  "CALENDAR_PERMISSION_REQUIRED": "No tienes acceso a este calendario",
+  "CALENDAR_OWNER_REQUIRED": "Solo el propietario del calendario puede hacer esto",
+  "CALENDAR_WRITE_ACCESS_REQUIRED": "Necesitas acceso de escritura a este calendario",
+  "CALENDAR_GRANT_CANNOT_MANAGE_MEMBERS": "El acceso temporal no puede gestionar el uso compartido del calendario"
 }

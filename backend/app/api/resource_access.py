@@ -4,7 +4,7 @@
 `load_authorized` and `resource_dependency` add loading on top for fetch-then-act
 handlers and FastAPI-injected routes. `RESOURCE_ACCESS` is the enforcement-side
 registry; `dac_kind` keys into `permissions.DAC_RESOURCES` (`None` = no per-row
-DAC, e.g. calendar events — feature gate only).
+DAC — feature gate only).
 """
 
 # NOT `from __future__ import annotations`: resource_dependency builds a signature
@@ -25,7 +25,7 @@ from app.api.deps import (
 )
 from app.core.messages import (
     AdvancedToolMessages,
-    CalendarEventMessages,
+    CalendarMessages,
     CounterMessages,
     DocumentMessages,
     ProjectMessages,
@@ -39,7 +39,7 @@ from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services import permissions as permissions_service
 from app.services.tenant import advanced_tool as advanced_tool_service
-from app.services.tenant import calendar_events as calendar_events_service
+from app.services.tenant import calendars as calendars_service
 from app.services.tenant import counters as counters_service
 from app.services.tenant import documents as documents_service
 from app.services.tenant import project_grants
@@ -94,14 +94,14 @@ RESOURCE_ACCESS: dict[Tool, ResourceAccessConfig] = {
         path_param="group_id",
         not_found_msg=CounterMessages.GROUP_NOT_FOUND,
     ),
-    Tool.calendar_event: ResourceAccessConfig(
-        dac_kind=Tool.calendar_event,
-        feature_attr=Tool.calendar_event.view_permission,
-        feature_disabled_msg=CalendarEventMessages.FEATURE_DISABLED,
-        grant_cannot_manage_msg=CalendarEventMessages.GRANT_CANNOT_MANAGE_MEMBERS,
-        loader=calendar_events_service.get_event,
-        path_param="event_id",
-        not_found_msg=CalendarEventMessages.NOT_FOUND,
+    Tool.calendar: ResourceAccessConfig(
+        dac_kind=Tool.calendar,
+        feature_attr=Tool.calendar.view_permission,
+        feature_disabled_msg=CalendarMessages.FEATURE_DISABLED,
+        grant_cannot_manage_msg=CalendarMessages.GRANT_CANNOT_MANAGE_MEMBERS,
+        loader=calendars_service.get_calendar,
+        path_param="calendar_id",
+        not_found_msg=CalendarMessages.NOT_FOUND,
     ),
     Tool.advanced_tool: ResourceAccessConfig(
         dac_kind=Tool.advanced_tool,

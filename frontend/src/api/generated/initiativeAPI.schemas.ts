@@ -713,6 +713,19 @@ export interface BreakGlassCreate {
   reason: string;
 }
 
+export interface CalendarCreate {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  description?: string | null;
+  color?: string | null;
+  initiative_id: number;
+  tag_ids?: number[] | null;
+  grants?: ResourceGrantSchema[];
+}
+
 export interface EventRecurrence {
   /** @pattern ^(daily|weekly|monthly|yearly)$ */
   frequency: string;
@@ -812,6 +825,7 @@ export interface CalendarEventSummary {
   color: string | null;
   recurrence: EventRecurrence | null;
   id: number;
+  calendar_id: number;
   initiative_id: number;
   guild_id: number;
   created_by_id: number;
@@ -820,7 +834,6 @@ export interface CalendarEventSummary {
   attendee_previews: CalendarEventAttendeePreview[];
   property_values: PropertySummary[];
   tags: TagSummary[];
-  grants: ResourceGrantSchema[];
   my_permission_level: string | null;
   created_at: string;
   updated_at: string;
@@ -1048,11 +1061,10 @@ export interface CalendarEventCreate {
   all_day?: boolean;
   color?: string | null;
   recurrence?: EventRecurrence | null;
-  initiative_id: number;
+  calendar_id: number;
   attendee_ids?: number[] | null;
   tag_ids?: number[] | null;
   document_ids?: number[] | null;
-  grants?: ResourceGrantSchema[];
 }
 
 export interface CalendarEventDocumentRead {
@@ -1087,6 +1099,7 @@ export interface CalendarEventRead {
   color: string | null;
   recurrence: EventRecurrence | null;
   id: number;
+  calendar_id: number;
   initiative_id: number;
   guild_id: number;
   created_by_id: number;
@@ -1095,7 +1108,6 @@ export interface CalendarEventRead {
   attendee_previews: CalendarEventAttendeePreview[];
   property_values: PropertySummary[];
   tags: TagSummary[];
-  grants: ResourceGrantSchema[];
   my_permission_level: string | null;
   created_at: string;
   updated_at: string;
@@ -1112,6 +1124,59 @@ export interface CalendarEventUpdate {
   all_day?: boolean | null;
   color?: string | null;
   recurrence?: EventRecurrence | null;
+  calendar_id?: number | null;
+}
+
+export interface CalendarSummary {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  description: string | null;
+  color: string | null;
+  id: number;
+  initiative_id: number;
+  guild_id: number;
+  created_by_id: number;
+  created_at: string;
+  updated_at: string;
+  my_permission_level: string | null;
+  tags: TagSummary[];
+  grants: ResourceGrantSchema[];
+}
+
+export interface CalendarListResponse {
+  items: CalendarSummary[];
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+}
+
+export interface CalendarRead {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  description: string | null;
+  color: string | null;
+  id: number;
+  initiative_id: number;
+  guild_id: number;
+  created_by_id: number;
+  created_at: string;
+  updated_at: string;
+  my_permission_level: string | null;
+  tags: TagSummary[];
+  grants: ResourceGrantSchema[];
+}
+
+export interface CalendarUpdate {
+  name?: string | null;
+  description?: string | null;
+  color?: string | null;
 }
 
 /**
@@ -1452,13 +1517,13 @@ export interface InitiativeMemberRead {
   can_view_documents: boolean;
   can_view_queues: boolean;
   can_view_counter_groups: boolean;
-  can_view_calendar_events: boolean;
+  can_view_calendars: boolean;
   can_view_advanced_tools: boolean;
   can_create_projects: boolean;
   can_create_documents: boolean;
   can_create_queues: boolean;
   can_create_counter_groups: boolean;
-  can_create_calendar_events: boolean;
+  can_create_calendars: boolean;
   can_create_advanced_tools: boolean;
   user: UserPublic;
   role_id: number | null;
@@ -1473,7 +1538,7 @@ export interface InitiativeMemberRead {
 export interface InitiativeRead {
   queues_enabled: boolean;
   counter_groups_enabled: boolean;
-  calendar_events_enabled: boolean;
+  calendars_enabled: boolean;
   advanced_tools_enabled: boolean;
   name: string;
   description: string | null;
@@ -1935,7 +2000,7 @@ export interface ICalEventPreview {
 }
 
 export interface ICalImportRequest {
-  initiative_id: number;
+  calendar_id: number;
   /** @maxLength 2000000 */
   ics_content: string;
 }
@@ -2007,7 +2072,7 @@ export interface ImportResult {
 export interface InitiativeCreate {
   queues_enabled?: boolean;
   counter_groups_enabled?: boolean;
-  calendar_events_enabled?: boolean;
+  calendars_enabled?: boolean;
   advanced_tools_enabled?: boolean;
   name: string;
   description?: string | null;
@@ -2052,8 +2117,8 @@ export const PermissionKey = {
   create_queues: "create_queues",
   counter_groups_enabled: "counter_groups_enabled",
   create_counter_groups: "create_counter_groups",
-  calendar_events_enabled: "calendar_events_enabled",
-  create_calendar_events: "create_calendar_events",
+  calendars_enabled: "calendars_enabled",
+  create_calendars: "create_calendars",
   advanced_tools_enabled: "advanced_tools_enabled",
   create_advanced_tools: "create_advanced_tools",
 } as const;
@@ -2104,7 +2169,7 @@ export interface InitiativeRoleUpdate {
 export interface InitiativeUpdate {
   queues_enabled?: boolean | null;
   counter_groups_enabled?: boolean | null;
-  calendar_events_enabled?: boolean | null;
+  calendars_enabled?: boolean | null;
   advanced_tools_enabled?: boolean | null;
   name?: string | null;
   description?: string | null;
@@ -2904,7 +2969,7 @@ export const RecentEntityType = {
   document: "document",
   queue: "queue",
   counter_group: "counter_group",
-  calendar_event: "calendar_event",
+  calendar: "calendar",
 } as const;
 
 /**
@@ -2953,7 +3018,7 @@ export const Tool = {
   document: "document",
   queue: "queue",
   counter_group: "counter_group",
-  calendar_event: "calendar_event",
+  calendar: "calendar",
   advanced_tool: "advanced_tool",
 } as const;
 
@@ -3163,10 +3228,11 @@ export const TagTarget = {
   document: "document",
   queue: "queue",
   counter_group: "counter_group",
-  calendar_event: "calendar_event",
+  calendar: "calendar",
   advanced_tool: "advanced_tool",
   task: "task",
   queue_item: "queue_item",
+  calendar_event: "calendar_event",
 } as const;
 
 /**
@@ -3598,6 +3664,7 @@ export const TrashItemEntityType = {
   tag: "tag",
   queue: "queue",
   queue_item: "queue_item",
+  calendar: "calendar",
   calendar_event: "calendar_event",
   counter_group: "counter_group",
   counter: "counter",
@@ -4542,27 +4609,27 @@ export const ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetFormat = {
   md: "md",
 } as const;
 
-export type ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetParams = {
-  calendar_event_id?: number | null;
+export type ExportCalendarsApiV1GGuildIdExportsCalendarGetParams = {
+  calendar_id?: number | null;
   /**
-   * Bulk selection of events
+   * Bulk selection of calendars
    */
-  calendar_event_ids?: number[] | null;
+  calendar_ids?: number[] | null;
   /**
-   * All exportable events in this initiative (ignored when ids given)
+   * All exportable calendars in this initiative (ignored when ids given)
    */
   initiative_id?: number | null;
-  format?: ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetFormat;
+  format?: ExportCalendarsApiV1GGuildIdExportsCalendarGetFormat;
   /**
    * IANA timezone for report timestamps
    */
   tz?: string | null;
 };
 
-export type ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetFormat =
-  (typeof ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetFormat)[keyof typeof ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetFormat];
+export type ExportCalendarsApiV1GGuildIdExportsCalendarGetFormat =
+  (typeof ExportCalendarsApiV1GGuildIdExportsCalendarGetFormat)[keyof typeof ExportCalendarsApiV1GGuildIdExportsCalendarGetFormat];
 
-export const ExportCalendarEventsApiV1GGuildIdExportsCalendarEventGetFormat = {
+export const ExportCalendarsApiV1GGuildIdExportsCalendarGetFormat = {
   ics: "ics",
   json: "json",
 } as const;
@@ -4671,8 +4738,22 @@ export type ListCounterGroupsApiV1GGuildIdCounterGroupsGetParams = {
   page_size?: number;
 };
 
+export type ListCalendarsApiV1GGuildIdCalendarsGetParams = {
+  initiative_id?: number | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  page_size?: number;
+};
+
 export type ListCalendarEventsApiV1GGuildIdCalendarEventsGetParams = {
   initiative_id?: number | null;
+  calendar_ids?: number[] | null;
   start_after?: string | null;
   start_before?: string | null;
   property_filters?: string | null;
@@ -4814,6 +4895,19 @@ export type ListMyProjectsApiV1MeProjectsGetParams = {
   page_size?: number;
   sort_by?: string | null;
   sort_dir?: string | null;
+};
+
+export type ListMyCalendarsApiV1MeCalendarsGetParams = {
+  guild_ids?: number[] | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  page_size?: number;
 };
 
 export type ListMyCalendarEventsApiV1MeCalendarEventsGetParams = {

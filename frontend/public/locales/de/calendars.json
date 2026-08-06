@@ -110,6 +110,26 @@
     "eventsFailed_one": "{{count}} Termin fehlgeschlagen",
     "eventsFailed_other": "{{count}} Termine fehlgeschlagen",
     "importSuccess": "Import abgeschlossen!",
-    "importError": "Import fehlgeschlagen"
+    "importError": "Import fehlgeschlagen",
+    "selectCalendar": "Kalender auswählen"
+  },
+  "calendar": "Kalender",
+  "selectCalendar": "Kalender auswählen",
+  "createCalendar": "Neuer Kalender",
+  "calendarName": "Kalendername",
+  "calendarNamePlaceholder": "z. B. Teamplan",
+  "calendarDescriptionPlaceholder": "Wofür ist dieser Kalender?",
+  "calendarColor": "Farbe",
+  "calendarDeleted": "Kalender gelöscht",
+  "calendarNotFound": "Kalender nicht gefunden",
+  "backToCalendar": "Zurück zum Kalender",
+  "calendarDangerZoneDescription": "Beim Löschen eines Kalenders werden er und alle seine Termine in den Papierkorb verschoben.",
+  "deleteCalendar": "Kalender löschen",
+  "deleteCalendarConfirm": "Diesen Kalender löschen? Alle seine Termine werden mit entfernt.",
+  "panel": {
+    "myCalendars": "Meine Kalender",
+    "noCalendars": "Noch keine Kalender",
+    "projectTasks": "Projektaufgaben",
+    "calendarSettings": "Einstellungen für {{name}}"
   }
 }

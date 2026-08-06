@@ -6,7 +6,7 @@ from app.services.export.adapters.backup import (
     GuildExportAdapter,
     InitiativeExportAdapter,
 )
-from app.services.export.adapters.calendar_event import CalendarEventAdapter
+from app.services.export.adapters.calendar import CalendarAdapter
 from app.services.export.adapters.counter_group import CounterGroupAdapter
 from app.services.export.adapters.document import DocumentAdapter
 from app.services.export.adapters.project import ProjectAdapter
@@ -21,7 +21,7 @@ ADAPTERS = {
         DocumentAdapter(),
         QueueAdapter(),
         CounterGroupAdapter(),
-        CalendarEventAdapter(),
+        CalendarAdapter(),
         InitiativeExportAdapter(),
         GuildExportAdapter(),
     )

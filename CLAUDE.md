@@ -194,7 +194,7 @@ All user-facing strings must be externalized for localization. **Never hardcode 
 
 Translation files live in `frontend/public/locales/en/<namespace>.json`. The app uses `i18next-http-backend` to lazy-load namespaces on first use.
 
-**Namespaces**: `common`, `auth`, `nav`, `projects`, `tasks`, `documents`, `initiatives`, `settings`, `tags`, `guilds`, `import`, `notifications`, `stats`, `landing`, `errors`, `dates`, `access`, `advancedTools`, `command`, `counterGroups`, `dashboard`, `calendarEvents`, `properties`, `queues`, `trash`
+**Namespaces**: `common`, `auth`, `nav`, `projects`, `tasks`, `documents`, `initiatives`, `settings`, `tags`, `guilds`, `import`, `notifications`, `stats`, `landing`, `errors`, `dates`, `access`, `advancedTools`, `command`, `counterGroups`, `dashboard`, `calendars`, `properties`, `queues`, `trash`
 
 **Rules:**
 
@@ -300,7 +300,7 @@ Available factories:
 - `create_tag(session, guild)`, `create_upload(session, guild, uploader)`
 - `create_queue(session, initiative, creator)`, `create_queue_item(session, queue)`
 - `create_counter_group(session, initiative, creator)`, `create_counter(session, group)`
-- `create_calendar_event(session, initiative, creator)`, `create_property_definition(session, initiative)`, plus `create_{document,task,calendar_event}_property_value`
+- `create_calendar(session, initiative, creator)`, `create_calendar_event(session, calendar, creator)`, `create_property_definition(session, initiative)`, plus `create_{document,task,calendar_event}_property_value`
 
 Auth helpers:
 - `get_auth_token(user)` — returns a JWT string for the user

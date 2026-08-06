@@ -10,8 +10,8 @@ import {
   listMyCalendarEventsApiV1MeCalendarEventsGet,
   readCalendarEventApiV1GGuildIdCalendarEventsEventIdGet,
   setAttendeesApiV1GGuildIdCalendarEventsEventIdAttendeesPut,
-  setCalendarEventGrantsApiV1GGuildIdCalendarEventsEventIdGrantsPut,
   setDocumentsApiV1GGuildIdCalendarEventsEventIdDocumentsPut,
+  setEventTagsApiV1GGuildIdCalendarEventsEventIdTagsPut,
   updateCalendarEventApiV1GGuildIdCalendarEventsEventIdPatch,
   updateRsvpApiV1GGuildIdCalendarEventsEventIdRsvpPatch,
 } from "@/api/generated/calendar-events/calendar-events";
@@ -23,7 +23,7 @@ import type {
   CalendarEventUpdate,
   ListCalendarEventsApiV1GGuildIdCalendarEventsGetParams,
   ListMyCalendarEventsApiV1MeCalendarEventsGetParams,
-  ResourceGrantSchema,
+  TagSetRequest,
 } from "@/api/generated/initiativeAPI.schemas";
 import { invalidateAllCalendarEvents, invalidateCalendarEvent } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -85,7 +85,7 @@ export const useCreateCalendarEvent = (
       mutationFn: (guildId, data) =>
         createCalendarEventApiV1GGuildIdCalendarEventsPost(guildId, data),
       invalidate: () => invalidateAllCalendarEvents(),
-      errorKey: "calendarEvents:error",
+      errorKey: "calendars:error",
     },
     options
   );
@@ -99,7 +99,7 @@ export const useUpdateCalendarEvent = (
       mutationFn: (guildId, data) =>
         updateCalendarEventApiV1GGuildIdCalendarEventsEventIdPatch(guildId, eventId, data),
       invalidate: () => invalidateEventAndList(eventId),
-      errorKey: "calendarEvents:error",
+      errorKey: "calendars:error",
     },
     options
   );
@@ -117,7 +117,7 @@ export const useRescheduleCalendarEvent = (
       mutationFn: (guildId, { eventId, data }) =>
         updateCalendarEventApiV1GGuildIdCalendarEventsEventIdPatch(guildId, eventId, data),
       invalidate: (_data, { eventId }) => invalidateEventAndList(eventId),
-      errorKey: "calendarEvents:error",
+      errorKey: "calendars:error",
     },
     options
   );
@@ -128,7 +128,7 @@ export const useDeleteCalendarEvent = (options?: MutationOpts<void, number>) =>
       mutationFn: (guildId, eventId) =>
         deleteCalendarEventApiV1GGuildIdCalendarEventsEventIdDelete(guildId, eventId),
       invalidate: () => invalidateAllCalendarEvents(),
-      errorKey: "calendarEvents:error",
+      errorKey: "calendars:error",
     },
     options
   );
@@ -144,7 +144,7 @@ export const useSetEventAttendees = (
       mutationFn: (guildId, userIds) =>
         setAttendeesApiV1GGuildIdCalendarEventsEventIdAttendeesPut(guildId, eventId, userIds),
       invalidate: () => invalidateEventAndList(eventId),
-      errorKey: "calendarEvents:error",
+      errorKey: "calendars:error",
     },
     options
   );
@@ -158,7 +158,23 @@ export const useUpdateEventRSVP = (
       mutationFn: (guildId, data) =>
         updateRsvpApiV1GGuildIdCalendarEventsEventIdRsvpPatch(guildId, eventId, data),
       invalidate: () => invalidateEventAndList(eventId),
-      errorKey: "calendarEvents:error",
+      errorKey: "calendars:error",
+    },
+    options
+  );
+
+/** Events are content-level extras (like tasks), so tag assignment goes
+ * through their own route, not the generic /tools one. */
+export const useSetEventTags = (
+  eventId: number,
+  options?: MutationOpts<CalendarEventRead, TagSetRequest>
+) =>
+  useGuildMutation<CalendarEventRead, TagSetRequest>(
+    {
+      mutationFn: (guildId, data) =>
+        setEventTagsApiV1GGuildIdCalendarEventsEventIdTagsPut(guildId, eventId, data),
+      invalidate: () => invalidateEventAndList(eventId),
+      errorKey: "calendars:error",
     },
     options
   );
@@ -172,23 +188,7 @@ export const useSetEventDocuments = (
       mutationFn: (guildId, documentIds) =>
         setDocumentsApiV1GGuildIdCalendarEventsEventIdDocumentsPut(guildId, eventId, documentIds),
       invalidate: () => invalidateEventAndList(eventId),
-      errorKey: "calendarEvents:error",
-    },
-    options
-  );
-
-// ── Grants Mutation (unified resource sharing) ──────────────────────────────
-
-export const useSetCalendarEventGrants = (
-  eventId: number,
-  options?: MutationOpts<CalendarEventRead, ResourceGrantSchema[]>
-) =>
-  useGuildMutation<CalendarEventRead, ResourceGrantSchema[]>(
-    {
-      mutationFn: (guildId, grants) =>
-        setCalendarEventGrantsApiV1GGuildIdCalendarEventsEventIdGrantsPut(guildId, eventId, grants),
-      invalidate: () => invalidateEventAndList(eventId),
-      errorKey: "calendarEvents:error",
+      errorKey: "calendars:error",
     },
     options
   );

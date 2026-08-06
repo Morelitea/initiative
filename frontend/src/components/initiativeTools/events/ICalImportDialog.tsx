@@ -2,9 +2,9 @@ import { AlertCircle, CheckCircle2, FileText, Upload } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { apiMutator } from "@/api/mutator";
 import { invalidateAllCalendarEvents } from "@/api/query-keys";
+import { isWritableCalendar } from "@/components/initiativeTools/events/CreateEventDialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
+import { useCalendarsList } from "@/hooks/useCalendars";
 import { toast } from "@/lib/chesterToast";
 import type { DialogProps } from "@/types/dialog";
 
@@ -48,20 +48,20 @@ interface ICalImportResult {
 type Step = "upload" | "result";
 
 interface ICalImportDialogProps extends DialogProps {
-  fixedInitiativeId?: number;
+  fixedCalendarId?: number;
 }
 
 export const ICalImportDialog = ({
   open,
   onOpenChange,
-  fixedInitiativeId,
+  fixedCalendarId,
 }: ICalImportDialogProps) => {
-  const { t } = useTranslation(["calendarEvents", "common"]);
+  const { t } = useTranslation(["calendars", "common"]);
 
   const [step, setStep] = useState<Step>("upload");
   const [icsContent, setIcsContent] = useState("");
-  const [selectedInitiativeId, setSelectedInitiativeId] = useState<number | null>(
-    fixedInitiativeId ?? null
+  const [selectedCalendarId, setSelectedCalendarId] = useState<number | null>(
+    fixedCalendarId ?? null
   );
   const [parseResult, setParseResult] = useState<ICalParseResult | null>(null);
   const [importResult, setImportResult] = useState<ICalImportResult | null>(null);
@@ -72,16 +72,16 @@ export const ICalImportDialog = ({
     if (!open) {
       setStep("upload");
       setIcsContent("");
-      setSelectedInitiativeId(fixedInitiativeId ?? null);
+      setSelectedCalendarId(fixedCalendarId ?? null);
       setParseResult(null);
       setImportResult(null);
     }
-  }, [open, fixedInitiativeId]);
+  }, [open, fixedCalendarId]);
 
-  // Import creates events, so the target picker offers exactly the
-  // initiatives whose server-computed create flag is on (folds in the
-  // calendar master switch and the guild-admin / PAM legs).
-  const { creatableInitiatives } = useToolCreateAccess(Tool.calendar_event, { enabled: open });
+  // Import creates events inside a calendar, so the target picker offers
+  // exactly the calendars the user can write to.
+  const calendarsQuery = useCalendarsList({ page_size: 200 }, { enabled: open });
+  const writableCalendars = (calendarsQuery.data?.items ?? []).filter(isWritableCalendar);
 
   const MAX_ICS_SIZE = 2_000_000;
 
@@ -89,7 +89,7 @@ export const ICalImportDialog = ({
     const file = event.target.files?.[0];
     if (!file) return;
     if (file.size > MAX_ICS_SIZE) {
-      toast.error(t("calendarEvents:import.parseFailed"));
+      toast.error(t("calendars:import.parseFailed"));
       return;
     }
     const reader = new FileReader();
@@ -112,51 +112,51 @@ export const ICalImportDialog = ({
       });
       setParseResult(result);
     } catch {
-      toast.error(t("calendarEvents:import.parseFailed"));
+      toast.error(t("calendars:import.parseFailed"));
     } finally {
       setIsParsing(false);
     }
   };
 
   const handleImport = useCallback(async () => {
-    if (!selectedInitiativeId || !icsContent) return;
+    if (!selectedCalendarId || !icsContent) return;
     setIsImporting(true);
     try {
       const result = await apiMutator<ICalImportResult>({
         url: "/api/v1/calendar-events/import",
         method: "POST",
-        data: { initiative_id: selectedInitiativeId, ics_content: icsContent },
+        data: { calendar_id: selectedCalendarId, ics_content: icsContent },
         headers: { "Content-Type": "application/json" },
       });
       setImportResult(result);
       setStep("result");
       void invalidateAllCalendarEvents();
     } catch {
-      toast.error(t("calendarEvents:import.importError"));
+      toast.error(t("calendars:import.importError"));
     } finally {
       setIsImporting(false);
     }
-  }, [selectedInitiativeId, icsContent, t]);
+  }, [selectedCalendarId, icsContent, t]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{t("calendarEvents:import.title")}</DialogTitle>
-          <DialogDescription>{t("calendarEvents:import.uploadDescription")}</DialogDescription>
+          <DialogTitle>{t("calendars:import.title")}</DialogTitle>
+          <DialogDescription>{t("calendars:import.uploadDescription")}</DialogDescription>
         </DialogHeader>
 
         {step === "upload" && (
           <div className="space-y-4">
             <div>
-              <Label>{t("calendarEvents:import.uploadFileLabel")}</Label>
+              <Label>{t("calendars:import.uploadFileLabel")}</Label>
               <div className="mt-2">
                 <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-muted border-dashed p-6 transition-colors hover:bg-accent">
                   <Upload className="mb-2 h-8 w-8 text-muted-foreground" />
                   <span className="text-muted-foreground text-sm">
                     {isParsing
-                      ? t("calendarEvents:import.parsing")
-                      : t("calendarEvents:import.uploadFileLabel")}
+                      ? t("calendars:import.parsing")
+                      : t("calendars:import.uploadFileLabel")}
                   </span>
                   <input
                     type="file"
@@ -173,12 +173,12 @@ export const ICalImportDialog = ({
                 <div className="flex items-center gap-2">
                   <FileText className="h-4 w-4" />
                   <span className="font-medium">
-                    {t("calendarEvents:import.foundEvents", { count: parseResult.event_count })}
+                    {t("calendars:import.foundEvents", { count: parseResult.event_count })}
                   </span>
                 </div>
                 {parseResult.has_recurring && (
                   <p className="mt-1 text-muted-foreground text-sm">
-                    {t("calendarEvents:import.hasRecurring")}
+                    {t("calendars:import.hasRecurring")}
                   </p>
                 )}
                 <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto text-muted-foreground text-sm">
@@ -197,20 +197,20 @@ export const ICalImportDialog = ({
               </div>
             )}
 
-            {parseResult && !fixedInitiativeId && (
+            {parseResult && !fixedCalendarId && (
               <div>
-                <Label>{t("calendarEvents:import.selectInitiative")}</Label>
+                <Label>{t("calendars:import.selectCalendar")}</Label>
                 <Select
-                  value={selectedInitiativeId?.toString() ?? ""}
-                  onValueChange={(v) => setSelectedInitiativeId(Number(v))}
+                  value={selectedCalendarId?.toString() ?? ""}
+                  onValueChange={(v) => setSelectedCalendarId(Number(v))}
                 >
                   <SelectTrigger className="mt-2">
-                    <SelectValue placeholder={t("calendarEvents:import.selectInitiative")} />
+                    <SelectValue placeholder={t("calendars:import.selectCalendar")} />
                   </SelectTrigger>
                   <SelectContent>
-                    {creatableInitiatives.map((init) => (
-                      <SelectItem key={init.id} value={init.id.toString()}>
-                        {init.name}
+                    {writableCalendars.map((calendar) => (
+                      <SelectItem key={calendar.id} value={calendar.id.toString()}>
+                        {calendar.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -224,11 +224,9 @@ export const ICalImportDialog = ({
               </Button>
               <Button
                 onClick={handleImport}
-                disabled={!parseResult || !selectedInitiativeId || isImporting}
+                disabled={!parseResult || !selectedCalendarId || isImporting}
               >
-                {isImporting
-                  ? t("calendarEvents:import.importing")
-                  : t("calendarEvents:import.importButton")}
+                {isImporting ? t("calendars:import.importing") : t("calendars:import.importButton")}
               </Button>
             </div>
           </div>
@@ -247,13 +245,13 @@ export const ICalImportDialog = ({
                 <AlertCircle className="h-8 w-8 text-yellow-500" />
               )}
               <div>
-                <p className="font-medium">{t("calendarEvents:import.importSuccess")}</p>
+                <p className="font-medium">{t("calendars:import.importSuccess")}</p>
                 <p className="text-muted-foreground text-sm">
-                  {t("calendarEvents:import.eventsCreated", {
+                  {t("calendars:import.eventsCreated", {
                     count: importResult.events_created,
                   })}
                   {importResult.events_failed > 0 &&
-                    `, ${t("calendarEvents:import.eventsFailed", { count: importResult.events_failed })}`}
+                    `, ${t("calendars:import.eventsFailed", { count: importResult.events_failed })}`}
                 </p>
               </div>
             </div>

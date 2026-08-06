@@ -110,6 +110,26 @@
     "eventsFailed_one": "{{count}} événement échoué",
     "eventsFailed_other": "{{count}} événements échoués",
     "importSuccess": "Importation terminée !",
-    "importError": "Échec de l'importation"
+    "importError": "Échec de l'importation",
+    "selectCalendar": "Sélectionner un calendrier"
+  },
+  "calendar": "Calendrier",
+  "selectCalendar": "Sélectionner un calendrier",
+  "createCalendar": "Nouveau calendrier",
+  "calendarName": "Nom du calendrier",
+  "calendarNamePlaceholder": "p. ex. Planning d'équipe",
+  "calendarDescriptionPlaceholder": "À quoi sert ce calendrier ?",
+  "calendarColor": "Couleur",
+  "calendarDeleted": "Calendrier supprimé",
+  "calendarNotFound": "Calendrier introuvable",
+  "backToCalendar": "Retour au calendrier",
+  "calendarDangerZoneDescription": "La suppression d'un calendrier le déplace, avec tous ses événements, vers la corbeille.",
+  "deleteCalendar": "Supprimer le calendrier",
+  "deleteCalendarConfirm": "Supprimer ce calendrier ? Tous ses événements seront supprimés avec lui.",
+  "panel": {
+    "myCalendars": "Mes calendriers",
+    "noCalendars": "Aucun calendrier pour l'instant",
+    "projectTasks": "Tâches des projets",
+    "calendarSettings": "Paramètres de {{name}}"
   }
 }
