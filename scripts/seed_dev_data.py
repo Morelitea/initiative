@@ -1355,10 +1355,15 @@ async def _create_calendar_events(
         creator = all_users[ed["created_by"]]
         calendar = calendars_by_initiative.get(ed["initiative_id"])
         if calendar is None:
+            # Store the initiative's color explicitly so the seeded calendar
+            # renders intentionally (a colorless calendar falls back to a
+            # palette color derived from its id).
+            initiative = await session.get(Initiative, ed["initiative_id"])
             calendar = Calendar(
                 guild_id=guild.id,
                 initiative_id=ed["initiative_id"],
                 name="Default Calendar",
+                color=initiative.color if initiative else None,
                 created_by_id=creator.id,
             )
             session.add(calendar)
