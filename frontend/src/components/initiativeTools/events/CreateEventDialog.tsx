@@ -34,6 +34,7 @@ import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAuth } from "@/hooks/useAuth";
 import { useCreateCalendarEvent } from "@/hooks/useCalendarEvents";
 import { useCalendarsList } from "@/hooks/useCalendars";
+import { getCalendarColor } from "@/lib/projectColor";
 import { getItem, setItem } from "@/lib/storage";
 import type { DialogProps } from "@/types/dialog";
 
@@ -315,7 +316,7 @@ export const CreateEventDialog = ({
                       <span className="inline-flex items-center gap-2">
                         <span
                           className="inline-block h-2.5 w-2.5 rounded-full"
-                          style={{ backgroundColor: calendar.color ?? "#6366f1" }}
+                          style={{ backgroundColor: getCalendarColor(calendar.id, calendar.color) }}
                         />
                         {calendar.name}
                       </span>
