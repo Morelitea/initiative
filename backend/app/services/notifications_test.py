@@ -103,7 +103,7 @@ def _unsaved_event(
     """In-memory event for the pure-unit formatting tests (never persisted)."""
     return CalendarEvent(
         guild_id=1,
-        initiative_id=1,
+        calendar_id=1,
         created_by_id=1,
         title=title,
         start_at=start_at,
