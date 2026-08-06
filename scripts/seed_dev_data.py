@@ -49,6 +49,7 @@ from app.core.security import get_password_hash  # noqa: E402
 from app.db.schema_provisioning import provision_guild  # noqa: E402
 from app.db.session import AdminSessionLocal, set_rls_context  # noqa: E402
 from app.db.tenancy import GUILD_SCOPED_TABLES  # noqa: E402
+from app.models.tenant.calendar import Calendar  # noqa: E402
 from app.models.tenant.calendar_event import (  # noqa: E402
     CalendarEvent,
     CalendarEventAttendee,
@@ -296,6 +297,7 @@ class IDTracker:
             "counters": [],
             "counter_group_permissions": [],
             "counter_group_role_permissions": [],
+            "calendars": [],
             "calendar_events": [],
             "calendar_event_attendees": [],
             "calendar_event_tags": [],
@@ -451,8 +453,8 @@ async def _create_initiative(
     pm_user: User,
     member_users: list[User] | None = None,
     queues_enabled: bool = False,
-    counters_enabled: bool = False,
-    events_enabled: bool = False,
+    counter_groups_enabled: bool = False,
+    calendars_enabled: bool = False,
 ) -> tuple[Initiative, InitiativeRoleModel, InitiativeRoleModel]:
     """Create an initiative with roles and members."""
     initiative = Initiative(
@@ -461,8 +463,8 @@ async def _create_initiative(
         description=description,
         color=color,
         queues_enabled=queues_enabled,
-        counters_enabled=counters_enabled,
-        events_enabled=events_enabled,
+        counter_groups_enabled=counter_groups_enabled,
+        calendars_enabled=calendars_enabled,
     )
     session.add(initiative)
     await session.flush()
@@ -1342,14 +1344,47 @@ async def _create_calendar_events(
         attendees: list of {user (name), rsvp_status (optional)},
         tags: list of tag names,
         documents: list of document titles (must exist in ``documents``).
+
+    Events live inside a calendar: one "Default Calendar" is created per
+    initiative (the same state the migration backfill produces), shared as
+    creator owner + all-initiative-members read.
     """
     events: dict[str, CalendarEvent] = {}
+    calendars_by_initiative: dict[int, Calendar] = {}
     for ed in event_defs:
         creator = all_users[ed["created_by"]]
+        calendar = calendars_by_initiative.get(ed["initiative_id"])
+        if calendar is None:
+            calendar = Calendar(
+                guild_id=guild.id,
+                initiative_id=ed["initiative_id"],
+                name="Default Calendar",
+                created_by_id=creator.id,
+            )
+            session.add(calendar)
+            await session.flush()
+            calendars_by_initiative[ed["initiative_id"]] = calendar
+            ids.add("calendars", calendar.id)
+            session.add(ResourceGrant(
+                resource_type="calendar",
+                resource_id=calendar.id,
+                user_id=creator.id,
+                guild_id=guild.id,
+                initiative_id=calendar.initiative_id,
+                level=ResourceAccessLevel.owner,
+            ))
+            session.add(ResourceGrant(
+                resource_type="calendar",
+                resource_id=calendar.id,
+                guild_id=guild.id,
+                initiative_id=calendar.initiative_id,
+                level=ResourceAccessLevel.read,
+                all_initiative_members=True,
+            ))
         recurrence_raw = ed.get("recurrence")
         event = CalendarEvent(
             guild_id=guild.id,
-            initiative_id=ed["initiative_id"],
+            calendar_id=calendar.id,
             title=ed["title"],
             description=ed.get("description"),
             location=ed.get("location"),
@@ -1742,8 +1777,8 @@ async def seed() -> None:
             pm_user=dm,
             member_users=[thorn, elara, vex, sera, p_operator],
             queues_enabled=True,
-            counters_enabled=True,
-            events_enabled=True,
+            counter_groups_enabled=True,
+            calendars_enabled=True,
         )
 
         # --- Initiative: Lost Mine of Phandelver ---
@@ -1756,8 +1791,8 @@ async def seed() -> None:
             pm_user=admin_user,
             member_users=[dm, thorn, elara, p_support],
             queues_enabled=True,
-            counters_enabled=True,
-            events_enabled=True,
+            counter_groups_enabled=True,
+            calendars_enabled=True,
         )
 
         # -- Projects --
@@ -2405,7 +2440,7 @@ async def seed() -> None:
                 ],
             },
         ])
-        await _enable_role_feature(session, [g1_strahd_mem, g1_lmop_mem], "counters_enabled")
+        await _enable_role_feature(session, [g1_strahd_mem, g1_lmop_mem], "counter_groups_enabled")
 
         # -- Calendar events --
         print("  Creating Guild 1 calendar events...")
@@ -2501,7 +2536,7 @@ async def seed() -> None:
                 "created_by": "Admin User",
             },
         ])
-        await _enable_role_feature(session, [g1_strahd_mem, g1_lmop_mem], "events_enabled")
+        await _enable_role_feature(session, [g1_strahd_mem, g1_lmop_mem], "calendars_enabled")
 
         # -- Custom properties --
         print("  Creating Guild 1 property definitions + values...")
@@ -2665,8 +2700,8 @@ async def seed() -> None:
             pm_user=admin_user,
             member_users=[finley, kael, aurelia, vex, elara, p_member],
             queues_enabled=True,
-            counters_enabled=True,
-            events_enabled=True,
+            counter_groups_enabled=True,
+            calendars_enabled=True,
         )
 
         g2_side, g2_side_pm, g2_side_mem = await _create_initiative(
@@ -2678,8 +2713,8 @@ async def seed() -> None:
             pm_user=finley,
             member_users=[kael, aurelia, vex, p_moderator],
             queues_enabled=True,
-            counters_enabled=True,
-            events_enabled=True,
+            counter_groups_enabled=True,
+            calendars_enabled=True,
         )
 
         # Projects
@@ -3086,7 +3121,7 @@ async def seed() -> None:
                 ],
             },
         ])
-        await _enable_role_feature(session, [g2_main_mem, g2_side_mem], "counters_enabled")
+        await _enable_role_feature(session, [g2_main_mem, g2_side_mem], "counter_groups_enabled")
 
         # -- Calendar events --
         print("  Creating Guild 2 calendar events...")
@@ -3166,7 +3201,7 @@ async def seed() -> None:
                 "documents": ["One-Shot: Smuggler's Run Briefing"],
             },
         ])
-        await _enable_role_feature(session, [g2_main_mem, g2_side_mem], "events_enabled")
+        await _enable_role_feature(session, [g2_main_mem, g2_side_mem], "calendars_enabled")
 
         # -- Custom properties --
         print("  Creating Guild 2 property definitions + values...")
@@ -3321,8 +3356,8 @@ async def seed() -> None:
             pm_user=finley,
             member_users=[admin_user, dm, thorn, kael, aurelia, sera, p_owner],
             queues_enabled=True,
-            counters_enabled=True,
-            events_enabled=True,
+            counter_groups_enabled=True,
+            calendars_enabled=True,
         )
 
         g3_navy, g3_navy_pm, g3_navy_mem = await _create_initiative(
@@ -3334,8 +3369,8 @@ async def seed() -> None:
             pm_user=dm,
             member_users=[finley, thorn, kael, p_operator],
             queues_enabled=True,
-            counters_enabled=True,
-            events_enabled=True,
+            counter_groups_enabled=True,
+            calendars_enabled=True,
         )
 
         # Projects
@@ -3807,7 +3842,7 @@ async def seed() -> None:
                 ],
             },
         ])
-        await _enable_role_feature(session, [g3_main_mem, g3_navy_mem], "counters_enabled")
+        await _enable_role_feature(session, [g3_main_mem, g3_navy_mem], "counter_groups_enabled")
 
         # -- Calendar events --
         print("  Creating Guild 3 calendar events...")
@@ -3900,7 +3935,7 @@ async def seed() -> None:
                 "created_by": "Dungeon Master",
             },
         ])
-        await _enable_role_feature(session, [g3_main_mem, g3_navy_mem], "events_enabled")
+        await _enable_role_feature(session, [g3_main_mem, g3_navy_mem], "calendars_enabled")
 
         # -- Custom properties --
         print("  Creating Guild 3 property definitions + values...")
