@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Dragging a card into a long Kanban column now changes its status. Once a column held more than about twenty cards the board drew only the ones on screen, and a drop into it could be credited to the last card the pointer crossed on the way in — so the card sprang back to where it started instead of moving. Columns that accumulate cards, Done most of all, were the ones affected.
+- The calendar visibility dropdown no longer heads its list "My calendars". A calendar belongs to its initiative and is shared with the people in it, so the section is now simply "Calendars".
 - Person pickers no longer show "User #12" where a name belongs. A selection the picker was handed rather than one you just made — the assignee filter you get back when you return to a project, a saved user property, the linked user on a queue item — is now resolved to a name and avatar against the same roster the dropdown searches. An id nobody in that roster matches still shows as an id, since there is no one to name.
 
 ## [0.60.1] - 2026-08-06
