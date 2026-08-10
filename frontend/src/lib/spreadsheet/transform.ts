@@ -15,7 +15,12 @@
  */
 
 import { type CellValue, keyOf, parseKey } from "@/lib/spreadsheet/coords";
-import { isFormula, shiftFormulaReferences } from "@/lib/spreadsheet/formula-refs";
+import {
+  isFormula,
+  otherSheetFilter,
+  ownSheetFilter,
+  shiftFormulaReferences,
+} from "@/lib/spreadsheet/formula-refs";
 import type { CellFmt, ColumnFmt, RowFmt } from "@/lib/spreadsheet/styles";
 
 export type LineAxis = "row" | "col";
@@ -44,6 +49,11 @@ export interface TransformResult {
    *  surface a hint so the leftover line / missing inserts aren't a silent
    *  mystery. A full no-op returns ``null`` instead. */
   capped: boolean;
+  /** The old-index → new-index mapper this transform applied (``null`` =
+   *  the line was deleted). Handed back so a workbook can replay the same
+   *  shift over the *other* sheets' formulas — see
+   *  {@link rewriteReferencesToSheet}. */
+  mapIndex: (i: number) => number | null;
 }
 
 export interface LineOp {
@@ -58,6 +68,11 @@ export interface LineOp {
    *  these (matching the editor's MAX_ROWS / MAX_COLS). */
   maxRows: number;
   maxCols: number;
+  /** The name of the sheet being transformed. When given, a formula on it
+   *  shifts both its unqualified references *and* the ones that name this
+   *  sheet explicitly (``=Sheet1!A5`` written on Sheet1 itself). Omit for a
+   *  single-sheet document, where every reference is local by definition. */
+  sheetName?: string;
 }
 
 /** Always keep at least one line on each axis — a 0×n sheet is unusable. */
@@ -136,9 +151,12 @@ export const transformSheet = (s: SheetStructures, op: LineOp): TransformResult 
   };
 
   // Shift the A1 references inside a formula by the active-axis mapper.
-  // Non-formula values pass through untouched.
+  // Non-formula values pass through untouched. References that name a
+  // *different* sheet point at content this transform didn't move, so the
+  // filter leaves them exactly as written.
+  const local = op.sheetName === undefined ? undefined : ownSheetFilter(op.sheetName);
   const remapFormula = (value: CellValue): CellValue =>
-    isFormula(value) ? shiftFormulaReferences(value, op.axis, mapIndex) : value;
+    isFormula(value) ? shiftFormulaReferences(value, op.axis, mapIndex, local) : value;
 
   // Remap a bare integer-keyed structure (column or row formatting).
   const remapBare = <T>(src: Record<string, T>): Record<string, T> => {
@@ -168,5 +186,39 @@ export const transformSheet = (s: SheetStructures, op: LineOp): TransformResult 
       ? { rows: newDim, cols: s.dimensions.cols }
       : { rows: s.dimensions.rows, cols: newDim },
     capped: count < requested,
+    mapIndex,
   };
+};
+
+/**
+ * Replay a completed transform's line shift over the formulas of a
+ * *different* sheet, so a reference that reaches across the workbook keeps
+ * pointing at the same data: insert a row on ``Sheet2`` and a ``=Sheet2!A5``
+ * living on ``Sheet1`` becomes ``=Sheet2!A6``.
+ *
+ * Only references that explicitly name ``sheetName`` are touched — the
+ * other sheet's own cells didn't move. Returns ``null`` when nothing
+ * changed, so the caller can skip the write entirely (the common case: most
+ * sheets reference no other sheet).
+ */
+export const rewriteReferencesToSheet = (
+  cells: ReadonlyMap<string, CellValue> | Record<string, CellValue>,
+  {
+    sheetName,
+    axis,
+    mapIndex,
+  }: { sheetName: string; axis: LineAxis; mapIndex: (i: number) => number | null }
+): Record<string, CellValue> | null => {
+  const applies = otherSheetFilter(sheetName);
+  const out: Record<string, CellValue> = {};
+  let changed = false;
+  const entries = cells instanceof Map ? cells.entries() : Object.entries(cells);
+  for (const [key, value] of entries) {
+    if (!isFormula(value)) continue;
+    const next = shiftFormulaReferences(value, axis, mapIndex, applies);
+    if (next === value) continue;
+    out[key] = next;
+    changed = true;
+  }
+  return changed ? out : null;
 };

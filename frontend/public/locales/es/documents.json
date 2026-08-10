@@ -458,6 +458,20 @@
       "negParens": "(1.234,00)",
       "negRedParens": "Rojo (1.234,00)",
       "clear": "Borrar formato"
+    },
+    "sheets": {
+      "tablist": "Hojas",
+      "add": "Añadir hoja",
+      "menu": "Acciones de la hoja {{name}}",
+      "rename": "Cambiar nombre",
+      "renameLabel": "Nombre de la hoja",
+      "duplicate": "Duplicar",
+      "moveLeft": "Mover a la izquierda",
+      "moveRight": "Mover a la derecha",
+      "delete": "Eliminar",
+      "deleted": "Hoja eliminada: deshaz para recuperarla.",
+      "deleteLastBlocked": "No se puede eliminar la única hoja.",
+      "maxReached": "Esta hoja de cálculo ya tiene el número máximo de hojas."
     }
   },
   "sidePanel": {

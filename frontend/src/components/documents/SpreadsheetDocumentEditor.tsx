@@ -18,6 +18,7 @@ import * as Y from "yjs";
 
 import { FormulaCellInput } from "@/components/documents/spreadsheet/FormulaCellInput";
 import { SpreadsheetFormulaBar } from "@/components/documents/spreadsheet/SpreadsheetFormulaBar";
+import { SpreadsheetSheetTabs } from "@/components/documents/spreadsheet/SpreadsheetSheetTabs";
 import {
   SpreadsheetToolbar,
   type ToolbarSelection,
@@ -26,6 +27,7 @@ import { useSpreadsheetAwareness } from "@/components/documents/spreadsheet/useS
 import { useSpreadsheetCells } from "@/components/documents/spreadsheet/useSpreadsheetCells";
 import { useSpreadsheetFormatting } from "@/components/documents/spreadsheet/useSpreadsheetFormatting";
 import { useSpreadsheetHistory } from "@/components/documents/spreadsheet/useSpreadsheetHistory";
+import { useSpreadsheetSheets } from "@/components/documents/spreadsheet/useSpreadsheetSheets";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   ContextMenu,
@@ -40,58 +42,59 @@ import {
 import { matchHistoryShortcut } from "@/hooks/useYjsHistory";
 import { toast } from "@/lib/chesterToast";
 import {
+  MAX_COLS,
+  MAX_ROWS,
+  parseSpreadsheetContent,
+  type SpreadsheetContent,
+} from "@/lib/spreadsheet/content";
+import {
   type CellValue,
   colIndexToLetter,
   keyOf,
   parseA1Range,
   parseKey,
 } from "@/lib/spreadsheet/coords";
-import {
-  coerceScalar,
-  csvToCells,
-  detectClipboardDelimiter,
-  offsetCells,
-} from "@/lib/spreadsheet/csv";
+import { clipboardToCells, coerceScalar, offsetCells } from "@/lib/spreadsheet/csv";
 import { type Box, computeAutofillTarget, computeFillWrites } from "@/lib/spreadsheet/fill";
-import { createEvaluator, isFormula } from "@/lib/spreadsheet/formula";
+import { createEvaluator, type EvaluatorSheet, isFormula } from "@/lib/spreadsheet/formula";
 import {
   extractReferences,
   FORMULA_REF_COLORS,
   type FormulaRefToken,
   referenceInsertTarget,
 } from "@/lib/spreadsheet/formula-refs";
+import {
+  formatSheetPrefix,
+  MAX_SHEETS,
+  type SheetId,
+  type SheetMeta,
+  sheetNameKey,
+} from "@/lib/spreadsheet/sheets";
 import { type SortDirection, sortSheetByColumn } from "@/lib/spreadsheet/sort";
 import {
-  type CellFmt,
-  type ColumnFmt,
   formatCellValue,
   MAX_COL_WIDTH,
   MAX_ROW_HEIGHT,
   MIN_COL_WIDTH,
   MIN_ROW_HEIGHT,
   negativeRendersRed,
-  type RowFmt,
   resolveCellFormat,
   resolveCellStyle,
-  type SpreadsheetFormatting,
-  sanitizeFormatting,
   styleToCss,
 } from "@/lib/spreadsheet/styles";
-import { type LineAxis, type LineOp, transformSheet } from "@/lib/spreadsheet/transform";
+import {
+  type LineAxis,
+  type LineOp,
+  rewriteReferencesToSheet,
+  transformSheet,
+} from "@/lib/spreadsheet/transform";
 import { cn } from "@/lib/utils";
 
-export interface SpreadsheetContent {
-  schema_version: 1 | 2;
-  kind: "spreadsheet";
-  dimensions: { rows: number; cols: number };
-  cells: Record<string, CellValue>;
-  columns?: Record<string, ColumnFmt>;
-  rows?: Record<string, RowFmt>;
-  cellStyles?: Record<string, CellFmt>;
-  frozen?: { rows: number; cols: number };
-}
+export type { SpreadsheetContent };
 
 interface SpreadsheetDocumentEditorProps {
+  /** The persisted workbook. Accepts any historical schema version — see
+   *  {@link parseSpreadsheetContent}. */
   initialContent: SpreadsheetContent;
   onContentChange: (content: SpreadsheetContent) => void;
   documentTitle: string;
@@ -113,33 +116,14 @@ const ROW_HEIGHT = 28;
 const COL_WIDTH = 110;
 const ROW_HEADER_WIDTH = 56;
 const COL_HEADER_HEIGHT = 26;
-const DEFAULT_ROWS = 100;
-const DEFAULT_COLS = 26;
 const GROW_THRESHOLD = 5;
 const ROW_GROWTH_STEP = 50;
 const COL_GROWTH_STEP = 10;
-const MAX_ROWS = 100_000;
-const MAX_COLS = 1_000;
 const RESIZE_HANDLE = 5;
 
 // Functions that aggregate a range — picking one from the toolbar with a
 // multi-cell selection fills the range in automatically (AutoSum-style).
 const AGGREGATE_FUNCTIONS = new Set(["SUM", "AVERAGE", "MIN", "MAX", "COUNT", "COUNTA"]);
-
-const sanitizeContent = (raw: SpreadsheetContent | undefined): SpreadsheetContent => {
-  const cells = (raw?.cells ?? {}) as Record<string, CellValue>;
-  const requestedRows = raw?.dimensions?.rows ?? DEFAULT_ROWS;
-  const requestedCols = raw?.dimensions?.cols ?? DEFAULT_COLS;
-  return {
-    schema_version: 2,
-    kind: "spreadsheet",
-    dimensions: {
-      rows: Math.min(Math.max(requestedRows, DEFAULT_ROWS), MAX_ROWS),
-      cols: Math.min(Math.max(requestedCols, DEFAULT_COLS), MAX_COLS),
-    },
-    cells,
-  };
-};
 
 interface DragState {
   kind: "col" | "row";
@@ -162,6 +146,9 @@ interface RefHighlight {
  *  ``refTokens`` prop identity every render. */
 const EMPTY_REF_TOKENS: FormulaRefToken[] = [];
 
+/** Stable empty map for the render before the workbook is bootstrapped. */
+const EMPTY_CELLS: ReadonlyMap<string, CellValue> = new Map();
+
 export const SpreadsheetDocumentEditor = ({
   initialContent,
   onContentChange,
@@ -174,11 +161,7 @@ export const SpreadsheetDocumentEditor = ({
 }: SpreadsheetDocumentEditorProps) => {
   const { t } = useTranslation(["documents", "common"]);
 
-  const sanitizedInitial = useMemo(() => sanitizeContent(initialContent), [initialContent]);
-  const initialFormatting = useMemo<SpreadsheetFormatting>(
-    () => sanitizeFormatting(initialContent),
-    [initialContent]
-  );
+  const parsedInitial = useMemo(() => parseSpreadsheetContent(initialContent), [initialContent]);
 
   // Always operate on a Y.Doc so the (battle-tested) collaborative code
   // path is the single path and undo/redo works even with collaboration
@@ -194,16 +177,32 @@ export const SpreadsheetDocumentEditor = ({
   useEffect(() => () => fallbackDoc.destroy(), [fallbackDoc]);
   const docForData = yDoc ?? fallbackDoc;
 
-  const { cells, dimensions, setCell, setDimensions, bulkUpdate, replaceAll } = useSpreadsheetCells(
-    {
+  // The workbook level: which sheets exist, and every sheet's cells (the
+  // evaluator needs all of them to resolve ``=Sheet2!A1``). Called before
+  // the per-sheet hooks because it is what creates their Y.Maps.
+  const workbook = useSpreadsheetSheets({ yDoc: docForData, initialContent: parsedInitial });
+  const { sheets, cellsBySheet, version: workbookVersion } = workbook;
+
+  // The sheet on screen. Tracked by id and re-resolved against the live
+  // list so a peer deleting the active sheet lands us on a real one rather
+  // than a blank grid.
+  const [requestedSheetId, setRequestedSheetId] = useState<SheetId | null>(null);
+  const activeSheet =
+    sheets.find((s) => s.id === requestedSheetId) ?? (sheets[0] as SheetMeta | undefined);
+  const activeSheetId = activeSheet?.id ?? null;
+
+  const cells = (activeSheetId ? cellsBySheet.get(activeSheetId) : undefined) ?? EMPTY_CELLS;
+
+  const { dimensions, setCell, setCellOn, setDimensions, bulkUpdate, bulkUpdateOn, replaceAll } =
+    useSpreadsheetCells({
       yDoc: docForData,
-      initialCells: sanitizedInitial.cells,
-      initialDimensions: sanitizedInitial.dimensions,
-    }
-  );
+      sheetId: activeSheetId,
+      version: workbookVersion,
+    });
   const formatting = useSpreadsheetFormatting({
     yDoc: docForData,
-    initial: initialFormatting,
+    sheetId: activeSheetId,
+    version: workbookVersion,
   });
   const history = useSpreadsheetHistory(docForData);
   // Stable callbacks (memoized in the hook, keyed on the doc) — depend
@@ -219,7 +218,16 @@ export const SpreadsheetDocumentEditor = ({
     focus: { row: number; col: number };
     mode: "range" | "columns" | "rows";
   }>({ anchor: { row: 0, col: 0 }, focus: { row: 0, col: 0 }, mode: "range" });
-  const [editing, setEditing] = useState<{ row: number; col: number; draft: string } | null>(null);
+  // An edit is anchored to the sheet it started on. While a formula is
+  // being typed the user can switch tabs to point at another sheet's cells,
+  // so the active sheet and the sheet being edited can differ; committing
+  // writes to ``editing.sheetId`` and returns there.
+  const [editing, setEditing] = useState<{
+    sheetId: SheetId;
+    row: number;
+    col: number;
+    draft: string;
+  } | null>(null);
   // A pending cut (Excel-style "move"): the source rectangle and a snapshot
   // of its raw cell payload (keyed by offset from the top-left, formulas
   // preserved). The source isn't cleared until the next paste consumes it,
@@ -331,12 +339,23 @@ export const SpreadsheetDocumentEditor = ({
     }
   }, [cells, dimensions, setDimensions]);
 
-  // Formula evaluator bound to the current cell snapshot. Rebuilt whenever
-  // ``cells`` changes (local edit, remote peer write, undo/redo all yield a
-  // fresh map), so computed values recalc automatically; each formula is
-  // evaluated at most once per snapshot via the evaluator's internal cache,
-  // and only for cells the virtualized grid actually renders.
-  const evaluator = useMemo(() => createEvaluator(cells), [cells]);
+  // Formula evaluator bound to the current workbook snapshot. Rebuilt
+  // whenever any sheet's cells change (local edit, remote peer write, and
+  // undo/redo all yield fresh maps), so computed values recalc
+  // automatically; each cell is evaluated at most once per snapshot via the
+  // evaluator's internal cache, and only for cells the virtualized grid
+  // actually renders.
+  const evaluator = useMemo(() => {
+    const evaluatorSheets: EvaluatorSheet[] = sheets.map((sheet) => ({
+      id: sheet.id,
+      name: sheet.name,
+      cells: cellsBySheet.get(sheet.id) ?? EMPTY_CELLS,
+    }));
+    return createEvaluator({
+      sheets: evaluatorSheets,
+      activeSheetId: activeSheetId ?? "",
+    });
+  }, [sheets, cellsBySheet, activeSheetId]);
 
   // References in the formula currently being edited, used to color the
   // editor text and outline the cells they point at. Empty unless a formula
@@ -346,12 +365,25 @@ export const SpreadsheetDocumentEditor = ({
     [editing]
   );
 
+  // The subset of those references that point at the sheet on screen — a
+  // reference to another sheet has no box to outline here. An unqualified
+  // reference belongs to the sheet the formula lives on, which is only the
+  // visible one when the user hasn't tabbed away mid-formula.
+  const visibleRefs = useMemo<FormulaRefToken[]>(() => {
+    if (!activeSheet) return EMPTY_REF_TOKENS;
+    const activeKey = sheetNameKey(activeSheet.name);
+    const editingHere = editing?.sheetId === activeSheetId;
+    return editingRefs.filter((token) =>
+      token.sheet === null ? editingHere : sheetNameKey(token.sheet) === activeKey
+    );
+  }, [editingRefs, activeSheet, activeSheetId, editing?.sheetId]);
+
   // The reference highlight (color + which edges form the box boundary) for a
   // single cell, or null. Scans the (few) tokens rather than pre-enumerating
   // every cell of every range, so a huge ``A1:A100000`` stays cheap.
   const refHighlightAt = useCallback(
     (r: number, c: number): RefHighlight | null => {
-      for (const t of editingRefs) {
+      for (const t of visibleRefs) {
         if (r >= t.r1 && r <= t.r2 && c >= t.c1 && c <= t.c2) {
           return {
             color: FORMULA_REF_COLORS[t.colorIndex % FORMULA_REF_COLORS.length],
@@ -364,7 +396,7 @@ export const SpreadsheetDocumentEditor = ({
       }
       return null;
     },
-    [editingRefs]
+    [visibleRefs]
   );
 
   // Emit the JSON snapshot to the parent on every change so the
@@ -383,26 +415,11 @@ export const SpreadsheetDocumentEditor = ({
       skipFirstEmitRef.current = false;
       return;
     }
-    const cellsObj: Record<string, CellValue> = {};
-    for (const [key, value] of cells) cellsObj[key] = value;
-    onContentChangeRef.current({
-      schema_version: 2,
-      kind: "spreadsheet",
-      dimensions,
-      cells: cellsObj,
-      columns: formatting.columns,
-      rows: formatting.rows,
-      cellStyles: formatting.cellStyles,
-      frozen: formatting.frozen,
-    });
-  }, [
-    cells,
-    dimensions,
-    formatting.columns,
-    formatting.rows,
-    formatting.cellStyles,
-    formatting.frozen,
-  ]);
+    // Read the snapshot straight off the Y.Doc rather than from the
+    // on-screen sheet's mirrored state: an edit on any sheet — including
+    // one the user has tabbed away from — belongs in the saved workbook.
+    onContentChangeRef.current(workbook.snapshot());
+  }, [workbookVersion, workbook.snapshot]);
 
   const rowVirtualizer = useVirtualizer({
     count: dimensions.rows,
@@ -535,7 +552,19 @@ export const SpreadsheetDocumentEditor = ({
   // resets to the current selection on blur.
   const navigateToRef = useCallback(
     (text: string) => {
-      const box = parseA1Range(text);
+      // The name box accepts a sheet qualifier (``Budget!B4``), which jumps
+      // tabs as well as cells. An unknown sheet name is ignored, like any
+      // other unparseable input.
+      let target = text;
+      const bang = text.lastIndexOf("!");
+      if (bang > 0) {
+        const named = text.slice(0, bang).trim().replace(/^'|'$/g, "").replace(/''/g, "'");
+        const match = sheets.find((s) => sheetNameKey(s.name) === sheetNameKey(named));
+        if (!match) return;
+        setRequestedSheetId(match.id);
+        target = text.slice(bang + 1);
+      }
+      const box = parseA1Range(target);
       if (!box) return;
       const r1 = Math.min(box.r1, dimensions.rows - 1);
       const c1 = Math.min(box.c1, dimensions.cols - 1);
@@ -548,7 +577,7 @@ export const SpreadsheetDocumentEditor = ({
       colVirtualizer.scrollToIndex(c1, { align: "center" });
       containerRef.current?.focus();
     },
-    [dimensions.rows, dimensions.cols, rowVirtualizer, colVirtualizer]
+    [dimensions.rows, dimensions.cols, rowVirtualizer, colVirtualizer, sheets]
   );
 
   // Commit a fill (drag or double-click): tile / extrapolate the source
@@ -644,32 +673,36 @@ export const SpreadsheetDocumentEditor = ({
     clientId: yDoc?.clientID ?? null,
     user: currentUser,
     selected: sel.focus,
+    sheetId: activeSheetId,
     enabled: Boolean(awareness && yDoc && currentUser),
     publishLocal: !readOnly,
   });
 
   const beginEdit = useCallback(
     (row: number, col: number, initialDraft?: string) => {
-      if (readOnly) return;
+      if (readOnly || !activeSheetId) return;
       setCut(null); // starting an edit cancels a pending cut (Excel behavior)
       const existing = cells.get(keyOf(row, col));
       const initial =
         initialDraft !== undefined ? initialDraft : existing == null ? "" : String(existing);
-      setEditing({ row, col, draft: initial });
+      setEditing({ sheetId: activeSheetId, row, col, draft: initial });
     },
-    [cells, readOnly]
+    [cells, readOnly, activeSheetId]
   );
 
   const commitEdit = useCallback(
     (next?: { row: number; col: number }) => {
       if (!editing) return;
       const value = coerceScalar(editing.draft);
-      setCell(editing.row, editing.col, value === "" ? null : value);
+      setCellOn(editing.sheetId, editing.row, editing.col, value === "" ? null : value);
       setEditing(null);
       pointRefRef.current = null;
+      // Building a cross-sheet formula leaves the grid on the sheet that was
+      // being pointed at; committing belongs back where the formula lives.
+      if (editing.sheetId !== activeSheetId) setRequestedSheetId(editing.sheetId);
       if (next) selectCell(next.row, next.col);
     },
-    [editing, setCell, selectCell]
+    [editing, setCellOn, selectCell, activeSheetId]
   );
 
   const cancelEdit = useCallback(() => {
@@ -701,7 +734,11 @@ export const SpreadsheetDocumentEditor = ({
       const input = activeEditorRef.current ?? editingInputRef.current;
       if (!input) return false;
       const draft = editing.draft;
-      const cellRef = (r: number, c: number) => `${colIndexToLetter(c)}${r + 1}`;
+      // Pointing at a cell on a sheet other than the formula's own has to
+      // spell the sheet out — that IS the cross-sheet reference.
+      const prefix =
+        activeSheet && editing.sheetId !== activeSheetId ? formatSheetPrefix(activeSheet.name) : "";
+      const cellRef = (r: number, c: number) => `${prefix}${colIndexToLetter(c)}${r + 1}`;
       let span: { start: number; end: number };
       let refText: string;
       if (extend) {
@@ -729,10 +766,10 @@ export const SpreadsheetDocumentEditor = ({
       const newEnd = span.start + refText.length;
       if (pointRefRef.current) pointRefRef.current.span = { start: span.start, end: newEnd };
       pendingCaretRef.current = newEnd;
-      setEditing({ row: editing.row, col: editing.col, draft: next });
+      setEditing({ ...editing, draft: next });
       return true;
     },
-    [editing]
+    [editing, activeSheet, activeSheetId]
   );
 
   // Restore the caret after a point-mode splice (the controlled input resets
@@ -782,7 +819,10 @@ export const SpreadsheetDocumentEditor = ({
     [readOnly, selBox, sel.mode, sel.focus, setCell, selectCell, beginEdit]
   );
 
-  const editingCellKey = editing ? `${editing.row}:${editing.col}` : null;
+  // Null while the edit belongs to another sheet: the in-cell input isn't
+  // mounted then, and the formula bar carries the draft instead.
+  const editingCellKey =
+    editing && editing.sheetId === activeSheetId ? `${editing.row}:${editing.col}` : null;
   useEffect(() => {
     if (editingCellKey && editingInputRef.current) {
       // Edit begun from the formula bar: leave focus there (the cell input is
@@ -1015,12 +1055,11 @@ export const SpreadsheetDocumentEditor = ({
       const text = e.clipboardData.getData("text/plain");
       if (!text) return;
       e.preventDefault();
-      if (!text.includes("\n") && !text.includes("\t") && !text.includes(",")) {
+      if (!text.includes("\n") && !text.includes("\r") && !text.includes("\t")) {
         setCell(row, col, coerceScalar(text));
         return;
       }
-      const delimiter = detectClipboardDelimiter(text);
-      const parsed = csvToCells(text, { delimiter });
+      const parsed = clipboardToCells(text);
       const offset = offsetCells(parsed.cells, row, col);
       bulkUpdate((draft) => {
         for (const [key, value] of Object.entries(offset)) draft.set(key, value);
@@ -1086,6 +1125,7 @@ export const SpreadsheetDocumentEditor = ({
     (op: Pick<LineOp, "axis" | "mode" | "at" | "count">) => {
       if (readOnly) return;
       setCut(null); // shifting lines would strand the cut marquee
+      if (!activeSheet) return;
       const result = transformSheet(
         {
           cells,
@@ -1095,7 +1135,7 @@ export const SpreadsheetDocumentEditor = ({
           frozen: formatting.frozen,
           dimensions,
         },
-        { ...op, maxRows: MAX_ROWS, maxCols: MAX_COLS }
+        { ...op, maxRows: MAX_ROWS, maxCols: MAX_COLS, sheetName: activeSheet.name }
       );
       if (!result) {
         // The op was blocked by a guard (deleting the last remaining
@@ -1120,6 +1160,20 @@ export const SpreadsheetDocumentEditor = ({
           cellStyles: result.cellStyles,
           frozen: result.frozen,
         });
+        // A formula on another sheet that reaches into this one has to move
+        // with the lines it points at, exactly like a local reference does.
+        for (const other of sheets) {
+          if (other.id === activeSheet.id) continue;
+          const rewritten = rewriteReferencesToSheet(cellsBySheet.get(other.id) ?? EMPTY_CELLS, {
+            sheetName: activeSheet.name,
+            axis: op.axis,
+            mapIndex: result.mapIndex,
+          });
+          if (!rewritten) continue;
+          bulkUpdateOn(other.id, (draft) => {
+            for (const [key, value] of Object.entries(rewritten)) draft.set(key, value);
+          });
+        }
       }, "spreadsheet-structure");
 
       // Remap the selection along the shifted axis so it tracks the same
@@ -1165,7 +1219,19 @@ export const SpreadsheetDocumentEditor = ({
         toast.info(t(`documents:${cappedKey}`));
       }
     },
-    [readOnly, cells, formatting, dimensions, replaceAll, docForData, t]
+    [
+      readOnly,
+      cells,
+      formatting,
+      dimensions,
+      replaceAll,
+      docForData,
+      t,
+      activeSheet,
+      sheets,
+      cellsBySheet,
+      bulkUpdateOn,
+    ]
   );
 
   // Insert ``count`` lines before / after the band on ``axis``, then
@@ -1310,7 +1376,8 @@ export const SpreadsheetDocumentEditor = ({
   const renderCell = useCallback(
     (r: number, c: number, left: number, top: number) => {
       const isActive = sel.focus.row === r && sel.focus.col === c;
-      const isEditing = editing?.row === r && editing?.col === c;
+      const isEditing =
+        editing?.sheetId === activeSheetId && editing?.row === r && editing?.col === c;
       const value = cells.get(keyOf(r, c));
       const numberFormat = resolveCellFormat(r, c, formatting);
       // Formula cells show their computed result (or an error token); the
@@ -1363,7 +1430,7 @@ export const SpreadsheetDocumentEditor = ({
           peerColor={peer?.selection.color ?? null}
           peerName={peer?.user.name ?? null}
           refHighlight={refHighlightAt(r, c)}
-          refTokens={isEditing ? editingRefs : EMPTY_REF_TOKENS}
+          refTokens={isEditing ? visibleRefs : EMPTY_REF_TOKENS}
           onMouseDown={(e) => {
             if (isEditing) return;
             if (e.button !== 0) return;
@@ -1424,7 +1491,7 @@ export const SpreadsheetDocumentEditor = ({
             // Typing invalidates the recorded reference span, so a later
             // shift-click starts a fresh reference rather than re-splicing.
             pointRefRef.current = null;
-            setEditing({ row: r, col: c, draft });
+            setEditing((p) => (p ? { ...p, draft } : p));
           }}
           onEditingKeyDown={handleEditingKeyDown}
           onEditingBlur={handleEditorBlur}
@@ -1445,7 +1512,8 @@ export const SpreadsheetDocumentEditor = ({
       cut,
       fillPreview,
       editing,
-      editingRefs,
+      activeSheetId,
+      visibleRefs,
       refHighlightAt,
       insertReference,
       readOnly,
@@ -1494,9 +1562,81 @@ export const SpreadsheetDocumentEditor = ({
   const handleFormulaBarChange = useCallback(
     (draft: string) => {
       pointRefRef.current = null;
-      setEditing((p) => (p ? { ...p, draft } : { row: sel.focus.row, col: sel.focus.col, draft }));
+      setEditing((p) => {
+        if (p) return { ...p, draft };
+        if (!activeSheetId) return p;
+        return { sheetId: activeSheetId, row: sel.focus.row, col: sel.focus.col, draft };
+      });
     },
-    [sel.focus.row, sel.focus.col]
+    [sel.focus.row, sel.focus.col, activeSheetId]
+  );
+
+  // --- sheet tabs ---------------------------------------------------------
+
+  // Each sheet keeps its own cursor, so tabbing away and back lands where
+  // you left off. A ref (not state) because nothing renders from it — the
+  // selection it restores is written straight into ``setSel``.
+  const selBySheetRef = useRef(new Map<SheetId, typeof sel>());
+
+  const selectSheet = useCallback(
+    (id: SheetId) => {
+      if (id === activeSheetId) return;
+      if (activeSheetId) selBySheetRef.current.set(activeSheetId, sel);
+      setCut(null); // the marquee belongs to the sheet it was cut from
+      setRequestedSheetId(id);
+      const restored = selBySheetRef.current.get(id);
+      setSel(restored ?? { anchor: { row: 0, col: 0 }, focus: { row: 0, col: 0 }, mode: "range" });
+
+      // Mid-formula, switching tabs is how you point at another sheet, so
+      // the draft stays alive — but the in-cell input is about to unmount,
+      // so focus has to move to the formula bar or the next keystroke is
+      // lost. Anything else commits, exactly like clicking away would.
+      if (editing && isFormula(editing.draft)) {
+        activeEditorRef.current = formulaBarInputRef.current;
+        requestAnimationFrame(() => formulaBarInputRef.current?.focus());
+        return;
+      }
+      if (editing) commitEdit();
+    },
+    [activeSheetId, sel, editing, commitEdit]
+  );
+
+  const handleAddSheet = useCallback(() => {
+    const id = workbook.addSheet(activeSheetId ?? undefined);
+    if (!id) {
+      toast.info(t("documents:spreadsheet.sheets.maxReached"));
+      return;
+    }
+    if (editing) commitEdit();
+    setCut(null);
+    setRequestedSheetId(id);
+    setSel({ anchor: { row: 0, col: 0 }, focus: { row: 0, col: 0 }, mode: "range" });
+  }, [workbook, activeSheetId, editing, commitEdit, t]);
+
+  const handleDuplicateSheet = useCallback(
+    (id: SheetId) => {
+      const copyId = workbook.duplicateSheet(id);
+      if (!copyId) {
+        toast.info(t("documents:spreadsheet.sheets.maxReached"));
+        return;
+      }
+      setRequestedSheetId(copyId);
+    },
+    [workbook, t]
+  );
+
+  const handleDeleteSheet = useCallback(
+    (id: SheetId) => {
+      if (!workbook.deleteSheet(id)) {
+        toast.info(t("documents:spreadsheet.sheets.deleteLastBlocked"));
+        return;
+      }
+      selBySheetRef.current.delete(id);
+      // Formulas elsewhere that named the sheet keep their text and start
+      // reporting #REF!, so undo (or renaming a sheet back) restores them.
+      toast.info(t("documents:spreadsheet.sheets.deleted"));
+    },
+    [workbook, t]
   );
 
   return (
@@ -1819,6 +1959,19 @@ export const SpreadsheetDocumentEditor = ({
           )}
         </div>
       </div>
+
+      <SpreadsheetSheetTabs
+        sheets={sheets}
+        activeSheetId={activeSheetId}
+        readOnly={readOnly}
+        canAdd={sheets.length < MAX_SHEETS}
+        onSelect={selectSheet}
+        onAdd={handleAddSheet}
+        onRename={workbook.renameSheet}
+        onDelete={handleDeleteSheet}
+        onDuplicate={handleDuplicateSheet}
+        onMove={workbook.moveSheet}
+      />
     </div>
   );
 };

@@ -1,10 +1,18 @@
 """Spreadsheet-document renderers: the sparse cell map as CSV or styled XLSX.
 
-Input is the canonical v2 snapshot ``documents_spreadsheet`` persists:
-``{dimensions, cells, columns, rows, cellStyles, frozen}`` with ``"r:c"``
-keys. CSV carries values (BOM-prefixed); XLSX additionally maps the
-formatting model — fonts, colors, alignment, borders, number formats, column
-widths, row heights, frozen panes.
+Input is the canonical v3 snapshot ``documents_spreadsheet`` persists:
+``{sheets: [{id, name, dimensions, cells, columns, rows, cellStyles,
+frozen}, ...]}`` with ``"r:c"`` keys. A legacy v1/v2 snapshot — the same
+structures at the top level, no ``sheets`` — is read as a one-sheet
+workbook, so a document that hasn't been re-saved since multi-sheet
+landed still exports.
+
+XLSX maps the workbook one-to-one: a worksheet per sheet, in tab order,
+carrying the formatting model (fonts, colors, alignment, borders, number
+formats, column widths, row heights, frozen panes). CSV has no way to
+express more than one sheet, so it carries the **first** one, which is what
+Excel's own "Save as CSV" does; the xlsx and json formats are the lossless
+ones.
 
 Formulas: the app's sheets store formulas as ``=``-prefixed cell strings
 (evaluated client-side; the snapshot keeps the raw text). Unlike the tabular
@@ -52,6 +60,17 @@ def _cell_coords(key: str) -> tuple[int, int] | None:
     return int(parts[0]), int(parts[1])
 
 
+def sheets_of(content: dict) -> list[dict]:
+    """The workbook's sheets in tab order. A legacy (pre-v3) snapshot has
+    no ``sheets`` key and *is* its own single sheet."""
+    if not isinstance(content, dict):
+        return [{}]
+    sheets = content.get("sheets")
+    if isinstance(sheets, list) and sheets:
+        return [sheet for sheet in sheets if isinstance(sheet, dict)] or [{}]
+    return [content]
+
+
 def _grid_size(content: dict) -> tuple[int, int]:
     dimensions = content.get("dimensions") or {}
     rows = int(dimensions.get("rows") or 0)
@@ -75,8 +94,11 @@ def _csv_cell(value: object) -> object:
 
 
 def render_csv(content: dict) -> bytes:
-    rows, cols = _grid_size(content)
-    cells = content.get("cells") or {}
+    """The first sheet as CSV. See the module docstring: the format cannot
+    carry a workbook, so xlsx/json are the lossless exports."""
+    sheet_content = sheets_of(content)[0]
+    rows, cols = _grid_size(sheet_content)
+    cells = sheet_content.get("cells") or {}
     buffer = io.StringIO()
     writer = csv.writer(buffer)
     for r in range(rows):
@@ -85,15 +107,33 @@ def render_csv(content: dict) -> bytes:
 
 
 def render_xlsx(content: dict, *, title: str) -> bytes:
+    """The whole workbook: one worksheet per sheet, in tab order.
+
+    ``title`` is the *document's* name, used only to title the worksheet of
+    a legacy snapshot that has no per-sheet names.
+    """
+    workbook = Workbook()
+    used_titles: set[str] = set()
+    for index, sheet_content in enumerate(sheets_of(content)):
+        name = sheet_content.get("name")
+        worksheet = workbook.active if index == 0 else workbook.create_sheet()
+        worksheet.title = _unique_title(
+            _sheet_title(name if isinstance(name, str) and name else title),
+            used_titles,
+        )
+        _render_sheet(worksheet, sheet_content)
+
+    out = io.BytesIO()
+    workbook.save(out)
+    return out.getvalue()
+
+
+def _render_sheet(sheet, content: dict) -> None:
     rows, cols = _grid_size(content)
     cells = content.get("cells") or {}
     columns = content.get("columns") or {}
     row_fmts = content.get("rows") or {}
     cell_styles = content.get("cellStyles") or {}
-
-    workbook = Workbook()
-    sheet = workbook.active
-    sheet.title = _sheet_title(title)
 
     for r in range(rows):
         for c in range(cols):
@@ -124,14 +164,25 @@ def render_xlsx(content: dict, *, title: str) -> bytes:
     if frozen_rows or frozen_cols:
         sheet.freeze_panes = sheet.cell(row=frozen_rows + 1, column=frozen_cols + 1)
 
-    out = io.BytesIO()
-    workbook.save(out)
-    return out.getvalue()
-
 
 def _sheet_title(title: str) -> str:
     cleaned = title.translate(str.maketrans("", "", "[]:*?/\\")).strip()
     return cleaned[:31] or "Sheet1"
+
+
+def _unique_title(title: str, used: set[str]) -> str:
+    """Worksheet titles must be unique within a workbook. Names are already
+    de-duplicated on write, but a legacy snapshot (every sheet falling back
+    to the document title) or a hand-edited payload can still collide, and
+    openpyxl would raise."""
+    candidate = title
+    counter = 1
+    while candidate.casefold() in used:
+        counter += 1
+        suffix = f" {counter}"
+        candidate = f"{title[: 31 - len(suffix)].strip()}{suffix}"
+    used.add(candidate.casefold())
+    return candidate
 
 
 def _effective_style(

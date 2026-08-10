@@ -7,9 +7,14 @@
  * ``fast-formula-parser`` / ``chevrotain`` dependency into its import
  * graph. The only thing shared between the two is the trivial
  * {@link isFormula} predicate.
+ *
+ * References may be sheet-qualified (``Sheet2!A1``, ``'Q1 Actuals'!A1:B3``).
+ * A single {@link matchReferenceAt} probe recognizes both forms, so the
+ * rewriting walk and the highlighting walk can never drift apart.
  */
 
 import { type CellValue, colIndexToLetter, letterToColIndex } from "@/lib/spreadsheet/coords";
+import { formatSheetPrefix, sheetNameKey, unquoteSheetName } from "@/lib/spreadsheet/sheets";
 
 /** A cell holds a formula when its value is a string beginning with "=". */
 export const isFormula = (value: CellValue | undefined): value is string =>
@@ -19,6 +24,13 @@ export const isFormula = (value: CellValue | undefined): value is string =>
 // before the row digits (``A1``, ``$A1``, ``A$1``, ``$A$1``). Anchored so
 // we can probe a single position in the scan below.
 const REF_AT_START = /^(\$?)([A-Za-z]+)(\$?)(\d+)/;
+
+// A sheet qualifier: a bare identifier or a ``'``-quoted name (with ``''``
+// escaping), followed by ``!``. Mirrors ``quoteSheetName`` in sheets.ts and
+// the Sheet / SheetQuoted tokens of the evaluator's grammar.
+const SHEET_PREFIX_SRC =
+  "(?:'((?:[^']|'')+)'|([A-Za-z_\\u007F-\\uFFFF][A-Za-z0-9_.\\u007F-\\uFFFF]*))!";
+const SHEET_PREFIX_AT_START = new RegExp(`^${SHEET_PREFIX_SRC}`);
 
 // Characters that, when they immediately precede or follow a candidate
 // match, mean it's part of a longer identifier (a function name like
@@ -33,14 +45,85 @@ const isIdentTail = (c: string | undefined): boolean => {
   return x === "(" || IDENT_CHAR.test(x);
 };
 
+/** One endpoint of a matched reference: the A1 match plus the sheet
+ *  qualifier written in front of it (if any). */
+interface RefEndpoint {
+  /** The A1 groups: ``[all, colAbs, letters, rowAbs, digits]``. */
+  a1: RegExpExecArray;
+  /** The qualifier exactly as written, ``!`` included — ``"Sheet2!"``,
+   *  ``"'Q1 Actuals'!"`` — or ``""`` for a local reference. */
+  prefixText: string;
+  /** The decoded (unquoted) sheet name, or ``null`` for a local ref. */
+  sheet: string | null;
+}
+
+/** A reference token located in a formula body: one cell, or a range whose
+ *  qualifier (when present) is written on its first endpoint. */
+interface RefMatch {
+  start: RefEndpoint;
+  /** The second endpoint of a ``A1:B3`` range, else ``null``. */
+  end: RefEndpoint | null;
+  /** Index in the body just past the whole token. */
+  endIndex: number;
+}
+
+/** Probe for a (possibly sheet-qualified, possibly ranged) reference
+ *  starting at ``i``. Returns ``null`` when there isn't one — including
+ *  when the text there is really a function name or a longer identifier. */
+const matchEndpointAt = (body: string, i: number): RefEndpoint | null => {
+  const prefixMatch = SHEET_PREFIX_AT_START.exec(body.slice(i));
+  const prefixText = prefixMatch ? prefixMatch[0] : "";
+  const a1 = REF_AT_START.exec(body.slice(i + prefixText.length));
+  if (!a1) return null;
+  if (isIdentTail(body[i + prefixText.length + a1[0].length])) return null;
+  return {
+    a1,
+    prefixText,
+    sheet: prefixMatch ? unquoteSheetName(prefixMatch[1] ?? prefixMatch[2]) : null,
+  };
+};
+
+const matchReferenceAt = (body: string, i: number): RefMatch | null => {
+  // Only probe at an identifier boundary so the ``A1`` inside ``FOO_A1``
+  // (or a column-letter run that's really a function name) isn't matched.
+  const prev = i > 0 ? body[i - 1] : "";
+  if (IDENT_CHAR.test(prev)) return null;
+  const start = matchEndpointAt(body, i);
+  if (!start) return null;
+  const afterStart = i + start.prefixText.length + start.a1[0].length;
+  if (body[afterStart] === ":") {
+    const end = matchEndpointAt(body, afterStart + 1);
+    if (end) {
+      return {
+        start,
+        end,
+        endIndex: afterStart + 1 + end.prefixText.length + end.a1[0].length,
+      };
+    }
+  }
+  return { start, end: null, endIndex: afterStart };
+};
+
+/** Decides whether a rewrite applies to a reference, given the sheet it
+ *  names (``null`` = unqualified, i.e. the formula's own sheet). */
+export type SheetFilter = (sheet: string | null) => boolean;
+
+/** The default: only unqualified references, which is every reference in a
+ *  single-sheet document. */
+const LOCAL_ONLY: SheetFilter = (sheet) => sheet === null;
+
 /**
- * Scan a formula and rewrite every A1 cell reference through ``mapSingle``,
- * which maps one matched reference to its replacement text (or ``null`` to
- * mark it deleted / off-grid → ``#REF!``).
+ * Scan a formula and rewrite every cell reference through ``mapSingle``,
+ * which maps one matched endpoint to its replacement text (or ``null`` to
+ * mark it deleted / off-grid → ``#REF!``). Mappers build that text with
+ * {@link emitRef}, which re-attaches the sheet qualifier, so an ordinary
+ * coordinate rewrite never has to think about quoting.
  *
  * Ranges (``A1:B10``) are handled as a unit: a ``null`` from *either*
- * endpoint collapses the whole range to a single ``#REF!`` (``=SUM(#REF!)``,
- * matching Excel — never the invalid ``=SUM(#REF!:A10)``).
+ * endpoint collapses the whole range to a single ``#REF!``
+ * (``=SUM(#REF!)``, matching Excel — never the invalid ``=SUM(#REF!:A10)``).
+ * The qualifier is dropped along with it: ``#REF!`` is already unambiguous,
+ * and ``Sheet2!#REF!`` isn't valid input to the evaluator's grammar.
  *
  * The scan skips double-quoted string literals (with ``""`` escaping) so
  * text like ``="A5 total"`` is never mistaken for a reference, and only
@@ -49,7 +132,7 @@ const isIdentTail = (c: string | undefined): boolean => {
  */
 const scanReferences = (
   formula: string,
-  mapSingle: (m: RegExpExecArray) => string | null
+  mapSingle: (endpoint: RefEndpoint) => string | null
 ): string => {
   if (!isFormula(formula)) return formula;
   const body = formula.slice(1);
@@ -82,29 +165,17 @@ const scanReferences = (
       continue;
     }
 
-    // Only probe for a reference at an identifier boundary so the ``A1``
-    // inside ``FOO_A1`` (or a column-letter run that's really a function
-    // name) isn't rewritten.
-    const prev = i > 0 ? body[i - 1] : "";
-    const match = IDENT_CHAR.test(prev) ? null : REF_AT_START.exec(body.slice(i));
-    if (match && !isIdentTail(body[i + match[0].length])) {
-      const afterIdx = i + match[0].length;
-      // Look for a ``ref:ref`` range so it can be rewritten as a unit.
-      let match2: RegExpExecArray | null = null;
-      if (body[afterIdx] === ":") {
-        const m = REF_AT_START.exec(body.slice(afterIdx + 1));
-        if (m && !isIdentTail(body[afterIdx + 1 + m[0].length])) match2 = m;
-      }
-      if (match2) {
-        const start = mapSingle(match);
-        const end = mapSingle(match2);
+    const match = matchReferenceAt(body, i);
+    if (match) {
+      const start = mapSingle(match.start);
+      if (match.end) {
+        const end = mapSingle(match.end);
         // A deleted/off-grid endpoint collapses the whole range (Excel).
         out += start === null || end === null ? "#REF!" : `${start}:${end}`;
-        i = afterIdx + 1 + match2[0].length;
-        continue;
+      } else {
+        out += start ?? "#REF!";
       }
-      out += mapSingle(match) ?? "#REF!";
-      i += match[0].length;
+      i = match.endIndex;
       continue;
     }
 
@@ -115,12 +186,25 @@ const scanReferences = (
   return out;
 };
 
+/** Re-assemble a reference from its (possibly rewritten) parts: the sheet
+ *  qualifier as written, then the A1 text. ``null`` propagates so a caller
+ *  can spell "this reference no longer exists". */
+const emitRef = (endpoint: RefEndpoint, a1: string | null, prefix?: string): string | null =>
+  a1 === null ? null : `${prefix ?? endpoint.prefixText}${a1}`;
+
 /**
- * Rewrite every A1 cell reference in a formula along ``axis`` using
- * ``mapIndex`` — the exact old-index → new-index mapper that
- * ``transformSheet`` builds for an insert/delete. References on the
- * inactive axis are left untouched; a reference whose active-axis line
- * was deleted (``mapIndex`` returns ``null``) becomes ``#REF!``.
+ * Rewrite cell references in a formula along ``axis`` using ``mapIndex`` —
+ * the exact old-index → new-index mapper that ``transformSheet`` builds for
+ * an insert/delete. References on the inactive axis are left untouched; a
+ * reference whose active-axis line was deleted (``mapIndex`` returns
+ * ``null``) becomes ``#REF!``.
+ *
+ * ``applies`` selects which references the shift reaches, by the sheet they
+ * name. It defaults to unqualified references only — right for a formula
+ * sitting on the sheet being transformed in a single-sheet document. A
+ * workbook passes a filter that also matches the transformed sheet's own
+ * name, and a second pass over the *other* sheets passes one that matches
+ * only that name (see ``transform.ts``).
  *
  * Ranges shrink when an interior line is deleted and collapse to ``#REF!``
  * when an endpoint's line is deleted. ``$`` absolute markers are preserved
@@ -131,19 +215,32 @@ const scanReferences = (
 export const shiftFormulaReferences = (
   formula: string,
   axis: "row" | "col",
-  mapIndex: (i: number) => number | null
-): string => scanReferences(formula, (m) => mapRef(m, axis, mapIndex));
+  mapIndex: (i: number) => number | null,
+  applies: SheetFilter = LOCAL_ONLY
+): string =>
+  scanReferences(formula, (endpoint) =>
+    emitRef(
+      endpoint,
+      applies(endpoint.sheet) ? mapRef(endpoint.a1, axis, mapIndex) : endpoint.a1[0]
+    )
+  );
 
 /**
- * Translate every *relative* A1 reference in a formula by ``rowDelta`` /
+ * Translate every *relative* reference in a formula by ``rowDelta`` /
  * ``colDelta`` — the copy/fill semantics of a spreadsheet. A ``$`` marker
  * pins that component in place (``$A$1`` never moves; ``A$1`` moves only by
  * column; ``$A1`` only by row). A reference pushed off the grid (negative
  * row or column) becomes ``#REF!``, and a range collapses to ``#REF!`` if
  * either endpoint does. Non-formula input is returned unchanged.
+ *
+ * Sheet-qualified references translate their coordinates like any other and
+ * keep pointing at the same sheet, matching Excel: copying ``=Sheet2!A1``
+ * one row down gives ``=Sheet2!A2``.
  */
 export const translateFormula = (formula: string, rowDelta: number, colDelta: number): string =>
-  scanReferences(formula, (m) => mapRefTranslate(m, rowDelta, colDelta));
+  scanReferences(formula, (endpoint) =>
+    emitRef(endpoint, mapRefTranslate(endpoint.a1, rowDelta, colDelta))
+  );
 
 /** Rewrite one matched reference along ``axis``; ``null`` if its line was
  *  deleted (the caller turns that into ``#REF!``). */
@@ -172,6 +269,39 @@ const mapRefTranslate = (m: RegExpExecArray, rowDelta: number, colDelta: number)
   return `${colAbs}${colIndexToLetter(col)}${rowAbs}${row + 1}`;
 };
 
+/** A {@link SheetFilter} matching a formula's own sheet: unqualified
+ *  references, plus ones that name that sheet explicitly. */
+export const ownSheetFilter = (name: string): SheetFilter => {
+  const key = sheetNameKey(name);
+  return (sheet) => sheet === null || sheetNameKey(sheet) === key;
+};
+
+/** A {@link SheetFilter} matching only references that explicitly name
+ *  ``name`` — what a formula on some *other* sheet uses. */
+export const otherSheetFilter = (name: string): SheetFilter => {
+  const key = sheetNameKey(name);
+  return (sheet) => sheet !== null && sheetNameKey(sheet) === key;
+};
+
+/**
+ * Rewrite the sheet qualifiers in a formula after a sheet is renamed.
+ * References that named ``from`` are re-emitted naming ``to`` (re-quoted as
+ * the new name requires); everything else is left byte-identical. Returns
+ * the formula unchanged when it names no such sheet.
+ */
+export const renameSheetReferences = (formula: string, from: string, to: string): string => {
+  if (!isFormula(formula)) return formula;
+  const fromKey = sheetNameKey(from);
+  const renamed = formatSheetPrefix(to);
+  return scanReferences(formula, (endpoint) =>
+    emitRef(
+      endpoint,
+      endpoint.a1[0],
+      endpoint.sheet !== null && sheetNameKey(endpoint.sheet) === fromKey ? renamed : undefined
+    )
+  );
+};
+
 // ---------------------------------------------------------------------------
 // Reference extraction (read-only) for the formula editor's live highlights.
 // ---------------------------------------------------------------------------
@@ -193,9 +323,9 @@ export const FORMULA_REF_COLORS = [
   "#9334e6",
 ];
 
-/** One A1 reference (or ``A1:B3`` range) located inside a formula string. */
+/** One reference (or ``A1:B3`` range) located inside a formula string. */
 export interface FormulaRefToken {
-  /** The matched text, e.g. ``A1`` or ``$A$1:B3``. */
+  /** The matched text, e.g. ``A1``, ``$A$1:B3``, or ``Sheet2!A1``. */
   text: string;
   /** Character offset of the token in the full formula (including the leading "="). */
   start: number;
@@ -206,6 +336,10 @@ export interface FormulaRefToken {
   c1: number;
   r2: number;
   c2: number;
+  /** The sheet the reference names, or ``null`` when it's local to the
+   *  formula's own sheet. The grid only outlines a token whose sheet is
+   *  the one currently on screen. */
+  sheet: string | null;
   /** Stable index into {@link FORMULA_REF_COLORS}, shared by identical refs. */
   colorIndex: number;
 }
@@ -219,11 +353,11 @@ const refCoords = (m: RegExpExecArray): { row: number; col: number } | null => {
 };
 
 /**
- * Locate every A1 reference / range in a formula and return its character
- * span and grid box, for the editor's live highlighting. Mirrors the
- * quote-skipping and identifier-boundary rules of {@link scanReferences} (the
- * two walks must stay in sync); off-grid references are simply omitted rather
- * than collapsed to ``#REF!``. Non-formula input yields an empty array.
+ * Locate every reference / range in a formula and return its character span
+ * and grid box, for the editor's live highlighting. Shares
+ * {@link matchReferenceAt} with {@link scanReferences}, so the two walks
+ * agree by construction; off-grid references are simply omitted rather than
+ * collapsed to ``#REF!``. Non-formula input yields an empty array.
  *
  * ``colorIndex`` is assigned per unique reference text in order of first
  * appearance, so ``=A1+A1`` colors both ``A1`` tokens identically.
@@ -256,46 +390,23 @@ export const extractReferences = (formula: string): FormulaRefToken[] => {
       continue;
     }
 
-    const prev = i > 0 ? body[i - 1] : "";
-    const match = IDENT_CHAR.test(prev) ? null : REF_AT_START.exec(body.slice(i));
-    if (match && !isIdentTail(body[i + match[0].length])) {
-      const afterIdx = i + match[0].length;
-      const first = refCoords(match);
-      // Look for a ``ref:ref`` range so it's recorded as one token/box.
-      let match2: RegExpExecArray | null = null;
-      if (body[afterIdx] === ":") {
-        const m = REF_AT_START.exec(body.slice(afterIdx + 1));
-        if (m && !isIdentTail(body[afterIdx + 1 + m[0].length])) match2 = m;
-      }
-      if (match2) {
-        const end2 = afterIdx + 1 + match2[0].length;
-        const second = refCoords(match2);
-        if (first && second) {
-          raw.push({
-            text: body.slice(i, end2),
-            start: i + 1,
-            end: end2 + 1,
-            r1: Math.min(first.row, second.row),
-            c1: Math.min(first.col, second.col),
-            r2: Math.max(first.row, second.row),
-            c2: Math.max(first.col, second.col),
-          });
-        }
-        i = end2;
-        continue;
-      }
-      if (first) {
+    const match = matchReferenceAt(body, i);
+    if (match) {
+      const first = refCoords(match.start.a1);
+      const second = match.end ? refCoords(match.end.a1) : first;
+      if (first && second) {
         raw.push({
-          text: match[0],
+          text: body.slice(i, match.endIndex),
           start: i + 1,
-          end: afterIdx + 1,
-          r1: first.row,
-          c1: first.col,
-          r2: first.row,
-          c2: first.col,
+          end: match.endIndex + 1,
+          r1: Math.min(first.row, second.row),
+          c1: Math.min(first.col, second.col),
+          r2: Math.max(first.row, second.row),
+          c2: Math.max(first.col, second.col),
+          sheet: match.start.sheet,
         });
       }
-      i = afterIdx;
+      i = match.endIndex;
       continue;
     }
 
@@ -332,8 +443,10 @@ export type InsertTarget =
 // Final char of the (whitespace-trimmed) text before the caret that means a
 // reference may follow.
 const REF_ACCEPTING_END = /[=(,:+\-*/^&<>%]$/;
-// A trailing A1 reference (or range) at the end of the pre-caret text.
-const TRAILING_REF = /(\$?[A-Za-z]+\$?\d+(?::\$?[A-Za-z]+\$?\d+)?)$/;
+// A trailing reference (or range), sheet qualifier included, at the end of
+// the pre-caret text.
+const TRAILING_A1 = `(?:${SHEET_PREFIX_SRC})?\\$?[A-Za-z]+\\$?\\d+`;
+const TRAILING_REF = new RegExp(`(${TRAILING_A1}(?::${TRAILING_A1})?)$`);
 
 export const referenceInsertTarget = (draft: string, caret: number): InsertTarget => {
   if (!isFormula(draft)) return { kind: "none" };

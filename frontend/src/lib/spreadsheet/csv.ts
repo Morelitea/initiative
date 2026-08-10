@@ -106,14 +106,32 @@ export const coerceScalar = (raw: string): CellValue => {
 };
 
 /**
- * Pick the most likely delimiter for clipboard text. Papaparse can
- * sniff but defaulting to TSV when tabs are present matches what
- * Numbers / Excel write when you copy a multi-cell range.
+ * Parse clipboard text into a sparse cell map.
+ *
+ * Tabs are the only column delimiter: that's what Numbers / Excel /
+ * Sheets write when you copy a multi-cell range, and it keeps a pasted
+ * sentence ("hi, there, friend") in the one cell the user aimed at
+ * instead of spreading its commas over the neighbours. Text with no
+ * tabs becomes a single column, one row per line — same as pasting
+ * raw CSV text into Excel or Sheets, which both need an explicit
+ * split-to-columns step afterwards.
  */
-export const detectClipboardDelimiter = (text: string): string => {
-  if (text.includes("\t")) return "\t";
-  if (text.includes(",")) return ",";
-  return "";
+export const clipboardToCells = (
+  text: string
+): { cells: Record<string, CellValue>; rows: number; cols: number } => {
+  if (text.includes("\t")) return csvToCells(text, { delimiter: "\t" });
+
+  // No tabs: split rows ourselves rather than handing the text to
+  // papaparse, so quote characters in prose stay literal.
+  const cells: Record<string, CellValue> = {};
+  const lines = text.split(/\r\n|\n|\r/);
+  let rows = 0;
+  for (let r = 0; r < lines.length; r++) {
+    if (lines[r] === "") continue;
+    cells[keyOf(r, 0)] = coerceScalar(lines[r]);
+    rows = r + 1;
+  }
+  return { cells, rows, cols: rows === 0 ? 0 : 1 };
 };
 
 /**

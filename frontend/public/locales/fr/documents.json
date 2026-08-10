@@ -458,6 +458,20 @@
       "negParens": "(1 234,00)",
       "negRedParens": "Rouge (1 234,00)",
       "clear": "Effacer la mise en forme"
+    },
+    "sheets": {
+      "tablist": "Feuilles",
+      "add": "Ajouter une feuille",
+      "menu": "Actions de la feuille {{name}}",
+      "rename": "Renommer",
+      "renameLabel": "Nom de la feuille",
+      "duplicate": "Dupliquer",
+      "moveLeft": "Déplacer vers la gauche",
+      "moveRight": "Déplacer vers la droite",
+      "delete": "Supprimer",
+      "deleted": "Feuille supprimée — annulez pour la récupérer.",
+      "deleteLastBlocked": "Impossible de supprimer la seule feuille.",
+      "maxReached": "Cette feuille de calcul a déjà atteint le nombre maximal de feuilles."
     }
   },
   "sidePanel": {
