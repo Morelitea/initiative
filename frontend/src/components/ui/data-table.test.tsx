@@ -188,15 +188,23 @@ const fannedRows: FannedRow[] = [
   { id: 3, name: "Charlie" },
 ];
 
+/** The same rows unfanned, as a consumer would pass them when not grouping. */
+const plainRows: FannedRow[] = [
+  { id: 1, name: "Alpha" },
+  { id: 2, name: "Bravo" },
+  { id: 3, name: "Charlie" },
+];
+
 const fannedRowId = (row: FannedRow) => (row.group ? `${row.id}::${row.group}` : String(row.id));
 
 /** Renders the grouped table, with a button that re-shapes the data in place. */
 function GroupedHarness() {
-  const [data, setData] = useState<FannedRow[]>(fannedRows);
+  const [fanned, setFanned] = useState(true);
   const [selected, setSelected] = useState<FannedRow[]>([]);
+  const data = fanned ? fannedRows : plainRows;
   return (
     <div>
-      <button type="button" onClick={() => setData([{ id: 1, name: "Alpha" }])}>
+      <button type="button" onClick={() => setFanned((previous) => !previous)}>
         Reshape
       </button>
       <div data-testid="selection">{selected.map((r) => fannedRowId(r)).join(",")}</div>
@@ -245,5 +253,25 @@ describe("DataTable grouping", () => {
     // reported selection has to follow rather than keep the stale row.
     await user.click(screen.getByRole("button", { name: "Reshape" }));
     expect(reported()).toBe("");
+  });
+
+  it("does not bring a selection back when the original row keys return", async () => {
+    const user = userEvent.setup();
+    render(<GroupedHarness />);
+    const getCheckboxes = await enterSelectionMode(user);
+
+    await user.click(getCheckboxes()[1]);
+    const reshape = screen.getByRole("button", { name: "Reshape" });
+
+    // Away from the fanned shape the selected id no longer exists...
+    await user.click(reshape);
+    expect(reported()).toBe("");
+
+    // ...and back in it, the row must stay unchecked rather than re-select
+    // itself off a selection id nothing reported any more.
+    await user.click(reshape);
+    expect(reported()).toBe("");
+    const checked = getCheckboxes().filter((box) => box.getAttribute("data-state") === "checked");
+    expect(checked).toHaveLength(0);
   });
 });
