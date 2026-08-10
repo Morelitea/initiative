@@ -118,6 +118,26 @@
     "unsavedLeave": "Leave",
     "unsavedStay": "Stay"
   },
+  "focus": {
+    "title": "Focus",
+    "progress": "{{done}} of {{total}} done",
+    "empty": "Nothing needs your attention right now. Pin a task to keep it here.",
+    "overflow_one": "{{count}} more task matches",
+    "overflow_other": "{{count}} more tasks match",
+    "pin": "Pin to Focus",
+    "unpin": "Remove from Focus",
+    "settings": "Focus settings",
+    "dueWithinLabel": "Show work due",
+    "dueWithin": {
+      "0": "Today",
+      "2": "Next 2 days",
+      "7": "This week"
+    },
+    "includeHighPriority": "Always include urgent and high priority",
+    "limitLabel": "Show up to {{count}} tasks",
+    "limitHint": "Pinned tasks are always shown, even beyond this limit.",
+    "loadError": "Focus list unavailable right now."
+  },
   "myTasks": {
     "title": "My Tasks",
     "subtitle": "Everything assigned to you across all projects.",

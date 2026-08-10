@@ -118,6 +118,26 @@
     "unsavedLeave": "Verlassen",
     "unsavedStay": "Bleiben"
   },
+  "focus": {
+    "title": "Fokus",
+    "progress": "{{done}} von {{total}} erledigt",
+    "empty": "Im Moment braucht nichts deine Aufmerksamkeit. Hefte eine Aufgabe an, um sie hier zu behalten.",
+    "overflow_one": "{{count}} weitere Aufgabe passt",
+    "overflow_other": "{{count}} weitere Aufgaben passen",
+    "pin": "An Fokus anheften",
+    "unpin": "Aus Fokus entfernen",
+    "settings": "Fokus-Einstellungen",
+    "dueWithinLabel": "Fällige Arbeit anzeigen",
+    "dueWithin": {
+      "0": "Heute",
+      "2": "Nächste 2 Tage",
+      "7": "Diese Woche"
+    },
+    "includeHighPriority": "Dringende und hohe Priorität immer einbeziehen",
+    "limitLabel": "Bis zu {{count}} Aufgaben anzeigen",
+    "limitHint": "Angeheftete Aufgaben werden immer angezeigt, auch über dieses Limit hinaus.",
+    "loadError": "Fokusliste derzeit nicht verfügbar."
+  },
   "myTasks": {
     "title": "Meine Aufgaben",
     "subtitle": "Alles, was dir projektübergreifend zugewiesen ist.",

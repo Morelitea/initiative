@@ -118,6 +118,26 @@
     "unsavedLeave": "Quitter",
     "unsavedStay": "Rester"
   },
+  "focus": {
+    "title": "Focus",
+    "progress": "{{done}} sur {{total}} terminées",
+    "empty": "Rien ne requiert votre attention pour le moment. Épinglez une tâche pour la garder ici.",
+    "overflow_one": "{{count}} autre tâche correspond",
+    "overflow_other": "{{count}} autres tâches correspondent",
+    "pin": "Épingler au Focus",
+    "unpin": "Retirer du Focus",
+    "settings": "Paramètres du Focus",
+    "dueWithinLabel": "Afficher le travail à échéance",
+    "dueWithin": {
+      "0": "Aujourd'hui",
+      "2": "2 prochains jours",
+      "7": "Cette semaine"
+    },
+    "includeHighPriority": "Toujours inclure les priorités urgente et haute",
+    "limitLabel": "Afficher jusqu'à {{count}} tâches",
+    "limitHint": "Les tâches épinglées sont toujours affichées, même au-delà de cette limite.",
+    "loadError": "Liste Focus indisponible pour le moment."
+  },
   "myTasks": {
     "title": "Mes tâches",
     "subtitle": "Tout ce qui vous est assigné dans tous les projets.",

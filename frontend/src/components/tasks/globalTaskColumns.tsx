@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
+import { Pin } from "lucide-react";
 
 import type {
   TaskListRead,
@@ -34,6 +35,12 @@ interface GlobalTaskColumnsOptions {
   >;
   t: TranslateFn;
   showAssignees?: boolean;
+  /**
+   * Focus-summary pinning. Both are omitted on views that have no focus
+   * section, which drops the column entirely rather than showing a dead one.
+   */
+  isPinned?: (task: TaskListRead) => boolean;
+  togglePin?: (task: TaskListRead) => void;
 }
 
 export function globalTaskColumns({
@@ -45,6 +52,8 @@ export function globalTaskColumns({
   projectStatusCache,
   t,
   showAssignees = false,
+  isPinned,
+  togglePin,
 }: GlobalTaskColumnsOptions): ColumnDef<TaskListRead>[] {
   const guildDefaultLabel = t("myTasks.noGuild");
   const getGuildGroupLabel = (task: TaskListRead) => task.guild_name ?? guildDefaultLabel;
@@ -126,6 +135,36 @@ export function globalTaskColumns({
       size: 64,
       enableHiding: false,
     },
+    ...(isPinned && togglePin
+      ? [
+          {
+            id: "focus",
+            header: () => <span className="sr-only">{t("focus.title")}</span>,
+            cell: ({ row }) => {
+              const task = row.original;
+              const pinned = isPinned(task);
+              return (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  onClick={() => togglePin(task)}
+                  aria-label={pinned ? t("focus.unpin") : t("focus.pin")}
+                  title={pinned ? t("focus.unpin") : t("focus.pin")}
+                >
+                  {pinned ? (
+                    <Pin className="h-3.5 w-3.5 fill-current text-primary" />
+                  ) : (
+                    <Pin className="h-3.5 w-3.5 text-muted-foreground" />
+                  )}
+                </Button>
+              );
+            },
+            enableSorting: false,
+            size: 48,
+          } satisfies ColumnDef<TaskListRead>,
+        ]
+      : []),
     {
       accessorKey: "title",
       header: ({ column }) => {
