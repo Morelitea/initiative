@@ -14,12 +14,16 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
-from app.models.tenant.task import TaskStatusCategory
+from app.models.tenant.project import Project
+from app.models.tenant.task import TaskStatus, TaskStatusCategory
 from app.services.tenant import task_statuses as task_statuses_service
+from app.testing import Actor
 from app.testing.factories import create_project
 
 
-async def _statuses(session: AsyncSession, project) -> dict:
+async def _statuses(
+    session: AsyncSession, project: Project
+) -> dict[TaskStatusCategory, TaskStatus]:
     """``{category: status}`` for the project's seeded default statuses."""
     await task_statuses_service.ensure_default_statuses(session, project.id)
     statuses = await task_statuses_service.list_statuses(session, project.id)
@@ -27,7 +31,9 @@ async def _statuses(session: AsyncSession, project) -> dict:
     return {s.category: s for s in statuses}
 
 
-async def _create_task(client: AsyncClient, a, *, status_id: int, title="Task") -> dict:
+async def _create_task(
+    client: AsyncClient, a: Actor, *, status_id: int, title: str = "Task"
+) -> dict:
     response = await client.post(
         a.g("/tasks/"),
         headers=a.headers,
@@ -37,13 +43,15 @@ async def _create_task(client: AsyncClient, a, *, status_id: int, title="Task") 
     return response.json()
 
 
-async def _get_task(client: AsyncClient, a, task_id: int) -> dict:
+async def _get_task(client: AsyncClient, a: Actor, task_id: int) -> dict:
     response = await client.get(a.g(f"/tasks/{task_id}"), headers=a.headers)
     assert response.status_code == 200, response.text
     return response.json()
 
 
-async def _set_status(client: AsyncClient, a, task_id: int, status_id: int) -> dict:
+async def _set_status(
+    client: AsyncClient, a: Actor, task_id: int, status_id: int
+) -> dict:
     response = await client.patch(
         a.g(f"/tasks/{task_id}"),
         headers=a.headers,

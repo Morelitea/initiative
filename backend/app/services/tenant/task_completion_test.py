@@ -6,6 +6,7 @@ boundary — lives in
 """
 
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 import pytest
 
@@ -16,7 +17,7 @@ NOW = datetime(2026, 8, 10, 12, 0, tzinfo=timezone.utc)
 EARLIER = NOW - timedelta(days=3)
 
 
-def _task(**overrides) -> Task:
+def _task(**overrides: Any) -> Task:
     return Task(project_id=1, task_status_id=1, title="t", **overrides)
 
 
