@@ -2,28 +2,18 @@ import { screen, waitFor } from "@testing-library/react";
 import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
+import { buildUserSummary } from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 
 import { MemberMultiSelect, MemberSelect } from "./MemberSearchSelect";
 
-const ADA = {
-  id: 42,
-  full_name: "Ada Lovelace",
-  avatar_url: null,
-  avatar_base64: null,
-  status: "active",
-};
-const GRACE = {
-  id: 43,
-  full_name: "Grace Hopper",
-  avatar_url: null,
-  avatar_base64: null,
-  status: "active",
-};
+const ADA = buildUserSummary({ id: 42, full_name: "Ada Lovelace" });
+const GRACE = buildUserSummary({ id: 43, full_name: "Grace Hopper" });
 
 const ROSTER = [ADA, GRACE];
+const MISSING_ID = 999;
 
 /** The project member typeahead, honouring the `user_id` lookup filter the
  *  pickers use to resolve a selection they were handed as bare ids. */
@@ -88,12 +78,12 @@ describe("MemberMultiSelect", () => {
       <MemberMultiSelect
         variant="filter"
         scope={{ type: "project", projectId: 7 }}
-        selectedIds={[999]}
+        selectedIds={[MISSING_ID]}
         onChange={() => {}}
       />
     );
 
-    expect(await screen.findByText("User #999")).toBeInTheDocument();
+    expect(await screen.findByText(`User #${MISSING_ID}`)).toBeInTheDocument();
   });
 });
 
