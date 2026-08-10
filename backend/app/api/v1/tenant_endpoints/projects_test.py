@@ -179,6 +179,17 @@ async def test_search_project_members_returns_write_access_set(
     body = response.json()
     assert [item["full_name"] for item in body["items"]] == ["Wanda Writer"]
 
+    # Id filter (a picker resolving stored ids into names) narrows the same
+    # assignable set — the read-only member is not resolvable through it.
+    response = await client.get(
+        admin.g(f"/projects/{project.id}/members/search"),
+        headers=admin.headers,
+        params={"user_id": [writer.user.id, reader.user.id]},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert [item["full_name"] for item in body["items"]] == ["Wanda Writer"]
+
 
 @pytest.mark.integration
 async def test_search_project_members_requires_read_access(

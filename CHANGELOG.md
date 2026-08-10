@@ -17,9 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A Focus list at the top of My Tasks.** What actually needs doing now — work due soon plus anything urgent — with whatever you pin held at the top regardless of its dates. Ticking something off does not make it vanish: completions stay on the list, struck through, until the day turns over, alongside a running "3 of 6 done" count. Pin or unpin from either the list or the task table below it, set the date window and the urgent-work rule from the settings menu, and collapse the whole section if you would rather not have it. Every task matching your settings is shown, so a shorter list comes from a tighter date window rather than a hidden cutoff. The list spans all your guilds and is independent of the table's filters, so narrowing the table never empties it.
 - **Group a project's task table by tag.** "Group by" on a project's task list now offers Tag alongside Date window. A task sits under every tag it carries — one tagged both "bug" and "urgent" shows up in both groups rather than being filed under whichever tag came first — and tasks with no tags gather under Untagged. Each group is headed by the tag itself, in its colour. As with grouping by date window, manual drag-to-reorder pauses while a grouping is on; filtering, sorting, and bulk selection keep working, and a task selected in one of its groups counts once.
 
+### Changed
+
+- The linked-user picker on queue items is now a search, like every other person picker, instead of loading the initiative's whole roster up front.
+
 ### Fixed
 
 - Dragging a card into a long Kanban column now changes its status. Once a column held more than about twenty cards the board drew only the ones on screen, and a drop into it could be credited to the last card the pointer crossed on the way in — so the card sprang back to where it started instead of moving. Columns that accumulate cards, Done most of all, were the ones affected.
+- Person pickers no longer show "User #12" where a name belongs. A selection the picker was handed rather than one you just made — the assignee filter you get back when you return to a project, a saved user property, the linked user on a queue item — is now resolved to a name and avatar against the same roster the dropdown searches. An id nobody in that roster matches still shows as an id, since there is no one to name.
 
 ## [0.60.1] - 2026-08-06
 

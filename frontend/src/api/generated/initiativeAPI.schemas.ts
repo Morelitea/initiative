@@ -4294,6 +4294,7 @@ export type SearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetPa
    * Case-insensitive substring match on the member's name.
    */
   search?: string | null;
+  user_id?: number[] | null;
   /**
    * @minimum 1
    */
@@ -4396,6 +4397,7 @@ export type SearchInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersSe
    * Case-insensitive substring match on the member's name.
    */
   search?: string | null;
+  user_id?: number[] | null;
   /**
    * @minimum 1
    */
@@ -4805,6 +4807,7 @@ export type SearchUsersApiV1GGuildIdUsersSearchGetParams = {
    * Case-insensitive substring match on the member's name.
    */
   search?: string | null;
+  user_id?: number[] | null;
   /**
    * @minimum 1
    */

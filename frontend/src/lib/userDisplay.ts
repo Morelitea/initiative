@@ -54,6 +54,18 @@ export const isAnonymizedUser = (user: DisplayableUser | null | undefined): bool
   user?.status === "anonymized";
 
 /**
+ * Whether we hold enough of a user to name them — i.e. whether
+ * {@link getUserDisplayName} would return something real rather than the
+ * caller's fallback. Pickers use this to decide which selected ids they still
+ * need to resolve from the server instead of rendering "User #<id>".
+ */
+export const hasDisplayName = (user: DisplayableUser | null | undefined): boolean => {
+  if (!user) return false;
+  if (isAnonymizedUser(user)) return true;
+  return Boolean(user.full_name?.trim() || user.email?.trim());
+};
+
+/**
  * Initials to render in an avatar fallback for the given user. Returns
  * the muted ``–`` sentinel for anonymized accounts; otherwise delegates
  * to ``getInitials`` with the user's name (or email fallback).

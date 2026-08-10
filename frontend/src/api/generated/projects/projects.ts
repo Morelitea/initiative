@@ -2073,6 +2073,10 @@ export const useDeleteProjectApiV1GGuildIdProjectsProjectIdDelete = <
  * via the shared permission engine. This replaces the client-side
  * ``project.grants`` derivation the pickers used to run over the full guild
  * roster. Requester needs read access to the project.
+ *
+ * Pass ``user_id`` one or more times to resolve a known selection (a picker
+ * rehydrating stored ids into names/avatars) rather than searching; it
+ * narrows the same assignable set, so an id outside it returns nothing.
  * @summary Search Project Members
  */
 export const searchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet = (

@@ -467,6 +467,43 @@ async def test_search_initiative_members_slim_and_filtered(
 
 
 @pytest.mark.integration
+async def test_search_initiative_members_filters_by_user_id(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """`user_id` resolves a known selection, narrowing the same member set —
+    a guild member outside the initiative is never resolved through it."""
+    admin = await acting_user(guild_role=GuildRole.admin, full_name="Zed Admin")
+    initiative = await create_initiative(
+        session, admin.guild, admin.user, name="Id Filter Initiative"
+    )
+    alice = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=initiative,
+        initiative_role="member",
+        email="alice-ids@example.com",
+        full_name="Alice Wonderland",
+    )
+    outsider = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        email="outsider-ids@example.com",
+        full_name="Olive Outsider",
+    )
+
+    response = await client.get(
+        admin.g(f"/initiatives/{initiative.id}/members/search"),
+        headers=admin.headers,
+        params={"user_id": [alice.user.id, outsider.user.id]},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_count"] == 1
+    assert [item["full_name"] for item in body["items"]] == ["Alice Wonderland"]
+
+
+@pytest.mark.integration
 async def test_search_initiative_members_as_nonmember_forbidden(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

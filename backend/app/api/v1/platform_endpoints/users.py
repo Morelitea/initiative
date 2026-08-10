@@ -76,7 +76,7 @@ from app.services.platform import csv_export
 from app.services.tenant import stats_service
 from app.services.platform import user_tokens as user_tokens_service
 from app.services.tenant import recent_views as recent_views_service
-from app.db.query import page_has_next, paginated_query
+from app.db.query import MAX_ID_FILTER_VALUES, page_has_next, paginated_query
 
 # Allowed values for the optional "task completion visual feedback" effect.
 # Mirrored on the frontend in src/lib/taskCompletionVisualFeedback.ts; keep
@@ -180,16 +180,20 @@ async def search_users(
         default=None,
         description="Case-insensitive substring match on the member's name.",
     ),
+    user_id: Annotated[list[int] | None, Query(max_length=MAX_ID_FILTER_VALUES)] = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=0, le=100),
 ) -> UserSummaryListResponse:
     """Slim, searchable, paginated roster for typeahead/pickers.
 
     Same authorization as the full member list (``RLSSessionDep`` +
-    ``GuildContextDep``, membership re-validated per request): the new params
+    ``GuildContextDep``, membership re-validated per request): the params
     are additive filters on an already-RLS-gated query, so they only ever
     narrow the row set. Returns :class:`UserSummary` (no email, roles, or
     ``initiative_roles`` enrichment) instead of the heavy ``UserGuildMember``.
+
+    Pass ``user_id`` one or more times to resolve a known selection (a picker
+    rehydrating stored ids into names/avatars) rather than searching.
     """
     base = (
         select(User)
@@ -198,6 +202,8 @@ async def search_users(
     )
     if search and (term := search.strip()):
         base = base.where(User.full_name.ilike(f"%{term}%"))
+    if user_id:
+        base = base.where(User.id.in_(user_id))
 
     count_stmt = select(func.count()).select_from(base.subquery())
     data_stmt = base.order_by(User.full_name.asc(), User.id.asc())
