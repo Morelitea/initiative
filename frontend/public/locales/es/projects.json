@@ -402,6 +402,8 @@
     "priorityColumn": "Prioridad",
     "tagsColumn": "Etiquetas",
     "moreTagsCount": "+{{count}}",
+    "tagGroup": "Etiqueta",
+    "untagged": "Sin etiqueta",
     "commentsColumn": "Comentarios",
     "statusColumn": "Estado",
     "sortHelp": "Haz clic en cualquier encabezado de columna para ordenar. Mantén Shift para ordenar por múltiples columnas.",

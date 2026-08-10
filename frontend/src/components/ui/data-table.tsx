@@ -516,8 +516,10 @@ export function DataTable<TData, TValue>({
     if (enableRowSelection && selectionModeActive && onRowSelectionChange) {
       // Report ALL selected rows (not just filter-visible ones) so the reported
       // selection always matches the checked checkboxes — selections persist
-      // across filtering. columnFilters is a dep so reported `.original`
-      // references stay fresh when the row model rebuilds on a filter change.
+      // across filtering. columnFilters and data are deps so reported `.original`
+      // references stay fresh when the row model rebuilds — and so a data change
+      // that drops or re-keys rows (a refetch, or a consumer re-shaping rows for
+      // a new grouping) reports the selection that is actually checked.
       // Limitation: under manualPagination only the current page is in `data`,
       // so selections on other pages remain in rowSelection (by id) but can't be
       // reported as row objects; cross-page selection is out of scope.
@@ -527,11 +529,39 @@ export function DataTable<TData, TValue>({
   }, [
     rowSelection,
     columnFilters,
+    data,
     enableRowSelection,
     selectionModeActive,
     onRowSelectionChange,
     table,
   ]);
+
+  // Forget rows the current data no longer holds. Selection is keyed by row id,
+  // so a consumer that re-keys its rows (re-shaping them for a new grouping, say)
+  // would otherwise leave ids behind that silently re-select those rows the
+  // moment the same ids come back. Filtering is unaffected — filtered-out rows
+  // stay in the core row model — and group rows, whose ids exist only in the
+  // grouped model, are kept so a "select all" keeps its header checkbox.
+  // Skipped under manualPagination, where rows of other pages are legitimately
+  // absent from `data` and their selection is meant to persist.
+  useEffect(() => {
+    if (!enableRowSelection || manualPagination) {
+      return;
+    }
+    setRowSelection((previous) => {
+      const selectedIds = Object.keys(previous);
+      if (selectedIds.length === 0) {
+        return previous;
+      }
+      const dataRows = table.getCoreRowModel().rowsById;
+      const displayedRows = table.getRowModel().rowsById;
+      const kept = selectedIds.filter((id) => id in dataRows || id in displayedRows);
+      if (kept.length === selectedIds.length) {
+        return previous;
+      }
+      return Object.fromEntries(kept.map((id) => [id, previous[id]]));
+    });
+  }, [data, grouping, enableRowSelection, manualPagination, table]);
 
   useEffect(() => {
     if (!selectionModeActive && Object.keys(rowSelection).length > 0) {

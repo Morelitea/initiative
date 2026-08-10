@@ -160,3 +160,118 @@ describe("DataTable row selection", () => {
     expect(screen.queryByText("2 of 3 row(s) selected")).not.toBeInTheDocument();
   });
 });
+
+/**
+ * A row fanned out over a multi-valued field: the project task table groups by
+ * tag this way, emitting one row per (task, tag) pair so a row shows up under
+ * every value it carries.
+ */
+interface FannedRow extends Row {
+  group?: string;
+}
+
+const fannedColumns: ColumnDef<FannedRow>[] = [
+  { accessorKey: "name", header: "Name", cell: ({ row }) => row.original.name },
+  {
+    id: "group",
+    accessorFn: (row) => row.group ?? "Ungrouped",
+    header: "Group",
+    cell: ({ getValue }) => getValue<string>(),
+    enableHiding: false,
+  },
+];
+
+const fannedRows: FannedRow[] = [
+  { id: 1, name: "Alpha", group: "bug" },
+  { id: 1, name: "Alpha", group: "urgent" },
+  { id: 2, name: "Bravo", group: "bug" },
+  { id: 3, name: "Charlie" },
+];
+
+/** The same rows unfanned, as a consumer would pass them when not grouping. */
+const plainRows: FannedRow[] = [
+  { id: 1, name: "Alpha" },
+  { id: 2, name: "Bravo" },
+  { id: 3, name: "Charlie" },
+];
+
+const fannedRowId = (row: FannedRow) => (row.group ? `${row.id}::${row.group}` : String(row.id));
+
+/** Renders the grouped table, with a button that re-shapes the data in place. */
+function GroupedHarness() {
+  const [fanned, setFanned] = useState(true);
+  const [selected, setSelected] = useState<FannedRow[]>([]);
+  const data = fanned ? fannedRows : plainRows;
+  return (
+    <div>
+      <button type="button" onClick={() => setFanned((previous) => !previous)}>
+        Reshape
+      </button>
+      <div data-testid="selection">{selected.map((r) => fannedRowId(r)).join(",")}</div>
+      <DataTable
+        columns={fannedColumns}
+        data={data}
+        enableRowSelection
+        getRowId={fannedRowId}
+        groupingOptions={[{ id: "group", label: "Group" }]}
+        columnVisibility={{ group: false }}
+        initialState={{ grouping: ["group"] }}
+        onRowSelectionChange={setSelected}
+      />
+    </div>
+  );
+}
+
+describe("DataTable grouping", () => {
+  it("groups on a hidden column, listing a fanned-out row under each of its groups", () => {
+    render(<GroupedHarness />);
+
+    // The grouping column drives the group headers without becoming a column.
+    expect(screen.queryByRole("columnheader", { name: "Group" })).not.toBeInTheDocument();
+    const groupHeaders = screen
+      .getAllByRole("row")
+      .filter((row) => row.getAttribute("data-state") === "grouped")
+      .map((row) => row.textContent);
+    expect(groupHeaders).toEqual(["Ungrouped", "bug", "urgent"]);
+
+    // Alpha carries two groups, so it appears under both.
+    expect(screen.getAllByText("Alpha")).toHaveLength(2);
+    expect(screen.getAllByText("Bravo")).toHaveLength(1);
+  });
+
+  it("re-reports the selection when the data is re-shaped under it", async () => {
+    const user = userEvent.setup();
+    render(<GroupedHarness />);
+    const getCheckboxes = await enterSelectionMode(user);
+
+    // Rows read Ungrouped (Charlie), bug (Alpha, Bravo), urgent (Alpha) — pick
+    // Alpha's row in the "bug" group.
+    await user.click(getCheckboxes()[1]);
+    expect(reported()).toBe("1::bug");
+
+    // Re-shaping the rows re-keys them, so nothing is checked any more — the
+    // reported selection has to follow rather than keep the stale row.
+    await user.click(screen.getByRole("button", { name: "Reshape" }));
+    expect(reported()).toBe("");
+  });
+
+  it("does not bring a selection back when the original row keys return", async () => {
+    const user = userEvent.setup();
+    render(<GroupedHarness />);
+    const getCheckboxes = await enterSelectionMode(user);
+
+    await user.click(getCheckboxes()[1]);
+    const reshape = screen.getByRole("button", { name: "Reshape" });
+
+    // Away from the fanned shape the selected id no longer exists...
+    await user.click(reshape);
+    expect(reported()).toBe("");
+
+    // ...and back in it, the row must stay unchecked rather than re-select
+    // itself off a selection id nothing reported any more.
+    await user.click(reshape);
+    expect(reported()).toBe("");
+    const checked = getCheckboxes().filter((box) => box.getAttribute("data-state") === "checked");
+    expect(checked).toHaveLength(0);
+  });
+});

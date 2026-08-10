@@ -402,6 +402,8 @@
     "priorityColumn": "Priorität",
     "tagsColumn": "Tags",
     "moreTagsCount": "+{{count}}",
+    "tagGroup": "Tag",
+    "untagged": "Ohne Tag",
     "commentsColumn": "Kommentare",
     "statusColumn": "Status",
     "sortHelp": "Klicke auf eine beliebige Spaltenüberschrift, um zu sortieren. Halte die Umschalttaste gedrückt, um nach mehreren Kriterien zu sortieren.",
