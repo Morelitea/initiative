@@ -403,6 +403,8 @@
     "priorityColumn": "Priorité",
     "tagsColumn": "Étiquettes",
     "moreTagsCount": "+{{count}}",
+    "tagGroup": "Étiquette",
+    "untagged": "Sans étiquette",
     "commentsColumn": "Commentaires",
     "statusColumn": "Statut",
     "sortHelp": "Cliquez sur un en-tête de colonne pour trier. Maintenez Maj pour le tri multiple.",

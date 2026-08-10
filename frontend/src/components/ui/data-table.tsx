@@ -516,8 +516,10 @@ export function DataTable<TData, TValue>({
     if (enableRowSelection && selectionModeActive && onRowSelectionChange) {
       // Report ALL selected rows (not just filter-visible ones) so the reported
       // selection always matches the checked checkboxes — selections persist
-      // across filtering. columnFilters is a dep so reported `.original`
-      // references stay fresh when the row model rebuilds on a filter change.
+      // across filtering. columnFilters and data are deps so reported `.original`
+      // references stay fresh when the row model rebuilds — and so a data change
+      // that drops or re-keys rows (a refetch, or a consumer re-shaping rows for
+      // a new grouping) reports the selection that is actually checked.
       // Limitation: under manualPagination only the current page is in `data`,
       // so selections on other pages remain in rowSelection (by id) but can't be
       // reported as row objects; cross-page selection is out of scope.
@@ -527,6 +529,7 @@ export function DataTable<TData, TValue>({
   }, [
     rowSelection,
     columnFilters,
+    data,
     enableRowSelection,
     selectionModeActive,
     onRowSelectionChange,

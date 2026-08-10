@@ -403,6 +403,8 @@
     "priorityColumn": "Priority",
     "tagsColumn": "Tags",
     "moreTagsCount": "+{{count}}",
+    "tagGroup": "Tag",
+    "untagged": "Untagged",
     "commentsColumn": "Comments",
     "statusColumn": "Status",
     "sortHelp": "Click any column header to sort. Hold Shift to multi-sort.",
