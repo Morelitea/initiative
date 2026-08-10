@@ -82,6 +82,7 @@ from app.services import notifications as notifications_service
 from app.services import permissions as permissions_service
 from app.services.tenant.recurrence import get_next_due_date
 from app.services.tenant import task_statuses as task_statuses_service
+from app.services.tenant.task_completion import sync_completed_at
 from app.services import ai_generation as ai_generation_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
@@ -852,6 +853,7 @@ async def _advance_recurrence_if_needed(
         recurrence_occurrence_count=task.recurrence_occurrence_count + 1,
         created_by_id=task.created_by_id,
     )
+    sync_completed_at(new_task, default_status.category, now=now)
     session.add(new_task)
     await session.flush()
     await _clone_subtasks(session, task.id, new_task.id)
@@ -1878,6 +1880,7 @@ async def create_task(
         task_status_id=selected_status.id,
         created_by_id=current_user.id,
     )
+    sync_completed_at(task, selected_status.category, now=datetime.now(timezone.utc))
     session.add(task)
     await session.flush()
     await _set_task_assignees(session, task, task_in.assignee_ids)
@@ -2030,6 +2033,9 @@ async def update_task(
         setattr(task, field, value)
     now = datetime.now(timezone.utc)
     task.updated_at = now
+    sync_completed_at(
+        task, task.task_status.category if task.task_status else None, now=now
+    )
 
     new_assignees: list[User] = []
     if assignee_ids is not None:
@@ -2166,6 +2172,7 @@ async def move_task(
     task.task_status = default_status
     task.position = 0
     task.updated_at = now
+    sync_completed_at(task, default_status.category, now=now)
     session.add(task)
 
     # If the move crosses initiative boundaries, drop property values —
@@ -2214,6 +2221,7 @@ async def duplicate_task(
         .options(
             selectinload(Task.assignees),
             selectinload(Task.tag_links),
+            selectinload(Task.task_status),
         )
         .join(Task.project)
         .join(Project.initiative)
@@ -2259,6 +2267,14 @@ async def duplicate_task(
         recurrence_strategy=original_task.recurrence_strategy,
         position=position,
         created_by_id=current_user.id,
+    )
+    # The copy keeps the source's status, so a duplicated done task is complete
+    # from the moment it exists — stamped now, not inherited: the copy was not
+    # the thing that finished when the original did.
+    sync_completed_at(
+        new_task,
+        original_task.task_status.category if original_task.task_status else None,
+        now=datetime.now(timezone.utc),
     )
     session.add(new_task)
     await session.flush()
@@ -2450,6 +2466,9 @@ async def reorder_tasks(
 
         task.position = item.position
         task.updated_at = now
+        sync_completed_at(
+            task, task.task_status.category if task.task_status else None, now=now
+        )
         session.add(task)
         await _advance_recurrence_if_needed(
             session,

@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import Annotated, List, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -26,6 +27,7 @@ from app.schemas.tenant.task_status import (
 )
 from app.core.messages import TaskStatusMessages
 from app.services.tenant import task_statuses as task_statuses_service
+from app.services.tenant import task_completion
 
 router = APIRouter(
     prefix="/projects/{project_id}/task-statuses", tags=["task-statuses"]
@@ -173,6 +175,15 @@ async def update_task_status(
     if new_category and new_category != target.category:
         await _ensure_category_not_last(session, project_id=project_id, target=target)
         target.category = new_category
+        # Recategorising a column moves every task in it across the done
+        # boundary without any task row being written, so realign their
+        # completion timestamps here.
+        await task_completion.resync_status_tasks(
+            session,
+            status_id=target.id,
+            category=new_category,
+            now=datetime.now(timezone.utc),
+        )
     if "name" in update_data and update_data["name"] is not None:
         target.name = update_data["name"]
     if update_data.get("color") is not None:

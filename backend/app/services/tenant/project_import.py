@@ -19,6 +19,7 @@ See plan & ``project_export.py`` for the format. The algorithm:
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -48,6 +49,7 @@ from app.schemas.tenant.project_export import (
     ProjectExportTask,
     ProjectImportResult,
 )
+from app.services.tenant import task_completion
 from app.services.import_engine.common import (
     decode_property_value,
     ensure_tag,
@@ -130,6 +132,7 @@ async def import_project(
 
     # 2. Task statuses → name → id map
     status_name_to_id: dict[str, int] = {}
+    status_id_to_category: dict[int, TaskStatusCategory] = {}
     default_status_id: int | None = None
     for s in envelope.task_statuses:
         status_row = TaskStatus(
@@ -145,6 +148,7 @@ async def import_project(
         session.add(status_row)
         await session.flush()
         status_name_to_id[s.name] = status_row.id  # ty: ignore[invalid-assignment] — persisted row, id is set
+        status_id_to_category[status_row.id] = s.category  # ty: ignore[invalid-assignment] — persisted row, id is set
         if s.is_default and default_status_id is None:
             default_status_id = status_row.id
     if default_status_id is None:
@@ -197,6 +201,7 @@ async def import_project(
             guild_id=target_guild_id,
             importer_id=importer.id,
             status_name_to_id=status_name_to_id,
+            status_id_to_category=status_id_to_category,
             default_status_id=default_status_id,
             tag_name_to_id=tag_name_to_id,
             prop_key_to_id=prop_key_to_id,
@@ -251,6 +256,7 @@ async def _import_task(
     guild_id: int | None,
     importer_id: int,
     status_name_to_id: dict[str, int],
+    status_id_to_category: dict[int, TaskStatusCategory],
     default_status_id: int | None,
     tag_name_to_id: dict[str, int],
     prop_key_to_id: dict[tuple[str, PropertyType], int],
@@ -283,7 +289,16 @@ async def _import_task(
         recurrence_occurrence_count=envelope_task.recurrence_occurrence_count,
         position=envelope_task.position,
         is_archived=envelope_task.is_archived,
+        completed_at=envelope_task.completed_at,
         created_by_id=importer_id,
+    )
+    # A restore keeps the completion time the envelope carries; envelopes taken
+    # before the field existed carry none, so it's derived from the restored
+    # status instead. Either way the timestamp ends up agreeing with the status.
+    task_completion.sync_completed_at(
+        task,
+        status_id_to_category.get(status_id),
+        now=datetime.now(timezone.utc),
     )
     session.add(task)
     await session.flush()
