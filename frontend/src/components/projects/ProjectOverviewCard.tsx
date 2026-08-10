@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { CalendarRange } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -6,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
 import { Markdown } from "@/components/Markdown";
 import { Badge } from "@/components/ui/badge";
+import { formatDate } from "@/lib/formatDate";
 import { useGuildPath } from "@/lib/guildUrl";
 import {
   INITIATIVE_COLOR_FALLBACK,
@@ -27,6 +29,23 @@ export const ProjectOverviewCard = ({ project, projectIsArchived }: ProjectOverv
     const initiativeColor = resolveInitiativeColor(project.initiative?.color);
     return buildProjectDetailBackground(initiativeColor);
   }, [project.initiative?.color]);
+
+  // Dates are optional and independent. With neither set the banner shows
+  // nothing at all — an empty schedule is not worth a line of its own.
+  const scheduleLabel = useMemo(() => {
+    const start = formatDate(project.start_date);
+    const end = formatDate(project.end_date);
+    if (start && end) {
+      return t("overview.scheduleRange", { start, end });
+    }
+    if (start) {
+      return t("overview.scheduleStartOnly", { start });
+    }
+    if (end) {
+      return t("overview.scheduleEndOnly", { end });
+    }
+    return null;
+  }, [project.start_date, project.end_date, t]);
 
   return (
     <div className="space-y-4 rounded-2xl border bg-card/90 p-6 shadow-sm" style={detailCardStyle}>
@@ -56,6 +75,14 @@ export const ProjectOverviewCard = ({ project, projectIsArchived }: ProjectOverv
           <InitiativeColorDot color={project.initiative.color} />
           <span>{project.initiative.name}</span>
         </Link>
+      ) : null}
+      {scheduleLabel ? (
+        <div className="inline-flex items-center gap-2 rounded-lg border border-foreground/15 bg-background/60 px-3 py-1.5 font-semibold text-sm">
+          <CalendarRange className="h-4 w-4 shrink-0" aria-hidden />
+          {/* The icon carries the meaning visually; name it for screen readers. */}
+          <span className="sr-only">{t("overview.scheduleLabel")}</span>
+          <span>{scheduleLabel}</span>
+        </div>
       ) : null}
       {project.is_template ? (
         <p className="rounded-md border border-muted/70 bg-muted/30 px-4 py-2 text-muted-foreground text-sm">

@@ -141,7 +141,15 @@
     "active": "Activo",
     "template": "Plantilla",
     "templateInfo": "Este proyecto es una plantilla. Úsalo para crear nuevos proyectos desde la pestaña Plantillas.",
-    "archivedInfo": "Este proyecto está archivado. Desarchívalo desde la configuración para agregar o actualizar tareas."
+    "archivedInfo": "Este proyecto está archivado. Desarchívalo desde la configuración para agregar o actualizar tareas.",
+    "scheduleLabel": "Fechas del proyecto",
+    "scheduleRange": "{{start}} – {{end}}",
+    "scheduleStartOnly": "Comienza el {{start}}",
+    "scheduleEndOnly": "Termina el {{end}}"
+  },
+  "schedule": {
+    "startLabel": "Fecha de inicio",
+    "endLabel": "Fecha de finalización"
   },
   "tabsBar": {
     "loadingRecent": "Cargando elementos recientes…",
@@ -269,6 +277,11 @@
       "saveDescription": "Guardar descripción",
       "descriptionUpdated": "Descripción actualizada",
       "noWriteAccessDescription": "Necesitas acceso de escritura para editar la descripción.",
+      "scheduleHeading": "Fechas",
+      "scheduleDescription": "Define cuándo comienza y termina el proyecto. Ambas son opcionales.",
+      "saveSchedule": "Guardar fechas",
+      "scheduleUpdated": "Fechas del proyecto actualizadas",
+      "noWriteAccessSchedule": "Necesitas acceso de escritura para cambiar las fechas del proyecto.",
       "tagsHeading": "Etiquetas",
       "tagsDescription": "Agrega etiquetas para organizar y filtrar proyectos.",
       "noWriteAccessTags": "Necesitas acceso de escritura para administrar etiquetas."

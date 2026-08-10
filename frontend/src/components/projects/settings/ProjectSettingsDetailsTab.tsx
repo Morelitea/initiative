@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { ProjectRead, TagSummary } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { EmojiPicker } from "@/components/EmojiPicker";
+import { ProjectDateFields } from "@/components/projects/ProjectDateFields";
 import { TagPicker } from "@/components/tags";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,6 +33,9 @@ export const ProjectSettingsDetailsTab = ({
   const [identityMessage, setIdentityMessage] = useState<string | null>(null);
   const [descriptionText, setDescriptionText] = useState<string>("");
   const [descriptionMessage, setDescriptionMessage] = useState<string | null>(null);
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [scheduleMessage, setScheduleMessage] = useState<string | null>(null);
   const [projectTags, setProjectTags] = useState<TagSummary[]>([]);
 
   const setProjectTagsMutation = useSetToolTags(Tool.project);
@@ -41,9 +45,12 @@ export const ProjectSettingsDetailsTab = ({
       setNameText(project.name);
       setIconText(project.icon ?? "");
       setDescriptionText(project.description ?? "");
+      setStartDate(project.start_date ?? "");
+      setEndDate(project.end_date ?? "");
       setProjectTags(project.tags ?? []);
       setIdentityMessage(null);
       setDescriptionMessage(null);
+      setScheduleMessage(null);
     }
   }, [project]);
 
@@ -59,6 +66,14 @@ export const ProjectSettingsDetailsTab = ({
     onSuccess: (data) => {
       setDescriptionMessage(t("settings.details.descriptionUpdated"));
       setDescriptionText(data.description ?? "");
+    },
+  });
+
+  const updateSchedule = useUpdateProject({
+    onSuccess: (data) => {
+      setScheduleMessage(t("settings.details.scheduleUpdated"));
+      setStartDate(data.start_date ?? "");
+      setEndDate(data.end_date ?? "");
     },
   });
 
@@ -177,6 +192,59 @@ export const ProjectSettingsDetailsTab = ({
             ) : (
               <p className="text-muted-foreground text-sm">
                 {t("settings.details.noWriteAccessDescription")}
+              </p>
+            )}
+          </div>
+
+          <div className="h-px bg-border" />
+
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <h3 className="font-medium text-base">{t("settings.details.scheduleHeading")}</h3>
+              <p className="text-muted-foreground text-sm">
+                {t("settings.details.scheduleDescription")}
+              </p>
+            </div>
+            {canWriteProject ? (
+              <form
+                className="space-y-4"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  setScheduleMessage(null);
+                  updateSchedule.mutate({
+                    projectId: projectId,
+                    data: {
+                      // "" means "no date" in the picker; the API clears on null.
+                      start_date: startDate || null,
+                      end_date: endDate || null,
+                    },
+                  });
+                }}
+              >
+                <ProjectDateFields
+                  idPrefix="project-settings"
+                  startDate={startDate}
+                  endDate={endDate}
+                  onStartDateChange={setStartDate}
+                  onEndDateChange={setEndDate}
+                />
+                <div className="flex flex-col gap-2">
+                  <Button type="submit" disabled={updateSchedule.isPending}>
+                    {updateSchedule.isPending
+                      ? t("settings.details.saving")
+                      : t("settings.details.saveSchedule")}
+                  </Button>
+                  {scheduleMessage ? (
+                    <p className="text-primary text-sm">{scheduleMessage}</p>
+                  ) : null}
+                  {updateSchedule.isError ? (
+                    <p className="text-destructive text-sm">{t("settings.details.updateError")}</p>
+                  ) : null}
+                </div>
+              </form>
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                {t("settings.details.noWriteAccessSchedule")}
               </p>
             )}
           </div>

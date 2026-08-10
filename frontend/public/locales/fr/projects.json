@@ -141,7 +141,15 @@
     "active": "Actif",
     "template": "Modèle",
     "templateInfo": "Ce projet est un modèle. Utilisez-le pour créer de nouveaux projets depuis l'onglet Modèles.",
-    "archivedInfo": "Ce projet est archivé. Désarchivez-le depuis les paramètres pour ajouter ou mettre à jour des tâches."
+    "archivedInfo": "Ce projet est archivé. Désarchivez-le depuis les paramètres pour ajouter ou mettre à jour des tâches.",
+    "scheduleLabel": "Dates du projet",
+    "scheduleRange": "{{start}} – {{end}}",
+    "scheduleStartOnly": "Commence le {{start}}",
+    "scheduleEndOnly": "Se termine le {{end}}"
+  },
+  "schedule": {
+    "startLabel": "Date de début",
+    "endLabel": "Date de fin"
   },
   "tabsBar": {
     "loadingRecent": "Chargement des éléments récents…",
@@ -269,6 +277,11 @@
       "saveDescription": "Enregistrer la description",
       "descriptionUpdated": "Description mise à jour",
       "noWriteAccessDescription": "Vous avez besoin d'un accès en écriture pour modifier la description.",
+      "scheduleHeading": "Dates",
+      "scheduleDescription": "Définissez quand le projet commence et se termine. Les deux sont facultatives.",
+      "saveSchedule": "Enregistrer les dates",
+      "scheduleUpdated": "Dates du projet mises à jour",
+      "noWriteAccessSchedule": "Vous avez besoin d'un accès en écriture pour modifier les dates du projet.",
       "tagsHeading": "Étiquettes",
       "tagsDescription": "Ajoutez des étiquettes pour organiser et filtrer les projets.",
       "noWriteAccessTags": "Vous avez besoin d'un accès en écriture pour gérer les étiquettes."

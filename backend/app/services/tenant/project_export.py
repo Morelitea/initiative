@@ -183,6 +183,8 @@ async def build_project_export(
             description=project.description,
             is_template=project.is_template,
             is_archived=project.is_archived,
+            start_date=project.start_date,
+            end_date=project.end_date,
         ),
         tags=project_tags,
         task_statuses=statuses,

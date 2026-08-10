@@ -5,6 +5,7 @@ import type { InitiativeRead, ResourceGrantSchema } from "@/api/generated/initia
 import { CreateAccessSection } from "@/components/access/CreateAccessSection";
 import { DEFAULT_GRANTS } from "@/components/access/grants";
 import { EmojiPicker } from "@/components/EmojiPicker";
+import { ProjectDateFields } from "@/components/projects/ProjectDateFields";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -54,6 +55,8 @@ export const CreateProjectDialog = ({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [icon, setIcon] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [initiativeId, setInitiativeId] = useState<string | null>(defaultInitiativeId);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(NO_TEMPLATE_VALUE);
   const [isTemplateProject, setIsTemplateProject] = useState(false);
@@ -103,6 +106,12 @@ export const CreateProjectDialog = ({
       if (trimmedIcon) {
         payload.icon = trimmedIcon;
       }
+      if (startDate) {
+        payload.start_date = startDate;
+      }
+      if (endDate) {
+        payload.end_date = endDate;
+      }
       const selectedInitiativeId = initiativeId ? Number(initiativeId) : undefined;
       if (!selectedInitiativeId || Number.isNaN(selectedInitiativeId)) {
         return;
@@ -120,6 +129,8 @@ export const CreateProjectDialog = ({
             setName("");
             setDescription("");
             setIcon("");
+            setStartDate("");
+            setEndDate("");
             // Restore the default initiative rather than clearing it: the dialog
             // stays mounted, and the sync effect won't re-run on reopen (its deps
             // are unchanged), so clearing would leave a subsequent create with no
@@ -181,6 +192,13 @@ export const CreateProjectDialog = ({
                 onChange={(event) => setDescription(event.target.value)}
               />
             </div>
+            <ProjectDateFields
+              idPrefix="create-project"
+              startDate={startDate}
+              endDate={endDate}
+              onStartDateChange={setStartDate}
+              onEndDateChange={setEndDate}
+            />
             <div className="space-y-2">
               <Label>{t("createDialog.initiativeLabel")}</Label>
               {lockedInitiativeId ? (

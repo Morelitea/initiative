@@ -392,6 +392,90 @@ async def test_create_project(client: AsyncClient, acting_user):
 
 
 @pytest.mark.integration
+async def test_create_project_with_dates(client: AsyncClient, acting_user):
+    """Start/end dates round-trip through create, the detail read, and the list."""
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+
+    payload = {
+        "name": "Scheduled Project",
+        "initiative_id": admin.initiative.id,
+        "start_date": "2026-03-02",
+        "end_date": "2026-09-30",
+    }
+
+    response = await client.post(
+        admin.g("/projects/"), headers=admin.headers, json=payload
+    )
+
+    assert response.status_code == 201
+    created = response.json()
+    assert created["start_date"] == "2026-03-02"
+    assert created["end_date"] == "2026-09-30"
+
+    listed = await client.get(admin.g("/projects/"), headers=admin.headers)
+    assert listed.status_code == 200
+    item = next(p for p in listed.json()["items"] if p["id"] == created["id"])
+    assert item["start_date"] == "2026-03-02"
+    assert item["end_date"] == "2026-09-30"
+
+
+@pytest.mark.integration
+async def test_create_project_without_dates_leaves_them_unset(
+    client: AsyncClient, acting_user
+):
+    """Both dates are optional — omitting them is not an error."""
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+
+    response = await client.post(
+        admin.g("/projects/"),
+        headers=admin.headers,
+        json={"name": "Undated Project", "initiative_id": admin.initiative.id},
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["start_date"] is None
+    assert data["end_date"] is None
+
+
+@pytest.mark.integration
+async def test_update_project_sets_and_clears_dates(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A patch can set either date on its own and clear it again with null."""
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    project = await create_project(session, owner.initiative, owner.user)
+
+    set_end_only = await client.patch(
+        owner.g(f"/projects/{project.id}"),
+        headers=owner.headers,
+        json={"end_date": "2026-12-31"},
+    )
+    assert set_end_only.status_code == 200
+    assert set_end_only.json()["end_date"] == "2026-12-31"
+    assert set_end_only.json()["start_date"] is None
+
+    # Omitted fields stay untouched; an explicit null clears.
+    add_start = await client.patch(
+        owner.g(f"/projects/{project.id}"),
+        headers=owner.headers,
+        json={"start_date": "2026-01-05"},
+    )
+    assert add_start.status_code == 200
+    assert add_start.json()["start_date"] == "2026-01-05"
+    assert add_start.json()["end_date"] == "2026-12-31"
+
+    cleared = await client.patch(
+        owner.g(f"/projects/{project.id}"),
+        headers=owner.headers,
+        json={"start_date": None, "end_date": None},
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["start_date"] is None
+    assert cleared.json()["end_date"] is None
+
+
+@pytest.mark.integration
 async def test_create_project_as_member(client: AsyncClient, acting_user):
     """Test that initiative members can create projects."""
     member = await acting_user(guild_role=GuildRole.member, initiative=True)

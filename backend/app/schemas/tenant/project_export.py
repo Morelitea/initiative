@@ -8,7 +8,7 @@ cross-database move.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, List, Optional
 
 from pydantic import Field, model_validator
@@ -32,6 +32,8 @@ class ProjectExportProject(SanitizedBaseModel):
     description: Optional[str] = None
     is_template: bool = False
     is_archived: bool = False
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
 
 
 class ProjectExportTag(SanitizedBaseModel):

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Optional
 
 from pydantic import ConfigDict, Field
@@ -20,6 +20,9 @@ class ProjectBase(SanitizedBaseModel):
     name: str
     description: Optional[RichTextStr] = None
     icon: Optional[str] = None
+    # Optional whole-day schedule; either end may be set on its own.
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
 
 
 class ProjectCreate(ProjectBase):
@@ -42,6 +45,9 @@ class ProjectUpdate(SanitizedBaseModel):
     icon: Optional[str] = None
     is_template: Optional[bool] = None
     pinned: Optional[bool] = None
+    # Send ``null`` to clear a date; omit the field to leave it untouched.
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
 
 
 class ProjectDuplicateRequest(SanitizedBaseModel):

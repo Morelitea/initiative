@@ -2594,6 +2594,8 @@ export interface ProjectCreate {
   name: string;
   description?: string | null;
   icon?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
   owner_id?: number | null;
   initiative_id?: number | null;
   is_template?: boolean;
@@ -2626,6 +2628,8 @@ export interface ProjectRead {
   name: string;
   description: string | null;
   icon: string | null;
+  start_date: string | null;
+  end_date: string | null;
   id: number;
   owner_id: number;
   initiative_id: number;
@@ -2666,6 +2670,8 @@ export interface ProjectUpdate {
   icon?: string | null;
   is_template?: boolean | null;
   pinned?: boolean | null;
+  start_date?: string | null;
+  end_date?: string | null;
 }
 
 export interface PropertyDefinitionCreate {

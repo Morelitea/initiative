@@ -141,7 +141,15 @@
     "active": "Aktiv",
     "template": "Vorlage",
     "templateInfo": "Dieses Projekt ist eine Vorlage. Verwende es, um über den Tab „Vorlagen“ neue Projekte zu erstellen.",
-    "archivedInfo": "Dieses Projekt ist archiviert. Hebe die Archivierung in den Einstellungen auf, um Aufgaben hinzuzufügen oder zu aktualisieren."
+    "archivedInfo": "Dieses Projekt ist archiviert. Hebe die Archivierung in den Einstellungen auf, um Aufgaben hinzuzufügen oder zu aktualisieren.",
+    "scheduleLabel": "Projektzeitraum",
+    "scheduleRange": "{{start}} – {{end}}",
+    "scheduleStartOnly": "Beginnt am {{start}}",
+    "scheduleEndOnly": "Endet am {{end}}"
+  },
+  "schedule": {
+    "startLabel": "Startdatum",
+    "endLabel": "Enddatum"
   },
   "tabsBar": {
     "loadingRecent": "Aktuelle Elemente werden geladen…",
@@ -269,6 +277,11 @@
       "saveDescription": "Beschreibung speichern",
       "descriptionUpdated": "Beschreibung aktualisiert",
       "noWriteAccessDescription": "Du benötigst Schreibzugriff, um die Beschreibung zu bearbeiten.",
+      "scheduleHeading": "Zeitraum",
+      "scheduleDescription": "Lege fest, wann das Projekt beginnt und endet. Beide Angaben sind optional.",
+      "saveSchedule": "Zeitraum speichern",
+      "scheduleUpdated": "Projektzeitraum aktualisiert",
+      "noWriteAccessSchedule": "Du benötigst Schreibzugriff, um den Projektzeitraum zu ändern.",
       "tagsHeading": "Tags",
       "tagsDescription": "Füge Tags hinzu, um Projekte zu organisieren und zu filtern.",
       "noWriteAccessTags": "Du benötigst Schreibzugriff, um Tags zu verwalten."

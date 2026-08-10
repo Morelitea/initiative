@@ -1191,6 +1191,10 @@ async def create_project(
         initiative_id=initiative_id,
         is_template=project_in.is_template,
         guild_id=guild_context.guild_id,
+        # Deliberately not inherited from the template: a schedule belongs to
+        # the run, not to the blueprint.
+        start_date=project_in.start_date,
+        end_date=project_in.end_date,
     )
 
     session.add(project)
@@ -1353,6 +1357,8 @@ async def duplicate_project(
         initiative_id=initiative_id,
         is_template=False,
         guild_id=guild_context.guild_id,
+        start_date=source_project.start_date,
+        end_date=source_project.end_date,
     )
 
     session.add(new_project)
