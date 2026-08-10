@@ -282,7 +282,14 @@ export function useFocusSummary({ enabled = true }: { enabled?: boolean } = {}) 
     );
 
     openMatches.sort(byDueDate);
-    const visibleMatches = openMatches.slice(0, prefs.limit);
+    // Anything finished today keeps the slot it occupied, so the list holds at
+    // most `limit` rule-matched tasks whether they are done or not. Freeing the
+    // slot would pull a task up from the overflow on every tick, and since the
+    // finished one stays on show, the day's total would climb as you worked —
+    // "0 of 3 done" becoming "1 of 4 done" the moment you ticked something.
+    // Pins are exempt from the cap here as everywhere else.
+    const slots = Math.max(0, prefs.limit - completedToday.length);
+    const visibleMatches = openMatches.slice(0, slots);
 
     return {
       pinned: pinnedOpen,

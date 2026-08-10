@@ -199,6 +199,70 @@ describe("FocusSummary", () => {
     expect(screen.getByText("3 more tasks match")).toBeInTheDocument();
   });
 
+  it("holds the day's total steady as work gets completed", async () => {
+    // A completed task keeps its slot. If it freed one, an overflowed task
+    // would slide in while the completed one stayed on show, and the total
+    // would climb every time you ticked something off.
+    const done = {
+      id: 9,
+      project_id: 1,
+      name: "Done",
+      category: "done" as const,
+      position: 3,
+      is_default: false,
+    };
+    mockMyTasks({
+      rules: buildTaskListResponse([
+        buildTask({ id: 1, title: "One", due_date: "2026-08-10T09:00:00Z" }),
+        buildTask({ id: 2, title: "Two", due_date: "2026-08-11T09:00:00Z" }),
+        buildTask({
+          id: 3,
+          title: "Three",
+          due_date: "2026-08-12T09:00:00Z",
+          completed_at: new Date().toISOString(),
+          task_status: done,
+        }),
+        buildTask({ id: 4, title: "Four", due_date: "2026-08-13T09:00:00Z" }),
+      ]),
+    });
+
+    renderFocus({ limit: 3 });
+
+    // Three slots: two still open, one finished — not four.
+    expect(await screen.findByText("1 of 3 done")).toBeInTheDocument();
+    expect(screen.getByText("One")).toBeInTheDocument();
+    expect(screen.getByText("Two")).toBeInTheDocument();
+    expect(screen.getByText("Three")).toBeInTheDocument();
+    expect(screen.queryByText("Four")).not.toBeInTheDocument();
+    expect(screen.getByText("1 more task matches")).toBeInTheDocument();
+  });
+
+  it("counts a whole finished list as complete rather than growing it", async () => {
+    const done = {
+      id: 9,
+      project_id: 1,
+      name: "Done",
+      category: "done" as const,
+      position: 3,
+      is_default: false,
+    };
+    const completedAt = new Date().toISOString();
+    mockMyTasks({
+      rules: buildTaskListResponse([
+        buildTask({ id: 1, title: "One", completed_at: completedAt, task_status: done }),
+        buildTask({ id: 2, title: "Two", completed_at: completedAt, task_status: done }),
+        buildTask({ id: 3, title: "Three", completed_at: completedAt, task_status: done }),
+        buildTask({ id: 4, title: "Still open", due_date: "2026-08-13T09:00:00Z" }),
+      ]),
+    });
+
+    renderFocus({ limit: 3 });
+
+    expect(await screen.findByText("3 of 3 done")).toBeInTheDocument();
+    expect(screen.queryByText("Still open")).not.toBeInTheDocument();
+    expect(screen.getByText("1 more task matches")).toBeInTheDocument();
+  });
+
   it("keeps a pinned task even when it does not match the rules", async () => {
     mockMyTasks({
       rules: buildTaskListResponse([]),
