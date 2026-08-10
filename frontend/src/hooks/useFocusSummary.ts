@@ -29,8 +29,6 @@ export type FocusPreferences = {
   dueWithinDays: number;
   /** Also include urgent/high priority tasks regardless of their due date. */
   includeHighPriority: boolean;
-  /** How many rule-matched tasks to show. Pins are always shown on top. */
-  limit: number;
   pins: FocusPin[];
 };
 
@@ -40,18 +38,18 @@ export const FOCUS_DEFAULTS: FocusPreferences = {
   open: true,
   dueWithinDays: 2,
   includeHighPriority: true,
-  limit: 7,
   pins: [],
 };
 
-/** Sensible bounds for the settings UI, and the guard for a hand-edited blob. */
-export const FOCUS_LIMIT_MIN = 3;
-export const FOCUS_LIMIT_MAX = 15;
 export const FOCUS_DUE_WITHIN_CHOICES = [0, 2, 7] as const;
 
 const OPEN_CATEGORIES = ["todo", "in_progress"];
 const URGENT_PRIORITIES = ["urgent", "high"];
-/** One page is plenty: the section is capped far below this by design. */
+/**
+ * The API's per-page maximum. There is deliberately no display cap on top of
+ * it: a task either meets the rules and belongs on the list, or it does not.
+ * Shortening an over-long list is the date window's job, not a hidden cutoff's.
+ */
 const FETCH_SIZE = 100;
 
 const pinKey = (guildId: number | null | undefined, taskId: number) =>
@@ -148,7 +146,6 @@ export function useFocusSummary({ enabled = true }: { enabled?: boolean } = {}) 
     () => ({
       ...FOCUS_DEFAULTS,
       ...prefsRaw,
-      limit: Math.min(FOCUS_LIMIT_MAX, Math.max(FOCUS_LIMIT_MIN, prefsRaw?.limit ?? 7)),
       pins: Array.isArray(prefsRaw?.pins) ? prefsRaw.pins : [],
     }),
     [prefsRaw]
@@ -282,23 +279,17 @@ export function useFocusSummary({ enabled = true }: { enabled?: boolean } = {}) 
     );
 
     openMatches.sort(byDueDate);
-    // Anything finished today keeps the slot it occupied, so the list holds at
-    // most `limit` rule-matched tasks whether they are done or not. Freeing the
-    // slot would pull a task up from the overflow on every tick, and since the
-    // finished one stays on show, the day's total would climb as you worked —
-    // "0 of 3 done" becoming "1 of 4 done" the moment you ticked something.
-    // Pins are exempt from the cap here as everywhere else.
-    const slots = Math.max(0, prefs.limit - completedToday.length);
-    const visibleMatches = openMatches.slice(0, slots);
 
     return {
       pinned: pinnedOpen,
-      upcoming: visibleMatches,
+      upcoming: openMatches,
       completedToday: [...pinnedDoneToday, ...completedToday].sort(byDueDate),
-      overflowCount: openMatches.length - visibleMatches.length,
       finishedEarlier,
+      // The rules matched more than one page. Rare, and not something the
+      // section decides — but say so rather than quietly showing a prefix.
+      truncated: (ruleQuery.data?.total_count ?? 0) > ruleItems.length,
     };
-  }, [ruleQuery.data, pinQuery.data, isPinned, prefs.limit, today]);
+  }, [ruleQuery.data, pinQuery.data, isPinned, today]);
 
   // Drop pins the user has already finished on an earlier day, so the blob
   // doesn't accumulate them and the pin query stays small. Only pins we

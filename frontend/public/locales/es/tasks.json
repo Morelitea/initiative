@@ -122,8 +122,6 @@
     "title": "Enfoque",
     "progress": "{{done}} de {{total}} completadas",
     "empty": "Nada requiere tu atención ahora mismo. Fija una tarea para mantenerla aquí.",
-    "overflow_one": "{{count}} tarea más coincide",
-    "overflow_other": "{{count}} tareas más coinciden",
     "pin": "Fijar en Enfoque",
     "unpin": "Quitar de Enfoque",
     "settings": "Ajustes de Enfoque",
@@ -134,9 +132,9 @@
       "7": "Esta semana"
     },
     "includeHighPriority": "Incluir siempre prioridad urgente y alta",
-    "limitLabel": "Mostrar hasta {{count}} tareas",
-    "limitHint": "Las tareas fijadas siempre se muestran, incluso más allá de este límite.",
-    "loadError": "La lista de Enfoque no está disponible ahora."
+    "loadError": "La lista de Enfoque no está disponible ahora.",
+    "truncated": "Mostrando las primeras {{shown}}. Reduce el intervalo de fechas para una lista más corta.",
+    "settingsHint": "Las tareas fijadas siempre aparecen, sea cual sea esta configuración."
   },
   "myTasks": {
     "title": "Mis tareas",

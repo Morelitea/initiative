@@ -122,8 +122,6 @@
     "title": "Focus",
     "progress": "{{done}} of {{total}} done",
     "empty": "Nothing needs your attention right now. Pin a task to keep it here.",
-    "overflow_one": "{{count}} more task matches",
-    "overflow_other": "{{count}} more tasks match",
     "pin": "Pin to Focus",
     "unpin": "Remove from Focus",
     "settings": "Focus settings",
@@ -134,9 +132,9 @@
       "7": "This week"
     },
     "includeHighPriority": "Always include urgent and high priority",
-    "limitLabel": "Show up to {{count}} tasks",
-    "limitHint": "Pinned tasks are always shown, even beyond this limit.",
-    "loadError": "Focus list unavailable right now."
+    "loadError": "Focus list unavailable right now.",
+    "truncated": "Showing the first {{shown}}. Narrow the date window for a shorter list.",
+    "settingsHint": "Pinned tasks always appear, whatever these settings say."
   },
   "myTasks": {
     "title": "My Tasks",

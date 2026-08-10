@@ -15,12 +15,7 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import {
-  FOCUS_DUE_WITHIN_CHOICES,
-  FOCUS_LIMIT_MAX,
-  FOCUS_LIMIT_MIN,
-  type useFocusSummary,
-} from "@/hooks/useFocusSummary";
+import { FOCUS_DUE_WITHIN_CHOICES, type useFocusSummary } from "@/hooks/useFocusSummary";
 import { guildPath } from "@/lib/guildUrl";
 import { cn } from "@/lib/utils";
 
@@ -144,21 +139,7 @@ const FocusSettings = ({ focus }: { focus: FocusSummaryData }) => {
           />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="focus-limit" className="text-xs">
-            {t("focus.limitLabel", { count: prefs.limit })}
-          </Label>
-          <input
-            id="focus-limit"
-            type="range"
-            min={FOCUS_LIMIT_MIN}
-            max={FOCUS_LIMIT_MAX}
-            value={prefs.limit}
-            onChange={(event) => setPreference("limit", Number(event.target.value))}
-            className="w-full accent-primary"
-          />
-          <p className="text-muted-foreground text-xs">{t("focus.limitHint")}</p>
-        </div>
+        <p className="text-muted-foreground text-xs">{t("focus.settingsHint")}</p>
       </PopoverContent>
     </Popover>
   );
@@ -179,7 +160,7 @@ export const FocusSummary = ({
   isUpdatingTaskStatus,
 }: FocusSummaryProps) => {
   const { t } = useTranslation(["tasks", "common"]);
-  const { pinned, upcoming, completedToday, overflowCount, doneCount, totalCount, prefs } = focus;
+  const { pinned, upcoming, completedToday, truncated, doneCount, totalCount, prefs } = focus;
 
   const progress = totalCount > 0 ? (doneCount / totalCount) * 100 : 0;
   const open = prefs.open;
@@ -235,9 +216,9 @@ export const FocusSummary = ({
                   {pinned.map((task) => renderRow(task, false))}
                   {upcoming.map((task) => renderRow(task, false))}
 
-                  {overflowCount > 0 ? (
+                  {truncated ? (
                     <p className="px-2 pt-1 text-muted-foreground text-xs">
-                      {t("focus.overflow", { count: overflowCount })}
+                      {t("focus.truncated", { shown: upcoming.length })}
                     </p>
                   ) : null}
 

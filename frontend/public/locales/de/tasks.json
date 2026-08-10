@@ -122,8 +122,6 @@
     "title": "Fokus",
     "progress": "{{done}} von {{total}} erledigt",
     "empty": "Im Moment braucht nichts deine Aufmerksamkeit. Hefte eine Aufgabe an, um sie hier zu behalten.",
-    "overflow_one": "{{count}} weitere Aufgabe passt",
-    "overflow_other": "{{count}} weitere Aufgaben passen",
     "pin": "An Fokus anheften",
     "unpin": "Aus Fokus entfernen",
     "settings": "Fokus-Einstellungen",
@@ -134,9 +132,9 @@
       "7": "Diese Woche"
     },
     "includeHighPriority": "Dringende und hohe Priorität immer einbeziehen",
-    "limitLabel": "Bis zu {{count}} Aufgaben anzeigen",
-    "limitHint": "Angeheftete Aufgaben werden immer angezeigt, auch über dieses Limit hinaus.",
-    "loadError": "Fokusliste derzeit nicht verfügbar."
+    "loadError": "Fokusliste derzeit nicht verfügbar.",
+    "truncated": "Die ersten {{shown}} werden angezeigt. Verkleinere den Zeitraum für eine kürzere Liste.",
+    "settingsHint": "Angeheftete Aufgaben erscheinen immer, unabhängig von diesen Einstellungen."
   },
   "myTasks": {
     "title": "Meine Aufgaben",

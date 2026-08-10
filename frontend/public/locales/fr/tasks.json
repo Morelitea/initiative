@@ -122,8 +122,6 @@
     "title": "Focus",
     "progress": "{{done}} sur {{total}} terminées",
     "empty": "Rien ne requiert votre attention pour le moment. Épinglez une tâche pour la garder ici.",
-    "overflow_one": "{{count}} autre tâche correspond",
-    "overflow_other": "{{count}} autres tâches correspondent",
     "pin": "Épingler au Focus",
     "unpin": "Retirer du Focus",
     "settings": "Paramètres du Focus",
@@ -134,9 +132,9 @@
       "7": "Cette semaine"
     },
     "includeHighPriority": "Toujours inclure les priorités urgente et haute",
-    "limitLabel": "Afficher jusqu'à {{count}} tâches",
-    "limitHint": "Les tâches épinglées sont toujours affichées, même au-delà de cette limite.",
-    "loadError": "Liste Focus indisponible pour le moment."
+    "loadError": "Liste Focus indisponible pour le moment.",
+    "truncated": "Affichage des {{shown}} premières. Réduisez la période pour une liste plus courte.",
+    "settingsHint": "Les tâches épinglées apparaissent toujours, quels que soient ces paramètres."
   },
   "myTasks": {
     "title": "Mes tâches",

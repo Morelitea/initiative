@@ -178,31 +178,31 @@ describe("FocusSummary", () => {
     expect(fields).not.toContain("priority");
   });
 
-  it("caps the list and reports how many more match", async () => {
+  it("shows every task that matches, with no cutoff", async () => {
+    // A task either meets the rules and belongs here, or it does not. There is
+    // no display cap: a shorter list comes from a tighter date window.
     mockMyTasks({
       rules: buildTaskListResponse(
-        Array.from({ length: 6 }, (_, index) =>
+        Array.from({ length: 12 }, (_, index) =>
           buildTask({
             id: index + 1,
             title: `Task ${index + 1}`,
-            due_date: `2026-08-1${index}T09:00:00Z`,
+            due_date: `2026-08-${10 + index}T09:00:00Z`,
           })
         )
       ),
     });
 
-    renderFocus({ limit: 3 });
+    renderFocus();
 
     expect(await screen.findByText("Task 1")).toBeInTheDocument();
-    expect(screen.getByText("Task 3")).toBeInTheDocument();
-    expect(screen.queryByText("Task 4")).not.toBeInTheDocument();
-    expect(screen.getByText("3 more tasks match")).toBeInTheDocument();
+    expect(screen.getByText("Task 12")).toBeInTheDocument();
+    expect(screen.getByText("0 of 12 done")).toBeInTheDocument();
   });
 
   it("holds the day's total steady as work gets completed", async () => {
-    // A completed task keeps its slot. If it freed one, an overflowed task
-    // would slide in while the completed one stayed on show, and the total
-    // would climb every time you ticked something off.
+    // Completing something re-labels a task already on the list; it must never
+    // pull another one in and grow the denominator underneath the user.
     const done = {
       id: 9,
       project_id: 1,
@@ -222,45 +222,30 @@ describe("FocusSummary", () => {
           completed_at: new Date().toISOString(),
           task_status: done,
         }),
-        buildTask({ id: 4, title: "Four", due_date: "2026-08-13T09:00:00Z" }),
       ]),
     });
 
-    renderFocus({ limit: 3 });
+    renderFocus();
 
-    // Three slots: two still open, one finished — not four.
     expect(await screen.findByText("1 of 3 done")).toBeInTheDocument();
     expect(screen.getByText("One")).toBeInTheDocument();
     expect(screen.getByText("Two")).toBeInTheDocument();
     expect(screen.getByText("Three")).toBeInTheDocument();
-    expect(screen.queryByText("Four")).not.toBeInTheDocument();
-    expect(screen.getByText("1 more task matches")).toBeInTheDocument();
   });
 
-  it("counts a whole finished list as complete rather than growing it", async () => {
-    const done = {
-      id: 9,
-      project_id: 1,
-      name: "Done",
-      category: "done" as const,
-      position: 3,
-      is_default: false,
-    };
-    const completedAt = new Date().toISOString();
+  it("says so when the rules match more than one page", async () => {
     mockMyTasks({
-      rules: buildTaskListResponse([
-        buildTask({ id: 1, title: "One", completed_at: completedAt, task_status: done }),
-        buildTask({ id: 2, title: "Two", completed_at: completedAt, task_status: done }),
-        buildTask({ id: 3, title: "Three", completed_at: completedAt, task_status: done }),
-        buildTask({ id: 4, title: "Still open", due_date: "2026-08-13T09:00:00Z" }),
-      ]),
+      rules: {
+        ...buildTaskListResponse([buildTask({ id: 1, title: "One" })]),
+        total_count: 140,
+      },
     });
 
-    renderFocus({ limit: 3 });
+    renderFocus();
 
-    expect(await screen.findByText("3 of 3 done")).toBeInTheDocument();
-    expect(screen.queryByText("Still open")).not.toBeInTheDocument();
-    expect(screen.getByText("1 more task matches")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Showing the first 1. Narrow the date window for a shorter list.")
+    ).toBeInTheDocument();
   });
 
   it("keeps a pinned task even when it does not match the rules", async () => {
