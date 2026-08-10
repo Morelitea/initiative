@@ -1,3 +1,48 @@
+import type { DragEndEvent, DragOverEvent, UniqueIdentifier } from "@dnd-kit/core";
+
+/** The droppable a kanban drop landed on, reduced to what the move needs. */
+export type KanbanDropTarget = {
+  id: UniqueIdentifier;
+  data: { type?: string; statusId?: number } | undefined;
+  rect: { top: number; height: number } | null;
+};
+
+/**
+ * The droppable a kanban card was released over, preferring the collision list
+ * over dnd-kit's ``over``.
+ *
+ * ``over`` is only recomputed when the winning droppable's *id* changes, and it
+ * resolves to null whenever that droppable is no longer registered by the time
+ * the update runs. A virtualized column unmounts its cards as its window moves,
+ * so a drop into one frequently arrives with ``over === null`` while the pointer
+ * is squarely inside the column — and the previous ``over`` (the last card the
+ * pointer crossed on its way there, usually back in the source column) is the
+ * wrong answer: the card gets reordered in place instead of changing status.
+ *
+ * ``collisions`` is recomputed on every render, so it still names the droppable
+ * under the pointer, and each entry carries the container itself — whose data
+ * ref holds the right ``statusId`` even if the card has since unmounted. Falls
+ * back to ``over``, then to ``lastOver``, for drops where collision detection
+ * came up empty.
+ */
+export const resolveKanbanDropTarget = (
+  event: DragEndEvent,
+  lastOver: DragOverEvent["over"] | null
+): KanbanDropTarget | null => {
+  const container = event.collisions?.[0]?.data?.droppableContainer as
+    | {
+        id: UniqueIdentifier;
+        data: { current?: { type?: string; statusId?: number } };
+        rect: { current: { top: number; height: number } | null };
+      }
+    | undefined;
+  if (container) {
+    return { id: container.id, data: container.data.current, rect: container.rect.current };
+  }
+  const over = event.over ?? lastOver;
+  return over ? { id: over.id, data: over.data?.current, rect: over.rect } : null;
+};
+
 /**
  * Fractional midpoint position for a task being inserted at ``targetIndex`` of
  * ``tasks`` (the project's tasks in global order, WITHOUT the moved task).

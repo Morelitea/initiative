@@ -39,6 +39,7 @@ import {
   computeMidpoint,
   isDraggingDown,
   reorderTaskList,
+  resolveKanbanDropTarget,
   shouldInsertAfter,
 } from "@/components/projects/taskOrdering";
 import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
@@ -783,24 +784,19 @@ export const ProjectTasksSection = ({
       lastKanbanOverRef.current = null;
       return;
     }
-    const { active, over } = event;
-    const finalOver = over ?? lastKanbanOverRef.current;
-    if (!finalOver) {
+    const { active } = event;
+    const finalOver = resolveKanbanDropTarget(event, lastKanbanOverRef.current);
+    const activeId = Number(active.id);
+    const currentTask = Number.isFinite(activeId)
+      ? tasks.find((task) => task.id === activeId)
+      : undefined;
+    if (!finalOver || !currentTask) {
       setActiveTaskId(null);
       lastKanbanOverRef.current = null;
       return;
     }
-    const activeId = Number(active.id);
-    if (!Number.isFinite(activeId)) {
-      return;
-    }
 
-    const currentTask = tasks.find((task) => task.id === activeId);
-    if (!currentTask) {
-      return;
-    }
-
-    const overData = finalOver.data.current as { type?: string; statusId?: number } | undefined;
+    const overData = finalOver.data;
     let targetStatusId = currentTask.task_status_id;
     let overTaskId: number | null = null;
     let insertAfter = false;
@@ -826,11 +822,10 @@ export const ProjectTasksSection = ({
       targetStatusId = overData.statusId ?? targetStatusId;
     }
 
-    if (targetStatusId === currentTask.task_status_id && overTaskId === currentTask.id) {
-      return;
+    // Released on itself: nothing to persist, but the overlay still has to go.
+    if (targetStatusId !== currentTask.task_status_id || overTaskId !== currentTask.id) {
+      moveTaskInOrder(activeId, targetStatusId, overTaskId, insertAfter);
     }
-
-    moveTaskInOrder(activeId, targetStatusId, overTaskId, insertAfter);
     setActiveTaskId(null);
     lastKanbanOverRef.current = null;
   };
