@@ -56,6 +56,7 @@ from app.services.tenant import task_completion
 from app.core.messages import ProjectMessages
 from app.core.config import settings as app_settings
 from app.db.query import (
+    MAX_ID_FILTER_VALUES,
     apply_pagination,
     clamp_page,
     page_has_next,
@@ -1696,6 +1697,7 @@ async def search_project_members(
         default=None,
         description="Case-insensitive substring match on the member's name.",
     ),
+    user_id: Annotated[list[int] | None, Query(max_length=MAX_ID_FILTER_VALUES)] = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=0, le=100),
 ) -> UserSummaryListResponse:
@@ -1707,6 +1709,10 @@ async def search_project_members(
     via the shared permission engine. This replaces the client-side
     ``project.grants`` derivation the pickers used to run over the full guild
     roster. Requester needs read access to the project.
+
+    Pass ``user_id`` one or more times to resolve a known selection (a picker
+    rehydrating stored ids into names/avatars) rather than searching; it
+    narrows the same assignable set, so an id outside it returns nothing.
     """
     project = await _get_project_or_404(project_id, session, guild_context.guild_id)
     await _require_project_membership(project, current_user, session, access="read")
@@ -1728,6 +1734,9 @@ async def search_project_members(
     term = (search or "").strip().lower()
     if term:
         assignable = [u for u in assignable if term in (u.full_name or "").lower()]
+    if user_id:
+        wanted = set(user_id)
+        assignable = [u for u in assignable if u.id in wanted]
 
     assignable.sort(key=lambda u: ((u.full_name or "").lower(), u.id))
 

@@ -1277,10 +1277,13 @@ export const useCreateUserApiV1GGuildIdUsersPost = <
  * Slim, searchable, paginated roster for typeahead/pickers.
  *
  * Same authorization as the full member list (``RLSSessionDep`` +
- * ``GuildContextDep``, membership re-validated per request): the new params
+ * ``GuildContextDep``, membership re-validated per request): the params
  * are additive filters on an already-RLS-gated query, so they only ever
  * narrow the row set. Returns :class:`UserSummary` (no email, roles, or
  * ``initiative_roles`` enrichment) instead of the heavy ``UserGuildMember``.
+ *
+ * Pass ``user_id`` one or more times to resolve a known selection (a picker
+ * rehydrating stored ids into names/avatars) rather than searching.
  * @summary Search Users
  */
 export const searchUsersApiV1GGuildIdUsersSearchGet = (

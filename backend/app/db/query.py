@@ -430,6 +430,11 @@ def _resolve_sort_fields(
 # tune — it only keeps any single response's row count finite (SEC-14).
 FETCH_ALL_WINDOW = 1000
 
+# How many ids one request may pass to an ``id``-filtered list endpoint. Matches
+# the ``page_size`` ceiling those endpoints declare, since a longer id list can
+# never yield more rows than a single page returns anyway.
+MAX_ID_FILTER_VALUES = 100
+
 
 def effective_page_size(page_size: int) -> int:
     """The row window a request actually gets for its requested ``page_size``.

@@ -6,9 +6,7 @@ import {
   type LinkedEntity,
 } from "@/components/initiativeTools/queues/LinkedEntityPicker";
 import { useDocumentAutocomplete } from "@/hooks/useDocuments";
-import { useInitiativeMembers } from "@/hooks/useInitiatives";
 import { useTaskAutocomplete } from "@/hooks/useTasks";
-import { getUserDisplayName } from "@/lib/userDisplay";
 
 const DEFAULT_COLOR = "#6366F1";
 
@@ -86,16 +84,10 @@ export const useQueueItemForm = ({ open, initiativeId, item }: UseQueueItemFormA
     }
   }, [open, item]);
 
-  // Fetch initiative members for user picker
-  const membersQuery = useInitiativeMembers(initiativeId);
-  const memberItems = useMemo(
-    () =>
-      (membersQuery.data ?? []).map((member) => ({
-        value: String(member.id),
-        label: getUserDisplayName(member),
-      })),
-    [membersQuery.data]
-  );
+  // The user picker is a server typeahead over the initiative's members
+  // (`MemberSelect`), so the form no longer pulls the full roster. An edited
+  // item ships its own linked user, which saves the picker a lookup.
+  const selectedUser = item?.user ?? null;
 
   // Document picker — server typeahead, only while the picker is open.
   const docsQuery = useDocumentAutocomplete(initiativeId, docSearch, {
@@ -144,7 +136,7 @@ export const useQueueItemForm = ({ open, initiativeId, item }: UseQueueItemFormA
     setTaskSearch,
     setTaskPickerOpen,
     // Picker option lists
-    memberItems,
+    selectedUser,
     docResults,
     docsLoading: docsQuery.isFetching,
     taskResults,

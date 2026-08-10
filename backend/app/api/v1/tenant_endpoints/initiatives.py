@@ -56,7 +56,7 @@ from app.schemas.platform.user import (
     UserSummary,
     UserSummaryListResponse,
 )
-from app.db.query import page_has_next, paginated_query
+from app.db.query import MAX_ID_FILTER_VALUES, page_has_next, paginated_query
 from app.services import notifications as notifications_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.platform import guilds as guilds_service
@@ -905,16 +905,20 @@ async def search_initiative_members(
         default=None,
         description="Case-insensitive substring match on the member's name.",
     ),
+    user_id: Annotated[list[int] | None, Query(max_length=MAX_ID_FILTER_VALUES)] = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=0, le=100),
 ) -> UserSummaryListResponse:
     """Slim, searchable, paginated roster of an initiative's members.
 
     Same authorization as :func:`get_initiative_members` (member, guild
-    admin, or PAM/break-glass grantee); the search/pagination params are
+    admin, or PAM/break-glass grantee); the search/id/pagination params are
     additive filters on the already-RLS-gated query. Returns
     :class:`UserSummary` for typeahead/picker surfaces instead of the full
     ``UserPublic`` roster.
+
+    Pass ``user_id`` one or more times to resolve a known selection (a picker
+    rehydrating stored ids into names/avatars) rather than searching.
     """
     await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
 
@@ -940,6 +944,8 @@ async def search_initiative_members(
     )
     if search and (term := search.strip()):
         base = base.where(User.full_name.ilike(f"%{term}%"))
+    if user_id:
+        base = base.where(User.id.in_(user_id))
 
     count_stmt = select(func.count()).select_from(base.subquery())
     data_stmt = base.order_by(User.full_name.asc(), User.id.asc())

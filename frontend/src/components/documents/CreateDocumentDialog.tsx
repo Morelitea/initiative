@@ -156,20 +156,20 @@ export const CreateDocumentDialog = ({
       setCreateDialogTab("new");
       setGrants([...DEFAULT_GRANTS]);
     }
-  }, [open, defaultInitiativeId]);
+  }, [open, defaultInitiativeId, clearTemplate]);
 
   // Clear template when "save as template" is toggled on
   useEffect(() => {
     if (isTemplateDocument && selectedTemplateId) {
       clearTemplate();
     }
-  }, [isTemplateDocument, selectedTemplateId]);
+  }, [isTemplateDocument, selectedTemplateId, clearTemplate]);
 
   // Clear template when the document type changes so we don't accidentally
   // copy a native template into a whiteboard (or vice versa).
   useEffect(() => {
     clearTemplate();
-  }, [newDocumentType]);
+  }, [newDocumentType, clearTemplate]);
 
   const createDocument = useCreateDocument({
     onSuccess: (document) => {

@@ -1,19 +1,13 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import type {
-  InitiativeCreate,
-  InitiativeRead,
-  UserPublic,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { InitiativeCreate, InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
 import {
   addInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersPost,
   createInitiativeApiV1GGuildIdInitiativesPost,
   deleteInitiativeApiV1GGuildIdInitiativesInitiativeIdDelete,
   getGetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetQueryKey,
-  getGetInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGetQueryKey,
   getInitiativeApiV1GGuildIdInitiativesInitiativeIdGet,
-  getInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGet,
   getListInitiativesApiV1GGuildIdInitiativesGetQueryKey,
   listInitiativesApiV1GGuildIdInitiativesGet,
   removeInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdDelete,
@@ -71,24 +65,6 @@ export const useInitiative = (initiativeId: number | null, options?: QueryOpts<I
       initiativeId!
     ),
     queryFn: () => getInitiativeApiV1GGuildIdInitiativesInitiativeIdGet(guildId, initiativeId!),
-    enabled: initiativeId !== null && Number.isFinite(initiativeId) && userEnabled,
-    ...rest,
-  });
-};
-
-export const useInitiativeMembers = (
-  initiativeId: number | null,
-  options?: QueryOpts<UserPublic[]>
-) => {
-  const guildId = useActiveGuildId();
-  const { enabled: userEnabled = true, ...rest } = options ?? {};
-  return useQuery<UserPublic[]>({
-    queryKey: getGetInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGetQueryKey(
-      guildId,
-      initiativeId!
-    ),
-    queryFn: () =>
-      getInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGet(guildId, initiativeId!),
     enabled: initiativeId !== null && Number.isFinite(initiativeId) && userEnabled,
     ...rest,
   });
