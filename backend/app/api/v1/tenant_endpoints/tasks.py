@@ -546,6 +546,7 @@ def _task_to_list_read(task: Task) -> TaskListRead:
         recurrence_strategy=task.recurrence_strategy,
         created_at=task.created_at,
         updated_at=task.updated_at,
+        completed_at=task.completed_at,
         position=task.position,
         is_archived=task.is_archived,
         created_by_id=task.created_by_id,

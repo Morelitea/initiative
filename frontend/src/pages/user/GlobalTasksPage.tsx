@@ -14,11 +14,13 @@ import {
 } from "@/components/calendar";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { buildPropertyColumns, propertyColumnIds } from "@/components/properties/propertyColumns";
+import { FocusSummary } from "@/components/tasks/FocusSummary";
 import { GlobalTaskFilters } from "@/components/tasks/GlobalTaskFilters";
 import { globalTaskColumns } from "@/components/tasks/globalTaskColumns";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { useAuth } from "@/hooks/useAuth";
+import { useFocusSummary } from "@/hooks/useFocusSummary";
 import { type MyTasksView, useGlobalTasksTable } from "@/hooks/useGlobalTasksTable";
 import { useGuilds } from "@/hooks/useGuilds";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
@@ -63,6 +65,10 @@ export const GlobalTasksPage = ({
   const weekStartsOn = (user?.week_starts_on ?? 0) as 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
   const table = useGlobalTasksTable({ view, storageKeyPrefix });
+  // Only the assigned view: a personal to-do list of work you did not take on
+  // makes no sense on "tasks I created".
+  const showFocus = view === "assigned";
+  const focus = useFocusSummary({ enabled: showFocus });
 
   const handleRefresh = useCallback(async () => {
     await invalidateAllTasks();
@@ -100,6 +106,8 @@ export const GlobalTasksPage = ({
       projectStatusCache: table.projectStatusCache,
       t: t as TranslateFn,
       showAssignees,
+      isPinned: showFocus ? focus.isPinned : undefined,
+      togglePin: showFocus ? focus.togglePin : undefined,
     });
     if (propertyColumns.length === 0) return base;
     const tagsIdx = base.findIndex((c) => (c as { id?: string }).id === "tags");
@@ -115,6 +123,9 @@ export const GlobalTasksPage = ({
     t,
     propertyColumns,
     showAssignees,
+    showFocus,
+    focus.isPinned,
+    focus.togglePin,
   ]);
 
   const groupingOptions = useMemo(
@@ -175,6 +186,15 @@ export const GlobalTasksPage = ({
             </div>
           </div>
         </div>
+
+        {showFocus ? (
+          <FocusSummary
+            focus={focus}
+            activeGuildId={table.activeGuildId}
+            changeTaskStatus={table.changeTaskStatus}
+            isUpdatingTaskStatus={table.isUpdatingTaskStatus}
+          />
+        ) : null}
 
         {viewMode === "table" && (
           <>
