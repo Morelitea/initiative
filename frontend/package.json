@@ -147,7 +147,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@types/typo-js": "^1.2.2",
-    "@typescript/native-preview": "7.0.0-dev.20260421.2",
+    "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "@vitejs/plugin-react": "^6.0.5",
     "baseline-browser-mapping": "^2.11.11",
     "cross-env": "^10.1.0",
