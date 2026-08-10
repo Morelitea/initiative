@@ -89,8 +89,6 @@ async def status_categories(
     from this map rather than issuing a status lookup per task.
     """
     result = await session.exec(
-        select(TaskStatus.id, TaskStatus.category).where(
-            TaskStatus.project_id == project_id
-        )
+        select(TaskStatus).where(TaskStatus.project_id == project_id)
     )
-    return {status_id: category for status_id, category in result.all()}
+    return {row.id: row.category for row in result.all() if row.id is not None}
