@@ -356,7 +356,6 @@
     "viewTable": "Table",
     "viewKanban": "Kanban",
     "viewCalendar": "Calendar",
-    "viewGantt": "Gantt",
     "filtersHeading": "Filters",
     "showFilters": "Show filters",
     "hideFilters": "Hide filters",
@@ -516,19 +515,6 @@
     "noComments": "No comments yet.",
     "commentedOn": "commented on",
     "loadMore": "Load more"
-  },
-  "ganttView": {
-    "title": "Timeline",
-    "subtitle": "Plan start and due dates over the next few weeks.",
-    "window": "Window",
-    "days": "{{count}} days",
-    "days_one": "{{count}} day",
-    "days_other": "{{count}} days",
-    "previousWeeks": "Show previous weeks",
-    "nextWeeks": "Show next weeks",
-    "taskColumn": "Task",
-    "noTasks": "No tasks to display.",
-    "outsideRange": "Outside current range"
   },
   "export": {
     "title": "Export project",
