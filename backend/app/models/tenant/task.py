@@ -76,6 +76,12 @@ class TaskAssignee(SQLModel, table=True):
     guild_id: Optional[int] = Field(
         default=None, foreign_key="guilds.id", nullable=True
     )
+    # When this assignee finished *their* part. A task can outlive that: handed
+    # to review, or waiting on a co-assignee. Managed by
+    # ``app.services.tenant.task_completion`` — never set directly.
+    completed_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
 
 
 class Subtask(SQLModel, table=True):
@@ -151,12 +157,6 @@ class Task(SoftDeleteMixin, table=True):
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
-    # When the task entered a ``done``-category status, cleared when it leaves
-    # one. Kept in step with ``task_status.category`` by
-    # ``app.services.tenant.task_completion`` — never set directly.
-    completed_at: Optional[datetime] = Field(
-        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
-    )
     created_by_id: Optional[int] = Field(
         default=None, foreign_key="users.id", nullable=True
     )
@@ -173,6 +173,15 @@ class Task(SoftDeleteMixin, table=True):
     task_status: Optional[TaskStatus] = Relationship(back_populates="tasks")
     assignees: List["User"] = Relationship(
         back_populates="tasks_assigned", link_model=TaskAssignee
+    )
+    # The link rows behind ``assignees``. ``assignees`` gives the User side and
+    # cannot carry per-assignment state, so anything reading a completion has to
+    # come through here (same shape as ``tag_links``).
+    assignee_links: List["TaskAssignee"] = Relationship(
+        sa_relationship_kwargs={
+            "cascade": "all, delete-orphan",
+            "overlaps": "assignees,tasks_assigned",
+        }
     )
     # Read-only link to the author (``created_by_id``) so reads can expose a
     # ``creator`` summary without a separate roster fetch. ``foreign_keys`` is

@@ -48,7 +48,8 @@
   "errors": {
     "guildContext": "Der Gildenkontext für diese Aufgabe konnte nicht ermittelt werden.",
     "statusUpdate": "Aufgabenstatus konnte nicht aktualisiert werden.",
-    "statusNoMatch": "Aufgabenstatus konnte nicht aktualisiert werden. Kein passender Status gefunden."
+    "statusNoMatch": "Aufgabenstatus konnte nicht aktualisiert werden. Kein passender Status gefunden.",
+    "myPartUpdate": "Dein Teil dieser Aufgabe konnte nicht aktualisiert werden."
   },
   "updating": "Wird aktualisiert…",
   "projectFallback": "Projekt #{{id}}",
@@ -134,7 +135,10 @@
     "includeHighPriority": "Dringende und hohe Priorität immer einbeziehen",
     "loadError": "Fokusliste derzeit nicht verfügbar.",
     "truncated": "Die ersten {{shown}} werden angezeigt. Verkleinere den Zeitraum für eine kürzere Liste.",
-    "settingsHint": "Angeheftete Aufgaben erscheinen immer, unabhängig von diesen Einstellungen."
+    "settingsHint": "Angeheftete Aufgaben erscheinen immer, unabhängig von diesen Einstellungen.",
+    "finishMyPart": "Mein Teil ist erledigt",
+    "finishTask": "Als erledigt markieren",
+    "reopenMyPart": "Doch nicht erledigt"
   },
   "myTasks": {
     "title": "Meine Aufgaben",

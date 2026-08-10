@@ -1,23 +1,23 @@
-"""Keep ``Task.completed_at`` in step with the task's status category.
+"""Track who has finished their part of a task.
 
-``completed_at`` is derived state: a task is complete exactly when its status
-sits in the ``done`` category. The timestamp is stamped on the way in and
-cleared on the way out, so ``completed_at IS NOT NULL`` and "the task's status
-is done" always agree. Consumers (stats, digests, the My Tasks focus list) can
-then trust the column instead of proxying completion with ``updated_at``.
+Completion is per **assignment**, not per task. Someone can be done with their
+share of the work while the task itself lives on — handed to review, or waiting
+on a co-assignee — so ``TaskAssignee.completed_at`` records when *that person*
+finished, and the task's status keeps recording where the work as a whole
+stands. The two answer different questions and neither derives from the other.
 
-Two kinds of writer have to route through here:
+Three rules keep the column honest, all of them owned here:
 
-* anything that assigns ``Task.task_status_id`` — :func:`sync_completed_at`;
-* the status edit that changes a ``TaskStatus.category``, which flips done-ness
-  for every task sitting in it without touching a single task row —
-  :func:`resync_status_tasks`.
-
-The per-task rule is deliberately *state-derived* rather than edge-triggered:
-it reads the category the task holds now, not the one it held before, so a
-caller never has to thread the previous value through, and re-running it on an
-unchanged task is a no-op. That is also what keeps a move between two different
-``done`` statuses from resetting the original completion time.
+* a task reaching a done status finishes every **assignee's** part
+  (:func:`complete_all_assignments`). Only assignees have a completion at all —
+  it lives on the assignment row — but the person who moved the task need not
+  be one of them. Anyone already marked keeps their original time: they
+  finished when they finished, not when the task closed.
+* a task leaving a done status erases every part
+  (:func:`reopen_all_assignments`). Reopened work is nobody's finished work.
+* between those, a person marks their own part done or not
+  (:func:`set_assignment_completed`), and nothing else disturbs it — so
+  finishing your share and then handing the task to review keeps the mark.
 """
 
 from __future__ import annotations
@@ -28,67 +28,149 @@ from typing import Optional
 from sqlmodel import select, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.tenant.task import Task, TaskStatus, TaskStatusCategory
+from app.models.tenant.task import TaskAssignee, TaskStatusCategory
 
 
-def sync_completed_at(
-    task: Task,
-    category: Optional[TaskStatusCategory],
+def left_done(
+    previous: Optional[TaskStatusCategory],
+    current: Optional[TaskStatusCategory],
+) -> bool:
+    """Whether a status change took the task back out of a done column."""
+    return previous == TaskStatusCategory.done and current != TaskStatusCategory.done
+
+
+async def complete_all_assignments(
+    session: AsyncSession, *, task_id: int, now: datetime
+) -> None:
+    """Mark every outstanding assignment on a finished task as done.
+
+    If the work is over then so is everyone's part of it. Assignments already
+    marked keep their original time — someone who finished on Tuesday did not
+    finish again when the task closed on Thursday.
+    """
+    await session.exec(
+        update(TaskAssignee)
+        .where(TaskAssignee.task_id == task_id, TaskAssignee.completed_at.is_(None))
+        .values(completed_at=now)
+    )
+
+
+async def reopen_all_assignments(session: AsyncSession, *, task_id: int) -> None:
+    """Clear every assignment's completion because the task is open again.
+
+    Everyone's, not just the mover's: work pulled back out of a done column is
+    live for whoever is on it, and leaving someone marked done would hide it
+    from the one list meant to surface it.
+    """
+    await session.exec(
+        update(TaskAssignee)
+        .where(TaskAssignee.task_id == task_id, TaskAssignee.completed_at.is_not(None))
+        .values(completed_at=None)
+    )
+
+
+async def sync_assignments_for_status_change(
+    session: AsyncSession,
     *,
+    task_id: int,
+    previous: Optional[TaskStatusCategory],
+    current: Optional[TaskStatusCategory],
     now: datetime,
 ) -> None:
-    """Align ``task.completed_at`` with ``category``, the category of the status
-    the task holds *after* the caller's change.
+    """Apply the two task-driven rules after a task's status moves.
 
-    Call it on every path that creates a task or reassigns its status. Stamps
-    ``now`` on entry to ``done``, clears on exit, and leaves an already-complete
-    task's timestamp alone so done → done keeps the original completion time.
+    The single seam for every path that reassigns ``task_status_id``, so the
+    rules live in one place instead of at each call site.
     """
-    if category == TaskStatusCategory.done:
-        if task.completed_at is None:
-            task.completed_at = now
-    elif task.completed_at is not None:
-        task.completed_at = None
+    if current == TaskStatusCategory.done:
+        await complete_all_assignments(session, task_id=task_id, now=now)
+    elif left_done(previous, current):
+        await reopen_all_assignments(session, task_id=task_id)
 
 
-async def resync_status_tasks(
+async def sync_assignments_for_recategorised_status(
     session: AsyncSession,
     *,
     status_id: int,
-    category: TaskStatusCategory,
+    previous: Optional[TaskStatusCategory],
+    current: TaskStatusCategory,
     now: datetime,
 ) -> None:
-    """Realign every task sitting in a status whose category just changed.
+    """Apply the same rules to every task sitting in a recategorised column.
 
-    Recategorising a column moves its tasks across the done boundary without
-    any task row being written, so the set is fixed up in one statement. Tasks
-    that already agree are left untouched, which preserves the completion time
-    of anything that was already done.
+    Editing a status moves its whole column across the done boundary without
+    touching a single task row, so the assignments are realigned in one
+    statement rather than task by task.
     """
-    if category == TaskStatusCategory.done:
-        statement = (
-            update(Task)
-            .where(Task.task_status_id == status_id, Task.completed_at.is_(None))
+    from app.models.tenant.task import Task
+
+    tasks_in_status = select(Task.id).where(Task.task_status_id == status_id)
+
+    if current == TaskStatusCategory.done:
+        await session.exec(
+            update(TaskAssignee)
+            .where(
+                TaskAssignee.task_id.in_(tasks_in_status),
+                TaskAssignee.completed_at.is_(None),
+            )
             .values(completed_at=now)
         )
-    else:
-        statement = (
-            update(Task)
-            .where(Task.task_status_id == status_id, Task.completed_at.is_not(None))
+    elif left_done(previous, current):
+        await session.exec(
+            update(TaskAssignee)
+            .where(
+                TaskAssignee.task_id.in_(tasks_in_status),
+                TaskAssignee.completed_at.is_not(None),
+            )
             .values(completed_at=None)
         )
-    await session.exec(statement)
 
 
-async def status_categories(
-    session: AsyncSession, project_id: int
-) -> dict[int, TaskStatusCategory]:
-    """``{status_id: category}`` for a project.
+async def set_assignment_completed(
+    session: AsyncSession,
+    *,
+    task_id: int,
+    user_id: int,
+    completed: bool,
+    now: datetime,
+) -> Optional[TaskAssignee]:
+    """Mark one person's part done or not done.
 
-    Bulk creators (imports, template copies) resolve each new task's done-ness
-    from this map rather than issuing a status lookup per task.
+    Returns the assignment, or ``None`` if the user is not assigned — the
+    caller turns that into a 404 rather than silently doing nothing. Re-marking
+    an already-complete assignment keeps its original timestamp.
     """
-    result = await session.exec(
-        select(TaskStatus).where(TaskStatus.project_id == project_id)
-    )
-    return {row.id: row.category for row in result.all() if row.id is not None}
+    assignment = (
+        await session.exec(
+            select(TaskAssignee).where(
+                TaskAssignee.task_id == task_id,
+                TaskAssignee.user_id == user_id,
+            )
+        )
+    ).first()
+    if assignment is None:
+        return None
+
+    if completed:
+        if assignment.completed_at is None:
+            assignment.completed_at = now
+    else:
+        assignment.completed_at = None
+    session.add(assignment)
+    return assignment
+
+
+async def outstanding_assignee_count(session: AsyncSession, *, task_id: int) -> int:
+    """How many assignees have not yet marked their part done."""
+    from sqlalchemy import func
+
+    return (
+        await session.exec(
+            select(func.count())
+            .select_from(TaskAssignee)
+            .where(
+                TaskAssignee.task_id == task_id,
+                TaskAssignee.completed_at.is_(None),
+            )
+        )
+    ).one()

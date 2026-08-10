@@ -20,6 +20,7 @@ export function buildTaskAssignee(
     full_name: `Assignee ${counter}`,
     avatar_url: null,
     avatar_base64: null,
+    completed_at: null,
     ...overrides,
   };
 }
@@ -62,7 +63,6 @@ export function buildTask(overrides: Partial<TaskListRead> = {}): TaskListRead {
     initiative_name: null,
     initiative_color: null,
     subtask_progress: null,
-    completed_at: null,
     tags: [],
     ...overrides,
   };

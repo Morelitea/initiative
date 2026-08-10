@@ -1,248 +1,303 @@
-"""Integration tests for the ``completed_at`` invariant.
+"""Integration tests for per-assignee completion.
 
-A task carries a completion timestamp exactly when its status sits in the
-``done`` category. These cover every endpoint that can move a task across that
-boundary — including recategorising a status, which flips done-ness for a whole
-column without writing a single task row.
-
-The rule itself is unit-tested in
-``app/services/tenant/task_completion_test.py``.
+Completion is per assignment, not per task: you can be finished with your share
+while the task itself is still in review or waiting on a co-assignee. These
+cover the three rules — a task reaching done finishes every assignee's part,
+leaving done erases every part, and in between a person marks their own — plus
+the recategorised-column case, where a whole column crosses the done boundary
+without a single task row being written.
 """
 
 import pytest
 from httpx import AsyncClient
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
-from app.models.tenant.project import Project
-from app.models.tenant.task import TaskStatus, TaskStatusCategory
+from app.models.tenant.task import TaskAssignee, TaskStatus, TaskStatusCategory
 from app.services.tenant import task_statuses as task_statuses_service
 from app.testing import Actor
-from app.testing.factories import create_project
+from app.testing.factories import create_task
+from app.testing.schema_harness import route_session_to_guild
 
 
 async def _statuses(
-    session: AsyncSession, project: Project
+    session: AsyncSession, project
 ) -> dict[TaskStatusCategory, TaskStatus]:
-    """``{category: status}`` for the project's seeded default statuses."""
     await task_statuses_service.ensure_default_statuses(session, project.id)
     statuses = await task_statuses_service.list_statuses(session, project.id)
     await session.commit()
     return {s.category: s for s in statuses}
 
 
-async def _create_task(
-    client: AsyncClient, a: Actor, *, status_id: int, title: str = "Task"
-) -> dict:
-    response = await client.post(
-        a.g("/tasks/"),
-        headers=a.headers,
-        json={"project_id": a.project.id, "title": title, "task_status_id": status_id},
-    )
-    assert response.status_code == 201, response.text
-    return response.json()
+async def _completion(session: AsyncSession, a: Actor, task_id: int, user_id: int):
+    """Read one assignment's completion straight from the guild schema."""
+    await route_session_to_guild(session, a.guild.id)
+    row = (
+        await session.exec(
+            select(TaskAssignee).where(
+                TaskAssignee.task_id == task_id, TaskAssignee.user_id == user_id
+            )
+        )
+    ).first()
+    return row.completed_at if row else None
 
 
-async def _get_task(client: AsyncClient, a: Actor, task_id: int) -> dict:
-    response = await client.get(a.g(f"/tasks/{task_id}"), headers=a.headers)
-    assert response.status_code == 200, response.text
-    return response.json()
-
-
-async def _set_status(
-    client: AsyncClient, a: Actor, task_id: int, status_id: int
-) -> dict:
-    response = await client.patch(
-        a.g(f"/tasks/{task_id}"),
-        headers=a.headers,
-        json={"task_status_id": status_id},
-    )
-    assert response.status_code == 200, response.text
-    return response.json()
-
-
-# --- creation ---------------------------------------------------------------
+# --- marking your own part ---------------------------------------------------
 
 
 @pytest.mark.integration
-async def test_task_created_in_done_status_is_complete(
+async def test_marking_my_part_leaves_a_shared_task_open(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
+    """The whole point: my part can be finished while the task is not."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    statuses = await _statuses(session, a.project)
-
-    task = await _create_task(client, a, status_id=statuses[TaskStatusCategory.done].id)
-
-    assert task["completed_at"] is not None
-
-
-@pytest.mark.integration
-async def test_task_created_in_open_status_is_incomplete(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    statuses = await _statuses(session, a.project)
-
-    task = await _create_task(
-        client, a, status_id=statuses[TaskStatusCategory.backlog].id
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    task = await create_task(
+        session, a.project, title="Shared", assignees=[a.user, b.user]
     )
 
-    assert task["completed_at"] is None
-
-
-# --- status changes on the task --------------------------------------------
-
-
-@pytest.mark.integration
-async def test_moving_into_done_stamps_completed_at(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    statuses = await _statuses(session, a.project)
-    task = await _create_task(client, a, status_id=statuses[TaskStatusCategory.todo].id)
-    assert task["completed_at"] is None
-
-    updated = await _set_status(
-        client, a, task["id"], statuses[TaskStatusCategory.done].id
-    )
-
-    assert updated["completed_at"] is not None
-
-
-@pytest.mark.integration
-async def test_moving_out_of_done_clears_completed_at(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Reopening a task un-completes it — the timestamp must not linger."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    statuses = await _statuses(session, a.project)
-    task = await _create_task(client, a, status_id=statuses[TaskStatusCategory.done].id)
-    assert task["completed_at"] is not None
-
-    updated = await _set_status(
-        client, a, task["id"], statuses[TaskStatusCategory.in_progress].id
-    )
-
-    assert updated["completed_at"] is None
-
-
-@pytest.mark.integration
-async def test_moving_between_done_statuses_keeps_the_original_time(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    statuses = await _statuses(session, a.project)
-    second_done = await client.post(
-        a.g(f"/projects/{a.project.id}/task-statuses/"),
-        headers=a.headers,
-        json={"name": "Shipped", "category": "done"},
-    )
-    assert second_done.status_code == 201, second_done.text
-
-    task = await _create_task(client, a, status_id=statuses[TaskStatusCategory.done].id)
-    completed_at = task["completed_at"]
-
-    updated = await _set_status(client, a, task["id"], second_done.json()["id"])
-
-    assert updated["completed_at"] == completed_at
-
-
-@pytest.mark.integration
-async def test_kanban_drag_into_done_stamps_completed_at(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """The reorder endpoint carries a status per item — the drag-to-Done path."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    statuses = await _statuses(session, a.project)
-    task = await _create_task(client, a, status_id=statuses[TaskStatusCategory.todo].id)
-
-    response = await client.post(
-        a.g("/tasks/reorder"),
-        headers=a.headers,
-        json={
-            "project_id": a.project.id,
-            "items": [
-                {
-                    "id": task["id"],
-                    "task_status_id": statuses[TaskStatusCategory.done].id,
-                    "position": 0,
-                }
-            ],
-        },
+    response = await client.put(
+        a.g(f"/tasks/{task.id}/my-part"), headers=a.headers, json={"completed": True}
     )
 
     assert response.status_code == 200, response.text
-    assert (await _get_task(client, a, task["id"]))["completed_at"] is not None
+    assert response.json()["task_status"]["category"] != "done"
+    assert await _completion(session, a, task.id, a.user.id) is not None
 
 
 @pytest.mark.integration
-async def test_kanban_drag_out_of_done_clears_completed_at(
+async def test_unmarking_my_part_clears_it(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    statuses = await _statuses(session, a.project)
-    task = await _create_task(client, a, status_id=statuses[TaskStatusCategory.done].id)
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    task = await create_task(
+        session, a.project, title="Shared", assignees=[a.user, b.user]
+    )
 
-    response = await client.post(
-        a.g("/tasks/reorder"),
-        headers=a.headers,
-        json={
-            "project_id": a.project.id,
-            "items": [
-                {
-                    "id": task["id"],
-                    "task_status_id": statuses[TaskStatusCategory.todo].id,
-                    "position": 0,
-                }
-            ],
-        },
+    await client.put(
+        a.g(f"/tasks/{task.id}/my-part"), headers=a.headers, json={"completed": True}
+    )
+    response = await client.put(
+        a.g(f"/tasks/{task.id}/my-part"), headers=a.headers, json={"completed": False}
     )
 
     assert response.status_code == 200, response.text
-    assert (await _get_task(client, a, task["id"]))["completed_at"] is None
-
-
-# --- recategorising a status (no task row is written) -----------------------
+    assert await _completion(session, a, task.id, a.user.id) is None
 
 
 @pytest.mark.integration
-async def test_recategorising_a_column_out_of_done_clears_its_tasks(
+async def test_marking_twice_keeps_the_first_time(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """Flipping a Done column to another category reopens everything in it."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    statuses = await _statuses(session, a.project)
-    # A second done status, so the flip isn't rejected as removing the last one.
-    keeper = await client.post(
-        a.g(f"/projects/{a.project.id}/task-statuses/"),
-        headers=a.headers,
-        json={"name": "Shipped", "category": "done"},
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
     )
-    assert keeper.status_code == 201, keeper.text
+    task = await create_task(
+        session, a.project, title="Shared", assignees=[a.user, b.user]
+    )
 
-    done_status = statuses[TaskStatusCategory.done]
-    task = await _create_task(client, a, status_id=done_status.id)
-    assert task["completed_at"] is not None
+    await client.put(
+        a.g(f"/tasks/{task.id}/my-part"), headers=a.headers, json={"completed": True}
+    )
+    first = await _completion(session, a, task.id, a.user.id)
+    await client.put(
+        a.g(f"/tasks/{task.id}/my-part"), headers=a.headers, json={"completed": True}
+    )
+
+    assert await _completion(session, a, task.id, a.user.id) == first
+
+
+@pytest.mark.integration
+async def test_someone_who_is_not_assigned_has_no_part_to_finish(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    task = await create_task(session, a.project, title="Draft", assignees=[a.user])
+
+    response = await client.put(
+        a.g(f"/tasks/{task.id}/my-part"), headers=b.headers, json={"completed": True}
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "TASK_NOT_ASSIGNED"
+
+
+@pytest.mark.integration
+async def test_one_assignee_finishing_leaves_the_others_outstanding(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    task = await create_task(
+        session, a.project, title="Shared", assignees=[a.user, b.user]
+    )
+
+    await client.put(
+        a.g(f"/tasks/{task.id}/my-part"), headers=a.headers, json={"completed": True}
+    )
+
+    assert await _completion(session, a, task.id, a.user.id) is not None
+    assert await _completion(session, a, task.id, b.user.id) is None
+
+
+# --- the task crossing the done boundary ------------------------------------
+
+
+@pytest.mark.integration
+async def test_finishing_the_task_finishes_every_assignee(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    statuses = await _statuses(session, a.project)
+    task = await create_task(
+        session, a.project, title="Shared", assignees=[a.user, b.user]
+    )
 
     response = await client.patch(
-        a.g(f"/projects/{a.project.id}/task-statuses/{done_status.id}"),
+        a.g(f"/tasks/{task.id}"),
         headers=a.headers,
-        json={"category": "in_progress"},
+        json={"task_status_id": statuses[TaskStatusCategory.done].id},
     )
 
     assert response.status_code == 200, response.text
-    assert (await _get_task(client, a, task["id"]))["completed_at"] is None
+    assert await _completion(session, a, task.id, a.user.id) is not None
+    assert await _completion(session, a, task.id, b.user.id) is not None
 
 
 @pytest.mark.integration
-async def test_recategorising_a_column_into_done_stamps_its_tasks(
+async def test_finishing_the_task_keeps_an_earlier_mark(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Someone who finished on Tuesday did not finish again on Thursday."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    statuses = await _statuses(session, a.project)
+    task = await create_task(session, a.project, title="Draft", assignees=[a.user])
+
+    await client.put(
+        a.g(f"/tasks/{task.id}/my-part"), headers=a.headers, json={"completed": True}
+    )
+    marked_at = await _completion(session, a, task.id, a.user.id)
+
+    await client.patch(
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
+        json={"task_status_id": statuses[TaskStatusCategory.done].id},
+    )
+
+    assert await _completion(session, a, task.id, a.user.id) == marked_at
+
+
+@pytest.mark.integration
+async def test_reopening_the_task_erases_every_part(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    statuses = await _statuses(session, a.project)
+    task = await create_task(
+        session,
+        a.project,
+        title="Shared",
+        assignees=[a.user, b.user],
+        status_category=TaskStatusCategory.done,
+    )
+
+    response = await client.patch(
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
+        json={"task_status_id": statuses[TaskStatusCategory.in_progress].id},
+    )
+
+    assert response.status_code == 200, response.text
+    assert await _completion(session, a, task.id, a.user.id) is None
+    assert await _completion(session, a, task.id, b.user.id) is None
+
+
+@pytest.mark.integration
+async def test_handing_a_task_on_keeps_my_mark(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Finish your share, then move it to review: the mark survives, because
+    only the done boundary disturbs it."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    statuses = await _statuses(session, a.project)
+    task = await create_task(
+        session, a.project, title="Shared", assignees=[a.user, b.user]
+    )
+
+    await client.put(
+        a.g(f"/tasks/{task.id}/my-part"), headers=a.headers, json={"completed": True}
+    )
+    await client.patch(
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
+        json={"task_status_id": statuses[TaskStatusCategory.todo].id},
+    )
+
+    assert await _completion(session, a, task.id, a.user.id) is not None
+
+
+# --- recategorising a whole column ------------------------------------------
+
+
+@pytest.mark.integration
+async def test_recategorising_a_column_into_done_finishes_its_assignments(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     statuses = await _statuses(session, a.project)
     todo_status = statuses[TaskStatusCategory.todo]
-    task = await _create_task(client, a, status_id=todo_status.id)
-    assert task["completed_at"] is None
+    task = await create_task(
+        session,
+        a.project,
+        title="Draft",
+        assignees=[a.user],
+        task_status_id=todo_status.id,
+    )
 
     response = await client.patch(
         a.g(f"/projects/{a.project.id}/task-statuses/{todo_status.id}"),
@@ -251,82 +306,80 @@ async def test_recategorising_a_column_into_done_stamps_its_tasks(
     )
 
     assert response.status_code == 200, response.text
-    assert (await _get_task(client, a, task["id"]))["completed_at"] is not None
+    assert await _completion(session, a, task.id, a.user.id) is not None
 
 
 @pytest.mark.integration
-async def test_recategorising_a_column_leaves_other_columns_alone(
+async def test_recategorising_a_column_out_of_done_erases_its_assignments(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """The realignment is scoped to the edited status, not the whole project."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     statuses = await _statuses(session, a.project)
     done_status = statuses[TaskStatusCategory.done]
-    shipped = await client.post(
+    keeper = await client.post(
         a.g(f"/projects/{a.project.id}/task-statuses/"),
         headers=a.headers,
         json={"name": "Shipped", "category": "done"},
     )
-    assert shipped.status_code == 201, shipped.text
+    assert keeper.status_code == 201, keeper.text
 
-    untouched = await _create_task(
-        client, a, status_id=shipped.json()["id"], title="Shipped task"
+    task = await create_task(
+        session,
+        a.project,
+        title="Draft",
+        assignees=[a.user],
+        status_category=TaskStatusCategory.done,
+        task_status_id=done_status.id,
     )
-    flipped = await _create_task(client, a, status_id=done_status.id, title="Done task")
+    assert await _completion(session, a, task.id, a.user.id) is not None
 
     response = await client.patch(
         a.g(f"/projects/{a.project.id}/task-statuses/{done_status.id}"),
         headers=a.headers,
-        json={"category": "todo"},
-    )
-    assert response.status_code == 200, response.text
-
-    assert (await _get_task(client, a, flipped["id"]))["completed_at"] is None
-    assert (await _get_task(client, a, untouched["id"]))["completed_at"] == untouched[
-        "completed_at"
-    ]
-
-
-# --- other writers ----------------------------------------------------------
-
-
-@pytest.mark.integration
-async def test_moving_a_done_task_to_another_project_clears_completed_at(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """A move lands the task in the target project's default status, which is
-    an open one — so the task is no longer complete."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    statuses = await _statuses(session, a.project)
-    task = await _create_task(client, a, status_id=statuses[TaskStatusCategory.done].id)
-    assert task["completed_at"] is not None
-
-    target = await create_project(session, a.initiative, a.user, name="Target")
-    await _statuses(session, target)
-
-    response = await client.post(
-        a.g(f"/tasks/{task['id']}/move"),
-        headers=a.headers,
-        json={"target_project_id": target.id},
+        json={"category": "in_progress"},
     )
 
     assert response.status_code == 200, response.text
-    assert response.json()["completed_at"] is None
+    assert await _completion(session, a, task.id, a.user.id) is None
+
+
+# --- the sole assignee ------------------------------------------------------
 
 
 @pytest.mark.integration
-async def test_duplicating_a_done_task_produces_a_complete_copy(
+async def test_the_only_assignee_finishing_finishes_the_task(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """The copy keeps the source's status, so it must keep a timestamp too —
-    otherwise it would be a done task that was never completed."""
+    """With nobody else on it, your part is the whole task."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    statuses = await _statuses(session, a.project)
-    task = await _create_task(client, a, status_id=statuses[TaskStatusCategory.done].id)
+    await _statuses(session, a.project)
+    task = await create_task(session, a.project, title="Solo", assignees=[a.user])
 
-    response = await client.post(
-        a.g(f"/tasks/{task['id']}/duplicate"), headers=a.headers, json={}
+    response = await client.put(
+        a.g(f"/tasks/{task.id}/my-part"), headers=a.headers, json={"completed": True}
     )
 
-    assert response.status_code == 201, response.text
-    assert response.json()["completed_at"] is not None
+    assert response.status_code == 200, response.text
+    assert response.json()["task_status"]["category"] == "done"
+
+
+@pytest.mark.integration
+async def test_the_only_assignee_unfinishing_reopens_the_task(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Symmetric, so unchecking can never leave a done task with an
+    unfinished part."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await _statuses(session, a.project)
+    task = await create_task(session, a.project, title="Solo", assignees=[a.user])
+
+    await client.put(
+        a.g(f"/tasks/{task.id}/my-part"), headers=a.headers, json={"completed": True}
+    )
+    response = await client.put(
+        a.g(f"/tasks/{task.id}/my-part"), headers=a.headers, json={"completed": False}
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["task_status"]["category"] != "done"
+    assert await _completion(session, a, task.id, a.user.id) is None

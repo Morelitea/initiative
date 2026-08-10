@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { ChevronDown, Pin, PinOff, Settings2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import type { TaskListRead, TaskStatusCategory } from "@/api/generated/initiativeAPI.schemas";
+import type { TaskListRead } from "@/api/generated/initiativeAPI.schemas";
 import { DateCell } from "@/components/tasks/TaskDateCell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,9 +24,9 @@ type FocusSummaryData = ReturnType<typeof useFocusSummary>;
 export type FocusSummaryProps = {
   focus: FocusSummaryData;
   activeGuildId: number | null;
-  /** Reused from the page's table so status resolution has one implementation. */
-  changeTaskStatus: (task: TaskListRead, category: TaskStatusCategory) => Promise<void>;
-  isUpdatingTaskStatus: boolean;
+  /** Marks the viewer's own share of a task finished, or unfinished again. */
+  setMyPartCompleted: (task: TaskListRead, completed: boolean) => Promise<void>;
+  isUpdating: boolean;
 };
 
 const taskHref = (task: TaskListRead, activeGuildId: number | null) => {
@@ -43,6 +43,16 @@ type FocusRowProps = {
   onToggleDone: () => void;
   disabled: boolean;
   done?: boolean;
+};
+
+/**
+ * What ticking the box will actually do. On a task you share with someone else
+ * it records only your share and leaves the task open for them; when you are
+ * the only assignee your part is the whole task, and it closes.
+ */
+const doneLabelKey = (task: TaskListRead, done: boolean) => {
+  if (done) return "focus.reopenMyPart";
+  return task.assignees.length > 1 ? "focus.finishMyPart" : "focus.finishTask";
 };
 
 const FocusRow = ({
@@ -63,7 +73,8 @@ const FocusRow = ({
         checked={done}
         disabled={disabled}
         onCheckedChange={() => onToggleDone()}
-        aria-label={done ? t("checkbox.markInProgress") : t("checkbox.markDone")}
+        aria-label={t(doneLabelKey(task, done))}
+        title={t(doneLabelKey(task, done))}
       />
       <div className="min-w-0 flex-1">
         <Link
@@ -156,8 +167,8 @@ const FocusSettings = ({ focus }: { focus: FocusSummaryData }) => {
 export const FocusSummary = ({
   focus,
   activeGuildId,
-  changeTaskStatus,
-  isUpdatingTaskStatus,
+  setMyPartCompleted,
+  isUpdating,
 }: FocusSummaryProps) => {
   const { t } = useTranslation(["tasks", "common"]);
   const { pinned, upcoming, completedToday, truncated, doneCount, totalCount, prefs } = focus;
@@ -172,8 +183,8 @@ export const FocusSummary = ({
       activeGuildId={activeGuildId}
       isPinned={focus.isPinned(task)}
       onTogglePin={() => focus.togglePin(task)}
-      onToggleDone={() => void changeTaskStatus(task, done ? "in_progress" : "done")}
-      disabled={isUpdatingTaskStatus}
+      onToggleDone={() => void setMyPartCompleted(task, !done)}
+      disabled={isUpdating}
       done={done}
     />
   );

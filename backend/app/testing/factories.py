@@ -58,7 +58,6 @@ from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.user import User, UserRole, UserStatus
 from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
 from app.services.tenant.initiatives import create_builtin_roles
-from app.services.tenant.task_completion import sync_completed_at
 from app.testing.schema_harness import route_session_to_guild
 
 
@@ -465,19 +464,27 @@ async def create_task(
         "priority": TaskPriority.medium,
     }
     task = Task(**{**defaults, **overrides})
-    # Match what the endpoints do, so a factory-built done task is a valid one:
-    # done-ness and completed_at always agree. A ``completed_at`` override on a
-    # done task survives (letting a test date a completion), and one on a task
-    # that isn't done is dropped rather than persisted as an impossible row.
-    sync_completed_at(task, status.category, now=datetime.now(timezone.utc))
     session.add(task)
     if commit:
         await session.commit()
         await session.refresh(task)
 
+    # A done task has no outstanding parts, so factory-built assignments on one
+    # start complete — matching what the endpoints do, rather than persisting a
+    # combination production can't produce.
+    assigned_at = (
+        datetime.now(timezone.utc)
+        if status.category == TaskStatusCategory.done
+        else None
+    )
     for user in assignees or []:
         session.add(
-            TaskAssignee(task_id=task.id, user_id=user.id, guild_id=project.guild_id)
+            TaskAssignee(
+                task_id=task.id,
+                user_id=user.id,
+                guild_id=project.guild_id,
+                completed_at=assigned_at,
+            )
         )
     if commit and assignees:
         await session.commit()

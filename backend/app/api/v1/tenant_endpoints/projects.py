@@ -52,7 +52,6 @@ from app.services import permissions as permissions_service
 from app.services import rls as rls_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import task_statuses as task_statuses_service
-from app.services.tenant import task_completion
 from app.core.messages import ProjectMessages
 from app.core.config import settings as app_settings
 from app.db.query import (
@@ -359,6 +358,7 @@ async def _duplicate_template_tasks(
         select(Task)
         .options(
             selectinload(Task.assignees),
+            selectinload(Task.assignee_links),
             selectinload(Task.task_status),
             selectinload(Task.subtasks),
             selectinload(Task.tag_links),
@@ -371,8 +371,6 @@ async def _duplicate_template_tasks(
     if not template_tasks:
         return
 
-    now = datetime.now(timezone.utc)
-    categories = await task_completion.status_categories(session, new_project.id)
     for template_task in template_tasks:
         template_status_id = getattr(template_task, "task_status_id", None)
         mapped_status_id = None
@@ -394,9 +392,6 @@ async def _duplicate_template_tasks(
             priority=template_task.priority,
             due_date=template_task.due_date,
             position=template_task.position,
-        )
-        task_completion.sync_completed_at(
-            new_task, categories.get(mapped_status_id), now=now
         )
         session.add(new_task)
         await session.flush()

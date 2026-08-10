@@ -174,14 +174,16 @@ async def update_task_status(
     new_category = update_data.get("category")
     if new_category and new_category != target.category:
         await _ensure_category_not_last(session, project_id=project_id, target=target)
+        previous_category = target.category
         target.category = new_category
-        # Recategorising a column moves every task in it across the done
-        # boundary without any task row being written, so realign their
-        # completion timestamps here.
-        await task_completion.resync_status_tasks(
+        # Recategorising a column carries its whole contents across the done
+        # boundary without a single task row being written, so the assignments
+        # on those tasks are realigned here.
+        await task_completion.sync_assignments_for_recategorised_status(
             session,
             status_id=target.id,
-            category=new_category,
+            previous=previous_category,
+            current=new_category,
             now=datetime.now(timezone.utc),
         )
     if "name" in update_data and update_data["name"] is not None:

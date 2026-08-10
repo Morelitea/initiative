@@ -986,6 +986,7 @@ export interface TaskAssigneeSummary {
   avatar_url: string | null;
   avatar_base64: string | null;
   status: UserStatus;
+  completed_at: string | null;
 }
 
 export interface TaskSubtaskProgress {
@@ -1010,7 +1011,6 @@ export interface TaskListRead {
   task_status: TaskStatusRead;
   created_at: string;
   updated_at: string;
-  completed_at: string | null;
   position: number;
   is_archived: boolean;
   created_by_id: number | null;
@@ -3439,6 +3439,16 @@ export interface TaskMoveRequest {
   target_project_id: number;
 }
 
+/**
+ * Whether the caller is done with their share of a task.
+ *
+ * Says nothing about the task itself — it can stay open for review or for a
+ * co-assignee, and moving it is a separate act.
+ */
+export interface TaskMyPartRequest {
+  completed: boolean;
+}
+
 export interface TaskProjectInitiativeSummary {
   id: number;
   name: string;
@@ -3477,7 +3487,6 @@ export interface TaskRead {
   task_status: TaskStatusRead;
   created_at: string;
   updated_at: string;
-  completed_at: string | null;
   position: number;
   is_archived: boolean;
   created_by_id: number | null;

@@ -25,6 +25,7 @@ import { type MyTasksView, useGlobalTasksTable } from "@/hooks/useGlobalTasksTab
 import { useGuilds } from "@/hooks/useGuilds";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
 import { useProperties } from "@/hooks/useProperties";
+import { useSetMyPartCompleted } from "@/hooks/useTasks";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { guildPath, useGuildPath } from "@/lib/guildUrl";
 import { getProjectColor } from "@/lib/projectColor";
@@ -69,6 +70,17 @@ export const GlobalTasksPage = ({
   // makes no sense on "tasks I created".
   const showFocus = view === "assigned";
   const focus = useFocusSummary({ enabled: showFocus });
+  const { mutateAsync: setMyPart, isPending: isUpdatingMyPart } = useSetMyPartCompleted();
+  const setMyPartCompleted = useCallback(
+    async (task: TaskListRead, completed: boolean) => {
+      // The task lives in its own guild, which need not be the one this page is
+      // being viewed from — personal surfaces span every guild.
+      const guildId = task.guild_id ?? table.activeGuildId;
+      if (!guildId) return;
+      await setMyPart({ guildId, taskId: task.id, completed });
+    },
+    [setMyPart, table.activeGuildId]
+  );
 
   const handleRefresh = useCallback(async () => {
     await invalidateAllTasks();
@@ -191,8 +203,8 @@ export const GlobalTasksPage = ({
           <FocusSummary
             focus={focus}
             activeGuildId={table.activeGuildId}
-            changeTaskStatus={table.changeTaskStatus}
-            isUpdatingTaskStatus={table.isUpdatingTaskStatus}
+            setMyPartCompleted={setMyPartCompleted}
+            isUpdating={isUpdatingMyPart}
           />
         ) : null}
 

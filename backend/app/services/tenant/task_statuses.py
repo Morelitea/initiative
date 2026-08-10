@@ -71,6 +71,25 @@ async def ensure_default_statuses(
     return _sorted(created)
 
 
+async def first_in_categories(
+    session: AsyncSession,
+    project_id: int,
+    categories: Sequence[TaskStatusCategory],
+) -> TaskStatus | None:
+    """The project's earliest status in the first category that has one.
+
+    Categories are tried in order, so a caller can express "in progress, or
+    failing that to do, or failing that backlog" without knowing which columns
+    a given project actually has.
+    """
+    statuses = await list_statuses(session, project_id)
+    for category in categories:
+        for status in statuses:
+            if status.category == category:
+                return status
+    return None
+
+
 async def get_default_status(session: AsyncSession, project_id: int) -> TaskStatus:
     statuses = await ensure_default_statuses(session, project_id)
     for status in statuses:

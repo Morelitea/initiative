@@ -37,6 +37,7 @@ import {
   readTaskApiV1GGuildIdTasksTaskIdGet,
   reorderSubtasksApiV1GGuildIdTasksTaskIdSubtasksOrderPut,
   reorderTasksApiV1GGuildIdTasksReorderPost,
+  setMyPartCompletedApiV1GGuildIdTasksTaskIdMyPartPut,
   updateTaskApiV1GGuildIdTasksTaskIdPatch,
 } from "@/api/generated/tasks/tasks";
 import { invalidateAllTasks, invalidateTask, invalidateTaskSubtasks } from "@/api/query-keys";
@@ -233,6 +234,51 @@ export const useUpdateTask = (
     },
     onError: (...args) => {
       toast.error(getErrorMessage(args[0], "tasks:errors.statusUpdate"));
+      onError?.(...args);
+    },
+    onSettled,
+  });
+};
+
+/**
+ * Mark the current user's share of a task finished, or unfinished again.
+ *
+ * Cross-guild like {@link useUpdateTaskInGuild}: the task lives in its own
+ * guild, so the guild travels in the mutation variables. This is a different
+ * thing from completing the task — on a shared task the status does not move at
+ * all, and the server only touches the caller's own assignment.
+ */
+export const useSetMyPartCompleted = (
+  options?: MutationOpts<TaskRead, { guildId: number; taskId: number; completed: boolean }>
+) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const { user } = useAuth();
+
+  return useMutation({
+    ...rest,
+    mutationFn: ({
+      guildId,
+      taskId,
+      completed,
+    }: {
+      guildId: number;
+      taskId: number;
+      completed: boolean;
+    }) => setMyPartCompletedApiV1GGuildIdTasksTaskIdMyPartPut(guildId, taskId, { completed }),
+    onSuccess: (...args) => {
+      const [, vars] = args;
+      void invalidateAllTasks();
+      void invalidateTask(vars.taskId);
+      // Finishing your part is the moment worth celebrating here, whether or
+      // not the task itself moved — on a shared task it stays open for whoever
+      // has it next.
+      if (vars.completed && user) {
+        fireTaskCompletionFeedback(user, { isAssigned: true });
+      }
+      onSuccess?.(...args);
+    },
+    onError: (...args) => {
+      toast.error(getErrorMessage(args[0], "tasks:errors.myPartUpdate"));
       onError?.(...args);
     },
     onSettled,

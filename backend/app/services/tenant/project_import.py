@@ -19,8 +19,6 @@ See plan & ``project_export.py`` for the format. The algorithm:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
 from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
@@ -49,7 +47,6 @@ from app.schemas.tenant.project_export import (
     ProjectExportTask,
     ProjectImportResult,
 )
-from app.services.tenant import task_completion
 from app.services.import_engine.common import (
     decode_property_value,
     ensure_tag,
@@ -289,16 +286,7 @@ async def _import_task(
         recurrence_occurrence_count=envelope_task.recurrence_occurrence_count,
         position=envelope_task.position,
         is_archived=envelope_task.is_archived,
-        completed_at=envelope_task.completed_at,
         created_by_id=importer_id,
-    )
-    # A restore keeps the completion time the envelope carries; envelopes taken
-    # before the field existed carry none, so it's derived from the restored
-    # status instead. Either way the timestamp ends up agreeing with the status.
-    task_completion.sync_completed_at(
-        task,
-        status_id_to_category.get(status_id),
-        now=datetime.now(timezone.utc),
     )
     session.add(task)
     await session.flush()

@@ -572,14 +572,14 @@ async def test_list_my_tasks_property_filter_spans_guilds(
     assert (guild2.id, g2_has.id) not in found
 
 
-# --- Focus summary query -----------------------------------------------------
+# --- Focus list query --------------------------------------------------------
 # The My Tasks "Focus" section sends one nested OR group. These lock the wire
 # format in: a silent 400 (or a silently-dropped leg) would empty the section
 # with no visible cause.
 
 
 @pytest.mark.integration
-async def test_my_tasks_accepts_nested_or_conditions(
+async def test_my_tasks_accepts_the_focus_conditions(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     from datetime import datetime, timedelta, timezone
@@ -590,21 +590,22 @@ async def test_my_tasks_accepts_nested_or_conditions(
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     now = datetime.now(timezone.utc)
 
-    due_soon = await create_task(
+    await create_task(
         session,
         a.project,
         title="Due soon",
         assignees=[a.user],
         due_date=now + timedelta(hours=6),
     )
-    urgent_undated = await create_task(
+    await create_task(
         session,
         a.project,
         title="Urgent but undated",
         assignees=[a.user],
         priority=TaskPriority.urgent,
     )
-    finished_today = await create_task(
+    # Finished by this user today: still on the list, as the day's progress.
+    await create_task(
         session,
         a.project,
         title="Finished today",
@@ -620,13 +621,9 @@ async def test_my_tasks_accepts_nested_or_conditions(
         due_date=now + timedelta(days=90),
     )
 
-    still_open = {
-        "field": "status_category",
-        "op": "in_",
-        "value": ["todo", "in_progress"],
-    }
+    outstanding = {"field": "my_completion", "op": "is_null", "value": True}
     # Two group levels, not three: the parser caps nesting at
-    # ``_MAX_GROUP_DEPTH``, so "open AND (due OR urgent)" is distributed into
+    # ``_MAX_GROUP_DEPTH``, so "mine AND (due OR urgent)" is distributed into
     # separate AND legs rather than nesting an OR inside the AND.
     conditions = [
         {
@@ -635,7 +632,7 @@ async def test_my_tasks_accepts_nested_or_conditions(
                 {
                     "logic": "and",
                     "conditions": [
-                        still_open,
+                        outstanding,
                         {
                             "field": "due_date",
                             "op": "lte",
@@ -646,20 +643,14 @@ async def test_my_tasks_accepts_nested_or_conditions(
                 {
                     "logic": "and",
                     "conditions": [
-                        still_open,
+                        outstanding,
                         {"field": "priority", "op": "in_", "value": ["urgent", "high"]},
                     ],
                 },
                 {
-                    "logic": "and",
-                    "conditions": [
-                        {"field": "status_category", "op": "in_", "value": ["done"]},
-                        {
-                            "field": "completed_at",
-                            "op": "gte",
-                            "value": (now - timedelta(hours=12)).isoformat(),
-                        },
-                    ],
+                    "field": "my_completion",
+                    "op": "gte",
+                    "value": (now - timedelta(hours=12)).isoformat(),
                 },
             ],
         }
@@ -674,15 +665,14 @@ async def test_my_tasks_accepts_nested_or_conditions(
     assert response.status_code == 200, response.text
     titles = {item["title"] for item in response.json()["items"]}
     assert titles == {"Due soon", "Urgent but undated", "Finished today"}
-    assert {due_soon.id, urgent_undated.id, finished_today.id}
 
 
 @pytest.mark.integration
-async def test_my_tasks_exposes_completed_at(
+async def test_my_tasks_exposes_my_own_completion(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """The section reads completed_at off the list payload to decide what
-    counts as finished today."""
+    """The section reads the caller's assignment off the list payload to decide
+    what counts as finished today."""
     from app.models.tenant.task import TaskStatusCategory
     from app.testing.factories import create_task
 
@@ -699,4 +689,42 @@ async def test_my_tasks_exposes_completed_at(
 
     assert response.status_code == 200, response.text
     item = next(i for i in response.json()["items"] if i["title"] == "Finished")
-    assert item["completed_at"] is not None
+    mine = next(x for x in item["assignees"] if x["id"] == a.user.id)
+    assert mine["completed_at"] is not None
+
+
+@pytest.mark.integration
+async def test_my_completion_filter_is_scoped_to_the_caller(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A co-assignee finishing their part must not take the task off my list."""
+    from app.testing.factories import create_task
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    task = await create_task(
+        session, a.project, title="Shared", assignees=[a.user, b.user]
+    )
+
+    marked = await client.put(
+        a.g(f"/tasks/{task.id}/my-part"), headers=b.headers, json={"completed": True}
+    )
+    assert marked.status_code == 200, marked.text
+
+    response = await client.get(
+        "/api/v1/me/tasks",
+        params={
+            "conditions": json.dumps(
+                [{"field": "my_completion", "op": "is_null", "value": True}]
+            )
+        },
+        headers=a.headers,
+    )
+
+    assert response.status_code == 200, response.text
+    assert {i["title"] for i in response.json()["items"]} == {"Shared"}

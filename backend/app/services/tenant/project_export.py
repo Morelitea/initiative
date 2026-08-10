@@ -151,7 +151,6 @@ async def build_project_export(
                 recurrence_occurrence_count=task.recurrence_occurrence_count,
                 position=task.position,
                 is_archived=task.is_archived,
-                completed_at=task.completed_at,
                 status_name=status_name,
                 tags=task_tags,
                 assignee_emails=assignee_emails,

@@ -48,7 +48,8 @@
   "errors": {
     "guildContext": "Impossible de déterminer le contexte du groupe pour cette tâche.",
     "statusUpdate": "Impossible de mettre à jour le statut de la tâche.",
-    "statusNoMatch": "Impossible de mettre à jour le statut de la tâche. Aucun statut correspondant trouvé."
+    "statusNoMatch": "Impossible de mettre à jour le statut de la tâche. Aucun statut correspondant trouvé.",
+    "myPartUpdate": "Impossible de mettre à jour votre part de cette tâche."
   },
   "updating": "Mise à jour…",
   "projectFallback": "Projet #{{id}}",
@@ -134,7 +135,10 @@
     "includeHighPriority": "Toujours inclure les priorités urgente et haute",
     "loadError": "Liste Focus indisponible pour le moment.",
     "truncated": "Affichage des {{shown}} premières. Réduisez la période pour une liste plus courte.",
-    "settingsHint": "Les tâches épinglées apparaissent toujours, quels que soient ces paramètres."
+    "settingsHint": "Les tâches épinglées apparaissent toujours, quels que soient ces paramètres.",
+    "finishMyPart": "J'ai fini ma part",
+    "finishTask": "Marquer comme terminée",
+    "reopenMyPart": "Finalement pas terminée"
   },
   "myTasks": {
     "title": "Mes tâches",

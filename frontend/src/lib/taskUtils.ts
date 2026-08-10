@@ -16,9 +16,14 @@ export type { TaskAutocomplete };
  * denormalized fields.
  */
 export const taskReadToListRow = (task: TaskRead): TaskListRead => {
-  const { creator: _creator, guild, project, ...rest } = task;
+  const { creator: _creator, guild, project, assignees, ...rest } = task;
   return {
     ...rest,
+    // The detail shape carries assignees as plain users, with no per-assignment
+    // completion, so this projection cannot report one. Its only consumers are
+    // the project task views, which never read it — do not reuse this for the
+    // My Tasks focus list, which would read the null as "still mine to do".
+    assignees: assignees.map((assignee) => ({ ...assignee, completed_at: null })),
     guild_id: guild?.id ?? null,
     guild_name: guild?.name ?? null,
     project_name: project?.name ?? null,

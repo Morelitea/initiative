@@ -48,7 +48,8 @@
   "errors": {
     "guildContext": "No se pudo determinar el contexto del gremio para esta tarea.",
     "statusUpdate": "No se pudo actualizar el estado de la tarea.",
-    "statusNoMatch": "No se pudo actualizar el estado de la tarea. No se encontró un estado coincidente."
+    "statusNoMatch": "No se pudo actualizar el estado de la tarea. No se encontró un estado coincidente.",
+    "myPartUpdate": "No se ha podido actualizar tu parte de esta tarea."
   },
   "updating": "Actualizando…",
   "projectFallback": "Proyecto #{{id}}",
@@ -134,7 +135,10 @@
     "includeHighPriority": "Incluir siempre prioridad urgente y alta",
     "loadError": "La lista de Enfoque no está disponible ahora.",
     "truncated": "Mostrando las primeras {{shown}}. Reduce el intervalo de fechas para una lista más corta.",
-    "settingsHint": "Las tareas fijadas siempre aparecen, sea cual sea esta configuración."
+    "settingsHint": "Las tareas fijadas siempre aparecen, sea cual sea esta configuración.",
+    "finishMyPart": "He terminado mi parte",
+    "finishTask": "Marcar como completada",
+    "reopenMyPart": "En realidad no está terminada"
   },
   "myTasks": {
     "title": "Mis tareas",

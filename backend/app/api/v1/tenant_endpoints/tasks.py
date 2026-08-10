@@ -57,6 +57,7 @@ from app.schemas.tenant.task import (
     TaskListRead,
     TaskListResponse,
     TaskMoveRequest,
+    TaskMyPartRequest,
     TaskRead,
     TaskReorderRequest,
     TaskRecurrence,
@@ -82,7 +83,7 @@ from app.services import notifications as notifications_service
 from app.services import permissions as permissions_service
 from app.services.tenant.recurrence import get_next_due_date
 from app.services.tenant import task_statuses as task_statuses_service
-from app.services.tenant.task_completion import sync_completed_at
+from app.services.tenant import task_completion
 from app.services import ai_generation as ai_generation_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
@@ -292,6 +293,24 @@ def _build_task_filter_fields(
         )
         return Task.id.in_(subq)
 
+    def _my_completion_handler(op: FilterOp, value):
+        """Filter on whether *the requesting user* has finished their part.
+
+        Completion lives on the assignment, not the task, so this is a virtual
+        field: ``is_null`` finds work still outstanding for the caller, and a
+        ``gte`` finds what they finished since a given moment. Scoped to the
+        caller's own assignment — it can never report on anyone else's.
+        """
+        from app.db.query import _build_filter_clause
+
+        clause = _build_filter_clause(TaskAssignee.completed_at, op, value)
+        if clause is None:
+            return None
+        subq = select(TaskAssignee.task_id).where(
+            TaskAssignee.user_id == current_user_id, clause
+        )
+        return Task.id.in_(subq)
+
     def _tag_ids_handler(op: FilterOp, value):
         if not value:
             return None
@@ -341,6 +360,7 @@ def _build_task_filter_fields(
         )
 
     fields["status_category"] = _status_category_handler
+    fields["my_completion"] = _my_completion_handler
     fields["assignee_ids"] = _assignee_ids_handler
     fields["tag_ids"] = _tag_ids_handler
     fields["initiative_ids"] = _initiative_ids_handler
@@ -522,12 +542,20 @@ def _task_to_list_read(task: Task) -> TaskListRead:
     initiative = getattr(project, "initiative", None) if project else None
     guild = getattr(initiative, "guild", None) if initiative else None
 
+    # Completion lives on the assignment row, not the user, so it is looked up
+    # from the link rows and merged in. Absent links (not eager-loaded) simply
+    # leave every assignee unfinished rather than raising.
+    completed_by_user = {
+        link.user_id: link.completed_at
+        for link in (getattr(task, "assignee_links", None) or [])
+    }
     assignees = [
         TaskAssigneeSummary(
             id=assignee.id,
             full_name=assignee.full_name,
             avatar_url=assignee.avatar_url,
             avatar_base64=assignee.avatar_base64,
+            completed_at=completed_by_user.get(assignee.id),
         )
         for assignee in task.assignees
     ]
@@ -546,7 +574,6 @@ def _task_to_list_read(task: Task) -> TaskListRead:
         recurrence_strategy=task.recurrence_strategy,
         created_at=task.created_at,
         updated_at=task.updated_at,
-        completed_at=task.completed_at,
         position=task.position,
         is_archived=task.is_archived,
         created_by_id=task.created_by_id,
@@ -690,6 +717,7 @@ async def _fetch_task(
             .selectinload(Project.initiative)
             .selectinload(Initiative.guild),
             selectinload(Task.assignees),
+            selectinload(Task.assignee_links),
             selectinload(Task.creator),
             selectinload(Task.task_status),
             selectinload(Task.tag_links).selectinload(TaskTag.tag),
@@ -854,7 +882,6 @@ async def _advance_recurrence_if_needed(
         recurrence_occurrence_count=task.recurrence_occurrence_count + 1,
         created_by_id=task.created_by_id,
     )
-    sync_completed_at(new_task, default_status.category, now=now)
     session.add(new_task)
     await session.flush()
     await _clone_subtasks(session, task.id, new_task.id)
@@ -995,6 +1022,7 @@ def _global_task_options():
         .selectinload(Project.initiative)
         .selectinload(Initiative.guild),
         selectinload(Task.assignees),
+        selectinload(Task.assignee_links),
         selectinload(Task.task_status),
         selectinload(Task.tag_links).selectinload(TaskTag.tag),
         selectinload(Task.property_values).selectinload(
@@ -1396,6 +1424,7 @@ async def query_tasks_for_export(
     statement = build(select(Task)).options(
         selectinload(Task.project),
         selectinload(Task.assignees),
+        selectinload(Task.assignee_links),
         selectinload(Task.task_status),
     )
     statement = apply_sorting(
@@ -1435,6 +1464,7 @@ async def query_tasks_for_detailed_export(
     statement = build(select(Task)).options(
         selectinload(Task.project),
         selectinload(Task.assignees),
+        selectinload(Task.assignee_links),
         selectinload(Task.task_status),
         selectinload(Task.subtasks),
         selectinload(Task.tag_links).selectinload(TaskTag.tag),
@@ -1622,6 +1652,7 @@ async def query_guild_tasks(
         .selectinload(Project.initiative)
         .selectinload(Initiative.guild),
         selectinload(Task.assignees),
+        selectinload(Task.assignee_links),
         selectinload(Task.task_status),
         selectinload(Task.tag_links).selectinload(TaskTag.tag),
         selectinload(Task.property_values).selectinload(
@@ -1746,6 +1777,7 @@ async def list_tasks(
         .selectinload(Project.initiative)
         .selectinload(Initiative.guild),
         selectinload(Task.assignees),
+        selectinload(Task.assignee_links),
         selectinload(Task.task_status),
         selectinload(Task.tag_links).selectinload(TaskTag.tag),
         selectinload(Task.property_values).selectinload(
@@ -1881,7 +1913,6 @@ async def create_task(
         task_status_id=selected_status.id,
         created_by_id=current_user.id,
     )
-    sync_completed_at(task, selected_status.category, now=datetime.now(timezone.utc))
     session.add(task)
     await session.flush()
     await _set_task_assignees(session, task, task_in.assignee_ids)
@@ -2034,8 +2065,13 @@ async def update_task(
         setattr(task, field, value)
     now = datetime.now(timezone.utc)
     task.updated_at = now
-    sync_completed_at(
-        task, task.task_status.category if task.task_status else None, now=now
+    await session.flush()
+    await task_completion.sync_assignments_for_status_change(
+        session,
+        task_id=task.id,
+        previous=previous_status_category,
+        current=task.task_status.category if task.task_status else None,
+        now=now,
     )
 
     new_assignees: list[User] = []
@@ -2167,14 +2203,23 @@ async def move_task(
     )
     now = datetime.now(timezone.utc)
     source_project_id = task.project_id
+    source_status_category = task.task_status.category if task.task_status else None
     source_initiative_id = task.project.initiative_id if task.project else None
     task.project_id = target_project.id  # ty: ignore[invalid-assignment] — persisted row, id is set
     task.task_status_id = default_status.id  # ty: ignore[invalid-assignment] — persisted row, id is set
     task.task_status = default_status
     task.position = 0
     task.updated_at = now
-    sync_completed_at(task, default_status.category, now=now)
     session.add(task)
+    # A move lands the task in the target project's default status, which takes
+    # it out of any done column it was in.
+    await task_completion.sync_assignments_for_status_change(
+        session,
+        task_id=task.id,
+        previous=source_status_category,
+        current=default_status.category,
+        now=now,
+    )
 
     # If the move crosses initiative boundaries, drop property values —
     # their definitions belong to the old initiative and can't resolve in
@@ -2207,6 +2252,92 @@ async def move_task(
     return updated_task
 
 
+@router.put("/{task_id}/my-part", response_model=TaskRead)
+async def set_my_part_completed(
+    task_id: int,
+    body: TaskMyPartRequest,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> Task:
+    """Mark the caller's share of a task finished, or unfinished again.
+
+    On a shared task this touches only the caller's own assignment and leaves
+    the status alone: being done with your part is not the same as the work
+    being over, which is the whole reason this is separate from moving the task
+    to a done column.
+
+    When the caller is the *only* assignee the two coincide — their part is the
+    whole task — so the task moves with them, into a done column and back out
+    again. Being assigned is the authorisation; a person who is not on the task
+    has no part to finish.
+    """
+    task = await _fetch_task(session, task_id, guild_context.guild_id)
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
+        )
+
+    now = datetime.now(timezone.utc)
+    assignment = await task_completion.set_assignment_completed(
+        session,
+        task_id=task_id,
+        user_id=current_user.id,
+        completed=body.completed,
+        now=now,
+    )
+    if assignment is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_ASSIGNED
+        )
+    # Land the ORM change before the bulk statements below read the same rows.
+    await session.flush()
+
+    if len(task.assignees) == 1:
+        previous_category = task.task_status.category if task.task_status else None
+        target = await task_statuses_service.first_in_categories(
+            session,
+            task.project_id,
+            [TaskStatusCategory.done]
+            if body.completed
+            # Back into play, preferring the column that means active work.
+            else [
+                TaskStatusCategory.in_progress,
+                TaskStatusCategory.todo,
+                TaskStatusCategory.backlog,
+            ],
+        )
+        if target is not None and target.id != task.task_status_id:
+            task.task_status_id = target.id  # ty: ignore[invalid-assignment] — persisted row, id is set
+            task.task_status = target
+            task.updated_at = now
+            session.add(task)
+            await task_completion.sync_assignments_for_status_change(
+                session,
+                task_id=task_id,
+                previous=previous_category,
+                current=target.category,
+                now=now,
+            )
+
+    await session.commit()
+
+    updated_task = await _fetch_task(session, task_id, guild_context.guild_id)
+    if updated_task is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=TaskMessages.MISSING_AFTER_UPDATE,
+        )
+    await _broadcast_task(
+        session,
+        guild_context.guild_id,
+        updated_task.project_id,
+        "updated",
+        task_id=updated_task.id,
+    )
+    return updated_task
+
+
 @router.post(
     "/{task_id}/duplicate", response_model=TaskRead, status_code=status.HTTP_201_CREATED
 )
@@ -2221,6 +2352,7 @@ async def duplicate_task(
         select(Task)
         .options(
             selectinload(Task.assignees),
+            selectinload(Task.assignee_links),
             selectinload(Task.tag_links),
             selectinload(Task.task_status),
         )
@@ -2268,14 +2400,6 @@ async def duplicate_task(
         recurrence_strategy=original_task.recurrence_strategy,
         position=position,
         created_by_id=current_user.id,
-    )
-    # The copy keeps the source's status, so a duplicated done task is complete
-    # from the moment it exists — stamped now, not inherited: the copy was not
-    # the thing that finished when the original did.
-    sync_completed_at(
-        new_task,
-        original_task.task_status.category if original_task.task_status else None,
-        now=datetime.now(timezone.utc),
     )
     session.add(new_task)
     await session.flush()
@@ -2423,7 +2547,11 @@ async def reorder_tasks(
             Task.id.in_(tuple(task_ids)),
             Initiative.guild_id == guild_context.guild_id,
         )
-        .options(selectinload(Task.assignees), selectinload(Task.task_status))
+        .options(
+            selectinload(Task.assignees),
+            selectinload(Task.assignee_links),
+            selectinload(Task.task_status),
+        )
     )
     tasks_result = await session.exec(tasks_stmt)
     tasks = tasks_result.all()
@@ -2467,10 +2595,14 @@ async def reorder_tasks(
 
         task.position = item.position
         task.updated_at = now
-        sync_completed_at(
-            task, task.task_status.category if task.task_status else None, now=now
-        )
         session.add(task)
+        await task_completion.sync_assignments_for_status_change(
+            session,
+            task_id=task.id,
+            previous=previous_status_category,
+            current=task.task_status.category if task.task_status else None,
+            now=now,
+        )
         await _advance_recurrence_if_needed(
             session,
             task,
@@ -2498,6 +2630,7 @@ async def reorder_tasks(
             .selectinload(Project.initiative)
             .selectinload(Initiative.guild),
             selectinload(Task.assignees),
+            selectinload(Task.assignee_links),
             selectinload(Task.task_status),
         )
         .where(Task.id.in_(tuple(affected_ids)))

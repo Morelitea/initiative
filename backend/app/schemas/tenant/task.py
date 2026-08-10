@@ -32,6 +32,9 @@ class TaskAssigneeSummary(SanitizedBaseModel):
     avatar_url: Optional[str] = None
     avatar_base64: Optional[RawTextStr] = None
     status: UserStatus = UserStatus.active
+    # When this person finished their part. Null while it is still theirs to
+    # do; a task can be unfinished with some assignees already done.
+    completed_at: Optional[datetime] = None
 
 
 WeekdayLiteral = Literal[
@@ -155,6 +158,16 @@ class TaskMoveRequest(SanitizedBaseModel):
     target_project_id: int = Field(gt=0)
 
 
+class TaskMyPartRequest(SanitizedBaseModel):
+    """Whether the caller is done with their share of a task.
+
+    Says nothing about the task itself — it can stay open for review or for a
+    co-assignee, and moving it is a separate act.
+    """
+
+    completed: bool
+
+
 class TaskProjectInitiativeSummary(SanitizedBaseModel):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
@@ -190,7 +203,6 @@ class TaskRead(TaskBase):
     task_status: TaskStatusRead
     created_at: datetime
     updated_at: datetime
-    completed_at: Optional[datetime] = None
     position: float
     is_archived: bool = False
     created_by_id: Optional[int] = None
@@ -220,7 +232,6 @@ class TaskListRead(TaskBase):
     task_status: TaskStatusRead
     created_at: datetime
     updated_at: datetime
-    completed_at: Optional[datetime] = None
     position: float
     is_archived: bool = False
     created_by_id: Optional[int] = None

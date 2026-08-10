@@ -13,6 +13,7 @@ import {
   getListMyTasksApiV1MeTasksGetQueryKey,
   listMyTasksApiV1MeTasksGet,
 } from "@/api/generated/tasks/tasks";
+import { useAuth } from "@/hooks/useAuth";
 import { useLiveClockValue } from "@/hooks/useRelativeTime";
 import { useViewPreference } from "@/hooks/useViewPreference";
 
@@ -43,7 +44,6 @@ export const FOCUS_DEFAULTS: FocusPreferences = {
 
 export const FOCUS_DUE_WITHIN_CHOICES = [0, 2, 7] as const;
 
-const OPEN_CATEGORIES = ["todo", "in_progress"];
 const URGENT_PRIORITIES = ["urgent", "high"];
 /**
  * The API's per-page maximum. There is deliberately no display cap on top of
@@ -71,53 +71,54 @@ export function buildFocusConditions({
   includeHighPriority: boolean;
   completedSince: Date;
 }): FilterGroup[] {
-  const stillOpen: FilterCondition = {
-    field: "status_category",
-    op: "in_",
-    value: OPEN_CATEGORIES,
-  };
+  // Everything here keys off the caller's own assignment rather than the task's
+  // status. Work someone else finished, or that closed while you were away,
+  // drops off because closing a task finishes every assignee's part — so this
+  // needs no status filter of its own.
+  const stillMine: FilterCondition = { field: "my_completion", op: "is_null", value: true };
 
-  // "Open AND (due soon OR urgent)" is written out as two AND legs rather than
+  // "Mine AND (due soon OR urgent)" is written as sibling AND legs rather than
   // nesting an OR inside the AND: the API caps condition nesting at two group
   // levels and rejects a third outright. Distributing the shared leg costs one
   // duplicated leaf and keeps the same meaning.
-  const legs: FilterGroup[] = [
+  const legs: (FilterCondition | FilterGroup)[] = [
     {
       logic: "and",
-      conditions: [stillOpen, { field: "due_date", op: "lte", value: dueBefore.toISOString() }],
+      conditions: [stillMine, { field: "due_date", op: "lte", value: dueBefore.toISOString() }],
     },
   ];
 
   if (includeHighPriority) {
     legs.push({
       logic: "and",
-      conditions: [stillOpen, { field: "priority", op: "in_", value: URGENT_PRIORITIES }],
+      conditions: [stillMine, { field: "priority", op: "in_", value: URGENT_PRIORITIES }],
     });
   }
 
-  legs.push({
-    logic: "and",
-    conditions: [
-      { field: "status_category", op: "in_", value: ["done"] },
-      { field: "completed_at", op: "gte", value: completedSince.toISOString() },
-    ],
-  });
+  // Today's finished work, kept on the list as the day's progress.
+  legs.push({ field: "my_completion", op: "gte", value: completedSince.toISOString() });
 
   return [{ logic: "or", conditions: legs }];
 }
 
 /**
- * Whether a task's completion falls on or after `since` (local midnight).
+ * When the viewer finished their own part, or null while it is still theirs.
  *
- * A done task with no timestamp predates the completed_at column, so it is
- * treated as finished earlier rather than credited to today.
+ * Completion is per assignment, so this is deliberately blind to what everyone
+ * else has done: a co-assignee finishing their share never clears the task off
+ * your list.
  */
-const completedOnOrAfter = (task: TaskListRead, since: number) =>
-  task.completed_at != null && new Date(task.completed_at).getTime() >= since;
+export const myCompletion = (task: TaskListRead, viewerId: number | undefined) =>
+  task.assignees.find((assignee) => assignee.id === viewerId)?.completed_at ?? null;
+
+const completedOnOrAfter = (task: TaskListRead, viewerId: number | undefined, since: number) => {
+  const at = myCompletion(task, viewerId);
+  return at != null && new Date(at).getTime() >= since;
+};
 
 const byDueDate = (a: TaskListRead, b: TaskListRead) => {
   // Undated work sorts last: it has no clock pressure, so it should never
-  // displace something with a deadline from a capped list.
+  // displace something with a deadline.
   if (!a.due_date && !b.due_date) return a.id - b.id;
   if (!a.due_date) return 1;
   if (!b.due_date) return -1;
@@ -150,6 +151,9 @@ export function useFocusSummary({ enabled = true }: { enabled?: boolean } = {}) 
     }),
     [prefsRaw]
   );
+
+  const { user } = useAuth();
+  const viewerId = user?.id;
 
   const timezone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
 
@@ -251,31 +255,27 @@ export function useFocusSummary({ enabled = true }: { enabled?: boolean } = {}) 
       pinned.push(task);
     }
 
+    // Done means *my* part is done. A task can be wide open and still belong in
+    // the day's wins, because someone else now has it.
+    const mineIsFinished = (task: TaskListRead) => myCompletion(task, viewerId) != null;
+
     const openMatches: TaskListRead[] = [];
     const completedToday: TaskListRead[] = [];
     for (const task of ruleItems) {
       const key = pinKey(task.guild_id, task.id);
-      if (task.task_status.category === "done") {
-        if (seen.has(key)) continue;
-        seen.add(key);
-        completedToday.push(task);
-        continue;
-      }
       if (seen.has(key)) continue;
       seen.add(key);
-      openMatches.push(task);
+      (mineIsFinished(task) ? completedToday : openMatches).push(task);
     }
 
-    // A pinned task completed today belongs with the day's wins rather than the
-    // list of things still to do. One completed on an earlier day is finished
+    // A pinned task finished today belongs with the day's wins rather than the
+    // list of things still to do. One finished on an earlier day is settled
     // business: the list starts clean each morning, so it drops off entirely
     // (the pin query carries no date filter of its own, unlike the rule query).
-    const pinnedOpen = pinned.filter((task) => task.task_status.category !== "done");
-    const pinnedDoneToday = pinned.filter(
-      (task) => task.task_status.category === "done" && completedOnOrAfter(task, today)
-    );
+    const pinnedOpen = pinned.filter((task) => !mineIsFinished(task));
+    const pinnedDoneToday = pinned.filter((task) => completedOnOrAfter(task, viewerId, today));
     const finishedEarlier = pinned.filter(
-      (task) => task.task_status.category === "done" && !completedOnOrAfter(task, today)
+      (task) => mineIsFinished(task) && !completedOnOrAfter(task, viewerId, today)
     );
 
     openMatches.sort(byDueDate);
@@ -289,7 +289,7 @@ export function useFocusSummary({ enabled = true }: { enabled?: boolean } = {}) 
       // section decides — but say so rather than quietly showing a prefix.
       truncated: (ruleQuery.data?.total_count ?? 0) > ruleItems.length,
     };
-  }, [ruleQuery.data, pinQuery.data, isPinned, today]);
+  }, [ruleQuery.data, pinQuery.data, isPinned, today, viewerId]);
 
   // Drop pins the user has already finished on an earlier day, so the blob
   // doesn't accumulate them and the pin query stays small. Only pins we

@@ -3,7 +3,13 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildTask, buildTaskListResponse, resetFactories } from "@/__tests__/factories";
+import {
+  buildTask,
+  buildTaskAssignee,
+  buildTaskListResponse,
+  buildUser,
+  resetFactories,
+} from "@/__tests__/factories";
 import { server } from "@/__tests__/helpers/msw-server";
 import { createTestQueryClient, renderPage } from "@/__tests__/helpers/render";
 import { FocusSummary } from "@/components/tasks/FocusSummary";
@@ -16,6 +22,12 @@ import {
 import { VIEW_PREFERENCES_QUERY_KEY } from "@/hooks/useViewPreference";
 
 const ME_TASKS = "/api/v1/me/tasks";
+const VIEWER_ID = 4242;
+
+/** The viewer, still holding their part. */
+const mine = (overrides = {}) => buildTaskAssignee({ id: VIEWER_ID, ...overrides });
+/** The viewer, finished. */
+const mineFinished = (at = new Date().toISOString()) => mine({ completed_at: at });
 
 /** The pin query is the one addressing tasks by id; everything else is the rules. */
 const isPinRequest = (conditions: unknown) =>
@@ -51,20 +63,26 @@ function renderFocus(prefs: Partial<FocusPreferences> = {}) {
     items: { [FOCUS_PREFERENCES_KEY]: { ...FOCUS_DEFAULTS, ...prefs } },
   });
 
-  const changeTaskStatus = vi.fn().mockResolvedValue(undefined);
+  const setMyPartCompleted = vi.fn().mockResolvedValue(undefined);
   const Harness = () => {
     const focus = useFocusSummary();
     return (
       <FocusSummary
         focus={focus}
         activeGuildId={1}
-        changeTaskStatus={changeTaskStatus}
-        isUpdatingTaskStatus={false}
+        setMyPartCompleted={setMyPartCompleted}
+        isUpdating={false}
       />
     );
   };
 
-  return { ...renderPage(Harness, { queryClient }), changeTaskStatus };
+  return {
+    ...renderPage(Harness, {
+      queryClient,
+      auth: { user: buildUser({ id: VIEWER_ID }) },
+    }),
+    setMyPartCompleted,
+  };
 }
 
 beforeEach(() => {
@@ -73,24 +91,22 @@ beforeEach(() => {
 });
 
 describe("FocusSummary", () => {
-  it("lists work that needs doing and keeps today's completions visible", async () => {
+  it("lists work still mine and keeps what I finished today visible", async () => {
     mockMyTasks({
       rules: buildTaskListResponse([
-        buildTask({ id: 1, title: "Fix the deploy script", due_date: "2026-08-10T09:00:00Z" }),
-        buildTask({ id: 2, title: "Review the release notes", due_date: "2026-08-11T09:00:00Z" }),
         buildTask({
-          id: 3,
-          title: "Ship the migration",
-          completed_at: "2026-08-10T08:00:00Z",
-          task_status: {
-            id: 9,
-            project_id: 1,
-            name: "Done",
-            category: "done",
-            position: 3,
-            is_default: false,
-          },
+          id: 1,
+          title: "Fix the deploy script",
+          due_date: "2026-08-10T09:00:00Z",
+          assignees: [mine()],
         }),
+        buildTask({
+          id: 2,
+          title: "Review the release notes",
+          due_date: "2026-08-11T09:00:00Z",
+          assignees: [mine()],
+        }),
+        buildTask({ id: 3, title: "Ship the migration", assignees: [mineFinished()] }),
       ]),
     });
 
@@ -99,15 +115,57 @@ describe("FocusSummary", () => {
     expect(await screen.findByText("Fix the deploy script")).toBeInTheDocument();
     expect(screen.getByText("Review the release notes")).toBeInTheDocument();
 
-    // The completed one stays on the list rather than disappearing, and the
-    // header counts it as progress.
-    const completed = screen.getByText("Ship the migration");
-    expect(completed).toBeInTheDocument();
-    expect(completed).toHaveClass("line-through");
+    const finished = screen.getByText("Ship the migration");
+    expect(finished).toHaveClass("line-through");
     expect(screen.getByText("1 of 3 done")).toBeInTheDocument();
   });
 
-  it("asks for due-soon work, urgent work, and today's completions in one query", async () => {
+  it("counts a task as finished on my completion, not the task's status", async () => {
+    // Handed to review: the task is wide open, but my share of it is over, so
+    // it belongs in the day's wins rather than the list of things to do.
+    mockMyTasks({
+      rules: buildTaskListResponse([
+        buildTask({
+          id: 1,
+          title: "Handed to review",
+          assignees: [mineFinished(), buildTaskAssignee()],
+          task_status: {
+            id: 2,
+            project_id: 1,
+            name: "In Review",
+            category: "in_progress",
+            position: 1,
+            is_default: false,
+          },
+        }),
+      ]),
+    });
+
+    renderFocus();
+
+    expect(await screen.findByText("Handed to review")).toHaveClass("line-through");
+    expect(screen.getByText("1 of 1 done")).toBeInTheDocument();
+  });
+
+  it("ignores a co-assignee's completion", async () => {
+    mockMyTasks({
+      rules: buildTaskListResponse([
+        buildTask({
+          id: 1,
+          title: "Shared work",
+          due_date: "2026-08-10T09:00:00Z",
+          assignees: [mine(), buildTaskAssignee({ completed_at: new Date().toISOString() })],
+        }),
+      ]),
+    });
+
+    renderFocus();
+
+    expect(await screen.findByText("Shared work")).not.toHaveClass("line-through");
+    expect(screen.getByText("0 of 1 done")).toBeInTheDocument();
+  });
+
+  it("asks for work still mine that is due soon or urgent, plus today's wins", async () => {
     mockMyTasks({});
     renderFocus({ dueWithinDays: 2, includeHighPriority: true });
 
@@ -117,30 +175,32 @@ describe("FocusSummary", () => {
     expect(conditions).toHaveLength(1);
     expect(conditions[0].logic).toBe("or");
 
-    const stillOpen = { field: "status_category", op: "in_", value: ["todo", "in_progress"] };
+    const stillMine = { field: "my_completion", op: "is_null", value: true };
     const [dueLeg, urgentLeg, doneLeg] = conditions[0].conditions;
 
-    // Due-soon OR urgent, as sibling AND legs. Two things ride on this shape:
-    // an AND between date and priority would empty the list on exactly the days
-    // it matters most, and a third level of nesting is rejected outright by the
-    // API's group-depth cap.
+    // Due-soon OR urgent, as sibling AND legs: an AND between date and priority
+    // would empty the list on exactly the days it matters most, and a third
+    // level of nesting is rejected outright by the API's group-depth cap.
     expect(dueLeg.conditions).toEqual([
-      stillOpen,
+      stillMine,
       { field: "due_date", op: "lte", value: expect.any(String) },
     ]);
     expect(urgentLeg.conditions).toEqual([
-      stillOpen,
+      stillMine,
       { field: "priority", op: "in_", value: ["urgent", "high"] },
     ]);
-    expect(doneLeg.conditions).toEqual([
-      { field: "status_category", op: "in_", value: ["done"] },
-      { field: "completed_at", op: "gte", value: expect.any(String) },
-    ]);
+    expect(doneLeg).toEqual({
+      field: "my_completion",
+      op: "gte",
+      value: expect.any(String),
+    });
 
-    // The list spans every guild the user belongs to and answers only to its
-    // own settings — it is not scoped by the guild you happen to be viewing,
-    // nor by the task table's filters.
-    expect(captured[0].get("conditions")).not.toContain("guild_id");
+    const raw = captured[0].get("conditions") ?? "";
+    // No status filter: closing a task already finishes every assignee's part,
+    // so the task's status has nothing left to say here.
+    expect(raw).not.toContain("status_category");
+    // The list spans every guild and answers only to its own settings.
+    expect(raw).not.toContain("guild_id");
   });
 
   it("never nests condition groups deeper than the API accepts", async () => {
@@ -170,17 +230,11 @@ describe("FocusSummary", () => {
     renderFocus({ includeHighPriority: false });
 
     await waitFor(() => expect(captured.length).toBeGreaterThan(0));
-    const conditions = JSON.parse(captured[0].get("conditions") ?? "[]");
 
-    const fields = conditions[0].conditions.flatMap((leg: { conditions: { field: string }[] }) =>
-      leg.conditions.map((c) => c.field)
-    );
-    expect(fields).not.toContain("priority");
+    expect(captured[0].get("conditions") ?? "").not.toContain("priority");
   });
 
   it("shows every task that matches, with no cutoff", async () => {
-    // A task either meets the rules and belongs here, or it does not. There is
-    // no display cap: a shorter list comes from a tighter date window.
     mockMyTasks({
       rules: buildTaskListResponse(
         Array.from({ length: 12 }, (_, index) =>
@@ -188,6 +242,7 @@ describe("FocusSummary", () => {
             id: index + 1,
             title: `Task ${index + 1}`,
             due_date: `2026-08-${10 + index}T09:00:00Z`,
+            assignees: [mine()],
           })
         )
       ),
@@ -200,43 +255,10 @@ describe("FocusSummary", () => {
     expect(screen.getByText("0 of 12 done")).toBeInTheDocument();
   });
 
-  it("holds the day's total steady as work gets completed", async () => {
-    // Completing something re-labels a task already on the list; it must never
-    // pull another one in and grow the denominator underneath the user.
-    const done = {
-      id: 9,
-      project_id: 1,
-      name: "Done",
-      category: "done" as const,
-      position: 3,
-      is_default: false,
-    };
-    mockMyTasks({
-      rules: buildTaskListResponse([
-        buildTask({ id: 1, title: "One", due_date: "2026-08-10T09:00:00Z" }),
-        buildTask({ id: 2, title: "Two", due_date: "2026-08-11T09:00:00Z" }),
-        buildTask({
-          id: 3,
-          title: "Three",
-          due_date: "2026-08-12T09:00:00Z",
-          completed_at: new Date().toISOString(),
-          task_status: done,
-        }),
-      ]),
-    });
-
-    renderFocus();
-
-    expect(await screen.findByText("1 of 3 done")).toBeInTheDocument();
-    expect(screen.getByText("One")).toBeInTheDocument();
-    expect(screen.getByText("Two")).toBeInTheDocument();
-    expect(screen.getByText("Three")).toBeInTheDocument();
-  });
-
   it("says so when the rules match more than one page", async () => {
     mockMyTasks({
       rules: {
-        ...buildTaskListResponse([buildTask({ id: 1, title: "One" })]),
+        ...buildTaskListResponse([buildTask({ id: 1, title: "One", assignees: [mine()] })]),
         total_count: 140,
       },
     });
@@ -248,11 +270,13 @@ describe("FocusSummary", () => {
     ).toBeInTheDocument();
   });
 
+  // --- pins -----------------------------------------------------------------
+
   it("keeps a pinned task even when it does not match the rules", async () => {
     mockMyTasks({
       rules: buildTaskListResponse([]),
       pins: buildTaskListResponse([
-        buildTask({ id: 42, guild_id: 1, title: "Pinned far-future task" }),
+        buildTask({ id: 42, guild_id: 1, title: "Pinned far-future task", assignees: [mine()] }),
       ]),
     });
 
@@ -267,8 +291,8 @@ describe("FocusSummary", () => {
     mockMyTasks({
       rules: buildTaskListResponse([]),
       pins: buildTaskListResponse([
-        buildTask({ id: 7, guild_id: 1, title: "Someone else's task 7" }),
-        buildTask({ id: 7, guild_id: 2, title: "The pinned task 7" }),
+        buildTask({ id: 7, guild_id: 1, title: "Someone else's task 7", assignees: [mine()] }),
+        buildTask({ id: 7, guild_id: 2, title: "The pinned task 7", assignees: [mine()] }),
       ]),
     });
 
@@ -278,48 +302,7 @@ describe("FocusSummary", () => {
     expect(screen.queryByText("Someone else's task 7")).not.toBeInTheDocument();
   });
 
-  it("checks a task off from the list", async () => {
-    mockMyTasks({
-      rules: buildTaskListResponse([
-        buildTask({ id: 1, title: "Fix the deploy script", due_date: "2026-08-10T09:00:00Z" }),
-      ]),
-    });
-
-    const { changeTaskStatus } = renderFocus();
-    const checkbox = await screen.findByLabelText("Mark task as done");
-    await userEvent.click(checkbox);
-
-    expect(changeTaskStatus).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), "done");
-  });
-
-  it("reopens a task that was completed today", async () => {
-    mockMyTasks({
-      rules: buildTaskListResponse([
-        buildTask({
-          id: 3,
-          title: "Ship the migration",
-          completed_at: "2026-08-10T08:00:00Z",
-          task_status: {
-            id: 9,
-            project_id: 1,
-            name: "Done",
-            category: "done",
-            position: 3,
-            is_default: false,
-          },
-        }),
-      ]),
-    });
-
-    const { changeTaskStatus } = renderFocus();
-    const checkbox = await screen.findByLabelText("Mark task as in progress");
-    await userEvent.click(checkbox);
-
-    expect(changeTaskStatus).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 3 }),
-      "in_progress"
-    );
-  });
+  // --- the daily reset ------------------------------------------------------
 
   it("only asks for completions since the start of today", async () => {
     mockMyTasks({});
@@ -327,19 +310,16 @@ describe("FocusSummary", () => {
 
     await waitFor(() => expect(captured.length).toBeGreaterThan(0));
     const conditions = JSON.parse(captured[0].get("conditions") ?? "[]");
-    const doneLeg = conditions[0].conditions.at(-1);
-    const since = new Date(
-      doneLeg.conditions.find((c: { field: string }) => c.field === "completed_at").value
-    );
+    const since = new Date(conditions[0].conditions.at(-1).value);
 
     const midnight = new Date();
     midnight.setHours(0, 0, 0, 0);
     expect(since.getTime()).toBe(midnight.getTime());
   });
 
-  it("drops a pinned task that was finished on an earlier day", async () => {
+  it("drops a pinned task I finished on an earlier day", async () => {
     // The pin query carries no date filter, so yesterday's finished work would
-    // otherwise sit in "completed today" indefinitely.
+    // otherwise sit in "done today" indefinitely.
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
 
@@ -350,15 +330,7 @@ describe("FocusSummary", () => {
           id: 55,
           guild_id: 1,
           title: "Finished yesterday",
-          completed_at: yesterday.toISOString(),
-          task_status: {
-            id: 9,
-            project_id: 1,
-            name: "Done",
-            category: "done",
-            position: 3,
-            is_default: false,
-          },
+          assignees: [mineFinished(yesterday.toISOString())],
         }),
       ]),
     });
@@ -371,7 +343,7 @@ describe("FocusSummary", () => {
     expect(screen.queryByText("Finished yesterday")).not.toBeInTheDocument();
   });
 
-  it("keeps a pinned task that was finished today", async () => {
+  it("keeps a pinned task I finished today", async () => {
     mockMyTasks({
       rules: buildTaskListResponse([]),
       pins: buildTaskListResponse([
@@ -379,24 +351,67 @@ describe("FocusSummary", () => {
           id: 56,
           guild_id: 1,
           title: "Finished today",
-          completed_at: new Date().toISOString(),
-          task_status: {
-            id: 9,
-            project_id: 1,
-            name: "Done",
-            category: "done",
-            position: 3,
-            is_default: false,
-          },
+          assignees: [mineFinished()],
         }),
       ]),
     });
 
     renderFocus({ pins: [{ guild_id: 1, task_id: 56 }] });
 
-    const done = await screen.findByText("Finished today");
-    expect(done).toHaveClass("line-through");
+    expect(await screen.findByText("Finished today")).toHaveClass("line-through");
     expect(screen.getByText("1 of 1 done")).toBeInTheDocument();
+  });
+
+  // --- checking off ---------------------------------------------------------
+
+  it("marks my part done, and says so when the task is shared", async () => {
+    mockMyTasks({
+      rules: buildTaskListResponse([
+        buildTask({
+          id: 1,
+          title: "Shared work",
+          due_date: "2026-08-10T09:00:00Z",
+          assignees: [mine(), buildTaskAssignee()],
+        }),
+      ]),
+    });
+
+    const { setMyPartCompleted } = renderFocus();
+    await userEvent.click(await screen.findByLabelText("Done with my part"));
+
+    expect(setMyPartCompleted).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), true);
+  });
+
+  it("offers to finish the task outright when nobody else is on it", async () => {
+    // Sole assignee: your part is the whole task, and the server closes it.
+    mockMyTasks({
+      rules: buildTaskListResponse([
+        buildTask({
+          id: 1,
+          title: "Solo work",
+          due_date: "2026-08-10T09:00:00Z",
+          assignees: [mine()],
+        }),
+      ]),
+    });
+
+    const { setMyPartCompleted } = renderFocus();
+    await userEvent.click(await screen.findByLabelText("Mark done"));
+
+    expect(setMyPartCompleted).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), true);
+  });
+
+  it("takes back a completion", async () => {
+    mockMyTasks({
+      rules: buildTaskListResponse([
+        buildTask({ id: 3, title: "Ship the migration", assignees: [mineFinished()] }),
+      ]),
+    });
+
+    const { setMyPartCompleted } = renderFocus();
+    await userEvent.click(await screen.findByLabelText("Not done after all"));
+
+    expect(setMyPartCompleted).toHaveBeenCalledWith(expect.objectContaining({ id: 3 }), false);
   });
 
   it("invites the user to pin something when there is nothing to show", async () => {

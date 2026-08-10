@@ -40,6 +40,7 @@ import type {
   TaskCreate,
   TaskListResponse,
   TaskMoveRequest,
+  TaskMyPartRequest,
   TaskRead,
   TaskReorderRequest,
   TaskUpdate,
@@ -910,6 +911,116 @@ export const useMoveTaskApiV1GGuildIdTasksTaskIdMovePost = <
 > => {
   return useMutation(
     getMoveTaskApiV1GGuildIdTasksTaskIdMovePostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Mark the caller's share of a task finished, or unfinished again.
+ *
+ * On a shared task this touches only the caller's own assignment and leaves
+ * the status alone: being done with your part is not the same as the work
+ * being over, which is the whole reason this is separate from moving the task
+ * to a done column.
+ *
+ * When the caller is the *only* assignee the two coincide — their part is the
+ * whole task — so the task moves with them, into a done column and back out
+ * again. Being assigned is the authorisation; a person who is not on the task
+ * has no part to finish.
+ * @summary Set My Part Completed
+ */
+export const setMyPartCompletedApiV1GGuildIdTasksTaskIdMyPartPut = (
+  guildId: number,
+  taskId: number,
+  taskMyPartRequest: BodyType<TaskMyPartRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<TaskRead>(
+    {
+      url: `/api/v1/g/${guildId}/tasks/${taskId}/my-part`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: taskMyPartRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSetMyPartCompletedApiV1GGuildIdTasksTaskIdMyPartPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setMyPartCompletedApiV1GGuildIdTasksTaskIdMyPartPut>>,
+    TError,
+    { guildId: number; taskId: number; data: BodyType<TaskMyPartRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setMyPartCompletedApiV1GGuildIdTasksTaskIdMyPartPut>>,
+  TError,
+  { guildId: number; taskId: number; data: BodyType<TaskMyPartRequest> },
+  TContext
+> => {
+  const mutationKey = ["setMyPartCompletedApiV1GGuildIdTasksTaskIdMyPartPut"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setMyPartCompletedApiV1GGuildIdTasksTaskIdMyPartPut>>,
+    { guildId: number; taskId: number; data: BodyType<TaskMyPartRequest> }
+  > = (props) => {
+    const { guildId, taskId, data } = props ?? {};
+
+    return setMyPartCompletedApiV1GGuildIdTasksTaskIdMyPartPut(
+      guildId,
+      taskId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetMyPartCompletedApiV1GGuildIdTasksTaskIdMyPartPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setMyPartCompletedApiV1GGuildIdTasksTaskIdMyPartPut>>
+>;
+export type SetMyPartCompletedApiV1GGuildIdTasksTaskIdMyPartPutMutationBody =
+  BodyType<TaskMyPartRequest>;
+export type SetMyPartCompletedApiV1GGuildIdTasksTaskIdMyPartPutMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Set My Part Completed
+ */
+export const useSetMyPartCompletedApiV1GGuildIdTasksTaskIdMyPartPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof setMyPartCompletedApiV1GGuildIdTasksTaskIdMyPartPut>>,
+      TError,
+      { guildId: number; taskId: number; data: BodyType<TaskMyPartRequest> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof setMyPartCompletedApiV1GGuildIdTasksTaskIdMyPartPut>>,
+  TError,
+  { guildId: number; taskId: number; data: BodyType<TaskMyPartRequest> },
+  TContext
+> => {
+  return useMutation(
+    getSetMyPartCompletedApiV1GGuildIdTasksTaskIdMyPartPutMutationOptions(options),
     queryClient
   );
 };

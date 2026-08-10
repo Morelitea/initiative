@@ -48,7 +48,8 @@
   "errors": {
     "guildContext": "Unable to determine guild context for this task.",
     "statusUpdate": "Unable to update task status.",
-    "statusNoMatch": "Unable to update task status. No matching status found."
+    "statusNoMatch": "Unable to update task status. No matching status found.",
+    "myPartUpdate": "Unable to update your part of this task."
   },
   "updating": "Updating…",
   "projectFallback": "Project #{{id}}",
@@ -134,7 +135,10 @@
     "includeHighPriority": "Always include urgent and high priority",
     "loadError": "Focus list unavailable right now.",
     "truncated": "Showing the first {{shown}}. Narrow the date window for a shorter list.",
-    "settingsHint": "Pinned tasks always appear, whatever these settings say."
+    "settingsHint": "Pinned tasks always appear, whatever these settings say.",
+    "finishMyPart": "Done with my part",
+    "finishTask": "Mark done",
+    "reopenMyPart": "Not done after all"
   },
   "myTasks": {
     "title": "My Tasks",

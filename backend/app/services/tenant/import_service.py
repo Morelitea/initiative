@@ -4,14 +4,12 @@ import csv
 import io
 import json
 import re
-from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.tenant.task import Task, TaskPriority, Subtask
-from app.services.tenant import task_completion
 from app.schemas.tenant.import_data import (
     ImportResult,
     TodoistSection,
@@ -267,8 +265,6 @@ async def import_todoist_tasks(
         )
     )
     next_position = float(max_order_result.scalar() or 0) + 1
-    now = datetime.now(timezone.utc)
-    categories = await task_completion.status_categories(session, project_id)
 
     # Track parent tasks for subtask creation
     last_parent_task: Optional[Task] = None
@@ -305,9 +301,6 @@ async def import_todoist_tasks(
                     description=task_data.get("description"),
                     priority=priority,
                     position=next_position,
-                )
-                task_completion.sync_completed_at(
-                    task, categories.get(status_id), now=now
                 )
                 session.add(task)
                 await session.flush()
@@ -467,8 +460,6 @@ async def import_vikunja_tasks(
         )
     )
     next_position = float(max_order_result.scalar() or 0) + 1
-    now = datetime.now(timezone.utc)
-    categories = await task_completion.status_categories(session, project_id)
 
     for task_data in tasks:
         try:
@@ -512,7 +503,6 @@ async def import_vikunja_tasks(
                 priority=priority,
                 position=next_position,
             )
-            task_completion.sync_completed_at(task, categories.get(status_id), now=now)
             session.add(task)
             await session.flush()  # Get task ID for subtasks
 
@@ -706,8 +696,6 @@ async def import_ticktick_tasks(
         )
     )
     next_position = float(max_order_result.scalar() or 0) + 1
-    now = datetime.now(timezone.utc)
-    categories = await task_completion.status_categories(session, project_id)
 
     # Track created tasks for subtask linking
     created_tasks: Dict[str, Task] = {}
@@ -747,7 +735,6 @@ async def import_ticktick_tasks(
                 priority=priority,
                 position=next_position,
             )
-            task_completion.sync_completed_at(task, categories.get(status_id), now=now)
             session.add(task)
             await session.flush()
 
