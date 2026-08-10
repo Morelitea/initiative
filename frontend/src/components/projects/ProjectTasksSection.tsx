@@ -9,16 +9,7 @@ import {
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import type { LucideIcon } from "lucide-react";
-import {
-  Archive,
-  Calendar,
-  ChevronDown,
-  Filter,
-  GanttChart,
-  Kanban,
-  Plus,
-  Table,
-} from "lucide-react";
+import { Archive, Calendar, ChevronDown, Filter, Kanban, Plus, Table } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -39,7 +30,6 @@ import {
   type CalendarViewMode,
 } from "@/components/calendar";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
-import { ProjectGanttView } from "@/components/projects/ProjectGanttView";
 import { ProjectTaskComposer } from "@/components/projects/ProjectTaskComposer";
 import { ProjectTasksFilters } from "@/components/projects/ProjectTasksFilters";
 import { ProjectTasksKanbanView } from "@/components/projects/ProjectTasksKanbanView";
@@ -93,7 +83,7 @@ import { getProjectColor } from "@/lib/projectColor";
 import { getItem, setItem } from "@/lib/storage";
 import { taskReadToListRow } from "@/lib/taskUtils";
 
-type ViewMode = "table" | "kanban" | "calendar" | "gantt";
+type ViewMode = "table" | "kanban" | "calendar";
 
 type StoredFilters = {
   viewMode: ViewMode;
@@ -127,8 +117,7 @@ function sanitizeStoredFilters(raw: unknown): StoredFilters {
   if (
     parsed.viewMode === "table" ||
     parsed.viewMode === "kanban" ||
-    parsed.viewMode === "calendar" ||
-    parsed.viewMode === "gantt"
+    parsed.viewMode === "calendar"
   ) {
     out.viewMode = parsed.viewMode;
   }
@@ -165,7 +154,6 @@ const TASK_VIEW_OPTIONS: TaskViewOption[] = [
   { value: "table", labelKey: "tasks.viewTable", icon: Table },
   { value: "kanban", labelKey: "tasks.viewKanban", icon: Kanban },
   { value: "calendar", labelKey: "tasks.viewCalendar", icon: Calendar },
-  { value: "gantt", labelKey: "tasks.viewGantt", icon: GanttChart },
 ];
 
 type ProjectTasksSectionProps = {
@@ -346,7 +334,7 @@ export const ProjectTasksSection = ({
   }, [sortedTaskStatuses]);
 
   const handleViewModeChange = (value: string) => {
-    if (value === "table" || value === "kanban" || value === "calendar" || value === "gantt") {
+    if (value === "table" || value === "kanban" || value === "calendar") {
       patchFilters({ viewMode: value });
     }
   };
@@ -1076,13 +1064,6 @@ export const ProjectTasksSection = ({
             }}
             onEntryReschedule={canEditTaskDetails ? handleCalendarReschedule : undefined}
             weekStartsOn={weekStartsOn}
-          />
-        </TabsContent>
-        <TabsContent value="gantt">
-          <ProjectGanttView
-            tasks={statusFilteredTasks}
-            canOpenTask={canViewTaskDetails}
-            onTaskClick={onTaskClick}
           />
         </TabsContent>
       </Tabs>

@@ -356,7 +356,6 @@
     "viewTable": "Tableau",
     "viewKanban": "Kanban",
     "viewCalendar": "Calendrier",
-    "viewGantt": "Gantt",
     "filtersHeading": "Filtres",
     "showFilters": "Afficher les filtres",
     "hideFilters": "Masquer les filtres",
@@ -516,19 +515,6 @@
     "noComments": "Aucun commentaire pour l'instant.",
     "commentedOn": "a commenté sur",
     "loadMore": "Charger plus"
-  },
-  "ganttView": {
-    "title": "Chronologie",
-    "subtitle": "Planifiez les dates de début et d'échéance sur les prochaines semaines.",
-    "window": "Fenêtre",
-    "days": "{{count}} jours",
-    "days_one": "{{count}} jour",
-    "days_other": "{{count}} jours",
-    "previousWeeks": "Afficher les semaines précédentes",
-    "nextWeeks": "Afficher les semaines suivantes",
-    "taskColumn": "Tâche",
-    "noTasks": "Aucune tâche à afficher.",
-    "outsideRange": "Hors de la plage actuelle"
   },
   "export": {
     "title": "Exporter le projet",

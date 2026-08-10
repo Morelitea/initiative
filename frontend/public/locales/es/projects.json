@@ -356,7 +356,6 @@
     "viewTable": "Tabla",
     "viewKanban": "Kanban",
     "viewCalendar": "Calendario",
-    "viewGantt": "Gantt",
     "filtersHeading": "Filtros",
     "showFilters": "Mostrar filtros",
     "hideFilters": "Ocultar filtros",
@@ -516,19 +515,6 @@
     "noComments": "Aún no hay comentarios.",
     "commentedOn": "comentó en",
     "loadMore": "Cargar más"
-  },
-  "ganttView": {
-    "title": "Línea de tiempo",
-    "subtitle": "Planifica las fechas de inicio y vencimiento en las próximas semanas.",
-    "window": "Ventana",
-    "days": "{{count}} días",
-    "days_one": "{{count}} día",
-    "days_other": "{{count}} días",
-    "previousWeeks": "Mostrar semanas anteriores",
-    "nextWeeks": "Mostrar semanas siguientes",
-    "taskColumn": "Tarea",
-    "noTasks": "No hay tareas para mostrar.",
-    "outsideRange": "Fuera del rango actual"
   },
   "export": {
     "title": "Exportar proyecto",

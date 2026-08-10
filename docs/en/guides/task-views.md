@@ -4,10 +4,10 @@ icon: lucide/layout-dashboard
 
 # Task views
 
-The same tasks can be shown in four different ways. Pick whichever helps you think — switching between them changes nothing about the tasks themselves, just how you look at them. Use the view switcher at the top of any project board.
+The same tasks can be shown in three different ways. Pick whichever helps you think — switching between them changes nothing about the tasks themselves, just how you look at them. Use the view switcher at the top of any project board.
 
 !!! screenshot "The view switcher"
-    **Show:** the top of a project board with the Table / Kanban / Calendar / Timeline switcher highlighted.
+    **Show:** the top of a project board with the Table / Kanban / Calendar switcher highlighted.
 
     Save as `en/images/projects/view-switcher.png`, then use:
     `![Switching between task views](../images/projects/view-switcher.png)`
@@ -50,24 +50,12 @@ Your tasks laid out on a calendar by their start and due dates.
 
 **Best for:** seeing *when* things are happening and spotting a crowded week.
 
-## Timeline (Gantt)
-
-A horizontal timeline where each task is a bar spanning from its start date to its due date.
-
-**Best for:** planning across time, seeing overlaps, and understanding how a project unfolds week to week.
-
-!!! screenshot "Timeline (Gantt) view"
-    **Show:** a project in Timeline view with task bars across a date range.
-
-    Save as `en/images/projects/view-timeline.png`, then use:
-    `![A project in Timeline view](../images/projects/view-timeline.png)`
-
 ## Which should I use?
 
 There's no wrong answer — use whatever makes the work clearer for you. A common pattern:
 
 - **Kanban** day to day, to push work along.
 - **Table** when you need to tidy up, sort, or edit many tasks.
-- **Calendar** or **Timeline** when you're planning ahead or reporting on schedule.
+- **Calendar** when you're planning ahead or reporting on schedule.
 
 Your view choice is personal and remembered, so you can settle into the one you like.

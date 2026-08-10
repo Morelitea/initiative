@@ -6,7 +6,7 @@ Self-hosted project management for friend groups, gaming communities, and small 
 
 - **Guilds** keep each group's data completely separate, enforced by PostgreSQL Row Level Security
 - **Initiatives & projects** organize related work, documents, and members
-- **Drag-and-drop boards** plus Table, Calendar, and Gantt views
+- **Drag-and-drop boards** plus Table and Calendar views
 - **Collaborative documents** with real-time multi-user editing
 - **Email/password or OIDC SSO**, optional AI integrations, i18n, and mobile push
 

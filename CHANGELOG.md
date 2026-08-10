@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **The Gantt view has been removed from projects.** Task boards now offer Table, Kanban, and Calendar. Anyone whose saved view was Gantt lands on Table instead; nothing about the tasks themselves changes, and start and due dates are still shown in the Calendar view.
+
 ### Added
 
 - Tasks now record when they were completed. The timestamp is set when a task enters a Done status and cleared if it moves back out, so reopening a task no longer leaves it looking finished, and moving between two Done columns keeps the original completion time. Upgrading backfills tasks that are already complete from their last-modified date.

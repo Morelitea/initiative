@@ -65,7 +65,7 @@ For details on how access control is enforced under the hood, see [SECURITY.md](
 
 ### Rich Task Management
 
-- **Multiple views**: Table, Kanban, Calendar, and Gantt with row virtualization for large datasets
+- **Multiple views**: Table, Kanban, and Calendar with row virtualization for large datasets
 - **Priority levels**: Low, medium, high, and urgent with visual indicators
 - **Flexible scheduling**: Start dates, due dates, and recurring tasks
 - **Subtasks**: Break down complex work with completion tracking
@@ -73,7 +73,7 @@ For details on how access control is enforced under the hood, see [SECURITY.md](
 - **Server-side pagination & sorting**: Multi-column sort with advanced filtering
 - **My Tasks dashboard**: Personal cross-guild view with date grouping and timezone support
 
-**Project Kanban view (Table, Kanban, Calendar, and Gantt views supported):**
+**Project Kanban view (Table, Kanban, and Calendar views supported):**
 <img width="1905" height="1050" alt="Project Kanban view" src="https://github.com/user-attachments/assets/26d169c7-0415-4ea8-b81d-bd1b8f9a0576" />
 
 **Task details:**
@@ -274,7 +274,7 @@ The surface is curated and **default-deny** — only the following are exposed. 
 ### Current Status
 - Most core features are implemented and functional:
   - AGPL container: frontend + storage
-  - Rich task management (Kanban, Calendar, Table, Gantt)
+  - Rich task management (Kanban, Calendar, Table)
   - Collaborative documents with real-time editing
   - Notifications and AI integrations
   - Additional tooling menu for initaitive based features such as calender and queues

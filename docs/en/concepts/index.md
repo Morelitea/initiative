@@ -65,7 +65,7 @@ People are added to an initiative as **members**, and each member is given a **r
 
 ## Projects and tasks — getting work done
 
-A **project** is a board for tracking work. It holds **tasks** — the individual to-dos — and lets you see them in whatever way suits you: a simple **Table**, a drag-and-drop **Kanban** board, a **Calendar**, or a **Timeline** (Gantt).
+A **project** is a board for tracking work. It holds **tasks** — the individual to-dos — and lets you see them in whatever way suits you: a simple **Table**, a drag-and-drop **Kanban** board, or a **Calendar**.
 
 A **task** can have a description, a status (like "To Do" or "Done"), a priority, start and due dates, people assigned to it, subtasks, and tags. Tasks are where the day-to-day happens. See [Projects & tasks](../guides/projects-and-tasks.md).
 
