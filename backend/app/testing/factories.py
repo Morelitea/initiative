@@ -58,6 +58,7 @@ from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.user import User, UserRole, UserStatus
 from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
 from app.services.tenant.initiatives import create_builtin_roles
+from app.services.tenant.task_completion import sync_completed_at
 from app.testing.schema_harness import route_session_to_guild
 
 
@@ -464,6 +465,11 @@ async def create_task(
         "priority": TaskPriority.medium,
     }
     task = Task(**{**defaults, **overrides})
+    # Match what the endpoints do, so a factory-built done task is a valid one:
+    # done-ness and completed_at always agree. A ``completed_at`` override on a
+    # done task survives (letting a test date a completion), and one on a task
+    # that isn't done is dropped rather than persisted as an impossible row.
+    sync_completed_at(task, status.category, now=datetime.now(timezone.utc))
     session.add(task)
     if commit:
         await session.commit()

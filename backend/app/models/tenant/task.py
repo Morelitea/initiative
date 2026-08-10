@@ -151,6 +151,12 @@ class Task(SoftDeleteMixin, table=True):
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
+    # When the task entered a ``done``-category status, cleared when it leaves
+    # one. Kept in step with ``task_status.category`` by
+    # ``app.services.tenant.task_completion`` — never set directly.
+    completed_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
     created_by_id: Optional[int] = Field(
         default=None, foreign_key="users.id", nullable=True
     )

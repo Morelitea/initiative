@@ -190,6 +190,7 @@ class TaskRead(TaskBase):
     task_status: TaskStatusRead
     created_at: datetime
     updated_at: datetime
+    completed_at: Optional[datetime] = None
     position: float
     is_archived: bool = False
     created_by_id: Optional[int] = None
@@ -219,6 +220,7 @@ class TaskListRead(TaskBase):
     task_status: TaskStatusRead
     created_at: datetime
     updated_at: datetime
+    completed_at: Optional[datetime] = None
     position: float
     is_archived: bool = False
     created_by_id: Optional[int] = None

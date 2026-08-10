@@ -1010,6 +1010,7 @@ export interface TaskListRead {
   task_status: TaskStatusRead;
   created_at: string;
   updated_at: string;
+  completed_at: string | null;
   position: number;
   is_archived: boolean;
   created_by_id: number | null;
@@ -3476,6 +3477,7 @@ export interface TaskRead {
   task_status: TaskStatusRead;
   created_at: string;
   updated_at: string;
+  completed_at: string | null;
   position: number;
   is_archived: boolean;
   created_by_id: number | null;
