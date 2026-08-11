@@ -471,7 +471,8 @@
       "delete": "Löschen",
       "deleted": "Blatt gelöscht — mit Rückgängig wiederherstellen.",
       "deleteLastBlocked": "Das einzige Blatt kann nicht gelöscht werden.",
-      "maxReached": "Diese Tabelle hat bereits die maximale Anzahl an Blättern."
+      "maxReached": "Diese Tabelle hat bereits die maximale Anzahl an Blättern.",
+      "editSheetRemoved": "Das Blatt, das Sie bearbeitet haben, wurde entfernt — die Änderung wurde verworfen."
     }
   },
   "sidePanel": {

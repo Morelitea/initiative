@@ -471,7 +471,8 @@
       "delete": "Delete",
       "deleted": "Sheet deleted — undo to bring it back.",
       "deleteLastBlocked": "Can't delete the only sheet.",
-      "maxReached": "This spreadsheet is already at its maximum number of sheets."
+      "maxReached": "This spreadsheet is already at its maximum number of sheets.",
+      "editSheetRemoved": "The sheet you were editing was removed, so that edit was discarded."
     }
   },
   "sidePanel": {

@@ -471,7 +471,8 @@
       "delete": "Supprimer",
       "deleted": "Feuille supprimée — annulez pour la récupérer.",
       "deleteLastBlocked": "Impossible de supprimer la seule feuille.",
-      "maxReached": "Cette feuille de calcul a déjà atteint le nombre maximal de feuilles."
+      "maxReached": "Cette feuille de calcul a déjà atteint le nombre maximal de feuilles.",
+      "editSheetRemoved": "La feuille que vous modifiiez a été supprimée : la modification a été abandonnée."
     }
   },
   "sidePanel": {

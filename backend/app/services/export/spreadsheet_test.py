@@ -7,6 +7,7 @@ choice explicit and predictable.
 """
 
 import io
+from typing import Any
 
 import pytest
 from openpyxl import load_workbook
@@ -14,7 +15,7 @@ from openpyxl import load_workbook
 from app.services.export.spreadsheet import render_csv, render_xlsx, sheets_of
 
 
-def _sheet(name: str, cells: dict, **extra) -> dict:
+def _sheet(name: str, cells: dict, **extra: Any) -> dict:
     return {
         "id": name.lower(),
         "name": name,

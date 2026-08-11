@@ -471,7 +471,8 @@
       "delete": "Eliminar",
       "deleted": "Hoja eliminada: deshaz para recuperarla.",
       "deleteLastBlocked": "No se puede eliminar la única hoja.",
-      "maxReached": "Esta hoja de cálculo ya tiene el número máximo de hojas."
+      "maxReached": "Esta hoja de cálculo ya tiene el número máximo de hojas.",
+      "editSheetRemoved": "La hoja que estabas editando se eliminó, así que se descartó esa edición."
     }
   },
   "sidePanel": {

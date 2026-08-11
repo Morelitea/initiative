@@ -37,6 +37,7 @@ from typing import Any
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.worksheet import Worksheet
 
 from app.services.platform.csv_export import neutralize_cell
 
@@ -128,7 +129,7 @@ def render_xlsx(content: dict, *, title: str) -> bytes:
     return out.getvalue()
 
 
-def _render_sheet(sheet, content: dict) -> None:
+def _render_sheet(sheet: Worksheet, content: dict) -> None:
     rows, cols = _grid_size(content)
     cells = content.get("cells") or {}
     columns = content.get("columns") or {}

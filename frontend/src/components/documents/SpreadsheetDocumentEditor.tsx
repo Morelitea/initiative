@@ -1627,6 +1627,9 @@ export const SpreadsheetDocumentEditor = ({
 
   const handleDeleteSheet = useCallback(
     (id: SheetId) => {
+      // Drop an edit anchored to this sheet before it goes: its container
+      // is about to disappear, so committing would write nowhere.
+      if (editing?.sheetId === id) cancelEdit();
       if (!workbook.deleteSheet(id)) {
         toast.info(t("documents:spreadsheet.sheets.deleteLastBlocked"));
         return;
@@ -1636,8 +1639,19 @@ export const SpreadsheetDocumentEditor = ({
       // reporting #REF!, so undo (or renaming a sheet back) restores them.
       toast.info(t("documents:spreadsheet.sheets.deleted"));
     },
-    [workbook, t]
+    [workbook, t, editing, cancelEdit]
   );
+
+  // The sheet an open edit belongs to can vanish underneath it — a peer
+  // deletes it, or an undo removes it. Committing would then write into a
+  // container that no longer exists and quietly drop the draft, which reads
+  // as "saved". End the edit explicitly instead, and say why.
+  useEffect(() => {
+    if (!editing || sheets.length === 0) return;
+    if (sheets.some((s) => s.id === editing.sheetId)) return;
+    cancelEdit();
+    toast.info(t("documents:spreadsheet.sheets.editSheetRemoved"));
+  }, [editing, sheets, cancelEdit, t]);
 
   return (
     <div
