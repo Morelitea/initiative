@@ -1271,6 +1271,91 @@ async def test_rolling_recurrence_spring_forward_preserves_wall_clock_time(
 
 
 @pytest.mark.integration
+async def test_completing_a_tagged_recurring_task_copies_tags_to_next_occurrence(
+    session: AsyncSession,
+    acting_user,
+):
+    """Advancing recurrence on a *tagged* task serializes the new
+    occurrence's tags without emitting IO from sync context.
+
+    Repro: the next occurrence's tag links were reloaded without their
+    ``tag`` relationship, so annotating them lazy-loaded each tag and the
+    request died with ``MissingGreenlet``. Only tagged recurring tasks hit
+    it, which is why it looked project-specific.
+    """
+    from datetime import datetime, timezone
+
+    from app.api.v1.tenant_endpoints.tasks import _advance_recurrence_if_needed
+    from app.models.tenant.tag import TaskTag
+    from app.models.tenant.task import Task, TaskStatusCategory
+    from app.services.tenant import task_statuses as task_statuses_service
+    from app.testing.factories import create_tag
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    project = a.project
+
+    statuses = await task_statuses_service.ensure_default_statuses(session, project.id)
+    todo_status = next(s for s in statuses if s.is_default)
+    done_status = next(s for s in statuses if s.name == "Done")
+    tag = await create_tag(session, a.guild, name="Chores", color="#112233")
+    await session.commit()
+
+    task = Task(
+        title="Tagged recurring task",
+        project_id=project.id,
+        task_status_id=todo_status.id,
+        guild_id=a.guild.id,
+        due_date=datetime(2026, 5, 4, 12, 0, 0, tzinfo=timezone.utc),
+        recurrence={"frequency": "daily", "interval": 1, "ends": "never"},
+        recurrence_strategy="fixed",
+    )
+    session.add(task)
+    await session.commit()
+    session.add(TaskTag(task_id=task.id, tag_id=tag.id))
+    await session.commit()
+    await session.refresh(
+        task, attribute_names=["task_status", "assignees", "tag_links"]
+    )
+
+    task.task_status_id = done_status.id  # ty: ignore[invalid-assignment] — persisted row, id is set
+    task.task_status = done_status
+
+    # Drop the tag from the identity map so reading a link's ``tag`` has to
+    # go to the database — as it does on a real request, where the tag was
+    # never loaded into this session. Keeping it resident lets SQLAlchemy
+    # satisfy the many-to-one from memory and the bug stays hidden.
+    tag_id = tag.id
+    session.expunge(tag)
+
+    advanced = await _advance_recurrence_if_needed(
+        session,
+        task,
+        previous_status_category=TaskStatusCategory.todo,
+        now=datetime(2026, 5, 4, 13, 0, 0, tzinfo=timezone.utc),
+        user_timezone="UTC",
+    )
+    # Getting here at all is the regression: serializing the new occurrence's
+    # tags used to raise before this line.
+    assert advanced is True
+    await session.commit()
+
+    from sqlmodel import select as _select
+
+    new_task = (
+        await session.exec(
+            _select(Task).where(Task.project_id == project.id, Task.id != task.id)
+        )
+    ).first()
+    assert new_task is not None
+    copied = (
+        await session.exec(
+            _select(TaskTag.tag_id).where(TaskTag.task_id == new_task.id)
+        )
+    ).all()
+    assert list(copied) == [tag_id]
+
+
+@pytest.mark.integration
 async def test_filter_tasks_by_date_window_group(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
