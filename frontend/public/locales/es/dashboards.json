@@ -73,5 +73,32 @@
     "WIDGET_TIMEOUT": "Este widget tardó demasiado y se detuvo.",
     "WIDGET_TYPE_UNSUPPORTED": "Este widget necesita una versión más reciente de la aplicación.",
     "default": "No se pudo mostrar este widget."
+  },
+  "bindingSource": {
+    "tasks": "Tareas",
+    "projects": "Proyectos",
+    "calendar_entries": "Entradas de calendario",
+    "task_counts": "Recuentos de tareas",
+    "counter": "Contador",
+    "counter_group": "Grupo de contadores",
+    "my_stats": "Mis estadísticas",
+    "sheet_range": "Rango de hoja"
+  },
+  "gallery": {
+    "title": "Galería de widgets",
+    "description": "Todos los widgets integrados, ejecutados en el entorno aislado con datos de ejemplo. {{combinations}} combinaciones entre {{widgets}} widgets y {{sources}} fuentes.",
+    "markLabel": "Tipo de gráfico",
+    "markDefault": "Predeterminado",
+    "tileTitle": "{{widget}} — {{source}}",
+    "failureModes": "Modos de fallo",
+    "failureModesDescription": "Cada tarjeta siguiente ejecuta un widget roto a propósito. Todas deberían mostrar una tarjeta de error, y la página debería seguir respondiendo en todo momento.",
+    "failure": {
+      "infiniteLoop": "Bucle infinito",
+      "runawayAllocation": "Asignación descontrolada",
+      "throws": "Lanza un error",
+      "noRenderExport": "Sin función de renderizado",
+      "triesToFetch": "Intenta hacer fetch",
+      "invalidScene": "Escena no válida"
+    }
   }
 }

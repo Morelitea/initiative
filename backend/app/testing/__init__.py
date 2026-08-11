@@ -12,8 +12,12 @@ guild's ``guild_<id>`` schema before touching the database (see
 
 from app.testing.actor import Actor, make_actor
 from app.testing.factories import (
+    TOOL_FACTORIES,
+    enable_all_tools,
+    create_tool_entity,
     create_auth_provider,
     create_calendar,
+    create_advanced_tool,
     create_dashboard,
     create_calendar_event,
     create_calendar_event_property_value,
@@ -46,6 +50,10 @@ from app.testing.factories import (
 from app.testing.schema_harness import route_session_to_guild
 
 __all__ = [
+    "TOOL_FACTORIES",
+    "enable_all_tools",
+    "create_tool_entity",
+    "create_advanced_tool",
     "Actor",
     "make_actor",
     "create_auth_provider",

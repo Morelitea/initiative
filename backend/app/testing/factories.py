@@ -21,11 +21,13 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
+from app.core.tools import TOGGLEABLE_TOOLS, Tool
 from app.core.security import (
     create_access_token,
     get_password_hash,
     mint_access_token,
 )
+from app.models.tenant.advanced_tool import AdvancedTool
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.calendar_event import CalendarEvent
@@ -1327,3 +1329,84 @@ async def create_federated_identity(
         await session.refresh(identity)
 
     return identity
+
+
+async def create_advanced_tool(
+    session: AsyncSession,
+    initiative: Initiative,
+    creator: User,
+    *,
+    name: str | None = None,
+    commit: bool = True,
+    **overrides: Any,
+) -> AdvancedTool:
+    """Create a test advanced tool. The content lives in the external service,
+    so the row is just the handle to it."""
+    await route_session_to_guild(session, initiative.guild_id)
+
+    defaults = {
+        "guild_id": initiative.guild_id,
+        "initiative_id": initiative.id,
+        "created_by_id": creator.id,
+        "name": name or f"Advanced tool {datetime.now(timezone.utc).timestamp()}",
+    }
+    advanced = AdvancedTool(**{**defaults, **overrides})
+    session.add(advanced)
+
+    if commit:
+        await session.commit()
+        await session.refresh(advanced)
+
+    return advanced
+
+
+# --- generic tool construction ---------------------------------------------
+#
+# One arm per Tool, so a test that needs "an instance of every tool" derives it
+# from the enum instead of restating the list. The completeness check runs at
+# import time: a new Tool member fails here once, with a message naming it,
+# rather than in each test that happens to enumerate tools.
+
+TOOL_FACTORIES: dict[Tool, Any] = {
+    Tool.project: create_project,
+    Tool.document: create_document,
+    Tool.queue: create_queue,
+    Tool.counter_group: create_counter_group,
+    Tool.calendar: create_calendar,
+    Tool.dashboard: create_dashboard,
+    Tool.advanced_tool: create_advanced_tool,
+}
+
+if set(TOOL_FACTORIES) != set(Tool):
+    missing = set(Tool) - set(TOOL_FACTORIES)
+    extra = set(TOOL_FACTORIES) - set(Tool)
+    raise RuntimeError(
+        f"TOOL_FACTORIES must cover the Tool enum exactly "
+        f"(missing: {sorted(t.value for t in missing)}, "
+        f"unknown: {sorted(getattr(t, 'value', t) for t in extra)})"
+    )
+
+
+async def create_tool_entity(
+    session: AsyncSession,
+    tool: Tool,
+    initiative: Initiative,
+    creator: User,
+    **overrides: Any,
+) -> Any:
+    """Create one instance of ``tool``'s content, whichever tool it is."""
+    return await TOOL_FACTORIES[tool](session, initiative, creator, **overrides)
+
+
+async def enable_all_tools(session: AsyncSession, initiative: Initiative) -> Initiative:
+    """Flip on every toggleable tool's master switch, derived from the enum so a
+    new tool is enabled here without an edit."""
+    await route_session_to_guild(session, initiative.guild_id)
+    fresh = await session.get(Initiative, initiative.id)
+    assert fresh is not None
+    for tool in TOGGLEABLE_TOOLS:
+        setattr(fresh, tool.view_permission, True)
+    session.add(fresh)
+    await session.commit()
+    await session.refresh(fresh)
+    return fresh

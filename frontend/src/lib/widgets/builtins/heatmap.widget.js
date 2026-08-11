@@ -1,4 +1,27 @@
 /**
+ * What this widget calls itself, in every language it supports.
+ *
+ * Names and option labels live in the module rather than in the app's locale
+ * files: a marketplace widget has to be able to name itself without an app
+ * release, and the built-ins get no special treatment. Binding *source* labels
+ * stay app-owned — they name our endpoints and are shared by every widget.
+ */
+const meta = {
+  name: {
+    en: "Heatmap",
+    de: "Heatmap",
+    es: "Mapa de calor",
+    fr: "Carte thermique",
+  },
+  description: {
+    en: "Daily activity as a calendar grid, one column per week.",
+    de: "Tägliche Aktivität als Kalenderraster, eine Spalte pro Woche.",
+    es: "La actividad diaria como una cuadrícula de calendario, una columna por semana.",
+    fr: "L'activité quotidienne sous forme de grille calendaire, une colonne par semaine.",
+  },
+};
+
+/**
  * Built-in: heatmap — activity density over a calendar grid.
  *
  * Lays days out the way a contribution graph does: one column per week, one row

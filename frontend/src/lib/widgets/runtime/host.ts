@@ -9,9 +9,11 @@
 
 import type { WidgetErrorCode } from "../errors";
 import { type SceneValidation, validateScene } from "../validateScene";
+import { validateWidgetMeta, type WidgetMeta } from "../widgetMeta";
 import {
   DEFAULT_LIMITS,
   type RenderRequest,
+  readMetaInSandbox,
   renderInSandbox,
   SandboxErrorCode,
   type SandboxResult,
@@ -130,4 +132,27 @@ export async function renderWidget(request: RenderRequest): Promise<WidgetRender
   const validation = validateScene(result.value);
   if (!validation.ok) return { ok: false, code: validation.code };
   return { ok: true, spec: validation.spec };
+}
+
+// Meta is static per module, so it is read once and kept. Keyed by the module
+// source itself, which means an updated listing version is a different key
+// rather than a stale entry.
+const metaCache = new Map<string, WidgetMeta | null>();
+
+/**
+ * A widget's own name, description, and option labels.
+ *
+ * Read through the sandbox under the same bounds a render gets, then rebuilt by
+ * `validateWidgetMeta` — a module's metadata is untrusted input like anything
+ * else it produces. Returns `null` when the module declares none, which is not
+ * an error: callers fall back to the widget's type id.
+ */
+export async function readWidgetMeta(source: string): Promise<WidgetMeta | null> {
+  const cached = metaCache.get(source);
+  if (cached !== undefined) return cached;
+
+  const result = await readMetaInSandbox(source);
+  const meta = result.ok ? validateWidgetMeta(result.value) : null;
+  metaCache.set(source, meta);
+  return meta;
 }

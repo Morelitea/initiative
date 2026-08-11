@@ -123,6 +123,20 @@ const INVOKE = `
 })();
 `;
 
+/** Reads the module's `meta` export — the widget's own name, description, and
+ *  option labels. Static, so it is read once per module rather than per render.
+ *  A module without meta is not an error: the caller falls back to the type id. */
+const READ_META = `
+(function () {
+  if (typeof meta === "undefined") return "v:null";
+  try {
+    return "v:" + JSON.stringify(meta);
+  } catch (err) {
+    return "e:bad-output";
+  }
+})();
+`;
+
 let modulePromise: ReturnType<typeof newQuickJSWASMModuleFromVariant> | null = null;
 let runtime: QuickJSRuntime | null = null;
 let deadline = Number.POSITIVE_INFINITY;
@@ -161,7 +175,11 @@ export function disposeSandbox(): void {
   runtime = null;
 }
 
-export async function renderInSandbox(request: RenderRequest): Promise<SandboxResult> {
+/** Shared evaluation path: boot the runtime, establish the widget's world,
+ *  evaluate its module, then run one of our own expressions against it. Both
+ *  entry points below go through here, so meta is read under exactly the same
+ *  capability, interrupt, and memory bounds a render is. */
+async function evaluateModule(request: RenderRequest, invoke: string): Promise<SandboxResult> {
   const limits = { ...DEFAULT_LIMITS, ...request.limits };
 
   let vm: QuickJSRuntime;
@@ -219,7 +237,7 @@ export async function renderInSandbox(request: RenderRequest): Promise<SandboxRe
       evaluated.value.dispose();
     }
 
-    const invoked = context.evalCode(INVOKE);
+    const invoked = context.evalCode(invoke);
     if (invoked.error) {
       const message = String(context.dump(invoked.error)?.message ?? "");
       invoked.error.dispose();
@@ -266,4 +284,17 @@ export async function renderInSandbox(request: RenderRequest): Promise<SandboxRe
       }
     }
   }
+}
+
+export async function renderInSandbox(request: RenderRequest): Promise<SandboxResult> {
+  return evaluateModule(request, INVOKE);
+}
+
+/** Read a widget module's declared metadata. Resolves with `value: null` when
+ *  the module declares none. */
+export async function readMetaInSandbox(
+  source: string,
+  limits?: Partial<SandboxLimits>
+): Promise<SandboxResult> {
+  return evaluateModule({ source, data: null, config: {}, limits }, READ_META);
 }

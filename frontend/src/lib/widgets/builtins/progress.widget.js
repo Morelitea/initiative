@@ -1,4 +1,27 @@
 /**
+ * What this widget calls itself, in every language it supports.
+ *
+ * Names and option labels live in the module rather than in the app's locale
+ * files: a marketplace widget has to be able to name itself without an app
+ * release, and the built-ins get no special treatment. Binding *source* labels
+ * stay app-owned — they name our endpoints and are shared by every widget.
+ */
+const meta = {
+  name: {
+    en: "Progress",
+    de: "Fortschritt",
+    es: "Progreso",
+    fr: "Progression",
+  },
+  description: {
+    en: "How far a value has come against its own range.",
+    de: "Wie weit ein Wert innerhalb seines Wertebereichs fortgeschritten ist.",
+    es: "Cuánto ha avanzado un valor dentro de su propio rango.",
+    fr: "La progression d'une valeur au sein de sa propre plage.",
+  },
+};
+
+/**
  * Built-in: progress — a value against its range.
  *
  * Shows completion; never offers to change it. A counter-bound progress bar

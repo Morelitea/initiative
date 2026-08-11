@@ -73,5 +73,32 @@
     "WIDGET_TIMEOUT": "Dieses Widget hat zu lange gebraucht und wurde gestoppt.",
     "WIDGET_TYPE_UNSUPPORTED": "Dieses Widget benötigt eine neuere Version der App.",
     "default": "Dieses Widget konnte nicht angezeigt werden."
+  },
+  "bindingSource": {
+    "tasks": "Aufgaben",
+    "projects": "Projekte",
+    "calendar_entries": "Kalendereinträge",
+    "task_counts": "Aufgabenzahlen",
+    "counter": "Zähler",
+    "counter_group": "Zählergruppe",
+    "my_stats": "Meine Statistiken",
+    "sheet_range": "Tabellenbereich"
+  },
+  "gallery": {
+    "title": "Widget-Galerie",
+    "description": "Jedes integrierte Widget, in der Sandbox mit Beispieldaten ausgeführt. {{combinations}} Kombinationen aus {{widgets}} Widgets und {{sources}} Datenquellen.",
+    "markLabel": "Diagrammtyp",
+    "markDefault": "Standard",
+    "tileTitle": "{{widget}} — {{source}}",
+    "failureModes": "Fehlerfälle",
+    "failureModesDescription": "Jede Kachel unten führt ein absichtlich fehlerhaftes Widget aus. Alle sollten eine Fehlerkachel zeigen – und die Seite darum herum sollte durchgehend reagieren.",
+    "failure": {
+      "infiniteLoop": "Endlosschleife",
+      "runawayAllocation": "Unbegrenzte Speicherbelegung",
+      "throws": "Wirft einen Fehler",
+      "noRenderExport": "Keine Renderfunktion",
+      "triesToFetch": "Versucht zu laden",
+      "invalidScene": "Ungültige Szene"
+    }
   }
 }

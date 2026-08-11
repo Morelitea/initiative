@@ -73,5 +73,32 @@
     "WIDGET_TIMEOUT": "Ce widget a mis trop de temps et a été arrêté.",
     "WIDGET_TYPE_UNSUPPORTED": "Ce widget nécessite une version plus récente de l'application.",
     "default": "Ce widget n'a pas pu être affiché."
+  },
+  "bindingSource": {
+    "tasks": "Tâches",
+    "projects": "Projets",
+    "calendar_entries": "Entrées de calendrier",
+    "task_counts": "Nombre de tâches",
+    "counter": "Compteur",
+    "counter_group": "Groupe de compteurs",
+    "my_stats": "Mes statistiques",
+    "sheet_range": "Plage de feuille"
+  },
+  "gallery": {
+    "title": "Galerie de widgets",
+    "description": "Chaque widget intégré, exécuté dans le bac à sable avec des données d'exemple. {{combinations}} combinaisons pour {{widgets}} widgets et {{sources}} sources.",
+    "markLabel": "Type de graphique",
+    "markDefault": "Par défaut",
+    "tileTitle": "{{widget}} — {{source}}",
+    "failureModes": "Modes de défaillance",
+    "failureModesDescription": "Chaque tuile ci-dessous exécute un widget délibérément cassé. Toutes doivent afficher une tuile d'erreur, et la page doit rester réactive tout du long.",
+    "failure": {
+      "infiniteLoop": "Boucle infinie",
+      "runawayAllocation": "Allocation incontrôlée",
+      "throws": "Lève une erreur",
+      "noRenderExport": "Aucune fonction de rendu",
+      "triesToFetch": "Tente un fetch",
+      "invalidScene": "Scène non valide"
+    }
   }
 }

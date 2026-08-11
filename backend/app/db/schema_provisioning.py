@@ -225,6 +225,20 @@ async def apply_guild_rls(conn: AsyncConnection, schema: str) -> None:
     )
 
 
+async def apply_template_rls() -> None:
+    """Re-assert the registry-rendered RLS on ``guild_template``.
+
+    The template is the canonical picture of a guild schema, so it should carry
+    the same policies a provisioned guild does. Structure reaches it through
+    migrations; policies reach it here, from the registry, on the provisioning
+    engine that owns the schema.
+    """
+    from app.db.guild_ddl import TEMPLATE_SCHEMA
+
+    async with db_session.provisioning_engine.begin() as conn:
+        await apply_guild_rls(conn, TEMPLATE_SCHEMA)
+
+
 def _grant_statements(
     schema: str, role: str, ro_role: str, support_role: str
 ) -> list[str]:
@@ -427,6 +441,18 @@ async def backfill_guild_schemas() -> BackfillSummary:
     summary for the caller to log.
     """
     stamp = (await get_provisioning_bundle()).stamp
+
+    # The template first. Its structure is Alembic's, but its RLS comes from the
+    # same registry every guild schema's does — migrations deliberately do not
+    # render the live registry (a historical migration would freeze whatever the
+    # registry said the day it was written). Re-asserting it here keeps the
+    # canonical copy faithful without putting registry rendering back into
+    # migrations, and it is idempotent, so a boot with nothing to do is cheap.
+    try:
+        await apply_template_rls()
+    except Exception:  # noqa: BLE001 — never block boot on the template
+        logger.exception("guild_template RLS refresh failed")
+
     # Enumerate on the SYSTEM engine, not the provisioning engine: guild ids
     # live in the RLS-forced public.guilds, and the provisioner is a pure DDL
     # actor — FORCE RLS filters its unrouted data reads to zero rows (by

@@ -1,4 +1,27 @@
 /**
+ * What this widget calls itself, in every language it supports.
+ *
+ * Names and option labels live in the module rather than in the app's locale
+ * files: a marketplace widget has to be able to name itself without an app
+ * release, and the built-ins get no special treatment. Binding *source* labels
+ * stay app-owned — they name our endpoints and are shared by every widget.
+ */
+const meta = {
+  name: {
+    en: "Funnel",
+    de: "Trichter",
+    es: "Embudo",
+    fr: "Entonnoir",
+  },
+  description: {
+    en: "Staged counts from widest to narrowest, with the conversion between each stage.",
+    de: "Stufenwerte vom breitesten zum schmalsten, mit der Konversion zwischen den Stufen.",
+    es: "Recuentos por etapa, de la más amplia a la más estrecha, con la conversión entre cada una.",
+    fr: "Des effectifs par étape, du plus large au plus étroit, avec la conversion entre chaque étape.",
+  },
+};
+
+/**
  * Built-in: funnel — staged counts, widest first.
  *
  * @param {import("../dataShapes").WidgetData} data

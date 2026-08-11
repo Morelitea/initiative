@@ -1,4 +1,63 @@
 /**
+ * What this widget calls itself, in every language it supports.
+ *
+ * Names and option labels live in the module rather than in the app's locale
+ * files: a marketplace widget has to be able to name itself without an app
+ * release, and the built-ins get no special treatment. Binding *source* labels
+ * stay app-owned — they name our endpoints and are shared by every widget.
+ */
+const meta = {
+  name: {
+    en: "KPI",
+    de: "KPI",
+    es: "KPI",
+    fr: "Indicateur clé",
+  },
+  description: {
+    en: "A single headline number, with an optional trend against the previous period.",
+    de: "Eine einzelne Kennzahl, wahlweise mit Trend gegenüber dem Vorzeitraum.",
+    es: "Una única cifra destacada, con una tendencia opcional respecto al periodo anterior.",
+    fr: "Un seul chiffre clé, avec une tendance facultative par rapport à la période précédente.",
+  },
+  options: {
+    format: {
+      label: {
+        en: "Format",
+        de: "Format",
+        es: "Formato",
+        fr: "Format",
+      },
+      values: {
+        plain: {
+          en: "Plain number",
+          de: "Einfache Zahl",
+          es: "Número simple",
+          fr: "Nombre simple",
+        },
+        percent: {
+          en: "Percentage",
+          de: "Prozent",
+          es: "Porcentaje",
+          fr: "Pourcentage",
+        },
+        currency: {
+          en: "Currency",
+          de: "Währung",
+          es: "Moneda",
+          fr: "Devise",
+        },
+        duration: {
+          en: "Duration",
+          de: "Dauer",
+          es: "Duración",
+          fr: "Durée",
+        },
+      },
+    },
+  },
+};
+
+/**
  * Built-in: KPI — one big number.
  *
  * Like every built-in, this is an ordinary widget module: it runs in the same

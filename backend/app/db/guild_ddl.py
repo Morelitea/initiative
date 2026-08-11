@@ -231,7 +231,10 @@ def render_guild_rls_ddl() -> str:
 _DIALECT = postgresql.dialect()
 
 # The schema the artifact is reflected from: Alembic-maintained guild_template.
-_SRC_SCHEMA = "guild_template"
+# Public because provisioning also re-asserts RLS on it, and the name should
+# be stated once.
+TEMPLATE_SCHEMA = "guild_template"
+_SRC_SCHEMA = TEMPLATE_SCHEMA
 
 # CHECK + FK constraint definitions straight from Postgres (authoritative text).
 # The session search_path is set to "<src>, public" before these run, so

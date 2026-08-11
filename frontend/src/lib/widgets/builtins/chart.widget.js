@@ -1,4 +1,85 @@
 /**
+ * What this widget calls itself, in every language it supports.
+ *
+ * Names and option labels live in the module rather than in the app's locale
+ * files: a marketplace widget has to be able to name itself without an app
+ * release, and the built-ins get no special treatment. Binding *source* labels
+ * stay app-owned — they name our endpoints and are shared by every widget.
+ */
+const meta = {
+  name: {
+    en: "Chart",
+    de: "Diagramm",
+    es: "Gráfico",
+    fr: "Graphique",
+  },
+  description: {
+    en: "A series drawn as bars, a line, a filled area, or slices of a whole.",
+    de: "Eine Datenreihe als Balken, Linie, gefüllte Fläche oder Kreisdiagramm.",
+    es: "Una serie dibujada como barras, línea, área rellena o porciones de un total.",
+    fr: "Une série affichée en barres, en courbe, en aire remplie ou en parts d'un tout.",
+  },
+  options: {
+    mark: {
+      label: {
+        en: "Chart type",
+        de: "Diagrammtyp",
+        es: "Tipo de gráfico",
+        fr: "Type de graphique",
+      },
+      values: {
+        bar: {
+          en: "Bar",
+          de: "Balken",
+          es: "Barras",
+          fr: "Barres",
+        },
+        line: {
+          en: "Line",
+          de: "Linie",
+          es: "Líneas",
+          fr: "Courbe",
+        },
+        area: {
+          en: "Area",
+          de: "Fläche",
+          es: "Área",
+          fr: "Aire",
+        },
+        pie: {
+          en: "Pie",
+          de: "Kreis",
+          es: "Circular",
+          fr: "Secteurs",
+        },
+      },
+    },
+    stacked: {
+      label: {
+        en: "Stacked",
+        de: "Gestapelt",
+        es: "Apilado",
+        fr: "Empilé",
+      },
+      values: {
+        true: {
+          en: "Stacked",
+          de: "Gestapelt",
+          es: "Apilado",
+          fr: "Empilé",
+        },
+        false: {
+          en: "Side by side",
+          de: "Nebeneinander",
+          es: "Lado a lado",
+          fr: "Côte à côte",
+        },
+      },
+    },
+  },
+};
+
+/**
  * Built-in: chart — a series drawn as bars, lines, an area, or slices.
  *
  * The workhorse: the `bar_chart`/`line_chart`/`area_chart`/`pie_chart`/

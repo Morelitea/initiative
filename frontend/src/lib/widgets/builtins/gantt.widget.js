@@ -1,4 +1,63 @@
 /**
+ * What this widget calls itself, in every language it supports.
+ *
+ * Names and option labels live in the module rather than in the app's locale
+ * files: a marketplace widget has to be able to name itself without an app
+ * release, and the built-ins get no special treatment. Binding *source* labels
+ * stay app-owned — they name our endpoints and are shared by every widget.
+ */
+const meta = {
+  name: {
+    en: "Gantt",
+    de: "Gantt",
+    es: "Gantt",
+    fr: "Gantt",
+  },
+  description: {
+    en: "Scheduled work as bars on a shared timeline, grouped into lanes.",
+    de: "Geplante Arbeit als Balken auf einer gemeinsamen Zeitachse, in Spuren gruppiert.",
+    es: "El trabajo programado como barras en una línea de tiempo común, agrupado en carriles.",
+    fr: "Le travail planifié sous forme de barres sur une frise commune, regroupées en couloirs.",
+  },
+  options: {
+    scale: {
+      label: {
+        en: "Time scale",
+        de: "Zeitskala",
+        es: "Escala de tiempo",
+        fr: "Échelle de temps",
+      },
+      values: {
+        day: {
+          en: "Days",
+          de: "Tage",
+          es: "Días",
+          fr: "Jours",
+        },
+        week: {
+          en: "Weeks",
+          de: "Wochen",
+          es: "Semanas",
+          fr: "Semaines",
+        },
+        month: {
+          en: "Months",
+          de: "Monate",
+          es: "Meses",
+          fr: "Mois",
+        },
+        quarter: {
+          en: "Quarters",
+          de: "Quartale",
+          es: "Trimestres",
+          fr: "Trimestres",
+        },
+      },
+    },
+  },
+};
+
+/**
  * Built-in: Gantt — spans on a time axis, grouped into lanes.
  *
  * Display only, like every widget: bars show when work sits, and nothing here

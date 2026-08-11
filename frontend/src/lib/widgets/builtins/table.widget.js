@@ -1,4 +1,27 @@
 /**
+ * What this widget calls itself, in every language it supports.
+ *
+ * Names and option labels live in the module rather than in the app's locale
+ * files: a marketplace widget has to be able to name itself without an app
+ * release, and the built-ins get no special treatment. Binding *source* labels
+ * stay app-owned — they name our endpoints and are shared by every widget.
+ */
+const meta = {
+  name: {
+    en: "Table",
+    de: "Tabelle",
+    es: "Tabla",
+    fr: "Tableau",
+  },
+  description: {
+    en: "A plain read-only grid of rows and columns.",
+    de: "Ein einfaches, schreibgeschütztes Raster aus Zeilen und Spalten.",
+    es: "Una cuadrícula sencilla de solo lectura con filas y columnas.",
+    fr: "Une simple grille en lecture seule, en lignes et colonnes.",
+  },
+};
+
+/**
  * Built-in: table — a plain read-only grid.
  *
  * Display only, and pointedly so: no row actions, no inline editing, no
