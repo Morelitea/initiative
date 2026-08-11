@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.61.3] - 2026-08-11
+
 ### Fixed
 
 - **Completing a recurring task that carries tags failed with a server error.** Dragging such a task to a Done column (or otherwise marking it complete) returned a 500 and the next occurrence was not created. Only recurring tasks with at least one tag were affected, which made it look like a single project was broken.
