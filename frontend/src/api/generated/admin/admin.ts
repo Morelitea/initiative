@@ -1198,8 +1198,7 @@ export const useAdminDeleteGuildApiV1AdminGuildsGuildIdDelete = <
  * independent id sequences, so ``initiative_id`` alone is ambiguous across
  * guilds. The caller (the blocker-resolution UI) has it from the blocker
  * record. We route into that guild's schema as a guild admin (full authority
- * over the guild; clears the purge guard) so the cascade deletes the real
- * rows, not the frozen ``public`` backup copies.
+ * over the guild; clears the purge guard) so the cascade reaches the rows.
  * @summary Admin Delete Initiative
  */
 export const adminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDelete = (

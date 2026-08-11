@@ -1557,7 +1557,7 @@ export function useListMyCalendarEventsApiV1MeCalendarEventsGet<
  * Export cross-guild calendar events as an .ics file.
  *
  * Schema-per-guild: aggregate per guild schema via ``gather_across_guilds``
- * (the unrouted public query would read the frozen backup).
+ * — events live only in the per-guild schemas, so no one query spans them.
  * @summary Export My Calendar Events Ics
  */
 export const exportMyCalendarEventsIcsApiV1MeCalendarEventsExportIcsGet = (

@@ -1,33 +1,46 @@
-"""Drop the frozen public copies of guild-content tables.
+"""Retire the last pre-schema-per-guild names in ``public``.
 
-Deployments that predate the v0.53.5 baseline squash (20260626_0125) still
-carry copies of the 42 guild-content tables in ``public``, kept since the
-squash as a data-integrity backstop while schema-per-guild soaked. They have
-been inert throughout: nothing reads or writes them, guild-scoped migrations
-skip them, the post-squash reconciler (20260702_0126) severed every dependency
-that pointed at them, and fresh installs never create them at all. This drops
-them — the last physical remnant of the pre-schema-per-guild layout.
+Two leftovers from the same era, in the order that keeps them from being
+confused with each other.
 
-No-op on fresh installs and on any deployment that already reached the
-baseline without the copies.
+**1. Finish the ``admin_api_keys`` -> ``user_api_keys`` rename.** The table was
+renamed long ago but its constraints, indexes and id sequence kept the old
+name, and the baseline snapshot froze that half-done state — so *every*
+install, fresh ones included, still carries `admin_api_keys_pkey`,
+`admin_api_keys_id_seq` and friends on a table called ``user_api_keys``. That
+mismatch is what made ``admin_api_keys_id_seq`` read like something the drop
+below should take. Renaming first removes the trap rather than documenting
+around it. Grants and column defaults track the object, not its name, so
+nothing else moves (Postgres also renames a constraint's backing index with
+the constraint).
 
-Deliberately left standing:
-
-* ``public.admin_api_keys_id_seq`` — despite the legacy name it is the LIVE
-  sequence behind the shared ``public.user_api_keys``, so it is not in the
-  drop set and nothing here owns it.
-* The six guild-flavoured enums and the ``fn_*_set_guild_id`` trigger function
-  bodies that live in ``public`` by design — guild schemas resolve them
-  through ``search_path``. ``DROP TABLE`` reaches neither.
+**2. Drop the frozen public copies of guild-content tables.** Deployments that
+predate the v0.53.5 baseline squash (20260626_0125) still carry copies of the
+42 guild-content tables in ``public``, kept since the squash as a
+data-integrity backstop while schema-per-guild soaked. They have been inert
+throughout: nothing reads or writes them, guild-scoped migrations skip them,
+the post-squash reconciler (20260702_0126) severed every dependency that
+pointed at them, and fresh installs never create them at all.
 
 Sequences owned by the dropped tables (including the legacy-named
 ``teams_id_seq``, owned by ``public.initiatives``), their inert policies and
-their triggers go with the tables.
+their triggers go with the tables. The six guild-flavoured enums and the
+``fn_*_set_guild_id`` trigger function bodies that live in ``public`` by design
+stay — guild schemas resolve them through ``search_path``, and ``DROP TABLE``
+reaches neither.
 
 ``CASCADE`` is required because the copies reference each other, so a guard
 runs first: any foreign key pointing INTO the drop set from a table outside it
 aborts the migration instead of being silently cascaded away. The audit found
 none on either fresh or legacy databases; if one exists, it wants a human.
+
+Every step is conditional on what the database actually has, so the drop half
+is a no-op on installs that never had the copies.
+
+**One-way door.** ``downgrade()`` raises: dropped rows can't come back, and a
+downgrade that silently stamped 20260811_0162 over a database still missing
+those tables would leave the revision and the physical schema disagreeing —
+worse than refusing. Roll forward only.
 
 Revision ID: 20260811_0163
 Revises: 20260811_0162
@@ -42,6 +55,71 @@ down_revision = "20260811_0162"
 branch_labels = None
 depends_on = None
 
+
+# --- 1. finish the admin_api_keys -> user_api_keys rename -------------------
+
+_API_KEY_TABLE = "user_api_keys"
+
+# (kind, old name, new name). Renaming a constraint renames its backing index
+# too, so ``admin_api_keys_pkey`` / ``_token_hash_key`` appear once each.
+_API_KEY_RENAMES: tuple[tuple[str, str, str], ...] = (
+    ("constraint", "admin_api_keys_pkey", "user_api_keys_pkey"),
+    ("constraint", "admin_api_keys_token_hash_key", "user_api_keys_token_hash_key"),
+    ("constraint", "admin_api_keys_user_id_fkey", "user_api_keys_user_id_fkey"),
+    ("index", "ix_admin_api_keys_token_prefix", "ix_user_api_keys_token_prefix"),
+    ("index", "ix_admin_api_keys_user_id", "ix_user_api_keys_user_id"),
+    ("sequence", "admin_api_keys_id_seq", "user_api_keys_id_seq"),
+)
+
+
+def _exists(conn, kind: str, name: str) -> bool:
+    """Is there a ``kind`` named ``name`` in ``public``? Constraints live in
+    ``pg_constraint``; everything else is a relation."""
+    if kind == "constraint":
+        return bool(
+            conn.execute(
+                text(
+                    "SELECT 1 FROM pg_constraint "
+                    "WHERE conname = :n AND conrelid = to_regclass(:t)"
+                ),
+                {"n": name, "t": f"public.{_API_KEY_TABLE}"},
+            ).scalar()
+        )
+    return (
+        conn.execute(text("SELECT to_regclass(:n)"), {"n": f"public.{name}"}).scalar()
+        is not None
+    )
+
+
+def _rename_sql(kind: str, old: str, new: str) -> str:
+    """Names are literals from ``_API_KEY_RENAMES``, never input."""
+    if kind == "constraint":
+        return (
+            f'ALTER TABLE public."{_API_KEY_TABLE}" '
+            f'RENAME CONSTRAINT "{old}" TO "{new}"'
+        )
+    if kind == "index":
+        return f'ALTER INDEX public."{old}" RENAME TO "{new}"'
+    return f'ALTER SEQUENCE public."{old}" RENAME TO "{new}"'
+
+
+def _rename_api_key_objects(conn) -> None:
+    """Rename whichever objects still carry the pre-rename table name.
+
+    Each is skipped unless the old name exists and the new one doesn't, so a
+    database at either end — or part-way between, which is what the half-done
+    rename left behind — comes out the same.
+    """
+    if not _exists(conn, "table", _API_KEY_TABLE):
+        return  # table absent — nothing this step owns
+    for kind, old, new in _API_KEY_RENAMES:
+        if not _exists(conn, kind, old) or _exists(conn, kind, new):
+            continue
+        conn.execute(text(_rename_sql(kind, old, new)))
+        print(f"  renamed {kind} {old} -> {new}")
+
+
+# --- 2. drop the frozen public copies ---------------------------------------
 
 # The guild-content tables that existed in ``public`` at squash time (v0.53.5).
 # Frozen, like the identical list in 20260702_0126: this is the LEGACY
@@ -147,6 +225,10 @@ def _assert_no_outside_references(conn, copies: list[str]) -> None:
 
 def upgrade() -> None:
     conn = op.get_bind()
+    # Rename first: afterwards no legacy-named object survives near the drop
+    # set to be mistaken for part of it.
+    _rename_api_key_objects(conn)
+
     copies = _existing_copies(conn)
     if not copies:
         return  # fresh install (or already dropped) — nothing to remove
@@ -161,11 +243,10 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """Intentionally a no-op.
-
-    The copies held no live data on either side of this revision — every
-    release since v0.53.5 reads guild content only from ``guild_<id>`` schemas
-    — so a rollback has nothing to restore and re-creating empty shells would
-    only resurrect the thing this removed. Kept reversible (rather than
-    raising) so the rest of the chain stays walkable for release rollbacks.
-    """
+    raise NotImplementedError(
+        "20260811_0163 drops the frozen public copies of guild-content tables; "
+        "the rows are gone and cannot be restored from the database. Stamping "
+        "20260811_0162 back over a schema that no longer has those tables "
+        "would put the revision and the physical schema out of step. Restore "
+        "from a backup taken before the upgrade instead."
+    )
