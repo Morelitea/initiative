@@ -10,10 +10,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  EntityType,
   PermissionKey,
   RecentEntityType,
   Tool,
-  TrashItemEntityType,
 } from "@/api/generated/initiativeAPI.schemas";
 import { PALETTE_TOOLS, TOOL_PALETTE } from "@/lib/toolPalette";
 import {
@@ -68,10 +68,10 @@ describe("tool registry", () => {
   });
 
   it("every tool is a trash entity type with a label", () => {
-    const trashTypes = Object.values(TrashItemEntityType) as string[];
+    const trashTypes = Object.values(EntityType) as string[];
     const labels = trash.entityType as Record<string, string>;
     for (const tool of TOOLS) {
-      expect(trashTypes, `missing TrashItemEntityType for ${tool}`).toContain(tool);
+      expect(trashTypes, `missing EntityType for ${tool}`).toContain(tool);
     }
     for (const entityType of trashTypes) {
       expect(labels[entityType], `missing trash.json entityType.${entityType}`).toBeTruthy();

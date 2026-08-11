@@ -21,6 +21,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  EntityType,
   HTTPValidationError,
   RestoreNeedsReassignmentResponse,
   RestoreRequest,
@@ -217,21 +218,7 @@ export function useListGuildTrashApiV1GGuildIdTrashGet<
  */
 export const restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost = (
   guildId: number,
-  entityType:
-    | "project"
-    | "document"
-    | "queue"
-    | "counter_group"
-    | "calendar"
-    | "dashboard"
-    | "advanced_tool"
-    | "task"
-    | "queue_item"
-    | "calendar_event"
-    | "counter"
-    | "comment"
-    | "initiative"
-    | "tag",
+  entityType: EntityType,
   entityId: number,
   restoreRequest: BodyType<RestoreRequest>,
   options?: SecondParameter<typeof apiMutator>,
@@ -256,52 +243,14 @@ export const getRestoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePos
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost>>,
     TError,
-    {
-      guildId: number;
-      entityType:
-        | "project"
-        | "document"
-        | "queue"
-        | "counter_group"
-        | "calendar"
-        | "dashboard"
-        | "advanced_tool"
-        | "task"
-        | "queue_item"
-        | "calendar_event"
-        | "counter"
-        | "comment"
-        | "initiative"
-        | "tag";
-      entityId: number;
-      data: BodyType<RestoreRequest>;
-    },
+    { guildId: number; entityType: EntityType; entityId: number; data: BodyType<RestoreRequest> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost>>,
   TError,
-  {
-    guildId: number;
-    entityType:
-      | "project"
-      | "document"
-      | "queue"
-      | "counter_group"
-      | "calendar"
-      | "dashboard"
-      | "advanced_tool"
-      | "task"
-      | "queue_item"
-      | "calendar_event"
-      | "counter"
-      | "comment"
-      | "initiative"
-      | "tag";
-    entityId: number;
-    data: BodyType<RestoreRequest>;
-  },
+  { guildId: number; entityType: EntityType; entityId: number; data: BodyType<RestoreRequest> },
   TContext
 > => {
   const mutationKey = ["restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost"];
@@ -313,26 +262,7 @@ export const getRestoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePos
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost>>,
-    {
-      guildId: number;
-      entityType:
-        | "project"
-        | "document"
-        | "queue"
-        | "counter_group"
-        | "calendar"
-        | "dashboard"
-        | "advanced_tool"
-        | "task"
-        | "queue_item"
-        | "calendar_event"
-        | "counter"
-        | "comment"
-        | "initiative"
-        | "tag";
-      entityId: number;
-      data: BodyType<RestoreRequest>;
-    }
+    { guildId: number; entityType: EntityType; entityId: number; data: BodyType<RestoreRequest> }
   > = (props) => {
     const { guildId, entityType, entityId, data } = props ?? {};
 
@@ -368,26 +298,7 @@ export const useRestoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePos
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost>>,
       TError,
-      {
-        guildId: number;
-        entityType:
-          | "project"
-          | "document"
-          | "queue"
-          | "counter_group"
-          | "calendar"
-          | "dashboard"
-          | "advanced_tool"
-          | "task"
-          | "queue_item"
-          | "calendar_event"
-          | "counter"
-          | "comment"
-          | "initiative"
-          | "tag";
-        entityId: number;
-        data: BodyType<RestoreRequest>;
-      },
+      { guildId: number; entityType: EntityType; entityId: number; data: BodyType<RestoreRequest> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -396,26 +307,7 @@ export const useRestoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePos
 ): UseMutationResult<
   Awaited<ReturnType<typeof restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost>>,
   TError,
-  {
-    guildId: number;
-    entityType:
-      | "project"
-      | "document"
-      | "queue"
-      | "counter_group"
-      | "calendar"
-      | "dashboard"
-      | "advanced_tool"
-      | "task"
-      | "queue_item"
-      | "calendar_event"
-      | "counter"
-      | "comment"
-      | "initiative"
-      | "tag";
-    entityId: number;
-    data: BodyType<RestoreRequest>;
-  },
+  { guildId: number; entityType: EntityType; entityId: number; data: BodyType<RestoreRequest> },
   TContext
 > => {
   return useMutation(
@@ -440,21 +332,7 @@ export const useRestoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePos
  */
 export const purgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete = (
   guildId: number,
-  entityType:
-    | "project"
-    | "document"
-    | "queue"
-    | "counter_group"
-    | "calendar"
-    | "dashboard"
-    | "advanced_tool"
-    | "task"
-    | "queue_item"
-    | "calendar_event"
-    | "counter"
-    | "comment"
-    | "initiative"
-    | "tag",
+  entityType: EntityType,
   entityId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -472,50 +350,14 @@ export const getPurgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDeleteM
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof purgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete>>,
     TError,
-    {
-      guildId: number;
-      entityType:
-        | "project"
-        | "document"
-        | "queue"
-        | "counter_group"
-        | "calendar"
-        | "dashboard"
-        | "advanced_tool"
-        | "task"
-        | "queue_item"
-        | "calendar_event"
-        | "counter"
-        | "comment"
-        | "initiative"
-        | "tag";
-      entityId: number;
-    },
+    { guildId: number; entityType: EntityType; entityId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof purgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete>>,
   TError,
-  {
-    guildId: number;
-    entityType:
-      | "project"
-      | "document"
-      | "queue"
-      | "counter_group"
-      | "calendar"
-      | "dashboard"
-      | "advanced_tool"
-      | "task"
-      | "queue_item"
-      | "calendar_event"
-      | "counter"
-      | "comment"
-      | "initiative"
-      | "tag";
-    entityId: number;
-  },
+  { guildId: number; entityType: EntityType; entityId: number },
   TContext
 > => {
   const mutationKey = ["purgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete"];
@@ -527,25 +369,7 @@ export const getPurgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDeleteM
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof purgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete>>,
-    {
-      guildId: number;
-      entityType:
-        | "project"
-        | "document"
-        | "queue"
-        | "counter_group"
-        | "calendar"
-        | "dashboard"
-        | "advanced_tool"
-        | "task"
-        | "queue_item"
-        | "calendar_event"
-        | "counter"
-        | "comment"
-        | "initiative"
-        | "tag";
-      entityId: number;
-    }
+    { guildId: number; entityType: EntityType; entityId: number }
   > = (props) => {
     const { guildId, entityType, entityId } = props ?? {};
 
@@ -579,25 +403,7 @@ export const usePurgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete 
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof purgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete>>,
       TError,
-      {
-        guildId: number;
-        entityType:
-          | "project"
-          | "document"
-          | "queue"
-          | "counter_group"
-          | "calendar"
-          | "dashboard"
-          | "advanced_tool"
-          | "task"
-          | "queue_item"
-          | "calendar_event"
-          | "counter"
-          | "comment"
-          | "initiative"
-          | "tag";
-        entityId: number;
-      },
+      { guildId: number; entityType: EntityType; entityId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -606,25 +412,7 @@ export const usePurgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete 
 ): UseMutationResult<
   Awaited<ReturnType<typeof purgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete>>,
   TError,
-  {
-    guildId: number;
-    entityType:
-      | "project"
-      | "document"
-      | "queue"
-      | "counter_group"
-      | "calendar"
-      | "dashboard"
-      | "advanced_tool"
-      | "task"
-      | "queue_item"
-      | "calendar_event"
-      | "counter"
-      | "comment"
-      | "initiative"
-      | "tag";
-    entityId: number;
-  },
+  { guildId: number; entityType: EntityType; entityId: number },
   TContext
 > => {
   return useMutation(

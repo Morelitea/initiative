@@ -1,6 +1,6 @@
 import type {
+  EntityType,
   TrashItem,
-  TrashItemEntityType,
   TrashListResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 
@@ -13,7 +13,7 @@ export function resetCounter(): void {
 export function buildTrashItem(overrides: Partial<TrashItem> = {}): TrashItem {
   counter++;
   return {
-    entity_type: "task" as TrashItemEntityType,
+    entity_type: "task" as EntityType,
     entity_id: counter,
     guild_id: 1,
     name: `Item ${counter}`,

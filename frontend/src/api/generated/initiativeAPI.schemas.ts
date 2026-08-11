@@ -1777,6 +1777,28 @@ export interface EmailTestResponse {
   status: string;
 }
 
+/**
+ * Entity types the trash can holds.
+ */
+export type EntityType = (typeof EntityType)[keyof typeof EntityType];
+
+export const EntityType = {
+  project: "project",
+  document: "document",
+  queue: "queue",
+  counter_group: "counter_group",
+  calendar: "calendar",
+  dashboard: "dashboard",
+  advanced_tool: "advanced_tool",
+  task: "task",
+  queue_item: "queue_item",
+  calendar_event: "calendar_event",
+  counter: "counter",
+  comment: "comment",
+  initiative: "initiative",
+  tag: "tag",
+} as const;
+
 export type EnvelopeImportRequestEnvelope = { [key: string]: unknown };
 
 /**
@@ -3753,27 +3775,8 @@ export interface Token {
   token_type?: string;
 }
 
-export type TrashItemEntityType = (typeof TrashItemEntityType)[keyof typeof TrashItemEntityType];
-
-export const TrashItemEntityType = {
-  project: "project",
-  document: "document",
-  queue: "queue",
-  counter_group: "counter_group",
-  calendar: "calendar",
-  dashboard: "dashboard",
-  advanced_tool: "advanced_tool",
-  task: "task",
-  queue_item: "queue_item",
-  calendar_event: "calendar_event",
-  counter: "counter",
-  comment: "comment",
-  initiative: "initiative",
-  tag: "tag",
-} as const;
-
 export interface TrashItem {
-  entity_type: TrashItemEntityType;
+  entity_type: EntityType;
   entity_id: number;
   guild_id: number;
   name: string;

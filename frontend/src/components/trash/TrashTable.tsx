@@ -2,9 +2,9 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
+  EntityType,
   RestoreOwnerCandidate,
   TrashItem,
-  TrashItemEntityType,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -56,7 +56,7 @@ export const TrashTable = ({ variant, showPurgeAction }: TrashTableProps) => {
     | {
         open: true;
         guildId: number;
-        entityType: TrashItemEntityType;
+        entityType: EntityType;
         entityId: number;
         validOwners: RestoreOwnerCandidate[];
       }
@@ -67,7 +67,7 @@ export const TrashTable = ({ variant, showPurgeAction }: TrashTableProps) => {
     | {
         open: true;
         guildId: number;
-        entityType: TrashItemEntityType;
+        entityType: EntityType;
         entityId: number;
         name: string;
       }

@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type {
+  EntityType,
   RestoreNeedsReassignmentResponse,
   RestoreRequest,
   RestoreResponse,
-  TrashItemEntityType,
   TrashListResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
@@ -68,7 +68,7 @@ export const useGuildTrashList = (options?: QueryOpts<TrashListResponse>) => {
 // explicit reload. Uses the query-keys helpers (predicate-matched against the
 // real Orval URL keys — bare string prefixes matched nothing). Child entities
 // (task, comment, queue_item, counter) invalidate their parent tool's caches.
-const ENTITY_INVALIDATORS: Record<TrashItemEntityType, () => unknown> = {
+const ENTITY_INVALIDATORS: Record<EntityType, () => unknown> = {
   project: invalidateAllProjects,
   task: invalidateAllTasks,
   document: invalidateAllDocuments,
@@ -89,7 +89,7 @@ export type RestoreTrashVars = {
   // The item's guild — restore is guild-scoped, and the cross-guild /me view
   // surfaces items from several guilds, so it travels with each row.
   guildId: number;
-  entityType: TrashItemEntityType;
+  entityType: EntityType;
   entityId: number;
   body?: RestoreRequest;
 };
@@ -165,7 +165,7 @@ export type PurgeTrashVars = {
   // Purge is guild-scoped + admin-only; only reachable from the guild view,
   // but it still travels with the row for consistency with restore.
   guildId: number;
-  entityType: TrashItemEntityType;
+  entityType: EntityType;
   entityId: number;
 };
 

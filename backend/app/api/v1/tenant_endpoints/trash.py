@@ -71,9 +71,11 @@ router = APIRouter()
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
-# Maps the EntityType literal we expose in the API to the SQLModel class
-# and to the column whose value populates TrashItem.name.
-ENTITY_REGISTRY: dict[EntityType, tuple[type[SQLModel], str]] = {
+# Maps the entity type we expose in the API to the SQLModel class and to the
+# column whose value populates TrashItem.name. Keyed by the wire string (the
+# ``EntityType`` member values), the same way TAG_LINKS is — ``trash_test``
+# asserts the two agree, so a new entity type can't be missed here.
+ENTITY_REGISTRY: dict[str, tuple[type[SQLModel], str]] = {
     "project": (Project, "name"),
     "task": (Task, "title"),
     "document": (Document, "title"),
