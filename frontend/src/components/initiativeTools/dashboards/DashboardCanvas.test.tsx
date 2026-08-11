@@ -9,6 +9,20 @@
 import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+// jsdom measures every element at zero, which would put the canvas on its
+// stacked breakpoint and make every assertion below pass for the wrong reason.
+// A desktop width is what these tests are actually about.
+const VIEWPORT_WIDTH = 1200;
+vi.mock("react-grid-layout", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("react-grid-layout")>()),
+  useContainerWidth: () => ({
+    width: VIEWPORT_WIDTH,
+    mounted: true,
+    containerRef: { current: null },
+    measureWidth: () => {},
+  }),
+}));
+
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { WidgetCatalog } from "@/api/generated/initiativeAPI.schemas";
 import {
@@ -75,13 +89,18 @@ describe("DashboardCanvas", () => {
   });
 
   it("never reports a layout change for a read-only canvas", () => {
+    // A static canvas must never write the dashboard's row on someone else's
+    // behalf, whatever the grid reports.
     const onLayoutChange = render(withKpi(), false);
-    // Mount alone fires RGL's onLayoutChange; a static canvas must swallow it
-    // rather than write the dashboard's row on someone else's behalf.
     expect(onLayoutChange).not.toHaveBeenCalled();
   });
 
-  it("does not treat mounting as an edit", () => {
+  it("opening a dashboard does not write its layout", () => {
+    // Pinned as an end-to-end guarantee rather than a test of one guard: today
+    // the grid does not report a change on mount at this width, and the
+    // definition comparison in the handler covers the widths where it does.
+    // Either way, viewing a dashboard must never bump its updated_at — so if a
+    // future grid release starts emitting here, this fails.
     const onLayoutChange = render(withKpi(), true);
     expect(onLayoutChange).not.toHaveBeenCalled();
   });

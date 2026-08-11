@@ -62,6 +62,7 @@ export function useDashboardEditor(
     const next = pending.current;
     pending.current = null;
     if (!next || !dashboardId) return;
+    const saved = JSON.stringify(next);
     update.mutate(
       {
         // The API types these JSON columns as open records; the shapes they
@@ -70,12 +71,19 @@ export function useDashboardEditor(
         config: pruneConfig(next, config) as unknown as Record<string, unknown>,
       },
       {
-        // The server's normalization is the truth; dropping the draft lets its
-        // response through rather than keeping a stale local copy on screen.
-        onSuccess: () => setDraft(null),
+        onSuccess: () => {
+          // Hand control back to the server's copy only if the draft is still
+          // what we just saved. Drags land faster than requests return, so an
+          // unconditional reset would drop whatever the user did while this
+          // was in flight — and an out-of-order response would drop it even
+          // after a newer save had already succeeded.
+          setDraft((current) =>
+            current !== null && JSON.stringify(current) === saved ? null : current
+          );
+        },
       }
     );
-  }, [dashboardId, config, update]);
+  }, [dashboardId, config, update.mutate]);
 
   const save = useCallback(
     (next: DashboardDefinition) => {
@@ -87,13 +95,19 @@ export function useDashboardEditor(
     [canEdit, flush]
   );
 
-  // A pending edit must not be lost to a navigation.
+  // A pending edit must not be lost to a navigation. Held through a ref and
+  // depended on nothing: with `flush` in the dependency list this effect
+  // re-runs whenever its identity changes, and *its cleanup* then flushes on
+  // an ordinary re-render — which silently turned the debounce into a save per
+  // keystroke and per drag frame.
+  const flushRef = useRef(flush);
+  flushRef.current = flush;
   useEffect(
     () => () => {
       if (timer.current) clearTimeout(timer.current);
-      if (pending.current) flush();
+      if (pending.current) flushRef.current();
     },
-    [flush]
+    []
   );
 
   const apply = useCallback(

@@ -16,7 +16,6 @@ import {
   type Layout,
   type LayoutItem,
   ResponsiveGridLayout,
-  type ResponsiveLayouts,
   useContainerWidth,
   verticalCompactor,
 } from "react-grid-layout";
@@ -44,10 +43,20 @@ import "react-grid-layout/css/styles.css";
 const ROW_HEIGHT = 56;
 const MARGIN: [number, number] = [12, 12];
 
-/** One column below `md`, so a phone reads the canvas top to bottom in layout
- *  order instead of squeezing a Gantt into a quarter of the screen. */
-const BREAKPOINTS = { lg: 1024, md: 768, xs: 0 };
-const COLS = { lg: GRID_COLUMNS, md: GRID_COLUMNS, xs: 1 };
+/**
+ * Two breakpoints, because there are only two *kinds* of layout: the authored
+ * one and the derived stack. A third that also held 12 columns would be a
+ * second place the same arrangement lives, and telling them apart in the
+ * change callback is exactly where that goes wrong.
+ *
+ * Below the threshold a phone reads the canvas top to bottom in layout order
+ * rather than squeezing a Gantt into a quarter of the screen.
+ */
+const STACKED = "xs";
+const AUTHORED = "lg";
+const STACK_BELOW = 768;
+const BREAKPOINTS = { [AUTHORED]: STACK_BELOW, [STACKED]: 0 };
+const COLS = { [AUTHORED]: GRID_COLUMNS, [STACKED]: 1 };
 
 export interface DashboardCanvasProps {
   definition: DashboardDefinition;
@@ -72,6 +81,12 @@ export function DashboardCanvas({
   const { t } = useTranslation("dashboards");
   const [dragging, setDragging] = useState(false);
   const { width, mounted, containerRef } = useContainerWidth();
+
+  // Whether the user is looking at the authored layout or the derived stack.
+  // Derived from the measured width rather than tracked separately, because
+  // that is the same number the grid picks its own breakpoint from — so the
+  // two can never disagree, including before the first measurement lands.
+  const authoring = width >= STACK_BELOW;
 
   // RGL fires onLayoutChange on mount as well as on every settle. Comparing
   // against the definition we are *currently rendering* is what tells the two
@@ -101,15 +116,18 @@ export function DashboardCanvas({
       h: widget.grid.h,
       static: true,
     }));
-    return { lg: items, md: items, xs: stacked };
+    return { [AUTHORED]: items, [STACKED]: stacked };
   }, [definition.widgets, catalog, canEdit]);
 
-  const handleLayoutChange = (current: Layout, all: ResponsiveLayouts<string>) => {
+  const handleLayoutChange = (current: Layout) => {
     if (!canEdit) return;
-    // Only the authored breakpoints write back; the stacked one is derived, so
-    // reading it back would flatten everyone's layout to one column.
-    const source = all.lg ?? current;
-    const next = applyLayout(definition, catalog, [...source]);
+    // The stacked layout is derived, not authored — writing it back would
+    // flatten everyone's arrangement to one column. `current` is whichever
+    // breakpoint the user is actually on, so it is the only correct source:
+    // reading a named breakpoint out of `all` would take a stale copy of the
+    // one they are not editing.
+    if (!authoring) return;
+    const next = applyLayout(definition, catalog, [...current]);
     if (JSON.stringify(next.widgets.map((widget) => widget.grid)) === placed) return;
     onLayoutChange(next);
   };
