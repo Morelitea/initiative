@@ -28,8 +28,6 @@
   "dangerZone": "Zone dangereuse",
   "dangerZoneDescription": "Actions destructives. Les tableaux de bord supprimés vont à la corbeille et peuvent être restaurés avant la fin de la période de rétention.",
   "detailsUpdated": "Détails du tableau de bord mis à jour",
-  "canvasPending": "Canevas bientôt disponible",
-  "canvasPendingDescription": "Le canevas de widgets n’est pas encore disponible. En attendant, ce tableau de bord conserve son nom, sa description, ses étiquettes et son partage.",
   "filters": {
     "heading": "Filtres",
     "show": "Afficher",
@@ -99,6 +97,44 @@
       "noRenderExport": "Aucune fonction de rendu",
       "triesToFetch": "Tente un fetch",
       "invalidScene": "Scène non valide"
+    }
+  },
+  "canvas": {
+    "empty": "Ce tableau de bord n'a pas encore de widgets.",
+    "emptyHint": "Ajoutez un widget pour commencer à afficher vos données.",
+    "emptyReadOnly": "Une personne ayant les droits de modification peut en ajouter.",
+    "addWidget": "Ajouter un widget",
+    "widgets": "Widgets",
+    "presets": "Prêts à l'emploi",
+    "widgetCap": "Un tableau de bord accepte {{max}} widgets.",
+    "widgetMenu": "Options de {{widget}}",
+    "configure": "Configurer",
+    "remove": "Supprimer",
+    "saving": "Enregistrement…",
+    "unbound": "Choisissez ce que ce widget affiche."
+  },
+  "config": {
+    "title": "Configurer le widget",
+    "description": "Choisissez ce que ce widget affiche. Les tableaux de bord ne font que lire vos données.",
+    "widgetTitle": "Titre",
+    "widgetTitlePlaceholder": "Laissez vide pour utiliser le nom du widget",
+    "source": "Source de données",
+    "choose": "Choisir…",
+    "spreadsheet": "Feuille de calcul",
+    "sheet": "Feuille",
+    "sheetPlaceholder": "Première feuille",
+    "range": "Plage",
+    "project": "Projet",
+    "allProjects": "Tous les projets",
+    "allCalendars": "Tous les calendriers",
+    "groupBy": "Grouper par",
+    "bucket": {
+      "status_category": "Catégorie de statut",
+      "status": "Statut",
+      "priority": "Priorité",
+      "project": "Projet",
+      "assignee": "Assigné à",
+      "day": "Jour d'achèvement"
     }
   }
 }

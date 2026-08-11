@@ -28,8 +28,6 @@
   "dangerZone": "Gefahrenzone",
   "dangerZoneDescription": "Destruktive Aktionen. Gelöschte Dashboards landen im Papierkorb und können wiederhergestellt werden, bevor der Aufbewahrungszeitraum endet.",
   "detailsUpdated": "Dashboard-Details aktualisiert",
-  "canvasPending": "Arbeitsfläche folgt in Kürze",
-  "canvasPendingDescription": "Die Widget-Arbeitsfläche ist noch nicht verfügbar. Bis dahin behält dieses Dashboard seinen Namen, seine Beschreibung, seine Tags und seine Freigaben.",
   "filters": {
     "heading": "Filter",
     "show": "Anzeigen",
@@ -99,6 +97,44 @@
       "noRenderExport": "Keine Renderfunktion",
       "triesToFetch": "Versucht zu laden",
       "invalidScene": "Ungültige Szene"
+    }
+  },
+  "canvas": {
+    "empty": "Dieses Dashboard hat noch keine Widgets.",
+    "emptyHint": "Fügen Sie ein Widget hinzu, um Ihre Daten anzuzeigen.",
+    "emptyReadOnly": "Jemand mit Bearbeitungsrechten kann Widgets hinzufügen.",
+    "addWidget": "Widget hinzufügen",
+    "widgets": "Widgets",
+    "presets": "Vorgefertigt",
+    "widgetCap": "Ein Dashboard fasst {{max}} Widgets.",
+    "widgetMenu": "Optionen für {{widget}}",
+    "configure": "Konfigurieren",
+    "remove": "Entfernen",
+    "saving": "Wird gespeichert…",
+    "unbound": "Wählen Sie aus, was dieses Widget anzeigt."
+  },
+  "config": {
+    "title": "Widget konfigurieren",
+    "description": "Wählen Sie aus, was dieses Widget anzeigt. Dashboards lesen Ihre Daten nur.",
+    "widgetTitle": "Titel",
+    "widgetTitlePlaceholder": "Leer lassen, um den Namen des Widgets zu verwenden",
+    "source": "Datenquelle",
+    "choose": "Auswählen…",
+    "spreadsheet": "Tabelle",
+    "sheet": "Blatt",
+    "sheetPlaceholder": "Erstes Blatt",
+    "range": "Bereich",
+    "project": "Projekt",
+    "allProjects": "Alle Projekte",
+    "allCalendars": "Alle Kalender",
+    "groupBy": "Gruppieren nach",
+    "bucket": {
+      "status_category": "Statuskategorie",
+      "status": "Status",
+      "priority": "Priorität",
+      "project": "Projekt",
+      "assignee": "Zugewiesen an",
+      "day": "Abschlusstag"
     }
   }
 }

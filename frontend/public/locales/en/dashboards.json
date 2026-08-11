@@ -28,8 +28,6 @@
   "dangerZone": "Danger Zone",
   "dangerZoneDescription": "Destructive actions. Deleted dashboards go to the trash and can be restored before the retention period ends.",
   "detailsUpdated": "Dashboard details updated",
-  "canvasPending": "Canvas coming soon",
-  "canvasPendingDescription": "The widget canvas is not available yet. Until it ships, this dashboard keeps its name, description, tags, and sharing.",
   "filters": {
     "heading": "Filters",
     "show": "Show",
@@ -99,6 +97,44 @@
       "noRenderExport": "No render function",
       "triesToFetch": "Tries to fetch",
       "invalidScene": "Invalid scene"
+    }
+  },
+  "canvas": {
+    "empty": "This dashboard has no widgets yet.",
+    "emptyHint": "Add a widget to start showing your data.",
+    "emptyReadOnly": "Someone with edit access can add widgets to it.",
+    "addWidget": "Add widget",
+    "widgets": "Widgets",
+    "presets": "Ready-made",
+    "widgetCap": "A dashboard can hold {{max}} widgets.",
+    "widgetMenu": "Options for {{widget}}",
+    "configure": "Configure",
+    "remove": "Remove",
+    "saving": "Saving…",
+    "unbound": "Choose what this widget shows."
+  },
+  "config": {
+    "title": "Configure widget",
+    "description": "Choose what this widget displays. Dashboards only ever read your data.",
+    "widgetTitle": "Title",
+    "widgetTitlePlaceholder": "Leave blank to use the widget's own name",
+    "source": "Data source",
+    "choose": "Choose…",
+    "spreadsheet": "Spreadsheet",
+    "sheet": "Sheet",
+    "sheetPlaceholder": "First sheet",
+    "range": "Range",
+    "project": "Project",
+    "allProjects": "All projects",
+    "allCalendars": "All calendars",
+    "groupBy": "Group by",
+    "bucket": {
+      "status_category": "Status category",
+      "status": "Status",
+      "priority": "Priority",
+      "project": "Project",
+      "assignee": "Assignee",
+      "day": "Day completed"
     }
   }
 }

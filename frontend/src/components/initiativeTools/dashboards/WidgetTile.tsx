@@ -30,11 +30,26 @@ export interface WidgetTileProps {
   /** Overrides the registry lookup. This is the seam a marketplace listing's
    *  own widget module arrives through; it runs the same way ours does. */
   source?: string;
+  /** The binding's own fetch is still in flight. Shown as the same skeleton the
+   *  sandbox call uses, so a widget does not flash empty then populate. */
+  isLoading?: boolean;
+  /** Drop the border and title — the canvas frames its own widgets, and two
+   *  nested frames read as a bug. The scene still cannot escape its box. */
+  chromeless?: boolean;
 }
 
 type State = { status: "loading" } | { status: "done"; outcome: WidgetRenderOutcome };
 
-export function WidgetTile({ type, title, data, config, className, source }: WidgetTileProps) {
+export function WidgetTile({
+  type,
+  title,
+  data,
+  config,
+  className,
+  source,
+  isLoading,
+  chromeless,
+}: WidgetTileProps) {
   const [state, setState] = useState<State>({ status: "loading" });
 
   useEffect(() => {
@@ -59,6 +74,21 @@ export function WidgetTile({ type, title, data, config, className, source }: Wid
     };
   }, [type, data, config, source]);
 
+  const body =
+    isLoading || state.status === "loading" ? (
+      <Skeleton className="h-full w-full" />
+    ) : state.outcome.ok ? (
+      <SceneRenderer node={state.outcome.spec.scene} />
+    ) : (
+      <WidgetError code={state.outcome.code} detail={state.outcome.detail} />
+    );
+
+  if (chromeless) {
+    // No label here: the canvas's own <section> already names this region, and
+    // a second label on a plain div would only add noise for a screen reader.
+    return <div className={cn("h-full w-full", className)}>{body}</div>;
+  }
+
   return (
     <section
       className={cn(
@@ -68,15 +98,7 @@ export function WidgetTile({ type, title, data, config, className, source }: Wid
       aria-label={title ?? type}
     >
       {title && <h3 className="mb-2 shrink-0 truncate font-medium text-sm">{title}</h3>}
-      <div className="min-h-0 flex-1">
-        {state.status === "loading" ? (
-          <Skeleton className="h-full w-full" />
-        ) : state.outcome.ok ? (
-          <SceneRenderer node={state.outcome.spec.scene} />
-        ) : (
-          <WidgetError code={state.outcome.code} detail={state.outcome.detail} />
-        )}
-      </div>
+      <div className="min-h-0 flex-1">{body}</div>
     </section>
   );
 }
