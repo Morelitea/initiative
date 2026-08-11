@@ -104,8 +104,6 @@
     "emptyHint": "Fügen Sie ein Widget hinzu, um Ihre Daten anzuzeigen.",
     "emptyReadOnly": "Jemand mit Bearbeitungsrechten kann Widgets hinzufügen.",
     "addWidget": "Widget hinzufügen",
-    "widgets": "Widgets",
-    "presets": "Vorgefertigt",
     "widgetCap": "Ein Dashboard fasst {{max}} Widgets.",
     "widgetMenu": "Optionen für {{widget}}",
     "configure": "Konfigurieren",
@@ -136,5 +134,15 @@
       "assignee": "Zugewiesen an",
       "day": "Abschlusstag"
     }
+  },
+  "picker": {
+    "title": "Widget hinzufügen",
+    "description": "Wähle ein Widget, um es mit Beispieldaten zu sehen, und lege dann fest, was es anzeigt.",
+    "searchPlaceholder": "Widgets durchsuchen…",
+    "listLabel": "Widgets",
+    "noResults": "Kein Widget passt zu „{{query}}“.",
+    "data": "Daten",
+    "needsBinding": "Was genau angezeigt wird, legst du nach dem Hinzufügen fest.",
+    "add": "{{widget}} hinzufügen"
   }
 }

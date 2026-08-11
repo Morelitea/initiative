@@ -24,6 +24,7 @@ import type {
 import { invalidateAllDashboards, invalidateDashboard } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
+import { queryClient } from "@/lib/queryClient";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -90,16 +91,30 @@ export const useCreateDashboard = (options?: MutationOpts<DashboardRead, Dashboa
 export const useUpdateDashboard = (
   dashboardId: number,
   options?: MutationOpts<DashboardRead, DashboardUpdate>
-) =>
-  useGuildMutation<DashboardRead, DashboardUpdate>(
+) => {
+  const guildId = useActiveGuildId();
+  return useGuildMutation<DashboardRead, DashboardUpdate>(
     {
       mutationFn: (guildId, data) =>
         updateDashboardApiV1GGuildIdDashboardsDashboardIdPatch(guildId, dashboardId, data),
-      invalidate: () => invalidateDashboardAndList(dashboardId),
+      invalidate: (updated) => {
+        // The PATCH answers with the row a refetch would fetch, so seed it
+        // rather than leaving the cache on the pre-save copy until the refetch
+        // lands. Without this the canvas drops its local draft the moment a
+        // save succeeds and renders the *old* server layout for a beat — a
+        // dragged widget visibly snaps back to where it came from, then jumps
+        // forward again when the refetch arrives.
+        queryClient.setQueryData(
+          getReadDashboardApiV1GGuildIdDashboardsDashboardIdGetQueryKey(guildId, dashboardId),
+          updated
+        );
+        return invalidateDashboardAndList(dashboardId);
+      },
       errorKey: "dashboards:error",
     },
     options
   );
+};
 
 export const useDeleteDashboard = (options?: MutationOpts<void, number>) =>
   useGuildMutation<void, number>(

@@ -105,6 +105,30 @@ describe("addWidget", () => {
     expect(widget.options).toEqual({ mark: "bar" });
   });
 
+  it("carries the display options the picker chose", () => {
+    const [widget] = addWidget(EMPTY_DEFINITION, catalog, "chart", "task_counts", {
+      mark: "pie",
+    }).widgets;
+    expect(widget.type).toBe("chart");
+    expect(widget.preset).toBeUndefined();
+    expect(widget.options).toEqual({ mark: "pie" });
+  });
+
+  it("lets a preset's own options win over the ones passed in", () => {
+    // A preset *is* its options; filling in the rest is fine, contradicting it
+    // is not — same order the backend normalizer applies them in.
+    const [widget] = addWidget(EMPTY_DEFINITION, catalog, "bar_chart", "task_counts", {
+      mark: "pie",
+      stacked: "true",
+    }).widgets;
+    expect(widget.options).toEqual({ mark: "bar", stacked: "true" });
+  });
+
+  it("stores no options when none were chosen", () => {
+    const [widget] = addWidget(EMPTY_DEFINITION, catalog, "chart", "task_counts").widgets;
+    expect(widget.options).toBeUndefined();
+  });
+
   it("falls back to a usable size when the catalog has not loaded", () => {
     const [widget] = addWidget(EMPTY_DEFINITION, undefined, "kpi", "counter").widgets;
     expect(widget.grid.w).toBeGreaterThan(0);
@@ -150,6 +174,19 @@ describe("definitionsEqual", () => {
     const moved = applyLayout(definition, catalog, [{ i: "w1", x: 4, y: 0, w: 3, h: 2 }]);
     expect(definitionsEqual(definition, moved)).toBe(false);
     expect(definitionsEqual(definition, { ...definition })).toBe(true);
+  });
+
+  it("does not mistake a different key order for a different dashboard", () => {
+    // The editor compares its draft against what came back from a save, and the
+    // server builds each widget's keys in its own order. Reading that as a
+    // change would leave the local copy drawn forever, ignoring normalization.
+    const definition = withWidgets("kpi");
+    const [widget] = definition.widgets;
+    const reordered = {
+      ...definition,
+      widgets: [{ binding: widget.binding, grid: widget.grid, type: widget.type, id: widget.id }],
+    };
+    expect(definitionsEqual(definition, reordered)).toBe(true);
   });
 });
 

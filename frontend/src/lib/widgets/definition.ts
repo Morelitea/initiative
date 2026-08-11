@@ -128,19 +128,23 @@ export const catalogEntry = (
 /**
  * Add a widget at its catalog default size.
  *
- * A preset resolves to its primitive with its fixed options applied — the same
- * resolution the backend does on save, done here so the canvas draws the right
- * thing before the round trip.
+ * `options` are the display choices the picker made — the widget's own, checked
+ * against the primitive's allow-list on save. A preset resolves to its primitive
+ * with its fixed options applied *last*, because those are what make it that
+ * preset; that is the same order the backend normalizer uses, so the canvas
+ * draws what the round trip will return.
  */
 export const addWidget = (
   definition: DashboardDefinition,
   catalog: WidgetCatalog | undefined,
   typeOrPreset: string,
-  source: string
+  source: string,
+  options?: Record<string, string>
 ): DashboardDefinition => {
   const preset = catalog?.presets.find((entry) => entry.name === typeOrPreset);
   const type = preset?.primitive ?? typeOrPreset;
   const entry = catalogEntry(catalog, type);
+  const merged = { ...options, ...preset?.options };
 
   const widget: DefinitionWidget = {
     id: nextWidgetId(definition.widgets),
@@ -152,7 +156,8 @@ export const addWidget = (
       h: entry?.default_h ?? 4,
     },
     binding: { source } as WidgetBinding,
-    ...(preset ? { preset: preset.name, options: { ...preset.options } } : {}),
+    ...(preset ? { preset: preset.name } : {}),
+    ...(Object.keys(merged).length ? { options: merged } : {}),
   };
 
   return { ...definition, widgets: [...definition.widgets, widget] };
@@ -209,10 +214,30 @@ export const applyLayout = (
   };
 };
 
+/**
+ * JSON with object keys in a fixed order, for comparing two definitions.
+ *
+ * `JSON.stringify` preserves insertion order, and the server's normalizer builds
+ * its widgets in its own — so a widget that gained a title client-side
+ * stringifies differently from the identical widget that came back from a save.
+ * Comparing canonically is what lets the editor recognize its own work in the
+ * server's copy and stop drawing the local one.
+ */
+export const canonicalJson = (value: unknown): string =>
+  JSON.stringify(value, (_key, raw) => {
+    if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return raw;
+    const record = raw as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.keys(record)
+        .sort((a, b) => (a < b ? -1 : 1))
+        .map((key) => [key, record[key]])
+    );
+  });
+
 /** Whether two definitions differ in a way worth saving. Layout callbacks fire
  *  on every drag frame; only a settled change should reach the API. */
 export const definitionsEqual = (a: DashboardDefinition, b: DashboardDefinition): boolean =>
-  JSON.stringify(a) === JSON.stringify(b);
+  canonicalJson(a) === canonicalJson(b);
 
 /** Config entries for widgets the definition no longer has, dropped — mirrors
  *  what the backend does on save so the editor shows the same thing. */

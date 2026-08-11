@@ -64,7 +64,10 @@ export function WidgetTile({
       return;
     }
 
-    setState({ status: "loading" });
+    // Deliberately not resetting to "loading" first: a re-render is fast, and
+    // blanking to a skeleton every time the data changes makes a live tile
+    // flicker on each refetch. The scene already on screen stays until the new
+    // one is ready.
     renderWidget({ source: moduleSource, data, config: config ?? {} }).then((outcome) => {
       if (!cancelled) setState({ status: "done", outcome });
     });

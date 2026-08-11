@@ -11,6 +11,7 @@
  * them would trade a real interaction for a fiddly one.
  */
 
+import { Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
   type Layout,
@@ -42,6 +43,10 @@ import "react-grid-layout/css/styles.css";
 // ours and the grid is told the width explicitly.
 const ROW_HEIGHT = 56;
 const MARGIN: [number, number] = [12, 12];
+// The surface is the padded region; the grid fills it edge to edge. Keeping the
+// grid's own padding at zero means cell (0,0) sits exactly on the surface's
+// origin, which is what lets the dot grid below line up with real cells.
+const NO_PADDING: [number, number] = [0, 0];
 
 /**
  * Two breakpoints, because there are only two *kinds* of layout: the authored
@@ -64,6 +69,9 @@ export interface DashboardCanvasProps {
   catalog: WidgetCatalog | undefined;
   /** DAC write on this dashboard. Arranging is authoring. */
   canEdit: boolean;
+  /** The dashboard row is still on its way. The canvas is the only region that
+   *  shows this — the page around it is already correct and must not flicker. */
+  isLoading?: boolean;
   onLayoutChange: (next: DashboardDefinition) => void;
   onConfigureWidget?: (widgetId: string) => void;
   onRemoveWidget?: (widgetId: string) => void;
@@ -74,6 +82,7 @@ export function DashboardCanvas({
   config,
   catalog,
   canEdit,
+  isLoading,
   onLayoutChange,
   onConfigureWidget,
   onRemoveWidget,
@@ -132,56 +141,92 @@ export function DashboardCanvas({
     onLayoutChange(next);
   };
 
-  if (!definition.widgets.length) {
-    return (
-      <div ref={containerRef} className="rounded-lg border border-dashed p-10 text-center">
-        <p className="font-medium text-sm">{t("canvas.empty")}</p>
-        <p className="mt-1 text-muted-foreground text-sm">
-          {canEdit ? t("canvas.emptyHint") : t("canvas.emptyReadOnly")}
-        </p>
-      </div>
-    );
-  }
+  // The dot grid: one dot per cell, sitting in the gutter so it reads as the
+  // seam between cells rather than as a mark inside one. Drawn only for someone
+  // who can actually arrange things — to a viewer it would be texture promising
+  // an interaction they don't have. It is also why the surface keeps a minimum
+  // height: a canvas with one widget on it should still look like a canvas.
+  const showGrid = canEdit && authoring && !isLoading;
+  const cellWidth = (width - MARGIN[0] * (GRID_COLUMNS - 1)) / GRID_COLUMNS;
+  const dotGrid = {
+    backgroundImage: "radial-gradient(circle, currentColor 1px, transparent 1px)",
+    backgroundSize: `${cellWidth + MARGIN[0]}px ${ROW_HEIGHT + MARGIN[1]}px`,
+    backgroundPosition: `${-(cellWidth + MARGIN[0]) / 2 - MARGIN[0] / 2}px ${-(ROW_HEIGHT + MARGIN[1]) / 2 - MARGIN[1] / 2}px`,
+  };
 
   return (
     <div ref={containerRef} className="w-full">
-      {/* Nothing is placed until the container has a width, or every widget
-          would mount at the fallback size and then jump. */}
-      {mounted && (
-        <ResponsiveGridLayout
-          width={width}
-          className={cn("-m-3", dragging && "select-none")}
-          layouts={layouts}
-          breakpoints={BREAKPOINTS}
-          cols={COLS}
-          rowHeight={ROW_HEIGHT}
-          margin={MARGIN}
-          containerPadding={MARGIN}
-          // v2 groups these; the handle selector is what keeps a widget's own
-          // content from becoming a drag surface.
-          dragConfig={{ enabled: canEdit, handle: "[data-widget-handle]" }}
-          resizeConfig={{ enabled: canEdit }}
-          onDragStart={() => setDragging(true)}
-          onDragStop={() => setDragging(false)}
-          onResizeStart={() => setDragging(true)}
-          onResizeStop={() => setDragging(false)}
-          onLayoutChange={handleLayoutChange}
-          // Widgets settle upward into free space and never overlap.
-          compactor={verticalCompactor}
-        >
-          {definition.widgets.map((widget) => (
-            <div key={widget.id}>
-              <DashboardWidget
-                widget={widget}
-                binding={effectiveBinding(widget, config)}
-                canEdit={canEdit}
-                onConfigure={onConfigureWidget}
-                onRemove={onRemoveWidget}
-              />
-            </div>
-          ))}
-        </ResponsiveGridLayout>
-      )}
+      <div
+        className={cn(
+          "relative min-h-64 rounded-lg transition-colors",
+          showGrid && (dragging ? "text-muted-foreground/60" : "text-muted-foreground/30")
+        )}
+        style={showGrid ? dotGrid : undefined}
+      >
+        {isLoading ? (
+          <CanvasNotice>
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            {t("loadingDashboard")}
+          </CanvasNotice>
+        ) : !definition.widgets.length ? (
+          <CanvasNotice>
+            <span className="space-y-1">
+              <span className="block font-medium text-foreground text-sm">{t("canvas.empty")}</span>
+              <span className="block">
+                {canEdit ? t("canvas.emptyHint") : t("canvas.emptyReadOnly")}
+              </span>
+            </span>
+          </CanvasNotice>
+        ) : (
+          // Nothing is placed until the container has a width, or every widget
+          // would mount at the fallback size and then jump.
+          mounted && (
+            <ResponsiveGridLayout
+              width={width}
+              className={cn(dragging && "select-none")}
+              layouts={layouts}
+              breakpoints={BREAKPOINTS}
+              cols={COLS}
+              rowHeight={ROW_HEIGHT}
+              margin={MARGIN}
+              containerPadding={NO_PADDING}
+              // v2 groups these; the handle selector is what keeps a widget's
+              // own content from becoming a drag surface.
+              dragConfig={{ enabled: canEdit, handle: "[data-widget-handle]" }}
+              resizeConfig={{ enabled: canEdit }}
+              onDragStart={() => setDragging(true)}
+              onDragStop={() => setDragging(false)}
+              onResizeStart={() => setDragging(true)}
+              onResizeStop={() => setDragging(false)}
+              onLayoutChange={handleLayoutChange}
+              // Widgets settle upward into free space and never overlap.
+              compactor={verticalCompactor}
+            >
+              {definition.widgets.map((widget) => (
+                <div key={widget.id}>
+                  <DashboardWidget
+                    widget={widget}
+                    binding={effectiveBinding(widget, config)}
+                    canEdit={canEdit}
+                    onConfigure={onConfigureWidget}
+                    onRemove={onRemoveWidget}
+                  />
+                </div>
+              ))}
+            </ResponsiveGridLayout>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Centred text on the canvas surface, for the states where there is nothing to
+ *  arrange yet. Kept inside the surface so the dot grid stays behind it. */
+function CanvasNotice({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="absolute inset-0 flex items-center justify-center gap-2 p-6 text-center text-muted-foreground text-sm">
+      {children}
     </div>
   );
 }
