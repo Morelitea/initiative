@@ -12,6 +12,9 @@ Tests the project API endpoints at /api/v1/projects including:
 - Project duplication
 """
 
+import json
+from datetime import date, datetime, timezone
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import text
@@ -26,6 +29,7 @@ from app.testing.factories import (
     create_guild_membership,
     create_initiative,
     create_project,
+    create_task,
     create_task_status,
 )
 
@@ -447,6 +451,208 @@ async def test_create_project_without_dates_leaves_them_unset(
     data = response.json()
     assert data["start_date"] is None
     assert data["end_date"] is None
+
+
+def _as_utc(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+async def _tasks_by_title(
+    client: AsyncClient, actor, project_id: int
+) -> dict[str, dict]:
+    conditions = json.dumps([{"field": "project_id", "op": "eq", "value": project_id}])
+    response = await client.get(
+        actor.g(f"/tasks/?conditions={conditions}"), headers=actor.headers
+    )
+    assert response.status_code == 200
+    return {item["title"]: item for item in response.json()["items"]}
+
+
+@pytest.mark.integration
+async def test_create_from_template_shifts_task_dates(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Template task dates are re-anchored to the new project's start date.
+
+    A task due three weeks after the template's start lands three weeks after
+    the new start, keeping its time of day.
+    """
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    template = await create_project(
+        session,
+        admin.initiative,
+        admin.user,
+        name="Launch Template",
+        is_template=True,
+        start_date=date(2026, 1, 5),
+        end_date=date(2026, 2, 2),
+    )
+    await create_task(
+        session,
+        template,
+        title="Kickoff",
+        start_date=datetime(2026, 1, 5, 9, 0, tzinfo=timezone.utc),
+        due_date=datetime(2026, 1, 7, 17, 0, tzinfo=timezone.utc),
+    )
+    await create_task(
+        session,
+        template,
+        title="Three weeks in",
+        due_date=datetime(2026, 1, 26, 12, 0, tzinfo=timezone.utc),
+    )
+
+    response = await client.post(
+        admin.g("/projects/"),
+        headers=admin.headers,
+        json={
+            "name": "Spring Launch",
+            "initiative_id": admin.initiative.id,
+            "template_id": template.id,
+            "start_date": "2026-04-06",
+            "end_date": "2026-05-04",
+        },
+    )
+    assert response.status_code == 201
+
+    tasks = await _tasks_by_title(client, admin, response.json()["id"])
+    kickoff = tasks["Kickoff"]
+    assert _as_utc(kickoff["start_date"]) == datetime(
+        2026, 4, 6, 9, 0, tzinfo=timezone.utc
+    )
+    assert _as_utc(kickoff["due_date"]) == datetime(
+        2026, 4, 8, 17, 0, tzinfo=timezone.utc
+    )
+    assert _as_utc(tasks["Three weeks in"]["due_date"]) == datetime(
+        2026, 4, 27, 12, 0, tzinfo=timezone.utc
+    )
+
+
+@pytest.mark.integration
+async def test_create_from_undated_template_anchors_on_earliest_task(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A template without its own dates anchors on its earliest task date, so
+    the first scheduled task lands on the new start and spacing is kept."""
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    template = await create_project(
+        session, admin.initiative, admin.user, name="Undated Template", is_template=True
+    )
+    await create_task(
+        session,
+        template,
+        title="First",
+        due_date=datetime(2026, 1, 5, 10, 0, tzinfo=timezone.utc),
+    )
+    await create_task(
+        session,
+        template,
+        title="Two weeks later",
+        due_date=datetime(2026, 1, 19, 10, 0, tzinfo=timezone.utc),
+    )
+
+    response = await client.post(
+        admin.g("/projects/"),
+        headers=admin.headers,
+        json={
+            "name": "Summer Run",
+            "initiative_id": admin.initiative.id,
+            "template_id": template.id,
+            "start_date": "2026-06-01",
+        },
+    )
+    assert response.status_code == 201
+
+    tasks = await _tasks_by_title(client, admin, response.json()["id"])
+    assert _as_utc(tasks["First"]["due_date"]) == datetime(
+        2026, 6, 1, 10, 0, tzinfo=timezone.utc
+    )
+    assert _as_utc(tasks["Two weeks later"]["due_date"]) == datetime(
+        2026, 6, 15, 10, 0, tzinfo=timezone.utc
+    )
+
+
+@pytest.mark.integration
+async def test_create_from_template_end_date_only_anchors_on_end(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """With only an end date given, tasks shift so the template's end maps to
+    the new end (a task due a week before the end stays a week before it)."""
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    template = await create_project(
+        session,
+        admin.initiative,
+        admin.user,
+        name="Deadline Template",
+        is_template=True,
+        end_date=date(2026, 2, 2),
+    )
+    await create_task(
+        session,
+        template,
+        title="Final review",
+        due_date=datetime(2026, 1, 26, 15, 0, tzinfo=timezone.utc),
+    )
+
+    response = await client.post(
+        admin.g("/projects/"),
+        headers=admin.headers,
+        json={
+            "name": "Autumn Deadline",
+            "initiative_id": admin.initiative.id,
+            "template_id": template.id,
+            "end_date": "2026-08-31",
+        },
+    )
+    assert response.status_code == 201
+
+    tasks = await _tasks_by_title(client, admin, response.json()["id"])
+    assert _as_utc(tasks["Final review"]["due_date"]) == datetime(
+        2026, 8, 24, 15, 0, tzinfo=timezone.utc
+    )
+
+
+@pytest.mark.integration
+async def test_create_from_template_without_dates_copies_task_dates_verbatim(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """No start or end on the new project means no re-anchoring — task dates
+    (including start dates) come across unchanged."""
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    template = await create_project(
+        session,
+        admin.initiative,
+        admin.user,
+        name="Plain Template",
+        is_template=True,
+        start_date=date(2026, 1, 5),
+    )
+    await create_task(
+        session,
+        template,
+        title="Kickoff",
+        start_date=datetime(2026, 1, 5, 9, 0, tzinfo=timezone.utc),
+        due_date=datetime(2026, 1, 26, 12, 0, tzinfo=timezone.utc),
+    )
+
+    response = await client.post(
+        admin.g("/projects/"),
+        headers=admin.headers,
+        json={
+            "name": "Undated Run",
+            "initiative_id": admin.initiative.id,
+            "template_id": template.id,
+        },
+    )
+    assert response.status_code == 201
+
+    tasks = await _tasks_by_title(client, admin, response.json()["id"])
+    kickoff = tasks["Kickoff"]
+    assert _as_utc(kickoff["start_date"]) == datetime(
+        2026, 1, 5, 9, 0, tzinfo=timezone.utc
+    )
+    assert _as_utc(kickoff["due_date"]) == datetime(
+        2026, 1, 26, 12, 0, tzinfo=timezone.utc
+    )
 
 
 @pytest.mark.integration
