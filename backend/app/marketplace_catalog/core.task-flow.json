@@ -1,0 +1,69 @@
+{
+  "uid": "V6NC4YB7JG9XSM",
+  "public_id": "core.task-flow",
+  "kind": "dashboard",
+  "name": "Task flow",
+  "publisher": "Initiative",
+  "description": "How work moves through its stages, and when it gets done.",
+  "long_description": "A flow view of the initiative's work: the funnel from the widest stage to the narrowest, the same counts as a chart, and a calendar grid of day-by-day activity.\n\nUseful for spotting where work piles up rather than for tracking any one task.",
+  "avatar_url": "/marketplace/core-task-flow.svg",
+  "images": [],
+  "version": "1.0.0",
+  "release_notes": "First release.",
+  "min_app_version": "0.62.0",
+  "definition": {
+    "schema_version": 1,
+    "kind": "dashboard",
+    "layout": {
+      "columns": 12
+    },
+    "widgets": [
+      {
+        "id": "w1",
+        "type": "funnel",
+        "grid": {
+          "x": 0,
+          "y": 0,
+          "w": 6,
+          "h": 5
+        },
+        "binding": {
+          "source": "task_counts"
+        },
+        "title": "Stages"
+      },
+      {
+        "id": "w2",
+        "type": "chart",
+        "grid": {
+          "x": 6,
+          "y": 0,
+          "w": 6,
+          "h": 5
+        },
+        "binding": {
+          "source": "task_counts"
+        },
+        "title": "Work by status",
+        "options": {
+          "mark": "pie"
+        }
+      },
+      {
+        "id": "w3",
+        "type": "heatmap",
+        "grid": {
+          "x": 0,
+          "y": 5,
+          "w": 12,
+          "h": 3
+        },
+        "binding": {
+          "source": "task_counts",
+          "bucket": "day"
+        },
+        "title": "Activity by day"
+      }
+    ]
+  }
+}
