@@ -325,6 +325,11 @@ export function DataTable<TData extends RowData>({
     return setSorting;
   }, [externalOnSortingChange, sorting]);
 
+  // The single funnel for grouping changes. `grouping` is controlled state, so
+  // setting it directly would move the table without telling the caller — and
+  // callers re-shape their rows off this callback (the project task table fans
+  // a task out into one row per tag), so they'd end up grouping over data they
+  // never rebuilt. Every grouping control routes through here.
   const handleGroupingChange = useCallback(
     (updater: GroupingState | ((old: GroupingState) => GroupingState)) => {
       setGrouping((prev) => {
@@ -704,11 +709,7 @@ export function DataTable<TData extends RowData>({
                     <Select
                       value={groupingSelectValue}
                       onValueChange={(value) => {
-                        if (value === GROUPING_NONE_VALUE) {
-                          setGrouping([]);
-                        } else {
-                          setGrouping([value]);
-                        }
+                        handleGroupingChange(value === GROUPING_NONE_VALUE ? [] : [value]);
                       }}
                     >
                       <SelectTrigger id={groupingSelectId} className="w-40">
@@ -806,7 +807,7 @@ export function DataTable<TData extends RowData>({
                         <DropdownMenuSubContent>
                           <DropdownMenuCheckboxItem
                             checked={groupingSelectValue === GROUPING_NONE_VALUE}
-                            onCheckedChange={() => setGrouping([])}
+                            onCheckedChange={() => handleGroupingChange([])}
                           >
                             {t("none")}
                           </DropdownMenuCheckboxItem>
@@ -814,7 +815,7 @@ export function DataTable<TData extends RowData>({
                             <DropdownMenuCheckboxItem
                               key={option.id}
                               checked={groupingSelectValue === option.id}
-                              onCheckedChange={() => setGrouping([option.id])}
+                              onCheckedChange={() => handleGroupingChange([option.id])}
                             >
                               {option.label}
                             </DropdownMenuCheckboxItem>

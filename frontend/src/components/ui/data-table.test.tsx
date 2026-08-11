@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import type { AppColumnDef } from "@/lib/table";
 
@@ -411,5 +411,57 @@ describe("DataTable virtualization", () => {
   it("keeps the pagination controls when virtualization is off", () => {
     render(<DataTable columns={columns} data={manyRows} enablePagination />);
     expect(screen.getByRole("button", { name: "Next" })).toBeInTheDocument();
+  });
+});
+
+describe("DataTable grouping callback", () => {
+  // Radix's Select relies on pointer-capture and scrollIntoView, neither of
+  // which jsdom implements.
+  beforeAll(() => {
+    Element.prototype.hasPointerCapture ??= () => false;
+    Element.prototype.releasePointerCapture ??= () => {};
+    Element.prototype.scrollIntoView ??= () => {};
+  });
+
+  it("reports a grouping picked from the toolbar to the caller", async () => {
+    // Consumers re-shape their rows in response to this callback — the project
+    // task table fans a task out into one row per tag — so a grouping the
+    // caller never hears about leaves it grouping over data it never rebuilt.
+    const user = userEvent.setup();
+    const seen: string[][] = [];
+    render(
+      <DataTable
+        columns={fannedColumns}
+        data={fannedRows}
+        getRowId={fannedRowId}
+        enableFilterInput
+        groupingOptions={[{ id: "group", label: "Group" }]}
+        onGroupingChange={(next) => seen.push(next)}
+      />
+    );
+
+    await user.click(screen.getByRole("combobox", { name: "Group by" }));
+    await user.click(screen.getByRole("option", { name: "Group" }));
+    expect(seen).toEqual([["group"]]);
+  });
+
+  it("reports clearing the grouping back to None", async () => {
+    const user = userEvent.setup();
+    const seen: string[][] = [];
+    render(
+      <DataTable
+        columns={fannedColumns}
+        data={fannedRows}
+        getRowId={fannedRowId}
+        enableFilterInput
+        groupingOptions={[{ id: "group", label: "Group" }]}
+        initialState={{ grouping: ["group"] }}
+        onGroupingChange={(next) => seen.push(next)}
+      />
+    );
+
+    await user.click(screen.getByRole("combobox", { name: "Group by" }));
+    await user.click(screen.getByRole("option", { name: "None" }));
+    expect(seen).toEqual([[]]);
   });
 });
