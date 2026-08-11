@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.61.1] - 2026-08-10
+
 ### Fixed
 
 - **Signed-out visitors could not reach the sign-in page on 0.61.0.** Anything that landed on the app without a valid session — a first visit, a shared link, or a session that expired in a background tab — spun on a blank unresponsive page instead of redirecting, with no way to log in. The redirect away from the authenticated shell re-fired on every render, and a change in TanStack Router 1.170.19–1.170.25 stopped that redirect from settling, so it looped until the browser gave up. The router is pinned to 1.170.18 until the regression is fixed upstream.
