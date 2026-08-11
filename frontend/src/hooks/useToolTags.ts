@@ -6,11 +6,13 @@ import {
   invalidateAllAdvancedTools,
   invalidateAllCalendars,
   invalidateAllCounterGroups,
+  invalidateAllDashboards,
   invalidateAllDocuments,
   invalidateAllProjects,
   invalidateAllQueues,
   invalidateCalendar,
   invalidateCounterGroup,
+  invalidateDashboard,
   invalidateQueue,
 } from "@/api/query-keys";
 import { useGuildMutation } from "@/hooks/useApiMutation";
@@ -42,6 +44,10 @@ const TOOL_TAG_INVALIDATORS: Record<Tool, (id: number) => void> = {
   [Tool.calendar]: (id) => {
     void invalidateCalendar(id);
     void invalidateAllCalendars();
+  },
+  [Tool.dashboard]: (id) => {
+    void invalidateDashboard(id);
+    void invalidateAllDashboards();
   },
   [Tool.advanced_tool]: (id) => {
     void invalidateAdvancedTool(id);

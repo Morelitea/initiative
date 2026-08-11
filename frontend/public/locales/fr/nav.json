@@ -51,6 +51,8 @@
   "calendars": "Calendrier",
   "allCalendarEvents": "Tous les événements",
   "createCalendar": "Nouveau calendrier",
+  "dashboards": "Tableaux de bord",
+  "createDashboard": "Nouveau tableau de bord",
   "bottomNav": {
     "label": "Navigation rapide",
     "menu": "Ouvrir le menu",

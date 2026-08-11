@@ -102,6 +102,8 @@
     "resource_counter_group_other": "Zählergruppen",
     "resource_calendar_one": "Kalender",
     "resource_calendar_other": "Kalender",
+    "resource_dashboard_one": "Dashboard",
+    "resource_dashboard_other": "Dashboards",
     "resource_advanced_tool_one": "erweitertes Tool",
     "resource_advanced_tool_other": "erweiterte Tools"
   }

@@ -8,6 +8,7 @@ import type command from "../../public/locales/en/command.json";
 import type common from "../../public/locales/en/common.json";
 import type counterGroups from "../../public/locales/en/counterGroups.json";
 import type dashboard from "../../public/locales/en/dashboard.json";
+import type dashboards from "../../public/locales/en/dashboards.json";
 import type dates from "../../public/locales/en/dates.json";
 import type documents from "../../public/locales/en/documents.json";
 import type errors from "../../public/locales/en/errors.json";
@@ -42,6 +43,7 @@ declare module "i18next" {
       common: typeof common;
       counterGroups: typeof counterGroups;
       dashboard: typeof dashboard;
+      dashboards: typeof dashboards;
       dates: typeof dates;
       documents: typeof documents;
       errors: typeof errors;

@@ -71,6 +71,7 @@
     "projects": "Projets",
     "queues": "Files",
     "calendars": "Calendrier",
+    "dashboards": "Tableaux de bord",
     "counterGroups": "Compteurs",
     "advancedTools": "Outils avancés"
   },
@@ -183,6 +184,7 @@
       "projects": "Projets",
       "queues": "Files",
       "calendars": "Événements",
+      "dashboards": "Tableaux de bord",
       "counterGroups": "Compteurs",
       "advancedTools": "Outil avancé"
     },
@@ -195,6 +197,8 @@
       "createQueues": "Créer des files",
       "viewCalendars": "Voir les événements",
       "createCalendars": "Créer des événements",
+      "viewDashboards": "Voir les tableaux de bord",
+      "createDashboards": "Créer des tableaux de bord",
       "viewAdvancedTools": "Ouvrir l’outil avancé",
       "createAdvancedTools": "Créer dans l’outil avancé",
       "viewCounterGroups": "Voir les compteurs",
@@ -207,6 +211,8 @@
   "queuesFeatureDescription": "Organisez les éléments par priorité, suivez l'ordre de passage et gérez qui passe ensuite.",
   "calendarsFeature": "Calendrier",
   "calendarsFeatureDescription": "Organisez les événements dans des calendriers partageables avec participants et suivi des réponses.",
+  "dashboardsFeature": "Tableaux de bord",
+  "dashboardsFeatureDescription": "Composez un canevas de graphiques, d’indicateurs et de chronologies qui affiche le travail existant — un tableau de bord ne modifie jamais les données qu’il présente.",
   "advancedToolsFeatureDescription": "Intégrez le panneau {{name}} à cette initiative.",
   "advancedTool": {
     "connecting": "Connexion…",

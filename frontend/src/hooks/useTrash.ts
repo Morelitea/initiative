@@ -21,6 +21,7 @@ import {
   invalidateAllCalendars,
   invalidateAllComments,
   invalidateAllCounterGroups,
+  invalidateAllDashboards,
   invalidateAllDocuments,
   invalidateAllInitiatives,
   invalidateAllProjects,
@@ -80,6 +81,7 @@ const ENTITY_INVALIDATORS: Record<TrashItemEntityType, () => unknown> = {
   calendar_event: invalidateAllCalendarEvents,
   counter_group: invalidateAllCounterGroups,
   counter: invalidateAllCounterGroups,
+  dashboard: invalidateAllDashboards,
   advanced_tool: invalidateAllAdvancedTools,
 };
 

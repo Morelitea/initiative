@@ -71,6 +71,7 @@
     "projects": "Projects",
     "queues": "Queues",
     "calendars": "Calendar",
+    "dashboards": "Dashboards",
     "counterGroups": "Counters",
     "advancedTools": "Advanced Tools"
   },
@@ -183,6 +184,7 @@
       "projects": "Projects",
       "queues": "Queues",
       "calendars": "Events",
+      "dashboards": "Dashboards",
       "counterGroups": "Counters",
       "advancedTools": "Advanced Tool"
     },
@@ -195,6 +197,8 @@
       "createQueues": "Create Queues",
       "viewCalendars": "View Events",
       "createCalendars": "Create Events",
+      "viewDashboards": "View Dashboards",
+      "createDashboards": "Create Dashboards",
       "viewAdvancedTools": "Open Advanced Tool",
       "createAdvancedTools": "Create in Advanced Tool",
       "viewCounterGroups": "View Counters",
@@ -207,6 +211,8 @@
   "queuesFeatureDescription": "Organize items by priority, track turn order, and manage who goes next.",
   "calendarsFeature": "Calendar",
   "calendarsFeatureDescription": "Organize events into shareable calendars with attendees and RSVP tracking.",
+  "dashboardsFeature": "Dashboards",
+  "dashboardsFeatureDescription": "Build a canvas of charts, KPIs, and timelines that displays existing work — a dashboard never edits the data it shows.",
   "counterGroupsFeature": "Counters",
   "counterGroupsFeatureDescription": "Track numeric values like HP, scores, or budgets — clamped, stepped, and shown as numbers, bars, or radial gauges.",
   "advancedToolsFeatureDescription": "Embed the {{name}} panel under this initiative.",

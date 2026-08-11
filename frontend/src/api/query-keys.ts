@@ -332,6 +332,13 @@ export const invalidateAllCalendars = () =>
 export const invalidateCalendar = (calendarId: number) =>
   invalidateGuildExact([`/api/v1/calendars/${calendarId}`]);
 
+// ── Dashboards (guild) ────────────────────────────────────────────────────────────
+
+export const invalidateAllDashboards = () => invalidateGuildPrefix("/api/v1/dashboards");
+
+export const invalidateDashboard = (dashboardId: number) =>
+  invalidateGuildExact([`/api/v1/dashboards/${dashboardId}`]);
+
 // ── Advanced Tools (guild) ────────────────────────────────────────────────────────
 
 export const invalidateAllAdvancedTools = () => invalidateGuildPrefix("/api/v1/advanced-tools");

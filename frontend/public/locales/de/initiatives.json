@@ -71,6 +71,7 @@
     "projects": "Projekte",
     "queues": "Abläufe (Queues)",
     "calendars": "Kalender",
+    "dashboards": "Dashboards",
     "counterGroups": "Zähler",
     "advancedTools": "Erweiterte Tools"
   },
@@ -183,6 +184,7 @@
       "projects": "Projekte",
       "queues": "Abläufe (Queues)",
       "calendars": "Termine",
+      "dashboards": "Dashboards",
       "counterGroups": "Zähler",
       "advancedTools": "Erweitertes Tool"
     },
@@ -195,6 +197,8 @@
       "createQueues": "Abläufe (Queues) erstellen",
       "viewCalendars": "Termine anzeigen",
       "createCalendars": "Termine erstellen",
+      "viewDashboards": "Dashboards anzeigen",
+      "createDashboards": "Dashboards erstellen",
       "viewAdvancedTools": "Erweitertes Tool öffnen",
       "createAdvancedTools": "Im erweiterten Tool erstellen",
       "viewCounterGroups": "Zähler anzeigen",
@@ -207,6 +211,8 @@
   "queuesFeatureDescription": "Organisiere Elemente nach Priorität, verfolge die Reihenfolge und verwalte, wer als Nächstes dran ist.",
   "calendarsFeature": "Kalender",
   "calendarsFeatureDescription": "Organisieren Sie Termine in teilbaren Kalendern mit Teilnehmern und RSVP-Verfolgung.",
+  "dashboardsFeature": "Dashboards",
+  "dashboardsFeatureDescription": "Baue eine Arbeitsfläche aus Diagrammen, Kennzahlen und Zeitleisten, die bestehende Arbeit anzeigt – ein Dashboard bearbeitet die dargestellten Daten nie.",
   "counterGroupsFeature": "Zähler",
   "counterGroupsFeatureDescription": "Zählergruppen bündeln zusammengehörige Werte (wie HP, Scores oder Budgets), die du flexibel begrenzen oder stufenweise anpassen kannst – visuell dargestellt als Zahlen, Balken oder Kreis (Uhr)",
   "advancedToolsFeatureDescription": "Bette das {{name}}-Panel unter dieser Initiative ein.",
