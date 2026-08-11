@@ -5,24 +5,14 @@ from typing import Literal, Optional
 
 from pydantic import ConfigDict
 
+from app.core.tools import TRASH_TARGETS
 from app.schemas.base import SanitizedBaseModel
 
 
-EntityType = Literal[
-    "project",
-    "task",
-    "document",
-    "comment",
-    "initiative",
-    "tag",
-    "queue",
-    "queue_item",
-    "calendar",
-    "calendar_event",
-    "counter_group",
-    "counter",
-    "advanced_tool",
-]
+# Derived from the Tool enum plus the non-tool trashable extras, the same way
+# TagTarget derives from TAG_TARGETS — a new tool reaches the trash can without
+# this being edited. ``trash_test`` asserts ENTITY_REGISTRY covers every target.
+EntityType = Literal[TRASH_TARGETS]  # type: ignore[valid-type]
 
 
 class TrashItem(SanitizedBaseModel):

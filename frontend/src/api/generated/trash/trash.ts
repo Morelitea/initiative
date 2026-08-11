@@ -219,18 +219,19 @@ export const restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost =
   guildId: number,
   entityType:
     | "project"
-    | "task"
     | "document"
+    | "queue"
+    | "counter_group"
+    | "calendar"
+    | "dashboard"
+    | "advanced_tool"
+    | "task"
+    | "queue_item"
+    | "calendar_event"
+    | "counter"
     | "comment"
     | "initiative"
-    | "tag"
-    | "queue"
-    | "queue_item"
-    | "calendar"
-    | "calendar_event"
-    | "counter_group"
-    | "counter"
-    | "advanced_tool",
+    | "tag",
   entityId: number,
   restoreRequest: BodyType<RestoreRequest>,
   options?: SecondParameter<typeof apiMutator>,
@@ -259,18 +260,19 @@ export const getRestoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePos
       guildId: number;
       entityType:
         | "project"
-        | "task"
         | "document"
+        | "queue"
+        | "counter_group"
+        | "calendar"
+        | "dashboard"
+        | "advanced_tool"
+        | "task"
+        | "queue_item"
+        | "calendar_event"
+        | "counter"
         | "comment"
         | "initiative"
-        | "tag"
-        | "queue"
-        | "queue_item"
-        | "calendar"
-        | "calendar_event"
-        | "counter_group"
-        | "counter"
-        | "advanced_tool";
+        | "tag";
       entityId: number;
       data: BodyType<RestoreRequest>;
     },
@@ -284,18 +286,19 @@ export const getRestoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePos
     guildId: number;
     entityType:
       | "project"
-      | "task"
       | "document"
+      | "queue"
+      | "counter_group"
+      | "calendar"
+      | "dashboard"
+      | "advanced_tool"
+      | "task"
+      | "queue_item"
+      | "calendar_event"
+      | "counter"
       | "comment"
       | "initiative"
-      | "tag"
-      | "queue"
-      | "queue_item"
-      | "calendar"
-      | "calendar_event"
-      | "counter_group"
-      | "counter"
-      | "advanced_tool";
+      | "tag";
     entityId: number;
     data: BodyType<RestoreRequest>;
   },
@@ -314,18 +317,19 @@ export const getRestoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePos
       guildId: number;
       entityType:
         | "project"
-        | "task"
         | "document"
+        | "queue"
+        | "counter_group"
+        | "calendar"
+        | "dashboard"
+        | "advanced_tool"
+        | "task"
+        | "queue_item"
+        | "calendar_event"
+        | "counter"
         | "comment"
         | "initiative"
-        | "tag"
-        | "queue"
-        | "queue_item"
-        | "calendar"
-        | "calendar_event"
-        | "counter_group"
-        | "counter"
-        | "advanced_tool";
+        | "tag";
       entityId: number;
       data: BodyType<RestoreRequest>;
     }
@@ -368,18 +372,19 @@ export const useRestoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePos
         guildId: number;
         entityType:
           | "project"
-          | "task"
           | "document"
+          | "queue"
+          | "counter_group"
+          | "calendar"
+          | "dashboard"
+          | "advanced_tool"
+          | "task"
+          | "queue_item"
+          | "calendar_event"
+          | "counter"
           | "comment"
           | "initiative"
-          | "tag"
-          | "queue"
-          | "queue_item"
-          | "calendar"
-          | "calendar_event"
-          | "counter_group"
-          | "counter"
-          | "advanced_tool";
+          | "tag";
         entityId: number;
         data: BodyType<RestoreRequest>;
       },
@@ -395,18 +400,19 @@ export const useRestoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePos
     guildId: number;
     entityType:
       | "project"
-      | "task"
       | "document"
+      | "queue"
+      | "counter_group"
+      | "calendar"
+      | "dashboard"
+      | "advanced_tool"
+      | "task"
+      | "queue_item"
+      | "calendar_event"
+      | "counter"
       | "comment"
       | "initiative"
-      | "tag"
-      | "queue"
-      | "queue_item"
-      | "calendar"
-      | "calendar_event"
-      | "counter_group"
-      | "counter"
-      | "advanced_tool";
+      | "tag";
     entityId: number;
     data: BodyType<RestoreRequest>;
   },
@@ -436,18 +442,19 @@ export const purgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete = (
   guildId: number,
   entityType:
     | "project"
-    | "task"
     | "document"
+    | "queue"
+    | "counter_group"
+    | "calendar"
+    | "dashboard"
+    | "advanced_tool"
+    | "task"
+    | "queue_item"
+    | "calendar_event"
+    | "counter"
     | "comment"
     | "initiative"
-    | "tag"
-    | "queue"
-    | "queue_item"
-    | "calendar"
-    | "calendar_event"
-    | "counter_group"
-    | "counter"
-    | "advanced_tool",
+    | "tag",
   entityId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -469,18 +476,19 @@ export const getPurgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDeleteM
       guildId: number;
       entityType:
         | "project"
-        | "task"
         | "document"
+        | "queue"
+        | "counter_group"
+        | "calendar"
+        | "dashboard"
+        | "advanced_tool"
+        | "task"
+        | "queue_item"
+        | "calendar_event"
+        | "counter"
         | "comment"
         | "initiative"
-        | "tag"
-        | "queue"
-        | "queue_item"
-        | "calendar"
-        | "calendar_event"
-        | "counter_group"
-        | "counter"
-        | "advanced_tool";
+        | "tag";
       entityId: number;
     },
     TContext
@@ -493,18 +501,19 @@ export const getPurgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDeleteM
     guildId: number;
     entityType:
       | "project"
-      | "task"
       | "document"
+      | "queue"
+      | "counter_group"
+      | "calendar"
+      | "dashboard"
+      | "advanced_tool"
+      | "task"
+      | "queue_item"
+      | "calendar_event"
+      | "counter"
       | "comment"
       | "initiative"
-      | "tag"
-      | "queue"
-      | "queue_item"
-      | "calendar"
-      | "calendar_event"
-      | "counter_group"
-      | "counter"
-      | "advanced_tool";
+      | "tag";
     entityId: number;
   },
   TContext
@@ -522,18 +531,19 @@ export const getPurgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDeleteM
       guildId: number;
       entityType:
         | "project"
-        | "task"
         | "document"
+        | "queue"
+        | "counter_group"
+        | "calendar"
+        | "dashboard"
+        | "advanced_tool"
+        | "task"
+        | "queue_item"
+        | "calendar_event"
+        | "counter"
         | "comment"
         | "initiative"
-        | "tag"
-        | "queue"
-        | "queue_item"
-        | "calendar"
-        | "calendar_event"
-        | "counter_group"
-        | "counter"
-        | "advanced_tool";
+        | "tag";
       entityId: number;
     }
   > = (props) => {
@@ -573,18 +583,19 @@ export const usePurgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete 
         guildId: number;
         entityType:
           | "project"
-          | "task"
           | "document"
+          | "queue"
+          | "counter_group"
+          | "calendar"
+          | "dashboard"
+          | "advanced_tool"
+          | "task"
+          | "queue_item"
+          | "calendar_event"
+          | "counter"
           | "comment"
           | "initiative"
-          | "tag"
-          | "queue"
-          | "queue_item"
-          | "calendar"
-          | "calendar_event"
-          | "counter_group"
-          | "counter"
-          | "advanced_tool";
+          | "tag";
         entityId: number;
       },
       TContext
@@ -599,18 +610,19 @@ export const usePurgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete 
     guildId: number;
     entityType:
       | "project"
-      | "task"
       | "document"
+      | "queue"
+      | "counter_group"
+      | "calendar"
+      | "dashboard"
+      | "advanced_tool"
+      | "task"
+      | "queue_item"
+      | "calendar_event"
+      | "counter"
       | "comment"
       | "initiative"
-      | "tag"
-      | "queue"
-      | "queue_item"
-      | "calendar"
-      | "calendar_event"
-      | "counter_group"
-      | "counter"
-      | "advanced_tool";
+      | "tag";
     entityId: number;
   },
   TContext

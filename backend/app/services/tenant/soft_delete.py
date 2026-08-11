@@ -37,6 +37,7 @@ from app.models.tenant.advanced_tool import AdvancedTool
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
+from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.document import Document
 from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.models.tenant.project import Project
@@ -57,6 +58,7 @@ CASCADE_CHILDREN: dict[type, list[tuple[type, str]]] = {
         (Document, "initiative_id"),
         (Queue, "initiative_id"),
         (Calendar, "initiative_id"),
+        (Dashboard, "initiative_id"),
         (CounterGroup, "initiative_id"),
     ],
     Project: [(Task, "project_id")],

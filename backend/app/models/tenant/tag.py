@@ -15,6 +15,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.queue import QueueItemTag, QueueTag
     from app.models.tenant.calendar import CalendarTag
     from app.models.tenant.calendar_event import CalendarEventTag
+    from app.models.tenant.dashboard import DashboardTag
     from app.models.tenant.counter import CounterGroupTag
     from app.models.tenant.advanced_tool import AdvancedToolTag
 
@@ -70,6 +71,10 @@ class Tag(SoftDeleteMixin, table=True):
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
     calendar_event_links: List["CalendarEventTag"] = Relationship(
+        back_populates="tag",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    dashboard_links: List["DashboardTag"] = Relationship(
         back_populates="tag",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )

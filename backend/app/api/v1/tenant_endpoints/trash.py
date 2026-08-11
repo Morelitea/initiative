@@ -36,6 +36,7 @@ from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
+from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.document import Document
 from app.models.platform.guild import GuildRole
 from app.models.tenant.initiative import Initiative
@@ -83,6 +84,7 @@ ENTITY_REGISTRY: dict[EntityType, tuple[type[SQLModel], str]] = {
     "queue_item": (QueueItem, "label"),
     "calendar": (Calendar, "name"),
     "calendar_event": (CalendarEvent, "title"),
+    "dashboard": (Dashboard, "name"),
     "counter_group": (CounterGroup, "name"),
     "counter": (Counter, "name"),
     "advanced_tool": (AdvancedTool, "name"),
@@ -139,6 +141,7 @@ _DEDUP_PARENTS: dict[type[SQLModel], list[tuple[type[SQLModel], str]]] = {
     QueueItem: [(Queue, "queue_id")],
     Calendar: [(Initiative, "initiative_id")],
     CalendarEvent: [(Calendar, "calendar_id")],
+    Dashboard: [(Initiative, "initiative_id")],
     CounterGroup: [(Initiative, "initiative_id")],
     Counter: [(CounterGroup, "counter_group_id")],
     # Guild-wide advanced tools (initiative_id NULL) have no parent to cascade

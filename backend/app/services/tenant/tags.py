@@ -28,6 +28,7 @@ from app.models.tenant.advanced_tool import AdvancedTool, AdvancedToolTag
 from app.models.tenant.calendar import Calendar, CalendarTag
 from app.models.tenant.calendar_event import CalendarEvent, CalendarEventTag
 from app.models.tenant.counter import CounterGroup, CounterGroupTag
+from app.models.tenant.dashboard import Dashboard, DashboardTag
 from app.models.tenant.document import Document
 from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue, QueueItem, QueueItemTag, QueueTag
@@ -84,6 +85,7 @@ TOOL_TAG_LINKS: dict[Tool, TagLinkSpec] = {
     Tool.queue: TagLinkSpec(Queue, QueueTag, "queue_id"),
     Tool.counter_group: TagLinkSpec(CounterGroup, CounterGroupTag, "counter_group_id"),
     Tool.calendar: TagLinkSpec(Calendar, CalendarTag, "calendar_id"),
+    Tool.dashboard: TagLinkSpec(Dashboard, DashboardTag, "dashboard_id"),
     Tool.advanced_tool: TagLinkSpec(AdvancedTool, AdvancedToolTag, "advanced_tool_id"),
 }
 

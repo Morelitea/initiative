@@ -27,6 +27,7 @@ from app.core.messages import (
     AdvancedToolMessages,
     CalendarMessages,
     CounterMessages,
+    DashboardMessages,
     DocumentMessages,
     ProjectMessages,
     QueueMessages,
@@ -41,6 +42,7 @@ from app.services import permissions as permissions_service
 from app.services.tenant import advanced_tool as advanced_tool_service
 from app.services.tenant import calendars as calendars_service
 from app.services.tenant import counters as counters_service
+from app.services.tenant import dashboards as dashboards_service
 from app.services.tenant import documents as documents_service
 from app.services.tenant import project_grants
 from app.services.tenant import queues as queues_service
@@ -102,6 +104,15 @@ RESOURCE_ACCESS: dict[Tool, ResourceAccessConfig] = {
         loader=calendars_service.get_calendar,
         path_param="calendar_id",
         not_found_msg=CalendarMessages.NOT_FOUND,
+    ),
+    Tool.dashboard: ResourceAccessConfig(
+        dac_kind=Tool.dashboard,
+        feature_attr=Tool.dashboard.view_permission,
+        feature_disabled_msg=DashboardMessages.FEATURE_DISABLED,
+        grant_cannot_manage_msg=DashboardMessages.GRANT_CANNOT_MANAGE_MEMBERS,
+        loader=dashboards_service.get_dashboard,
+        path_param="dashboard_id",
+        not_found_msg=DashboardMessages.NOT_FOUND,
     ),
     Tool.advanced_tool: ResourceAccessConfig(
         dac_kind=Tool.advanced_tool,

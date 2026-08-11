@@ -160,6 +160,7 @@ INITIATIVE_PATHS: dict[str, PathBuilder] = {
     "queues": direct(),
     "counter_groups": direct(),
     "calendars": direct(),
+    "dashboards": direct(),
     "property_definitions": direct(),
     "resource_grants": direct(),
     # Advanced tools: initiative_id is NULLABLE — a NULL row is guild-wide, and
@@ -188,6 +189,8 @@ INITIATIVE_PATHS: dict[str, PathBuilder] = {
     # One hop -> calendars
     "calendar_events": via("calendars", "calendar_id"),
     "calendar_tags": via("calendars", "calendar_id"),
+    # One hop -> dashboards
+    "dashboard_tags": via("dashboards", "dashboard_id"),
     # Two hops -> tasks -> projects
     "subtasks": via_task_project("task_id"),
     "task_assignees": via_task_project("task_id"),
