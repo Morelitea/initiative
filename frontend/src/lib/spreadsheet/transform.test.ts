@@ -4,6 +4,7 @@ import { type CellValue, keyOf } from "./coords";
 import type { CellFmt, ColumnFmt, RowFmt } from "./styles";
 import {
   type LineOp,
+  rewriteReferencesToSheet,
   type SheetStructures,
   type TransformResult,
   transformSheet,
@@ -235,5 +236,75 @@ describe("transformSheet — formula reference rewriting", () => {
     // "=A1 plain" is a formula string; "A1" has a trailing space then text,
     // so the ref still rewrites, but the surrounding text is preserved.
     expect(result.cells[keyOf(7, 0)]).toBe("literal");
+  });
+});
+
+describe("multi-sheet transforms", () => {
+  it("shifts a formula's references to its own sheet, however they're spelled", () => {
+    const result = transformSheet(
+      { ...sheet({ cells: cellMap({ "0:0": "=A5+Budget!A5+Data!A5" }) }) },
+      {
+        axis: "row",
+        mode: "insert",
+        at: 0,
+        count: 1,
+        maxRows: 1000,
+        maxCols: 100,
+        sheetName: "Budget",
+      }
+    );
+    // The unqualified and self-qualified references move; the one pointing
+    // at another sheet's rows does not.
+    expect(result?.cells["1:0"]).toBe("=A6+Budget!A6+Data!A5");
+  });
+
+  it("hands back the mapper so other sheets can replay the same shift", () => {
+    const result = transformSheet(
+      { ...sheet({ dimensions: { rows: 10, cols: 5 } }) },
+      { axis: "row", mode: "insert", at: 0, count: 2, maxRows: 1000, maxCols: 100 }
+    );
+    expect(result?.mapIndex(0)).toBe(2);
+    expect(result?.mapIndex(7)).toBe(9);
+  });
+});
+
+describe("rewriteReferencesToSheet", () => {
+  const shiftDown = (i: number) => i + 1;
+
+  it("moves only the references that name the transformed sheet", () => {
+    const out = rewriteReferencesToSheet(
+      cellMap({ "0:0": "=Data!A5+A5", "0:1": "=Other!A5", "0:2": 42 }),
+      { sheetName: "Data", axis: "row", mapIndex: shiftDown }
+    );
+    expect(out).toEqual({ "0:0": "=Data!A6+A5" });
+  });
+
+  it("matches the sheet name case-insensitively", () => {
+    expect(
+      rewriteReferencesToSheet(cellMap({ "0:0": "=dAtA!A5" }), {
+        sheetName: "Data",
+        axis: "row",
+        mapIndex: shiftDown,
+      })
+    ).toEqual({ "0:0": "=dAtA!A6" });
+  });
+
+  it("returns null when no formula reaches the transformed sheet", () => {
+    expect(
+      rewriteReferencesToSheet(cellMap({ "0:0": "=A5", "1:0": "plain" }), {
+        sheetName: "Data",
+        axis: "row",
+        mapIndex: shiftDown,
+      })
+    ).toBeNull();
+  });
+
+  it("accepts a plain record as well as a Map", () => {
+    expect(
+      rewriteReferencesToSheet(
+        { "0:0": "=Data!B2" },
+        { sheetName: "Data", axis: "col", mapIndex: (i) => i + 1 }
+      )
+    ).toEqual({ "0:0": "=Data!C2" });
   });
 });

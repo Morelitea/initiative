@@ -15,6 +15,13 @@ from app.models.tenant.initiative import Initiative
 from app.models.platform.user import User
 
 
+def _sheet(content: dict, index: int = 0) -> dict:
+    """One sheet out of a v3 workbook snapshot. Cells, dimensions, and the
+    formatting maps live per sheet; only ``kind`` / ``schema_version`` sit
+    at the top level."""
+    return content["sheets"][index]
+
+
 @dataclass
 class _SpreadsheetEnv:
     user: User
@@ -76,9 +83,9 @@ async def test_create_spreadsheet_round_trips_cells(
     assert response.status_code == 200
     content = response.json()["content"]
     # v1 input is upcast to the current schema version on save.
-    assert content["schema_version"] == 2
+    assert content["schema_version"] == 3
     assert content["kind"] == "spreadsheet"
-    assert content["cells"] == {
+    assert _sheet(content)["cells"] == {
         "0:0": "Date",
         "0:1": "Amount",
         "1:0": "2026-05-01",
@@ -111,7 +118,7 @@ async def test_patch_spreadsheet_replaces_cells(
         json={"content": {"cells": {"0:0": "after", "5:7": 99}}},
     )
     assert patch_response.status_code == 200, patch_response.text
-    cells = patch_response.json()["content"]["cells"]
+    cells = _sheet(patch_response.json()["content"])["cells"]
     assert cells == {"0:0": "after", "5:7": 99}
 
 
@@ -237,7 +244,7 @@ async def test_create_spreadsheet_canonicalizes_cell_keys(
         },
     )
     assert response.status_code == 201, response.text
-    cells = response.json()["content"]["cells"]
+    cells = _sheet(response.json()["content"])["cells"]
     assert cells == {
         "1:2": "padded row",
         "3:4": "padded col",
@@ -262,19 +269,19 @@ async def test_create_spreadsheet_with_empty_content(
     )
     assert response.status_code == 201, response.text
     content = response.json()["content"]
-    assert content["cells"] == {}
-    assert content["dimensions"] == {"rows": 100, "cols": 26}
+    assert _sheet(content)["cells"] == {}
+    assert _sheet(content)["dimensions"] == {"rows": 100, "cols": 26}
     assert content["kind"] == "spreadsheet"
-    assert content["schema_version"] == 2
+    assert content["schema_version"] == 3
     # Fresh docs default to empty formatting structures.
-    assert content["columns"] == {}
-    assert content["rows"] == {}
-    assert content["cellStyles"] == {}
-    assert content["frozen"] == {"rows": 0, "cols": 0}
+    assert _sheet(content)["columns"] == {}
+    assert _sheet(content)["rows"] == {}
+    assert _sheet(content)["cellStyles"] == {}
+    assert _sheet(content)["frozen"] == {"rows": 0, "cols": 0}
 
 
 @pytest.mark.integration
-async def test_v1_payload_upcasts_to_v2(client: AsyncClient, env: _SpreadsheetEnv):
+async def test_v1_payload_upcasts_to_current(client: AsyncClient, env: _SpreadsheetEnv):
     """An explicit v1 payload (no formatting keys) is accepted and saved
     as v2 with empty formatting structures — existing documents keep
     working without a data migration and never 422."""
@@ -295,12 +302,12 @@ async def test_v1_payload_upcasts_to_v2(client: AsyncClient, env: _SpreadsheetEn
     )
     assert response.status_code == 201, response.text
     content = response.json()["content"]
-    assert content["schema_version"] == 2
-    assert content["cells"] == {"0:0": "kept"}
-    assert content["columns"] == {}
-    assert content["rows"] == {}
-    assert content["cellStyles"] == {}
-    assert content["frozen"] == {"rows": 0, "cols": 0}
+    assert content["schema_version"] == 3
+    assert _sheet(content)["cells"] == {"0:0": "kept"}
+    assert _sheet(content)["columns"] == {}
+    assert _sheet(content)["rows"] == {}
+    assert _sheet(content)["cellStyles"] == {}
+    assert _sheet(content)["frozen"] == {"rows": 0, "cols": 0}
 
 
 @pytest.mark.integration
@@ -340,22 +347,22 @@ async def test_v2_formatting_round_trips(client: AsyncClient, env: _SpreadsheetE
     )
     assert response.status_code == 201, response.text
     content = response.json()["content"]
-    assert content["schema_version"] == 2
-    assert content["columns"] == {
+    assert content["schema_version"] == 3
+    assert _sheet(content)["columns"] == {
         "0": {
             "width": 180,
             "format": {"type": "currency", "currency": "USD", "decimals": 2},
             "style": {"bold": True, "align": "right"},
         }
     }
-    assert content["rows"] == {"0": {"height": 32, "style": {"bold": True}}}
-    assert content["cellStyles"] == {
+    assert _sheet(content)["rows"] == {"0": {"height": 32, "style": {"bold": True}}}
+    assert _sheet(content)["cellStyles"] == {
         "1:0": {
             "style": {"fill": "#ffeecc"},
             "format": {"type": "fixed", "decimals": 1},
         }
     }
-    assert content["frozen"] == {"rows": 1, "cols": 1}
+    assert _sheet(content)["frozen"] == {"rows": 1, "cols": 1}
 
 
 @pytest.mark.integration
@@ -383,10 +390,10 @@ async def test_v2_clamps_sizes_and_frozen(client: AsyncClient, env: _Spreadsheet
     )
     assert response.status_code == 201, response.text
     content = response.json()["content"]
-    assert content["columns"]["0"]["width"] == 2000
-    assert content["columns"]["0"]["format"]["decimals"] == 10
-    assert content["rows"]["0"]["height"] == 16
-    assert content["frozen"] == {"rows": 8, "cols": 0}
+    assert _sheet(content)["columns"]["0"]["width"] == 2000
+    assert _sheet(content)["columns"]["0"]["format"]["decimals"] == 10
+    assert _sheet(content)["rows"]["0"]["height"] == 16
+    assert _sheet(content)["frozen"] == {"rows": 8, "cols": 0}
 
 
 @pytest.mark.integration
@@ -423,8 +430,8 @@ async def test_v2_drops_malformed_formatting(client: AsyncClient, env: _Spreadsh
     assert response.status_code == 201, response.text
     content = response.json()["content"]
     # Only the valid ``bold`` survived; the column entry is kept.
-    assert content["columns"] == {"0": {"style": {"bold": True}}}
-    assert content["cellStyles"] == {}
+    assert _sheet(content)["columns"] == {"0": {"style": {"bold": True}}}
+    assert _sheet(content)["cellStyles"] == {}
 
 
 @pytest.mark.integration
@@ -468,8 +475,8 @@ async def test_v2_canonicalizes_formatting_keys(
     )
     assert response.status_code == 201, response.text
     content = response.json()["content"]
-    assert content["columns"] == {"7": {"width": 90}}
-    assert content["cellStyles"] == {"1:2": {"style": {"italic": True}}}
+    assert _sheet(content)["columns"] == {"7": {"width": 90}}
+    assert _sheet(content)["cellStyles"] == {"1:2": {"style": {"italic": True}}}
 
 
 @pytest.mark.integration
@@ -505,7 +512,7 @@ async def test_v2_border_round_trips_and_drops_bad_edges(
     )
     assert response.status_code == 201, response.text
     content = response.json()["content"]
-    assert content["cellStyles"] == {
+    assert _sheet(content)["cellStyles"] == {
         "0:0": {"style": {"border": {"top": {"style": "thin", "color": "#abcdef"}}}}
     }
 
@@ -556,20 +563,236 @@ async def test_v2_tier1_style_and_number_options(
     )
     assert response.status_code == 201, response.text
     content = response.json()["content"]
-    assert content["cellStyles"]["0:0"]["style"] == {
+    assert _sheet(content)["cellStyles"]["0:0"]["style"] == {
         "underline": True,
         "strike": False,
         "fontSize": 96,
     }
-    assert content["cellStyles"]["0:0"]["format"] == {
+    assert _sheet(content)["cellStyles"]["0:0"]["format"] == {
         "type": "fixed",
         "decimals": 2,
         "grouping": True,
         "negatives": "redParens",
     }
     # Unknown negative style dropped; currency otherwise preserved.
-    assert content["cellStyles"]["1:0"]["format"] == {
+    assert _sheet(content)["cellStyles"]["1:0"]["format"] == {
         "type": "currency",
         "currency": "EUR",
         "decimals": 0,
     }
+
+
+# ---------------------------------------------------------------------------
+# v3: multiple sheets
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+async def test_v3_multiple_sheets_round_trip(client: AsyncClient, env: _SpreadsheetEnv):
+    """A workbook keeps its sheets, their order, and each sheet's own cells,
+    dimensions, and formatting."""
+    response = await client.post(
+        f"/api/v1/g/{env.guild.id}/documents/",
+        headers=env.headers,
+        json={
+            "title": "Workbook",
+            "initiative_id": env.initiative.id,
+            "document_type": "spreadsheet",
+            "content": {
+                "schema_version": 3,
+                "kind": "spreadsheet",
+                "sheets": [
+                    {
+                        "id": "s1",
+                        "name": "Summary",
+                        "dimensions": {"rows": 100, "cols": 26},
+                        "cells": {"0:0": "=SUM(Data!A1:A3)"},
+                        "frozen": {"rows": 1, "cols": 0},
+                    },
+                    {
+                        "id": "sabc123",
+                        "name": "Data",
+                        "dimensions": {"rows": 100, "cols": 26},
+                        "cells": {"0:0": 1, "1:0": 2, "2:0": 3},
+                        "columns": {"0": {"width": 140}},
+                    },
+                ],
+            },
+        },
+    )
+    assert response.status_code == 201, response.text
+    content = response.json()["content"]
+    assert content["schema_version"] == 3
+    assert [s["name"] for s in content["sheets"]] == ["Summary", "Data"]
+    assert [s["id"] for s in content["sheets"]] == ["s1", "sabc123"]
+    # The cross-sheet formula is opaque text to the backend and survives.
+    assert _sheet(content, 0)["cells"] == {"0:0": "=SUM(Data!A1:A3)"}
+    assert _sheet(content, 0)["frozen"] == {"rows": 1, "cols": 0}
+    assert _sheet(content, 1)["cells"] == {"0:0": 1, "1:0": 2, "2:0": 3}
+    assert _sheet(content, 1)["columns"] == {"0": {"width": 140}}
+
+
+@pytest.mark.integration
+async def test_v2_payload_upcasts_to_single_sheet(
+    client: AsyncClient, env: _SpreadsheetEnv
+):
+    """A pre-multi-sheet payload is read as the workbook's one sheet, keeping
+    its cells and formatting — existing documents never 422 and never lose
+    data on their next save."""
+    response = await client.post(
+        f"/api/v1/g/{env.guild.id}/documents/",
+        headers=env.headers,
+        json={
+            "title": "Legacy",
+            "initiative_id": env.initiative.id,
+            "document_type": "spreadsheet",
+            "content": {
+                "schema_version": 2,
+                "kind": "spreadsheet",
+                "dimensions": {"rows": 100, "cols": 26},
+                "cells": {"0:0": "kept"},
+                "columns": {"0": {"width": 200}},
+                "frozen": {"rows": 1, "cols": 1},
+            },
+        },
+    )
+    assert response.status_code == 201, response.text
+    content = response.json()["content"]
+    assert content["schema_version"] == 3
+    assert len(content["sheets"]) == 1
+    assert _sheet(content)["id"] == "s1"
+    assert _sheet(content)["name"] == "Sheet1"
+    assert _sheet(content)["cells"] == {"0:0": "kept"}
+    assert _sheet(content)["columns"] == {"0": {"width": 200}}
+    assert _sheet(content)["frozen"] == {"rows": 1, "cols": 1}
+
+
+@pytest.mark.integration
+async def test_v3_sheet_names_are_sanitized_and_deduplicated(
+    client: AsyncClient, env: _SpreadsheetEnv
+):
+    """Names are load-bearing (a formula addresses a sheet by name), so the
+    forbidden characters are stripped, the length is capped at Excel's 31,
+    and collisions are broken case-insensitively."""
+    response = await client.post(
+        f"/api/v1/g/{env.guild.id}/documents/",
+        headers=env.headers,
+        json={
+            "title": "Names",
+            "initiative_id": env.initiative.id,
+            "document_type": "spreadsheet",
+            "content": {
+                "schema_version": 3,
+                "kind": "spreadsheet",
+                "sheets": [
+                    {"id": "s1", "name": "Q1/Q2: *plan*?", "cells": {}},
+                    {"id": "s2", "name": "budget", "cells": {}},
+                    {"id": "s3", "name": "BUDGET", "cells": {}},
+                    {"id": "s4", "name": "   ", "cells": {}},
+                    {"id": "s5", "name": "x" * 50, "cells": {}},
+                ],
+            },
+        },
+    )
+    assert response.status_code == 201, response.text
+    names = [s["name"] for s in response.json()["content"]["sheets"]]
+    assert names[0] == "Q1Q2 plan"
+    assert names[1] == "budget"
+    # Case-insensitive collision — a reference resolves case-insensitively.
+    assert names[2] == "BUDGET 2"
+    # Nothing usable left; falls back to the positional default.
+    assert names[3] == "Sheet4"
+    assert names[4] == "x" * 31
+
+
+@pytest.mark.integration
+async def test_v3_duplicate_sheet_ids_are_repaired(
+    client: AsyncClient, env: _SpreadsheetEnv
+):
+    """Two sheets sharing an id would share one Yjs container on the client,
+    so the second is re-issued rather than rejected."""
+    response = await client.post(
+        f"/api/v1/g/{env.guild.id}/documents/",
+        headers=env.headers,
+        json={
+            "title": "Ids",
+            "initiative_id": env.initiative.id,
+            "document_type": "spreadsheet",
+            "content": {
+                "schema_version": 3,
+                "kind": "spreadsheet",
+                "sheets": [
+                    {"id": "s1", "name": "One", "cells": {"0:0": "a"}},
+                    {"id": "s1", "name": "Two", "cells": {"0:0": "b"}},
+                ],
+            },
+        },
+    )
+    assert response.status_code == 201, response.text
+    sheets = response.json()["content"]["sheets"]
+    assert len({s["id"] for s in sheets}) == 2
+    assert _sheet(response.json()["content"], 1)["cells"] == {"0:0": "b"}
+
+
+@pytest.mark.integration
+async def test_v3_rejects_non_list_sheets(client: AsyncClient, env: _SpreadsheetEnv):
+    response = await client.post(
+        f"/api/v1/g/{env.guild.id}/documents/",
+        headers=env.headers,
+        json={
+            "title": "Bad",
+            "initiative_id": env.initiative.id,
+            "document_type": "spreadsheet",
+            "content": {"schema_version": 3, "kind": "spreadsheet", "sheets": {}},
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "DOCUMENT_SPREADSHEET_INVALID_PAYLOAD"
+
+
+@pytest.mark.integration
+async def test_v3_empty_sheets_list_yields_one_sheet(
+    client: AsyncClient, env: _SpreadsheetEnv
+):
+    """An editor with no sheet has nothing to render, so an empty list is
+    repaired into the default single sheet rather than persisted."""
+    response = await client.post(
+        f"/api/v1/g/{env.guild.id}/documents/",
+        headers=env.headers,
+        json={
+            "title": "Empty",
+            "initiative_id": env.initiative.id,
+            "document_type": "spreadsheet",
+            "content": {"schema_version": 3, "kind": "spreadsheet", "sheets": []},
+        },
+    )
+    assert response.status_code == 201, response.text
+    sheets = response.json()["content"]["sheets"]
+    assert len(sheets) == 1
+    assert sheets[0]["name"] == "Sheet1"
+
+
+@pytest.mark.integration
+async def test_v3_rejects_bad_cell_on_a_later_sheet(
+    client: AsyncClient, env: _SpreadsheetEnv
+):
+    """The cell invariant is enforced on every sheet, not just the first."""
+    response = await client.post(
+        f"/api/v1/g/{env.guild.id}/documents/",
+        headers=env.headers,
+        json={
+            "title": "Bad",
+            "initiative_id": env.initiative.id,
+            "document_type": "spreadsheet",
+            "content": {
+                "schema_version": 3,
+                "kind": "spreadsheet",
+                "sheets": [
+                    {"id": "s1", "name": "Fine", "cells": {"0:0": "ok"}},
+                    {"id": "s2", "name": "Broken", "cells": {"0:0": {"nested": 1}}},
+                ],
+            },
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "DOCUMENT_SPREADSHEET_INVALID_PAYLOAD"

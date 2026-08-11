@@ -1,15 +1,20 @@
 import type { ProviderAwareness } from "@lexical/yjs";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import type { SheetId } from "@/lib/spreadsheet/sheets";
 import { getUserColorHsl } from "@/lib/userColor";
 
 /**
  * Selection-presence awareness for the spreadsheet editor.
  *
  * Each connected client publishes ``spreadsheet_user`` (id + name) and
- * ``spreadsheet_selection`` (row + col + color + updatedAt) to the
- * shared awareness layer. Peers subscribe to render colored rings and
- * a name label on the cells other users have selected.
+ * ``spreadsheet_selection`` (sheet + row + col + color + updatedAt) to
+ * the shared awareness layer. Peers subscribe to render colored rings
+ * and a name label on the cells other users have selected.
+ *
+ * The selection carries the sheet it was made on, because a workbook's
+ * peers are rarely all looking at the same one — without it, a peer
+ * editing Sheet2!B4 would paint a ring on Sheet1's B4.
  *
  * Same shape vocabulary the whiteboard cursor hook uses, just keyed
  * with a ``spreadsheet_*`` prefix so the two editors never collide on
@@ -22,6 +27,9 @@ interface SpreadsheetAwarenessUser {
 }
 
 interface SpreadsheetAwarenessSelection {
+  /** The sheet the peer made this selection on. Absent from a client
+   *  that predates multi-sheet; treated as "wherever you're looking". */
+  sheetId?: SheetId;
   row: number;
   col: number;
   color: string;
@@ -39,6 +47,9 @@ interface UseSpreadsheetAwarenessArgs {
   clientId: number | null;
   user: { id: number; name: string } | null;
   selected: { row: number; col: number };
+  /** The sheet on screen: scopes both what is published and which peer
+   *  selections are rendered. */
+  sheetId: SheetId | null;
   /** Master switch: when false, the hook neither publishes nor
    *  subscribes (collab disabled or provider not yet ready). */
   enabled: boolean;
@@ -63,6 +74,7 @@ export const useSpreadsheetAwareness = ({
   clientId,
   user,
   selected,
+  sheetId,
   enabled,
   publishLocal,
 }: UseSpreadsheetAwarenessArgs): UseSpreadsheetAwarenessResult => {
@@ -74,7 +86,9 @@ export const useSpreadsheetAwareness = ({
   // see peer rings, just don't broadcast their own. Throttled to once
   // per requestAnimationFrame would be overkill: selection changes are
   // rare (clicks / arrow keys) so a plain effect suffices.
-  const lastPublishedRef = useRef<{ row: number; col: number } | null>(null);
+  const lastPublishedRef = useRef<{ sheetId: SheetId | null; row: number; col: number } | null>(
+    null
+  );
   useEffect(() => {
     if (!canPublish || !awareness || !user) return;
     awareness.setLocalStateField(USER_KEY, { id: user.id, name: user.name });
@@ -83,15 +97,23 @@ export const useSpreadsheetAwareness = ({
   useEffect(() => {
     if (!canPublish || !awareness || !user) return;
     const last = lastPublishedRef.current;
-    if (last && last.row === selected.row && last.col === selected.col) return;
-    lastPublishedRef.current = { row: selected.row, col: selected.col };
+    if (
+      last &&
+      last.sheetId === sheetId &&
+      last.row === selected.row &&
+      last.col === selected.col
+    ) {
+      return;
+    }
+    lastPublishedRef.current = { sheetId, row: selected.row, col: selected.col };
     awareness.setLocalStateField(SELECTION_KEY, {
+      sheetId: sheetId ?? undefined,
       row: selected.row,
       col: selected.col,
       color: getUserColorHsl(user.id),
       updatedAt: Date.now(),
     });
-  }, [canPublish, awareness, user, selected.row, selected.col]);
+  }, [canPublish, awareness, user, sheetId, selected.row, selected.col]);
 
   // Clear selection on unmount / when publish toggles off so peers
   // don't see a ghost cursor.
@@ -140,6 +162,9 @@ export const useSpreadsheetAwareness = ({
     // is the bug to avoid right now.
     const m = new Map<string, SpreadsheetPeer>();
     for (const peer of peers) {
+      // Only peers on this sheet. A selection with no sheet came from a
+      // pre-multi-sheet client, which only ever had one.
+      if (peer.selection.sheetId !== undefined && peer.selection.sheetId !== sheetId) continue;
       const key = `${peer.selection.row}:${peer.selection.col}`;
       const existing = m.get(key);
       if (!existing || peer.selection.updatedAt > existing.selection.updatedAt) {
@@ -147,7 +172,7 @@ export const useSpreadsheetAwareness = ({
       }
     }
     return m;
-  }, [peers]);
+  }, [peers, sheetId]);
 
   return { peerSelectionsByCell };
 };
