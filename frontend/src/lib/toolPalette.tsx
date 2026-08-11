@@ -17,6 +17,7 @@ import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useCalendarsList } from "@/hooks/useCalendars";
 import { useCounterGroupsList } from "@/hooks/useCounters";
+import { useDashboardsList } from "@/hooks/useDashboards";
 import { useDocumentsList } from "@/hooks/useDocuments";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useProjects } from "@/hooks/useProjects";
@@ -143,6 +144,19 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
         keywords: [calendar.description ?? ""],
         icon: null,
         path: `${toolListRoute(Tool.calendar)}/${calendar.id}`,
+      }));
+    },
+  },
+  [Tool.dashboard]: {
+    useHeading: () => useGroupHeading(Tool.dashboard),
+    useItems: ({ enabled }) => {
+      const query = useDashboardsList({ page_size: 100 }, { enabled, staleTime: 60_000 });
+      return (query.data?.items ?? []).map((dashboard) => ({
+        id: dashboard.id,
+        label: dashboard.name,
+        keywords: [dashboard.description ?? ""],
+        icon: null,
+        path: `${toolListRoute(Tool.dashboard)}/${dashboard.id}`,
       }));
     },
   },

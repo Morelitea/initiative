@@ -2,6 +2,7 @@ import { type UseQueryOptions, useMutation, useQuery } from "@tanstack/react-que
 
 import { recordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPost } from "@/api/generated/calendars/calendars";
 import { recordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPost } from "@/api/generated/counters/counters";
+import { recordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPost } from "@/api/generated/dashboards/dashboards";
 import { recordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPost } from "@/api/generated/documents/documents";
 import type { RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
 import { recordProjectViewApiV1GGuildIdProjectsProjectIdViewPost } from "@/api/generated/projects/projects";
@@ -39,6 +40,7 @@ const recorders: Record<RecentEntityType, (guildId: number, id: number) => Promi
   queue: recordQueueViewApiV1GGuildIdQueuesQueueIdViewPost,
   counter_group: recordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPost,
   calendar: recordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPost,
+  dashboard: recordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPost,
 };
 
 /**

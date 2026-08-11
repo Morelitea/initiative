@@ -57,6 +57,8 @@
   "calendars": "Kalender",
   "allCalendarEvents": "Alle Termine",
   "createCalendar": "Neuer Kalender",
+  "dashboards": "Dashboards",
+  "createDashboard": "Neues Dashboard",
   "bottomNav": {
     "label": "Schnellnavigation",
     "menu": "Menü öffnen",

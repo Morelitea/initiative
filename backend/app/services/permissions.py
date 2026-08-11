@@ -49,6 +49,7 @@ from app.core.messages import (
     QueueMessages,
     CounterMessages,
     CalendarMessages,
+    DashboardMessages,
 )
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 
@@ -312,6 +313,13 @@ DAC_RESOURCES: dict[Tool, DacResource] = {
         CalendarMessages.PERMISSION_REQUIRED,
         CalendarMessages.OWNER_REQUIRED,
         CalendarMessages.WRITE_ACCESS_REQUIRED,
+    ),
+    Tool.dashboard: DacResource(
+        Tool.dashboard,
+        True,
+        DashboardMessages.PERMISSION_REQUIRED,
+        DashboardMessages.OWNER_REQUIRED,
+        DashboardMessages.WRITE_ACCESS_REQUIRED,
     ),
     Tool.advanced_tool: DacResource(
         Tool.advanced_tool,
@@ -599,6 +607,13 @@ def compute_document_permission(
 def compute_calendar_permission(calendar: Any, user_id: int) -> str | None:
     """Effective calendar permission string for the client (delegates to the engine)."""
     return compute_permission(DAC_RESOURCES[Tool.calendar], calendar, user_id)
+
+
+def compute_dashboard_permission(dashboard: Any, user_id: int) -> str | None:
+    """Effective dashboard permission string for the client (delegates to the
+    engine). Governs authoring the canvas only — the data each widget displays
+    is authorized separately, per viewer, by that data's own tool."""
+    return compute_permission(DAC_RESOURCES[Tool.dashboard], dashboard, user_id)
 
 
 def require_document_access(

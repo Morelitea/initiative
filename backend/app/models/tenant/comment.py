@@ -10,6 +10,7 @@ from app.models.platform.user import User
 
 class Comment(SoftDeleteMixin, table=True):
     __tablename__ = "comments"
+    _display_field = "content"
     __table_args__ = (
         CheckConstraint(
             "(task_id IS NULL) <> (document_id IS NULL)",

@@ -36,6 +36,7 @@ from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
+from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.document import Document
 from app.models.platform.guild import GuildRole
 from app.models.tenant.initiative import Initiative
@@ -70,9 +71,11 @@ router = APIRouter()
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
-# Maps the EntityType literal we expose in the API to the SQLModel class
-# and to the column whose value populates TrashItem.name.
-ENTITY_REGISTRY: dict[EntityType, tuple[type[SQLModel], str]] = {
+# Maps the entity type we expose in the API to the SQLModel class and to the
+# column whose value populates TrashItem.name. Keyed by the wire string (the
+# ``EntityType`` member values), the same way TAG_LINKS is — ``trash_test``
+# asserts the two agree, so a new entity type can't be missed here.
+ENTITY_REGISTRY: dict[str, tuple[type[SQLModel], str]] = {
     "project": (Project, "name"),
     "task": (Task, "title"),
     "document": (Document, "title"),
@@ -83,6 +86,7 @@ ENTITY_REGISTRY: dict[EntityType, tuple[type[SQLModel], str]] = {
     "queue_item": (QueueItem, "label"),
     "calendar": (Calendar, "name"),
     "calendar_event": (CalendarEvent, "title"),
+    "dashboard": (Dashboard, "name"),
     "counter_group": (CounterGroup, "name"),
     "counter": (Counter, "name"),
     "advanced_tool": (AdvancedTool, "name"),
@@ -139,6 +143,7 @@ _DEDUP_PARENTS: dict[type[SQLModel], list[tuple[type[SQLModel], str]]] = {
     QueueItem: [(Queue, "queue_id")],
     Calendar: [(Initiative, "initiative_id")],
     CalendarEvent: [(Calendar, "calendar_id")],
+    Dashboard: [(Initiative, "initiative_id")],
     CounterGroup: [(Initiative, "initiative_id")],
     Counter: [(CounterGroup, "counter_group_id")],
     # Guild-wide advanced tools (initiative_id NULL) have no parent to cascade

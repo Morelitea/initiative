@@ -1,10 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
-  RestoreOwnerCandidate,
-  TrashItemEntityType,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { EntityType, RestoreOwnerCandidate } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,7 +18,7 @@ import { getUserDisplayName } from "@/lib/userDisplay";
 export interface ReassignOwnerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  entityType: TrashItemEntityType;
+  entityType: EntityType;
   // Eligible new owners (id + name), returned by the reassign-eligibility
   // response — so the picker needn't fetch the whole guild roster.
   validOwners: RestoreOwnerCandidate[];

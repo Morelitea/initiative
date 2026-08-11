@@ -90,6 +90,7 @@ class QueueItem(SoftDeleteMixin, table=True):
     """Standalone entry in a queue (character, creature, etc.)."""
 
     __tablename__ = "queue_items"
+    _display_field = "label"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)

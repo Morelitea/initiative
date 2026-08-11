@@ -102,6 +102,8 @@
     "resource_counter_group_other": "counter groups",
     "resource_calendar_one": "calendar",
     "resource_calendar_other": "calendars",
+    "resource_dashboard_one": "dashboard",
+    "resource_dashboard_other": "dashboards",
     "resource_advanced_tool_one": "advanced tool",
     "resource_advanced_tool_other": "advanced tools"
   }

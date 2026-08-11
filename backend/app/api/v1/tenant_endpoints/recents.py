@@ -15,7 +15,8 @@ Closing a tab is the one cross-guild write: a guild-ADDRESSED delete
 
 from __future__ import annotations
 
-from typing import Annotated, Dict, List
+from dataclasses import dataclass
+from typing import Annotated, Any, Callable, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import selectinload
@@ -28,21 +29,16 @@ from app.api.deps import (
     get_current_active_user,
     get_guild_membership,
 )
-from app.core.tools import Tool
-from app.models.tenant.calendar import Calendar
-from app.models.tenant.counter import CounterGroup
+from app.core.tools import RECENTABLE_TOOLS, Tool
+from app.services.tenant.tags import TOOL_TAG_LINKS
 from app.models.tenant.document import Document
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.tenant.initiative import Initiative
-from app.models.tenant.queue import Queue
-from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.recent_view import RecentView
 from app.models.platform.user import User
 from app.schemas.tenant.recent_view import RecentItemRead
-from app.services.tenant import counters as counters_service
 from app.services import permissions as permissions_service
-from app.services.tenant import queues as queues_service
 from app.services.tenant import recent_views as recent_views_service
 from app.services import rls as rls_service
 from app.services.cross_guild import gather_across_guilds
@@ -56,6 +52,54 @@ router = APIRouter()
 guild_router = APIRouter()
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
+
+
+@dataclass(frozen=True)
+class RecentToolSpec:
+    """How one tool's recent-view rows become tab items.
+
+    Derived per tool, not hand-listed: the model comes from the tag registry
+    (every tool is taggable) and the label column from the model's own
+    ``_display_field``. Resolution is otherwise uniform — every recentable tool
+    is a DAC resource with ``grants`` + ``initiative``, so it eager-loads the
+    same way and authorizes through ``DAC_RESOURCES[tool]``.
+    """
+
+    model: type
+    name_attr: str
+    extra: Callable[[Any], Dict[str, Any]] | None = None
+
+
+def _document_extra(document: Document) -> Dict[str, Any]:
+    return {
+        "document_type": (
+            document.document_type.value if document.document_type is not None else None
+        ),
+        "mime_type": document.file_content_type,
+        "original_filename": document.original_filename,
+    }
+
+
+# The only per-tool code here: render-only fields a tool's tab carries beyond
+# the common id/name. Everything else about a tool — its model, its display
+# column — is derived below, so adding a tool needs no edit in this module.
+_RECENT_EXTRAS: dict[Tool, Callable[[Any], Dict[str, Any]]] = {
+    Tool.project: lambda project: {"icon": project.icon},
+    Tool.document: _document_extra,
+}
+
+RECENT_TOOL_SPECS: dict[Tool, RecentToolSpec] = {
+    tool: RecentToolSpec(
+        model=TOOL_TAG_LINKS[tool].entity,
+        name_attr=TOOL_TAG_LINKS[tool].entity.display_field(),
+        extra=_RECENT_EXTRAS.get(tool),
+    )
+    for tool in RECENTABLE_TOOLS
+}
+
+RECENT_SPECS_BY_ENTITY_TYPE: dict[str, tuple[Tool, RecentToolSpec]] = {
+    tool.value: (tool, spec) for tool, spec in RECENT_TOOL_SPECS.items()
+}
 
 
 async def _enrich_recent_rows(
@@ -74,200 +118,63 @@ async def _enrich_recent_rows(
     """
     ids_by_type = recent_views_service.group_ids_by_type(rows)
 
-    project_map: Dict[int, Project] = {}
-    if project_ids := ids_by_type.get("project"):
+    # One eager-load per tool that actually appears in this batch. Every
+    # recentable tool is a DAC resource with the same ``grants`` + ``initiative``
+    # shape, so the query is identical apart from the model.
+    loaded: Dict[str, Dict[int, Any]] = {}
+    for tool, spec in RECENT_TOOL_SPECS.items():
+        ids = ids_by_type.get(tool.value)
+        if not ids:
+            continue
+        model = spec.model
         stmt = (
-            select(Project)
-            .where(Project.id.in_(project_ids))
+            select(model)
+            .where(model.id.in_(ids))
             .options(
-                selectinload(Project.grants).selectinload(ResourceGrant.role),
-                selectinload(Project.initiative).selectinload(Initiative.memberships),
+                selectinload(model.grants).selectinload(ResourceGrant.role),
+                selectinload(model.initiative).selectinload(Initiative.memberships),
             )
         )
         result = await session.exec(stmt)
-        project_map = {p.id: p for p in result.all()}
-
-    document_map: Dict[int, Document] = {}
-    if document_ids := ids_by_type.get("document"):
-        stmt = (
-            select(Document)
-            .where(Document.id.in_(document_ids))
-            .options(
-                selectinload(Document.grants).selectinload(ResourceGrant.role),
-                selectinload(Document.initiative).selectinload(Initiative.memberships),
-            )
-        )
-        result = await session.exec(stmt)
-        document_map = {d.id: d for d in result.all()}
-
-    queue_map: Dict[int, Queue] = {}
-    if queue_ids := ids_by_type.get("queue"):
-        stmt = (
-            select(Queue)
-            .where(Queue.id.in_(queue_ids))
-            .options(
-                selectinload(Queue.grants).selectinload(ResourceGrant.role),
-                selectinload(Queue.initiative).selectinload(Initiative.memberships),
-            )
-        )
-        result = await session.exec(stmt)
-        queue_map = {q.id: q for q in result.all()}
-
-    counter_group_map: Dict[int, CounterGroup] = {}
-    if cg_ids := ids_by_type.get("counter_group"):
-        stmt = (
-            select(CounterGroup)
-            .where(CounterGroup.id.in_(cg_ids))
-            .options(
-                selectinload(CounterGroup.grants).selectinload(ResourceGrant.role),
-                selectinload(CounterGroup.initiative).selectinload(
-                    Initiative.memberships
-                ),
-            )
-        )
-        result = await session.exec(stmt)
-        counter_group_map = {g.id: g for g in result.all()}
-
-    calendar_map: Dict[int, Calendar] = {}
-    if calendar_ids := ids_by_type.get("calendar"):
-        stmt = (
-            select(Calendar)
-            .where(Calendar.id.in_(calendar_ids))
-            .options(
-                selectinload(Calendar.grants).selectinload(ResourceGrant.role),
-                selectinload(Calendar.initiative).selectinload(Initiative.memberships),
-            )
-        )
-        result = await session.exec(stmt)
-        calendar_map = {c.id: c for c in result.all()}
+        loaded[tool.value] = {row.id: row for row in result.all()}
 
     guild_role = GuildRole.admin if is_guild_admin else None
 
     items: List[RecentItemRead] = []
     for row in rows:
-        if row.entity_type == "project":
-            project = project_map.get(row.entity_id)
-            if project is None or project.guild_id is None:
-                continue
-            try:
-                permissions_service.require_project_access(
-                    project, current_user, access="read", guild_role=guild_role
-                )
-            except HTTPException:
-                # Permission denied / not found — drop the row from the bar
-                # but let any other error bubble up so latent bugs are visible.
-                continue
-            items.append(
-                # ``model_construct`` skips the SanitizedBaseModel validator
-                # so trusted DB columns (already sanitized on input) aren't
-                # double-escaped on the way out — e.g. ``Foo & Bar`` would
-                # otherwise round-trip as ``Foo &amp; Bar``.
-                RecentItemRead.model_construct(
-                    entity_type="project",
-                    entity_id=project.id,
-                    guild_id=project.guild_id,
-                    name=project.name,
-                    last_viewed_at=row.last_viewed_at,
-                    icon=project.icon,
-                )
+        entry = RECENT_SPECS_BY_ENTITY_TYPE.get(row.entity_type)
+        if entry is None:
+            continue
+        tool, spec = entry
+        entity = loaded.get(row.entity_type, {}).get(row.entity_id)
+        if entity is None or entity.guild_id is None:
+            continue
+        try:
+            permissions_service.require_access(
+                permissions_service.DAC_RESOURCES[tool],
+                entity,
+                current_user,
+                access="read",
+                guild_role=guild_role,
             )
-        elif row.entity_type == "document":
-            document = document_map.get(row.entity_id)
-            if document is None or document.guild_id is None:
-                continue
-            try:
-                permissions_service.require_document_access(
-                    document, current_user, access="read", guild_role=guild_role
-                )
-            except HTTPException:
-                # Permission denied / not found — drop the row from the bar
-                # but let any other error bubble up so latent bugs are visible.
-                continue
-            items.append(
-                RecentItemRead.model_construct(
-                    entity_type="document",
-                    entity_id=document.id,
-                    guild_id=document.guild_id,
-                    name=document.title,
-                    last_viewed_at=row.last_viewed_at,
-                    document_type=(
-                        document.document_type.value
-                        if document.document_type is not None
-                        else None
-                    ),
-                    mime_type=document.file_content_type,
-                    original_filename=document.original_filename,
-                )
+        except HTTPException:
+            # Permission denied / not found — drop the row from the bar but let
+            # any other error bubble up so latent bugs stay visible.
+            continue
+        items.append(
+            # ``model_construct`` skips the SanitizedBaseModel validator so
+            # trusted DB columns (already sanitized on input) aren't
+            # double-escaped on the way out — e.g. ``Foo & Bar`` would
+            # otherwise round-trip as ``Foo &amp; Bar``.
+            RecentItemRead.model_construct(
+                entity_type=tool.value,
+                entity_id=entity.id,
+                guild_id=entity.guild_id,
+                name=getattr(entity, spec.name_attr),
+                last_viewed_at=row.last_viewed_at,
+                **(spec.extra(entity) if spec.extra else {}),
             )
-        elif row.entity_type == "queue":
-            queue = queue_map.get(row.entity_id)
-            if queue is None:
-                continue
-            if not is_guild_admin:
-                try:
-                    queues_service.require_queue_access(
-                        queue, current_user, access="read"
-                    )
-                except HTTPException:
-                    # Permission denied — drop the row but let unexpected
-                    # errors bubble up.
-                    continue
-            items.append(
-                RecentItemRead.model_construct(
-                    entity_type="queue",
-                    entity_id=queue.id,
-                    guild_id=queue.guild_id,
-                    name=queue.name,
-                    last_viewed_at=row.last_viewed_at,
-                )
-            )
-        elif row.entity_type == "counter_group":
-            group = counter_group_map.get(row.entity_id)
-            if group is None:
-                continue
-            if not is_guild_admin:
-                try:
-                    counters_service.require_counter_group_access(
-                        group, current_user, access="read"
-                    )
-                except HTTPException:
-                    # Permission denied — drop the row but let unexpected
-                    # errors bubble up.
-                    continue
-            items.append(
-                RecentItemRead.model_construct(
-                    entity_type="counter_group",
-                    entity_id=group.id,
-                    guild_id=group.guild_id,
-                    name=group.name,
-                    last_viewed_at=row.last_viewed_at,
-                )
-            )
-        elif row.entity_type == "calendar":
-            calendar = calendar_map.get(row.entity_id)
-            if calendar is None:
-                continue
-            if not is_guild_admin:
-                try:
-                    permissions_service.require_access(
-                        permissions_service.DAC_RESOURCES[Tool.calendar],
-                        calendar,
-                        current_user,
-                        access="read",
-                    )
-                except HTTPException:
-                    # Permission denied — drop the row but let unexpected
-                    # errors bubble up.
-                    continue
-            items.append(
-                RecentItemRead.model_construct(
-                    entity_type="calendar",
-                    entity_id=calendar.id,
-                    guild_id=calendar.guild_id,
-                    name=calendar.name,
-                    last_viewed_at=row.last_viewed_at,
-                )
-            )
+        )
 
     return items
 

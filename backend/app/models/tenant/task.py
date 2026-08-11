@@ -110,6 +110,7 @@ class Subtask(SQLModel, table=True):
 class Task(SoftDeleteMixin, table=True):
     __tablename__ = "tasks"
     _owner_field = "created_by_id"
+    _display_field = "title"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: Optional[int] = Field(

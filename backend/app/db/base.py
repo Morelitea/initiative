@@ -40,6 +40,7 @@ from app.models.tenant.calendar_event import (
     CalendarEventDocument,
 )
 from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
+from app.models.tenant.dashboard import Dashboard, DashboardTag
 from app.models.tenant.counter import (
     Counter,
     CounterGroup,
@@ -122,6 +123,8 @@ __all__ = [
     "CalendarEventTag",
     "CalendarEventDocument",
     "EventReminderDispatch",
+    "Dashboard",
+    "DashboardTag",
     "Counter",
     "CounterGroup",
     "Upload",

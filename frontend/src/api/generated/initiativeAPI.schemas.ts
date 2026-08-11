@@ -1379,6 +1379,89 @@ export interface CounterUpdate {
   position?: number | string | null;
 }
 
+export type DashboardCreateDefinition = { [key: string]: unknown };
+
+export type DashboardCreateConfig = { [key: string]: unknown };
+
+export interface DashboardCreate {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  description?: string | null;
+  initiative_id: number;
+  tag_ids?: number[] | null;
+  definition?: DashboardCreateDefinition;
+  config?: DashboardCreateConfig;
+  grants?: ResourceGrantSchema[];
+}
+
+export interface DashboardSummary {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  description: string | null;
+  id: number;
+  initiative_id: number;
+  guild_id: number;
+  created_by_id: number;
+  created_at: string;
+  updated_at: string;
+  listing_uid: string | null;
+  listing_version: string | null;
+  my_permission_level: string | null;
+  tags: TagSummary[];
+  grants: ResourceGrantSchema[];
+}
+
+export interface DashboardListResponse {
+  items: DashboardSummary[];
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+}
+
+export type DashboardReadDefinition = { [key: string]: unknown };
+
+export type DashboardReadConfig = { [key: string]: unknown };
+
+export interface DashboardRead {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  description: string | null;
+  id: number;
+  initiative_id: number;
+  guild_id: number;
+  created_by_id: number;
+  created_at: string;
+  updated_at: string;
+  listing_uid: string | null;
+  listing_version: string | null;
+  my_permission_level: string | null;
+  tags: TagSummary[];
+  grants: ResourceGrantSchema[];
+  definition: DashboardReadDefinition;
+  config: DashboardReadConfig;
+}
+
+export type DashboardUpdateDefinition = { [key: string]: unknown } | null;
+
+export type DashboardUpdateConfig = { [key: string]: unknown } | null;
+
+export interface DashboardUpdate {
+  name?: string | null;
+  description?: string | null;
+  definition?: DashboardUpdateDefinition;
+  config?: DashboardUpdateConfig;
+}
+
 /**
  * Response indicating whether user can be deleted and any blockers
  */
@@ -1518,12 +1601,14 @@ export interface InitiativeMemberRead {
   can_view_queues: boolean;
   can_view_counter_groups: boolean;
   can_view_calendars: boolean;
+  can_view_dashboards: boolean;
   can_view_advanced_tools: boolean;
   can_create_projects: boolean;
   can_create_documents: boolean;
   can_create_queues: boolean;
   can_create_counter_groups: boolean;
   can_create_calendars: boolean;
+  can_create_dashboards: boolean;
   can_create_advanced_tools: boolean;
   user: UserPublic;
   role_id: number | null;
@@ -1539,6 +1624,7 @@ export interface InitiativeRead {
   queues_enabled: boolean;
   counter_groups_enabled: boolean;
   calendars_enabled: boolean;
+  dashboards_enabled: boolean;
   advanced_tools_enabled: boolean;
   name: string;
   description: string | null;
@@ -1690,6 +1776,28 @@ export interface EmailTestRequest {
 export interface EmailTestResponse {
   status: string;
 }
+
+/**
+ * Entity types the trash can holds.
+ */
+export type EntityType = (typeof EntityType)[keyof typeof EntityType];
+
+export const EntityType = {
+  project: "project",
+  document: "document",
+  queue: "queue",
+  counter_group: "counter_group",
+  calendar: "calendar",
+  dashboard: "dashboard",
+  advanced_tool: "advanced_tool",
+  task: "task",
+  queue_item: "queue_item",
+  calendar_event: "calendar_event",
+  counter: "counter",
+  comment: "comment",
+  initiative: "initiative",
+  tag: "tag",
+} as const;
 
 export type EnvelopeImportRequestEnvelope = { [key: string]: unknown };
 
@@ -2073,6 +2181,7 @@ export interface InitiativeCreate {
   queues_enabled?: boolean;
   counter_groups_enabled?: boolean;
   calendars_enabled?: boolean;
+  dashboards_enabled?: boolean;
   advanced_tools_enabled?: boolean;
   name: string;
   description?: string | null;
@@ -2119,6 +2228,8 @@ export const PermissionKey = {
   create_counter_groups: "create_counter_groups",
   calendars_enabled: "calendars_enabled",
   create_calendars: "create_calendars",
+  dashboards_enabled: "dashboards_enabled",
+  create_dashboards: "create_dashboards",
   advanced_tools_enabled: "advanced_tools_enabled",
   create_advanced_tools: "create_advanced_tools",
 } as const;
@@ -2170,6 +2281,7 @@ export interface InitiativeUpdate {
   queues_enabled?: boolean | null;
   counter_groups_enabled?: boolean | null;
   calendars_enabled?: boolean | null;
+  dashboards_enabled?: boolean | null;
   advanced_tools_enabled?: boolean | null;
   name?: string | null;
   description?: string | null;
@@ -2976,6 +3088,7 @@ export const RecentEntityType = {
   queue: "queue",
   counter_group: "counter_group",
   calendar: "calendar",
+  dashboard: "dashboard",
 } as const;
 
 /**
@@ -3025,6 +3138,7 @@ export const Tool = {
   queue: "queue",
   counter_group: "counter_group",
   calendar: "calendar",
+  dashboard: "dashboard",
   advanced_tool: "advanced_tool",
 } as const;
 
@@ -3235,6 +3349,7 @@ export const TagTarget = {
   queue: "queue",
   counter_group: "counter_group",
   calendar: "calendar",
+  dashboard: "dashboard",
   advanced_tool: "advanced_tool",
   task: "task",
   queue_item: "queue_item",
@@ -3660,26 +3775,8 @@ export interface Token {
   token_type?: string;
 }
 
-export type TrashItemEntityType = (typeof TrashItemEntityType)[keyof typeof TrashItemEntityType];
-
-export const TrashItemEntityType = {
-  project: "project",
-  task: "task",
-  document: "document",
-  comment: "comment",
-  initiative: "initiative",
-  tag: "tag",
-  queue: "queue",
-  queue_item: "queue_item",
-  calendar: "calendar",
-  calendar_event: "calendar_event",
-  counter_group: "counter_group",
-  counter: "counter",
-  advanced_tool: "advanced_tool",
-} as const;
-
 export interface TrashItem {
-  entity_type: TrashItemEntityType;
+  entity_type: EntityType;
   entity_id: number;
   guild_id: number;
   name: string;
@@ -4748,6 +4845,19 @@ export type ListCounterGroupsApiV1GGuildIdCounterGroupsGetParams = {
 };
 
 export type ListCalendarsApiV1GGuildIdCalendarsGetParams = {
+  initiative_id?: number | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  page_size?: number;
+};
+
+export type ListDashboardsApiV1GGuildIdDashboardsGetParams = {
   initiative_id?: number | null;
   /**
    * @minimum 1

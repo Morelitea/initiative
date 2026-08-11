@@ -23,6 +23,10 @@ class SoftDeleteMixin(SQLModel):
     route the user through the reassignment picker. Leave it None for
     guild-scoped resources without a single owner (Tag, Initiative).
 
+    `_display_field` names the column that labels a row wherever the app shows
+    a bare list of mixed entity types (the recents tab bar, the trash can).
+    It defaults to `name`; only models that call it something else override it.
+
     The ``deleted_by`` FK uses ``foreign_key="users.id"`` for SQLModel
     convenience; the ``ON DELETE SET NULL`` semantic is enforced in the
     Alembic migration that adds the column, matching the existing
@@ -49,7 +53,12 @@ class SoftDeleteMixin(SQLModel):
     )
 
     _owner_field: ClassVar[Optional[str]] = None
+    _display_field: ClassVar[str] = "name"
 
     @classmethod
     def owner_field(cls) -> Optional[str]:
         return cls._owner_field
+
+    @classmethod
+    def display_field(cls) -> str:
+        return cls._display_field

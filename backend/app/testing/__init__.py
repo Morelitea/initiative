@@ -14,6 +14,7 @@ from app.testing.actor import Actor, make_actor
 from app.testing.factories import (
     create_auth_provider,
     create_calendar,
+    create_dashboard,
     create_calendar_event,
     create_calendar_event_property_value,
     create_comment,
@@ -49,6 +50,7 @@ __all__ = [
     "make_actor",
     "create_auth_provider",
     "create_calendar",
+    "create_dashboard",
     "create_calendar_event",
     "create_calendar_event_property_value",
     "create_comment",

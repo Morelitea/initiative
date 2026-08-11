@@ -71,6 +71,7 @@
     "projects": "Proyectos",
     "queues": "Colas",
     "calendars": "Calendario",
+    "dashboards": "Paneles",
     "counterGroups": "Contadores",
     "advancedTools": "Herramientas avanzadas"
   },
@@ -183,6 +184,7 @@
       "projects": "Proyectos",
       "queues": "Colas",
       "calendars": "Eventos",
+      "dashboards": "Paneles",
       "counterGroups": "Contadores",
       "advancedTools": "Herramienta avanzada"
     },
@@ -195,6 +197,8 @@
       "createQueues": "Crear colas",
       "viewCalendars": "Ver eventos",
       "createCalendars": "Crear eventos",
+      "viewDashboards": "Ver paneles",
+      "createDashboards": "Crear paneles",
       "viewAdvancedTools": "Abrir la herramienta avanzada",
       "createAdvancedTools": "Crear en la herramienta avanzada",
       "viewCounterGroups": "Ver contadores",
@@ -207,6 +211,8 @@
   "queuesFeatureDescription": "Organiza elementos por prioridad, sigue el orden de turnos y gestiona quién sigue.",
   "calendarsFeature": "Calendario",
   "calendarsFeatureDescription": "Organiza eventos en calendarios compartibles con asistentes y seguimiento de confirmaciones.",
+  "dashboardsFeature": "Paneles",
+  "dashboardsFeatureDescription": "Crea un lienzo de gráficos, indicadores y cronogramas que muestra el trabajo existente: un panel nunca edita los datos que muestra.",
   "advancedToolsFeatureDescription": "Inserta el panel de {{name}} en esta iniciativa.",
   "advancedTool": {
     "connecting": "Conectando…",

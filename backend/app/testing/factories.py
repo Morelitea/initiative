@@ -27,11 +27,15 @@ from app.core.security import (
     mint_access_token,
 )
 from app.models.tenant.calendar import Calendar
+from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
 from app.models.tenant.document import Document, DocumentType
 from app.models.platform.guild import Guild, GuildMembership, GuildRole
+from app.services.tenant.dashboard_definition import (
+    normalize_dashboard_definition,
+)
 from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceGrant, ResourceAccessLevel
@@ -831,6 +835,79 @@ async def create_calendar(
         await session.commit()
 
     return calendar
+
+
+async def create_dashboard(
+    session: AsyncSession,
+    initiative: Initiative,
+    creator: User,
+    *,
+    name: str | None = None,
+    definition: dict[str, Any] | None = None,
+    commit: bool = True,
+    **overrides: Any,
+) -> Dashboard:
+    """Create a test dashboard with sensible defaults.
+
+    Mirrors the create endpoint's default sharing: the creator owns it and
+    every initiative member can read it. ``definition`` defaults to a single
+    KPI widget so the row carries a realistic, already-normalized canvas; the
+    initiative is expected to be dashboards-enabled.
+    """
+    await route_session_to_guild(session, initiative.guild_id)
+
+    defaults = {
+        "guild_id": initiative.guild_id,
+        "initiative_id": initiative.id,
+        "created_by_id": creator.id,
+        "name": name or f"Dashboard {datetime.now(timezone.utc).timestamp()}",
+        "definition": definition
+        if definition is not None
+        else normalize_dashboard_definition(
+            {
+                "widgets": [
+                    {
+                        "id": "w1",
+                        "type": "kpi",
+                        "binding": {"source": "counter", "counter_id": None},
+                    }
+                ]
+            }
+        ),
+        "config": {"widgets": {}},
+    }
+
+    data = {**defaults, **overrides}
+    dashboard = Dashboard(**data)
+    session.add(dashboard)
+
+    if commit:
+        await session.commit()
+        await session.refresh(dashboard)
+
+        session.add(
+            ResourceGrant(
+                resource_type="dashboard",
+                resource_id=dashboard.id,
+                user_id=creator.id,
+                level=ResourceAccessLevel.owner,
+                guild_id=dashboard.guild_id,
+                initiative_id=dashboard.initiative_id,
+            )
+        )
+        session.add(
+            ResourceGrant(
+                resource_type="dashboard",
+                resource_id=dashboard.id,
+                all_initiative_members=True,
+                level=ResourceAccessLevel.read,
+                guild_id=dashboard.guild_id,
+                initiative_id=dashboard.initiative_id,
+            )
+        )
+        await session.commit()
+
+    return dashboard
 
 
 async def create_calendar_event(
