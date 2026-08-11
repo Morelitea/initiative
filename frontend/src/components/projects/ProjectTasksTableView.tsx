@@ -9,7 +9,6 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { ColumnDef } from "@tanstack/react-table";
 import { GripVertical, MessageSquare } from "lucide-react";
 import type React from "react";
 import { createContext, memo, useCallback, useContext, useMemo, useState } from "react";
@@ -49,6 +48,7 @@ import { useProperties } from "@/hooks/useProperties";
 import { useGuildPath } from "@/lib/guildUrl";
 import { summarizeRecurrence } from "@/lib/recurrence";
 import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
+import type { AppColumnDef } from "@/lib/table";
 import { getTaskDateStatus, getTaskDateStatusLabel } from "@/lib/taskDateStatus";
 import { truncateText } from "@/lib/text";
 import { cn } from "@/lib/utils";
@@ -240,14 +240,14 @@ const ProjectTasksTableViewComponent = ({
     return { doneStatus, inProgressStatus };
   }, [taskStatuses]);
 
-  const columns = useMemo<ColumnDef<TaskTagRow>[]>(
+  const columns = useMemo<AppColumnDef<TaskTagRow>[]>(
     () => [
       {
         id: "drag",
         header: () => <span className="sr-only">{t("table.reorder")}</span>,
         cell: ({ table }) => {
-          const sorting = table.getState().sorting;
-          const grouping = table.getState().grouping;
+          const sorting = table.atoms.sorting?.get() ?? [];
+          const grouping = table.atoms.grouping?.get() ?? [];
           const disableDnd = sorting.length > 0 || grouping.length > 0;
           return !disableDnd ? <DragHandleCell /> : null;
         },
@@ -276,7 +276,7 @@ const ProjectTasksTableViewComponent = ({
         ),
         enableHiding: true,
         enableSorting: true,
-        sortingFn: "alphanumeric",
+        sortFn: "alphanumeric",
       },
       {
         // Never rendered as a column of its own (see effectiveColumnVisibility);
@@ -296,7 +296,7 @@ const ProjectTasksTableViewComponent = ({
         },
         enableHiding: false,
         enableSorting: true,
-        sortingFn: "alphanumeric",
+        sortFn: "alphanumeric",
       },
       {
         id: "completed",
@@ -350,7 +350,7 @@ const ProjectTasksTableViewComponent = ({
           />
         ),
         enableSorting: true,
-        sortingFn: "alphanumeric",
+        sortFn: "alphanumeric",
         enableHiding: false,
       },
       {
@@ -369,7 +369,7 @@ const ProjectTasksTableViewComponent = ({
         },
         cell: ({ row }) => <DateCell date={row.original.start_date} isPastVariant="primary" />,
         enableSorting: true,
-        sortingFn: dateSortingFn,
+        sortFn: dateSortingFn,
       },
       {
         id: "due date",
@@ -393,7 +393,7 @@ const ProjectTasksTableViewComponent = ({
           />
         ),
         enableSorting: true,
-        sortingFn: dateSortingFn,
+        sortFn: dateSortingFn,
       },
       {
         accessorKey: "priority",
@@ -413,7 +413,7 @@ const ProjectTasksTableViewComponent = ({
           const task = row.original;
           return <TaskPrioritySelector task={task} disabled={statusDisabled} />;
         },
-        sortingFn: prioritySortingFn,
+        sortFn: prioritySortingFn,
       },
       {
         id: "tags",
@@ -514,7 +514,7 @@ const ProjectTasksTableViewComponent = ({
   // Insert programmatic property columns between tags (index of "tags") and
   // comments. We splice by id so the insertion point is robust to column-list
   // refactors.
-  const columnsWithProperties = useMemo<ColumnDef<TaskTagRow>[]>(() => {
+  const columnsWithProperties = useMemo<AppColumnDef<TaskTagRow>[]>(() => {
     if (propertyColumns.length === 0) return columns;
     const tagsIdx = columns.findIndex((c) => (c as { id?: string }).id === "tags");
     if (tagsIdx === -1) return [...columns, ...propertyColumns];
@@ -593,8 +593,8 @@ const ProjectTasksTableViewComponent = ({
           onSortingChange={handleSortingChange}
           onGroupingChange={handleGroupingChange}
           helpText={(table) => {
-            const sorting = table.getState().sorting;
-            const grouping = table.getState().grouping;
+            const sorting = table.atoms.sorting?.get() ?? [];
+            const grouping = table.atoms.grouping?.get() ?? [];
             const disableDnd = sorting.length > 0 || grouping.length > 0;
             return disableDnd ? (
               <div className="text-muted-foreground">

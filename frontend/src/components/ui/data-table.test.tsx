@@ -1,8 +1,9 @@
-import type { ColumnDef } from "@tanstack/react-table";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
+
+import type { AppColumnDef } from "@/lib/table";
 
 import { DataTable } from "./data-table";
 
@@ -11,7 +12,7 @@ interface Row {
   name: string;
 }
 
-const columns: ColumnDef<Row>[] = [
+const columns: AppColumnDef<Row>[] = [
   {
     accessorKey: "name",
     header: "Name",
@@ -170,7 +171,7 @@ interface FannedRow extends Row {
   group?: string;
 }
 
-const fannedColumns: ColumnDef<FannedRow>[] = [
+const fannedColumns: AppColumnDef<FannedRow>[] = [
   { accessorKey: "name", header: "Name", cell: ({ row }) => row.original.name },
   {
     id: "group",
@@ -273,5 +274,142 @@ describe("DataTable grouping", () => {
     expect(reported()).toBe("");
     const checked = getCheckboxes().filter((box) => box.getAttribute("data-state") === "checked");
     expect(checked).toHaveLength(0);
+  });
+});
+
+/** Enough rows to spill past a page, ordered so sorting is observable. */
+const manyRows: Row[] = Array.from({ length: 25 }, (_, i) => ({
+  id: i + 1,
+  name: `Row ${String(i + 1).padStart(2, "0")}`,
+}));
+
+const sortableColumns: AppColumnDef<Row>[] = [
+  {
+    accessorKey: "name",
+    header: ({ column }) => (
+      <button type="button" onClick={() => column.toggleSorting()}>
+        Name
+      </button>
+    ),
+    cell: ({ row }) => row.original.name,
+    sortFn: "alphanumeric",
+  },
+];
+
+/** Body rows only — `getAllByRole("row")` counts the header row too. */
+const bodyRows = () => screen.getAllByRole("row").slice(1);
+const firstBodyRowText = () => bodyRows()[0].textContent;
+
+describe("DataTable pagination", () => {
+  it("renders every row when pagination is off", () => {
+    // Guards the row-model wiring: the table must not silently slice a caller
+    // that never asked to paginate down to a single page.
+    render(<DataTable columns={columns} data={manyRows} />);
+    expect(bodyRows()).toHaveLength(25);
+    expect(screen.getByText("Row 25")).toBeInTheDocument();
+  });
+
+  it("slices to a page and moves between pages", async () => {
+    const user = userEvent.setup();
+    render(<DataTable columns={columns} data={manyRows} enablePagination />);
+
+    expect(bodyRows()).toHaveLength(20);
+    expect(screen.getByText("Row 01")).toBeInTheDocument();
+    expect(screen.queryByText("Row 21")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(bodyRows()).toHaveLength(5);
+    expect(screen.getByText("Row 21")).toBeInTheDocument();
+    expect(screen.queryByText("Row 01")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Previous" }));
+    expect(screen.getByText("Row 01")).toBeInTheDocument();
+  });
+
+  it("leaves paging to the caller under manualPagination", () => {
+    // The caller has already sliced `data`; the table must render it as given
+    // rather than paginate it a second time.
+    const page = manyRows.slice(0, 5);
+    render(
+      <DataTable
+        columns={columns}
+        data={page}
+        enablePagination
+        manualPagination
+        pageCount={5}
+        rowCount={25}
+      />
+    );
+    expect(bodyRows()).toHaveLength(5);
+    expect(screen.getByText("Page 1 of 5")).toBeInTheDocument();
+  });
+});
+
+describe("DataTable sorting", () => {
+  it("sorts client-side through a registered sort function", async () => {
+    const user = userEvent.setup();
+    render(<DataTable columns={sortableColumns} data={[...manyRows].reverse()} />);
+    expect(firstBodyRowText()).toContain("Row 25");
+
+    await user.click(screen.getByRole("button", { name: "Name" }));
+    expect(firstBodyRowText()).toContain("Row 01");
+
+    await user.click(screen.getByRole("button", { name: "Name" }));
+    expect(firstBodyRowText()).toContain("Row 25");
+  });
+
+  it("leaves row order alone under manualSorting", async () => {
+    // The caller sorts server-side, so a header click reports the intent but
+    // must not reorder the rows the table was handed.
+    const user = userEvent.setup();
+    const reversed = [...manyRows].reverse();
+    render(<DataTable columns={sortableColumns} data={reversed} manualSorting />);
+    expect(firstBodyRowText()).toContain("Row 25");
+
+    await user.click(screen.getByRole("button", { name: "Name" }));
+    expect(firstBodyRowText()).toContain("Row 25");
+  });
+
+  it("reports sorting changes to the caller", async () => {
+    const user = userEvent.setup();
+    const seen: string[] = [];
+    render(
+      <DataTable
+        columns={sortableColumns}
+        data={manyRows}
+        manualSorting
+        onSortingChange={(sorting) =>
+          seen.push(sorting.map((s) => `${s.id}:${s.desc ? "desc" : "asc"}`).join(","))
+        }
+      />
+    );
+    await user.click(screen.getByRole("button", { name: "Name" }));
+    expect(seen).toEqual(["name:asc"]);
+  });
+});
+
+describe("DataTable virtualization", () => {
+  // jsdom gives every element a zero height, so the virtualizer windows down to
+  // no rows at all — which rows render can only be checked in a real browser.
+  // These cover the parts that don't depend on layout.
+  it("drops the pagination controls, which the scroll container replaces", () => {
+    render(
+      <DataTable
+        columns={columns}
+        data={manyRows}
+        enablePagination
+        enableVirtualization
+        virtualRowHeight={48}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Rows per page:")).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Name" })).toBeInTheDocument();
+  });
+
+  it("keeps the pagination controls when virtualization is off", () => {
+    render(<DataTable columns={columns} data={manyRows} enablePagination />);
+    expect(screen.getByRole("button", { name: "Next" })).toBeInTheDocument();
   });
 });

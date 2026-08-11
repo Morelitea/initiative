@@ -1,9 +1,9 @@
-import type { VisibilityState } from "@tanstack/react-table";
+import type { ColumnVisibilityState } from "@tanstack/react-table";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { getItem, setItem } from "@/lib/storage";
 
-type Updater = VisibilityState | ((prev: VisibilityState) => VisibilityState);
+type Updater = ColumnVisibilityState | ((prev: ColumnVisibilityState) => ColumnVisibilityState);
 
 /**
  * TanStack ``columnVisibility`` state persisted to our @/lib/storage wrapper
@@ -21,11 +21,11 @@ type Updater = VisibilityState | ((prev: VisibilityState) => VisibilityState);
 export function usePersistedColumnVisibility(
   storageKey: string,
   defaultHiddenIds: string[]
-): [VisibilityState, (updater: Updater) => void] {
+): [ColumnVisibilityState, (updater: Updater) => void] {
   const defaultsRef = useRef<string[]>(defaultHiddenIds);
   defaultsRef.current = defaultHiddenIds;
 
-  const [state, setState] = useState<VisibilityState>(() => {
+  const [state, setState] = useState<ColumnVisibilityState>(() => {
     const stored = readStored(storageKey);
     return mergeDefaults(stored, defaultHiddenIds);
   });
@@ -56,13 +56,13 @@ export function usePersistedColumnVisibility(
   return [state, write];
 }
 
-const readStored = (storageKey: string): VisibilityState => {
+const readStored = (storageKey: string): ColumnVisibilityState => {
   const raw = getItem(storageKey);
   if (!raw) return {};
   try {
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      const out: VisibilityState = {};
+      const out: ColumnVisibilityState = {};
       for (const [key, value] of Object.entries(parsed)) {
         if (typeof value === "boolean") out[key] = value;
       }
@@ -74,9 +74,12 @@ const readStored = (storageKey: string): VisibilityState => {
   }
 };
 
-const mergeDefaults = (state: VisibilityState, defaultHiddenIds: string[]): VisibilityState => {
+const mergeDefaults = (
+  state: ColumnVisibilityState,
+  defaultHiddenIds: string[]
+): ColumnVisibilityState => {
   let changed = false;
-  const next: VisibilityState = { ...state };
+  const next: ColumnVisibilityState = { ...state };
   for (const id of defaultHiddenIds) {
     if (!(id in next)) {
       next[id] = false;

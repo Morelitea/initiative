@@ -1,4 +1,3 @@
-import type { ColumnDef } from "@tanstack/react-table";
 import { ChevronDown, Loader2 } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -29,6 +28,7 @@ import {
 import { useUsers } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import type { AppColumnDef } from "@/lib/table";
 
 interface InitiativeSettingsMembersTabProps {
   initiativeId: number;
@@ -240,7 +240,7 @@ export const InitiativeSettingsMembersTab = ({
     [managerRole, addMember, removeMember, initiativeId]
   );
 
-  const memberColumns: ColumnDef<DisplayMember>[] = useMemo(() => {
+  const memberColumns: AppColumnDef<DisplayMember>[] = useMemo(() => {
     const getRoleDisplayName = (member: DisplayMember): string => {
       if (member.role_display_name) {
         return member.role_display_name;

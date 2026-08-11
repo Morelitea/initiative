@@ -1,4 +1,3 @@
-import type { ColumnDef } from "@tanstack/react-table";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -25,6 +24,7 @@ import {
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { Capability, hasCapability } from "@/lib/permissions";
+import type { AppColumnDef } from "@/lib/table";
 import { cn } from "@/lib/utils";
 
 // Storage caps are entered in binary GB (GiB) so a value round-trips cleanly
@@ -311,7 +311,7 @@ export const AdminDashboardGuildsPage = () => {
   const interfaceSettings = useInterfaceSettings();
   const guildAuthPosture = interfaceSettings.data?.auth_scope === "guild";
 
-  const columns: ColumnDef<PlatformGuildStorageRead>[] = [
+  const columns: AppColumnDef<PlatformGuildStorageRead>[] = [
     {
       accessorKey: "id",
       header: t("guilds.columns.id"),
@@ -342,7 +342,7 @@ export const AdminDashboardGuildsPage = () => {
             header: t("guilds.columns.guildAuth"),
             enableSorting: false,
             cell: ({ row }) => <GuildAuthCell guild={row.original} />,
-          } satisfies ColumnDef<PlatformGuildStorageRead>,
+          } satisfies AppColumnDef<PlatformGuildStorageRead>,
         ]
       : []),
     {
