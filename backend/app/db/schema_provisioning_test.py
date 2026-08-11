@@ -81,10 +81,9 @@ async def test_provision_creates_every_guild_scoped_table(engine):
 async def test_writes_route_to_guild_schema_not_public(engine):
     """A routed tenant write lands in the guild schema; an UNROUTED one fails.
 
-    Post-squash there is no ``public`` copy of a tenant table, so isolation is the
-    schema boundary itself: the row can only exist in ``guild_<id>``, and a write
-    with the search_path still on ``public`` fails closed (relation does not
-    exist) instead of silently leaking into a shared public copy."""
+    Isolation is the schema boundary itself: a tenant table exists only in
+    ``guild_<id>``, so a write with the search_path still on ``public`` fails
+    closed (relation does not exist)."""
     gid = _GID_ISOLATION
     schema = guild_schema_name(gid)
     try:
@@ -106,9 +105,8 @@ async def test_writes_route_to_guild_schema_not_public(engine):
             in_guild = await conn.scalar(text(f'SELECT count(*) FROM "{schema}".tags'))
         assert in_guild == 1, "row should be in the guild schema"
 
-        # The tenant table has NO public copy since the v0.53.5 squash — an
-        # unrouted (public search_path) tenant write fails closed rather than
-        # landing in a shared public table.
+        # A tenant table exists only in guild schemas, so an unrouted (public
+        # search_path) tenant write fails closed.
         async with engine.connect() as conn:
             public_tags = await conn.scalar(text("SELECT to_regclass('public.tags')"))
         assert public_tags is None, "there must be NO public.tags copy post-squash"
@@ -320,7 +318,7 @@ async def test_reprovision_backfills_missing_tables_with_grants(engine):
             # and the role's grant reaches the back-filled table. Route the
             # search_path into the guild schema first: subtasks' initiative-member
             # RLS policy references tasks/projects/initiative_members unqualified,
-            # and post-squash those live only in the guild schema (no public copy).
+            # and those live only in the guild schema.
             await conn.exec_driver_sql(f'SET search_path TO "{schema}", public')
             await conn.exec_driver_sql(f'SET ROLE "{role}"')
             readable = await conn.scalar(text("SELECT count(*) FROM subtasks"))

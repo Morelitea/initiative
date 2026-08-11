@@ -27,11 +27,8 @@ Runs two ways:
         python -m app.db.secret_key_rotation             # rotate
         # 3. restart, confirm login / SMTP / AI keys work, then UNSET PREVIOUS_SECRET_KEY
 
-Schema-per-guild: ``guild_settings`` is guild-scoped, so its live rows live in every
-``guild_<id>`` schema; the sweep re-keys them there. The frozen ``public`` copies of
-guild tables (a read-nothing/write-nothing integrity backup on legacy deployments)
-are deliberately NOT re-keyed — a stale backup holds old secrets, not live content,
-and writing it would touch guild data on an unrouted public pathway. Runs on the
+Schema-per-guild: ``guild_settings`` is guild-scoped, so its rows live in every
+``guild_<id>`` schema; the sweep re-keys them there. Runs on the
 provisioning (superuser) engine so it reaches every guild schema and bypasses RLS.
 """
 
@@ -66,10 +63,7 @@ logger = logging.getLogger(__name__)
 # because its plaintext also feeds the email_hash HMAC (the two must move together).
 # (table, column, salt). These are the SHARED ``public`` tables only. Guild-scoped
 # columns (e.g. guild_settings) are re-keyed per guild schema via
-# _GUILD_SCHEMA_COLUMNS — never through a public copy: the frozen public copies of
-# guild tables are a read-nothing/write-nothing integrity backup, so re-encrypting
-# them would be a write of guild data on an unrouted public pathway. A legacy backup
-# left under the old key is fine — it holds stale secrets, not live content.
+# _GUILD_SCHEMA_COLUMNS.
 _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
     # Operator AI connection keys (platform config mode).
     ("platform_ai_connections", "api_key_encrypted", SALT_AI_API_KEY),

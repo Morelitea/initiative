@@ -575,7 +575,7 @@ async def _enrich_mapping(
 
     if mapping.initiative_id is not None:
         # Initiatives/roles are guild-scoped: resolve their names inside the
-        # mapping's guild schema, not the empty public copies.
+        # mapping's guild schema, the only place they exist.
         initiative, role = await _lookup_guild_initiative(
             session,
             mapping.guild_id,
@@ -827,8 +827,8 @@ async def get_oidc_mapping_options(
     guilds = (await session.exec(select(Guild).order_by(Guild.name))).all()
     guild_payload = [{"id": g.id, "name": g.name} for g in guilds]
 
-    # Initiatives and initiative roles are guild-scoped content: their rows live in
-    # each guild's guild_<id> schema, not in the empty public copies. Route into
+    # Initiatives and initiative roles are guild-scoped content: their rows live
+    # only in each guild's guild_<id> schema. Route into
     # every guild's schema in turn and collect them. Row ids are unique only within
     # a schema, so each role carries its guild_id for the client to disambiguate
     # against colliding initiative ids across guilds.

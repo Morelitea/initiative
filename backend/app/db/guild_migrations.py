@@ -21,9 +21,8 @@ The forward pattern has two halves, kept in sync:
 The **drift-guard test** (``schema_provisioning_test``) provisions a fresh
 schema and diffs it against ``guild_template`` as a clone-fidelity check.
 
-The legacy ``public`` copies of guild-content tables (pre-squash deployments
-still carry them, frozen) are deliberately NOT a target: nothing reads them, and
-fresh installs don't have them at all (see the 20260626_0125 baseline).
+``public`` is never a target: guild-content tables exist only in guild schemas
+(20260811_0163 dropped the last frozen pre-squash copies).
 
 Example migration::
 
@@ -159,7 +158,6 @@ def run_for_each_guild_schema(connection: Connection, fn) -> None:
 def apply_to_all_guild_schemas(
     connection: Connection,
     *statements: str,
-    include_public: bool = False,
 ) -> None:
     """Run schema-relative DDL in every guild schema (``guild_template`` +
     every ``guild_<id>``).
@@ -169,10 +167,6 @@ def apply_to_all_guild_schemas(
     with ``search_path`` pointed there (unqualified table/enum names resolve in
     that schema, falling through to ``public`` for shared types). Pass several
     statements to apply them as an ordered group per schema.
-
-    ``include_public`` is off by default: since the 20260626_0125 squash the
-    legacy public copies are frozen (pre-squash deployments) or absent (fresh
-    installs), so guild-scoped DDL must not target ``public``.
 
     Must run inside a transaction (migrations always do): the per-schema
     ``search_path`` is set with ``is_local=true`` so it's scoped to that
@@ -186,8 +180,7 @@ def apply_to_all_guild_schemas(
     Newly provisioned guilds pick the change up automatically: provisioning
     reflects the LIVE ``guild_template`` (``app.db.guild_ddl``).
     """
-    targets = (["public"] if include_public else []) + guild_schema_names(connection)
-    for schema in targets:
+    for schema in guild_schema_names(connection):
         # set_config (not SET) so it lands on this exact connection, matching how
         # set_rls_context routes; is_local=true scopes it to the transaction.
         # Schema names come from pg_namespace, so they're already safe identifiers.

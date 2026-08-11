@@ -478,8 +478,8 @@ async def test_global_calendar_events_reads_guild_schema(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The cross-guild /me list must read events from the per-guild schema
-    (schema-per-guild), not the frozen public backup. The factory writes the
-    event into guild_<id>; /me aggregates per guild and must surface it."""
+    (schema-per-guild). The factory writes the event into guild_<id>; /me
+    aggregates per guild and must surface it."""
     a, guild, initiative, calendar, event = await _setup_event(session, acting_user)
     response = await client.get(
         "/api/v1/me/calendar-events", headers=get_auth_headers(a.user)

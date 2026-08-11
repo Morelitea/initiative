@@ -467,7 +467,7 @@ The path depends on **where the table lives**:
    PAM_READ     = "current_setting('app.pam_read', true) = 'true'"
    PAM_WRITE    = "current_setting('app.pam_write', true) = 'true'"
    ```
-   > **Legacy note:** deployments that predate the v0.53.5 baseline squash still carry frozen `public` copies of guild-content tables (with old `guild_isolation` / `is_superadmin` / `*_pam_*` policies). They are **inert** — nothing reads or writes them, migrations no longer touch them, and fresh installs don't have them at all. They are kept only as a data-integrity backup until a future release drops them. Don't extend that pattern for new guild content; use the guild schema + roles.
+   > **`public` holds no guild content, on any install.** The pre-schema-per-guild copies that legacy deployments carried as a backstop were dropped in `20260811_0163`; guild content exists only in `guild_<id>` schemas, so an unrouted query for it finds no table rather than the wrong rows.
 
 6. **Verify after migration** as `app_user` (not the superuser): for a shared/platform table, confirm each tier hits its ceiling (a missing policy silently returns zero rows; a wrong one leaks). For guild content, `SET ROLE guild_<id>` and confirm only that guild's schema is reachable.
 

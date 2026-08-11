@@ -24,6 +24,18 @@ _GID_D = 990_204
 _COLUMN = "_mig_helper_test"
 
 
+async def _table_exists(conn, schema: str, table: str) -> bool:
+    return bool(
+        await conn.scalar(
+            text(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.tables "
+                "WHERE table_schema = :s AND table_name = :t)"
+            ),
+            {"s": schema, "t": table},
+        )
+    )
+
+
 async def _tags_has_column(conn, schema: str) -> bool:
     return bool(
         await conn.scalar(
@@ -57,15 +69,12 @@ async def test_apply_to_all_guild_schemas_hits_every_guild(engine):
                 lambda c: apply_to_all_guild_schemas(
                     c,
                     f"ALTER TABLE tags ADD COLUMN IF NOT EXISTS {_COLUMN} boolean",
-                    include_public=False,
                 )
             )
 
         async with engine.connect() as conn:
             assert await _tags_has_column(conn, guild_schema_name(_GID_A))
             assert await _tags_has_column(conn, guild_schema_name(_GID_B))
-            # public was excluded (include_public=False).
-            assert not await _tags_has_column(conn, "public")
 
         # The reverse (a downgrade) removes it everywhere.
         async with engine.begin() as conn:
@@ -73,7 +82,6 @@ async def test_apply_to_all_guild_schemas_hits_every_guild(engine):
                 lambda c: apply_to_all_guild_schemas(
                     c,
                     f"ALTER TABLE tags DROP COLUMN IF EXISTS {_COLUMN}",
-                    include_public=False,
                 )
             )
         async with engine.connect() as conn:
@@ -86,21 +94,16 @@ async def test_apply_to_all_guild_schemas_hits_every_guild(engine):
                 lambda c: apply_to_all_guild_schemas(
                     c,
                     f"ALTER TABLE tags DROP COLUMN IF EXISTS {_COLUMN}",
-                    include_public=False,
                 )
             )
             await drop_guild_schema(conn, _GID_A)
             await drop_guild_schema(conn, _GID_B)
 
 
-async def test_apply_to_all_guild_schemas_targets_template_not_public_by_default(
-    engine,
-):
-    """Post-squash contract: the default (include_public=False) applies to
-    ``guild_template`` + every ``guild_<id>`` and must NOT touch the frozen legacy
-    public copies. The template is the source provisioning reflects, so a fresh
-    guild inherits the change; public's copies are frozen/absent and are never a
-    guild-scoped migration target."""
+async def test_apply_to_all_guild_schemas_targets_template(engine):
+    """A guild-scoped change reaches ``guild_template`` too, not just the
+    already-provisioned ``guild_<id>`` schemas. The template is the source
+    provisioning reflects, so a guild created afterwards inherits the change."""
     try:
         async with engine.begin() as conn:
             await provision_guild_schema(conn, _GID_C)
@@ -108,16 +111,16 @@ async def test_apply_to_all_guild_schemas_targets_template_not_public_by_default
             await conn.run_sync(
                 lambda c: apply_to_all_guild_schemas(
                     c, f"ALTER TABLE tags ADD COLUMN IF NOT EXISTS {_COLUMN} boolean"
-                )  # include_public defaults to False now
+                )
             )
         async with engine.connect() as conn:
             # The provisioned guild schema got the change...
             assert await _tags_has_column(conn, guild_schema_name(_GID_C))
             # ...and so did guild_template (the source new guilds are built from),
-            # which the migration 20260701_0126 created in the test DB.
+            # which the migration 20260702_0126 created in the test DB.
             assert await _tags_has_column(conn, "guild_template")
-            # ...but the legacy public copy is deliberately left untouched.
-            assert not await _tags_has_column(conn, "public")
+            # Guild schemas are the only place guild content exists.
+            assert not await _table_exists(conn, "public", "tags")
     finally:
         async with engine.begin() as conn:
             await conn.run_sync(
@@ -142,7 +145,6 @@ async def test_apply_to_all_guild_schemas_failure_propagates_and_reverts(engine)
                     lambda c: apply_to_all_guild_schemas(
                         c,
                         "ALTER TABLE tags ADD COLUMN _boom bogus_type_xyz",
-                        include_public=False,
                     )
                 )
             # The original DDL error, not a 'current transaction is aborted' mask.

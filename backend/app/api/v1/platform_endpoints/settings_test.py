@@ -96,8 +96,8 @@ async def test_oidc_mapping_options_includes_guild_scoped_initiatives(
     session: AsyncSession,
 ) -> None:
     """Regression: initiatives/roles are guild-scoped content (rows live in each
-    guild's schema, not the empty public copies). The options endpoint must route
-    into every guild schema, otherwise the form's initiative dropdown is empty."""
+    guild's schema). The options endpoint must route into every guild schema,
+    otherwise the form's initiative dropdown is empty."""
     owner = await create_user(
         session, email="owner-oidc-opts@example.com", role=UserRole.owner
     )
@@ -134,8 +134,8 @@ async def test_create_initiative_oidc_mapping_resolves_guild_scoped_data(
     session: AsyncSession,
 ) -> None:
     """Regression: creating an initiative-target mapping must validate the
-    initiative/role inside the guild schema (previously it queried the empty
-    public copy and always 400'd INITIATIVE_NOT_FOUND)."""
+    initiative/role inside the guild schema — validating anywhere else always
+    400'd INITIATIVE_NOT_FOUND."""
     owner = await create_user(
         session, email="owner-oidc-create@example.com", role=UserRole.owner
     )

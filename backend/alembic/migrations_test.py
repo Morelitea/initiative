@@ -37,6 +37,7 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 
 from app.core.config import settings
+from app.db.tenancy import GUILD_SCOPED_TABLES
 
 
 ALEMBIC_SCRIPT_LOCATION = Path(__file__).resolve().parent
@@ -277,6 +278,41 @@ def _table_exists(table_name: str, schema: str = "public") -> bool:
     return asyncio.run(_table_exists_async(table_name, schema))
 
 
+async def _sequence_exists_async(name: str, schema: str = "public") -> bool:
+    conn = await _connect_test_db()
+    try:
+        return bool(
+            await conn.fetchval(
+                "SELECT EXISTS ("
+                "  SELECT 1 FROM information_schema.sequences "
+                "  WHERE sequence_schema = $2 AND sequence_name = $1"
+                ")",
+                name,
+                schema,
+            )
+        )
+    finally:
+        await conn.close()
+
+
+def _sequence_exists(name: str, schema: str = "public") -> bool:
+    return asyncio.run(_sequence_exists_async(name, schema))
+
+
+async def _execute_sql_async(sql: str) -> None:
+    conn = await _connect_test_db()
+    try:
+        await conn.execute(sql)
+    finally:
+        await conn.close()
+
+
+def _execute_sql(sql: str) -> None:
+    """Run a statement against the migrations test DB (fabricating legacy
+    state a fresh database can't produce on its own)."""
+    asyncio.run(_execute_sql_async(sql))
+
+
 async def _alembic_version_row_count_async() -> int:
     conn = await _connect_test_db()
     try:
@@ -334,18 +370,19 @@ class TestMigrationsAgainstDatabase:
             "after a successful upgrade"
         )
 
-        # Sanity-check the squashed layout: shared tables in public, tenant
-        # content in guild_template — and, critically, NOT in public (fresh
-        # installs must never get the pre-squash public copies back).
+        # Sanity-check the layout: shared tables in public, tenant content in
+        # guild_template — and no tenant table anywhere in public. The whole
+        # set, not a sample: public holding one is the bug 20260811_0163 ended.
         for table in ("users", "guilds", "access_grants", "alembic_version"):
             assert _table_exists(table), f"expected table {table!r} after upgrade head"
         for table in ("initiatives", "projects", "tasks", "documents"):
             assert _table_exists(table, schema="guild_template"), (
                 f"expected table {table!r} in guild_template after upgrade head"
             )
+        for table in sorted(GUILD_SCOPED_TABLES):
             assert not _table_exists(table), (
-                f"tenant table {table!r} must not exist in public after the "
-                "baseline squash"
+                f"tenant table {table!r} must not exist in public — guild "
+                "content lives only in guild schemas"
             )
 
     def test_upgrade_head_is_idempotent(self, fresh_migrations_db: str) -> None:
@@ -358,6 +395,40 @@ class TestMigrationsAgainstDatabase:
         assert rev_after_first == rev_after_second, (
             "Repeated `alembic upgrade head` changed the version stamp — "
             "a migration is not idempotent."
+        )
+
+    def test_drop_removes_a_legacy_public_copy(self, fresh_migrations_db: str) -> None:
+        """20260811_0163 drops a frozen pre-squash copy where one exists.
+
+        A fresh database has none (the migration is a no-op there, which the
+        other tests cover), so fabricate one — a ``public.tasks`` shell like the
+        legacy backstop — and replay the revision over it. The live
+        ``admin_api_keys_id_seq`` must survive: it carries a legacy name but
+        belongs to the shared ``public.user_api_keys``.
+        """
+        _run_alembic("upgrade", "head")
+        assert _sequence_exists("admin_api_keys_id_seq")
+
+        _execute_sql(
+            "CREATE TABLE public.tasks "
+            "(id serial PRIMARY KEY, guild_id integer NOT NULL)"
+        )
+        assert _table_exists("tasks")
+
+        # downgrade() is a no-op, so this replays 0163's upgrade() over the
+        # fabricated leftover.
+        _run_alembic("downgrade", "-1")
+        _run_alembic("upgrade", "head")
+
+        assert not _table_exists("tasks"), (
+            "20260811_0163 must drop a frozen public copy of a guild-content table"
+        )
+        assert not _sequence_exists("tasks_id_seq"), (
+            "the dropped copy's owned sequence must go with it"
+        )
+        assert _sequence_exists("admin_api_keys_id_seq"), (
+            "admin_api_keys_id_seq belongs to the shared user_api_keys table "
+            "and must survive the drop"
         )
 
     def test_step_by_step_upgrade_from_base_to_head(
