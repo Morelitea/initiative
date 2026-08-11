@@ -28,8 +28,6 @@
   "dangerZone": "Zona de peligro",
   "dangerZoneDescription": "Acciones destructivas. Los paneles eliminados van a la papelera y se pueden restaurar antes de que finalice el período de retención.",
   "detailsUpdated": "Detalles del panel actualizados",
-  "canvasPending": "El lienzo llegará pronto",
-  "canvasPendingDescription": "El lienzo de widgets todavía no está disponible. Hasta entonces, este panel conserva su nombre, su descripción, sus etiquetas y sus permisos de acceso.",
   "filters": {
     "heading": "Filtros",
     "show": "Mostrar",
@@ -99,6 +97,44 @@
       "noRenderExport": "Sin función de renderizado",
       "triesToFetch": "Intenta hacer fetch",
       "invalidScene": "Escena no válida"
+    }
+  },
+  "canvas": {
+    "empty": "Este panel aún no tiene widgets.",
+    "emptyHint": "Añade un widget para empezar a mostrar tus datos.",
+    "emptyReadOnly": "Alguien con permiso de edición puede añadir widgets.",
+    "addWidget": "Añadir widget",
+    "widgets": "Widgets",
+    "presets": "Predefinidos",
+    "widgetCap": "Un panel admite {{max}} widgets.",
+    "widgetMenu": "Opciones de {{widget}}",
+    "configure": "Configurar",
+    "remove": "Quitar",
+    "saving": "Guardando…",
+    "unbound": "Elige qué muestra este widget."
+  },
+  "config": {
+    "title": "Configurar widget",
+    "description": "Elige qué muestra este widget. Los paneles solo leen tus datos.",
+    "widgetTitle": "Título",
+    "widgetTitlePlaceholder": "Déjalo vacío para usar el nombre del widget",
+    "source": "Fuente de datos",
+    "choose": "Elegir…",
+    "spreadsheet": "Hoja de cálculo",
+    "sheet": "Hoja",
+    "sheetPlaceholder": "Primera hoja",
+    "range": "Rango",
+    "project": "Proyecto",
+    "allProjects": "Todos los proyectos",
+    "allCalendars": "Todos los calendarios",
+    "groupBy": "Agrupar por",
+    "bucket": {
+      "status_category": "Categoría de estado",
+      "status": "Estado",
+      "priority": "Prioridad",
+      "project": "Proyecto",
+      "assignee": "Asignado a",
+      "day": "Día de finalización"
     }
   }
 }

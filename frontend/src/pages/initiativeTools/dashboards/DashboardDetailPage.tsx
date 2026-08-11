@@ -1,8 +1,11 @@
 import { Link, useParams } from "@tanstack/react-router";
-import { LayoutDashboard, Loader2, SearchX, ShieldAlert } from "lucide-react";
-import { useEffect, useMemo } from "react";
+import { Loader2, SearchX, ShieldAlert } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { AddWidgetMenu } from "@/components/initiativeTools/dashboards/AddWidgetMenu";
+import { DashboardCanvas } from "@/components/initiativeTools/dashboards/DashboardCanvas";
+import { WidgetConfigDialog } from "@/components/initiativeTools/dashboards/WidgetConfigDialog";
 import { StatusMessage } from "@/components/StatusMessage";
 import {
   Breadcrumb,
@@ -12,12 +15,13 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useDashboard } from "@/hooks/useDashboards";
+import { useDashboardEditor } from "@/hooks/useDashboardEditor";
+import { useDashboard, useWidgetCatalog } from "@/hooks/useDashboards";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
+import { hasWriteAccess } from "@/lib/permissions";
 
 export function DashboardDetailPage() {
   const { t } = useTranslation(["dashboards", "common"]);
@@ -39,6 +43,15 @@ export function DashboardDetailPage() {
     if (!viewedDashboardId) return;
     recordViewMutation.mutate(viewedDashboardId);
   }, [viewedDashboardId, recordViewMutation.mutate]);
+
+  const catalogQuery = useWidgetCatalog();
+  // Arranging and binding are authoring — they write the dashboard's own row —
+  // so the canvas is static without DAC write rather than merely looking it.
+  const canEdit = hasWriteAccess(dashboard?.my_permission_level);
+  const editor = useDashboardEditor(dashboard, catalogQuery.data, canEdit);
+  const [configuringId, setConfiguringId] = useState<string | null>(null);
+  const configuring =
+    editor.definition.widgets.find((widget) => widget.id === configuringId) ?? null;
 
   const initiativesQuery = useInitiatives();
   const initiativeName = useMemo(
@@ -122,15 +135,36 @@ export function DashboardDetailPage() {
         )}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <LayoutDashboard className="h-5 w-5 text-muted-foreground" />
-            {t("canvasPending")}
-          </CardTitle>
-          <CardDescription>{t("canvasPendingDescription")}</CardDescription>
-        </CardHeader>
-      </Card>
+      {canEdit && (
+        <div className="flex items-center justify-end gap-2">
+          {editor.isSaving && (
+            <span className="text-muted-foreground text-xs">{t("canvas.saving")}</span>
+          )}
+          <AddWidgetMenu
+            catalog={catalogQuery.data}
+            widgetCount={editor.definition.widgets.length}
+            onAdd={editor.addWidget}
+          />
+        </div>
+      )}
+
+      <DashboardCanvas
+        definition={editor.definition}
+        config={editor.config}
+        catalog={catalogQuery.data}
+        canEdit={canEdit}
+        onLayoutChange={editor.replaceDefinition}
+        onConfigureWidget={setConfiguringId}
+        onRemoveWidget={editor.removeWidget}
+      />
+
+      <WidgetConfigDialog
+        widget={configuring}
+        catalog={catalogQuery.data}
+        open={configuring !== null}
+        onOpenChange={(next) => !next && setConfiguringId(null)}
+        onSave={(patch) => configuringId && editor.updateWidget(configuringId, patch)}
+      />
     </div>
   );
 }
