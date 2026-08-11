@@ -362,6 +362,5 @@
   "DASHBOARD_BINDING_INVALID": "Die Dateneinstellungen eines Widgets konnten nicht gelesen werden",
   "DASHBOARD_BINDING_SOURCE_UNKNOWN": "Ein Widget verweist auf eine Datenquelle, die diese App nicht unterstützt",
   "DASHBOARD_BINDING_SOURCE_NOT_ALLOWED": "Diese Datenquelle kann mit diesem Widget nicht angezeigt werden",
-  "DASHBOARD_BINDING_ID_INVALID": "Ein Widget verweist auf ein ungültiges Element",
   "DASHBOARD_CONFIG_INVALID": "Die Einstellungen dieses Dashboards konnten nicht gelesen werden"
 }

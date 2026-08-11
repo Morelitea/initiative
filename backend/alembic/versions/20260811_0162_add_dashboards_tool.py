@@ -13,9 +13,15 @@ the new value at runtime:
 * ``public.fn_recent_views_set_guild_id`` — gains a ``dashboard`` CASE arm; a
   recentable type with no arm makes every recent-view INSERT fail with
   CaseNotFoundError.
-* the registry-rendered RLS (``render_guild_rls_ddl``) is re-applied so the new
-  tables get their ``initiative_member_*`` policies immediately rather than at
-  the next boot's provisioning backfill.
+
+RLS is deliberately NOT applied here. A migration is a historical record and
+must not depend on the live ``INITIATIVE_PATHS`` registry, which by definition
+describes a LATER state of the world — rendering it mid-history tries to create
+policies for tables a subsequent migration has not created yet. Policies (like
+table grants, which already work this way) come from provisioning: the registry
+change bumps the provisioning stamp, so the boot back-fill applies them to every
+guild schema. Until then the new tables carry no grants either, so no role can
+reach them.
 """
 
 import sqlalchemy as sa
@@ -24,8 +30,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 from app.core.tools import RECENTABLE_TOOLS, Tool
-from app.db.guild_ddl import render_guild_rls_ddl
-from app.db.guild_migrations import run_for_each_guild_schema, split_sql_statements
+from app.db.guild_migrations import run_for_each_guild_schema
 from app.models.tenant.initiative import PermissionKey
 
 revision = "20260811_0162"
@@ -112,11 +117,10 @@ def upgrade() -> None:
     # The trigger function lives in public and is shared by every guild schema,
     # so it is rewritten once rather than per schema.
     op.execute(_recent_views_trigger_fn(_NEW_RECENT_TABLES))
-    rls_statements = split_sql_statements(render_guild_rls_ddl())
-    run_for_each_guild_schema(bind, lambda: _apply_upgrade(rls_statements))
+    run_for_each_guild_schema(bind, _apply_upgrade)
 
 
-def _apply_upgrade(rls_statements: list[str]) -> None:
+def _apply_upgrade() -> None:
     op.create_table(
         "dashboards",
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
@@ -190,9 +194,6 @@ def _apply_upgrade(rls_statements: list[str]) -> None:
 
     _swap_permission_key_check(_NEW_PERMISSION_KEYS)
     _swap_recent_check(_NEW_RECENT_TYPES)
-
-    for statement in rls_statements:
-        op.execute(statement)
 
 
 def downgrade() -> None:

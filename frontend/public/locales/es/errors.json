@@ -362,6 +362,5 @@
   "DASHBOARD_BINDING_INVALID": "No se pudieron leer los ajustes de datos de un widget",
   "DASHBOARD_BINDING_SOURCE_UNKNOWN": "Un widget apunta a una fuente de datos que esta aplicación no admite",
   "DASHBOARD_BINDING_SOURCE_NOT_ALLOWED": "Esa fuente de datos no se puede mostrar con este widget",
-  "DASHBOARD_BINDING_ID_INVALID": "Un widget apunta a un elemento que no es válido",
   "DASHBOARD_CONFIG_INVALID": "No se pudieron leer los ajustes de este panel"
 }

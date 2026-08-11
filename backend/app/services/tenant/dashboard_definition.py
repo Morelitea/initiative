@@ -34,6 +34,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
+from app.core.messages import DashboardMessages
+
 SCHEMA_VERSION = 1
 
 # Hard caps. A definition is small by nature; these bound both storage and the
@@ -235,12 +237,12 @@ def _normalize_grid(raw: Any, spec: WidgetSpec) -> dict[str, int]:
 def _normalize_binding(raw: Any, spec: WidgetSpec) -> dict[str, Any]:
     """Check the source is one we can fetch and this widget can draw, then keep
     its parameters as given for the fetcher to interpret."""
-    binding = _require_mapping(raw, "DASHBOARD_BINDING_INVALID")
+    binding = _require_mapping(raw, DashboardMessages.BINDING_INVALID)
     source = binding.get("source")
     if not isinstance(source, str) or source not in ALL_SOURCES:
-        _fail("DASHBOARD_BINDING_SOURCE_UNKNOWN")
+        _fail(DashboardMessages.BINDING_SOURCE_UNKNOWN)
     if source not in spec.sources:
-        _fail("DASHBOARD_BINDING_SOURCE_NOT_ALLOWED")
+        _fail(DashboardMessages.BINDING_SOURCE_NOT_ALLOWED)
     params = {key: value for key, value in binding.items() if key != "source"}
     return {"source": source, **params}
 
@@ -261,7 +263,7 @@ def _normalize_options(raw: Any, spec: WidgetSpec, preset: WidgetPreset | None) 
         # the option vocabulary stays a flat set of literals.
         candidate = str(value).lower() if isinstance(value, bool) else value
         if not isinstance(candidate, str) or candidate not in allowed:
-            _fail("DASHBOARD_WIDGET_OPTION_INVALID")
+            _fail(DashboardMessages.WIDGET_OPTION_INVALID)
         options[key] = candidate
     if preset is not None:
         options.update(preset.options)
@@ -269,10 +271,10 @@ def _normalize_options(raw: Any, spec: WidgetSpec, preset: WidgetPreset | None) 
 
 
 def _normalize_widget(raw: Any, index: int, seen_ids: set[str]) -> dict[str, Any]:
-    widget = _require_mapping(raw, "DASHBOARD_WIDGET_INVALID")
+    widget = _require_mapping(raw, DashboardMessages.WIDGET_INVALID)
     declared = widget.get("type")
     if not isinstance(declared, str) or declared not in WIDGET_TYPES:
-        _fail("DASHBOARD_WIDGET_TYPE_UNKNOWN")
+        _fail(DashboardMessages.WIDGET_TYPE_UNKNOWN)
 
     # Resolve a preset to its primitive, so what gets stored (and what the
     # renderer sees) is always a first-party widget kind.
@@ -282,7 +284,7 @@ def _normalize_widget(raw: Any, index: int, seen_ids: set[str]) -> dict[str, Any
 
     widget_id = _clean_text(widget.get("id")) or f"w{index + 1}"
     if widget_id in seen_ids:
-        _fail("DASHBOARD_WIDGET_ID_DUPLICATE")
+        _fail(DashboardMessages.WIDGET_ID_DUPLICATE)
     seen_ids.add(widget_id)
 
     cleaned: dict[str, Any] = {
@@ -310,16 +312,16 @@ def normalize_dashboard_definition(payload: Any) -> dict[str, Any]:
     binding source this app has no renderer/fetcher for; returns a definition in
     canonical shape.
     """
-    definition = _require_mapping(payload, "DASHBOARD_DEFINITION_INVALID")
+    definition = _require_mapping(payload, DashboardMessages.DEFINITION_INVALID)
 
     if definition.get("schema_version", SCHEMA_VERSION) != SCHEMA_VERSION:
-        _fail("DASHBOARD_DEFINITION_VERSION_UNSUPPORTED")
+        _fail(DashboardMessages.DEFINITION_VERSION_UNSUPPORTED)
 
     raw_widgets = definition.get("widgets", [])
     if not isinstance(raw_widgets, list):
-        _fail("DASHBOARD_DEFINITION_INVALID")
+        _fail(DashboardMessages.DEFINITION_INVALID)
     if len(raw_widgets) > MAX_WIDGETS:
-        _fail("DASHBOARD_TOO_MANY_WIDGETS")
+        _fail(DashboardMessages.TOO_MANY_WIDGETS)
 
     seen_ids: set[str] = set()
     widgets = [
@@ -351,11 +353,11 @@ def normalize_dashboard_config(
     dangling config behind. The parameter values are the fetcher's business,
     exactly as in a binding.
     """
-    config = _require_mapping(payload, "DASHBOARD_CONFIG_INVALID")
+    config = _require_mapping(payload, DashboardMessages.CONFIG_INVALID)
     raw_widgets = config.get("widgets")
     if raw_widgets is None:
         return {"widgets": {}}
-    widget_config = _require_mapping(raw_widgets, "DASHBOARD_CONFIG_INVALID")
+    widget_config = _require_mapping(raw_widgets, DashboardMessages.CONFIG_INVALID)
 
     known_ids = {widget["id"] for widget in definition.get("widgets", [])}
     cleaned = {

@@ -362,6 +362,5 @@
   "DASHBOARD_BINDING_INVALID": "A widget's data settings couldn't be read",
   "DASHBOARD_BINDING_SOURCE_UNKNOWN": "A widget points at a data source this app doesn't support",
   "DASHBOARD_BINDING_SOURCE_NOT_ALLOWED": "That data source can't be shown with this widget",
-  "DASHBOARD_BINDING_ID_INVALID": "A widget points at an item that isn't valid",
   "DASHBOARD_CONFIG_INVALID": "This dashboard's settings couldn't be read"
 }
