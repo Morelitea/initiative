@@ -1495,6 +1495,28 @@ async def _create_dashboards(
     goes through the real normalizer before it is stored, so a seed that drifts
     from the widget vocabulary fails here rather than rendering as an error tile.
     """
+
+    def _grant(**fields) -> ResourceGrant:
+        """One grant row, checked before it reaches Postgres.
+
+        ``resource_grants`` requires exactly one grantee (a user, a role, or the
+        whole initiative). SQLModel accepts an unknown kwarg silently — a
+        misspelled column name leaves the real one NULL and the row arrives with
+        no grantee at all, which surfaces as a check-constraint traceback a long
+        way from the typo.
+        """
+        grant = ResourceGrant(**fields)
+        grantees = (
+            int(grant.user_id is not None)
+            + int(grant.role_id is not None)
+            + int(bool(grant.all_initiative_members))
+        )
+        if grantees != 1:
+            raise RuntimeError(
+                f"grant needs exactly one grantee, got {grantees}: {fields}"
+            )
+        return grant
+
     dashboards: dict[str, Dashboard] = {}
     for dd in dashboard_defs:
         creator = all_users[dd["created_by"]]
@@ -1544,7 +1566,7 @@ async def _create_dashboards(
         await session.flush()
         ids.add("dashboards", dashboard.id)
 
-        owner_perm = ResourceGrant(
+        owner_perm = _grant(
             resource_type="dashboard",
             resource_id=dashboard.id,
             user_id=creator.id,
@@ -1559,10 +1581,10 @@ async def _create_dashboards(
         )
 
         for grant in dd.get("role_grants", []):
-            rp = ResourceGrant(
+            rp = _grant(
                 resource_type="dashboard",
                 resource_id=dashboard.id,
-                initiative_role_id=grant["role_id"],
+                role_id=grant["role_id"],
                 guild_id=guild.id,
                 initiative_id=dashboard.initiative_id,
                 level=grant.get("level", ResourceAccessLevel.read),
@@ -1570,11 +1592,11 @@ async def _create_dashboards(
             session.add(rp)
             ids.add(
                 "dashboard_permissions",
-                {"dashboard_id": dashboard.id, "initiative_role_id": grant["role_id"]},
+                {"dashboard_id": dashboard.id, "role_id": grant["role_id"]},
             )
 
         if dd.get("general_access") is not None:
-            ga = ResourceGrant(
+            ga = _grant(
                 resource_type="dashboard",
                 resource_id=dashboard.id,
                 guild_id=guild.id,
