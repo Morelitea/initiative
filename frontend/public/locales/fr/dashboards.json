@@ -104,8 +104,6 @@
     "emptyHint": "Ajoutez un widget pour commencer à afficher vos données.",
     "emptyReadOnly": "Une personne ayant les droits de modification peut en ajouter.",
     "addWidget": "Ajouter un widget",
-    "widgets": "Widgets",
-    "presets": "Prêts à l'emploi",
     "widgetCap": "Un tableau de bord accepte {{max}} widgets.",
     "widgetMenu": "Options de {{widget}}",
     "configure": "Configurer",
@@ -136,5 +134,15 @@
       "assignee": "Assigné à",
       "day": "Jour d'achèvement"
     }
+  },
+  "picker": {
+    "title": "Ajouter un widget",
+    "description": "Choisissez un widget pour le voir dessiné avec des données d'exemple, puis définissez ce qu'il affiche.",
+    "searchPlaceholder": "Rechercher des widgets…",
+    "listLabel": "Widgets",
+    "noResults": "Aucun widget ne correspond à « {{query}} ».",
+    "data": "Données",
+    "needsBinding": "Vous choisirez précisément ce qu'il affiche après l'avoir ajouté.",
+    "add": "Ajouter {{widget}}"
   }
 }

@@ -1,11 +1,11 @@
 import { Link, useParams } from "@tanstack/react-router";
-import { Loader2, SearchX, ShieldAlert } from "lucide-react";
+import { SearchX, ShieldAlert } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { AddWidgetMenu } from "@/components/initiativeTools/dashboards/AddWidgetMenu";
 import { DashboardCanvas } from "@/components/initiativeTools/dashboards/DashboardCanvas";
 import { WidgetConfigDialog } from "@/components/initiativeTools/dashboards/WidgetConfigDialog";
+import { WidgetPicker } from "@/components/initiativeTools/dashboards/WidgetPicker";
 import { StatusMessage } from "@/components/StatusMessage";
 import {
   Breadcrumb,
@@ -15,6 +15,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useDashboardEditor } from "@/hooks/useDashboardEditor";
 import { useDashboard, useWidgetCatalog } from "@/hooks/useDashboards";
 import { useInitiatives } from "@/hooks/useInitiatives";
@@ -66,16 +67,7 @@ export function DashboardDetailPage() {
     return <p className="text-destructive">{t("notFound")}</p>;
   }
 
-  if (dashboardQuery.isLoading) {
-    return (
-      <div className="flex items-center gap-2 text-muted-foreground text-sm">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        {t("loadingDashboard")}
-      </div>
-    );
-  }
-
-  if (dashboardQuery.isError || !dashboard) {
+  if (dashboardQuery.isError) {
     const status = getHttpStatus(dashboardQuery.error);
     const backTo = gp("/dashboards");
     const backLabel = t("backToDashboards");
@@ -102,11 +94,15 @@ export function DashboardDetailPage() {
     );
   }
 
+  // The page frame is correct as soon as the route resolves; only the canvas is
+  // waiting on anything. Replacing the whole page with a spinner would throw the
+  // breadcrumb, title, and toolbar away and rebuild them a moment later, which
+  // is what made an ordinary load look like a reload.
   return (
     <div className="space-y-6">
       <Breadcrumb>
         <BreadcrumbList>
-          {initiativeName && (
+          {initiativeName && dashboard && (
             <>
               <BreadcrumbItem>
                 <BreadcrumbLink asChild>
@@ -123,36 +119,47 @@ export function DashboardDetailPage() {
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbPage>{dashboard.name}</BreadcrumbPage>
+            {dashboard ? (
+              <BreadcrumbPage>{dashboard.name}</BreadcrumbPage>
+            ) : (
+              <Skeleton className="h-4 w-32" />
+            )}
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
 
-      <div className="space-y-1">
-        <h1 className="font-semibold text-3xl tracking-tight">{dashboard.name}</h1>
-        {dashboard.description && (
-          <p className="text-muted-foreground text-sm">{dashboard.description}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1">
+          {dashboard ? (
+            <h1 className="font-semibold text-3xl tracking-tight">{dashboard.name}</h1>
+          ) : (
+            <Skeleton className="h-9 w-64" />
+          )}
+          {dashboard?.description && (
+            <p className="text-muted-foreground text-sm">{dashboard.description}</p>
+          )}
+        </div>
+
+        {canEdit && (
+          <div className="flex shrink-0 items-center gap-2">
+            {editor.isSaving && (
+              <span className="text-muted-foreground text-xs">{t("canvas.saving")}</span>
+            )}
+            <WidgetPicker
+              catalog={catalogQuery.data}
+              widgetCount={editor.definition.widgets.length}
+              onAdd={editor.addWidget}
+            />
+          </div>
         )}
       </div>
-
-      {canEdit && (
-        <div className="flex items-center justify-end gap-2">
-          {editor.isSaving && (
-            <span className="text-muted-foreground text-xs">{t("canvas.saving")}</span>
-          )}
-          <AddWidgetMenu
-            catalog={catalogQuery.data}
-            widgetCount={editor.definition.widgets.length}
-            onAdd={editor.addWidget}
-          />
-        </div>
-      )}
 
       <DashboardCanvas
         definition={editor.definition}
         config={editor.config}
         catalog={catalogQuery.data}
         canEdit={canEdit}
+        isLoading={!dashboard}
         onLayoutChange={editor.replaceDefinition}
         onConfigureWidget={setConfiguringId}
         onRemoveWidget={editor.removeWidget}

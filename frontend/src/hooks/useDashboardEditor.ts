@@ -18,6 +18,7 @@ import type { DashboardRead, WidgetCatalog } from "@/api/generated/initiativeAPI
 import { useUpdateDashboard } from "@/hooks/useDashboards";
 import {
   addWidget as addWidgetTo,
+  canonicalJson,
   type DashboardDefinition,
   type DefinitionWidget,
   definitionsEqual,
@@ -36,7 +37,7 @@ export interface DashboardEditor {
   definition: DashboardDefinition;
   config: ReturnType<typeof readConfig>;
   isSaving: boolean;
-  addWidget: (typeOrPreset: string, source: string) => void;
+  addWidget: (typeOrPreset: string, source: string, options?: Record<string, string>) => void;
   removeWidget: (widgetId: string) => void;
   updateWidget: (widgetId: string, patch: Partial<DefinitionWidget>) => void;
   replaceDefinition: (next: DashboardDefinition) => void;
@@ -86,7 +87,7 @@ export function useDashboardEditor(
       pending.current = null;
       if (!next || !dashboardId) return;
 
-      const saved = JSON.stringify(next);
+      const saved = canonicalJson(next);
       inFlight.current = true;
       update.mutate(
         {
@@ -100,9 +101,11 @@ export function useDashboardEditor(
             // Hand control back to the server's copy only if the draft is still
             // what we just saved. Drags land faster than requests return, so an
             // unconditional reset would drop whatever the user did while this
-            // was in flight.
+            // was in flight. The mutation seeds the dashboard cache with its own
+            // response first, so "the server's copy" here is already this save's
+            // — the canvas does not fall back to the pre-save layout.
             setDraft((current) =>
-              current !== null && JSON.stringify(current) === saved ? null : current
+              current !== null && canonicalJson(current) === saved ? null : current
             );
           },
           onSettled: () => {
@@ -154,8 +157,8 @@ export function useDashboardEditor(
     config,
     isSaving: update.isPending,
     addWidget: useCallback(
-      (typeOrPreset: string, source: string) =>
-        apply(addWidgetTo(definition, catalog, typeOrPreset, source)),
+      (typeOrPreset: string, source: string, options?: Record<string, string>) =>
+        apply(addWidgetTo(definition, catalog, typeOrPreset, source, options)),
       [apply, definition, catalog]
     ),
     removeWidget: useCallback(

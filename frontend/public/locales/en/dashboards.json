@@ -104,8 +104,6 @@
     "emptyHint": "Add a widget to start showing your data.",
     "emptyReadOnly": "Someone with edit access can add widgets to it.",
     "addWidget": "Add widget",
-    "widgets": "Widgets",
-    "presets": "Ready-made",
     "widgetCap": "A dashboard can hold {{max}} widgets.",
     "widgetMenu": "Options for {{widget}}",
     "configure": "Configure",
@@ -136,5 +134,15 @@
       "assignee": "Assignee",
       "day": "Day completed"
     }
+  },
+  "picker": {
+    "title": "Add a widget",
+    "description": "Pick a widget to see it drawn with sample data, then choose what it shows.",
+    "searchPlaceholder": "Search widgets…",
+    "listLabel": "Widgets",
+    "noResults": "No widget matches “{{query}}”.",
+    "data": "Data",
+    "needsBinding": "You'll choose exactly what this shows after adding it.",
+    "add": "Add {{widget}}"
   }
 }

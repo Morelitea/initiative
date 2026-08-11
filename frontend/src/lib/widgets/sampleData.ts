@@ -1,20 +1,23 @@
 /**
  * Sample data in the shapes `dataShapes.ts` documents.
  *
- * The fetchers that will produce these for real land with the canvas (Phase
- * 2b); until then these are what the built-ins are developed and tested
- * against, and what the dev route draws. Keeping them in one place means the
- * contract is exercised rather than assumed.
+ * Ships with the app rather than living beside the tests, because the widget
+ * picker previews every widget by *running* it — the same sandbox, validator,
+ * and renderer a live tile uses, over these rows. So someone choosing a widget
+ * sees the real thing before adding it, and the widget tests exercise the same
+ * contract the previews do. Frozen values throughout: the sandbox has a frozen
+ * clock, so a preview renders identically every time.
  */
 
-import type { WidgetData, WidgetSource } from "../dataShapes";
+import type { WidgetData, WidgetSource } from "./dataShapes";
+import { emptyDataFor } from "./normalize";
 
 const DAY = 86_400_000;
-/** A fixed anchor — the widgets get a frozen clock, so fixtures get a frozen
+/** A fixed anchor — the widgets get a frozen clock, so samples get a frozen
  *  calendar. Renders stay byte-identical across runs. */
 const T0 = Date.UTC(2026, 7, 3);
 
-export interface WidgetFixture {
+export interface WidgetSample {
   source: WidgetSource;
   data: WidgetData;
   /** The same source with nothing in it — the "no data yet" path every widget
@@ -27,7 +30,7 @@ export interface WidgetFixture {
   variants?: Record<string, WidgetData>;
 }
 
-const tasks: WidgetFixture = {
+const tasks: WidgetSample = {
   source: "tasks",
   data: {
     source: "tasks",
@@ -76,7 +79,7 @@ const tasks: WidgetFixture = {
   empty: { source: "tasks", rows: [] },
 };
 
-const projects: WidgetFixture = {
+const projects: WidgetSample = {
   source: "projects",
   data: {
     source: "projects",
@@ -104,7 +107,7 @@ const projects: WidgetFixture = {
   empty: { source: "projects", rows: [] },
 };
 
-const calendarEntries: WidgetFixture = {
+const calendarEntries: WidgetSample = {
   source: "calendar_entries",
   data: {
     source: "calendar_entries",
@@ -130,7 +133,7 @@ const calendarEntries: WidgetFixture = {
   empty: { source: "calendar_entries", rows: [] },
 };
 
-const taskCounts: WidgetFixture = {
+const taskCounts: WidgetSample = {
   source: "task_counts",
   data: {
     source: "task_counts",
@@ -155,7 +158,7 @@ const taskCounts: WidgetFixture = {
   },
 };
 
-const counter: WidgetFixture = {
+const counter: WidgetSample = {
   source: "counter",
   data: {
     source: "counter",
@@ -169,7 +172,7 @@ const counter: WidgetFixture = {
   },
 };
 
-const counterGroup: WidgetFixture = {
+const counterGroup: WidgetSample = {
   source: "counter_group",
   data: {
     source: "counter_group",
@@ -183,7 +186,7 @@ const counterGroup: WidgetFixture = {
   empty: { source: "counter_group", name: "Inventory", counters: [] },
 };
 
-const myStats: WidgetFixture = {
+const myStats: WidgetSample = {
   source: "my_stats",
   data: {
     source: "my_stats",
@@ -196,7 +199,7 @@ const myStats: WidgetFixture = {
   empty: { source: "my_stats", days: [], total: 0 },
 };
 
-const sheetRange: WidgetFixture = {
+const sheetRange: WidgetSample = {
   source: "sheet_range",
   data: {
     source: "sheet_range",
@@ -213,7 +216,7 @@ const sheetRange: WidgetFixture = {
   empty: { source: "sheet_range", range: { columns: ["Stage", "Count"], rows: [] } },
 };
 
-export const ALL_FIXTURES: WidgetFixture[] = [
+export const ALL_SAMPLES: WidgetSample[] = [
   tasks,
   projects,
   calendarEntries,
@@ -224,11 +227,18 @@ export const ALL_FIXTURES: WidgetFixture[] = [
   sheetRange,
 ];
 
-export const fixtureFor = (source: WidgetSource, widgetType?: string): WidgetData => {
-  const found = ALL_FIXTURES.find((fixture) => fixture.source === source);
-  if (!found) throw new Error(`no fixture for source ${source}`);
-  const variant = widgetType ? found.variants?.[widgetType] : undefined;
-  return variant ?? found.data;
+/**
+ * Sample rows for a source, in the shape a given widget wants them.
+ *
+ * Total on purpose: the picker previews whatever the *served* catalog offers, so
+ * a source this build has no sample for previews as an empty tile rather than
+ * taking the dialog down with it. `sampleData.test.ts` is what stops that from
+ * becoming a silent gap.
+ */
+export const sampleFor = (source: WidgetSource, widgetType?: string): WidgetData => {
+  const found = ALL_SAMPLES.find((sample) => sample.source === source);
+  const variant = widgetType ? found?.variants?.[widgetType] : undefined;
+  return variant ?? found?.data ?? emptyDataFor(source);
 };
 
 /**

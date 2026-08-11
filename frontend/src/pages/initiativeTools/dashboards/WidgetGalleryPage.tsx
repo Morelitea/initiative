@@ -1,7 +1,7 @@
 /**
  * Widget gallery — every built-in, drawn through the real pipeline.
  *
- * Each tile fetches nothing: it hands a fixture to the same sandbox, validator,
+ * Each tile fetches nothing: it hands a sample to the same sandbox, validator,
  * and renderer a live dashboard uses, so what you see here is exactly what the
  * canvas will draw once the fetchers land (Phase 2b). It is also the fastest
  * way to see a SceneSpec change across all seven widgets at once.
@@ -21,14 +21,14 @@ import { useTranslation } from "react-i18next";
 import { WidgetTile } from "@/components/initiativeTools/dashboards/WidgetTile";
 import { Button } from "@/components/ui/button";
 import { useWidgetMeta } from "@/hooks/useWidgetMeta";
-import { ALL_FIXTURES, fixtureFor, SOURCES_BY_WIDGET } from "@/lib/widgets/__fixtures__/widgetData";
 import type { WidgetSource } from "@/lib/widgets/dataShapes";
 import { BUILTIN_WIDGET_TYPES } from "@/lib/widgets/registry";
+import { ALL_SAMPLES, SOURCES_BY_WIDGET, sampleFor } from "@/lib/widgets/sampleData";
 import { localized } from "@/lib/widgets/widgetMeta";
 
 /** Widget modules that misbehave in each way the runtime bounds, so the error
  *  path is visible rather than only asserted in tests. The label keys are ours
- *  — these are our test fixtures, not widgets anyone ships. */
+ *  — these are our test samples, not widgets anyone ships. */
 const HOSTILE_WIDGETS = [
   { key: "infiniteLoop", source: "function render() { while (true) {} }" },
   {
@@ -77,7 +77,7 @@ export function WidgetGalleryPage() {
           {t("gallery.description", {
             combinations: tiles.length,
             widgets: BUILTIN_WIDGET_TYPES.length,
-            sources: ALL_FIXTURES.length,
+            sources: ALL_SAMPLES.length,
           })}
         </p>
       </div>
@@ -114,7 +114,7 @@ export function WidgetGalleryPage() {
               type="kpi"
               title={t(`gallery.failure.${widget.key}` as const)}
               source={widget.source}
-              data={fixtureFor("task_counts")}
+              data={sampleFor("task_counts")}
             />
           </div>
         ))}
@@ -145,7 +145,7 @@ function GalleryTile({
           widget: name,
           source: t(`bindingSource.${source}` as const),
         })}
-        data={fixtureFor(source, type)}
+        data={sampleFor(source, type)}
         config={type === "chart" && markOverride ? { mark: markOverride } : undefined}
       />
     </div>

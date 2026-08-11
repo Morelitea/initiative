@@ -12,9 +12,9 @@ import { describe, expect, it } from "vitest";
 
 import { WidgetType } from "@/api/generated/initiativeAPI.schemas";
 
-import { ALL_FIXTURES, fixtureFor, SOURCES_BY_WIDGET } from "./__fixtures__/widgetData";
 import { BUILTIN_WIDGET_TYPES, builtinWidgetSource } from "./registry";
 import { renderInSandbox } from "./runtime/sandbox";
+import { ALL_SAMPLES, SOURCES_BY_WIDGET, sampleFor } from "./sampleData";
 import { validateScene } from "./validateScene";
 
 describe("built-in widget registry", () => {
@@ -38,7 +38,7 @@ describe("built-ins run in the sandbox like any other widget", () => {
 
     const result = await renderInSandbox({
       source: widgetSource as string,
-      data: fixtureFor(source, type),
+      data: sampleFor(source, type),
       config: {},
       now: Date.UTC(2026, 7, 11),
     });
@@ -64,7 +64,7 @@ describe("built-ins run in the sandbox like any other widget", () => {
     "%s degrades to an empty tile for a source it cannot draw",
     async (type) => {
       const drawable = new Set(SOURCES_BY_WIDGET[type]);
-      const foreign = ALL_FIXTURES.find((f) => !drawable.has(f.source));
+      const foreign = ALL_SAMPLES.find((f) => !drawable.has(f.source));
       expect(foreign, `${type} draws every source`).toBeDefined();
 
       const result = await renderInSandbox({
@@ -82,13 +82,13 @@ describe("built-ins run in the sandbox like any other widget", () => {
   );
 
   it.each(BUILTIN_WIDGET_TYPES)("%s survives empty data", async (type) => {
-    for (const fixture of ALL_FIXTURES) {
+    for (const sample of ALL_SAMPLES) {
       const result = await renderInSandbox({
         source: builtinWidgetSource(type) as string,
-        data: fixture.empty,
+        data: sample.empty,
         config: {},
       });
-      expect(result.ok, `${type} threw on empty ${fixture.source}: ${JSON.stringify(result)}`).toBe(
+      expect(result.ok, `${type} threw on empty ${sample.source}: ${JSON.stringify(result)}`).toBe(
         true
       );
       if (!result.ok) continue;

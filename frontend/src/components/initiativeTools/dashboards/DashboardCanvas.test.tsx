@@ -51,18 +51,28 @@ const catalog = {
 
 const withKpi = (): DashboardDefinition => addWidget(EMPTY_DEFINITION, catalog, "kpi", "counter");
 
-const render = (definition: DashboardDefinition, canEdit: boolean, onLayoutChange = vi.fn()) => {
-  renderWithProviders(
+const render = (
+  definition: DashboardDefinition,
+  canEdit: boolean,
+  onLayoutChange = vi.fn(),
+  isLoading = false
+) => {
+  const { container } = renderWithProviders(
     <DashboardCanvas
       definition={definition}
       config={readConfig({})}
       catalog={catalog}
       canEdit={canEdit}
+      isLoading={isLoading}
       onLayoutChange={onLayoutChange}
     />
   );
-  return onLayoutChange;
+  return Object.assign(onLayoutChange, { container });
 };
+
+/** The dot grid is a background on the canvas surface, so it is read off the
+ *  style rather than found as an element. */
+const surface = (container: HTMLElement) => container.querySelector("[style*='radial-gradient']");
 
 describe("DashboardCanvas", () => {
   it("invites the author to add a widget when the canvas is empty", () => {
@@ -93,6 +103,27 @@ describe("DashboardCanvas", () => {
     // behalf, whatever the grid reports.
     const onLayoutChange = render(withKpi(), false);
     expect(onLayoutChange).not.toHaveBeenCalled();
+  });
+
+  it("shows the wait inside the canvas, not in place of it", () => {
+    // The page around the canvas is already correct while the row loads;
+    // swapping the whole page for a spinner is what made an ordinary load look
+    // like a reload.
+    const onLayoutChange = render(withKpi(), true, vi.fn(), true);
+    expect(screen.getByText(/loading dashboard/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /options for/i })).toBeNull();
+    expect(onLayoutChange).not.toHaveBeenCalled();
+  });
+
+  it("draws the grid for someone who can arrange it", () => {
+    const { container } = render(withKpi(), true);
+    expect(surface(container)).not.toBeNull();
+  });
+
+  it("draws no grid for a viewer", () => {
+    // Dots promise that things snap into place; without write access they don't.
+    const { container } = render(withKpi(), false);
+    expect(surface(container)).toBeNull();
   });
 
   it("opening a dashboard does not write its layout", () => {
