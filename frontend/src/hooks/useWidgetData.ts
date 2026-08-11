@@ -90,13 +90,35 @@ export function useWidgetData(
 ): WidgetDataResult {
   const source = binding.source;
 
+  /**
+   * The task query, scoped through the filter DSL.
+   *
+   * `conditions` is the *only* narrowing the tasks endpoint reads — it takes no
+   * `initiative_id` or `project_id` query parameter, so scope stated as one is
+   * silently dropped and the widget aggregates every task the viewer can read
+   * across the guild. Both go in as conditions, AND-ed with the binding's own.
+   *
+   * Flat, deliberately: the DSL caps group nesting, and the author's own
+   * conditions may already use it, so adding a wrapper of our own would spend a
+   * level they need. A top-level list is AND-ed anyway.
+   */
   const taskParams = useMemo<ListTasksApiV1GGuildIdTasksGetParams>(() => {
+    const conditions: unknown[] = [];
+    if (initiativeId) {
+      conditions.push({ field: "initiative_ids", op: "in_", value: [initiativeId] });
+    }
+    if (binding.project_id) {
+      conditions.push({ field: "project_id", op: "eq", value: binding.project_id });
+    }
+    // The binding's own pass through verbatim — the parser owns its limits, and
+    // mirroring them here would mean maintaining them twice. A definition may
+    // carry either a list or a single group; the endpoint wants a list.
+    const own = binding.conditions;
+    if (Array.isArray(own)) conditions.push(...own);
+    else if (own && typeof own === "object") conditions.push(own);
+
     const params: Record<string, unknown> = { page_size: 0 };
-    if (binding.project_id) params.project_id = binding.project_id;
-    if (initiativeId) params.initiative_id = initiativeId;
-    // The filter DSL passes through verbatim — the parser owns its own limits,
-    // and mirroring them here would mean maintaining them twice.
-    if (binding.conditions) params.conditions = JSON.stringify(binding.conditions);
+    if (conditions.length) params.conditions = JSON.stringify(conditions);
     return params as ListTasksApiV1GGuildIdTasksGetParams;
   }, [binding.project_id, initiativeId, binding.conditions]);
 
