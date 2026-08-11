@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Building a project from a template now reschedules its tasks.** Task start and due dates in a template are treated as relative: give the new project a start date and each task lands the same distance from it as it sat from the template's start — a task due three weeks in stays three weeks in. A template without dates of its own anchors on its earliest scheduled task, and giving only an end date anchors the schedule on the end instead. Leave the new project undated and task dates copy across unchanged, as before. Template task start dates, previously dropped, now carry over too.
+
 ## [0.61.1] - 2026-08-10
 
 ### Fixed
