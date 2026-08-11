@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.61.0] - 2026-08-10
+
 ### Removed
 
 - **The Gantt view has been removed from projects.** Task boards now offer Table, Kanban, and Calendar. Anyone whose saved view was Gantt lands on Table instead; nothing about the tasks themselves changes, and start and due dates are still shown in the Calendar view.
