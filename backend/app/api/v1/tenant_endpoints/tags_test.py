@@ -9,9 +9,7 @@ from sqlmodel import select
 from app.models.platform.guild import GuildRole
 from app.models.tenant.tag import TaskTag
 from app.testing import (
-    create_counter_group,
     create_initiative,
-    create_queue,
     create_tag,
     create_task,
 )
@@ -137,46 +135,25 @@ async def test_set_tags_rejects_other_guilds_tag(
 async def test_generic_tool_tags_route_covers_every_tool(
     client: AsyncClient, acting_user, session
 ):
-    """PUT /tools/{tool}/{tool_id}/tags works for EVERY Tool member. The
-    entity map below must span the enum, so a new tool fails here until the
-    generic route demonstrably covers it too."""
+    """PUT /tools/{tool}/{tool_id}/tags works for EVERY Tool member.
+
+    Both halves derive from the enum — the feature toggles from
+    ``TOGGLEABLE_TOOLS`` and the entities from ``TOOL_FACTORIES`` — so a new
+    tool is exercised here the moment it exists, rather than when someone
+    remembers to add a line. A tool with no factory fails at import of
+    ``app.testing``, once, naming itself.
+    """
     from app.core.tools import Tool
-    from app.models.tenant.advanced_tool import AdvancedTool
-    from app.models.tenant.initiative import Initiative
-    from app.testing import (
-        create_calendar,
-        create_document,
-        create_project,
-        route_session_to_guild,
-    )
+    from app.testing import create_tool_entity, enable_all_tools
 
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    # The initiative factory enables queues + counter groups; flip on the
-    # remaining toggleable tools so the feature gate passes for all of them.
-    await route_session_to_guild(session, a.guild.id)
-    initiative = await session.get(Initiative, a.initiative.id)
-    initiative.calendars_enabled = True
-    initiative.advanced_tools_enabled = True
-    session.add(initiative)
-    advanced = AdvancedTool(
-        guild_id=a.guild.id,
-        initiative_id=a.initiative.id,
-        name="Adv",
-        created_by_id=a.user.id,
-    )
-    session.add(advanced)
-    await session.commit()
+    await enable_all_tools(session, a.initiative)
     tag = await create_tag(session, a.guild)
 
     entities = {
-        Tool.project: await create_project(session, a.initiative, a.user),
-        Tool.document: await create_document(session, a.initiative, a.user),
-        Tool.queue: await create_queue(session, a.initiative, a.user),
-        Tool.counter_group: await create_counter_group(session, a.initiative, a.user),
-        Tool.calendar: await create_calendar(session, a.initiative, a.user),
-        Tool.advanced_tool: advanced,
+        tool: await create_tool_entity(session, tool, a.initiative, a.user)
+        for tool in Tool
     }
-    assert set(entities) == set(Tool)
 
     for tool, entity in entities.items():
         response = await client.put(

@@ -350,3 +350,74 @@ async def test_set_grants_replaces_sharing(client: AsyncClient, acting_user, ses
         json={"name": "Co-owned"},
     )
     assert patched.status_code == 200
+
+
+# --- widget catalog --------------------------------------------------------
+#
+# The catalog is what stops the editor's palette from carrying a second copy of
+# the widget vocabulary, so its job is to be a faithful projection of
+# WIDGET_SPECS rather than a hand-maintained list.
+
+
+async def test_widget_catalog_projects_the_registry(
+    client: AsyncClient, acting_user
+) -> None:
+    from app.services.tenant.dashboard_definition import WIDGET_PRESETS, WIDGET_SPECS
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    response = await client.get(a.g("/dashboards/widget-catalog"), headers=a.headers)
+    assert response.status_code == 200
+    body = response.json()
+
+    assert {entry["type"] for entry in body["widgets"]} == set(WIDGET_SPECS)
+    assert {entry["name"] for entry in body["presets"]} == set(WIDGET_PRESETS)
+
+    for entry in body["widgets"]:
+        spec = WIDGET_SPECS[entry["type"]]
+        assert (entry["min_w"], entry["min_h"]) == (spec.min_w, spec.min_h)
+        assert (entry["default_w"], entry["default_h"]) == (
+            spec.default_w,
+            spec.default_h,
+        )
+        assert set(entry["sources"]) == set(spec.sources)
+        assert {option["key"] for option in entry["options"]} == set(spec.options)
+
+
+async def test_widget_catalog_presets_resolve_to_primitives(
+    client: AsyncClient, acting_user
+) -> None:
+    """A preset that named a primitive we don't ship would put an unrenderable
+    entry in the palette."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    response = await client.get(a.g("/dashboards/widget-catalog"), headers=a.headers)
+    body = response.json()
+
+    primitives = {entry["type"] for entry in body["widgets"]}
+    for preset in body["presets"]:
+        assert preset["primitive"] in primitives
+
+
+async def test_widget_catalog_requires_guild_membership(
+    client: AsyncClient, acting_user, session
+) -> None:
+    """Static metadata, but still addressed inside a guild — an outsider gets
+    the same 403 every other dashboard route gives."""
+    from app.testing import create_guild
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    other = await create_guild(session)
+    response = await client.get(
+        f"/api/v1/g/{other.id}/dashboards/widget-catalog", headers=a.headers
+    )
+    assert response.status_code == 403
+
+
+async def test_widget_catalog_path_is_not_read_as_an_id(
+    client: AsyncClient, acting_user
+) -> None:
+    """The literal route has to win over /{dashboard_id}, which would otherwise
+    swallow it and 422 on the int parse."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    response = await client.get(a.g("/dashboards/widget-catalog"), headers=a.headers)
+    assert response.status_code == 200
+    assert "widgets" in response.json()

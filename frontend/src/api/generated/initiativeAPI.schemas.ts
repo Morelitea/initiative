@@ -663,6 +663,22 @@ export interface BillingPortalHandoffResponse {
   expires_in_seconds: number;
 }
 
+/**
+ * Data sources a widget binding may name.
+ */
+export type BindingSource = (typeof BindingSource)[keyof typeof BindingSource];
+
+export const BindingSource = {
+  calendar_entries: "calendar_entries",
+  counter: "counter",
+  counter_group: "counter_group",
+  my_stats: "my_stats",
+  projects: "projects",
+  sheet_range: "sheet_range",
+  task_counts: "task_counts",
+  tasks: "tasks",
+} as const;
+
 export interface BodyLoginAccessTokenApiV1AuthTokenPost {
   grant_type?: string | null;
   username: string;
@@ -4168,6 +4184,54 @@ export interface WebhookSubscriptionUpdate {
   target_url?: string | null;
   event_types?: string[] | null;
   active?: boolean | null;
+}
+
+/**
+ * Widget primitives this build has renderers for.
+ */
+export type WidgetType = (typeof WidgetType)[keyof typeof WidgetType];
+
+export const WidgetType = {
+  chart: "chart",
+  funnel: "funnel",
+  gantt: "gantt",
+  heatmap: "heatmap",
+  kpi: "kpi",
+  progress: "progress",
+  table: "table",
+} as const;
+
+export interface WidgetOption {
+  key: string;
+  values: string[];
+}
+
+export interface WidgetCatalogEntry {
+  type: WidgetType;
+  min_w: number;
+  min_h: number;
+  default_w: number;
+  default_h: number;
+  sources: BindingSource[];
+  options: WidgetOption[];
+}
+
+export type WidgetPresetEntryOptions = { [key: string]: string };
+
+/**
+ * A named widget built from a primitive plus fixed options — the palette's
+ * ready-made entries ("Bar chart"), and later the shape a listing uses to
+ * contribute its own.
+ */
+export interface WidgetPresetEntry {
+  name: string;
+  primitive: WidgetType;
+  options: WidgetPresetEntryOptions;
+}
+
+export interface WidgetCatalog {
+  widgets: WidgetCatalogEntry[];
+  presets: WidgetPresetEntry[];
 }
 
 /**

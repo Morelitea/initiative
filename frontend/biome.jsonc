@@ -206,6 +206,19 @@
           }
         }
       }
+    },
+    {
+      // Widget modules are sandbox entry points, not app modules: they are
+      // loaded as source text and their top-level `render` is called by the
+      // QuickJS runtime, never imported. Biome can only see an unused function.
+      "includes": ["src/lib/widgets/builtins/**"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnusedVariables": "off"
+          }
+        }
+      }
     }
   ]
 }

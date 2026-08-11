@@ -54,5 +54,51 @@
   "createFirst": "Create Your First Dashboard",
   "error": "Something went wrong",
   "tagsDescription": "Add tags to organize and filter dashboards.",
-  "noWriteAccessTags": "You need write access to manage tags."
+  "noWriteAccessTags": "You need write access to manage tags.",
+  "widgetError": {
+    "SCENE_API_VERSION_UNSUPPORTED": "This widget needs a newer version of the app.",
+    "SCENE_ENUM_INVALID": "This widget asked for an option this version does not have.",
+    "SCENE_NODE_INVALID": "This widget returned a shape that is not valid.",
+    "SCENE_NODE_KIND_UNKNOWN": "This widget asked for a shape this version cannot draw.",
+    "SCENE_NOT_AN_OBJECT": "This widget returned nothing to draw.",
+    "SCENE_TOO_DEEP": "This widget nested its layout too deeply.",
+    "SCENE_TOO_LARGE": "This widget returned more data than a tile can show.",
+    "SCENE_TOO_MANY_NODES": "This widget tried to draw too many elements.",
+    "SCENE_VALUE_NOT_FINITE": "This widget returned a number that is not valid.",
+    "WIDGET_BAD_OUTPUT": "This widget returned something that cannot be drawn.",
+    "WIDGET_NO_RENDER_EXPORT": "This widget has no render function.",
+    "WIDGET_OUT_OF_MEMORY": "This widget used too much memory and was stopped.",
+    "WIDGET_RUNTIME_UNAVAILABLE": "The widget runtime could not start.",
+    "WIDGET_THREW": "This widget hit an error while drawing.",
+    "WIDGET_TIMEOUT": "This widget took too long and was stopped.",
+    "WIDGET_TYPE_UNSUPPORTED": "This widget needs a newer version of the app.",
+    "default": "This widget could not be displayed."
+  },
+  "bindingSource": {
+    "tasks": "Tasks",
+    "projects": "Projects",
+    "calendar_entries": "Calendar entries",
+    "task_counts": "Task counts",
+    "counter": "Counter",
+    "counter_group": "Counter group",
+    "my_stats": "My stats",
+    "sheet_range": "Sheet range"
+  },
+  "gallery": {
+    "title": "Widget gallery",
+    "description": "Every built-in widget, run in the sandbox against fixture data. {{combinations}} combinations across {{widgets}} widgets and {{sources}} sources.",
+    "markLabel": "Chart mark",
+    "markDefault": "Default",
+    "tileTitle": "{{widget}} — {{source}}",
+    "failureModes": "Failure modes",
+    "failureModesDescription": "Each tile below runs a deliberately broken widget. They should each show an error tile — and the page around them should stay responsive throughout.",
+    "failure": {
+      "infiniteLoop": "Infinite loop",
+      "runawayAllocation": "Runaway allocation",
+      "throws": "Throws an error",
+      "noRenderExport": "No render function",
+      "triesToFetch": "Tries to fetch",
+      "invalidScene": "Invalid scene"
+    }
+  }
 }

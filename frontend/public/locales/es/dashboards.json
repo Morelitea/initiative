@@ -54,5 +54,51 @@
   "createFirst": "Crea tu primer panel",
   "error": "Algo salió mal",
   "tagsDescription": "Agrega etiquetas para organizar y filtrar paneles.",
-  "noWriteAccessTags": "Necesitas acceso de escritura para administrar etiquetas."
+  "noWriteAccessTags": "Necesitas acceso de escritura para administrar etiquetas.",
+  "widgetError": {
+    "SCENE_API_VERSION_UNSUPPORTED": "Este widget necesita una versión más reciente de la aplicación.",
+    "SCENE_ENUM_INVALID": "Este widget pidió una opción que esta versión no tiene.",
+    "SCENE_NODE_INVALID": "Este widget devolvió una forma que no es válida.",
+    "SCENE_NODE_KIND_UNKNOWN": "Este widget pidió una forma que esta versión no puede dibujar.",
+    "SCENE_NOT_AN_OBJECT": "Este widget no devolvió nada para dibujar.",
+    "SCENE_TOO_DEEP": "Este widget anidó su diseño demasiado profundamente.",
+    "SCENE_TOO_LARGE": "Este widget devolvió más datos de los que puede mostrar una tarjeta.",
+    "SCENE_TOO_MANY_NODES": "Este widget intentó dibujar demasiados elementos.",
+    "SCENE_VALUE_NOT_FINITE": "Este widget devolvió un número que no es válido.",
+    "WIDGET_BAD_OUTPUT": "Este widget devolvió algo que no se puede dibujar.",
+    "WIDGET_NO_RENDER_EXPORT": "Este widget no tiene función de renderizado.",
+    "WIDGET_OUT_OF_MEMORY": "Este widget usó demasiada memoria y se detuvo.",
+    "WIDGET_RUNTIME_UNAVAILABLE": "No se pudo iniciar el entorno de ejecución de widgets.",
+    "WIDGET_THREW": "Este widget encontró un error al dibujarse.",
+    "WIDGET_TIMEOUT": "Este widget tardó demasiado y se detuvo.",
+    "WIDGET_TYPE_UNSUPPORTED": "Este widget necesita una versión más reciente de la aplicación.",
+    "default": "No se pudo mostrar este widget."
+  },
+  "bindingSource": {
+    "tasks": "Tareas",
+    "projects": "Proyectos",
+    "calendar_entries": "Entradas de calendario",
+    "task_counts": "Recuentos de tareas",
+    "counter": "Contador",
+    "counter_group": "Grupo de contadores",
+    "my_stats": "Mis estadísticas",
+    "sheet_range": "Rango de hoja"
+  },
+  "gallery": {
+    "title": "Galería de widgets",
+    "description": "Todos los widgets integrados, ejecutados en el entorno aislado con datos de ejemplo. {{combinations}} combinaciones entre {{widgets}} widgets y {{sources}} fuentes.",
+    "markLabel": "Tipo de gráfico",
+    "markDefault": "Predeterminado",
+    "tileTitle": "{{widget}} — {{source}}",
+    "failureModes": "Modos de fallo",
+    "failureModesDescription": "Cada tarjeta siguiente ejecuta un widget roto a propósito. Todas deberían mostrar una tarjeta de error, y la página debería seguir respondiendo en todo momento.",
+    "failure": {
+      "infiniteLoop": "Bucle infinito",
+      "runawayAllocation": "Asignación descontrolada",
+      "throws": "Lanza un error",
+      "noRenderExport": "Sin función de renderizado",
+      "triesToFetch": "Intenta hacer fetch",
+      "invalidScene": "Escena no válida"
+    }
+  }
 }
