@@ -1,6 +1,5 @@
 import { keepPreviousData } from "@tanstack/react-query";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
-import type { ColumnDef } from "@tanstack/react-table";
 import { ChevronDown, Filter, Loader2, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -26,6 +25,7 @@ import { useGlobalDocuments, usePrefetchGlobalDocuments } from "@/hooks/useDocum
 import { useGuilds } from "@/hooks/useGuilds";
 import { guildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
+import type { AppColumnDef } from "@/lib/table";
 import { useGlobalListFilters } from "@/pages/user/useGlobalListFilters";
 
 const MY_DOCUMENTS_FILTERS_KEY = "initiative-my-documents-filters";
@@ -126,7 +126,7 @@ export const MyDocumentsPage = () => {
 
   const documents = useMemo(() => documentsQuery.data?.items ?? [], [documentsQuery.data]);
 
-  const columns: ColumnDef<DocumentSummary>[] = useMemo(
+  const columns: AppColumnDef<DocumentSummary>[] = useMemo(
     () => [
       {
         id: "guild",

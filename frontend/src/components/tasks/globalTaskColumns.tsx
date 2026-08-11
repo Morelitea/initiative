@@ -1,5 +1,4 @@
 import { Link } from "@tanstack/react-router";
-import type { ColumnDef } from "@tanstack/react-table";
 import { Pin } from "lucide-react";
 
 import type {
@@ -21,6 +20,7 @@ import { guildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { summarizeRecurrence } from "@/lib/recurrence";
 import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
+import type { AppColumnDef } from "@/lib/table";
 import { getTaskDateStatus, getTaskDateStatusLabel } from "@/lib/taskDateStatus";
 import type { TranslateFn } from "@/types/i18n";
 
@@ -54,7 +54,7 @@ export function globalTaskColumns({
   showAssignees = false,
   isPinned,
   togglePin,
-}: GlobalTaskColumnsOptions): ColumnDef<TaskListRead>[] {
+}: GlobalTaskColumnsOptions): AppColumnDef<TaskListRead>[] {
   const guildDefaultLabel = t("myTasks.noGuild");
   const getGuildGroupLabel = (task: TaskListRead) => task.guild_name ?? guildDefaultLabel;
 
@@ -85,7 +85,7 @@ export function globalTaskColumns({
       ),
       enableHiding: true,
       enableSorting: true,
-      sortingFn: "alphanumeric",
+      sortFn: "alphanumeric",
     },
     {
       id: "guild",
@@ -104,7 +104,7 @@ export function globalTaskColumns({
       cell: ({ getValue }) => <span className="font-medium text-base">{getValue<string>()}</span>,
       enableHiding: true,
       enableSorting: true,
-      sortingFn: "alphanumeric",
+      sortFn: "alphanumeric",
     },
     {
       id: "completed",
@@ -162,7 +162,7 @@ export function globalTaskColumns({
             },
             enableSorting: false,
             size: 48,
-          } satisfies ColumnDef<TaskListRead>,
+          } satisfies AppColumnDef<TaskListRead>,
         ]
       : []),
     {
@@ -214,7 +214,7 @@ export function globalTaskColumns({
           </div>
         );
       },
-      sortingFn: "alphanumeric",
+      sortFn: "alphanumeric",
       enableHiding: false,
     },
     {
@@ -232,7 +232,7 @@ export function globalTaskColumns({
         );
       },
       cell: ({ row }) => <DateCell date={row.original.start_date} isPastVariant="primary" />,
-      sortingFn: dateSortingFn,
+      sortFn: dateSortingFn,
     },
     {
       id: "due date",
@@ -255,7 +255,7 @@ export function globalTaskColumns({
           isDone={row.original.task_status?.category === "done"}
         />
       ),
-      sortingFn: dateSortingFn,
+      sortFn: dateSortingFn,
     },
     {
       id: "path",
@@ -329,7 +329,7 @@ export function globalTaskColumns({
           />
         );
       },
-      sortingFn: prioritySortingFn,
+      sortFn: prioritySortingFn,
     },
     {
       id: "tags",

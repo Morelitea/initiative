@@ -1,6 +1,5 @@
 import { keepPreviousData } from "@tanstack/react-query";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
-import type { ColumnDef } from "@tanstack/react-table";
 import { ChevronDown, Filter, Loader2, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -25,6 +24,7 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { useGlobalProjects, usePrefetchGlobalProjects } from "@/hooks/useProjects";
 import { guildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
+import type { AppColumnDef } from "@/lib/table";
 import { useGlobalListFilters } from "@/pages/user/useGlobalListFilters";
 
 const MY_PROJECTS_FILTERS_KEY = "initiative-my-projects-filters";
@@ -141,7 +141,7 @@ export const MyProjectsPage = () => {
     return project.initiative?.guild_id ?? null;
   }, []);
 
-  const columns: ColumnDef<ProjectRead>[] = useMemo(
+  const columns: AppColumnDef<ProjectRead>[] = useMemo(
     () => [
       {
         id: "guild",

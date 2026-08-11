@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import type { ColumnDef, PaginationState, SortingState } from "@tanstack/react-table";
+import type { PaginationState, SortingState } from "@tanstack/react-table";
 import { FileSpreadsheet, FileText, Presentation } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -18,6 +18,7 @@ import { useProperties } from "@/hooks/useProperties";
 import { getFileTypeLabel } from "@/lib/fileUtils";
 import { useGuildPath } from "@/lib/guildUrl";
 import { dateSortingFn } from "@/lib/sorting";
+import type { AppColumnDef } from "@/lib/table";
 import { getUserDisplayName } from "@/lib/userDisplay";
 
 // Cell component that uses guild-scoped URLs
@@ -112,7 +113,7 @@ export const DocumentsListView = ({
   );
 
   // Column definitions with translations (must be inside component for hook access)
-  const documentColumns: ColumnDef<DocumentSummary>[] = useMemo(
+  const documentColumns: AppColumnDef<DocumentSummary>[] = useMemo(
     () => [
       {
         accessorKey: "title",
@@ -129,7 +130,7 @@ export const DocumentsListView = ({
         },
         cell: ({ row }) => <DocumentTitleCell document={row.original} />,
         enableSorting: true,
-        sortingFn: "alphanumeric",
+        sortFn: "alphanumeric",
         enableHiding: false,
       },
       {
@@ -151,7 +152,7 @@ export const DocumentsListView = ({
             <RelativeTime date={row.original.updated_at} className="text-muted-foreground" />
           </div>
         ),
-        sortingFn: dateSortingFn,
+        sortFn: dateSortingFn,
       },
       {
         accessorKey: "projects",
@@ -221,7 +222,7 @@ export const DocumentsListView = ({
     [t]
   );
 
-  const columnsWithProperties = useMemo<ColumnDef<DocumentSummary>[]>(() => {
+  const columnsWithProperties = useMemo<AppColumnDef<DocumentSummary>[]>(() => {
     if (propertyColumns.length === 0) return documentColumns;
     const tagsIdx = documentColumns.findIndex((c) => (c as { id?: string }).id === "tags");
     if (tagsIdx === -1) return [...documentColumns, ...propertyColumns];

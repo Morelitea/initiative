@@ -1,4 +1,3 @@
-import type { ColumnDef } from "@tanstack/react-table";
 import { Copy, Download, RefreshCcw, Trash2 } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -37,6 +36,7 @@ import {
 } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import type { AppColumnDef } from "@/lib/table";
 
 const GUILD_ROLE_OPTIONS: GuildRole[] = ["admin", "member"];
 const inviteLinkForCode = (code: string) => {
@@ -173,7 +173,7 @@ export const SettingsUsersPage = () => {
     return <p className="text-destructive text-sm">{t("users.unableToLoadSettings")}</p>;
   }
 
-  const userColumns: ColumnDef<UserGuildMember>[] = [
+  const userColumns: AppColumnDef<UserGuildMember>[] = [
     {
       accessorKey: "id",
       header: t("users.userIdColumn"),
