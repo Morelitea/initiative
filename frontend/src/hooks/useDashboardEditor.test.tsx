@@ -12,6 +12,11 @@
  * refetch). A fake that acknowledged saves without keeping them would make a
  * re-added widget byte-identical to an older save's payload, and the test would
  * then be measuring the fake rather than the hook.
+ *
+ * The other half is ordering. A save is a whole-definition PATCH, so two in
+ * flight can commit in either order and leave the older layout authoritative;
+ * the hook keeps one on the wire at a time, and the tests below hold it to
+ * that — including the unmount case, where waiting is not available.
  */
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -29,13 +34,16 @@ interface SavePayload {
 let server: DashboardDefinition = EMPTY_DEFINITION;
 const settlers: (() => void)[] = [];
 
-const mutate = vi.fn((body: unknown, options?: { onSuccess?: () => void }) => {
-  const { definition } = body as SavePayload;
-  settlers.push(() => {
-    server = definition;
-    options?.onSuccess?.();
-  });
-});
+const mutate = vi.fn(
+  (body: unknown, options?: { onSuccess?: () => void; onSettled?: () => void }) => {
+    const { definition } = body as SavePayload;
+    settlers.push(() => {
+      server = definition;
+      options?.onSuccess?.();
+      options?.onSettled?.();
+    });
+  }
+);
 
 vi.mock("@/hooks/useDashboards", () => ({
   useUpdateDashboard: () => ({ mutate, isPending: false }),
@@ -136,28 +144,72 @@ describe("useDashboardEditor", () => {
     expect(editor.widgets()).toHaveLength(2);
   });
 
-  it("ignores a stale response that lands after a newer edit", () => {
+  it("does not clear a draft the user has moved on from", () => {
+    // The overlapping-responses case this used to cover cannot happen any more
+    // — saves are serialized, so one client never has two in flight. What
+    // remains is the ordinary one: a response arrives, and by then the canvas
+    // has changed again.
+    const editor = setup();
+
+    editor.add();
+    editor.settle();
+    editor.add();
+
+    act(() => settlers[0]());
+    editor.refetch();
+
+    expect(editor.widgets()).toHaveLength(2);
+  });
+
+  it("keeps one save on the wire at a time", () => {
+    // Each save is a whole-definition PATCH. Two in flight can commit in either
+    // order and leave the older one authoritative, so a second save waits.
+    const editor = setup();
+
+    editor.add();
+    editor.settle();
+    expect(mutate).toHaveBeenCalledTimes(1);
+
+    editor.add();
+    editor.settle();
+    expect(mutate).toHaveBeenCalledTimes(1);
+
+    editor.add();
+    editor.settle();
+    expect(mutate).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends what accumulated while a save was on the wire, once it lands", () => {
+    const editor = setup();
+
+    editor.add();
+    editor.settle();
+    editor.add();
+    editor.add();
+    editor.settle();
+    expect(mutate).toHaveBeenCalledTimes(1);
+
+    act(() => settlers[0]());
+
+    // One follow-up carrying the latest arrangement, not one per edit.
+    expect(mutate).toHaveBeenCalledTimes(2);
+    expect((mutate.mock.calls[1][0] as SavePayload).definition.widgets).toHaveLength(3);
+  });
+
+  it("still sends a queued edit when the page is left mid-save", () => {
     const editor = setup();
 
     editor.add();
     editor.settle();
     editor.add();
     editor.settle();
+    expect(mutate).toHaveBeenCalledTimes(1);
+
+    // Waiting is not an option here; losing the edit outright is worse than the
+    // ordering risk that waiting exists to avoid.
+    editor.unmount();
     expect(mutate).toHaveBeenCalledTimes(2);
-
-    // The newer save returns and correctly hands control back to the server.
-    act(() => settlers[1]());
-    editor.refetch();
-    expect(editor.widgets()).toHaveLength(2);
-
-    // The user carries on editing...
-    editor.add();
-    expect(editor.widgets()).toHaveLength(3);
-
-    // ...and the first save's response finally arrives. It belongs to an
-    // arrangement two edits ago and must not clear what is on screen now.
-    act(() => settlers[0]());
-    expect(editor.widgets()).toHaveLength(3);
+    expect((mutate.mock.calls[1][0] as SavePayload).definition.widgets).toHaveLength(2);
   });
 
   it("saves nothing without write access", () => {

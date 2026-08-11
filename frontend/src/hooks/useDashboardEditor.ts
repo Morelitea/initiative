@@ -51,6 +51,7 @@ export function useDashboardEditor(
   const [draft, setDraft] = useState<DashboardDefinition | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<DashboardDefinition | null>(null);
+  const inFlight = useRef(false);
 
   const stored = useMemo(() => readDefinition(dashboard?.definition), [dashboard?.definition]);
   const config = useMemo(() => readConfig(dashboard?.config), [dashboard?.config]);
@@ -58,54 +59,84 @@ export function useDashboardEditor(
 
   const dashboardId = dashboard?.id;
 
-  const flush = useCallback(() => {
-    const next = pending.current;
-    pending.current = null;
-    if (!next || !dashboardId) return;
-    const saved = JSON.stringify(next);
-    update.mutate(
-      {
-        // The API types these JSON columns as open records; the shapes they
-        // actually hold are `definition.ts`'s, and the server re-validates.
-        definition: next as unknown as Record<string, unknown>,
-        config: pruneConfig(next, config) as unknown as Record<string, unknown>,
-      },
-      {
-        onSuccess: () => {
-          // Hand control back to the server's copy only if the draft is still
-          // what we just saved. Drags land faster than requests return, so an
-          // unconditional reset would drop whatever the user did while this
-          // was in flight — and an out-of-order response would drop it even
-          // after a newer save had already succeeded.
-          setDraft((current) =>
-            current !== null && JSON.stringify(current) === saved ? null : current
-          );
+  // Declared before `flush` because `flush` re-enters through it (a queued save
+  // fires from the previous one's settle) and because the unmount effect below
+  // must not depend on `flush`'s identity.
+  const flushRef = useRef<(force?: boolean) => void>(() => {});
+
+  /**
+   * Send the pending definition, at most one request at a time.
+   *
+   * Each save is a whole-definition PATCH, so two in flight together can commit
+   * in either order and leave the *older* one authoritative — the layout the
+   * user last arranged, silently replaced on the next refetch. The API carries
+   * no revision to check, and the design accepts last-write-wins between
+   * different editors; what it must not do is let one editor race itself. So a
+   * save waits for the one before it, and whatever accumulated meanwhile goes
+   * next, in order.
+   *
+   * `force` is for unmount, where waiting is not an option: sending a queued
+   * edit risks the ordering we otherwise avoid, but not sending it loses that
+   * edit outright.
+   */
+  const flush = useCallback(
+    (force = false) => {
+      if (inFlight.current && !force) return;
+      const next = pending.current;
+      pending.current = null;
+      if (!next || !dashboardId) return;
+
+      const saved = JSON.stringify(next);
+      inFlight.current = true;
+      update.mutate(
+        {
+          // The API types these JSON columns as open records; the shapes they
+          // actually hold are `definition.ts`'s, and the server re-validates.
+          definition: next as unknown as Record<string, unknown>,
+          config: pruneConfig(next, config) as unknown as Record<string, unknown>,
         },
-      }
-    );
-  }, [dashboardId, config, update.mutate]);
+        {
+          onSuccess: () => {
+            // Hand control back to the server's copy only if the draft is still
+            // what we just saved. Drags land faster than requests return, so an
+            // unconditional reset would drop whatever the user did while this
+            // was in flight.
+            setDraft((current) =>
+              current !== null && JSON.stringify(current) === saved ? null : current
+            );
+          },
+          onSettled: () => {
+            inFlight.current = false;
+            // Anything queued while this was on the wire goes now, so the last
+            // arrangement the user made is the last one the server sees.
+            if (pending.current) flushRef.current();
+          },
+        }
+      );
+    },
+    [dashboardId, config, update.mutate]
+  );
 
   const save = useCallback(
     (next: DashboardDefinition) => {
       if (!canEdit) return;
       pending.current = next;
       if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(flush, SAVE_DEBOUNCE_MS);
+      timer.current = setTimeout(() => flush(), SAVE_DEBOUNCE_MS);
     },
     [canEdit, flush]
   );
 
-  // A pending edit must not be lost to a navigation. Held through a ref and
-  // depended on nothing: with `flush` in the dependency list this effect
-  // re-runs whenever its identity changes, and *its cleanup* then flushes on
-  // an ordinary re-render — which silently turned the debounce into a save per
-  // keystroke and per drag frame.
-  const flushRef = useRef(flush);
   flushRef.current = flush;
+
+  // A pending edit must not be lost to a navigation. This effect depends on
+  // nothing: with `flush` in the dependency list it re-runs whenever that
+  // identity changes, and *its cleanup* then flushes on an ordinary re-render —
+  // which silently turned the debounce into a save per drag frame.
   useEffect(
     () => () => {
       if (timer.current) clearTimeout(timer.current);
-      if (pending.current) flushRef.current();
+      if (pending.current) flushRef.current(true);
     },
     []
   );
