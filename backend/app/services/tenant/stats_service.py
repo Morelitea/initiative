@@ -668,9 +668,9 @@ async def get_user_stats(
 ) -> UserStatsResponse:
     """Get comprehensive user statistics, routed per guild.
 
-    Tasks/projects/initiatives live in per-guild schemas, so a single query on
-    the unrouted (public) session reads the frozen backup and returns zeros.
-    We route into each target guild's schema and compute there: one guild when
+    Tasks/projects/initiatives live in per-guild schemas, so no single query
+    can span them. We route into each target guild's schema
+    and compute there: one guild when
     ``guild_id`` is given (exact), otherwise every guild the user belongs to,
     merged.
     """

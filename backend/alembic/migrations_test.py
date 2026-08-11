@@ -37,6 +37,7 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 
 from app.core.config import settings
+from app.db.tenancy import GUILD_SCOPED_TABLES
 
 
 ALEMBIC_SCRIPT_LOCATION = Path(__file__).resolve().parent
@@ -59,6 +60,10 @@ INTENTIONALLY_IRREVERSIBLE = frozenset(
         # legacy healing + policy strips + grant matrices. It reconciles
         # pre-collapse states that no longer have code paths; roll forward only.
         "20260702_0126",
+        # drop_frozen_public_guild_copies: the dropped rows can't be restored,
+        # so stamping 0162 back would leave the revision disagreeing with the
+        # physical schema. One-way door; restore from a backup instead.
+        "20260811_0163",
     }
 )
 
@@ -277,6 +282,75 @@ def _table_exists(table_name: str, schema: str = "public") -> bool:
     return asyncio.run(_table_exists_async(table_name, schema))
 
 
+async def _sequence_exists_async(name: str, schema: str = "public") -> bool:
+    conn = await _connect_test_db()
+    try:
+        return bool(
+            await conn.fetchval(
+                "SELECT EXISTS ("
+                "  SELECT 1 FROM information_schema.sequences "
+                "  WHERE sequence_schema = $2 AND sequence_name = $1"
+                ")",
+                name,
+                schema,
+            )
+        )
+    finally:
+        await conn.close()
+
+
+def _sequence_exists(name: str, schema: str = "public") -> bool:
+    return asyncio.run(_sequence_exists_async(name, schema))
+
+
+async def _relation_exists_async(name: str, schema: str = "public") -> bool:
+    """Any relation (table, index, sequence, view) by name."""
+    conn = await _connect_test_db()
+    try:
+        return (
+            await conn.fetchval("SELECT to_regclass($1)", f"{schema}.{name}")
+        ) is not None
+    finally:
+        await conn.close()
+
+
+def _relation_exists(name: str, schema: str = "public") -> bool:
+    return asyncio.run(_relation_exists_async(name, schema))
+
+
+async def _constraint_exists_async(table: str, name: str, schema: str = "public"):
+    conn = await _connect_test_db()
+    try:
+        return bool(
+            await conn.fetchval(
+                "SELECT EXISTS (SELECT 1 FROM pg_constraint "
+                "WHERE conname = $1 AND conrelid = to_regclass($2))",
+                name,
+                f"{schema}.{table}",
+            )
+        )
+    finally:
+        await conn.close()
+
+
+def _constraint_exists(table: str, name: str, schema: str = "public") -> bool:
+    return asyncio.run(_constraint_exists_async(table, name, schema))
+
+
+async def _execute_sql_async(sql: str) -> None:
+    conn = await _connect_test_db()
+    try:
+        await conn.execute(sql)
+    finally:
+        await conn.close()
+
+
+def _execute_sql(sql: str) -> None:
+    """Run a statement against the migrations test DB (fabricating legacy
+    state a fresh database can't produce on its own)."""
+    asyncio.run(_execute_sql_async(sql))
+
+
 async def _alembic_version_row_count_async() -> int:
     conn = await _connect_test_db()
     try:
@@ -334,18 +408,19 @@ class TestMigrationsAgainstDatabase:
             "after a successful upgrade"
         )
 
-        # Sanity-check the squashed layout: shared tables in public, tenant
-        # content in guild_template — and, critically, NOT in public (fresh
-        # installs must never get the pre-squash public copies back).
+        # Sanity-check the layout: shared tables in public, tenant content in
+        # guild_template — and no tenant table anywhere in public. The whole
+        # set, not a sample: public holding one is the bug 20260811_0163 ended.
         for table in ("users", "guilds", "access_grants", "alembic_version"):
             assert _table_exists(table), f"expected table {table!r} after upgrade head"
         for table in ("initiatives", "projects", "tasks", "documents"):
             assert _table_exists(table, schema="guild_template"), (
                 f"expected table {table!r} in guild_template after upgrade head"
             )
+        for table in sorted(GUILD_SCOPED_TABLES):
             assert not _table_exists(table), (
-                f"tenant table {table!r} must not exist in public after the "
-                "baseline squash"
+                f"tenant table {table!r} must not exist in public — guild "
+                "content lives only in guild schemas"
             )
 
     def test_upgrade_head_is_idempotent(self, fresh_migrations_db: str) -> None:
@@ -358,6 +433,69 @@ class TestMigrationsAgainstDatabase:
         assert rev_after_first == rev_after_second, (
             "Repeated `alembic upgrade head` changed the version stamp — "
             "a migration is not idempotent."
+        )
+
+    def test_api_key_objects_carry_the_current_table_name(
+        self, fresh_migrations_db: str
+    ) -> None:
+        """20260811_0163 finishes the ``admin_api_keys`` -> ``user_api_keys``
+        rename its constraints, indexes and id sequence were left out of — a
+        state the baseline froze, so fresh installs have it too.
+
+        The sequence matters most: while it read ``admin_api_keys_id_seq`` on a
+        table called ``user_api_keys``, it looked like a leftover the drop
+        should sweep, and it is not — it is live.
+        """
+        _run_alembic("upgrade", "head")
+
+        for name in (
+            "user_api_keys_pkey",
+            "user_api_keys_token_hash_key",
+            "user_api_keys_user_id_fkey",
+        ):
+            assert _constraint_exists("user_api_keys", name), (
+                f"constraint {name!r} must carry the table's current name"
+            )
+        for old, new in (
+            ("ix_admin_api_keys_token_prefix", "ix_user_api_keys_token_prefix"),
+            ("ix_admin_api_keys_user_id", "ix_user_api_keys_user_id"),
+            ("admin_api_keys_id_seq", "user_api_keys_id_seq"),
+        ):
+            assert _relation_exists(new), f"{new!r} must exist after the rename"
+            assert not _relation_exists(old), f"{old!r} must be gone after the rename"
+
+        # The id sequence is still the live one behind the column.
+        assert _sequence_exists("user_api_keys_id_seq")
+
+    def test_drop_removes_a_legacy_public_copy(self, fresh_migrations_db: str) -> None:
+        """20260811_0163 drops a frozen pre-squash copy where one exists.
+
+        A fresh database has none (the migration is a no-op there, which the
+        other tests cover), so fabricate one — a ``public.tasks`` shell like the
+        legacy backstop — and replay the revision over it.
+        """
+        _run_alembic("upgrade", "head")
+
+        _execute_sql(
+            "CREATE TABLE public.tasks "
+            "(id serial PRIMARY KEY, guild_id integer NOT NULL)"
+        )
+        assert _table_exists("tasks")
+
+        # Rewind the stamp rather than downgrading: 0163 is a one-way door, and
+        # this is the state it exists for — a database at 0162 still carrying a
+        # frozen copy.
+        _execute_sql("UPDATE alembic_version SET version_num = '20260811_0162'")
+        _run_alembic("upgrade", "head")
+
+        assert not _table_exists("tasks"), (
+            "20260811_0163 must drop a frozen public copy of a guild-content table"
+        )
+        assert not _sequence_exists("tasks_id_seq"), (
+            "the dropped copy's owned sequence must go with it"
+        )
+        assert _sequence_exists("user_api_keys_id_seq"), (
+            "the shared user_api_keys id sequence must survive the drop"
         )
 
     def test_step_by_step_upgrade_from_base_to_head(

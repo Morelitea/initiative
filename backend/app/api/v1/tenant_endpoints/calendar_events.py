@@ -183,8 +183,8 @@ async def query_my_calendar_events(
     """Shared cross-guild calendar-event query for ``list_my_calendar_events``
     and the ``/me/calendar-entries`` aggregate.
 
-    Schema-per-guild: events live in per-guild schemas, so a single cross-guild
-    query would read the frozen ``public`` backup. Visit each of the user's
+    Schema-per-guild: events live in per-guild schemas, so no single query can
+    span guilds. Visit each of the user's
     guild schemas (routed to the user's own RLS context, so guild isolation +
     DAC still hold) and merge, sorted by ``(start_at, guild_id, id)``.
     """
@@ -275,7 +275,7 @@ async def export_my_calendar_events_ics(
     """Export cross-guild calendar events as an .ics file.
 
     Schema-per-guild: aggregate per guild schema via ``gather_across_guilds``
-    (the unrouted public query would read the frozen backup).
+    — events live only in the per-guild schemas, so no one query spans them.
     """
 
     def _fetch(guild_session, guild_id):  # type: ignore[no-untyped-def]

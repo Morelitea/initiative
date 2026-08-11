@@ -175,10 +175,9 @@ async def test_create_allowed_for_initiative_member(client: AsyncClient, acting_
     """A plain (non-admin) guild member who belongs to the initiative can
     create a definition on it.
 
-    This is the schema-per-guild regression case: the membership check now
-    runs on the routed request session against the active guild's schema,
-    so a legitimate member is no longer false-403'd by a lookup against the
-    frozen ``public`` backup.
+    This is the schema-per-guild regression case: the membership check runs on
+    the routed request session against the active guild's schema, so a
+    legitimate member is not false-403'd by a lookup in the wrong schema.
     """
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
     member = await acting_user(

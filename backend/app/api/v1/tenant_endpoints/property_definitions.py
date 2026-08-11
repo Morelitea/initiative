@@ -69,9 +69,8 @@ async def _get_definition_or_404(
 
     MUST be called with a routed session (``RLSSessionDep``). Under
     schema-per-guild, ``property_definitions`` lives only in the active
-    guild's schema, and definition ids are unique per-guild — looking the
-    id up on an unrouted session would hit the frozen ``public`` backup
-    and resolve the wrong (or no) row.
+    guild's schema, and definition ids are unique per-guild — the routing is
+    what decides which guild's row an id resolves to.
     """
     stmt = select(PropertyDefinition).where(PropertyDefinition.id == definition_id)
     result = await session.exec(stmt)
@@ -116,8 +115,7 @@ async def _ensure_initiative_member(
     ``initiative_members`` live only in the request's active guild schema,
     and ``initiative_id`` is meaningful only within that schema. The check
     therefore runs on the request's routed session (``RLSSessionDep``) so it
-    resolves against live data for the active guild — not the frozen
-    ``public`` backup an unrouted admin session would read.
+    resolves against the active guild's data.
 
     Mirrors the RLS policy bypasses: guild admins of the active guild pass
     without an explicit ``InitiativeMember`` row (same semantics as the

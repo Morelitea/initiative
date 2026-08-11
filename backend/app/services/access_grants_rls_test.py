@@ -237,8 +237,8 @@ async def test_pam_read_grant_does_not_fault_legacy_isolation_tables(
 async def test_no_pam_flag_sees_nothing(session: AsyncSession):
     """An INACTIVE grant (pam_guild_id set, but neither flag) must yield no access.
 
-    Post-squash the guild's ``projects`` live only in ``guild_<id>`` and there is
-    no public copy. ``set_rls_context`` deliberately does NOT route an inactive
+    The guild's ``projects`` live only in ``guild_<id>``.
+    ``set_rls_context`` deliberately does NOT route an inactive
     grant into the guild schema (see the "don't route inactive grants" fix), so
     the fail-closed guarantee is at the schema/role boundary: the session stays on
     the public path with no guild role assumed, leaving the guild's schema entirely
@@ -270,8 +270,8 @@ async def test_no_pam_flag_sees_nothing(session: AsyncSession):
         assert guild_schema_name(guild.id) not in search_path
         # Under the real (non-privileged) app_user login role — which holds no
         # standing access to any guild schema (WITH INHERIT FALSE) — the guild's
-        # content is denied at the catalog/role boundary. There is no public copy
-        # to fall through to either, so the grantee sees nothing.
+        # content is denied at the catalog/role boundary, so the grantee sees
+        # nothing.
         await _set_app_user(session)
         with pytest.raises(Exception):
             await session.exec(

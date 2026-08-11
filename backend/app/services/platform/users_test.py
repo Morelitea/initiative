@@ -716,7 +716,7 @@ async def test_soft_delete_removes_membership_in_guild_schema(session: AsyncSess
     """Production-faithful routing check (schema-per-guild).
 
     The membership-drop cascade must operate on the GUILD schema where the
-    rows actually live — not the frozen ``public`` backup. Factories write the
+    rows actually live. Factories write the
     InitiativeMember into ``guild_<id>`` (via the test routing harness), and
     soft_delete resets the session to ``public`` on the way out (as a real
     request would). So this asserts by EXPLICITLY re-routing into the guild

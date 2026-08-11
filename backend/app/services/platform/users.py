@@ -250,8 +250,7 @@ async def get_initiative_blocker_details(
 
     Initiatives live in per-guild schemas, so this fans out across the user's
     guilds and runs the sole-PM query routed into each schema as superadmin.
-    A single cross-schema query is impossible; querying the unrouted (public)
-    default would read the frozen backup and miss every real blocker.
+    A single cross-schema query is impossible.
     """
     from app.models.tenant.initiative import (
         Initiative,
@@ -439,11 +438,10 @@ async def check_deletion_eligibility(
 
     # Sole-PM initiatives and owned projects are guild-scoped: fan out across
     # the user's guilds, routed into each schema as superadmin, and aggregate.
-    # (initiatives_requiring_new_pm / get_owned_projects on the unrouted public
-    # default would read the frozen backup and under-report blockers — letting
-    # a deletion proceed that should have been blocked.) The detached ORM rows
-    # collected here are only read for scalar fields downstream, so expunging
-    # between guilds (to avoid id-collision cache hits) is safe.
+    # A guild missed here is a blocker unseen, letting a deletion proceed that
+    # should have been stopped. The detached ORM rows collected here are only
+    # read for scalar fields downstream, so expunging between guilds (to avoid
+    # id-collision cache hits) is safe.
     sole_pm_initiatives: List = []
     owned_projects: List[ProjectBasic] = []
     for gid in await _user_guild_ids(session, user_id):
@@ -823,9 +821,7 @@ async def transfer_owned_projects(
     Projects live in per-guild schemas, so this fans out across the user's
     guilds (routed as superadmin) and transfers the owned projects found in
     each. ``project_transfers`` is keyed by ``"guild_id:project_id"`` because a
-    bare project id is ambiguous across guild schemas. Running the transfer on
-    the unrouted public default would target the frozen backup and leave the
-    live project still owned by the departing user. Propagates
+    bare project id is ambiguous across guild schemas. Propagates
     :class:`InvalidTransferRecipient` so the caller can surface a 400. Resets to
     the public baseline on the way out.
     """

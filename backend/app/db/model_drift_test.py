@@ -14,11 +14,11 @@ an empty diff — the database twin of the ``check-generated-types`` CI gate: if
 you changed a model, you must have generated the migration.
 
 Scope: guild mode only. The ``public`` schema carries known benign drift that
-predates this gate (index names left behind by the admin_api_keys →
-user_api_keys rename, FK ``ondelete`` behaviors that exist only in migrations,
-``ix_access_grants_user_guild`` undeclared in models) — a public-mode gate
-needs that cleanup migration first, tracked separately rather than baselined
-here as a tolerance list.
+predates this gate — FK ``ondelete`` behaviors that exist only in migrations,
+``ix_access_grants_user_guild`` undeclared in models — so a public-mode gate
+needs that cleanup first, tracked separately rather than baselined here as a
+tolerance list. (The index names left behind by the admin_api_keys →
+user_api_keys rename were part of that set; 20260811_0163 fixed them.)
 """
 
 import pytest

@@ -665,8 +665,7 @@ async def admin_delete_initiative(
     independent id sequences, so ``initiative_id`` alone is ambiguous across
     guilds. The caller (the blocker-resolution UI) has it from the blocker
     record. We route into that guild's schema as a guild admin (full authority
-    over the guild; clears the purge guard) so the cascade deletes the real
-    rows, not the frozen ``public`` backup copies.
+    over the guild; clears the purge guard) so the cascade reaches the rows.
     """
     await set_rls_context(session, guild_id=guild_id, guild_role="admin")
 
