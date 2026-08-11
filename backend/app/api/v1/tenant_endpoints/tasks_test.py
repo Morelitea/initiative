@@ -1288,30 +1288,32 @@ async def test_completing_a_tagged_recurring_task_copies_tags_to_next_occurrence
     from app.api.v1.tenant_endpoints.tasks import _advance_recurrence_if_needed
     from app.models.tenant.tag import TaskTag
     from app.models.tenant.task import Task, TaskStatusCategory
-    from app.services.tenant import task_statuses as task_statuses_service
-    from app.testing.factories import create_tag
+    from app.services.tenant import tags as tags_service
+    from app.testing.factories import create_tag, create_task, create_task_status
 
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     project = a.project
 
-    statuses = await task_statuses_service.ensure_default_statuses(session, project.id)
-    todo_status = next(s for s in statuses if s.is_default)
-    done_status = next(s for s in statuses if s.name == "Done")
     tag = await create_tag(session, a.guild, name="Chores", color="#112233")
-    await session.commit()
-
-    task = Task(
+    task = await create_task(
+        session,
+        project,
         title="Tagged recurring task",
-        project_id=project.id,
-        task_status_id=todo_status.id,
-        guild_id=a.guild.id,
+        status_category=TaskStatusCategory.todo,
         due_date=datetime(2026, 5, 4, 12, 0, 0, tzinfo=timezone.utc),
         recurrence={"frequency": "daily", "interval": 1, "ends": "never"},
         recurrence_strategy="fixed",
     )
-    session.add(task)
-    await session.commit()
-    session.add(TaskTag(task_id=task.id, tag_id=tag.id))
+    done_status = await create_task_status(
+        session, project, name="Done", category=TaskStatusCategory.done, position=1
+    )
+    await tags_service.set_entity_tags(
+        session,
+        tags_service.TAG_LINKS["task"],
+        guild_id=a.guild.id,
+        entity_id=task.id,
+        tag_ids=[tag.id],
+    )
     await session.commit()
     await session.refresh(
         task, attribute_names=["task_status", "assignees", "tag_links"]
