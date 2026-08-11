@@ -5,6 +5,7 @@ import type { InitiativeRead, ResourceGrantSchema } from "@/api/generated/initia
 import { CreateAccessSection } from "@/components/access/CreateAccessSection";
 import { DEFAULT_GRANTS } from "@/components/access/grants";
 import { EmojiPicker } from "@/components/EmojiPicker";
+import { ProjectDateFields } from "@/components/projects/ProjectDateFields";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -25,6 +26,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateProject, useTemplateProjects } from "@/hooks/useProjects";
+import { dateRangeBounds } from "@/lib/dateRange";
 
 const NO_TEMPLATE_VALUE = "template-none";
 
@@ -54,6 +56,8 @@ export const CreateProjectDialog = ({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [icon, setIcon] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [initiativeId, setInitiativeId] = useState<string | null>(defaultInitiativeId);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(NO_TEMPLATE_VALUE);
   const [isTemplateProject, setIsTemplateProject] = useState(false);
@@ -94,14 +98,25 @@ export const CreateProjectDialog = ({
     setDescription(template.description ?? "");
   }, [selectedTemplateId, templatesQuery.data, isTemplateProject]);
 
+  const { isInverted: datesInverted } = dateRangeBounds(startDate, endDate);
+
   const createProjectMutation = useCreateProject();
   const createProject = {
     ...createProjectMutation,
     mutate: () => {
+      if (datesInverted) {
+        return;
+      }
       const payload: Record<string, unknown> = { name, description };
       const trimmedIcon = icon.trim();
       if (trimmedIcon) {
         payload.icon = trimmedIcon;
+      }
+      if (startDate) {
+        payload.start_date = startDate;
+      }
+      if (endDate) {
+        payload.end_date = endDate;
       }
       const selectedInitiativeId = initiativeId ? Number(initiativeId) : undefined;
       if (!selectedInitiativeId || Number.isNaN(selectedInitiativeId)) {
@@ -120,6 +135,8 @@ export const CreateProjectDialog = ({
             setName("");
             setDescription("");
             setIcon("");
+            setStartDate("");
+            setEndDate("");
             // Restore the default initiative rather than clearing it: the dialog
             // stays mounted, and the sync effect won't re-run on reopen (its deps
             // are unchanged), so clearing would leave a subsequent create with no
@@ -181,6 +198,13 @@ export const CreateProjectDialog = ({
                 onChange={(event) => setDescription(event.target.value)}
               />
             </div>
+            <ProjectDateFields
+              idPrefix="create-project"
+              startDate={startDate}
+              endDate={endDate}
+              onStartDateChange={setStartDate}
+              onEndDateChange={setEndDate}
+            />
             <div className="space-y-2">
               <Label>{t("createDialog.initiativeLabel")}</Label>
               {lockedInitiativeId ? (
@@ -284,7 +308,7 @@ export const CreateProjectDialog = ({
                 >
                   {t("common:cancel")}
                 </Button>
-                <Button type="submit" disabled={createProject.isPending}>
+                <Button type="submit" disabled={createProject.isPending || datesInverted}>
                   {createProject.isPending
                     ? t("createDialog.creating")
                     : t("createDialog.createProject")}

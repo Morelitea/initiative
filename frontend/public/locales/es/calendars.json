@@ -128,7 +128,6 @@
   "deleteCalendarConfirm": "¿Eliminar este calendario? Todos sus eventos se eliminarán con él.",
   "panel": {
     "calendars": "Calendarios",
-    "myCalendars": "Mis calendarios",
     "noCalendars": "Aún no hay calendarios",
     "projectTasks": "Tareas de proyectos",
     "calendarSettings": "Configuración de {{name}}"

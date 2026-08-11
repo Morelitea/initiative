@@ -62,6 +62,7 @@ export function buildTask(overrides: Partial<TaskListRead> = {}): TaskListRead {
     initiative_name: null,
     initiative_color: null,
     subtask_progress: null,
+    completed_at: null,
     tags: [],
     ...overrides,
   };

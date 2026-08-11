@@ -9,16 +9,7 @@ import {
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import type { LucideIcon } from "lucide-react";
-import {
-  Archive,
-  Calendar,
-  ChevronDown,
-  Filter,
-  GanttChart,
-  Kanban,
-  Plus,
-  Table,
-} from "lucide-react";
+import { Archive, Calendar, ChevronDown, Filter, Kanban, Plus, Table } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -39,7 +30,6 @@ import {
   type CalendarViewMode,
 } from "@/components/calendar";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
-import { ProjectGanttView } from "@/components/projects/ProjectGanttView";
 import { ProjectTaskComposer } from "@/components/projects/ProjectTaskComposer";
 import { ProjectTasksFilters } from "@/components/projects/ProjectTasksFilters";
 import { ProjectTasksKanbanView } from "@/components/projects/ProjectTasksKanbanView";
@@ -49,6 +39,7 @@ import {
   computeMidpoint,
   isDraggingDown,
   reorderTaskList,
+  resolveKanbanDropTarget,
   shouldInsertAfter,
 } from "@/components/projects/taskOrdering";
 import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
@@ -93,7 +84,7 @@ import { getProjectColor } from "@/lib/projectColor";
 import { getItem, setItem } from "@/lib/storage";
 import { taskReadToListRow } from "@/lib/taskUtils";
 
-type ViewMode = "table" | "kanban" | "calendar" | "gantt";
+type ViewMode = "table" | "kanban" | "calendar";
 
 type StoredFilters = {
   viewMode: ViewMode;
@@ -127,8 +118,7 @@ function sanitizeStoredFilters(raw: unknown): StoredFilters {
   if (
     parsed.viewMode === "table" ||
     parsed.viewMode === "kanban" ||
-    parsed.viewMode === "calendar" ||
-    parsed.viewMode === "gantt"
+    parsed.viewMode === "calendar"
   ) {
     out.viewMode = parsed.viewMode;
   }
@@ -165,7 +155,6 @@ const TASK_VIEW_OPTIONS: TaskViewOption[] = [
   { value: "table", labelKey: "tasks.viewTable", icon: Table },
   { value: "kanban", labelKey: "tasks.viewKanban", icon: Kanban },
   { value: "calendar", labelKey: "tasks.viewCalendar", icon: Calendar },
-  { value: "gantt", labelKey: "tasks.viewGantt", icon: GanttChart },
 ];
 
 type ProjectTasksSectionProps = {
@@ -346,7 +335,7 @@ export const ProjectTasksSection = ({
   }, [sortedTaskStatuses]);
 
   const handleViewModeChange = (value: string) => {
-    if (value === "table" || value === "kanban" || value === "calendar" || value === "gantt") {
+    if (value === "table" || value === "kanban" || value === "calendar") {
       patchFilters({ viewMode: value });
     }
   };
@@ -795,24 +784,19 @@ export const ProjectTasksSection = ({
       lastKanbanOverRef.current = null;
       return;
     }
-    const { active, over } = event;
-    const finalOver = over ?? lastKanbanOverRef.current;
-    if (!finalOver) {
+    const { active } = event;
+    const finalOver = resolveKanbanDropTarget(event, lastKanbanOverRef.current);
+    const activeId = Number(active.id);
+    const currentTask = Number.isFinite(activeId)
+      ? tasks.find((task) => task.id === activeId)
+      : undefined;
+    if (!finalOver || !currentTask) {
       setActiveTaskId(null);
       lastKanbanOverRef.current = null;
       return;
     }
-    const activeId = Number(active.id);
-    if (!Number.isFinite(activeId)) {
-      return;
-    }
 
-    const currentTask = tasks.find((task) => task.id === activeId);
-    if (!currentTask) {
-      return;
-    }
-
-    const overData = finalOver.data.current as { type?: string; statusId?: number } | undefined;
+    const overData = finalOver.data;
     let targetStatusId = currentTask.task_status_id;
     let overTaskId: number | null = null;
     let insertAfter = false;
@@ -838,11 +822,10 @@ export const ProjectTasksSection = ({
       targetStatusId = overData.statusId ?? targetStatusId;
     }
 
-    if (targetStatusId === currentTask.task_status_id && overTaskId === currentTask.id) {
-      return;
+    // Released on itself: nothing to persist, but the overlay still has to go.
+    if (targetStatusId !== currentTask.task_status_id || overTaskId !== currentTask.id) {
+      moveTaskInOrder(activeId, targetStatusId, overTaskId, insertAfter);
     }
-
-    moveTaskInOrder(activeId, targetStatusId, overTaskId, insertAfter);
     setActiveTaskId(null);
     lastKanbanOverRef.current = null;
   };
@@ -1076,13 +1059,6 @@ export const ProjectTasksSection = ({
             }}
             onEntryReschedule={canEditTaskDetails ? handleCalendarReschedule : undefined}
             weekStartsOn={weekStartsOn}
-          />
-        </TabsContent>
-        <TabsContent value="gantt">
-          <ProjectGanttView
-            tasks={statusFilteredTasks}
-            canOpenTask={canViewTaskDetails}
-            onTaskClick={onTaskClick}
           />
         </TabsContent>
       </Tabs>

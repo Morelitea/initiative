@@ -1,9 +1,11 @@
+import type { DragEndEvent, DragOverEvent } from "@dnd-kit/core";
 import { describe, expect, it } from "vitest";
 
 import {
   computeMidpoint,
   isDraggingDown,
   reorderTaskList,
+  resolveKanbanDropTarget,
   shouldInsertAfter,
 } from "./taskOrdering";
 
@@ -38,6 +40,63 @@ describe("computeMidpoint", () => {
     const result = computeMidpoint(tasks, 1);
     // (1 + 1.0000000001) / 2 = 1.00000000005, rounded to 10 dp.
     expect(result).toBe(Number((1.00000000005).toFixed(10)));
+  });
+});
+
+describe("resolveKanbanDropTarget", () => {
+  const rect = { top: 0, height: 40 };
+  // A collision entry as dnd-kit builds it: the winning droppable's container,
+  // whose data/rect are live refs.
+  const collision = (id: string, data: { type: string; statusId: number }) => ({
+    id,
+    data: {
+      droppableContainer: { id, data: { current: data }, rect: { current: rect } },
+      value: 0,
+    },
+  });
+  // dnd-kit's `over`, which only refreshes when the winning id changes.
+  const over = (id: string, data: { type: string; statusId: number }) =>
+    ({ id, rect, disabled: false, data: { current: data } }) as unknown as DragOverEvent["over"];
+  const event = (partial: Partial<DragEndEvent>) => partial as DragEndEvent;
+
+  it("uses the collision under the pointer when over went stale", () => {
+    // The card the pointer crossed on its way into the Done column, kept by the
+    // caller as the last non-null `over`.
+    const stale = over("7", { type: "task", statusId: 1 });
+    const result = resolveKanbanDropTarget(
+      event({ over: null, collisions: [collision("42", { type: "task", statusId: 2 })] }),
+      stale
+    );
+    expect(result?.data?.statusId).toBe(2);
+    expect(result?.id).toBe("42");
+  });
+
+  it("resolves to the column when the pointer is on empty column body", () => {
+    const result = resolveKanbanDropTarget(
+      event({ over: null, collisions: [collision("column-2", { type: "column", statusId: 2 })] }),
+      null
+    );
+    expect(result?.data).toEqual({ type: "column", statusId: 2 });
+  });
+
+  it("falls back to over when collision detection came up empty", () => {
+    const result = resolveKanbanDropTarget(
+      event({ over: over("9", { type: "task", statusId: 3 }), collisions: [] }),
+      null
+    );
+    expect(result?.data?.statusId).toBe(3);
+  });
+
+  it("falls back to the last over when the drop has neither", () => {
+    const result = resolveKanbanDropTarget(
+      event({ over: null, collisions: null }),
+      over("9", { type: "task", statusId: 3 })
+    );
+    expect(result?.data?.statusId).toBe(3);
+  });
+
+  it("returns null when there is nothing to drop onto", () => {
+    expect(resolveKanbanDropTarget(event({ over: null, collisions: null }), null)).toBeNull();
   });
 });
 

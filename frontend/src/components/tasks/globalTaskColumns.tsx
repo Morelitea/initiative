@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import type { ColumnDef } from "@tanstack/react-table";
+import { Pin } from "lucide-react";
 
 import type {
   TaskListRead,
@@ -20,6 +20,7 @@ import { guildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { summarizeRecurrence } from "@/lib/recurrence";
 import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
+import type { AppColumnDef } from "@/lib/table";
 import { getTaskDateStatus, getTaskDateStatusLabel } from "@/lib/taskDateStatus";
 import type { TranslateFn } from "@/types/i18n";
 
@@ -34,6 +35,12 @@ interface GlobalTaskColumnsOptions {
   >;
   t: TranslateFn;
   showAssignees?: boolean;
+  /**
+   * Focus-summary pinning. Both are omitted on views that have no focus
+   * section, which drops the column entirely rather than showing a dead one.
+   */
+  isPinned?: (task: TaskListRead) => boolean;
+  togglePin?: (task: TaskListRead) => void;
 }
 
 export function globalTaskColumns({
@@ -45,7 +52,9 @@ export function globalTaskColumns({
   projectStatusCache,
   t,
   showAssignees = false,
-}: GlobalTaskColumnsOptions): ColumnDef<TaskListRead>[] {
+  isPinned,
+  togglePin,
+}: GlobalTaskColumnsOptions): AppColumnDef<TaskListRead>[] {
   const guildDefaultLabel = t("myTasks.noGuild");
   const getGuildGroupLabel = (task: TaskListRead) => task.guild_name ?? guildDefaultLabel;
 
@@ -76,7 +85,7 @@ export function globalTaskColumns({
       ),
       enableHiding: true,
       enableSorting: true,
-      sortingFn: "alphanumeric",
+      sortFn: "alphanumeric",
     },
     {
       id: "guild",
@@ -95,7 +104,7 @@ export function globalTaskColumns({
       cell: ({ getValue }) => <span className="font-medium text-base">{getValue<string>()}</span>,
       enableHiding: true,
       enableSorting: true,
-      sortingFn: "alphanumeric",
+      sortFn: "alphanumeric",
     },
     {
       id: "completed",
@@ -126,6 +135,36 @@ export function globalTaskColumns({
       size: 64,
       enableHiding: false,
     },
+    ...(isPinned && togglePin
+      ? [
+          {
+            id: "focus",
+            header: () => <span className="sr-only">{t("focus.title")}</span>,
+            cell: ({ row }) => {
+              const task = row.original;
+              const pinned = isPinned(task);
+              return (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  onClick={() => togglePin(task)}
+                  aria-label={pinned ? t("focus.unpin") : t("focus.pin")}
+                  title={pinned ? t("focus.unpin") : t("focus.pin")}
+                >
+                  {pinned ? (
+                    <Pin className="h-3.5 w-3.5 fill-current text-primary" />
+                  ) : (
+                    <Pin className="h-3.5 w-3.5 text-muted-foreground" />
+                  )}
+                </Button>
+              );
+            },
+            enableSorting: false,
+            size: 48,
+          } satisfies AppColumnDef<TaskListRead>,
+        ]
+      : []),
     {
       accessorKey: "title",
       header: ({ column }) => {
@@ -175,7 +214,7 @@ export function globalTaskColumns({
           </div>
         );
       },
-      sortingFn: "alphanumeric",
+      sortFn: "alphanumeric",
       enableHiding: false,
     },
     {
@@ -193,7 +232,7 @@ export function globalTaskColumns({
         );
       },
       cell: ({ row }) => <DateCell date={row.original.start_date} isPastVariant="primary" />,
-      sortingFn: dateSortingFn,
+      sortFn: dateSortingFn,
     },
     {
       id: "due date",
@@ -216,7 +255,7 @@ export function globalTaskColumns({
           isDone={row.original.task_status?.category === "done"}
         />
       ),
-      sortingFn: dateSortingFn,
+      sortFn: dateSortingFn,
     },
     {
       id: "path",
@@ -290,7 +329,7 @@ export function globalTaskColumns({
           />
         );
       },
-      sortingFn: prioritySortingFn,
+      sortFn: prioritySortingFn,
     },
     {
       id: "tags",

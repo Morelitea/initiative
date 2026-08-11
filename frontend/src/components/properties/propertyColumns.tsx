@@ -1,9 +1,10 @@
-import type { ColumnDef } from "@tanstack/react-table";
+import type { RowData } from "@tanstack/react-table";
 
 import type {
   PropertyDefinitionRead,
   PropertySummary,
 } from "@/api/generated/initiativeAPI.schemas";
+import type { AppColumnDef } from "@/lib/table";
 
 import { PropertyValueCell } from "./PropertyValueCell";
 import { iconForPropertyType } from "./propertyTypeIcons";
@@ -94,10 +95,10 @@ const isDefinitionAmbiguous = (
  * ``enableSorting`` is off because sort across heterogeneous typed columns
  * needs server support we don't have yet.
  */
-export function buildPropertyColumns<T>(
+export function buildPropertyColumns<T extends RowData>(
   definitions: PropertyDefinitionRead[],
   getProperties: (row: T) => PropertySummary[] | undefined | null
-): ColumnDef<T>[] {
+): AppColumnDef<T>[] {
   if (definitions.length > PROPERTY_COLUMN_CAP) {
     console.warn(
       `[propertyColumns] capping at ${PROPERTY_COLUMN_CAP} columns (saw ${definitions.length})`
@@ -130,7 +131,7 @@ export function buildPropertyColumns<T>(
       enableHiding: true,
       enableSorting: false,
       size: 160,
-    } satisfies ColumnDef<T>;
+    } satisfies AppColumnDef<T>;
   });
 }
 

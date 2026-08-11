@@ -1,6 +1,6 @@
 import { keepPreviousData } from "@tanstack/react-query";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
-import type { ColumnDef, SortingState } from "@tanstack/react-table";
+import type { SortingState } from "@tanstack/react-table";
 import { ChevronDown, Filter, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -34,6 +34,7 @@ import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { dateSortingFn, PRIORITY_ORDER, prioritySortingFn } from "@/lib/sorting";
+import type { AppColumnDef } from "@/lib/table";
 
 const statusFallbackOrder: Record<TaskStatusCategory, TaskStatusCategory[]> = {
   backlog: ["backlog"],
@@ -276,7 +277,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
     [activeGuildId, changeTaskStatusById, resolveStatusIdForCategory, t]
   );
 
-  const columns: ColumnDef<TaskListRead>[] = [
+  const columns: AppColumnDef<TaskListRead>[] = [
     {
       id: "completed",
       header: () => <span className="font-medium">{t("columns.done")}</span>,
@@ -337,7 +338,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
           </div>
         );
       },
-      sortingFn: "alphanumeric",
+      sortFn: "alphanumeric",
       enableHiding: false,
     },
     {
@@ -372,7 +373,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
         );
       },
       cell: ({ row }) => <DateCell date={row.original.start_date} isPastVariant="primary" />,
-      sortingFn: dateSortingFn,
+      sortFn: dateSortingFn,
     },
     {
       id: "due date",
@@ -395,7 +396,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
           isDone={row.original.task_status?.category === "done"}
         />
       ),
-      sortingFn: dateSortingFn,
+      sortFn: dateSortingFn,
     },
     {
       accessorKey: "priority",
@@ -421,7 +422,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
           />
         );
       },
-      sortingFn: prioritySortingFn,
+      sortFn: prioritySortingFn,
     },
     {
       id: "status",

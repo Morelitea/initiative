@@ -118,6 +118,24 @@
     "unsavedLeave": "Salir",
     "unsavedStay": "Quedarme"
   },
+  "focus": {
+    "title": "Enfoque",
+    "progress": "{{done}} de {{total}} completadas",
+    "empty": "Nada requiere tu atención ahora mismo. Fija una tarea para mantenerla aquí.",
+    "pin": "Fijar en Enfoque",
+    "unpin": "Quitar de Enfoque",
+    "settings": "Ajustes de Enfoque",
+    "dueWithinLabel": "Mostrar trabajo con vencimiento",
+    "dueWithin": {
+      "0": "Hoy",
+      "2": "Próximos 2 días",
+      "7": "Esta semana"
+    },
+    "includeHighPriority": "Incluir siempre prioridad urgente y alta",
+    "loadError": "La lista de Enfoque no está disponible ahora.",
+    "truncated": "Mostrando las primeras {{shown}}. Reduce el intervalo de fechas para una lista más corta.",
+    "settingsHint": "Las tareas fijadas siempre aparecen, sea cual sea esta configuración."
+  },
   "myTasks": {
     "title": "Mis tareas",
     "subtitle": "Todo lo asignado a ti en todos los proyectos.",

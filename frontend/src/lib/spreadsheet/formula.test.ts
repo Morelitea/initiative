@@ -111,3 +111,79 @@ describe("chained formulas", () => {
     expect(createEvaluator(new Map(Object.entries(cells))).evaluate(0, 2).value).toBe(5);
   });
 });
+
+describe("cross-sheet references", () => {
+  const workbook = (
+    sheets: { id: string; name: string; cells: Record<string, CellValue> }[],
+    activeSheetId = sheets[0].id
+  ) =>
+    createEvaluator({
+      sheets: sheets.map((s) => ({ ...s, cells: new Map(Object.entries(s.cells)) })),
+      activeSheetId,
+    });
+
+  it("resolves a qualified cell reference", () => {
+    const e = workbook([
+      { id: "s1", name: "Summary", cells: { "0:0": "=Data!A1" } },
+      { id: "s2", name: "Data", cells: { "0:0": 42 } },
+    ]);
+    expect(e.evaluate(0, 0)).toEqual({ value: 42, error: null });
+  });
+
+  it("resolves a qualified range through a function", () => {
+    const e = workbook([
+      { id: "s1", name: "Summary", cells: { "0:0": "=SUM(Data!A1:A3)" } },
+      { id: "s2", name: "Data", cells: { "0:0": 1, "1:0": 2, "2:0": 3 } },
+    ]);
+    expect(e.evaluate(0, 0)).toEqual({ value: 6, error: null });
+  });
+
+  it("matches sheet names case-insensitively", () => {
+    const e = workbook([
+      { id: "s1", name: "Summary", cells: { "0:0": "=dAtA!A1" } },
+      { id: "s2", name: "Data", cells: { "0:0": 7 } },
+    ]);
+    expect(e.evaluate(0, 0).value).toBe(7);
+  });
+
+  it("accepts a quoted sheet name", () => {
+    const e = workbook([
+      { id: "s1", name: "Summary", cells: { "0:0": "='Q1 Actuals'!B2" } },
+      { id: "s2", name: "Q1 Actuals", cells: { "1:1": 12 } },
+    ]);
+    expect(e.evaluate(0, 0).value).toBe(12);
+  });
+
+  it("reports #REF! for a sheet that doesn't exist", () => {
+    const e = workbook([{ id: "s1", name: "Summary", cells: { "0:0": "=Gone!A1" } }]);
+    expect(e.evaluate(0, 0)).toEqual({ value: null, error: "#REF!" });
+  });
+
+  it("evaluates a formula on a non-active sheet against its own sheet", () => {
+    // B's "=A1" must read B's own A1, not the active sheet's.
+    const e = workbook(
+      [
+        { id: "s1", name: "A", cells: { "0:0": 1 } },
+        { id: "s2", name: "B", cells: { "0:0": 100, "0:1": "=A1" } },
+      ],
+      "s1"
+    );
+    expect(e.evaluate(0, 1, "s2").value).toBe(100);
+  });
+
+  it("chains a formula through another sheet", () => {
+    const e = workbook([
+      { id: "s1", name: "Summary", cells: { "0:0": "=Data!A1*2" } },
+      { id: "s2", name: "Data", cells: { "0:0": "=B1+1", "0:1": 4 } },
+    ]);
+    expect(e.evaluate(0, 0).value).toBe(10);
+  });
+
+  it("detects a cycle that only closes by hopping sheets", () => {
+    const e = workbook([
+      { id: "s1", name: "One", cells: { "0:0": "=Two!A1" } },
+      { id: "s2", name: "Two", cells: { "0:0": "=One!A1" } },
+    ]);
+    expect(e.evaluate(0, 0).error).toBe("#CYCLE!");
+  });
+});

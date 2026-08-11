@@ -9,7 +9,6 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { ColumnDef } from "@tanstack/react-table";
 import { GripVertical, MessageSquare } from "lucide-react";
 import type React from "react";
 import { createContext, memo, useCallback, useContext, useMemo, useState } from "react";
@@ -18,6 +17,14 @@ import { Trans, useTranslation } from "react-i18next";
 import type { TaskListRead, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
 import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
+import {
+  collectTagsByName,
+  fanOutTasksByTag,
+  TAG_GROUP_COLUMN_ID,
+  type TaskTagRow,
+  tagRowId,
+  uniqueTasksFromRows,
+} from "@/components/projects/taskTagGrouping";
 import { buildPropertyColumns, propertyColumnIds } from "@/components/properties/propertyColumns";
 import { SortIcon } from "@/components/SortIcon";
 import { TagBadge } from "@/components/tags/TagBadge";
@@ -41,6 +48,7 @@ import { useProperties } from "@/hooks/useProperties";
 import { useGuildPath } from "@/lib/guildUrl";
 import { summarizeRecurrence } from "@/lib/recurrence";
 import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
+import type { AppColumnDef } from "@/lib/table";
 import { getTaskDateStatus, getTaskDateStatusLabel } from "@/lib/taskDateStatus";
 import { truncateText } from "@/lib/text";
 import { cn } from "@/lib/utils";
@@ -91,7 +99,7 @@ const PlainRowWrapper = ({
   virtualStyle,
   virtualIndex,
   measureRef,
-}: DataTableRowWrapperProps<TaskListRead>) => {
+}: DataTableRowWrapperProps<TaskTagRow>) => {
   return (
     <TableRow
       ref={measureRef}
@@ -115,7 +123,7 @@ const SortableRowWrapperInner = ({
   virtualStyle,
   virtualIndex,
   measureRef,
-}: DataTableRowWrapperProps<TaskListRead>) => {
+}: DataTableRowWrapperProps<TaskTagRow>) => {
   const {
     attributes,
     listeners,
@@ -194,7 +202,7 @@ const ProjectTasksTableViewComponent = ({
   // Scoped to the project's initiative so the column list stays focused.
   const { data: propertyDefinitions = [] } = useProperties({ initiativeId });
   const propertyColumns = useMemo(
-    () => buildPropertyColumns<TaskListRead>(propertyDefinitions, (row) => row.properties),
+    () => buildPropertyColumns<TaskTagRow>(propertyDefinitions, (row) => row.properties),
     [propertyDefinitions]
   );
   const propertyHiddenIds = useMemo(
@@ -206,14 +214,21 @@ const ProjectTasksTableViewComponent = ({
     propertyHiddenIds
   );
   // "date group" column must always start hidden in this view (non-property
-  // toggle). Merge it once with the persisted map.
-  const effectiveColumnVisibility = useMemo(
-    () =>
+  // toggle). Merge it once with the persisted map. The tag group column drives
+  // "group by tag" only — the tags column already shows a task's tags — so it
+  // stays hidden whatever the persisted map holds.
+  const effectiveColumnVisibility = useMemo(() => {
+    const withDateGroup =
       "date group" in columnVisibility
         ? columnVisibility
-        : { ...columnVisibility, "date group": false },
-    [columnVisibility]
-  );
+        : { ...columnVisibility, "date group": false };
+    return { ...withDateGroup, [TAG_GROUP_COLUMN_ID]: false };
+  }, [columnVisibility]);
+
+  // Tag grouping keys rows by tag name; keep the tags around so a group header
+  // can render its badge, and name the group tasks without tags fall into.
+  const tagsByName = useMemo(() => collectTagsByName(tasks), [tasks]);
+  const untaggedLabel = t("table.untagged");
 
   // Memoize status lookups to avoid repeated array searches
   const statusLookup = useMemo(() => {
@@ -225,14 +240,14 @@ const ProjectTasksTableViewComponent = ({
     return { doneStatus, inProgressStatus };
   }, [taskStatuses]);
 
-  const columns = useMemo<ColumnDef<TaskListRead>[]>(
+  const columns = useMemo<AppColumnDef<TaskTagRow>[]>(
     () => [
       {
         id: "drag",
         header: () => <span className="sr-only">{t("table.reorder")}</span>,
         cell: ({ table }) => {
-          const sorting = table.getState().sorting;
-          const grouping = table.getState().grouping;
+          const sorting = table.atoms.sorting?.get() ?? [];
+          const grouping = table.atoms.grouping?.get() ?? [];
           const disableDnd = sorting.length > 0 || grouping.length > 0;
           return !disableDnd ? <DragHandleCell /> : null;
         },
@@ -261,7 +276,27 @@ const ProjectTasksTableViewComponent = ({
         ),
         enableHiding: true,
         enableSorting: true,
-        sortingFn: "alphanumeric",
+        sortFn: "alphanumeric",
+      },
+      {
+        // Never rendered as a column of its own (see effectiveColumnVisibility);
+        // it holds the single tag a row is grouped under so the table can group
+        // by tag, and renders that tag as the group header.
+        id: TAG_GROUP_COLUMN_ID,
+        accessorFn: (task) => task.tagGroup ?? untaggedLabel,
+        header: () => <span className="font-medium">{t("table.tagGroup")}</span>,
+        cell: ({ getValue }) => {
+          const label = getValue<string>();
+          const tag = tagsByName.get(label);
+          return tag ? (
+            <TagBadge tag={tag} size="md" />
+          ) : (
+            <span className="font-medium text-base">{label}</span>
+          );
+        },
+        enableHiding: false,
+        enableSorting: true,
+        sortFn: "alphanumeric",
       },
       {
         id: "completed",
@@ -315,7 +350,7 @@ const ProjectTasksTableViewComponent = ({
           />
         ),
         enableSorting: true,
-        sortingFn: "alphanumeric",
+        sortFn: "alphanumeric",
         enableHiding: false,
       },
       {
@@ -334,7 +369,7 @@ const ProjectTasksTableViewComponent = ({
         },
         cell: ({ row }) => <DateCell date={row.original.start_date} isPastVariant="primary" />,
         enableSorting: true,
-        sortingFn: dateSortingFn,
+        sortFn: dateSortingFn,
       },
       {
         id: "due date",
@@ -358,7 +393,7 @@ const ProjectTasksTableViewComponent = ({
           />
         ),
         enableSorting: true,
-        sortingFn: dateSortingFn,
+        sortFn: dateSortingFn,
       },
       {
         accessorKey: "priority",
@@ -378,7 +413,7 @@ const ProjectTasksTableViewComponent = ({
           const task = row.original;
           return <TaskPrioritySelector task={task} disabled={statusDisabled} />;
         },
-        sortingFn: prioritySortingFn,
+        sortFn: prioritySortingFn,
       },
       {
         id: "tags",
@@ -463,38 +498,69 @@ const ProjectTasksTableViewComponent = ({
         enableHiding: false,
       },
     ],
-    [canOpenTask, gp, onStatusChange, onTaskClick, statusDisabled, taskStatuses, statusLookup, t]
+    [
+      canOpenTask,
+      gp,
+      onStatusChange,
+      onTaskClick,
+      statusDisabled,
+      tagsByName,
+      taskStatuses,
+      statusLookup,
+      t,
+      untaggedLabel,
+    ]
   );
   // Insert programmatic property columns between tags (index of "tags") and
   // comments. We splice by id so the insertion point is robust to column-list
   // refactors.
-  const columnsWithProperties = useMemo<ColumnDef<TaskListRead>[]>(() => {
+  const columnsWithProperties = useMemo<AppColumnDef<TaskTagRow>[]>(() => {
     if (propertyColumns.length === 0) return columns;
     const tagsIdx = columns.findIndex((c) => (c as { id?: string }).id === "tags");
     if (tagsIdx === -1) return [...columns, ...propertyColumns];
     return [...columns.slice(0, tagsIdx + 1), ...propertyColumns, ...columns.slice(tagsIdx + 1)];
   }, [columns, propertyColumns]);
-  const groupingOptions = useMemo(() => [{ id: "date group", label: t("table.dateWindow") }], [t]);
+  const groupingOptions = useMemo(
+    () => [
+      { id: "date group", label: t("table.dateWindow") },
+      { id: TAG_GROUP_COLUMN_ID, label: t("table.tagGroup") },
+    ],
+    [t]
+  );
 
   const sortableItems = useMemo(() => tasks.map((task) => task.id.toString()), [tasks]);
 
   // Track sorting/grouping state to know when DnD is possible.
   // When either is active, we skip useSortable hooks entirely for performance.
   const [hasSorting, setHasSorting] = useState(false);
-  const [hasGrouping, setHasGrouping] = useState(false);
-  const dndEnabled = canReorderTasks && !hasSorting && !hasGrouping;
+  const [grouping, setGrouping] = useState<string[]>([]);
+  const dndEnabled = canReorderTasks && !hasSorting && grouping.length === 0;
+
+  // Grouping by tag means one row per (task, tag) pair — a task with three tags
+  // belongs under all three, not under whichever one happens to come first.
+  const isTagGrouped = grouping.includes(TAG_GROUP_COLUMN_ID);
+  const rows = useMemo<TaskTagRow[]>(
+    () => (isTagGrouped ? fanOutTasksByTag(tasks, untaggedLabel) : tasks),
+    [isTagGrouped, tasks, untaggedLabel]
+  );
 
   const handleSortingChange = useCallback(
     (sorting: { id: string; desc: boolean }[]) => setHasSorting(sorting.length > 0),
     []
   );
-  const handleGroupingChange = useCallback(
-    (grouping: string[]) => setHasGrouping(grouping.length > 0),
-    []
+  const handleGroupingChange = useCallback((next: string[]) => setGrouping(next), []);
+
+  // Selection reports rows; a tag-grouped task holds one row per tag, so
+  // collapse them back to the tasks themselves.
+  const tasksById = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks]);
+  const handleSelectionChange = useCallback(
+    (selectedRows: TaskTagRow[]) =>
+      onTaskSelectionChange?.(uniqueTasksFromRows(selectedRows, tasksById)),
+    [onTaskSelectionChange, tasksById]
   );
 
   const rowWrapper = useCallback(
-    (props: DataTableRowWrapperProps<TaskListRead>) => {
+    (props: DataTableRowWrapperProps<TaskTagRow>) => {
       if (!dndEnabled) {
         return <PlainRowWrapper {...props} />;
       }
@@ -517,7 +583,7 @@ const ProjectTasksTableViewComponent = ({
       >
         <DataTable
           columns={columnsWithProperties}
-          data={tasks}
+          data={rows}
           enableVirtualization
           virtualContainerHeight="h-[calc(100vh-20rem)]"
           virtualRowHeight={52}
@@ -527,8 +593,8 @@ const ProjectTasksTableViewComponent = ({
           onSortingChange={handleSortingChange}
           onGroupingChange={handleGroupingChange}
           helpText={(table) => {
-            const sorting = table.getState().sorting;
-            const grouping = table.getState().grouping;
+            const sorting = table.atoms.sorting?.get() ?? [];
+            const grouping = table.atoms.grouping?.get() ?? [];
             const disableDnd = sorting.length > 0 || grouping.length > 0;
             return disableDnd ? (
               <div className="text-muted-foreground">
@@ -562,8 +628,8 @@ const ProjectTasksTableViewComponent = ({
           enableColumnVisibilityDropdown
           enableResetSorting
           enableRowSelection
-          onRowSelectionChange={onTaskSelectionChange}
-          getRowId={(row) => String(row.id)}
+          onRowSelectionChange={handleSelectionChange}
+          getRowId={tagRowId}
           onExitSelection={onExitSelection}
         />
       </SortableContext>

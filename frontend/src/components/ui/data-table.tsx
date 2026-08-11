@@ -1,24 +1,16 @@
 "use client";
 
 import {
-  type ColumnDef,
   type ColumnFiltersState,
+  type ColumnVisibilityState,
   flexRender,
   type GroupingState,
-  getCoreRowModel,
-  getExpandedRowModel,
-  getFilteredRowModel,
-  getGroupedRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
   type PaginationState,
-  type Row,
+  type RowData,
   type RowSelectionState,
   type SortingState,
-  type TableState,
-  type Table as TableType,
-  useReactTable,
-  type VisibilityState,
+  type TableState as TableStateOf,
+  useTable,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronDown, MoreVertical } from "lucide-react";
@@ -67,15 +59,24 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { commandFilter } from "@/lib/fuzzyMatch";
+import {
+  type AppColumnDef,
+  type AppRow,
+  type AppTable,
+  type AppTableFeatures,
+  appTableFeatures,
+} from "@/lib/table";
 import { cn } from "@/lib/utils";
+
+type TableState = TableStateOf<AppTableFeatures>;
 
 interface GroupingOption {
   id: string;
   label: string;
 }
 
-interface DataTableProps<TData, TValue> {
-  columns: ColumnDef<TData, TValue>[];
+interface DataTableProps<TData extends RowData> {
+  columns: AppColumnDef<TData>[];
   data: TData[];
   rowWrapper?: (props: DataTableRowWrapperProps<TData>) => ReactNode;
   enableFilterInput?: boolean;
@@ -87,9 +88,9 @@ interface DataTableProps<TData, TValue> {
    * state. Use this together with ``onColumnVisibilityChange`` to persist
    * toggles across sessions (see ``usePersistedColumnVisibility``).
    */
-  columnVisibility?: VisibilityState;
+  columnVisibility?: ColumnVisibilityState;
   onColumnVisibilityChange?: (
-    updater: VisibilityState | ((prev: VisibilityState) => VisibilityState)
+    updater: ColumnVisibilityState | ((prev: ColumnVisibilityState) => ColumnVisibilityState)
   ) => void;
   enablePagination?: boolean;
   enableResetSorting?: boolean;
@@ -97,7 +98,7 @@ interface DataTableProps<TData, TValue> {
   initialState?: Partial<TableState>;
   pageSizeOptions?: number[];
   groupingOptions?: GroupingOption[];
-  helpText?: ReactNode | ((table: TableType<TData>) => ReactNode);
+  helpText?: ReactNode | ((table: AppTable<TData>) => ReactNode);
   enableRowSelection?: boolean;
   onRowSelectionChange?: (selectedRows: TData[]) => void;
   getRowId?: (row: TData) => string;
@@ -123,8 +124,8 @@ interface DataTableProps<TData, TValue> {
   virtualContainerHeight?: string;
 }
 
-export interface DataTableRowWrapperProps<TData> {
-  row: Row<TData>;
+export interface DataTableRowWrapperProps<TData extends RowData> {
+  row: AppRow<TData>;
   children: ReactNode;
   /** When virtualization is enabled, apply these to the row element for positioning. */
   virtualStyle?: React.CSSProperties;
@@ -138,7 +139,7 @@ const DEFAULT_PAGE_SIZE = 20;
 const DEFAULT_PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 const GROUPING_NONE_VALUE = "__none__";
 
-export function DataTable<TData, TValue>({
+export function DataTable<TData extends RowData>({
   columns,
   data,
   rowWrapper,
@@ -172,15 +173,14 @@ export function DataTable<TData, TValue>({
   virtualRowHeight = 48,
   virtualOverscan = 5,
   virtualContainerHeight = "h-[60vh]",
-}: DataTableProps<TData, TValue>) {
+}: DataTableProps<TData>) {
   const { t } = useTranslation("common");
   const initialStateRef = useRef<Partial<TableState> | undefined>(initialState);
   const initialSortingRef = useRef<SortingState>(initialSorting ? [...initialSorting] : []);
   const groupingEnabled = Boolean(groupingOptions && groupingOptions.length > 0);
+  const initialGroupingState = initialStateRef.current?.grouping;
   const initialGroupingRef = useRef<GroupingState>(
-    groupingEnabled && Array.isArray(initialStateRef.current?.grouping)
-      ? [...(initialStateRef.current?.grouping as GroupingState)]
-      : []
+    groupingEnabled && Array.isArray(initialGroupingState) ? [...initialGroupingState] : []
   );
   const resolveInitialPagination = (): PaginationState => {
     const paginationState = initialStateRef.current?.pagination as PaginationState | undefined;
@@ -194,7 +194,7 @@ export function DataTable<TData, TValue>({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(
     () => (initialStateRef.current?.columnFilters as ColumnFiltersState) ?? []
   );
-  const [internalColumnVisibility, setInternalColumnVisibility] = useState<VisibilityState>(
+  const [internalColumnVisibility, setInternalColumnVisibility] = useState<ColumnVisibilityState>(
     () => initialStateRef.current?.columnVisibility ?? {}
   );
   const isColumnVisibilityControlled = controlledColumnVisibility !== undefined;
@@ -202,7 +202,7 @@ export function DataTable<TData, TValue>({
     ? controlledColumnVisibility
     : internalColumnVisibility;
   const handleColumnVisibilityChange = useCallback(
-    (updater: VisibilityState | ((prev: VisibilityState) => VisibilityState)) => {
+    (updater: ColumnVisibilityState | ((prev: ColumnVisibilityState) => ColumnVisibilityState)) => {
       if (isColumnVisibilityControlled) {
         externalOnColumnVisibilityChange?.(updater);
         return;
@@ -266,13 +266,15 @@ export function DataTable<TData, TValue>({
       return columns;
     }
 
-    const selectionColumn: ColumnDef<TData, TValue> = {
+    const selectionColumn: AppColumnDef<TData> = {
       id: "select",
       header: ({ table }) => (
         <Checkbox
           checked={
             table.getIsAllPageRowsSelected() ||
-            (table.getIsSomePageRowsSelected() && "indeterminate")
+            (table.getIsSomePageRowsSelected() &&
+              !table.getIsAllPageRowsSelected() &&
+              "indeterminate")
           }
           onCheckedChange={(value) => {
             // Select-all resets the range anchor so a subsequent shift+click
@@ -323,6 +325,11 @@ export function DataTable<TData, TValue>({
     return setSorting;
   }, [externalOnSortingChange, sorting]);
 
+  // The single funnel for grouping changes. `grouping` is controlled state, so
+  // setting it directly would move the table without telling the caller — and
+  // callers re-shape their rows off this callback (the project task table fans
+  // a task out into one row per tag), so they'd end up grouping over data they
+  // never rebuilt. Every grouping control routes through here.
   const handleGroupingChange = useCallback(
     (updater: GroupingState | ((old: GroupingState) => GroupingState)) => {
       setGrouping((prev) => {
@@ -334,10 +341,10 @@ export function DataTable<TData, TValue>({
     [externalOnGroupingChange]
   );
 
-  const table = useReactTable({
+  const table = useTable({
+    features: appTableFeatures,
     data,
     columns: columnsWithSelection,
-    getCoreRowModel: getCoreRowModel(),
     defaultColumn: {
       filterFn: (row, columnId, filterValue: string) => {
         const cellValue = String(row.getValue(columnId) ?? "");
@@ -352,14 +359,13 @@ export function DataTable<TData, TValue>({
     onRowSelectionChange: enableRowSelection ? setRowSelection : undefined,
     enableRowSelection: enableRowSelection,
     getRowId: getRowId,
-    getPaginationRowModel:
-      enablePagination && !manualPagination ? getPaginationRowModel() : undefined,
-    getSortedRowModel: manualSorting && !groupingEnabled ? undefined : getSortedRowModel(),
+    // Row models are registered once in `appTableFeatures`; a stage is turned
+    // off per-instance through its `manual*` option, which is where the
+    // row-model pipeline short-circuits. Callers that don't paginate need that
+    // too — otherwise the paginated row model would slice them to one page.
+    manualPagination: manualPagination || !enablePagination,
     manualSorting: manualSorting,
-    getFilteredRowModel: getFilteredRowModel(),
-    getGroupedRowModel: groupingEnabled ? getGroupedRowModel() : undefined,
-    getExpandedRowModel: groupingEnabled ? getExpandedRowModel() : undefined,
-    manualPagination: manualPagination,
+    manualGrouping: !groupingEnabled,
     ...(manualPagination && externalPageCount !== undefined
       ? { pageCount: externalPageCount }
       : {}),
@@ -374,7 +380,14 @@ export function DataTable<TData, TValue>({
       ...(enableRowSelection ? { rowSelection } : {}),
     },
   });
-  const pageSize = table.getState().pagination?.pageSize ?? DEFAULT_PAGE_SIZE;
+  // `useTable` hands back a fresh object every render (it re-memoizes on the
+  // options literal), so the instance is not usable as an effect dependency —
+  // listing it would re-run the effect on every render. Effects read the table
+  // through this ref and key themselves on the state they actually care about.
+  const tableRef = useRef(table);
+  tableRef.current = table;
+
+  const pageSize = table.state.pagination?.pageSize ?? DEFAULT_PAGE_SIZE;
   const pageSizeChoices = useMemo(() => {
     const options = resolvedPageSizeOptions.includes(pageSize)
       ? resolvedPageSizeOptions
@@ -516,22 +529,51 @@ export function DataTable<TData, TValue>({
     if (enableRowSelection && selectionModeActive && onRowSelectionChange) {
       // Report ALL selected rows (not just filter-visible ones) so the reported
       // selection always matches the checked checkboxes — selections persist
-      // across filtering. columnFilters is a dep so reported `.original`
-      // references stay fresh when the row model rebuilds on a filter change.
+      // across filtering. columnFilters and data are deps so reported `.original`
+      // references stay fresh when the row model rebuilds — and so a data change
+      // that drops or re-keys rows (a refetch, or a consumer re-shaping rows for
+      // a new grouping) reports the selection that is actually checked.
       // Limitation: under manualPagination only the current page is in `data`,
       // so selections on other pages remain in rowSelection (by id) but can't be
       // reported as row objects; cross-page selection is out of scope.
-      const selectedRows = table.getSelectedRowModel().rows.map((row) => row.original);
+      const selectedRows = tableRef.current.getSelectedRowModel().rows.map((row) => row.original);
       onRowSelectionChange(selectedRows);
     }
   }, [
     rowSelection,
     columnFilters,
+    data,
     enableRowSelection,
     selectionModeActive,
     onRowSelectionChange,
-    table,
   ]);
+
+  // Forget rows the current data no longer holds. Selection is keyed by row id,
+  // so a consumer that re-keys its rows (re-shaping them for a new grouping, say)
+  // would otherwise leave ids behind that silently re-select those rows the
+  // moment the same ids come back. Filtering is unaffected — filtered-out rows
+  // stay in the core row model — and group rows, whose ids exist only in the
+  // grouped model, are kept so a "select all" keeps its header checkbox.
+  // Skipped under manualPagination, where rows of other pages are legitimately
+  // absent from `data` and their selection is meant to persist.
+  useEffect(() => {
+    if (!enableRowSelection || manualPagination) {
+      return;
+    }
+    setRowSelection((previous) => {
+      const selectedIds = Object.keys(previous);
+      if (selectedIds.length === 0) {
+        return previous;
+      }
+      const dataRows = tableRef.current.getCoreRowModel().rowsById;
+      const displayedRows = tableRef.current.getRowModel().rowsById;
+      const kept = selectedIds.filter((id) => id in dataRows || id in displayedRows);
+      if (kept.length === selectedIds.length) {
+        return previous;
+      }
+      return Object.fromEntries(kept.map((id) => [id, previous[id]]));
+    });
+  }, [data, grouping, enableRowSelection, manualPagination]);
 
   useEffect(() => {
     if (!selectionModeActive && Object.keys(rowSelection).length > 0) {
@@ -667,11 +709,7 @@ export function DataTable<TData, TValue>({
                     <Select
                       value={groupingSelectValue}
                       onValueChange={(value) => {
-                        if (value === GROUPING_NONE_VALUE) {
-                          setGrouping([]);
-                        } else {
-                          setGrouping([value]);
-                        }
+                        handleGroupingChange(value === GROUPING_NONE_VALUE ? [] : [value]);
                       }}
                     >
                       <SelectTrigger id={groupingSelectId} className="w-40">
@@ -769,7 +807,7 @@ export function DataTable<TData, TValue>({
                         <DropdownMenuSubContent>
                           <DropdownMenuCheckboxItem
                             checked={groupingSelectValue === GROUPING_NONE_VALUE}
-                            onCheckedChange={() => setGrouping([])}
+                            onCheckedChange={() => handleGroupingChange([])}
                           >
                             {t("none")}
                           </DropdownMenuCheckboxItem>
@@ -777,7 +815,7 @@ export function DataTable<TData, TValue>({
                             <DropdownMenuCheckboxItem
                               key={option.id}
                               checked={groupingSelectValue === option.id}
-                              onCheckedChange={() => setGrouping([option.id])}
+                              onCheckedChange={() => handleGroupingChange([option.id])}
                             >
                               {option.label}
                             </DropdownMenuCheckboxItem>
@@ -946,7 +984,7 @@ export function DataTable<TData, TValue>({
               {manualPagination && externalPageCount !== undefined && (
                 <span className="text-muted-foreground text-sm">
                   {t("pageOf", {
-                    current: table.getState().pagination.pageIndex + 1,
+                    current: table.state.pagination.pageIndex + 1,
                     total: Math.max(externalPageCount, 1),
                   })}
                 </span>
@@ -957,7 +995,7 @@ export function DataTable<TData, TValue>({
                 onClick={() => table.previousPage()}
                 disabled={!table.getCanPreviousPage()}
                 onMouseEnter={() => {
-                  const prevIndex = table.getState().pagination.pageIndex - 1;
+                  const prevIndex = table.state.pagination.pageIndex - 1;
                   if (prevIndex >= 0 && onPrefetchPage) onPrefetchPage(prevIndex);
                 }}
               >
@@ -969,7 +1007,7 @@ export function DataTable<TData, TValue>({
                 onClick={() => table.nextPage()}
                 disabled={!table.getCanNextPage()}
                 onMouseEnter={() => {
-                  const nextIndex = table.getState().pagination.pageIndex + 1;
+                  const nextIndex = table.state.pagination.pageIndex + 1;
                   if (table.getCanNextPage() && onPrefetchPage) onPrefetchPage(nextIndex);
                 }}
               >
@@ -983,7 +1021,13 @@ export function DataTable<TData, TValue>({
   );
 }
 
-function GroupedRow<TData>({ row, colSpan }: { row: Row<TData>; colSpan: number }) {
+function GroupedRow<TData extends RowData>({
+  row,
+  colSpan,
+}: {
+  row: AppRow<TData>;
+  colSpan: number;
+}) {
   const groupedCell = row.getAllCells().find((cell) => cell.getIsGrouped?.());
   const groupContent = groupedCell?.column.columnDef.cell
     ? flexRender(groupedCell.column.columnDef.cell, groupedCell.getContext())
@@ -1028,7 +1072,7 @@ const MemoizedVirtualCells = memo(
     visibleColumnKey,
     isSelected,
   }: {
-    row: Row<unknown>;
+    row: AppRow<Record<string, unknown>>;
     visibleColumnKey: string;
     isSelected: boolean;
   }) {
@@ -1048,7 +1092,7 @@ const MemoizedVirtualCells = memo(
     prev.visibleColumnKey === next.visibleColumnKey
 );
 
-function VirtualRow<TData>({
+function VirtualRow<TData extends RowData>({
   row,
   virtualRow,
   measureElement,
@@ -1057,7 +1101,7 @@ function VirtualRow<TData>({
   rowWrapper,
   visibleColumnKey,
 }: {
-  row: Row<TData>;
+  row: AppRow<TData>;
   virtualRow: { index: number; start: number; size: number };
   measureElement: (el: HTMLElement | null) => void;
   groupingEnabled: boolean;
@@ -1082,7 +1126,7 @@ function VirtualRow<TData>({
 
   const cells = (
     <MemoizedVirtualCells
-      row={row as Row<unknown>}
+      row={row as unknown as AppRow<Record<string, unknown>>}
       visibleColumnKey={visibleColumnKey}
       isSelected={row.getIsSelected()}
     />
@@ -1113,7 +1157,7 @@ function VirtualRow<TData>({
 }
 
 /** Renders the expand/collapse content for a grouped row. */
-function GroupedRowContent<TData>({ row }: { row: Row<TData> }) {
+function GroupedRowContent<TData extends RowData>({ row }: { row: AppRow<TData> }) {
   const groupedCell = row.getAllCells().find((cell) => cell.getIsGrouped?.());
   const groupContent = groupedCell?.column.columnDef.cell
     ? flexRender(groupedCell.column.columnDef.cell, groupedCell.getContext())

@@ -458,6 +458,21 @@
       "negParens": "(1.234,00)",
       "negRedParens": "Rot (1.234,00)",
       "clear": "Formatierung entfernen"
+    },
+    "sheets": {
+      "tablist": "Blätter",
+      "add": "Blatt hinzufügen",
+      "menu": "Aktionen für Blatt {{name}}",
+      "rename": "Umbenennen",
+      "renameLabel": "Blattname",
+      "duplicate": "Duplizieren",
+      "moveLeft": "Nach links verschieben",
+      "moveRight": "Nach rechts verschieben",
+      "delete": "Löschen",
+      "deleted": "Blatt gelöscht — mit Rückgängig wiederherstellen.",
+      "deleteLastBlocked": "Das einzige Blatt kann nicht gelöscht werden.",
+      "maxReached": "Diese Tabelle hat bereits die maximale Anzahl an Blättern.",
+      "editSheetRemoved": "Das Blatt, das Sie bearbeitet haben, wurde entfernt — die Änderung wurde verworfen."
     }
   },
   "sidePanel": {

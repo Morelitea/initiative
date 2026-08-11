@@ -52,6 +52,7 @@ export {
   buildUser,
   buildUserGuildMember,
   buildUserPublic,
+  buildUserSummary,
   resetCounter as resetUserCounter,
 } from "./user.factory";
 

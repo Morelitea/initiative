@@ -570,3 +570,133 @@ async def test_list_my_tasks_property_filter_spans_guilds(
     assert (guild2.id, g2_empty.id) in found
     assert (guild1.id, g1_has.id) not in found
     assert (guild2.id, g2_has.id) not in found
+
+
+# --- Focus summary query -----------------------------------------------------
+# The My Tasks "Focus" section sends one nested OR group. These lock the wire
+# format in: a silent 400 (or a silently-dropped leg) would empty the section
+# with no visible cause.
+
+
+@pytest.mark.integration
+async def test_my_tasks_accepts_nested_or_conditions(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    from datetime import datetime, timedelta, timezone
+
+    from app.models.tenant.task import TaskStatusCategory
+    from app.testing.factories import create_task
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    now = datetime.now(timezone.utc)
+
+    due_soon = await create_task(
+        session,
+        a.project,
+        title="Due soon",
+        assignees=[a.user],
+        due_date=now + timedelta(hours=6),
+    )
+    urgent_undated = await create_task(
+        session,
+        a.project,
+        title="Urgent but undated",
+        assignees=[a.user],
+        priority=TaskPriority.urgent,
+    )
+    finished_today = await create_task(
+        session,
+        a.project,
+        title="Finished today",
+        assignees=[a.user],
+        status_category=TaskStatusCategory.done,
+    )
+    # Neither urgent nor due soon: must not be swept in.
+    await create_task(
+        session,
+        a.project,
+        title="Someday",
+        assignees=[a.user],
+        due_date=now + timedelta(days=90),
+    )
+
+    still_open = {
+        "field": "status_category",
+        "op": "in_",
+        "value": ["todo", "in_progress"],
+    }
+    # Two group levels, not three: the parser caps nesting at
+    # ``_MAX_GROUP_DEPTH``, so "open AND (due OR urgent)" is distributed into
+    # separate AND legs rather than nesting an OR inside the AND.
+    conditions = [
+        {
+            "logic": "or",
+            "conditions": [
+                {
+                    "logic": "and",
+                    "conditions": [
+                        still_open,
+                        {
+                            "field": "due_date",
+                            "op": "lte",
+                            "value": (now + timedelta(days=2)).isoformat(),
+                        },
+                    ],
+                },
+                {
+                    "logic": "and",
+                    "conditions": [
+                        still_open,
+                        {"field": "priority", "op": "in_", "value": ["urgent", "high"]},
+                    ],
+                },
+                {
+                    "logic": "and",
+                    "conditions": [
+                        {"field": "status_category", "op": "in_", "value": ["done"]},
+                        {
+                            "field": "completed_at",
+                            "op": "gte",
+                            "value": (now - timedelta(hours=12)).isoformat(),
+                        },
+                    ],
+                },
+            ],
+        }
+    ]
+
+    response = await client.get(
+        "/api/v1/me/tasks",
+        params={"conditions": json.dumps(conditions), "page_size": 100},
+        headers=a.headers,
+    )
+
+    assert response.status_code == 200, response.text
+    titles = {item["title"] for item in response.json()["items"]}
+    assert titles == {"Due soon", "Urgent but undated", "Finished today"}
+    assert {due_soon.id, urgent_undated.id, finished_today.id}
+
+
+@pytest.mark.integration
+async def test_my_tasks_exposes_completed_at(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The section reads completed_at off the list payload to decide what
+    counts as finished today."""
+    from app.models.tenant.task import TaskStatusCategory
+    from app.testing.factories import create_task
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await create_task(
+        session,
+        a.project,
+        title="Finished",
+        assignees=[a.user],
+        status_category=TaskStatusCategory.done,
+    )
+
+    response = await client.get("/api/v1/me/tasks", headers=a.headers)
+
+    assert response.status_code == 200, response.text
+    item = next(i for i in response.json()["items"] if i["title"] == "Finished")
+    assert item["completed_at"] is not None

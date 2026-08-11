@@ -141,7 +141,15 @@
     "active": "Activo",
     "template": "Plantilla",
     "templateInfo": "Este proyecto es una plantilla. Úsalo para crear nuevos proyectos desde la pestaña Plantillas.",
-    "archivedInfo": "Este proyecto está archivado. Desarchívalo desde la configuración para agregar o actualizar tareas."
+    "archivedInfo": "Este proyecto está archivado. Desarchívalo desde la configuración para agregar o actualizar tareas.",
+    "scheduleLabel": "Fechas del proyecto",
+    "scheduleRange": "{{start}} – {{end}}",
+    "scheduleStartOnly": "Comienza el {{start}}",
+    "scheduleEndOnly": "Termina el {{end}}"
+  },
+  "schedule": {
+    "startLabel": "Fecha de inicio",
+    "endLabel": "Fecha de finalización"
   },
   "tabsBar": {
     "loadingRecent": "Cargando elementos recientes…",
@@ -259,16 +267,15 @@
       "nameLabel": "Nombre",
       "namePlaceholder": "Hoja de ruta del producto",
       "saving": "Guardando...",
-      "saveDetails": "Guardar detalles del proyecto",
+      "saveDetails": "Guardar cambios",
       "detailsUpdated": "Detalles del proyecto actualizados",
       "updateError": "No se pudo actualizar el proyecto.",
-      "noWriteAccessIdentity": "Necesitas acceso de escritura para cambiar el nombre o ícono del proyecto.",
+      "noWriteAccess": "Necesitas acceso de escritura para editar estos detalles.",
       "descriptionHeading": "Descripción",
       "descriptionDescription": "Comparte contexto para ayudar a los colaboradores a entender el trabajo.",
       "descriptionPlaceholder": "¿Qué estamos tratando de lograr?",
-      "saveDescription": "Guardar descripción",
-      "descriptionUpdated": "Descripción actualizada",
-      "noWriteAccessDescription": "Necesitas acceso de escritura para editar la descripción.",
+      "scheduleHeading": "Fechas",
+      "scheduleDescription": "Define cuándo comienza y termina el proyecto. Ambas son opcionales.",
       "tagsHeading": "Etiquetas",
       "tagsDescription": "Agrega etiquetas para organizar y filtrar proyectos.",
       "noWriteAccessTags": "Necesitas acceso de escritura para administrar etiquetas."
@@ -356,7 +363,6 @@
     "viewTable": "Tabla",
     "viewKanban": "Kanban",
     "viewCalendar": "Calendario",
-    "viewGantt": "Gantt",
     "filtersHeading": "Filtros",
     "showFilters": "Mostrar filtros",
     "hideFilters": "Ocultar filtros",
@@ -403,6 +409,8 @@
     "priorityColumn": "Prioridad",
     "tagsColumn": "Etiquetas",
     "moreTagsCount": "+{{count}}",
+    "tagGroup": "Etiqueta",
+    "untagged": "Sin etiqueta",
     "commentsColumn": "Comentarios",
     "statusColumn": "Estado",
     "sortHelp": "Haz clic en cualquier encabezado de columna para ordenar. Mantén Shift para ordenar por múltiples columnas.",
@@ -516,19 +524,6 @@
     "noComments": "Aún no hay comentarios.",
     "commentedOn": "comentó en",
     "loadMore": "Cargar más"
-  },
-  "ganttView": {
-    "title": "Línea de tiempo",
-    "subtitle": "Planifica las fechas de inicio y vencimiento en las próximas semanas.",
-    "window": "Ventana",
-    "days": "{{count}} días",
-    "days_one": "{{count}} día",
-    "days_other": "{{count}} días",
-    "previousWeeks": "Mostrar semanas anteriores",
-    "nextWeeks": "Mostrar semanas siguientes",
-    "taskColumn": "Tarea",
-    "noTasks": "No hay tareas para mostrar.",
-    "outsideRange": "Fuera del rango actual"
   },
   "export": {
     "title": "Exportar proyecto",

@@ -8,7 +8,7 @@ cross-database move.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, List, Optional
 
 from pydantic import Field, model_validator
@@ -32,6 +32,8 @@ class ProjectExportProject(SanitizedBaseModel):
     description: Optional[str] = None
     is_template: bool = False
     is_archived: bool = False
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
 
 
 class ProjectExportTag(SanitizedBaseModel):
@@ -100,6 +102,9 @@ class ProjectExportTask(SanitizedBaseModel):
     recurrence_occurrence_count: int = 0
     position: float = 0.0
     is_archived: bool = False
+    # Absent in exports taken before completion timestamps existed; the
+    # importer derives it from the restored status in that case.
+    completed_at: Optional[datetime] = None
     status_name: str
     # Lists are required (no default_factory): pydantic 2.x splits the
     # OpenAPI schema into ``-Input``/``-Output`` whenever a field has a

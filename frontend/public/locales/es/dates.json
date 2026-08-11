@@ -1,4 +1,5 @@
 {
+  "invalidRange": "La fecha de finalización no puede ser anterior a la fecha de inicio.",
   "picker": {
     "pickDate": "Elegir una fecha",
     "pickDateTime": "Elegir fecha y hora",

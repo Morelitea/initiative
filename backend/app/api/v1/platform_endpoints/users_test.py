@@ -14,6 +14,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
+from app.db.query import MAX_ID_FILTER_VALUES
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import User, UserRole, UserStatus
 
@@ -182,6 +183,68 @@ async def test_search_users_filters_by_name(client: AsyncClient, session: AsyncS
     body = response.json()
     assert body["total_count"] == 1
     assert [item["full_name"] for item in body["items"]] == ["Alice Smith"]
+
+
+@pytest.mark.integration
+async def test_search_users_filters_by_user_id(
+    client: AsyncClient, session: AsyncSession
+):
+    """`user_id` resolves a known selection, and only ever narrows the roster
+    the caller can already see — an id from another guild returns nothing."""
+    guild = await create_guild(session)
+    caller = await create_user(
+        session, email="caller@example.com", full_name="Alice Smith"
+    )
+    bob = await create_user(session, email="bob@example.com", full_name="Bob Jones")
+    for user in (caller, bob):
+        await create_guild_membership(session, user=user, guild=guild)
+
+    other_guild = await create_guild(session)
+    stranger = await create_user(
+        session, email="stranger@example.com", full_name="Stranger Danger"
+    )
+    await create_guild_membership(session, user=stranger, guild=other_guild)
+
+    headers = get_auth_headers(caller)
+
+    response = await client.get(
+        f"/api/v1/g/{guild.id}/users/search",
+        headers=headers,
+        params={"user_id": [bob.id]},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_count"] == 1
+    assert [item["full_name"] for item in body["items"]] == ["Bob Jones"]
+
+    # An id outside the guild is filtered out, not resolved.
+    response = await client.get(
+        f"/api/v1/g/{guild.id}/users/search",
+        headers=headers,
+        params={"user_id": [bob.id, stranger.id]},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_count"] == 1
+    assert [item["id"] for item in body["items"]] == [bob.id]
+
+
+@pytest.mark.integration
+async def test_search_users_rejects_oversized_user_id_list(
+    client: AsyncClient, session: AsyncSession
+):
+    """The id filter is bounded so one request can't submit an unbounded list."""
+    guild = await create_guild(session)
+    caller = await create_user(session, email="caller@example.com")
+    await create_guild_membership(session, user=caller, guild=guild)
+
+    response = await client.get(
+        f"/api/v1/g/{guild.id}/users/search",
+        headers=get_auth_headers(caller),
+        params={"user_id": list(range(MAX_ID_FILTER_VALUES + 1))},
+    )
+
+    assert response.status_code == 422
 
 
 @pytest.mark.integration

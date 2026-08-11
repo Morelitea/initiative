@@ -141,7 +141,15 @@
     "active": "Aktiv",
     "template": "Vorlage",
     "templateInfo": "Dieses Projekt ist eine Vorlage. Verwende es, um über den Tab „Vorlagen“ neue Projekte zu erstellen.",
-    "archivedInfo": "Dieses Projekt ist archiviert. Hebe die Archivierung in den Einstellungen auf, um Aufgaben hinzuzufügen oder zu aktualisieren."
+    "archivedInfo": "Dieses Projekt ist archiviert. Hebe die Archivierung in den Einstellungen auf, um Aufgaben hinzuzufügen oder zu aktualisieren.",
+    "scheduleLabel": "Projektzeitraum",
+    "scheduleRange": "{{start}} – {{end}}",
+    "scheduleStartOnly": "Beginnt am {{start}}",
+    "scheduleEndOnly": "Endet am {{end}}"
+  },
+  "schedule": {
+    "startLabel": "Startdatum",
+    "endLabel": "Enddatum"
   },
   "tabsBar": {
     "loadingRecent": "Aktuelle Elemente werden geladen…",
@@ -259,16 +267,15 @@
       "nameLabel": "Name",
       "namePlaceholder": "Produkt-Roadmap",
       "saving": "Wird gespeichert...",
-      "saveDetails": "Projektdetails speichern",
+      "saveDetails": "Änderungen speichern",
       "detailsUpdated": "Projektdetails aktualisiert",
       "updateError": "Projekt konnte nicht aktualisiert werden.",
-      "noWriteAccessIdentity": "Du benötigst Schreibzugriff, um den Projektnamen oder das Symbol zu ändern.",
+      "noWriteAccess": "Du benötigst Schreibzugriff, um diese Details zu bearbeiten.",
       "descriptionHeading": "Beschreibung",
       "descriptionDescription": "Teile Kontext, um Mitarbeitenden zu helfen, die Arbeit zu verstehen.",
       "descriptionPlaceholder": "Was wollen wir erreichen?",
-      "saveDescription": "Beschreibung speichern",
-      "descriptionUpdated": "Beschreibung aktualisiert",
-      "noWriteAccessDescription": "Du benötigst Schreibzugriff, um die Beschreibung zu bearbeiten.",
+      "scheduleHeading": "Zeitraum",
+      "scheduleDescription": "Lege fest, wann das Projekt beginnt und endet. Beide Angaben sind optional.",
       "tagsHeading": "Tags",
       "tagsDescription": "Füge Tags hinzu, um Projekte zu organisieren und zu filtern.",
       "noWriteAccessTags": "Du benötigst Schreibzugriff, um Tags zu verwalten."
@@ -356,7 +363,6 @@
     "viewTable": "Tabelle",
     "viewKanban": "Kanban",
     "viewCalendar": "Kalender",
-    "viewGantt": "Gantt",
     "filtersHeading": "Filter",
     "showFilters": "Filter anzeigen",
     "hideFilters": "Filter ausblenden",
@@ -403,6 +409,8 @@
     "priorityColumn": "Priorität",
     "tagsColumn": "Tags",
     "moreTagsCount": "+{{count}}",
+    "tagGroup": "Tag",
+    "untagged": "Ohne Tag",
     "commentsColumn": "Kommentare",
     "statusColumn": "Status",
     "sortHelp": "Klicke auf eine beliebige Spaltenüberschrift, um zu sortieren. Halte die Umschalttaste gedrückt, um nach mehreren Kriterien zu sortieren.",
@@ -516,19 +524,6 @@
     "noComments": "Noch keine Kommentare.",
     "commentedOn": "kommentierte",
     "loadMore": "Mehr laden"
-  },
-  "ganttView": {
-    "title": "Zeitachse",
-    "subtitle": "Plane Start- und Fälligkeitsdaten für die nächsten Wochen.",
-    "window": "Fenster",
-    "days": "{{count}} Tage",
-    "days_one": "{{count}} Tag",
-    "days_other": "{{count}} Tage",
-    "previousWeeks": "Vorherige Wochen anzeigen",
-    "nextWeeks": "Nächste Wochen anzeigen",
-    "taskColumn": "Aufgabe",
-    "noTasks": "Keine Aufgaben zum Anzeigen.",
-    "outsideRange": "Außerhalb des aktuellen Bereichs"
   },
   "export": {
     "title": "Projekt exportieren",

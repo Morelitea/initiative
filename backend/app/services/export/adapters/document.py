@@ -134,7 +134,11 @@ class DocumentAdapter:
 def _document_count(document: Document) -> int:
     doc_type = _doc_type(document)
     if doc_type == DocumentType.spreadsheet.value:
-        return len((document.content or {}).get("cells") or {})
+        from app.services.export.spreadsheet import sheets_of
+
+        return sum(
+            len(sheet.get("cells") or {}) for sheet in sheets_of(document.content or {})
+        )
     if doc_type == DocumentType.file.value:
         return int(document.file_size or 0) // _FILE_SIZE_ROW_BYTES
     return 1

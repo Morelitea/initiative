@@ -1,5 +1,6 @@
 import type * as Y from "yjs";
 
+import { Y_SHEETS_KEY } from "@/components/documents/spreadsheet/workbookDoc";
 import { useYjsHistory, type YjsHistory } from "@/hooks/useYjsHistory";
 
 /**
@@ -34,18 +35,18 @@ const SPREADSHEET_UNDO_ORIGINS = [
   "spreadsheet-import",
   "spreadsheet-sort",
   "spreadsheet-structure",
+  "spreadsheet-sheet-add",
+  "spreadsheet-sheet-rename",
+  "spreadsheet-sheet-delete",
+  "spreadsheet-sheet-move",
+  "spreadsheet-sheet-duplicate",
 ] as const;
 
-// The shared maps the data hooks mutate. `getMap` is idempotent, so
-// these resolve to the very same Y.Maps `useSpreadsheetCells` /
-// `useSpreadsheetFormatting` write to.
-const spreadsheetScope = (doc: Y.Doc) => [
-  doc.getMap("cells"),
-  doc.getMap("columns"),
-  doc.getMap("rows"),
-  doc.getMap("cellStyles"),
-  doc.getMap("meta"),
-];
+// Everything a spreadsheet owns hangs off the single `sheets` map (see
+// `workbookDoc.ts`), and a `Y.UndoManager` tracks any type whose parent
+// chain reaches a scoped one — so one entry covers every sheet's cells and
+// formatting, including sheets created after the manager was built.
+const spreadsheetScope = (doc: Y.Doc) => [doc.getMap(Y_SHEETS_KEY)];
 
 export const useSpreadsheetHistory = (doc: Y.Doc | null): YjsHistory =>
   useYjsHistory({

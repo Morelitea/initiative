@@ -141,7 +141,15 @@
     "active": "Actif",
     "template": "Modèle",
     "templateInfo": "Ce projet est un modèle. Utilisez-le pour créer de nouveaux projets depuis l'onglet Modèles.",
-    "archivedInfo": "Ce projet est archivé. Désarchivez-le depuis les paramètres pour ajouter ou mettre à jour des tâches."
+    "archivedInfo": "Ce projet est archivé. Désarchivez-le depuis les paramètres pour ajouter ou mettre à jour des tâches.",
+    "scheduleLabel": "Dates du projet",
+    "scheduleRange": "{{start}} – {{end}}",
+    "scheduleStartOnly": "Commence le {{start}}",
+    "scheduleEndOnly": "Se termine le {{end}}"
+  },
+  "schedule": {
+    "startLabel": "Date de début",
+    "endLabel": "Date de fin"
   },
   "tabsBar": {
     "loadingRecent": "Chargement des éléments récents…",
@@ -259,16 +267,15 @@
       "nameLabel": "Nom",
       "namePlaceholder": "Feuille de route produit",
       "saving": "Enregistrement...",
-      "saveDetails": "Enregistrer les détails du projet",
+      "saveDetails": "Enregistrer les modifications",
       "detailsUpdated": "Détails du projet mis à jour",
       "updateError": "Impossible de mettre à jour le projet.",
-      "noWriteAccessIdentity": "Vous avez besoin d'un accès en écriture pour modifier le nom ou l'icône du projet.",
+      "noWriteAccess": "Vous avez besoin d'un accès en écriture pour modifier ces détails.",
       "descriptionHeading": "Description",
       "descriptionDescription": "Partagez du contexte pour aider les collaborateurs à comprendre le travail.",
       "descriptionPlaceholder": "Qu'essayons-nous d'accomplir ?",
-      "saveDescription": "Enregistrer la description",
-      "descriptionUpdated": "Description mise à jour",
-      "noWriteAccessDescription": "Vous avez besoin d'un accès en écriture pour modifier la description.",
+      "scheduleHeading": "Dates",
+      "scheduleDescription": "Définissez quand le projet commence et se termine. Les deux sont facultatives.",
       "tagsHeading": "Étiquettes",
       "tagsDescription": "Ajoutez des étiquettes pour organiser et filtrer les projets.",
       "noWriteAccessTags": "Vous avez besoin d'un accès en écriture pour gérer les étiquettes."
@@ -356,7 +363,6 @@
     "viewTable": "Tableau",
     "viewKanban": "Kanban",
     "viewCalendar": "Calendrier",
-    "viewGantt": "Gantt",
     "filtersHeading": "Filtres",
     "showFilters": "Afficher les filtres",
     "hideFilters": "Masquer les filtres",
@@ -403,6 +409,8 @@
     "priorityColumn": "Priorité",
     "tagsColumn": "Étiquettes",
     "moreTagsCount": "+{{count}}",
+    "tagGroup": "Étiquette",
+    "untagged": "Sans étiquette",
     "commentsColumn": "Commentaires",
     "statusColumn": "Statut",
     "sortHelp": "Cliquez sur un en-tête de colonne pour trier. Maintenez Maj pour le tri multiple.",
@@ -516,19 +524,6 @@
     "noComments": "Aucun commentaire pour l'instant.",
     "commentedOn": "a commenté sur",
     "loadMore": "Charger plus"
-  },
-  "ganttView": {
-    "title": "Chronologie",
-    "subtitle": "Planifiez les dates de début et d'échéance sur les prochaines semaines.",
-    "window": "Fenêtre",
-    "days": "{{count}} jours",
-    "days_one": "{{count}} jour",
-    "days_other": "{{count}} jours",
-    "previousWeeks": "Afficher les semaines précédentes",
-    "nextWeeks": "Afficher les semaines suivantes",
-    "taskColumn": "Tâche",
-    "noTasks": "Aucune tâche à afficher.",
-    "outsideRange": "Hors de la plage actuelle"
   },
   "export": {
     "title": "Exporter le projet",

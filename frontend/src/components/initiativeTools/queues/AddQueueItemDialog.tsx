@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { LinkedEntityPicker } from "@/components/initiativeTools/queues/LinkedEntityPicker";
 import { useQueueItemForm } from "@/components/initiativeTools/queues/useQueueItemForm";
+import { MemberSelect } from "@/components/members/MemberSearchSelect";
 import { TagPicker } from "@/components/tags/TagPicker";
 import { Button } from "@/components/ui/button";
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
@@ -16,7 +17,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateQueueItem } from "@/hooks/useQueues";
@@ -63,7 +63,6 @@ export const AddQueueItemDialog = ({
     setDocPickerOpen,
     setTaskSearch,
     setTaskPickerOpen,
-    memberItems,
     docResults,
     docsLoading,
     taskResults,
@@ -185,10 +184,10 @@ export const AddQueueItemDialog = ({
           <div className="space-y-2">
             <Label>{t("linkedUser")}</Label>
             <div className="flex items-center gap-2">
-              <SearchableCombobox
-                items={memberItems}
-                value={userId !== null ? String(userId) : null}
-                onValueChange={(val) => setUserId(val ? Number(val) : null)}
+              <MemberSelect
+                scope={{ type: "initiative", initiativeId }}
+                value={userId}
+                onChange={setUserId}
                 placeholder={t("selectUser")}
                 emptyMessage={t("noUser")}
               />

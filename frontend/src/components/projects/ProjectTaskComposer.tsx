@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { dateRangeBounds } from "@/lib/dateRange";
 
 interface ProjectTaskComposerProps {
   /** Controlled field set forwarded to the shared TaskForm (layout is fixed). */
@@ -34,8 +35,11 @@ export const ProjectTaskComposer = ({
   onCancel,
 }: ProjectTaskComposerProps) => {
   const { t } = useTranslation(["projects", "common"]);
+  // TaskForm flags the inverted range; blocking submit here keeps it out of the API.
+  const { isInverted: datesInverted } = dateRangeBounds(form.value.startDate, form.value.dueDate);
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (datesInverted) return;
     onSubmit();
   };
 
@@ -60,7 +64,7 @@ export const ProjectTaskComposer = ({
           <form className="space-y-4" onSubmit={handleSubmit}>
             <TaskForm {...form} layout="dialog" />
             <div className="flex flex-wrap gap-2">
-              <Button type="submit" disabled={isSubmitting}>
+              <Button type="submit" disabled={isSubmitting || datesInverted}>
                 {isSubmitting ? t("taskComposer.saving") : t("taskComposer.createTask")}
               </Button>
               {onCancel ? (

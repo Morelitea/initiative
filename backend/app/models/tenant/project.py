@@ -1,8 +1,8 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import Column, DateTime, Text
+from sqlalchemy import Column, Date, DateTime, Text
 from sqlmodel import Field, Relationship
 
 from app.models.tenant._mixins import SoftDeleteMixin
@@ -34,6 +34,15 @@ class Project(SoftDeleteMixin, table=True):
     description: Optional[str] = Field(default=None, sa_column=Column(Text))
     owner_id: int = Field(foreign_key="users.id", nullable=False)
     initiative_id: int = Field(foreign_key="initiatives.id", nullable=False, index=True)
+    # Whole-day schedule for the project itself (both optional, independent of
+    # each other). Stored as DATE, not a timestamp: a project runs for calendar
+    # days, so there is no time-of-day to keep and no timezone to shift it by.
+    start_date: Optional[date] = Field(
+        default=None, sa_column=Column(Date, nullable=True)
+    )
+    end_date: Optional[date] = Field(
+        default=None, sa_column=Column(Date, nullable=True)
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),

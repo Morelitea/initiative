@@ -52,9 +52,11 @@ from app.services import permissions as permissions_service
 from app.services import rls as rls_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import task_statuses as task_statuses_service
+from app.services.tenant import task_completion
 from app.core.messages import ProjectMessages
 from app.core.config import settings as app_settings
 from app.db.query import (
+    MAX_ID_FILTER_VALUES,
     apply_pagination,
     clamp_page,
     page_has_next,
@@ -370,6 +372,8 @@ async def _duplicate_template_tasks(
     if not template_tasks:
         return
 
+    now = datetime.now(timezone.utc)
+    categories = await task_completion.status_categories(session, new_project.id)
     for template_task in template_tasks:
         template_status_id = getattr(template_task, "task_status_id", None)
         mapped_status_id = None
@@ -391,6 +395,9 @@ async def _duplicate_template_tasks(
             priority=template_task.priority,
             due_date=template_task.due_date,
             position=template_task.position,
+        )
+        task_completion.sync_completed_at(
+            new_task, categories.get(mapped_status_id), now=now
         )
         session.add(new_task)
         await session.flush()
@@ -1185,6 +1192,10 @@ async def create_project(
         initiative_id=initiative_id,
         is_template=project_in.is_template,
         guild_id=guild_context.guild_id,
+        # Deliberately not inherited from the template: a schedule belongs to
+        # the run, not to the blueprint.
+        start_date=project_in.start_date,
+        end_date=project_in.end_date,
     )
 
     session.add(project)
@@ -1347,6 +1358,8 @@ async def duplicate_project(
         initiative_id=initiative_id,
         is_template=False,
         guild_id=guild_context.guild_id,
+        start_date=source_project.start_date,
+        end_date=source_project.end_date,
     )
 
     session.add(new_project)
@@ -1690,6 +1703,7 @@ async def search_project_members(
         default=None,
         description="Case-insensitive substring match on the member's name.",
     ),
+    user_id: Annotated[list[int] | None, Query(max_length=MAX_ID_FILTER_VALUES)] = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=0, le=100),
 ) -> UserSummaryListResponse:
@@ -1701,6 +1715,10 @@ async def search_project_members(
     via the shared permission engine. This replaces the client-side
     ``project.grants`` derivation the pickers used to run over the full guild
     roster. Requester needs read access to the project.
+
+    Pass ``user_id`` one or more times to resolve a known selection (a picker
+    rehydrating stored ids into names/avatars) rather than searching; it
+    narrows the same assignable set, so an id outside it returns nothing.
     """
     project = await _get_project_or_404(project_id, session, guild_context.guild_id)
     await _require_project_membership(project, current_user, session, access="read")
@@ -1722,6 +1740,9 @@ async def search_project_members(
     term = (search or "").strip().lower()
     if term:
         assignable = [u for u in assignable if term in (u.full_name or "").lower()]
+    if user_id:
+        wanted = set(user_id)
+        assignable = [u for u in assignable if u.id in wanted]
 
     assignable.sort(key=lambda u: ((u.full_name or "").lower(), u.id))
 
