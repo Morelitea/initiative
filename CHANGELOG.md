@@ -18,8 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Projects can have a start and an end date.** Both are optional and independent — set either one, both, or neither when you create the project or later under Project settings → Details. When a project has dates they appear in bold at the top of the project page, next to its name and initiative; a project with no dates simply doesn't show the line. Duplicating a project or exporting and re-importing it carries the dates along.
 - **Group a project's task table by tag.** "Group by" on a project's task list now offers Tag alongside Date window. A task sits under every tag it carries — one tagged both "bug" and "urgent" shows up in both groups rather than being filed under whichever tag came first — and tasks with no tags gather under Untagged. Each group is headed by the tag itself, in its colour. As with grouping by date window, manual drag-to-reorder pauses while a grouping is on; filtering, sorting, and bulk selection keep working, and a task selected in one of its groups counts once.
 
+### Changed
+
+- **Project settings → Details now saves everything at once.** The icon, name, description, and dates share a single "Save changes" button at the bottom of the tab, the way initiative settings already worked, instead of a separate save per section. Editing one section no longer discards unsaved edits in another. Tags still apply as you pick them.
+
 ### Fixed
 
+- A start date later than the end date is now refused before saving, on both projects and tasks. The date pickers already stopped you choosing one, but a date typed into the field went through unchecked; the form now flags the range and keeps the save button disabled until it makes sense.
 - Dragging a card into a long Kanban column now changes its status. Once a column held more than about twenty cards the board drew only the ones on screen, and a drop into it could be credited to the last card the pointer crossed on the way in — so the card sprang back to where it started instead of moving. Columns that accumulate cards, Done most of all, were the ones affected.
 
 ## [0.60.1] - 2026-08-06

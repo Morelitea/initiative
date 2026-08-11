@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Label } from "@/components/ui/label";
-import { parseDateValue } from "@/lib/formatDate";
+import { dateRangeBounds } from "@/lib/dateRange";
 
 type ProjectDateFieldsProps = {
   /** Namespaces the two field ids so several instances can share a page. */
@@ -17,8 +17,9 @@ type ProjectDateFieldsProps = {
 
 /**
  * The optional start/end date pair for a project, shared by the create dialog
- * and project settings. Each date stands alone; whichever one is already set
- * bounds the other's calendar so a range can't be inverted.
+ * and project settings. Each date stands alone; the two bound each other's
+ * calendar, and an inverted range is called out here while the caller disables
+ * its submit.
  */
 export const ProjectDateFields = ({
   idPrefix,
@@ -28,36 +29,42 @@ export const ProjectDateFields = ({
   onEndDateChange,
   disabled = false,
 }: ProjectDateFieldsProps) => {
-  const { t } = useTranslation(["projects", "common"]);
-  const startBound = parseDateValue(startDate);
-  const endBound = parseDateValue(endDate);
+  const { t } = useTranslation(["projects", "dates", "common"]);
+  const dateRange = dateRangeBounds(startDate, endDate);
 
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-start-date`}>{t("projects:schedule.startLabel")}</Label>
-        <DateTimePicker
-          id={`${idPrefix}-start-date`}
-          value={startDate}
-          onChange={onStartDateChange}
-          includeTime={false}
-          disabled={disabled}
-          placeholder={t("common:optional")}
-          calendarProps={endBound ? { hidden: { after: endBound } } : undefined}
-        />
+    <div className="space-y-2">
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor={`${idPrefix}-start-date`}>{t("projects:schedule.startLabel")}</Label>
+          <DateTimePicker
+            id={`${idPrefix}-start-date`}
+            value={startDate}
+            onChange={onStartDateChange}
+            includeTime={false}
+            disabled={disabled}
+            placeholder={t("common:optional")}
+            calendarProps={dateRange.startCalendarProps}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={`${idPrefix}-end-date`}>{t("projects:schedule.endLabel")}</Label>
+          <DateTimePicker
+            id={`${idPrefix}-end-date`}
+            value={endDate}
+            onChange={onEndDateChange}
+            includeTime={false}
+            disabled={disabled}
+            placeholder={t("common:optional")}
+            calendarProps={dateRange.endCalendarProps}
+          />
+        </div>
       </div>
-      <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-end-date`}>{t("projects:schedule.endLabel")}</Label>
-        <DateTimePicker
-          id={`${idPrefix}-end-date`}
-          value={endDate}
-          onChange={onEndDateChange}
-          includeTime={false}
-          disabled={disabled}
-          placeholder={t("common:optional")}
-          calendarProps={startBound ? { hidden: { before: startBound } } : undefined}
-        />
-      </div>
+      {dateRange.isInverted ? (
+        <p className="text-destructive text-sm" role="alert">
+          {t("dates:invalidRange")}
+        </p>
+      ) : null}
     </div>
   );
 };

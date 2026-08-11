@@ -26,6 +26,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateProject, useTemplateProjects } from "@/hooks/useProjects";
+import { dateRangeBounds } from "@/lib/dateRange";
 
 const NO_TEMPLATE_VALUE = "template-none";
 
@@ -97,10 +98,15 @@ export const CreateProjectDialog = ({
     setDescription(template.description ?? "");
   }, [selectedTemplateId, templatesQuery.data, isTemplateProject]);
 
+  const { isInverted: datesInverted } = dateRangeBounds(startDate, endDate);
+
   const createProjectMutation = useCreateProject();
   const createProject = {
     ...createProjectMutation,
     mutate: () => {
+      if (datesInverted) {
+        return;
+      }
       const payload: Record<string, unknown> = { name, description };
       const trimmedIcon = icon.trim();
       if (trimmedIcon) {
@@ -302,7 +308,7 @@ export const CreateProjectDialog = ({
                 >
                   {t("common:cancel")}
                 </Button>
-                <Button type="submit" disabled={createProject.isPending}>
+                <Button type="submit" disabled={createProject.isPending || datesInverted}>
                   {createProject.isPending
                     ? t("createDialog.creating")
                     : t("createDialog.createProject")}
