@@ -69,6 +69,7 @@ import {
   useUpdateTask,
 } from "@/hooks/useTasks";
 import { toast } from "@/lib/chesterToast";
+import { dateRangeBounds } from "@/lib/dateRange";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
@@ -332,6 +333,9 @@ export const TaskEditPage = () => {
     },
   });
 
+  // TaskForm flags the inverted range; blocking submit keeps it out of the API.
+  const { isInverted: datesInverted } = dateRangeBounds(startDate, dueDate);
+
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (isReadOnly) {
@@ -339,6 +343,9 @@ export const TaskEditPage = () => {
     }
     if (!Number.isFinite(statusId)) {
       toast.error(t("edit.taskStatusRequired"));
+      return;
+    }
+    if (datesInverted) {
       return;
     }
     const payload: Record<string, unknown> = {
@@ -778,7 +785,10 @@ export const TaskEditPage = () => {
               />
 
               <div className="flex flex-wrap gap-3">
-                <Button type="submit" disabled={updateTask.isPending || isReadOnly}>
+                <Button
+                  type="submit"
+                  disabled={updateTask.isPending || isReadOnly || datesInverted}
+                >
                   <Save className="h-4 w-4" />
                   {updateTask.isPending ? t("edit.saving") : t("edit.saveTask")}
                 </Button>

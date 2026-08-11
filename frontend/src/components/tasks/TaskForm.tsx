@@ -33,6 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { dateRangeBounds } from "@/lib/dateRange";
 import { PRIORITY_ORDER } from "@/lib/sorting";
 
 /** The full editable state of a task form, owned by the parent so it can
@@ -136,7 +137,7 @@ export const TaskForm = ({
   layout = "page",
   autoFocusTitle = false,
 }: TaskFormProps) => {
-  const { t } = useTranslation(["tasks", "properties", "common"]);
+  const { t } = useTranslation(["tasks", "properties", "dates", "common"]);
 
   const set = (patch: Partial<TaskFormValue>) => onChange({ ...value, ...patch });
 
@@ -224,30 +225,39 @@ export const TaskForm = ({
     </div>
   );
 
+  const dateRange = dateRangeBounds(value.startDate, value.dueDate);
+
   const dates = (
-    <div className="grid gap-4 md:grid-cols-2">
-      <div className="space-y-2">
-        <Label htmlFor="task-start-date">{t("taskForm.startDateLabel")}</Label>
-        <DateTimePicker
-          id="task-start-date"
-          value={value.startDate}
-          onChange={(next) => set({ startDate: next })}
-          disabled={disabled}
-          placeholder={t("common:optional")}
-          calendarProps={{ hidden: { after: new Date(value.dueDate) } }}
-        />
+    <div className="space-y-2">
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="task-start-date">{t("taskForm.startDateLabel")}</Label>
+          <DateTimePicker
+            id="task-start-date"
+            value={value.startDate}
+            onChange={(next) => set({ startDate: next })}
+            disabled={disabled}
+            placeholder={t("common:optional")}
+            calendarProps={dateRange.startCalendarProps}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="task-due-date">{t("taskForm.dueDateLabel")}</Label>
+          <DateTimePicker
+            id="task-due-date"
+            value={value.dueDate}
+            onChange={(next) => set({ dueDate: next })}
+            disabled={disabled}
+            placeholder={t("common:optional")}
+            calendarProps={dateRange.endCalendarProps}
+          />
+        </div>
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="task-due-date">{t("taskForm.dueDateLabel")}</Label>
-        <DateTimePicker
-          id="task-due-date"
-          value={value.dueDate}
-          onChange={(next) => set({ dueDate: next })}
-          disabled={disabled}
-          placeholder={t("common:optional")}
-          calendarProps={{ hidden: { before: new Date(value.startDate) } }}
-        />
-      </div>
+      {dateRange.isInverted ? (
+        <p className="text-destructive text-sm" role="alert">
+          {t("dates:invalidRange")}
+        </p>
+      ) : null}
     </div>
   );
 

@@ -110,6 +110,8 @@ async def import_project(
         description=envelope.project.description,
         is_template=envelope.project.is_template,
         is_archived=envelope.project.is_archived,
+        start_date=envelope.project.start_date,
+        end_date=envelope.project.end_date,
         owner_id=importer.id,
         initiative_id=target_initiative.id,
         guild_id=target_guild_id,

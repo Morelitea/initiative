@@ -1,4 +1,5 @@
 {
+  "invalidRange": "Das Enddatum darf nicht vor dem Startdatum liegen.",
   "picker": {
     "pickDate": "Datum auswählen",
     "pickDateTime": "Datum und Uhrzeit auswählen",
