@@ -1,4 +1,3 @@
-import type { ColumnDef } from "@tanstack/react-table";
 import type { LucideIcon } from "lucide-react";
 import {
   Crown,
@@ -36,6 +35,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { Capability, hasCapability } from "@/lib/permissions";
+import type { AppColumnDef } from "@/lib/table";
 import type { TranslateFn } from "@/types/i18n";
 
 // Platform roles ordered least → most privileged. A user can only assign a
@@ -209,7 +209,7 @@ export const SettingsPlatformUsersPage = () => {
     return <p className="text-destructive text-sm">{t("platformUsers.loadError")}</p>;
   }
 
-  const userColumns: ColumnDef<UserRead>[] = [
+  const userColumns: AppColumnDef<UserRead>[] = [
     {
       accessorKey: "id",
       header: t("platformUsers.columnId"),

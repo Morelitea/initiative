@@ -21,9 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - The linked-user picker on queue items is now a search, like every other person picker, instead of loading the initiative's whole roster up front.
+- Updated the document editor to Lexical 0.49, which brings table fixes (delete-line inside a cell, alignment applying both ways, and an optional sticky horizontal scrollbar on wide tables) along with selection fixes in read-only documents and in Firefox.
+- Rebuilt every data table on TanStack Table v9. The tables themselves — task lists, document lists, the admin and settings tables — look and behave the same; the change is internal, moving sorting, filtering, grouping, pagination and selection onto the new feature-registration model. Row selection's "some rows selected" checkbox no longer stays half-ticked once every row is selected.
 
 ### Fixed
 
+- Grouping a project's task table by tag no longer files every task under "Untagged". Picking a grouping from the toolbar moved the table but never told the page, so the page kept handing over its unfanned rows — none of which carry a tag to group on. Grouping by date window was unaffected, since those rows need no re-shaping.
 - Dragging a card into a long Kanban column now changes its status. Once a column held more than about twenty cards the board drew only the ones on screen, and a drop into it could be credited to the last card the pointer crossed on the way in — so the card sprang back to where it started instead of moving. Columns that accumulate cards, Done most of all, were the ones affected.
 - The calendar visibility dropdown no longer heads its list "My calendars". A calendar belongs to its initiative and is shared with the people in it, so the section is now simply "Calendars".
 - Person pickers no longer show "User #12" where a name belongs. A selection the picker was handed rather than one you just made — the assignee filter you get back when you return to a project, a saved user property, the linked user on a queue item — is now resolved to a name and avatar against the same roster the dropdown searches. An id nobody in that roster matches still shows as an id, since there is no one to name.

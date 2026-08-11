@@ -1,4 +1,3 @@
-import type { ColumnDef } from "@tanstack/react-table";
 import { Archive, ArchiveRestore, CircleAlert, Loader2, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -15,6 +14,7 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeRoles, useUpdateRole } from "@/hooks/useInitiativeRoles";
 import { useDeleteInitiative, useInitiatives, useUpdateInitiative } from "@/hooks/useInitiatives";
 import { toast } from "@/lib/chesterToast";
+import type { AppColumnDef } from "@/lib/table";
 
 /**
  * Per-row "PM full access" toggle. The full-access flag is
@@ -117,7 +117,7 @@ export const SettingsInitiativesPage = () => {
     });
   };
 
-  const columns: ColumnDef<InitiativeRead>[] = [
+  const columns: AppColumnDef<InitiativeRead>[] = [
     {
       accessorKey: "id",
       header: t("manage.idColumn"),
