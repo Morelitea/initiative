@@ -54,5 +54,24 @@
   "createFirst": "Crea tu primer panel",
   "error": "Algo salió mal",
   "tagsDescription": "Agrega etiquetas para organizar y filtrar paneles.",
-  "noWriteAccessTags": "Necesitas acceso de escritura para administrar etiquetas."
+  "noWriteAccessTags": "Necesitas acceso de escritura para administrar etiquetas.",
+  "widgetError": {
+    "SCENE_API_VERSION_UNSUPPORTED": "Este widget necesita una versión más reciente de la aplicación.",
+    "SCENE_ENUM_INVALID": "Este widget pidió una opción que esta versión no tiene.",
+    "SCENE_NODE_INVALID": "Este widget devolvió una forma que no es válida.",
+    "SCENE_NODE_KIND_UNKNOWN": "Este widget pidió una forma que esta versión no puede dibujar.",
+    "SCENE_NOT_AN_OBJECT": "Este widget no devolvió nada para dibujar.",
+    "SCENE_TOO_DEEP": "Este widget anidó su diseño demasiado profundamente.",
+    "SCENE_TOO_LARGE": "Este widget devolvió más datos de los que puede mostrar una tarjeta.",
+    "SCENE_TOO_MANY_NODES": "Este widget intentó dibujar demasiados elementos.",
+    "SCENE_VALUE_NOT_FINITE": "Este widget devolvió un número que no es válido.",
+    "WIDGET_BAD_OUTPUT": "Este widget devolvió algo que no se puede dibujar.",
+    "WIDGET_NO_RENDER_EXPORT": "Este widget no tiene función de renderizado.",
+    "WIDGET_OUT_OF_MEMORY": "Este widget usó demasiada memoria y se detuvo.",
+    "WIDGET_RUNTIME_UNAVAILABLE": "No se pudo iniciar el entorno de ejecución de widgets.",
+    "WIDGET_THREW": "Este widget encontró un error al dibujarse.",
+    "WIDGET_TIMEOUT": "Este widget tardó demasiado y se detuvo.",
+    "WIDGET_TYPE_UNSUPPORTED": "Este widget necesita una versión más reciente de la aplicación.",
+    "default": "No se pudo mostrar este widget."
+  }
 }

@@ -39,6 +39,8 @@ from app.schemas.tenant.dashboard import (
     DashboardListResponse,
     DashboardRead,
     DashboardUpdate,
+    WidgetCatalog,
+    build_widget_catalog,
     serialize_dashboard,
     serialize_dashboard_summary,
 )
@@ -206,6 +208,24 @@ async def list_dashboards(
         page_size=page_size,
         has_next=has_next,
     )
+
+
+# Declared before /{dashboard_id} so the literal path wins the match.
+@router.get("/widget-catalog", response_model=WidgetCatalog)
+async def read_widget_catalog(
+    guild_context: GuildContextDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> WidgetCatalog:
+    """The widget vocabulary this build supports — size floors, bindable
+    sources, and display options per primitive, plus the named presets.
+
+    Static app metadata rather than guild data (it reads no tables), but it
+    stays on the guild-scoped router because it only means anything to someone
+    already inside a guild, and that keeps every dashboard route addressed the
+    same way. Serving it is what lets the editor's palette avoid carrying a
+    second copy of the registry.
+    """
+    return build_widget_catalog()
 
 
 @router.get("/{dashboard_id}", response_model=DashboardRead)

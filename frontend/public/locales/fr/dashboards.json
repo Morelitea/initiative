@@ -54,5 +54,24 @@
   "createFirst": "Créez votre premier tableau de bord",
   "error": "Une erreur s’est produite",
   "tagsDescription": "Ajoutez des étiquettes pour organiser et filtrer les tableaux de bord.",
-  "noWriteAccessTags": "Vous avez besoin d'un accès en écriture pour gérer les étiquettes."
+  "noWriteAccessTags": "Vous avez besoin d'un accès en écriture pour gérer les étiquettes.",
+  "widgetError": {
+    "SCENE_API_VERSION_UNSUPPORTED": "Ce widget nécessite une version plus récente de l'application.",
+    "SCENE_ENUM_INVALID": "Ce widget demande une option que cette version ne propose pas.",
+    "SCENE_NODE_INVALID": "Ce widget a renvoyé une forme non valide.",
+    "SCENE_NODE_KIND_UNKNOWN": "Ce widget demande une forme que cette version ne sait pas dessiner.",
+    "SCENE_NOT_AN_OBJECT": "Ce widget n'a rien renvoyé à dessiner.",
+    "SCENE_TOO_DEEP": "Ce widget a imbriqué sa mise en page trop profondément.",
+    "SCENE_TOO_LARGE": "Ce widget a renvoyé plus de données qu'une tuile ne peut afficher.",
+    "SCENE_TOO_MANY_NODES": "Ce widget a tenté de dessiner trop d'éléments.",
+    "SCENE_VALUE_NOT_FINITE": "Ce widget a renvoyé un nombre non valide.",
+    "WIDGET_BAD_OUTPUT": "Ce widget a renvoyé quelque chose qui ne peut pas être dessiné.",
+    "WIDGET_NO_RENDER_EXPORT": "Ce widget n'a pas de fonction de rendu.",
+    "WIDGET_OUT_OF_MEMORY": "Ce widget a utilisé trop de mémoire et a été arrêté.",
+    "WIDGET_RUNTIME_UNAVAILABLE": "L'environnement d'exécution des widgets n'a pas pu démarrer.",
+    "WIDGET_THREW": "Ce widget a rencontré une erreur lors de son affichage.",
+    "WIDGET_TIMEOUT": "Ce widget a mis trop de temps et a été arrêté.",
+    "WIDGET_TYPE_UNSUPPORTED": "Ce widget nécessite une version plus récente de l'application.",
+    "default": "Ce widget n'a pas pu être affiché."
+  }
 }

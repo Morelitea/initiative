@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from enum import Enum
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
@@ -9,9 +10,26 @@ from app.schemas.base import SanitizedBaseModel
 
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary, tag_summaries
+from app.services.tenant.dashboard_definition import (
+    ALL_SOURCES,
+    WIDGET_PRESETS,
+    WIDGET_SPECS,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.dashboard import Dashboard
+
+
+# Derived from the widget registry rather than restated, the way TagTarget
+# derives from TAG_TARGETS: a new primitive reaches the API — and, through the
+# generated types, the frontend's drift test — without an edit here.
+WidgetType = Enum("WidgetType", {name: name for name in sorted(WIDGET_SPECS)}, type=str)
+WidgetType.__doc__ = "Widget primitives this build has renderers for."
+
+BindingSource = Enum(
+    "BindingSource", {name: name for name in sorted(ALL_SOURCES)}, type=str
+)
+BindingSource.__doc__ = "Data sources a widget binding may name."
 
 
 class DashboardBase(SanitizedBaseModel):
@@ -80,6 +98,80 @@ class DashboardRead(DashboardSummary):
     # doesn't render widgets, and definitions are the largest field here.
     definition: Dict[str, Any] = Field(default_factory=dict)
     config: Dict[str, Any] = Field(default_factory=dict)
+
+
+# --- widget catalog --------------------------------------------------------
+#
+# What the editor's palette needs to know about each widget: how small it may
+# be placed, what it can bind to, and which display options it takes. It is a
+# projection of WIDGET_SPECS, served rather than duplicated, so the frontend
+# never carries a second copy of the vocabulary.
+
+
+class WidgetOption(SanitizedBaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    key: str
+    values: List[str]
+
+
+class WidgetCatalogEntry(SanitizedBaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    type: WidgetType  # type: ignore[valid-type]
+    min_w: int
+    min_h: int
+    default_w: int
+    default_h: int
+    sources: List[BindingSource]  # type: ignore[valid-type]
+    options: List[WidgetOption] = Field(default_factory=list)
+
+
+class WidgetPresetEntry(SanitizedBaseModel):
+    """A named widget built from a primitive plus fixed options — the palette's
+    ready-made entries ("Bar chart"), and later the shape a listing uses to
+    contribute its own."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    name: str
+    primitive: WidgetType  # type: ignore[valid-type]
+    options: Dict[str, str] = Field(default_factory=dict)
+
+
+class WidgetCatalog(SanitizedBaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    widgets: List[WidgetCatalogEntry]
+    presets: List[WidgetPresetEntry]
+
+
+def build_widget_catalog() -> WidgetCatalog:
+    return WidgetCatalog(
+        widgets=[
+            WidgetCatalogEntry(
+                type=name,
+                min_w=spec.min_w,
+                min_h=spec.min_h,
+                default_w=spec.default_w,
+                default_h=spec.default_h,
+                sources=sorted(spec.sources),
+                options=[
+                    WidgetOption(key=key, values=sorted(values))
+                    for key, values in sorted(spec.options.items())
+                ],
+            )
+            for name, spec in sorted(WIDGET_SPECS.items())
+        ],
+        presets=[
+            WidgetPresetEntry(
+                name=name,
+                primitive=preset.primitive,
+                options=dict(preset.options),
+            )
+            for name, preset in sorted(WIDGET_PRESETS.items())
+        ],
+    )
 
 
 def serialize_dashboard_summary(

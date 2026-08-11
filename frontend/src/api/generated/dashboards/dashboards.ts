@@ -29,6 +29,7 @@ import type {
   ListDashboardsApiV1GGuildIdDashboardsGetParams,
   RecentViewWrite,
   ResourceGrantSchema,
+  WidgetCatalog,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -317,6 +318,179 @@ export const useCreateDashboardApiV1GGuildIdDashboardsPost = <
     queryClient
   );
 };
+/**
+ * The widget vocabulary this build supports — size floors, bindable
+ * sources, and display options per primitive, plus the named presets.
+ *
+ * Static app metadata rather than guild data (it reads no tables), but it
+ * stays on the guild-scoped router because it only means anything to someone
+ * already inside a guild, and that keeps every dashboard route addressed the
+ * same way. Serving it is what lets the editor's palette avoid carrying a
+ * second copy of the registry.
+ * @summary Read Widget Catalog
+ */
+export const readWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGet = (
+  guildId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<WidgetCatalog>(
+    { url: `/api/v1/g/${guildId}/dashboards/widget-catalog`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGetQueryKey = (
+  guildId: number
+) => {
+  return [`/api/v1/g/${guildId}/dashboards/widget-catalog`] as const;
+};
+
+export const getReadWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getReadWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGetQueryKey(guildId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof readWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGet>>
+  > = ({ signal }) =>
+    readWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGet(guildId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof readWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGet>>
+>;
+export type ReadWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useReadWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGet<
+  TData = Awaited<ReturnType<typeof readWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGet>>,
+          TError,
+          Awaited<ReturnType<typeof readWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGet<
+  TData = Awaited<ReturnType<typeof readWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGet>>,
+          TError,
+          Awaited<ReturnType<typeof readWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGet<
+  TData = Awaited<ReturnType<typeof readWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read Widget Catalog
+ */
+
+export function useReadWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGet<
+  TData = Awaited<ReturnType<typeof readWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGetQueryOptions(
+    guildId,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
 /**
  * @summary Read Dashboard
  */

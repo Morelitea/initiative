@@ -54,5 +54,24 @@
   "createFirst": "Erstelle dein erstes Dashboard",
   "error": "Etwas ist schiefgelaufen",
   "tagsDescription": "Füge Tags hinzu, um Dashboards zu organisieren und zu filtern.",
-  "noWriteAccessTags": "Du benötigst Schreibzugriff, um Tags zu verwalten."
+  "noWriteAccessTags": "Du benötigst Schreibzugriff, um Tags zu verwalten.",
+  "widgetError": {
+    "SCENE_API_VERSION_UNSUPPORTED": "Dieses Widget benötigt eine neuere Version der App.",
+    "SCENE_ENUM_INVALID": "Dieses Widget verlangt eine Option, die diese Version nicht kennt.",
+    "SCENE_NODE_INVALID": "Dieses Widget hat eine ungültige Form zurückgegeben.",
+    "SCENE_NODE_KIND_UNKNOWN": "Dieses Widget verlangt eine Form, die diese Version nicht zeichnen kann.",
+    "SCENE_NOT_AN_OBJECT": "Dieses Widget hat nichts zum Zeichnen zurückgegeben.",
+    "SCENE_TOO_DEEP": "Dieses Widget hat sein Layout zu tief verschachtelt.",
+    "SCENE_TOO_LARGE": "Dieses Widget hat mehr Daten zurückgegeben, als eine Kachel anzeigen kann.",
+    "SCENE_TOO_MANY_NODES": "Dieses Widget wollte zu viele Elemente zeichnen.",
+    "SCENE_VALUE_NOT_FINITE": "Dieses Widget hat eine ungültige Zahl zurückgegeben.",
+    "WIDGET_BAD_OUTPUT": "Dieses Widget hat etwas zurückgegeben, das nicht gezeichnet werden kann.",
+    "WIDGET_NO_RENDER_EXPORT": "Dieses Widget hat keine Renderfunktion.",
+    "WIDGET_OUT_OF_MEMORY": "Dieses Widget hat zu viel Speicher belegt und wurde gestoppt.",
+    "WIDGET_RUNTIME_UNAVAILABLE": "Die Widget-Laufzeitumgebung konnte nicht gestartet werden.",
+    "WIDGET_THREW": "Beim Zeichnen dieses Widgets ist ein Fehler aufgetreten.",
+    "WIDGET_TIMEOUT": "Dieses Widget hat zu lange gebraucht und wurde gestoppt.",
+    "WIDGET_TYPE_UNSUPPORTED": "Dieses Widget benötigt eine neuere Version der App.",
+    "default": "Dieses Widget konnte nicht angezeigt werden."
+  }
 }
