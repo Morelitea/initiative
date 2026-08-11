@@ -53,7 +53,7 @@ function render(data, config) {
       const counter = data.counter;
       if (!counter) return empty("No counter selected");
       // A counter with no ceiling has no completion to show; the number itself
-      // is a KPI's job, so say so rather than inventing a denominator.
+      // is the stat widget's job, so say so rather than inventing a denominator.
       if (counter.max === null || counter.max === undefined) {
         return empty("This counter has no maximum");
       }

@@ -672,7 +672,6 @@ export const BindingSource = {
   calendar_entries: "calendar_entries",
   counter: "counter",
   counter_group: "counter_group",
-  my_stats: "my_stats",
   projects: "projects",
   sheet_range: "sheet_range",
   task_counts: "task_counts",
@@ -4196,8 +4195,8 @@ export const WidgetType = {
   funnel: "funnel",
   gantt: "gantt",
   heatmap: "heatmap",
-  kpi: "kpi",
   progress: "progress",
+  stat: "stat",
   table: "table",
 } as const;
 

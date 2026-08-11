@@ -8,13 +8,14 @@
  */
 import { describe, expect, it } from "vitest";
 
+import { BindingSource } from "@/api/generated/initiativeAPI.schemas";
+
 import {
   countTasks,
   countTasksByProject,
   emptyDataFor,
   normalizeCalendarEntries,
   normalizeCounter,
-  normalizeMyStats,
   normalizeProjects,
   normalizeSheetRange,
   normalizeTasks,
@@ -214,21 +215,6 @@ describe("normalizeCounter", () => {
   });
 });
 
-describe("normalizeMyStats", () => {
-  it("maps heatmap days to epoch dates", () => {
-    const { days, total } = normalizeMyStats({
-      heatmap_data: [{ date: "2026-08-03", activity_count: 4 }],
-      tasks_completed_total: 112,
-    } as never);
-    expect(days).toEqual([{ date: Date.UTC(2026, 7, 3), count: 4 }]);
-    expect(total).toBe(112);
-  });
-
-  it("survives a stats payload with no heatmap", () => {
-    expect(normalizeMyStats({} as never)).toEqual({ days: [], total: 0 });
-  });
-});
-
 describe("normalizeSheetRange", () => {
   const doc = (cells: Record<string, unknown>, name = "Sheet1") =>
     ({ content: { sheets: [{ id: "s1", name, cells }] } }) as never;
@@ -261,18 +247,11 @@ describe("normalizeSheetRange", () => {
 });
 
 describe("emptyDataFor", () => {
-  it("produces a valid envelope for every source", () => {
-    const sources = [
-      "tasks",
-      "projects",
-      "calendar_entries",
-      "task_counts",
-      "counter",
-      "counter_group",
-      "my_stats",
-      "sheet_range",
-    ] as const;
-    for (const source of sources) {
+  it("produces a valid envelope for every source the backend declares", () => {
+    // Read off the generated enum rather than restated here: a source added
+    // server-side has to reach this function, and a hand-kept list would just
+    // agree with itself.
+    for (const source of Object.values(BindingSource)) {
       expect(emptyDataFor(source).source).toBe(source);
     }
   });

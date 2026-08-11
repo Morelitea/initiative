@@ -158,6 +158,7 @@ export function DashboardDetailPage() {
         definition={editor.definition}
         config={editor.config}
         catalog={catalogQuery.data}
+        initiativeId={dashboard?.initiative_id}
         canEdit={canEdit}
         isLoading={!dashboard}
         onLayoutChange={editor.replaceDefinition}

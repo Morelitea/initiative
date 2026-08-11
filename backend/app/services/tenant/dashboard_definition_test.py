@@ -133,8 +133,8 @@ def test_normalizes_to_canonical_shape():
 def test_widget_ids_are_assigned_and_must_be_unique():
     result = normalize_dashboard_definition(
         _definition(
-            {"type": "kpi", "binding": {"source": "counter"}},
-            {"type": "kpi", "binding": {"source": "counter"}},
+            {"type": "stat", "binding": {"source": "counter"}},
+            {"type": "stat", "binding": {"source": "counter"}},
         )
     )
     assert [w["id"] for w in result["widgets"]] == ["w1", "w2"]
@@ -142,8 +142,8 @@ def test_widget_ids_are_assigned_and_must_be_unique():
     with pytest.raises(DashboardDefinitionError, match="WIDGET_ID_DUPLICATE"):
         normalize_dashboard_definition(
             _definition(
-                {"id": "same", "type": "kpi", "binding": {"source": "counter"}},
-                {"id": "same", "type": "kpi", "binding": {"source": "counter"}},
+                {"id": "same", "type": "stat", "binding": {"source": "counter"}},
+                {"id": "same", "type": "stat", "binding": {"source": "counter"}},
             )
         )
 
@@ -185,15 +185,15 @@ def test_widget_is_kept_inside_the_grid():
             "WIDGET_TYPE_UNKNOWN",
         ),
         (
-            {"widgets": [{"type": "kpi", "binding": {"source": "shell_exec"}}]},
+            {"widgets": [{"type": "stat", "binding": {"source": "shell_exec"}}]},
             "BINDING_SOURCE_UNKNOWN",
         ),
         # A real source, but not one this widget can draw.
         (
-            {"widgets": [{"type": "kpi", "binding": {"source": "tasks"}}]},
+            {"widgets": [{"type": "stat", "binding": {"source": "tasks"}}]},
             "BINDING_SOURCE_NOT_ALLOWED",
         ),
-        ({"widgets": [{"type": "kpi"}]}, "BINDING_INVALID"),
+        ({"widgets": [{"type": "stat"}]}, "BINDING_INVALID"),
         ({"widgets": "nope"}, "DEFINITION_INVALID"),
         ({"schema_version": 99, "widgets": []}, "DEFINITION_VERSION_UNSUPPORTED"),
     ],
@@ -206,7 +206,7 @@ def test_rejects_unknown_vocabulary(payload, code):
 @pytest.mark.unit
 def test_rejects_too_many_widgets():
     widgets = [
-        {"id": f"w{i}", "type": "kpi", "binding": {"source": "counter"}}
+        {"id": f"w{i}", "type": "stat", "binding": {"source": "counter"}}
         for i in range(MAX_WIDGETS + 1)
     ]
     with pytest.raises(DashboardDefinitionError, match="TOO_MANY_WIDGETS"):
@@ -220,7 +220,7 @@ def test_no_definition_can_name_an_endpoint():
     for candidate in ("https://evil.test/steal", "//evil.test", "file:///etc/passwd"):
         with pytest.raises(DashboardDefinitionError, match="BINDING_SOURCE_UNKNOWN"):
             normalize_dashboard_definition(
-                _definition({"type": "kpi", "binding": {"source": candidate}})
+                _definition({"type": "stat", "binding": {"source": candidate}})
             )
 
 
@@ -250,12 +250,40 @@ def test_binding_parameters_pass_through_untouched():
 
 
 @pytest.mark.unit
+def test_a_binding_cannot_name_its_own_initiative_or_guild():
+    """Scope comes from the row the dashboard lives on, not from the definition.
+
+    Every source at launch reads within one initiative, so there is nothing for
+    these to express — and dropping them means an authored (or downloaded)
+    definition has no field to point at somewhere else with.
+    """
+    result = normalize_dashboard_definition(
+        _definition(
+            {
+                "type": "gantt",
+                "binding": {
+                    "source": "tasks",
+                    "initiative_id": 999,
+                    "guild_id": 42,
+                    "project_id": 7,
+                },
+            }
+        )
+    )
+    binding = result["widgets"][0]["binding"]
+    assert "initiative_id" not in binding
+    assert "guild_id" not in binding
+    # A project is still the author's to choose; the fetcher scopes it.
+    assert binding["project_id"] == 7
+
+
+@pytest.mark.unit
 def test_unknown_structural_keys_are_dropped():
     result = normalize_dashboard_definition(
         {
             "widgets": [
                 {
-                    "type": "kpi",
+                    "type": "stat",
                     "binding": {"source": "counter"},
                     "onClick": {"action": "delete_everything"},
                 }
@@ -270,7 +298,7 @@ def test_unknown_structural_keys_are_dropped():
 @pytest.mark.unit
 def test_config_is_scoped_to_the_definitions_widgets():
     definition = normalize_dashboard_definition(
-        _definition({"id": "w1", "type": "kpi", "binding": {"source": "counter"}})
+        _definition({"id": "w1", "type": "stat", "binding": {"source": "counter"}})
     )
     config = normalize_dashboard_config(
         {"widgets": {"w1": {"counter_id": 42}, "ghost": {"counter_id": 9}}},
@@ -283,7 +311,7 @@ def test_config_is_scoped_to_the_definitions_widgets():
 def test_config_for_a_removed_widget_is_dropped():
     """Updating to a definition without that widget can't leave config behind."""
     definition = normalize_dashboard_definition(
-        _definition({"id": "w2", "type": "kpi", "binding": {"source": "counter"}})
+        _definition({"id": "w2", "type": "stat", "binding": {"source": "counter"}})
     )
     assert normalize_dashboard_config(
         {"widgets": {"w1": {"counter_id": 1}}}, definition

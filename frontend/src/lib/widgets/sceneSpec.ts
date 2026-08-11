@@ -113,7 +113,7 @@ export type StackDirection = (typeof STACK_DIRECTIONS)[number];
 
 // --- nodes -----------------------------------------------------------------
 
-/** One big number with a label — the KPI shape. `delta` is drawn as a trend
+/** One big number with a label — the stat shape. `delta` is drawn as a trend
  *  chip; its sign carries the meaning, and `deltaGood` says which sign is good
  *  (falling cycle time is good, falling revenue is not). */
 export interface MetricNode {
@@ -254,7 +254,7 @@ export interface EmptyNode {
 }
 
 /** The composition primitive — how a widget builds something we didn't
- *  anticipate (a metric above a sparkline, three KPIs in a row) out of parts we
+ *  anticipate (a metric above a sparkline, three stats in a row) out of parts we
  *  trust. Bounded by `maxDepth`. */
 export interface StackNode {
   kind: "stack";

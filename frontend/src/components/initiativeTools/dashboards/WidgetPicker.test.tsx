@@ -34,7 +34,7 @@ const catalog = {
       ],
     },
     {
-      type: "kpi",
+      type: "stat",
       min_w: 2,
       min_h: 2,
       default_w: 3,
@@ -52,7 +52,7 @@ const open = async (onAdd = vi.fn()) => {
   await user.click(screen.getByRole("button", { name: /add widget/i }));
   // The names arrive from the widget modules, so the list is not readable until
   // the sandbox has answered.
-  await screen.findByRole("button", { name: /^KPI/ });
+  await screen.findByRole("button", { name: /^Stat/ });
   return { user, onAdd };
 };
 
@@ -64,7 +64,7 @@ describe("WidgetPicker", () => {
     const rows = within(list()).getAllByRole("button");
     expect(rows.map((row) => row.textContent?.split(/(?=[A-Z])/)[0])).toHaveLength(2);
     expect(within(list()).getByRole("button", { name: /^Chart/ })).toBeInTheDocument();
-    expect(within(list()).getByRole("button", { name: /^KPI/ })).toBeInTheDocument();
+    expect(within(list()).getByRole("button", { name: /^Stat/ })).toBeInTheDocument();
   });
 
   it("does not list presets separately from the widget they are made of", async () => {

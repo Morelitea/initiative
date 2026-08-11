@@ -165,7 +165,7 @@ const counter: WidgetSample = {
     counter: { name: "Beds made", value: 34, min: 0, max: 50, unit: "beds" },
   },
   // A counter with no ceiling is the interesting empty-ish case: progress has
-  // no denominator to draw, while the KPI is perfectly happy.
+  // no denominator to draw, while the stat widget is perfectly happy.
   empty: {
     source: "counter",
     counter: { name: "Signups", value: 0, min: null, max: null, unit: null },
@@ -184,19 +184,6 @@ const counterGroup: WidgetSample = {
     ],
   },
   empty: { source: "counter_group", name: "Inventory", counters: [] },
-};
-
-const myStats: WidgetSample = {
-  source: "my_stats",
-  data: {
-    source: "my_stats",
-    days: Array.from({ length: 28 }, (_, index) => ({
-      date: T0 + index * DAY,
-      count: (index * 7) % 9,
-    })),
-    total: 112,
-  },
-  empty: { source: "my_stats", days: [], total: 0 },
 };
 
 const sheetRange: WidgetSample = {
@@ -223,7 +210,6 @@ export const ALL_SAMPLES: WidgetSample[] = [
   taskCounts,
   counter,
   counterGroup,
-  myStats,
   sheetRange,
 ];
 
@@ -251,10 +237,10 @@ export const sampleFor = (source: WidgetSource, widgetType?: string): WidgetData
  */
 export const SOURCES_BY_WIDGET: Record<string, WidgetSource[]> = {
   gantt: ["tasks", "projects", "calendar_entries"],
-  kpi: ["counter", "task_counts", "my_stats", "sheet_range"],
-  chart: ["task_counts", "counter_group", "sheet_range", "my_stats", "projects"],
+  stat: ["counter", "task_counts", "sheet_range"],
+  chart: ["task_counts", "counter_group", "sheet_range", "projects"],
   funnel: ["task_counts", "sheet_range"],
   progress: ["counter", "task_counts", "projects"],
-  heatmap: ["my_stats", "task_counts"],
+  heatmap: ["task_counts"],
   table: ["tasks", "projects", "sheet_range", "calendar_entries"],
 };

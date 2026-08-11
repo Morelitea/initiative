@@ -27,6 +27,7 @@ import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { WidgetCatalog } from "@/api/generated/initiativeAPI.schemas";
 import {
   addWidget,
+  applyLayout,
   type DashboardDefinition,
   EMPTY_DEFINITION,
   readConfig,
@@ -37,7 +38,7 @@ import { DashboardCanvas } from "./DashboardCanvas";
 const catalog = {
   widgets: [
     {
-      type: "kpi",
+      type: "stat",
       min_w: 2,
       min_h: 2,
       default_w: 3,
@@ -49,7 +50,7 @@ const catalog = {
   presets: [],
 } as unknown as WidgetCatalog;
 
-const withKpi = (): DashboardDefinition => addWidget(EMPTY_DEFINITION, catalog, "kpi", "counter");
+const withStat = (): DashboardDefinition => addWidget(EMPTY_DEFINITION, catalog, "stat", "counter");
 
 const render = (
   definition: DashboardDefinition,
@@ -87,21 +88,21 @@ describe("DashboardCanvas", () => {
   });
 
   it("offers no authoring affordances without write access", () => {
-    render(withKpi(), false);
+    render(withStat(), false);
     // The per-widget menu is the entry point to configure and remove; without
     // write there is nothing to open.
     expect(screen.queryByRole("button", { name: /options for/i })).toBeNull();
   });
 
   it("offers the widget menu with write access", () => {
-    render(withKpi(), true);
+    render(withStat(), true);
     expect(screen.getByRole("button", { name: /options for/i })).toBeInTheDocument();
   });
 
   it("never reports a layout change for a read-only canvas", () => {
     // A static canvas must never write the dashboard's row on someone else's
     // behalf, whatever the grid reports.
-    const onLayoutChange = render(withKpi(), false);
+    const onLayoutChange = render(withStat(), false);
     expect(onLayoutChange).not.toHaveBeenCalled();
   });
 
@@ -109,20 +110,39 @@ describe("DashboardCanvas", () => {
     // The page around the canvas is already correct while the row loads;
     // swapping the whole page for a spinner is what made an ordinary load look
     // like a reload.
-    const onLayoutChange = render(withKpi(), true, vi.fn(), true);
+    const onLayoutChange = render(withStat(), true, vi.fn(), true);
     expect(screen.getByText(/loading dashboard/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /options for/i })).toBeNull();
     expect(onLayoutChange).not.toHaveBeenCalled();
   });
 
+  it("gives an author a resize handle", () => {
+    const { container } = render(withStat(), true);
+    expect(container.querySelector(".react-resizable-handle")).not.toBeNull();
+    expect(container.querySelector(".react-resizable-hide")).toBeNull();
+  });
+
+  it("hides the resize handle from a viewer", () => {
+    const { container } = render(withStat(), false);
+    expect(container.querySelector(".react-resizable-hide")).not.toBeNull();
+  });
+
+  it("stops a resize at each widget's catalog size floor", () => {
+    // A Gantt squeezed to two columns is unreadable, so a resize lands on the
+    // floor rather than being refused. The grid enforces it live from each
+    // item's minW/minH; this pins the value that gets saved.
+    const shrunk = applyLayout(withStat(), catalog, [{ i: "w1", x: 0, y: 0, w: 1, h: 1 }]);
+    expect(shrunk.widgets[0].grid).toMatchObject({ w: 2, h: 2 });
+  });
+
   it("draws the grid for someone who can arrange it", () => {
-    const { container } = render(withKpi(), true);
+    const { container } = render(withStat(), true);
     expect(surface(container)).not.toBeNull();
   });
 
   it("draws no grid for a viewer", () => {
     // Dots promise that things snap into place; without write access they don't.
-    const { container } = render(withKpi(), false);
+    const { container } = render(withStat(), false);
     expect(surface(container)).toBeNull();
   });
 
@@ -132,7 +152,7 @@ describe("DashboardCanvas", () => {
     // definition comparison in the handler covers the widths where it does.
     // Either way, viewing a dashboard must never bump its updated_at — so if a
     // future grid release starts emitting here, this fails.
-    const onLayoutChange = render(withKpi(), true);
+    const onLayoutChange = render(withStat(), true);
     expect(onLayoutChange).not.toHaveBeenCalled();
   });
 });

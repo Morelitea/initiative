@@ -545,3 +545,20 @@ html.pride [data-slot="button"].bg-primary:hover {
      a stylesheet we don't control. */
   margin-bottom: calc(4.5rem + var(--safe-area-inset-bottom, 0px)) !important;
 }
+
+/* react-grid-layout draws its resize corner in a fixed `rgba(0, 0, 0, 0.4)`,
+   which is invisible on a dark card, and hides it entirely until the tile is
+   hovered. Same handle, same behaviour — drawn in a theme colour and faintly
+   present at rest, so it reads as an affordance rather than something you have
+   to already know is there. */
+.react-grid-item > .react-resizable-handle {
+  opacity: 0.5;
+}
+
+.react-grid-item > .react-resizable-handle::after {
+  border-color: var(--muted-foreground);
+  right: 5px;
+  bottom: 5px;
+  width: 6px;
+  height: 6px;
+}

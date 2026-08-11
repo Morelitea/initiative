@@ -38,7 +38,7 @@ const catalog = {
       options: [],
     },
     {
-      type: "kpi",
+      type: "stat",
       min_w: 2,
       min_h: 2,
       default_w: 3,
@@ -86,14 +86,14 @@ describe("addWidget", () => {
   });
 
   it("stacks each new widget below what is already placed", () => {
-    const { widgets } = withWidgets("gantt", "kpi");
+    const { widgets } = withWidgets("gantt", "stat");
     expect(widgets[1].grid.y).toBe(widgets[0].grid.y + widgets[0].grid.h);
   });
 
   it("gives every widget a distinct id, including after a removal", () => {
-    const two = withWidgets("kpi", "kpi");
+    const two = withWidgets("stat", "stat");
     const afterRemoval = removeWidget(two, "w1");
-    const readded = addWidget(afterRemoval, catalog, "kpi", "counter");
+    const readded = addWidget(afterRemoval, catalog, "stat", "counter");
     const ids = readded.widgets.map((widget) => widget.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
@@ -130,7 +130,7 @@ describe("addWidget", () => {
   });
 
   it("falls back to a usable size when the catalog has not loaded", () => {
-    const [widget] = addWidget(EMPTY_DEFINITION, undefined, "kpi", "counter").widgets;
+    const [widget] = addWidget(EMPTY_DEFINITION, undefined, "stat", "counter").widgets;
     expect(widget.grid.w).toBeGreaterThan(0);
     expect(widget.grid.h).toBeGreaterThan(0);
   });
@@ -162,7 +162,7 @@ describe("applyLayout", () => {
   });
 
   it("leaves widgets the layout did not mention alone", () => {
-    const two = withWidgets("gantt", "kpi");
+    const two = withWidgets("gantt", "stat");
     const next = applyLayout(two, catalog, [{ i: "w1", x: 1, y: 1, w: 8, h: 4 }]);
     expect(next.widgets[1].grid).toEqual(two.widgets[1].grid);
   });
@@ -170,7 +170,7 @@ describe("applyLayout", () => {
 
 describe("definitionsEqual", () => {
   it("is false for a real move and true for a no-op", () => {
-    const definition = withWidgets("kpi");
+    const definition = withWidgets("stat");
     const moved = applyLayout(definition, catalog, [{ i: "w1", x: 4, y: 0, w: 3, h: 2 }]);
     expect(definitionsEqual(definition, moved)).toBe(false);
     expect(definitionsEqual(definition, { ...definition })).toBe(true);
@@ -180,7 +180,7 @@ describe("definitionsEqual", () => {
     // The editor compares its draft against what came back from a save, and the
     // server builds each widget's keys in its own order. Reading that as a
     // change would leave the local copy drawn forever, ignoring normalization.
-    const definition = withWidgets("kpi");
+    const definition = withWidgets("stat");
     const [widget] = definition.widgets;
     const reordered = {
       ...definition,
@@ -194,7 +194,7 @@ describe("effectiveBinding", () => {
   it("layers instance config over the definition's binding", () => {
     // The seam that makes an installed listing work: the catalog definition
     // cannot know this guild's counter ids, so the install fills them in.
-    const definition = addWidget(EMPTY_DEFINITION, catalog, "kpi", "counter");
+    const definition = addWidget(EMPTY_DEFINITION, catalog, "stat", "counter");
     const config = readConfig({
       widgets: { w1: { counter_group_id: 4, counter_id: 9 } },
     });
@@ -206,7 +206,7 @@ describe("effectiveBinding", () => {
   });
 
   it("leaves a widget with no config entry on its own binding", () => {
-    const definition = addWidget(EMPTY_DEFINITION, catalog, "kpi", "counter");
+    const definition = addWidget(EMPTY_DEFINITION, catalog, "stat", "counter");
     expect(effectiveBinding(definition.widgets[0], readConfig({}))).toEqual({
       source: "counter",
     });
@@ -222,19 +222,19 @@ describe("unboundSlots", () => {
 
   it("is empty for sources that need no ids", () => {
     expect(unboundSlots({ source: "tasks" })).toEqual([]);
-    expect(unboundSlots({ source: "my_stats" })).toEqual([]);
+    expect(unboundSlots({ source: "task_counts" })).toEqual([]);
   });
 });
 
 describe("pruneConfig", () => {
   it("drops config for widgets the definition no longer has", () => {
-    const definition = withWidgets("kpi");
+    const definition = withWidgets("stat");
     const config = readConfig({ widgets: { w1: { counter_id: 1 }, w9: { counter_id: 2 } } });
     expect(Object.keys(pruneConfig(definition, config).widgets)).toEqual(["w1"]);
   });
 
   it("leaves nothing behind when the last widget goes", () => {
-    const definition = withWidgets("kpi");
+    const definition = withWidgets("stat");
     const config = readConfig({ widgets: { w1: { counter_id: 1 } } });
     const emptied = removeWidget(definition, "w1");
     expect(pruneConfig(emptied, config).widgets).toEqual({});
@@ -243,14 +243,14 @@ describe("pruneConfig", () => {
 
 describe("updateWidget", () => {
   it("patches only the named widget", () => {
-    const two = withWidgets("kpi", "kpi");
+    const two = withWidgets("stat", "stat");
     const next = updateWidget(two, "w2", { title: "Renamed" });
     expect(next.widgets[0].title).toBeUndefined();
     expect(next.widgets[1].title).toBe("Renamed");
   });
 
   it("does not mutate the definition it was given", () => {
-    const definition = withWidgets("kpi");
+    const definition = withWidgets("stat");
     const snapshot = JSON.stringify(definition);
     updateWidget(definition, "w1", { title: "Renamed" });
     expect(JSON.stringify(definition)).toBe(snapshot);

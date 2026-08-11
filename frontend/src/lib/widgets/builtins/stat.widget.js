@@ -8,10 +8,10 @@
  */
 const meta = {
   name: {
-    en: "KPI",
-    de: "KPI",
-    es: "KPI",
-    fr: "Indicateur clé",
+    en: "Stat",
+    de: "Kennzahl",
+    es: "Estadística",
+    fr: "Statistique",
   },
   description: {
     en: "A single headline number, with an optional trend against the previous period.",
@@ -58,7 +58,7 @@ const meta = {
 };
 
 /**
- * Built-in: KPI — one big number.
+ * Built-in: Stat — one big number.
  *
  * Like every built-in, this is an ordinary widget module: it runs in the same
  * sandbox as an installed listing's widget, with the same capabilities (none)
@@ -105,12 +105,6 @@ function render(data, config) {
       }
       const total = rows.reduce((sum, row) => sum + row.count, 0);
       return metric(total, "Total");
-    }
-
-    case "my_stats": {
-      const days = data.days || [];
-      if (!days.length) return empty("Nothing recorded yet");
-      return metric(data.total || 0, "Total", days.length + " days");
     }
 
     case "sheet_range": {

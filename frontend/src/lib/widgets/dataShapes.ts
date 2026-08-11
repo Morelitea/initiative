@@ -78,11 +78,6 @@ export interface SheetRange {
   rows: (string | number | boolean | null)[][];
 }
 
-export interface MyStatsDay {
-  date: number;
-  count: number;
-}
-
 export type WidgetData =
   | { source: "tasks"; rows: TaskRow[] }
   | { source: "projects"; rows: ProjectRow[] }
@@ -90,7 +85,6 @@ export type WidgetData =
   | { source: "task_counts"; rows: CountRow[] }
   | { source: "counter"; counter: CounterValue }
   | { source: "counter_group"; name: string; counters: CounterValue[] }
-  | { source: "my_stats"; days: MyStatsDay[]; total: number }
   | { source: "sheet_range"; range: SheetRange };
 
 export type WidgetSource = WidgetData["source"];
