@@ -67,6 +67,8 @@ export interface DashboardCanvasProps {
   definition: DashboardDefinition;
   config: DashboardConfig;
   catalog: WidgetCatalog | undefined;
+  /** The dashboard's own initiative. Every widget reads within it. */
+  initiativeId: number | undefined;
   /** DAC write on this dashboard. Arranging is authoring. */
   canEdit: boolean;
   /** The dashboard row is still on its way. The canvas is the only region that
@@ -81,6 +83,7 @@ export function DashboardCanvas({
   definition,
   config,
   catalog,
+  initiativeId,
   canEdit,
   isLoading,
   onLayoutChange,
@@ -207,6 +210,7 @@ export function DashboardCanvas({
                   <DashboardWidget
                     widget={widget}
                     binding={effectiveBinding(widget, config)}
+                    initiativeId={initiativeId}
                     canEdit={canEdit}
                     onConfigure={onConfigureWidget}
                     onRemove={onRemoveWidget}

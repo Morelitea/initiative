@@ -37,7 +37,7 @@ import { DashboardCanvas } from "./DashboardCanvas";
 const catalog = {
   widgets: [
     {
-      type: "kpi",
+      type: "stat",
       min_w: 2,
       min_h: 2,
       default_w: 3,
@@ -49,7 +49,7 @@ const catalog = {
   presets: [],
 } as unknown as WidgetCatalog;
 
-const withKpi = (): DashboardDefinition => addWidget(EMPTY_DEFINITION, catalog, "kpi", "counter");
+const withKpi = (): DashboardDefinition => addWidget(EMPTY_DEFINITION, catalog, "stat", "counter");
 
 const render = (
   definition: DashboardDefinition,

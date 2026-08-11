@@ -21,14 +21,12 @@ import type {
   ListTasksApiV1GGuildIdTasksGetParams,
   WidgetCatalog,
 } from "@/api/generated/initiativeAPI.schemas";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useCalendarEntries } from "@/hooks/useCalendarEntries";
 import { useCalendarsList } from "@/hooks/useCalendars";
 import { useCounterGroup } from "@/hooks/useCounters";
 import { useDocument } from "@/hooks/useDocuments";
 import { useProjects } from "@/hooks/useProjects";
 import { useTasks } from "@/hooks/useTasks";
-import { useUserStats } from "@/hooks/useUserStats";
 import type { WidgetData, WidgetSource } from "@/lib/widgets/dataShapes";
 import {
   type CountBucket,
@@ -38,7 +36,6 @@ import {
   normalizeCalendarEntries,
   normalizeCounter,
   normalizeCounterGroup,
-  normalizeMyStats,
   normalizeProjects,
   normalizeSheetRange,
   normalizeTasks,
@@ -46,11 +43,13 @@ import {
 
 /** A normalized definition binding. Everything past `source` is the fetcher's
  *  to interpret — the backend deliberately does not re-declare these, so that
- *  each parameter lives with the code that consumes it. */
+ *  each parameter lives with the code that consumes it.
+ *
+ *  The initiative is *not* among them: it comes from the dashboard the widget
+ *  sits on, and the backend normalizer drops it from a stored binding. */
 export interface WidgetBinding {
   source: WidgetSource;
   conditions?: unknown;
-  initiative_id?: number | null;
   project_id?: number | null;
   counter_group_id?: number | null;
   counter_id?: number | null;
@@ -78,19 +77,28 @@ const DEFAULT_WINDOW_DAYS = 90;
  *  columns are derived from those same rows rather than fetched again. */
 const TASK_BACKED: WidgetSource[] = ["tasks", "task_counts", "projects"];
 
-export function useWidgetData(binding: WidgetBinding): WidgetDataResult {
-  const guildId = useActiveGuildId();
+/**
+ * Resolve one widget's binding.
+ *
+ * `initiativeId` is the dashboard's own — every fetch below is scoped to it, and
+ * a binding cannot say otherwise. Sharing a dashboard therefore shares a view of
+ * that initiative, never a window into another one.
+ */
+export function useWidgetData(
+  binding: WidgetBinding,
+  initiativeId: number | undefined
+): WidgetDataResult {
   const source = binding.source;
 
   const taskParams = useMemo<ListTasksApiV1GGuildIdTasksGetParams>(() => {
     const params: Record<string, unknown> = { page_size: 0 };
     if (binding.project_id) params.project_id = binding.project_id;
-    if (binding.initiative_id) params.initiative_id = binding.initiative_id;
+    if (initiativeId) params.initiative_id = initiativeId;
     // The filter DSL passes through verbatim — the parser owns its own limits,
     // and mirroring them here would mean maintaining them twice.
     if (binding.conditions) params.conditions = JSON.stringify(binding.conditions);
     return params as ListTasksApiV1GGuildIdTasksGetParams;
-  }, [binding.project_id, binding.initiative_id, binding.conditions]);
+  }, [binding.project_id, initiativeId, binding.conditions]);
 
   const window = useMemo(() => {
     const days = binding.window_days ?? DEFAULT_WINDOW_DAYS;
@@ -104,16 +112,16 @@ export function useWidgetData(binding: WidgetBinding): WidgetDataResult {
   const tasksQuery = useTasks(taskParams, {
     enabled: TASK_BACKED.includes(source),
   });
-  // The projects list has no initiative filter of its own; a binding scoped to
-  // one initiative narrows the rows after the fetch, which also keeps the query
-  // key shared with every other projects consumer.
+  // The projects list has no initiative filter of its own, so its rows are
+  // narrowed after the fetch — which also keeps the query key shared with every
+  // other projects consumer.
   const projectsQuery = useProjects(undefined, { enabled: source === "projects" });
   const entriesQuery = useCalendarEntries(
     {
       start_after: window.start,
       start_before: window.end,
       include_events: true,
-      ...(binding.initiative_id ? { initiative_id: binding.initiative_id } : {}),
+      ...(initiativeId ? { initiative_id: initiativeId } : {}),
     },
     { enabled: source === "calendar_entries" }
   );
@@ -123,7 +131,6 @@ export function useWidgetData(binding: WidgetBinding): WidgetDataResult {
   const counterGroupQuery = useCounterGroup(binding.counter_group_id ?? null, {
     enabled: source === "counter" || source === "counter_group",
   });
-  const statsQuery = useUserStats(source === "my_stats" ? guildId : null);
   const documentQuery = useDocument(
     source === "sheet_range" ? (binding.document_id ?? null) : null
   );
@@ -152,7 +159,7 @@ export function useWidgetData(binding: WidgetBinding): WidgetDataResult {
       case "projects": {
         const counts = countTasksByProject(normalizeTasks(tasksQuery.data?.items ?? []));
         const visible = (projectsQuery.data?.items ?? []).filter(
-          (project) => !binding.initiative_id || project.initiative_id === binding.initiative_id
+          (project) => !initiativeId || project.initiative_id === initiativeId
         );
         const rows = normalizeProjects(visible, counts);
         return {
@@ -213,18 +220,6 @@ export function useWidgetData(binding: WidgetBinding): WidgetDataResult {
         };
       }
 
-      case "my_stats": {
-        if (!statsQuery.data) {
-          return {
-            data: emptyDataFor(source),
-            isLoading: statsQuery.isLoading,
-            isUnbound: false,
-          };
-        }
-        const { days, total } = normalizeMyStats(statsQuery.data);
-        return { data: { source, days, total }, isLoading: false, isUnbound: false };
-      }
-
       case "sheet_range": {
         if (!binding.document_id || !binding.range) return unbound();
         const range = documentQuery.data
@@ -245,12 +240,12 @@ export function useWidgetData(binding: WidgetBinding): WidgetDataResult {
     }
   }, [
     source,
+    initiativeId,
     binding.bucket,
     binding.calendar_id,
     binding.counter_group_id,
     binding.counter_id,
     binding.document_id,
-    binding.initiative_id,
     binding.range,
     binding.sheet,
     tasksQuery.data,
@@ -262,8 +257,6 @@ export function useWidgetData(binding: WidgetBinding): WidgetDataResult {
     calendarsQuery.data,
     counterGroupQuery.data,
     counterGroupQuery.isLoading,
-    statsQuery.data,
-    statsQuery.isLoading,
     documentQuery.data,
     documentQuery.isLoading,
   ]);

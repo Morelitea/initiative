@@ -17,10 +17,8 @@ import type {
   CounterGroupRead,
   CounterRead,
   DocumentRead,
-  HeatmapDayData,
   ProjectRead,
   TaskListRead,
-  UserStatsResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import { keyOf, parseA1Range } from "@/lib/spreadsheet/coords";
 
@@ -28,7 +26,6 @@ import type {
   CalendarEntryRow,
   CounterValue,
   CountRow,
-  MyStatsDay,
   ProjectRow,
   SheetRange,
   TaskRow,
@@ -129,18 +126,6 @@ export const normalizeCounterGroup = (
   name: group.name,
   counters: (group.counters ?? []).map(normalizeCounter),
 });
-
-export const normalizeMyStats = (
-  stats: UserStatsResponse
-): { days: MyStatsDay[]; total: number } => {
-  const days = (stats.heatmap_data ?? [])
-    .map((day: HeatmapDayData) => ({
-      date: toEpoch(day.date) ?? 0,
-      count: day.activity_count ?? 0,
-    }))
-    .filter((day) => day.date > 0);
-  return { days, total: stats.tasks_completed_total ?? 0 };
-};
 
 // --- derived counts ---------------------------------------------------------
 
@@ -287,8 +272,6 @@ export const emptyDataFor = (source: WidgetData["source"]): WidgetData => {
       };
     case "counter_group":
       return { source: "counter_group", name: "", counters: [] };
-    case "my_stats":
-      return { source: "my_stats", days: [], total: 0 };
     case "sheet_range":
       return { source: "sheet_range", range: { columns: [], rows: [] } };
     default:

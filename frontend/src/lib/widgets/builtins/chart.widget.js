@@ -140,14 +140,6 @@ function render(data, config) {
       );
     }
 
-    case "my_stats": {
-      const days = data.days || [];
-      if (!days.length) return empty("Nothing recorded yet");
-      return chart([
-        { name: "Activity", points: days.map((day) => ({ x: day.date, y: day.count })) },
-      ]);
-    }
-
     case "projects": {
       const rows = data.rows || [];
       if (!rows.length) return empty("No projects match");

@@ -17,8 +17,8 @@ import chartSource from "./builtins/chart.widget.js?raw";
 import funnelSource from "./builtins/funnel.widget.js?raw";
 import ganttSource from "./builtins/gantt.widget.js?raw";
 import heatmapSource from "./builtins/heatmap.widget.js?raw";
-import kpiSource from "./builtins/kpi.widget.js?raw";
 import progressSource from "./builtins/progress.widget.js?raw";
+import statSource from "./builtins/stat.widget.js?raw";
 import tableSource from "./builtins/table.widget.js?raw";
 
 /**
@@ -29,7 +29,7 @@ import tableSource from "./builtins/table.widget.js?raw";
  */
 export const BUILTIN_WIDGETS: Record<string, string> = {
   gantt: ganttSource,
-  kpi: kpiSource,
+  stat: statSource,
   chart: chartSource,
   funnel: funnelSource,
   progress: progressSource,

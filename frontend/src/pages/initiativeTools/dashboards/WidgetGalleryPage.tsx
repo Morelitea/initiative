@@ -111,7 +111,7 @@ export function WidgetGalleryPage() {
         {HOSTILE_WIDGETS.map((widget) => (
           <div key={widget.key} className="h-40">
             <WidgetTile
-              type="kpi"
+              type="stat"
               title={t(`gallery.failure.${widget.key}` as const)}
               source={widget.source}
               data={sampleFor("task_counts")}

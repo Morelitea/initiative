@@ -2,8 +2,8 @@
 
 A definition is a **presentation spec**: a grid layout plus widgets, each bound
 to a data source by name. Most dashboards — hand-built or installed from the
-marketplace — are simply a *composition* of the built-in widgets below: a "KPI
-dashboard" listing is several first-party widgets, arranged and pre-bound. The
+marketplace — are simply a *composition* of the built-in widgets below: a
+"sprint health" listing is several first-party widgets, arranged and pre-bound. The
 marketplace download carries that definition; what this module owns is narrower,
 and is the reason a downloaded definition is safe to store — a **capability
 check**:
@@ -90,12 +90,12 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
         options={"scale": frozenset({"day", "week", "month", "quarter"})},
     ),
     # One big number.
-    "kpi": WidgetSpec(
+    "stat": WidgetSpec(
         min_w=2,
         min_h=2,
         default_w=3,
         default_h=2,
-        sources=frozenset({"counter", "task_counts", "my_stats", "sheet_range"}),
+        sources=frozenset({"counter", "task_counts", "sheet_range"}),
         options={"format": frozenset({"plain", "percent", "currency", "duration"})},
     ),
     # A series drawn as bars/lines/area/slices.
@@ -104,9 +104,7 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
         min_h=3,
         default_w=6,
         default_h=4,
-        sources=frozenset(
-            {"task_counts", "counter_group", "sheet_range", "my_stats", "projects"}
-        ),
+        sources=frozenset({"task_counts", "counter_group", "sheet_range", "projects"}),
         options={
             "mark": frozenset({"bar", "line", "area", "pie"}),
             "stacked": frozenset({"true", "false"}),
@@ -128,13 +126,14 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
         default_h=2,
         sources=frozenset({"counter", "task_counts", "projects"}),
     ),
-    # Density over a calendar grid (the shape /me/stats already returns).
+    # Density over a calendar grid. Task counts bucketed by day is what it draws
+    # at launch; nothing about the widget is specific to that source.
     "heatmap": WidgetSpec(
         min_w=4,
         min_h=2,
         default_w=8,
         default_h=3,
-        sources=frozenset({"my_stats", "task_counts"}),
+        sources=frozenset({"task_counts"}),
     ),
     # A plain read-only table. Display only, like every widget: no row actions,
     # no inline editing — that is a project view's job, not a dashboard's.
@@ -156,12 +155,15 @@ ALL_SOURCES: frozenset[str] = frozenset().union(
 # --- presets ---------------------------------------------------------------
 #
 # A preset is a *named widget* built from a primitive plus fixed options. It
-# ships no code, so it is the safe extension point: the built-ins below give
-# the palette its ready-made entries ("Bar chart"), and the same mechanism is
-# how a marketplace listing will contribute custom widgets — a listing declares
-# presets, they resolve to a first-party primitive at validation time, and a
-# definition that names one is stored resolved. Nothing a listing supplies ever
-# becomes a renderer.
+# ships no code, so it is the safe extension point: a marketplace listing
+# declares presets, they resolve to a first-party primitive at validation time,
+# and a definition that names one is stored resolved. Nothing a listing supplies
+# ever becomes a renderer.
+#
+# Presets are a *storage* concept, not a palette one — the picker offers each
+# primitive's options directly, so "bar chart" is the chart widget with its mark
+# chosen rather than a second entry saying the same thing. The built-ins below
+# stay because a stored or downloaded definition may still name them.
 
 
 @dataclass(frozen=True)
@@ -177,7 +179,7 @@ WIDGET_PRESETS: dict[str, WidgetPreset] = {
     "pie_chart": WidgetPreset("chart", {"mark": "pie"}),
     "stacked_bar_chart": WidgetPreset("chart", {"mark": "bar", "stacked": "true"}),
     "timeline": WidgetPreset("gantt", {"scale": "week"}),
-    "percent_kpi": WidgetPreset("kpi", {"format": "percent"}),
+    "percent_stat": WidgetPreset("stat", {"format": "percent"}),
 }
 
 # Every name a definition may use for a widget.
@@ -234,6 +236,19 @@ def _normalize_grid(raw: Any, spec: WidgetSpec) -> dict[str, int]:
     return {"x": x, "y": y, "w": w, "h": h}
 
 
+#: Binding parameters the *definition* does not carry, because the request
+#: already establishes them: a dashboard is fetched under a guild and belongs to
+#: an initiative, so those come from the row it lives on rather than from
+#: something an author or an installed listing typed.
+#:
+#: Every source shipping at launch reads within one initiative, so this costs
+#: nothing today and keeps a definition from naming an initiative other than its
+#: own. A later source that genuinely spans initiatives would need its scope
+#: expressed some other way — as part of that source's own contract, decided
+#: then, rather than by re-opening a free-form id here.
+_CONTEXT_ONLY_PARAMS = frozenset({"initiative_id", "guild_id"})
+
+
 def _normalize_binding(raw: Any, spec: WidgetSpec) -> dict[str, Any]:
     """Check the source is one we can fetch and this widget can draw, then keep
     its parameters as given for the fetcher to interpret."""
@@ -243,7 +258,11 @@ def _normalize_binding(raw: Any, spec: WidgetSpec) -> dict[str, Any]:
         _fail(DashboardMessages.BINDING_SOURCE_UNKNOWN)
     if source not in spec.sources:
         _fail(DashboardMessages.BINDING_SOURCE_NOT_ALLOWED)
-    params = {key: value for key, value in binding.items() if key != "source"}
+    params = {
+        key: value
+        for key, value in binding.items()
+        if key != "source" and key not in _CONTEXT_ONLY_PARAMS
+    }
     return {"source": source, **params}
 
 

@@ -870,7 +870,7 @@ async def create_dashboard(
                 "widgets": [
                     {
                         "id": "w1",
-                        "type": "kpi",
+                        "type": "stat",
                         "binding": {"source": "counter", "counter_id": None},
                     }
                 ]

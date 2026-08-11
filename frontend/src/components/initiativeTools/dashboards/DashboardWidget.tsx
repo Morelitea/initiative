@@ -27,6 +27,8 @@ import { type DefinitionWidget, unboundSlots } from "@/lib/widgets/definition";
 export interface DashboardWidgetProps {
   widget: DefinitionWidget;
   binding: WidgetBinding;
+  /** The dashboard's own initiative — the only one its widgets read from. */
+  initiativeId: number | undefined;
   canEdit: boolean;
   onConfigure?: (widgetId: string) => void;
   onRemove?: (widgetId: string) => void;
@@ -35,13 +37,14 @@ export interface DashboardWidgetProps {
 export function DashboardWidget({
   widget,
   binding,
+  initiativeId,
   canEdit,
   onConfigure,
   onRemove,
 }: DashboardWidgetProps) {
   const { t } = useTranslation("dashboards");
   const { name } = useWidgetMeta(widget.type);
-  const { data, isLoading, isUnbound } = useWidgetData(binding);
+  const { data, isLoading, isUnbound } = useWidgetData(binding, initiativeId);
 
   const title = widget.title || name;
   const missing = unboundSlots(binding);

@@ -16,12 +16,12 @@ from app.models.tenant.resource_grant import ResourceGrant
 from app.testing import create_dashboard
 
 
-def _kpi_definition() -> dict:
+def _stat_definition() -> dict:
     return {
         "widgets": [
             {
                 "id": "w1",
-                "type": "kpi",
+                "type": "stat",
                 "title": "Open bugs",
                 "binding": {"source": "counter", "counter_id": None},
             }
@@ -68,7 +68,7 @@ async def test_create_dashboard(client: AsyncClient, acting_user, session):
             "name": "Delivery",
             "description": "Release health",
             "initiative_id": a.initiative.id,
-            "definition": _kpi_definition(),
+            "definition": _stat_definition(),
         },
     )
 
@@ -78,7 +78,7 @@ async def test_create_dashboard(client: AsyncClient, acting_user, session):
     # Canonicalized on the way in.
     assert body["definition"]["schema_version"] == 1
     assert body["definition"]["kind"] == "dashboard"
-    assert body["definition"]["widgets"][0]["type"] == "kpi"
+    assert body["definition"]["widgets"][0]["type"] == "stat"
     assert body["my_permission_level"] == "owner"
     assert body["listing_uid"] is None
 
@@ -138,7 +138,7 @@ async def test_list_and_read_dashboard(client: AsyncClient, acting_user, session
 
     detail = await client.get(a.g(f"/dashboards/{dashboard.id}"), headers=a.headers)
     assert detail.status_code == 200
-    assert detail.json()["definition"]["widgets"][0]["type"] == "kpi"
+    assert detail.json()["definition"]["widgets"][0]["type"] == "stat"
 
 
 @pytest.mark.integration
@@ -174,7 +174,9 @@ async def test_update_definition_revalidates(client: AsyncClient, acting_user, s
         a.g(f"/dashboards/{dashboard.id}"),
         headers=a.headers,
         json={
-            "definition": {"widgets": [{"type": "kpi", "binding": {"source": "tasks"}}]}
+            "definition": {
+                "widgets": [{"type": "stat", "binding": {"source": "tasks"}}]
+            }
         },
     )
     assert bad.status_code == 422
@@ -196,7 +198,7 @@ async def test_config_for_removed_widget_is_dropped(
         json={
             "definition": {
                 "widgets": [
-                    {"id": "kept", "type": "kpi", "binding": {"source": "counter"}}
+                    {"id": "kept", "type": "stat", "binding": {"source": "counter"}}
                 ]
             },
             "config": {

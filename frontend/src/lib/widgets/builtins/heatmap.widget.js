@@ -79,9 +79,6 @@ function render(data, config) {
   };
 
   switch (data.source) {
-    case "my_stats":
-      return grid(data.days || []);
-
     case "task_counts": {
       const rows = data.rows || [];
       // Only a date-bucketed count has a calendar shape; anything else has no
