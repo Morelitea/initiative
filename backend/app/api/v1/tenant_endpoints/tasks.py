@@ -867,7 +867,20 @@ async def _advance_recurrence_if_needed(
         target_id=new_task.id,
     )
     await session.flush()
-    await session.refresh(new_task, attribute_names=["assignees", "tag_links"])
+    # Reload through a select rather than ``session.refresh``: refresh takes no
+    # loader options, so it would populate ``tag_links`` while leaving each
+    # link's ``tag`` unloaded — and the annotation below reads ``link.tag``,
+    # which then has to emit IO from sync context. ``populate_existing`` applies
+    # the freshly loaded rows to the identity-mapped instance.
+    await session.exec(
+        select(Task)
+        .where(Task.id == new_task.id)
+        .options(
+            selectinload(Task.assignees),
+            tags_service.TAG_LINKS["task"].load_options(),
+        )
+        .execution_options(populate_existing=True)
+    )
     tags_service.annotate_tags([new_task])
     await _broadcast_task(
         session, new_task.guild_id, new_task.project_id, "created", task_id=new_task.id
