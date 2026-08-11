@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -348,6 +348,37 @@ def _ensure_not_archived(project: Project) -> None:
         )
 
 
+def _template_task_date_shift(
+    template: Project,
+    new_project: Project,
+    template_tasks: list[Task],
+) -> timedelta | None:
+    """Offset to move template task dates onto the new project's schedule.
+
+    Task dates in a template are relative: a task due three weeks after the
+    template's start should land three weeks after the new project's start.
+    Anchors on the projects' start dates when the new project has one,
+    otherwise on their end dates. A template without an explicit start/end
+    falls back to its earliest/latest task date. Returns None when there is
+    nothing to anchor on, in which case dates are copied as-is.
+    """
+    task_dates = [
+        value.date()
+        for task in template_tasks
+        for value in (task.start_date, task.due_date)
+        if value is not None
+    ]
+    if new_project.start_date is not None:
+        anchor = template.start_date or (min(task_dates) if task_dates else None)
+        if anchor is not None:
+            return new_project.start_date - anchor
+    if new_project.end_date is not None:
+        anchor = template.end_date or (max(task_dates) if task_dates else None)
+        if anchor is not None:
+            return new_project.end_date - anchor
+    return None
+
+
 async def _duplicate_template_tasks(
     session: SessionDep,
     template: Project,
@@ -374,6 +405,7 @@ async def _duplicate_template_tasks(
 
     now = datetime.now(timezone.utc)
     categories = await task_completion.status_categories(session, new_project.id)
+    date_shift = _template_task_date_shift(template, new_project, list(template_tasks))
     for template_task in template_tasks:
         template_status_id = getattr(template_task, "task_status_id", None)
         mapped_status_id = None
@@ -387,13 +419,21 @@ async def _duplicate_template_tasks(
                 mapped_status_id = fallback_status_ids.get(category)
         if mapped_status_id is None and fallback_status_ids:
             mapped_status_id = next(iter(fallback_status_ids.values()))
+        start_date = template_task.start_date
+        due_date = template_task.due_date
+        if date_shift is not None:
+            if start_date is not None:
+                start_date = start_date + date_shift
+            if due_date is not None:
+                due_date = due_date + date_shift
         new_task = Task(
             project_id=new_project.id,
             title=template_task.title,
             description=template_task.description,
             task_status_id=mapped_status_id,
             priority=template_task.priority,
-            due_date=template_task.due_date,
+            start_date=start_date,
+            due_date=due_date,
             position=template_task.position,
         )
         task_completion.sync_completed_at(
