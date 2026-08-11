@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { cellsToCsv, coerceScalar, csvToCells, detectClipboardDelimiter, offsetCells } from "./csv";
+import { cellsToCsv, clipboardToCells, coerceScalar, csvToCells, offsetCells } from "./csv";
 
 describe("cellsToCsv / csvToCells round-trip", () => {
   it("round-trips a small grid", () => {
@@ -77,18 +77,56 @@ describe("coerceScalar", () => {
   });
 });
 
-describe("detectClipboardDelimiter", () => {
-  it("prefers tab when present (Excel/Sheets paste shape)", () => {
-    expect(detectClipboardDelimiter("a\tb")).toBe("\t");
-    expect(detectClipboardDelimiter("a\tb,c")).toBe("\t");
+describe("clipboardToCells", () => {
+  it("splits a tab-delimited block into a grid", () => {
+    expect(clipboardToCells("a\tb\nc\td")).toEqual({
+      cells: { "0:0": "a", "0:1": "b", "1:0": "c", "1:1": "d" },
+      rows: 2,
+      cols: 2,
+    });
   });
 
-  it("falls back to comma when no tab is present", () => {
-    expect(detectClipboardDelimiter("a,b")).toBe(",");
+  it("keeps a sentence with commas in one cell", () => {
+    expect(clipboardToCells("hi, there, friend")).toEqual({
+      cells: { "0:0": "hi, there, friend" },
+      rows: 1,
+      cols: 1,
+    });
   });
 
-  it("returns empty string for plain text (papaparse will sniff)", () => {
-    expect(detectClipboardDelimiter("just text")).toBe("");
+  it("puts comma text in a single column, one row per line", () => {
+    expect(clipboardToCells("a,b\nc,d")).toEqual({
+      cells: { "0:0": "a,b", "1:0": "c,d" },
+      rows: 2,
+      cols: 1,
+    });
+  });
+
+  it("still splits columns when tabs and commas are mixed", () => {
+    expect(clipboardToCells("hi, there\tok").cells).toEqual({
+      "0:0": "hi, there",
+      "0:1": "ok",
+    });
+  });
+
+  it("keeps quote characters literal in untabbed prose", () => {
+    expect(clipboardToCells('"quoted" thing').cells).toEqual({ "0:0": '"quoted" thing' });
+  });
+
+  it("preserves blank lines as empty rows", () => {
+    expect(clipboardToCells("a\n\nb").cells).toEqual({ "0:0": "a", "2:0": "b" });
+  });
+
+  it("handles CRLF line endings", () => {
+    expect(clipboardToCells("a\r\nb").cells).toEqual({ "0:0": "a", "1:0": "b" });
+  });
+
+  it("coerces scalars the same way typing does", () => {
+    expect(clipboardToCells("42\ntrue").cells).toEqual({ "0:0": 42, "1:0": true });
+  });
+
+  it("returns an empty map for empty text", () => {
+    expect(clipboardToCells("")).toEqual({ cells: {}, rows: 0, cols: 0 });
   });
 });
 

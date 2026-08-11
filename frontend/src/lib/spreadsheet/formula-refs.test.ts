@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   extractReferences,
   isFormula,
+  otherSheetFilter,
+  ownSheetFilter,
   referenceInsertTarget,
+  renameSheetReferences,
   shiftFormulaReferences,
   translateFormula,
 } from "./formula-refs";
@@ -151,7 +154,7 @@ describe("extractReferences", () => {
   it("locates a single cell reference with its box and span", () => {
     // "=A1" — A1 is row 0, col 0; the token spans offsets 1..3 in "=A1".
     expect(extractReferences("=A1")).toEqual([
-      { text: "A1", start: 1, end: 3, r1: 0, c1: 0, r2: 0, c2: 0, colorIndex: 0 },
+      { text: "A1", start: 1, end: 3, r1: 0, c1: 0, r2: 0, c2: 0, sheet: null, colorIndex: 0 },
     ]);
   });
 
@@ -217,5 +220,116 @@ describe("referenceInsertTarget", () => {
   it("returns none mid-literal or for a non-formula", () => {
     expect(referenceInsertTarget("=hello", 6)).toEqual({ kind: "none" });
     expect(referenceInsertTarget("plain", 5)).toEqual({ kind: "none" });
+  });
+});
+
+describe("sheet-qualified references", () => {
+  it("does not mistake a sheet name for a cell reference", () => {
+    // "Sheet2" alone matches the A1 pattern (letters then digits); the
+    // trailing "!" is what tells the two apart.
+    expect(extractReferences("=Sheet2!A1").map((t) => t.text)).toEqual(["Sheet2!A1"]);
+    expect(shiftFormulaReferences("=Sheet2!A1", "row", insertMap(0, 1))).toBe("=Sheet2!A1");
+  });
+
+  it("records the sheet a token names", () => {
+    const [local, qualified, quoted] = extractReferences("=A1+Data!B2+'Q1 Actuals'!C3");
+    expect(local.sheet).toBeNull();
+    expect(qualified.sheet).toBe("Data");
+    expect(quoted.sheet).toBe("Q1 Actuals");
+    expect(quoted.text).toBe("'Q1 Actuals'!C3");
+    // The box is the referenced cell, wherever it lives.
+    expect({ r1: qualified.r1, c1: qualified.c1 }).toEqual({ r1: 1, c1: 1 });
+  });
+
+  it("treats a qualified range as one token", () => {
+    const [token] = extractReferences("=SUM(Data!A1:B3)");
+    expect(token.text).toBe("Data!A1:B3");
+    expect(token.sheet).toBe("Data");
+    expect({ r1: token.r1, c1: token.c1, r2: token.r2, c2: token.c2 }).toEqual({
+      r1: 0,
+      c1: 0,
+      r2: 2,
+      c2: 1,
+    });
+  });
+
+  it("leaves other sheets' references alone by default", () => {
+    // Inserting a row here must not move a reference into a sheet that
+    // didn't change.
+    expect(shiftFormulaReferences("=A5+Data!A5", "row", insertMap(0, 1))).toBe("=A6+Data!A5");
+  });
+
+  it("shifts references to the formula's own sheet, however they're spelled", () => {
+    expect(
+      shiftFormulaReferences(
+        "=A5+Summary!A5+Data!A5",
+        "row",
+        insertMap(0, 1),
+        ownSheetFilter("Summary")
+      )
+    ).toBe("=A6+Summary!A6+Data!A5");
+  });
+
+  it("shifts only the named sheet's references for an off-sheet formula", () => {
+    expect(
+      shiftFormulaReferences("=A5+Data!A5", "row", insertMap(0, 1), otherSheetFilter("Data"))
+    ).toBe("=A5+Data!A6");
+  });
+
+  it("collapses a deleted qualified reference to a bare #REF!", () => {
+    // "Data!#REF!" is not valid input to the evaluator's grammar, and the
+    // token is already unambiguous on its own.
+    expect(
+      shiftFormulaReferences("=Data!A5", "row", deleteMap(4, 1), otherSheetFilter("Data"))
+    ).toBe("=#REF!");
+  });
+
+  it("translates a qualified reference's coordinates but keeps its sheet", () => {
+    // Copying "=Data!A1" one row down gives "=Data!A2" (Excel).
+    expect(translateFormula("=Data!A1", 1, 0)).toBe("=Data!A2");
+    expect(translateFormula("='Q1 Actuals'!$A1", 2, 3)).toBe("='Q1 Actuals'!$A3");
+  });
+
+  it("recognizes a qualified reference in point mode", () => {
+    expect(referenceInsertTarget("=Data!A1", 8)).toEqual({ kind: "replace", start: 1, end: 8 });
+    expect(referenceInsertTarget("='Q1 Actuals'!A1", 16)).toEqual({
+      kind: "replace",
+      start: 1,
+      end: 16,
+    });
+  });
+});
+
+describe("renameSheetReferences", () => {
+  it("re-spells references to the renamed sheet only", () => {
+    expect(renameSheetReferences("=Data!A1+Other!B2+A3", "Data", "Numbers")).toBe(
+      "=Numbers!A1+Other!B2+A3"
+    );
+  });
+
+  it("matches the old name case-insensitively", () => {
+    expect(renameSheetReferences("=dAtA!A1", "Data", "Numbers")).toBe("=Numbers!A1");
+  });
+
+  it("re-quotes when the new name needs it, and unquotes when it doesn't", () => {
+    expect(renameSheetReferences("=Data!A1", "Data", "Q1 Actuals")).toBe("='Q1 Actuals'!A1");
+    expect(renameSheetReferences("='Q1 Actuals'!A1", "Q1 Actuals", "Actuals")).toBe("=Actuals!A1");
+    // "Q1" reads as a cell reference, so it stays quoted even though it is
+    // otherwise a bare identifier.
+    expect(renameSheetReferences("=Data!A1", "Data", "Q1")).toBe("='Q1'!A1");
+  });
+
+  it("rewrites both endpoints' spelling in a range", () => {
+    expect(renameSheetReferences("=SUM(Data!A1:B3)", "Data", "Numbers")).toBe(
+      "=SUM(Numbers!A1:B3)"
+    );
+  });
+
+  it("leaves a formula that names no such sheet untouched", () => {
+    expect(renameSheetReferences("=A1+B2", "Data", "Numbers")).toBe("=A1+B2");
+  });
+
+  it("ignores a sheet name inside a string literal", () => {
+    expect(renameSheetReferences('="Data!A1"', "Data", "Numbers")).toBe('="Data!A1"');
   });
 });

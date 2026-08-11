@@ -49,9 +49,17 @@ export const useUsers = (options?: QueryOpts<UserGuildMember[]>, guildIdOverride
  *  task search (a bounded dropdown-sized window, not the whole roster). */
 export const USER_SEARCH_PAGE_SIZE = 25;
 
+/** Server-side ceiling on one request's `userIds` list — mirrors
+ *  `MAX_ID_FILTER_VALUES` in `backend/app/db/query.py`. */
+export const USER_ID_LOOKUP_MAX = 100;
+
 export interface UserSearchOptions {
   /** Case-insensitive substring match on the member's name. */
   search?: string;
+  /** Resolve these specific members instead of browsing the roster — how a
+   *  picker turns stored ids back into names/avatars. Narrows the same scoped
+   *  set, so an id outside it simply doesn't come back. */
+  userIds?: number[];
   /** Bounded page size (server caps at 100). */
   pageSize?: number;
   /** Gate the request — pass the picker's `open` state so we don't fetch until
@@ -61,6 +69,12 @@ export interface UserSearchOptions {
   guildIdOverride?: number;
 }
 
+/** Shared query params for the three slim member-search endpoints. */
+const memberSearchParams = (search: string | undefined, userIds: number[] | undefined) => ({
+  search: search?.trim() || undefined,
+  user_id: userIds?.length ? userIds.slice(0, USER_ID_LOOKUP_MAX) : undefined,
+});
+
 /**
  * Slim, server-side member typeahead for the active guild. Returns
  * {@link UserSummary} rows (id, name, avatar, status) for a bounded page —
@@ -69,16 +83,16 @@ export interface UserSearchOptions {
  */
 export const useUserSearch = ({
   search,
+  userIds,
   pageSize = USER_SEARCH_PAGE_SIZE,
   enabled = true,
   guildIdOverride,
 }: UserSearchOptions = {}) => {
   const activeGuildId = useActiveGuildId();
   const guildId = guildIdOverride ?? activeGuildId;
-  const trimmed = search?.trim();
   return useSearchUsersApiV1GGuildIdUsersSearchGet(
     guildId,
-    { search: trimmed || undefined, page_size: pageSize },
+    { ...memberSearchParams(search, userIds), page_size: pageSize },
     {
       query: {
         enabled: enabled && guildId != null,
@@ -100,6 +114,7 @@ export const useInitiativeMemberSearch = (
   initiativeId: number | null | undefined,
   {
     search,
+    userIds,
     pageSize = USER_SEARCH_PAGE_SIZE,
     enabled = true,
     guildIdOverride,
@@ -107,11 +122,10 @@ export const useInitiativeMemberSearch = (
 ) => {
   const activeGuildId = useActiveGuildId();
   const guildId = guildIdOverride ?? activeGuildId;
-  const trimmed = search?.trim();
   return useSearchInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersSearchGet(
     guildId,
     initiativeId as number,
-    { search: trimmed || undefined, page_size: pageSize },
+    { ...memberSearchParams(search, userIds), page_size: pageSize },
     {
       query: {
         enabled: enabled && guildId != null && initiativeId != null,
@@ -132,6 +146,7 @@ export const useProjectMemberSearch = (
   projectId: number | null | undefined,
   {
     search,
+    userIds,
     pageSize = USER_SEARCH_PAGE_SIZE,
     enabled = true,
     guildIdOverride,
@@ -139,11 +154,10 @@ export const useProjectMemberSearch = (
 ) => {
   const activeGuildId = useActiveGuildId();
   const guildId = guildIdOverride ?? activeGuildId;
-  const trimmed = search?.trim();
   return useSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet(
     guildId,
     projectId as number,
-    { search: trimmed || undefined, page_size: pageSize },
+    { ...memberSearchParams(search, userIds), page_size: pageSize },
     {
       query: {
         enabled: enabled && guildId != null && projectId != null,
@@ -175,23 +189,25 @@ export const useMemberSearch = (
   scope: MemberSearchScope,
   {
     search,
+    userIds,
     pageSize = USER_SEARCH_PAGE_SIZE,
     enabled = true,
   }: Omit<UserSearchOptions, "guildIdOverride"> = {}
 ) => {
   const guildQuery = useUserSearch({
     search,
+    userIds,
     pageSize,
     enabled: enabled && scope.type === "guild",
     guildIdOverride: scope.type === "guild" ? scope.guildIdOverride : undefined,
   });
   const initiativeQuery = useInitiativeMemberSearch(
     scope.type === "initiative" ? scope.initiativeId : undefined,
-    { search, pageSize, enabled: enabled && scope.type === "initiative" }
+    { search, userIds, pageSize, enabled: enabled && scope.type === "initiative" }
   );
   const projectQuery = useProjectMemberSearch(
     scope.type === "project" ? scope.projectId : undefined,
-    { search, pageSize, enabled: enabled && scope.type === "project" }
+    { search, userIds, pageSize, enabled: enabled && scope.type === "project" }
   );
 
   if (scope.type === "guild") return guildQuery;

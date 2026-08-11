@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ProjectRead, TagSummary } from "@/api/generated/initiativeAPI.schemas";
@@ -22,6 +22,27 @@ interface ProjectSettingsDetailsTabProps {
   canWriteProject: boolean;
 }
 
+/** The fields this form owns, as one saveable unit. */
+interface ProjectDetailsValue {
+  name: string;
+  icon: string;
+  description: string;
+  startDate: string;
+  endDate: string;
+}
+
+const detailsFromProject = (project: ProjectRead): ProjectDetailsValue => ({
+  name: project.name,
+  icon: project.icon ?? "",
+  description: project.description ?? "",
+  startDate: project.start_date ?? "",
+  endDate: project.end_date ?? "",
+});
+
+/** Order-stable projection of a form value, for dirty comparison. */
+const serializeDetails = (value: ProjectDetailsValue): string =>
+  JSON.stringify([value.name, value.icon, value.description, value.startDate, value.endDate]);
+
 export const ProjectSettingsDetailsTab = ({
   project,
   projectId,
@@ -36,33 +57,65 @@ export const ProjectSettingsDetailsTab = ({
   const [endDate, setEndDate] = useState<string>("");
   const [projectTags, setProjectTags] = useState<TagSummary[]>([]);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  // The server values the form was last filled from. Anything that still
+  // matches them is safe to replace on a refetch; anything else is the user's
+  // unsaved typing.
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
+  const seededProjectIdRef = useRef<number | null>(null);
+  const isDirtyRef = useRef(false);
 
   const setProjectTagsMutation = useSetToolTags(Tool.project);
 
-  // Hydrate the form once per project. Keyed on the id rather than the project
-  // object: saving invalidates the project query, and re-running on the refetch
-  // would clear the "saved" message the save just set.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally keyed on project.id — see above.
+  const currentSnapshot = serializeDetails({
+    name: nameText,
+    icon: iconText,
+    description: descriptionText,
+    startDate,
+    endDate,
+  });
+  const isDirty = savedSnapshot !== null && currentSnapshot !== savedSnapshot;
+  // Mirrored into a ref so the seeding effect reads the latest dirtiness
+  // without taking it as a dependency.
+  isDirtyRef.current = isDirty;
+
   useEffect(() => {
-    if (project) {
-      setNameText(project.name);
-      setIconText(project.icon ?? "");
-      setDescriptionText(project.description ?? "");
-      setStartDate(project.start_date ?? "");
-      setEndDate(project.end_date ?? "");
-      setProjectTags(project.tags ?? []);
+    if (!project) {
+      return;
+    }
+    // One save writes every field here, so a stale form would revert whatever
+    // someone else changed meanwhile — reseed from each refetch to pick their
+    // edits up. The exception is unsaved typing of our own, which wins until
+    // it is saved or the tab moves to another project.
+    const isNewProject = seededProjectIdRef.current !== project.id;
+    if (!isNewProject && isDirtyRef.current) {
+      return;
+    }
+    seededProjectIdRef.current = project.id;
+    const next = detailsFromProject(project);
+    setNameText(next.name);
+    setIconText(next.icon);
+    setDescriptionText(next.description);
+    setStartDate(next.startDate);
+    setEndDate(next.endDate);
+    setProjectTags(project.tags ?? []);
+    setSavedSnapshot(serializeDetails(next));
+    if (isNewProject) {
       setSavedMessage(null);
     }
-  }, [project?.id]);
+  }, [project]);
 
   const updateProject = useUpdateProject({
     onSuccess: (data) => {
+      // Re-baseline to what the server stored, so the form counts as clean
+      // again and the next refetch is free to reseed it.
+      const saved = detailsFromProject(data);
       setSavedMessage(t("settings.details.detailsUpdated"));
-      setNameText(data.name);
-      setIconText(data.icon ?? "");
-      setDescriptionText(data.description ?? "");
-      setStartDate(data.start_date ?? "");
-      setEndDate(data.end_date ?? "");
+      setNameText(saved.name);
+      setIconText(saved.icon);
+      setDescriptionText(saved.description);
+      setStartDate(saved.startDate);
+      setEndDate(saved.endDate);
+      setSavedSnapshot(serializeDetails(saved));
     },
   });
 

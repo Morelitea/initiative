@@ -3,6 +3,7 @@ import type {
   UserPublic,
   UserRead,
   UserRole,
+  UserSummary,
 } from "@/api/generated/initiativeAPI.schemas";
 
 let counter = 0;
@@ -68,6 +69,21 @@ export function buildUserPublic(overrides: Partial<UserPublic> = {}): UserPublic
     full_name: `User ${counter}`,
     avatar_base64: null,
     avatar_url: null,
+    ...overrides,
+  };
+}
+
+/** The slim projection the member search/typeahead endpoints return — no
+ *  email, role, or timestamps. Use this for picker fixtures so a test can't
+ *  pass on a field the real payload never carries. */
+export function buildUserSummary(overrides: Partial<UserSummary> = {}): UserSummary {
+  counter++;
+  return {
+    id: counter,
+    full_name: `User ${counter}`,
+    avatar_base64: null,
+    avatar_url: null,
+    status: "active",
     ...overrides,
   };
 }

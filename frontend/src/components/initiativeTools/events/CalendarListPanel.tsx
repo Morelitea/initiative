@@ -82,7 +82,7 @@ export const CalendarListPanel = ({
       <section className="space-y-1">
         <div className="flex items-center justify-between">
           <h2 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-            {t("panel.myCalendars")}
+            {t("panel.calendars")}
           </h2>
           {canCreate && (
             <Button

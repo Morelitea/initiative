@@ -1,22 +1,32 @@
 """Validation and normalization for spreadsheet-type documents.
 
-Spreadsheet content is a sparse cell map keyed by ``"row:col"`` strings,
-plus a ``dimensions`` hint, optional formatting structures, and a
-``schema_version`` for forward compatibility. The full live state is
-maintained on the frontend as a set of Y.Maps synced over the existing
-collaboration provider; the JSON shape this module validates is the
-snapshot persisted to ``Document.content`` whenever the room empties (or
-the user creates the document via a non-collab POST/PATCH).
+A spreadsheet document is a *workbook*: an ordered list of sheets, each a
+sparse cell map keyed by ``"row:col"`` strings plus a ``dimensions`` hint
+and optional formatting structures. The full live state is maintained on
+the frontend as a set of Y.Maps synced over the existing collaboration
+provider; the JSON shape this module validates is the snapshot persisted
+to ``Document.content`` whenever the room empties (or the user creates
+the document via a non-collab POST/PATCH).
 
 Schema versions
 ---------------
-* **v1** (legacy): ``{schema_version, kind, dimensions, cells}``.
-* **v2** (current): adds ``columns`` / ``rows`` / ``cellStyles``
-  formatting maps and a ``frozen`` pane hint.
+* **v1** (legacy): ``{schema_version, kind, dimensions, cells}`` — one
+  implicit sheet, no formatting.
+* **v2** (legacy): adds ``columns`` / ``rows`` / ``cellStyles``
+  formatting maps and a ``frozen`` pane hint. Still one implicit sheet.
+* **v3** (current): ``{schema_version, kind, sheets: [...]}``, where each
+  entry carries everything v2 kept at the top level plus an ``id`` and a
+  user-facing ``name``.
 
-Any v1 payload is accepted and **upcast in place** to v2 (empty
-formatting structures) so existing documents keep saving without a data
-migration. The output ``schema_version`` is always the current one.
+A v1/v2 payload is accepted and **upcast** to v3 by reading its top level
+as the workbook's single sheet, so existing documents keep saving without
+a data migration. The output ``schema_version`` is always the current one.
+
+Sheet names are load-bearing, not decoration: a formula addresses another
+sheet by name (``=Sheet2!A1``). They are therefore sanitized (the
+characters Excel forbids are the formula grammar's delimiters), capped at
+Excel's 31 characters, and forced unique case-insensitively — mirroring
+``frontend/src/lib/spreadsheet/sheets.ts``.
 
 Strictness asymmetry (deliberate)
 ---------------------------------
@@ -24,9 +34,12 @@ A non-scalar value in ``cells`` is a data-integrity bug and is rejected
 (422). A malformed *formatting* entry (bad hex, unknown ``align``,
 unknown style key) is dropped silently so a presentational glitch never
 blocks the user's actual data save. A container-type violation
-(``"columns": []``) is still rejected.
+(``"columns": []``) is still rejected. A bad sheet *name* is repaired
+rather than rejected — the cells are what matter, and a name the client
+sends is already the sanitized one in the normal case.
 
-Out of scope here: formulas, multiple sheets.
+Out of scope here: formulas, which are stored as opaque ``=``-prefixed
+strings and evaluated client-side.
 """
 
 from __future__ import annotations
@@ -38,15 +51,28 @@ from app.core.messages import DocumentMessages
 from app.services.tenant.documents import DocumentContentError
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 """Current snapshot shape. Bump on breaking changes."""
 
-SUPPORTED_SCHEMA_VERSIONS = (1, 2)
-"""Inbound versions we accept. Anything else is a hard reject. v1 is
-upcast to ``SCHEMA_VERSION`` transparently."""
+SUPPORTED_SCHEMA_VERSIONS = (1, 2, 3)
+"""Inbound versions we accept. Anything else is a hard reject. v1 and v2
+are upcast to ``SCHEMA_VERSION`` transparently."""
 
 MAX_ROWS = 100_000
 MAX_COLS = 1_000
+
+MAX_SHEETS = 64
+"""Sheets per workbook. Not an Excel limit — a bound on how large a single
+``document.content`` blob can get, since the whole workbook is PATCHed as
+one payload."""
+
+MAX_SHEET_NAME = 31
+"""Excel's sheet-name limit; honoring it means an xlsx export never has to
+silently rename a sheet."""
+
+DEFAULT_SHEET_ID = "s1"
+"""Id of the implicit sheet a v1/v2 payload upcasts into. Fixed (not
+random) so the upcast is deterministic and repeatable."""
 
 MIN_COL_WIDTH = 24
 MAX_COL_WIDTH = 2_000
@@ -73,13 +99,13 @@ _BORDER_EDGES = ("top", "right", "bottom", "left")
 
 
 def normalize_spreadsheet_content(payload: Any) -> dict[str, Any]:
-    """Coerce an inbound payload into the canonical v2 spreadsheet shape.
+    """Coerce an inbound payload into the canonical v3 workbook shape.
 
     Accepts ``None`` / non-dict payloads as the empty spreadsheet (the
     same forgiving behavior whiteboard uses for fresh docs). Otherwise
     walks the payload, rejects anything that violates the cell / container
-    invariants, drops malformed formatting entries, upcasts v1 → v2, and
-    returns a sanitized dict.
+    invariants, drops malformed formatting entries, upcasts v1/v2 → v3,
+    and returns a sanitized dict.
     """
     if not isinstance(payload, dict):
         return _empty_snapshot()
@@ -92,6 +118,44 @@ def normalize_spreadsheet_content(payload: Any) -> dict[str, Any]:
         or isinstance(schema_version, bool)
         or schema_version not in SUPPORTED_SCHEMA_VERSIONS
     ):
+        raise DocumentContentError(DocumentMessages.SPREADSHEET_INVALID_PAYLOAD)
+
+    sheets_in = payload.get("sheets")
+    if sheets_in is None:
+        # v1 / v2: the document's top level *is* the one and only sheet.
+        entries: list[Any] = [payload]
+    elif isinstance(sheets_in, list):
+        # An explicitly empty list still has to produce a usable document —
+        # an editor with no sheet has nothing to render.
+        entries = sheets_in[:MAX_SHEETS] or [{}]
+    else:
+        raise DocumentContentError(DocumentMessages.SPREADSHEET_INVALID_PAYLOAD)
+
+    sheets_out: list[dict[str, Any]] = []
+    used_ids: set[str] = set()
+    used_names: set[str] = set()
+    for index, entry in enumerate(entries):
+        sheets_out.append(_normalize_sheet(entry, index, used_ids, used_names))
+
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "kind": "spreadsheet",
+        "sheets": sheets_out,
+    }
+
+
+def _normalize_sheet(
+    payload: Any,
+    index: int,
+    used_ids: set[str],
+    used_names: set[str],
+) -> dict[str, Any]:
+    """Normalize one sheet. The same call handles a v3 ``sheets[i]`` entry
+    and a v1/v2 document's top level — which is precisely the upcast, since
+    the old shape already *was* a sheet."""
+    if payload is None:
+        payload = {}
+    if not isinstance(payload, dict):
         raise DocumentContentError(DocumentMessages.SPREADSHEET_INVALID_PAYLOAD)
 
     # Use ``.get(...)`` directly (no ``or {}`` shortcut) so falsy non-dict
@@ -154,8 +218,8 @@ def normalize_spreadsheet_content(payload: Any) -> dict[str, Any]:
     frozen = _normalize_frozen(payload.get("frozen", {}), rows_dim=rows, cols_dim=cols)
 
     return {
-        "schema_version": SCHEMA_VERSION,
-        "kind": "spreadsheet",
+        "id": _unique_sheet_id(payload.get("id"), index, used_ids),
+        "name": _unique_sheet_name(payload.get("name"), index, used_names),
         "dimensions": {"rows": rows, "cols": cols},
         "cells": cells_out,
         "columns": columns,
@@ -169,13 +233,72 @@ def _empty_snapshot() -> dict[str, Any]:
     return {
         "schema_version": SCHEMA_VERSION,
         "kind": "spreadsheet",
-        "dimensions": {"rows": 100, "cols": 26},
-        "cells": {},
-        "columns": {},
-        "rows": {},
-        "cellStyles": {},
-        "frozen": {"rows": 0, "cols": 0},
+        "sheets": [
+            {
+                "id": DEFAULT_SHEET_ID,
+                "name": "Sheet1",
+                "dimensions": {"rows": 100, "cols": 26},
+                "cells": {},
+                "columns": {},
+                "rows": {},
+                "cellStyles": {},
+                "frozen": {"rows": 0, "cols": 0},
+            }
+        ],
     }
+
+
+# Characters Excel rejects in a sheet name — the same ones the formula
+# grammar uses as delimiters. ``'`` is legal inside a name but not at
+# either edge, since it is the quoting character.
+_SHEET_NAME_FORBIDDEN = re.compile(r"[\[\]:*?/\\]")
+_SHEET_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+
+def _unique_sheet_id(value: Any, index: int, used: set[str]) -> str:
+    """Keep the client's id when it's well-formed and unshadowed, else mint
+    a positional one. Ids are opaque and never shown, so repairing beats
+    rejecting — but they must be unique, since each one owns a Yjs
+    container on the client."""
+    candidate = value if isinstance(value, str) and _SHEET_ID_RE.match(value) else ""
+    if not candidate or candidate in used:
+        candidate = DEFAULT_SHEET_ID if index == 0 else f"s{index + 1}"
+    suffix = 0
+    base = candidate
+    while candidate in used:
+        suffix += 1
+        candidate = f"{base}_{suffix}"
+    used.add(candidate)
+    return candidate
+
+
+def _sanitize_sheet_name(value: Any) -> str:
+    """Drop forbidden characters, collapse whitespace, trim edge quotes,
+    and cap the length. ``""`` when nothing usable is left."""
+    if not isinstance(value, str):
+        return ""
+    cleaned = _SHEET_NAME_FORBIDDEN.sub("", value)
+    cleaned = " ".join(cleaned.split()).strip("'").strip()
+    # Slicing can re-expose a trailing space or quote.
+    return cleaned[:MAX_SHEET_NAME].rstrip("' ")
+
+
+def _unique_sheet_name(value: Any, index: int, used: set[str]) -> str:
+    """Sanitize, then de-duplicate case-insensitively — a formula resolves
+    a sheet name case-insensitively, so two sheets sharing one (in any
+    casing) would make ``=Sheet2!A1`` ambiguous."""
+    name = _sanitize_sheet_name(value) or f"Sheet{index + 1}"
+    if name.casefold() not in used:
+        used.add(name.casefold())
+        return name
+    counter = 2
+    while True:
+        suffix = f" {counter}"
+        candidate = f"{name[: MAX_SHEET_NAME - len(suffix)].strip()}{suffix}"
+        if candidate.casefold() not in used:
+            used.add(candidate.casefold())
+            return candidate
+        counter += 1
 
 
 def _coerce_dim(value: Any, *, default: int, cap: int) -> int:

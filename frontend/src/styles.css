@@ -539,5 +539,9 @@ html.pride [data-slot="button"].bg-primary:hover {
 .robot-toast-bottom-center,
 .robot-toast-bottom-left,
 .robot-toast-bottom-right {
+  /* biome-ignore lint/complexity/noImportantStyles: robot-toast injects its own
+     rules for this container at runtime under the higher-specificity
+     `.robot-toast-wrapper.robot-toast-bottom-*`, so the override has to outrank
+     a stylesheet we don't control. */
   margin-bottom: calc(4.5rem + var(--safe-area-inset-bottom, 0px)) !important;
 }
