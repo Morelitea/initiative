@@ -29,12 +29,18 @@ from app.core.security import (
 )
 from app.models.tenant.advanced_tool import AdvancedTool
 from app.models.tenant.calendar import Calendar
+from app.models.platform.marketplace import (
+    MarketplaceListing,
+    UID_ALPHABET,
+    UID_LENGTH,
+)
 from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
 from app.models.tenant.document import Document, DocumentType
 from app.models.platform.guild import Guild, GuildMembership, GuildRole
+from app.services.marketplace import catalog as marketplace_catalog
 from app.services.tenant.dashboard_definition import (
     normalize_dashboard_definition,
 )
@@ -837,6 +843,72 @@ async def create_calendar(
         await session.commit()
 
     return calendar
+
+
+def marketplace_uid(label: str) -> str:
+    """A valid catalog uid from a readable label.
+
+    Crockford base32 leaves out I, L, O and U so a code can be transcribed by
+    hand — which makes most words unusable verbatim. This drops the letters the
+    alphabet does not have and pads to length, so a test can say what a listing
+    is instead of carrying an opaque literal.
+    """
+    kept = [c for c in label.upper() if c in UID_ALPHABET]
+    return "".join(kept)[:UID_LENGTH].ljust(UID_LENGTH, "0")
+
+
+async def create_marketplace_listing(
+    session: AsyncSession,
+    *,
+    uid: str = "TEST0000000001",
+    public_id: str = "test.listing",
+    kind: str = "dashboard",
+    version: str = "1.0.0",
+    definition: dict[str, Any] | None = None,
+    min_app_version: str | None = None,
+    available: bool = True,
+    commit: bool = True,
+    **overrides: Any,
+) -> MarketplaceListing:
+    """A catalog listing with one published version.
+
+    Built through the real upsert, so a test listing is held to the same
+    validation a shipped or downloaded one is — a definition this build cannot
+    render fails here rather than in the assertion.
+    """
+    manifest = {
+        "uid": uid,
+        "public_id": public_id,
+        "kind": kind,
+        "name": overrides.pop("name", "Test listing"),
+        "publisher": overrides.pop("publisher", "Tests"),
+        "description": overrides.pop("description", "A listing for tests."),
+        "avatar_url": overrides.pop("avatar_url", "/marketplace/test.svg"),
+        "version": version,
+        "min_app_version": min_app_version,
+        "definition": definition
+        if definition is not None
+        else {
+            "widgets": [
+                {
+                    "id": "w1",
+                    "type": "stat",
+                    "binding": {"source": "task_counts"},
+                }
+            ]
+        },
+        **overrides,
+    }
+    listing = await marketplace_catalog.upsert_listing(
+        session, manifest, source="builtin"
+    )
+    if not available:
+        listing.available = False
+        session.add(listing)
+    if commit:
+        await session.commit()
+        await session.refresh(listing)
+    return listing
 
 
 async def create_dashboard(

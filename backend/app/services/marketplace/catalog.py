@@ -43,6 +43,7 @@ __all__ = [
     "get_listing_by_uid",
     "get_listing_version",
     "resolve_installable_version",
+    "listing_versions",
     "upsert_listing",
     "bump_installs_count",
     "version_is_compatible",
@@ -301,6 +302,19 @@ async def upsert_listing(
     session.add(listing)
     await session.flush()
     return listing
+
+
+async def listing_versions(
+    session: AsyncSession, listing_id: int
+) -> Sequence[MarketplaceListingVersion]:
+    """Every published version of a listing, newest first."""
+    return (
+        await session.exec(
+            select(MarketplaceListingVersion)
+            .where(MarketplaceListingVersion.listing_id == listing_id)
+            .order_by(MarketplaceListingVersion.published_at.desc())
+        )
+    ).all()
 
 
 async def bump_installs_count(session: AsyncSession, listing_id: int) -> None:
