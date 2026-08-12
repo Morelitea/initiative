@@ -241,11 +241,10 @@ def _normalize_grid(raw: Any, spec: WidgetSpec) -> dict[str, int]:
 #: an initiative, so those come from the row it lives on rather than from
 #: something an author or an installed listing typed.
 #:
-#: Every source shipping at launch reads within one initiative, so this costs
-#: nothing today and keeps a definition from naming an initiative other than its
-#: own. A later source that genuinely spans initiatives would need its scope
-#: expressed some other way — as part of that source's own contract, decided
-#: then, rather than by re-opening a free-form id here.
+#: Every source shipping at launch reads within one initiative, so a definition
+#: has nothing to express here. A later source that genuinely spans initiatives
+#: would state its scope as part of that source's own contract, decided then,
+#: rather than by re-opening a free-form id here.
 _CONTEXT_ONLY_PARAMS = frozenset({"initiative_id", "guild_id"})
 
 

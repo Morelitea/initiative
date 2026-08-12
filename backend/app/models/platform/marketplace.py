@@ -2,9 +2,8 @@
 
 Two `public` tables. They hold catalog metadata only: a listing's identity,
 its artwork, and the reference definition at each published version. There is
-deliberately **no `guild_id` column anywhere here** — the catalog must never
-record who installed what, so a listing row carries nothing attributable and no
-tenant data crosses into `public`.
+deliberately **no `guild_id` column anywhere here** — installs are per-guild
+data and stay in the guild's own schema, so the catalog carries none of it.
 
 Guild-schema serials restart per guild, so a shared surface cannot key anything
 off a local id. `uid` is the catalog's answer: a publisher-assigned, immutable
@@ -49,8 +48,8 @@ class MarketplaceListing(SQLModel, table=True):
     # The catalog UPC. Assigned by the publisher and carried in the manifest —
     # minting it per deployment would make the code deployment-specific, so a
     # shared link or a printed code would resolve to nothing anywhere else.
-    # UNIQUE, so a second listing claiming a taken uid is rejected and logged
-    # rather than overwriting the holder: fail-closed, first claim wins.
+    # UNIQUE and never reassigned: a uid keeps meaning the listing it was first
+    # published for.
     uid: str = Field(sa_column=Column(String(UID_LENGTH), nullable=False, unique=True))
     # Human-readable identity: 'core.project-health', '<publisher>.<slug>'.
     public_id: str = Field(sa_column=Column(String(120), nullable=False, unique=True))
@@ -88,9 +87,8 @@ class MarketplaceListing(SQLModel, table=True):
             nullable=True,
         ),
     )
-    # A cumulative count of installs on this deployment, and nothing else — no
-    # guild is recorded, so it stays a number rather than tenant data.
-    # Uninstalling does not decrement.
+    # A cumulative count of installs on this deployment. Just the number: no
+    # guild is recorded. Uninstalling does not decrement.
     installs_count: int = Field(
         default=0, sa_column=Column(Integer, nullable=False, server_default="0")
     )

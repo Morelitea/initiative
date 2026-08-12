@@ -7,9 +7,8 @@ a body is acceptable, and it does so by handing off to the *same* validator the
 guild-scoped API uses: a downloaded dashboard is normalized by
 ``dashboard_definition``, exactly like one authored by hand.
 
-That reuse is the point. There is no second, laxer path for catalog content, so
-a listing cannot name a widget type we have no renderer for, a source we have no
-fetcher for, or an initiative other than the one it is installed into.
+That reuse is the point: catalog content is held to the same widget and binding
+vocabulary as anything authored in the app, by the same code.
 """
 
 from __future__ import annotations

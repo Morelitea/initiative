@@ -3,9 +3,8 @@
 Two properties carry the weight here.
 
 The first is that installing is a *server-side copy*. A client names a listing;
-it never sends the body. So the definition that lands in a guild's schema is the
-one the catalog published and the tool's validator accepted, and there is no
-request shape that can smuggle a different one in under a listing's name.
+the body comes from the catalog row, so what lands in a guild's schema is the
+definition that listing published.
 
 The second is that nothing is ever pushed. A new version sits in the catalog
 until someone with write access on that one dashboard asks for it, and applying
@@ -83,9 +82,9 @@ class TestInstall:
     async def test_the_body_comes_from_the_catalog_not_the_request(
         self, client: AsyncClient, acting_user, session, listing
     ):
-        """Naming a listing and *also* sending a definition must not install the
-        definition. Otherwise 'installed from X' would be a claim a client makes
-        rather than something the server did."""
+        """Naming a listing and *also* sending a definition installs the
+        listing's. Provenance records what the server resolved, not what the
+        request contained."""
         a = await acting_user(guild_role=GuildRole.admin, initiative=True)
         await _enable(session, a.initiative)
 
@@ -174,7 +173,8 @@ class TestInstall:
     async def test_installing_still_needs_the_create_permission(
         self, client: AsyncClient, acting_user, session, listing
     ):
-        """The marketplace is not a way around the tool's own gates."""
+        """Installing is subject to the tool's own create gate, like any other
+        way of adding a dashboard."""
         a = await acting_user(guild_role=GuildRole.admin, initiative=True)
         await _enable(session, a.initiative)
         b = await acting_user(
@@ -384,12 +384,10 @@ class TestCatalogIsolation:
         self, role_session, acting_user, session, listing
     ):
         """The install path reads the catalog under whatever role the request
-        already has. That role needs SELECT — and must have nothing else, or a
-        guild admin installing a listing could edit what the listing says for
-        every other guild on the deployment.
+        already has, and that role's access to the catalog is read-only.
 
         Exercised through the real login role rather than the superuser-backed
-        `session` fixture, which would hide exactly this.
+        `session` fixture, which would not show the difference.
         """
         a = await acting_user(guild_role=GuildRole.admin, initiative=True)
         await _enable(session, a.initiative)
@@ -411,7 +409,7 @@ class TestCatalogIsolation:
             await routed.execute(
                 text(
                     "UPDATE public.marketplace_listings "
-                    "SET description = 'owned' WHERE uid = :u"
+                    "SET description = 'rewritten' WHERE uid = :u"
                 ),
                 {"u": INSTALL_UID},
             )
@@ -424,9 +422,9 @@ class TestCatalogIsolation:
                     "(uid, public_id, kind, source, name, publisher, description, "
                     " avatar_url, images, installs_count, available, created_at, "
                     " updated_at) "
-                    "VALUES ('FAKE0000000001', 'evil.listing', 'dashboard', "
-                    "'registry', 'Evil', 'Attacker', 'x', '/x.svg', '[]', 0, true, "
-                    "now(), now())"
+                    "VALUES ('FAKE0000000001', 'tests.unwritable', 'dashboard', "
+                    "'registry', 'Unwritable', 'Tests', 'x', '/x.svg', '[]', 0, "
+                    "true, now(), now())"
                 )
             )
         await routed.rollback()

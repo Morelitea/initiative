@@ -1,10 +1,8 @@
 """Browsing the catalog over HTTP.
 
-The catalog is platform-addressed and holds no tenant data, so any authenticated
-session may read it — including a platform `member`, which is the floor. What it
-must never do is become a way to learn about other people's guilds, and the shape
-that guarantees it is structural: there is no guild column to leak, and no write
-route at all.
+The catalog is platform-addressed and holds catalog metadata only, so any
+authenticated session may read it — including a platform `member`, which is the
+floor. The shape is structural: no guild column, and no write route.
 """
 
 import pytest
@@ -56,8 +54,8 @@ class TestBrowse:
             for item in response.json()["items"]
             if item["public_id"] == "tests.browse"
         )
-        # Structural, not incidental: the catalog has no column that could say
-        # who installed this, so no payload built from it can.
+        # Structural, not incidental: the catalog has no column naming a
+        # guild, so no payload built from it carries one.
         assert not any("guild" in key for key in card)
         assert card["installs_count"] == 0
 
@@ -150,6 +148,6 @@ class TestNoWrites:
         response = await client.request(
             method, "/api/v1/marketplace/listings", headers=actor.headers, json={}
         )
-        # 405, not 403: there is no writer to authorize. The catalog's only
-        # writer is the system engine.
+        # 405, not 403: there is no write route to authorize. The catalog's
+        # only writer is the system engine.
         assert response.status_code == 405

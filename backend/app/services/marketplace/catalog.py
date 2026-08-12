@@ -10,8 +10,7 @@ Two audiences, and the split between them is the security shape of this module:
 
 Everything a publisher supplies is validated before it lands: the uid's shape,
 the ``public_id``'s, the version string's, and the definition's — the last by the
-same validator the guild-scoped API uses, so catalog content is held to the tool's
-own vocabulary rather than a laxer parallel one.
+same validator the guild-scoped API uses.
 """
 
 from __future__ import annotations
@@ -221,9 +220,10 @@ async def upsert_listing(
     """Create or update one listing and the version its manifest describes.
 
     Idempotent by ``uid``: re-seeding the same manifest updates metadata in place
-    and leaves the version rows alone unless the version's body changed. A uid
-    already held by a *different* ``public_id`` is refused — first claim wins, so
-    a later publisher cannot take over an installed listing's identity.
+    and leaves the version rows alone. Both identities are unique and neither is
+    reassignable — a uid already held by a different ``public_id`` is refused,
+    and vice versa, so a uid keeps meaning the listing it was first published
+    for.
     """
     if source not in _SOURCES:
         raise CatalogError(f"unknown listing source {source!r}")
@@ -316,15 +316,13 @@ async def upsert_listing(
         or version.release_notes != release_notes
         or version.min_app_version != min_app_version
     ):
-        # A published version is immutable. Two reasons, and the second is why
-        # this is an error rather than an overwrite:
+        # A published version is immutable, for two reasons:
         #
         #   * instances *pin* a version, and the upgrade path has nothing to
         #     offer an instance already on this one — so a changed body under an
-        #     unchanged version could never reach anybody who installed it;
-        #   * the catalog is shared. `uid` + version has to name the same thing
-        #     on every deployment, or a code someone shares resolves to
-        #     different content depending on where it is redeemed.
+        #     unchanged version would never reach whoever installed it;
+        #   * the catalog is shared, so `uid` + version has to name the same
+        #     content on every deployment for a shared code to be meaningful.
         #
         # Correcting a listing means publishing a new version. Its name, blurb
         # and artwork are listing-level and stay editable without one.

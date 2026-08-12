@@ -1,11 +1,9 @@
 """Browsing the marketplace.
 
 Platform-addressed on purpose: the marketplace is one shared experience with
-globally unique identifiers, so these routes take no guild segment. That is safe
-because the catalog holds no tenant data — a listing row has no ``guild_id`` and
-cannot record who installed it — and it is why "which of these do I already
-have?" is answered by the guild-scoped tool endpoints and merged in the client,
-rather than by asking the catalog a question it must not be able to answer.
+globally unique identifiers, so these routes take no guild segment. The catalog
+holds catalog metadata only, which is why "which of these do I already have?" is
+answered by the guild-scoped tool endpoints and merged in the client.
 
 Read-only. The catalog's only writer is the system engine (boot seeding, and
 later the registry refresh); installing writes a guild's own schema through the

@@ -12,8 +12,8 @@ Access shape:
   ``app_guild_base`` and a single permissive SELECT policy covers them.
 * **write** by the system engine only (boot seeding, and later the registry
   refresh job). The schema default-grants the base/login roles full DML on every
-  new ``public`` table, so those are revoked back to SELECT here and no write
-  policy exists — a user-routed session is refused twice over.
+  new ``public`` table, so those are revoked back to SELECT here, and the tables
+  carry a read policy only.
 """
 
 import sqlalchemy as sa
@@ -110,8 +110,9 @@ def upgrade() -> None:
             [
                 f"ALTER TABLE public.{table} ENABLE ROW LEVEL SECURITY",
                 f"ALTER TABLE public.{table} FORCE ROW LEVEL SECURITY",
-                # Wind the schema's default grants back to reads. The catalog is
-                # public-to-any-session data, but only the system engine writes it.
+                # Wind the schema's default grants back to reads: the catalog
+                # is readable by any routed session, written by the system
+                # engine alone.
                 f"REVOKE ALL ON TABLE public.{table} "
                 f'FROM app_guild_base, "{base}", app_user',
                 f'GRANT SELECT ON TABLE public.{table} TO app_guild_base, "{base}"',
@@ -123,8 +124,9 @@ def upgrade() -> None:
                 f'FROM app_guild_base, "{base}", app_user',
                 f"GRANT USAGE, SELECT ON SEQUENCE public.{table}_id_seq TO app_admin",
                 f"DROP POLICY IF EXISTS {table}_read ON public.{table}",
-                # One read policy, no write policy: a routed session can browse
-                # the catalog and resolve a listing, and can never author one.
+                # A read policy and no write policy: a routed session browses
+                # the catalog and resolves a listing, and writes go through the
+                # system engine.
                 f"CREATE POLICY {table}_read ON public.{table} "
                 "AS PERMISSIVE FOR SELECT "
                 f'TO app_guild_base, "{base}" USING (true)',

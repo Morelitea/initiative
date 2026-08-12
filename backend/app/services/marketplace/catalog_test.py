@@ -41,13 +41,13 @@ def _manifest(**overrides):
 
 class TestIdentity:
     async def test_a_uid_cannot_be_taken_from_its_holder(self, session):
-        """The whole point of a shared code is that it resolves to one product.
-        A second publisher claiming a live uid is refused, not merged."""
+        """A shared code resolves to one product, so a uid already in use is
+        refused rather than merged into."""
         await service.upsert_listing(session, _manifest(), source="builtin")
         with pytest.raises(CatalogError, match="refusing to reassign"):
             await service.upsert_listing(
                 session,
-                _manifest(public_id="someone-else.hijack"),
+                _manifest(public_id="another.publisher"),
                 source="registry",
             )
 
@@ -110,7 +110,7 @@ class TestDefinitions:
                             {
                                 "id": "w1",
                                 "type": "stat",
-                                "binding": {"source": "https://evil.test/steal"},
+                                "binding": {"source": "https://example.test/x"},
                             }
                         ]
                     }

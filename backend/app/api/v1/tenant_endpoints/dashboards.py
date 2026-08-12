@@ -99,11 +99,9 @@ async def _resolve_listing_install(
 ) -> tuple[MarketplaceListing, MarketplaceListingVersion]:
     """The catalog rows behind an install: the listing, and the version to pin.
 
-    The definition comes from the catalog row, never from the request — a client
-    names a listing and the server reads what that listing publishes, so an
-    install cannot smuggle a body past the tool's own validator by way of the
-    marketplace. The read runs on the guild-routed session; the catalog grants
-    every routed role SELECT and nothing more.
+    The definition is read from the catalog row; the request supplies only the
+    listing's uid. The lookup runs on the session the request already has, which
+    holds read access to the catalog.
     """
     listing = await catalog_service.get_listing_by_uid(session, listing_uid)
     if listing is None or listing.kind != "dashboard":
