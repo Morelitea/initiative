@@ -67,9 +67,18 @@ describe("MarketplaceBrowsePage", () => {
   });
 
   it("asks the catalog only for dashboards", async () => {
+    // Defaulted by the page itself: `useSearch({ strict: false })` does not run
+    // the route's validation, so a page that leaned on it would drop the filter
+    // and mix apps into the grid.
     renderPage(MarketplaceBrowsePage);
     await screen.findByText("Sprint health");
     expect(listingsFor).toHaveBeenCalledWith(expect.objectContaining({ kind: "dashboard" }));
+  });
+
+  it("asks for apps on the apps shelf", async () => {
+    renderPage(MarketplaceBrowsePage, { routerSearch: { kind: "app" } });
+    await screen.findByText("Sprint health");
+    expect(listingsFor).toHaveBeenCalledWith(expect.objectContaining({ kind: "app" }));
   });
 
   it("marks a listing this guild already installed", async () => {

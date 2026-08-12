@@ -29,9 +29,15 @@ const SKELETON_KEYS = ["a", "b", "c", "d", "e", "f"];
 
 export function MarketplaceBrowsePage() {
   const { t } = useTranslation("marketplace");
-  // Which shelf: dashboards, or the apps a guild admin adds. The route
-  // normalizes anything unexpected back to dashboards.
-  const { kind } = useSearch({ strict: false }) as { kind?: "dashboard" | "app" };
+  // Which shelf: dashboards, or the apps a guild admin adds.
+  //
+  // Defaulted here, not left to the route. `useSearch({ strict: false })` reads
+  // the params as they are — it does not run the route's `validateSearch` — so
+  // relying on that default would mean the filter silently disappears anywhere
+  // the page is mounted another way, and the grid would mix apps into the
+  // dashboards.
+  const search_ = useSearch({ strict: false }) as { kind?: "dashboard" | "app" };
+  const kind = search_.kind ?? "dashboard";
   const [query, setQuery] = useState("");
   // The catalog is a network call per keystroke otherwise, and the grid keeps
   // the previous page while the next one loads.
