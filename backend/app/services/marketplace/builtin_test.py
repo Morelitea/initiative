@@ -97,7 +97,9 @@ class TestConditionalListing:
     async def test_a_configured_deployment_offers_it_under_its_own_name(
         self, session, advanced_tool_configured, monkeypatch
     ):
-        """The operator named this thing once; the catalog says the same."""
+        """The operator named this thing once; the catalog says the same —
+        including in the blurbs, which speak the name rather than "the
+        service"."""
         monkeypatch.setattr(settings, "ADVANCED_TOOL_NAME", "Automations")
 
         await seed_builtin_listings(session)
@@ -106,6 +108,25 @@ class TestConditionalListing:
         listing = (await _seeded(session))[ADVANCED_TOOL_PUBLIC_ID]
         assert listing.name == "Automations"
         assert listing.available is True
+        assert "Automations" in listing.description
+        assert "Automations" in (listing.long_description or "")
+        for text in (listing.description, listing.long_description or ""):
+            assert "{name}" not in text
+
+    async def test_the_name_token_never_ships_unfilled(
+        self, session, advanced_tool_configured, monkeypatch
+    ):
+        """URL set, name skipped: the manifest's own name fills the token, so
+        the copy still reads as prose."""
+        monkeypatch.setattr(settings, "ADVANCED_TOOL_NAME", None)
+
+        await seed_builtin_listings(session)
+        await session.commit()
+
+        listing = (await _seeded(session))[ADVANCED_TOOL_PUBLIC_ID]
+        assert "{name}" not in listing.description
+        assert "{name}" not in (listing.long_description or "")
+        assert listing.name in listing.description
 
     async def test_removing_the_configuration_withdraws_it(
         self, session, monkeypatch, advanced_tool_configured
