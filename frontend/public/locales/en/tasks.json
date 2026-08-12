@@ -125,7 +125,7 @@
     "pin": "Pin to Focus",
     "unpin": "Remove from Focus",
     "settings": "Focus settings",
-    "dueWithinLabel": "Show work due",
+    "dueWithinLabel": "Show work due or starting",
     "dueWithin": {
       "0": "Today",
       "2": "Next 2 days",

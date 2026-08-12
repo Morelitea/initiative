@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The pre-0.53.5 copies of guild data in the shared database schema are gone.** Installs that predate 0.53.5 kept a frozen second copy of every project, task, document and so on from before guilds moved into their own database schemas. Nothing has read or written it since; upgrading now drops it. Guild data lives solely in that guild's own schema. Installs created on 0.53.5 or later never had these copies and are unaffected. **This upgrade cannot be rolled back** — take a backup first if you would rather keep the old rows around, and if you are upgrading from before 0.53.2, boot a 0.53.x release once on the way through as its startup notice instructs.
 
+### Fixed
+
+- **The Focus list on My Tasks stayed empty even with overdue work waiting.** It only counted tasks someone had moved to To Do or In Progress, and Backlog is where a new task starts — so on an ordinary setup it had nothing to show. It now looks at every unfinished task, whatever column it sits in. It also reads dates the way the task table beneath it does: work whose start date has arrived belongs on the list even if nobody gave it a due date.
+
 ## [0.61.3] - 2026-08-11
 
 ### Fixed
