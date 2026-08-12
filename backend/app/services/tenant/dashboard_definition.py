@@ -144,6 +144,16 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
         default_h=5,
         sources=frozenset({"tasks", "projects", "sheet_range", "calendar_entries"}),
     ),
+    # Open work per person, split by status — including an "Unassigned" column,
+    # so orphaned work is visible rather than vanishing.
+    "workload": WidgetSpec(
+        min_w=4,
+        min_h=3,
+        default_w=6,
+        default_h=4,
+        sources=frozenset({"tasks"}),
+        options={"stacked": frozenset({"true", "false"})},
+    ),
 }
 
 # Derived, so a source is named exactly once — on the widgets that render it.

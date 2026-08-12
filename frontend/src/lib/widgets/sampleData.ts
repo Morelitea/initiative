@@ -77,6 +77,35 @@ const tasks: WidgetSample = {
     ],
   },
   empty: { source: "tasks", rows: [] },
+  variants: {
+    // A staffed team rather than the base sample's three rows, so the preview
+    // shows what the widget is for: uneven loads, a to-do/in-progress split,
+    // a shared task, an unassigned column, and finished work that stays out
+    // of the picture — all deterministic.
+    workload: {
+      source: "tasks",
+      rows: Array.from({ length: 30 }, (_, index) => {
+        const team = ["Ada", "Grace", "Alan", "Barbara", "Edsger", "Katherine"];
+        const done = index >= 26;
+        const inProgress = index % 3 !== 0;
+        const assignees = done || index % 9 !== 8 ? [team[(index * 5) % team.length]] : [];
+        if (index % 7 === 2) assignees.push(team[(index * 5 + 1) % team.length]);
+        return {
+          id: 300 + index,
+          title: `Task ${index + 1}`,
+          status: done ? "Done" : inProgress ? "In progress" : "To do",
+          statusCategory: done ? "done" : inProgress ? "in_progress" : "todo",
+          priority: (["high", "medium", "low", null] as const)[index % 4],
+          startDate: T0 - (index % 8) * DAY,
+          dueDate: T0 + (index % 12) * DAY,
+          completedAt: done ? T0 - (index % 5) * DAY : null,
+          projectId: 10,
+          projectName: "Apollo",
+          assignees,
+        };
+      }),
+    },
+  },
 };
 
 const projects: WidgetSample = {
@@ -258,4 +287,5 @@ export const SOURCES_BY_WIDGET: Record<string, WidgetSource[]> = {
   progress: ["counter", "task_counts", "projects"],
   heatmap: ["task_counts"],
   table: ["tasks", "projects", "sheet_range", "calendar_entries"],
+  workload: ["tasks"],
 };

@@ -20,6 +20,7 @@ import heatmapSource from "./builtins/heatmap.widget.js?raw";
 import progressSource from "./builtins/progress.widget.js?raw";
 import statSource from "./builtins/stat.widget.js?raw";
 import tableSource from "./builtins/table.widget.js?raw";
+import workloadSource from "./builtins/workload.widget.js?raw";
 
 /**
  * Module source per built-in type — and *only* that. Which sources a widget may
@@ -35,6 +36,7 @@ export const BUILTIN_WIDGETS: Record<string, string> = {
   progress: progressSource,
   heatmap: heatmapSource,
   table: tableSource,
+  workload: workloadSource,
 };
 
 export const BUILTIN_WIDGET_TYPES = Object.keys(BUILTIN_WIDGETS);
