@@ -135,6 +135,15 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
         default_h=3,
         sources=frozenset({"task_counts"}),
     ),
+    # Ranked standings — who has finished the most, or the largest buckets of
+    # whatever a count grouped by.
+    "leaderboard": WidgetSpec(
+        min_w=3,
+        min_h=3,
+        default_w=4,
+        default_h=5,
+        sources=frozenset({"tasks", "task_counts"}),
+    ),
     # A plain read-only table. Display only, like every widget: no row actions,
     # no inline editing — that is a project view's job, not a dashboard's.
     "table": WidgetSpec(

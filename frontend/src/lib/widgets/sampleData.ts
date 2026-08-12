@@ -77,6 +77,33 @@ const tasks: WidgetSample = {
     ],
   },
   empty: { source: "tasks", rows: [] },
+  variants: {
+    // A larger team than the base rows carry, so the standings preview as a
+    // real ranking: seven people with varied done/open splits, a task shared
+    // by two of them every fifth row — all deterministic.
+    leaderboard: {
+      source: "tasks",
+      rows: Array.from({ length: 28 }, (_, index) => {
+        const team = ["Ada", "Grace", "Alan", "Barbara", "Edsger", "Katherine", "Margaret"];
+        const done = index % 3 !== 0;
+        const assignees = [team[index % team.length]];
+        if (index % 5 === 0) assignees.push(team[(index + 3) % team.length]);
+        return {
+          id: 100 + index,
+          title: `Task ${index + 1}`,
+          status: done ? "Done" : "In progress",
+          statusCategory: done ? "done" : "in_progress",
+          priority: (["high", "medium", "low", null] as const)[index % 4],
+          startDate: T0 - (index % 10) * DAY,
+          dueDate: T0 + (index % 14) * DAY,
+          completedAt: done ? T0 - (index % 21) * DAY : null,
+          projectId: 10,
+          projectName: "Apollo",
+          assignees,
+        };
+      }),
+    },
+  },
 };
 
 const projects: WidgetSample = {
@@ -257,5 +284,6 @@ export const SOURCES_BY_WIDGET: Record<string, WidgetSource[]> = {
   funnel: ["task_counts", "sheet_range"],
   progress: ["counter", "task_counts", "projects"],
   heatmap: ["task_counts"],
+  leaderboard: ["tasks", "task_counts"],
   table: ["tasks", "projects", "sheet_range", "calendar_entries"],
 };

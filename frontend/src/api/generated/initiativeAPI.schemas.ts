@@ -4325,6 +4325,7 @@ export const WidgetType = {
   funnel: "funnel",
   gantt: "gantt",
   heatmap: "heatmap",
+  leaderboard: "leaderboard",
   progress: "progress",
   stat: "stat",
   table: "table",
