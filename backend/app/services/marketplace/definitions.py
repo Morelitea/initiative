@@ -23,6 +23,8 @@ from app.services.tenant.dashboard_definition import (
 __all__ = [
     "ListingDefinitionError",
     "LISTING_KINDS",
+    "APP_KINDS",
+    "MOUNTABLE_TOOLS",
     "normalize_listing_definition",
 ]
 
@@ -33,10 +35,53 @@ class ListingDefinitionError(ValueError):
     to an end user."""
 
 
-#: Kinds the catalog can hold. ``app`` is declared here so a manifest carrying
-#: one is rejected with a clear reason rather than silently accepted, until the
-#: guild-apps phase gives it a validator.
+#: Kinds the catalog can hold.
 LISTING_KINDS: frozenset[str] = frozenset({"dashboard", "app"})
+
+#: How an app presents itself.
+#:
+#: ``tool_instance`` mounts one of the app's own tools at guild scope — the app
+#: creates an ordinary row in an ordinary table and the existing UI renders it.
+#: ``embed`` hosts an external surface in an iframe; it is declared here so a
+#: manifest naming it is refused with a reason rather than silently accepted,
+#: and gets its validator with the machinery that serves it.
+APP_KINDS: frozenset[str] = frozenset({"tool_instance", "embed"})
+
+#: Tools an app may mount at guild scope. A tool qualifies when its content is
+#: meaningful without an initiative — a calendar of the guild's own events is;
+#: a dashboard, which binds to one initiative's data, is not (and is not
+#: planned to be).
+MOUNTABLE_TOOLS: frozenset[str] = frozenset({"calendar"})
+
+
+def _normalize_app_definition(definition: Any) -> dict[str, Any]:
+    """An app's body: which kind it is, and what that kind needs.
+
+    Deliberately narrow. An app definition names a *kind* and, for a tool
+    instance, which of this build's tools to mount — it never carries code, a
+    URL a guild could type, or anything that would be dereferenced. Unknown keys
+    are dropped rather than stored, so a definition always has canonical shape.
+    """
+    if not isinstance(definition, dict):
+        raise ListingDefinitionError("app definition must be an object")
+
+    app_kind = definition.get("app_kind")
+    if app_kind not in APP_KINDS:
+        raise ListingDefinitionError(f"unknown app kind {app_kind!r}")
+    if app_kind == "embed":
+        raise ListingDefinitionError("embed apps are not installable in this build yet")
+
+    tool = definition.get("tool")
+    if tool not in MOUNTABLE_TOOLS:
+        raise ListingDefinitionError(f"{tool!r} cannot be mounted at guild scope")
+
+    cleaned: dict[str, Any] = {"app_kind": app_kind, "tool": tool}
+    # A starting name for the content the install creates; the guild renames it
+    # afterwards like anything else.
+    default_name = definition.get("default_name")
+    if isinstance(default_name, str) and default_name.strip():
+        cleaned["default_name"] = default_name.strip()[:255]
+    return cleaned
 
 
 def normalize_listing_definition(kind: str, definition: Any) -> dict[str, Any]:
@@ -44,9 +89,7 @@ def normalize_listing_definition(kind: str, definition: Any) -> dict[str, Any]:
     if kind not in LISTING_KINDS:
         raise ListingDefinitionError(f"unknown listing kind {kind!r}")
     if kind == "app":
-        raise ListingDefinitionError(
-            "app listings are not installable in this build yet"
-        )
+        return _normalize_app_definition(definition)
     try:
         return normalize_dashboard_definition(definition)
     except DashboardDefinitionError as exc:

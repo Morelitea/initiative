@@ -1,0 +1,19 @@
+{
+  "uid": "GLDCALENDAR001",
+  "public_id": "core.guild-calendar",
+  "kind": "app",
+  "name": "Guild calendar",
+  "publisher": "Initiative",
+  "description": "A calendar for the guild's own events, shared with every member.",
+  "long_description": "Adds a calendar that belongs to the guild rather than to any initiative — for the events the whole guild shows up to.\n\nIt is an ordinary calendar: the same views, the same event editor, the same sharing. Everyone can see it to begin with; change who may add events by editing its sharing, the way you would for any calendar. Removing the app moves the calendar to the trash rather than deleting it outright.",
+  "avatar_url": "/marketplace/core-guild-calendar.svg",
+  "images": [],
+  "version": "1.0.0",
+  "release_notes": "First release.",
+  "min_app_version": "0.62.0",
+  "definition": {
+    "app_kind": "tool_instance",
+    "tool": "calendar",
+    "default_name": "Guild calendar"
+  }
+}

@@ -17,6 +17,7 @@ from app.api.v1.tenant_endpoints import (
     calendar_events,
     calendars,
     dashboards,
+    guild_apps,
     collaboration,
     comments,
     counters,
@@ -143,6 +144,9 @@ guild_router.include_router(calendars.router, prefix="/calendars", tags=["calend
 guild_router.include_router(
     dashboards.router, prefix="/dashboards", tags=["dashboards"]
 )
+# Apps installed at guild scope. Every member reads them (the sidebar needs to
+# know what is there); installing and removing are guild-admin actions.
+guild_router.include_router(guild_apps.router, prefix="/apps", tags=["apps"])
 guild_router.include_router(
     calendar_events.router, prefix="/calendar-events", tags=["calendar-events"]
 )

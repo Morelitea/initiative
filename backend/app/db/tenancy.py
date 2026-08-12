@@ -104,6 +104,11 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # soft_delete_admin_purge), never a membership scope. See the rendered RLS DDL.
         # Guild-wide config / data (no initiative scope)
         "guild_settings",
+        # Installed apps: guild-wide by definition, and readable by any member —
+        # the sidebar has to know an app is there. Installing/removing is gated
+        # at the endpoint (guild admin); what a member may do *inside* an app is
+        # decided by that instance's own grants, not by this row.
+        "guild_apps",
         "guild_ai_connections",  # guild admin's AI connections (guild config mode);
         # guild-wide config, no initiative scope. The api_key ciphertext is never
         # returned by the API (reads expose only has_key).

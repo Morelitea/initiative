@@ -448,25 +448,28 @@ export function EventSettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Custom Properties */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("properties")}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <PropertyList
-            entityKind="event"
-            entityId={eventId}
-            properties={combinedProperties}
-            initiativeId={event.initiative_id}
-          />
-          <AddPropertyButton
-            initiativeId={event.initiative_id}
-            currentPropertyIds={combinedPropertyIds}
-            onAdd={handleAddProperty}
-          />
-        </CardContent>
-      </Card>
+      {/* Custom Properties — defined per initiative, so an event on a
+          guild-level calendar has none to offer. */}
+      {event.initiative_id !== null && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("properties")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <PropertyList
+              entityKind="event"
+              entityId={eventId}
+              properties={combinedProperties}
+              initiativeId={event.initiative_id}
+            />
+            <AddPropertyButton
+              initiativeId={event.initiative_id}
+              currentPropertyIds={combinedPropertyIds}
+              onAdd={handleAddProperty}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Danger Zone */}
       <Card className="border-destructive/50">

@@ -522,6 +522,17 @@ class AdvancedToolMessages:
     SIGNING_NOT_CONFIGURED = "ADVANCED_TOOL_SIGNING_NOT_CONFIGURED"
 
 
+class GuildAppMessages:
+    NOT_FOUND = "GUILD_APP_NOT_FOUND"
+    ADMIN_REQUIRED = "GUILD_APP_ADMIN_REQUIRED"
+    #: The listing named is not an app, or names an app kind this build cannot
+    #: install.
+    NOT_AN_APP = "GUILD_APP_LISTING_NOT_AN_APP"
+    #: This guild already has this listing installed. Apps mount one guild-wide
+    #: surface each, so a second copy has nothing to be.
+    ALREADY_INSTALLED = "GUILD_APP_ALREADY_INSTALLED"
+
+
 class WebhookSubscriptionMessages:
     INVALID_TARGET_URL = "WEBHOOK_INVALID_TARGET_URL"
     PRIVATE_TARGET_URL = "WEBHOOK_PRIVATE_TARGET_URL"
