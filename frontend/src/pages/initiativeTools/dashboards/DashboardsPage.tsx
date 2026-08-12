@@ -1,5 +1,5 @@
-import { useRouter } from "@tanstack/react-router";
-import { Loader2, Plus } from "lucide-react";
+import { Link, useRouter } from "@tanstack/react-router";
+import { Loader2, Plus, Store } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -108,6 +108,14 @@ export const DashboardsView = ({ fixedInitiativeId, canCreate }: DashboardsViewP
                   {t("createDashboard")}
                 </Button>
               )}
+              {canCreateDashboards && (
+                <Button size="sm" variant="ghost" asChild>
+                  <Link to={gp("/marketplace")}>
+                    <Store className="h-4 w-4" />
+                    {t("browseMarketplace")}
+                  </Link>
+                </Button>
+              )}
             </div>
             <p className="text-muted-foreground text-sm">{t("noDashboardsDescription")}</p>
           </div>
@@ -119,6 +127,12 @@ export const DashboardsView = ({ fixedInitiativeId, canCreate }: DashboardsViewP
           <Button variant="outline" onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4" />
             {t("createDashboard")}
+          </Button>
+          <Button variant="ghost" asChild>
+            <Link to={gp("/marketplace")}>
+              <Store className="h-4 w-4" />
+              {t("browseMarketplace")}
+            </Link>
           </Button>
         </div>
       )}

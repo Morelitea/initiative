@@ -51,6 +51,7 @@ import { Route as ServerRequiredAuthenticatedGGuildIdCounterGroupsRouteImport } 
 import { Route as ServerRequiredAuthenticatedGGuildIdDashboardsRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/dashboards'
 import { Route as ServerRequiredAuthenticatedGGuildIdDocumentsRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/documents'
 import { Route as ServerRequiredAuthenticatedGGuildIdInitiativesRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/initiatives'
+import { Route as ServerRequiredAuthenticatedGGuildIdMarketplaceRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/marketplace'
 import { Route as ServerRequiredAuthenticatedGGuildIdProjectsRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/projects'
 import { Route as ServerRequiredAuthenticatedGGuildIdQueuesRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/queues'
 import { Route as ServerRequiredAuthenticatedGGuildIdSettingsRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/settings'
@@ -72,6 +73,7 @@ import { Route as ServerRequiredAuthenticatedGGuildIdDashboardsDashboardIdRouteI
 import { Route as ServerRequiredAuthenticatedGGuildIdDashboardsGalleryRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/dashboards_.gallery'
 import { Route as ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/documents_.$documentId'
 import { Route as ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/initiatives_.$initiativeId'
+import { Route as ServerRequiredAuthenticatedGGuildIdMarketplacePublicIdRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/marketplace_.$publicId'
 import { Route as ServerRequiredAuthenticatedGGuildIdProjectsProjectIdRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/projects_.$projectId'
 import { Route as ServerRequiredAuthenticatedGGuildIdQueuesQueueIdRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/queues_.$queueId'
 import { Route as ServerRequiredAuthenticatedGGuildIdSettingsIndexRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/settings/index'
@@ -341,6 +343,12 @@ const ServerRequiredAuthenticatedGGuildIdInitiativesRoute =
     path: '/initiatives',
     getParentRoute: () => ServerRequiredAuthenticatedGGuildIdRoute,
   } as any)
+const ServerRequiredAuthenticatedGGuildIdMarketplaceRoute =
+  ServerRequiredAuthenticatedGGuildIdMarketplaceRouteImport.update({
+    id: '/marketplace',
+    path: '/marketplace',
+    getParentRoute: () => ServerRequiredAuthenticatedGGuildIdRoute,
+  } as any)
 const ServerRequiredAuthenticatedGGuildIdProjectsRoute =
   ServerRequiredAuthenticatedGGuildIdProjectsRouteImport.update({
     id: '/projects',
@@ -465,6 +473,12 @@ const ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdRoute =
   ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdRouteImport.update({
     id: '/initiatives_/$initiativeId',
     path: '/initiatives/$initiativeId',
+    getParentRoute: () => ServerRequiredAuthenticatedGGuildIdRoute,
+  } as any)
+const ServerRequiredAuthenticatedGGuildIdMarketplacePublicIdRoute =
+  ServerRequiredAuthenticatedGGuildIdMarketplacePublicIdRouteImport.update({
+    id: '/marketplace_/$publicId',
+    path: '/marketplace/$publicId',
     getParentRoute: () => ServerRequiredAuthenticatedGGuildIdRoute,
   } as any)
 const ServerRequiredAuthenticatedGGuildIdProjectsProjectIdRoute =
@@ -662,6 +676,7 @@ export interface FileRoutesByFullPath {
   '/g/$guildId/dashboards': typeof ServerRequiredAuthenticatedGGuildIdDashboardsRoute
   '/g/$guildId/documents': typeof ServerRequiredAuthenticatedGGuildIdDocumentsRoute
   '/g/$guildId/initiatives': typeof ServerRequiredAuthenticatedGGuildIdInitiativesRoute
+  '/g/$guildId/marketplace': typeof ServerRequiredAuthenticatedGGuildIdMarketplaceRoute
   '/g/$guildId/projects': typeof ServerRequiredAuthenticatedGGuildIdProjectsRoute
   '/g/$guildId/queues': typeof ServerRequiredAuthenticatedGGuildIdQueuesRoute
   '/g/$guildId/settings': typeof ServerRequiredAuthenticatedGGuildIdSettingsRouteWithChildren
@@ -684,6 +699,7 @@ export interface FileRoutesByFullPath {
   '/g/$guildId/dashboards/gallery': typeof ServerRequiredAuthenticatedGGuildIdDashboardsGalleryRoute
   '/g/$guildId/documents/$documentId': typeof ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdRoute
   '/g/$guildId/initiatives/$initiativeId': typeof ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdRoute
+  '/g/$guildId/marketplace/$publicId': typeof ServerRequiredAuthenticatedGGuildIdMarketplacePublicIdRoute
   '/g/$guildId/projects/$projectId': typeof ServerRequiredAuthenticatedGGuildIdProjectsProjectIdRoute
   '/g/$guildId/queues/$queueId': typeof ServerRequiredAuthenticatedGGuildIdQueuesQueueIdRoute
   '/g/$guildId/settings/advanced-tool': typeof ServerRequiredAuthenticatedGGuildIdSettingsAdvancedToolRoute
@@ -744,6 +760,7 @@ export interface FileRoutesByTo {
   '/g/$guildId/dashboards': typeof ServerRequiredAuthenticatedGGuildIdDashboardsRoute
   '/g/$guildId/documents': typeof ServerRequiredAuthenticatedGGuildIdDocumentsRoute
   '/g/$guildId/initiatives': typeof ServerRequiredAuthenticatedGGuildIdInitiativesRoute
+  '/g/$guildId/marketplace': typeof ServerRequiredAuthenticatedGGuildIdMarketplaceRoute
   '/g/$guildId/projects': typeof ServerRequiredAuthenticatedGGuildIdProjectsRoute
   '/g/$guildId/queues': typeof ServerRequiredAuthenticatedGGuildIdQueuesRoute
   '/settings/admin/access': typeof ServerRequiredAuthenticatedSettingsAdminAccessRoute
@@ -765,6 +782,7 @@ export interface FileRoutesByTo {
   '/g/$guildId/dashboards/gallery': typeof ServerRequiredAuthenticatedGGuildIdDashboardsGalleryRoute
   '/g/$guildId/documents/$documentId': typeof ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdRoute
   '/g/$guildId/initiatives/$initiativeId': typeof ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdRoute
+  '/g/$guildId/marketplace/$publicId': typeof ServerRequiredAuthenticatedGGuildIdMarketplacePublicIdRoute
   '/g/$guildId/projects/$projectId': typeof ServerRequiredAuthenticatedGGuildIdProjectsProjectIdRoute
   '/g/$guildId/queues/$queueId': typeof ServerRequiredAuthenticatedGGuildIdQueuesQueueIdRoute
   '/g/$guildId/settings/advanced-tool': typeof ServerRequiredAuthenticatedGGuildIdSettingsAdvancedToolRoute
@@ -832,6 +850,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/g/$guildId/dashboards': typeof ServerRequiredAuthenticatedGGuildIdDashboardsRoute
   '/_serverRequired/_authenticated/g/$guildId/documents': typeof ServerRequiredAuthenticatedGGuildIdDocumentsRoute
   '/_serverRequired/_authenticated/g/$guildId/initiatives': typeof ServerRequiredAuthenticatedGGuildIdInitiativesRoute
+  '/_serverRequired/_authenticated/g/$guildId/marketplace': typeof ServerRequiredAuthenticatedGGuildIdMarketplaceRoute
   '/_serverRequired/_authenticated/g/$guildId/projects': typeof ServerRequiredAuthenticatedGGuildIdProjectsRoute
   '/_serverRequired/_authenticated/g/$guildId/queues': typeof ServerRequiredAuthenticatedGGuildIdQueuesRoute
   '/_serverRequired/_authenticated/g/$guildId/settings': typeof ServerRequiredAuthenticatedGGuildIdSettingsRouteWithChildren
@@ -854,6 +873,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/g/$guildId/dashboards_/gallery': typeof ServerRequiredAuthenticatedGGuildIdDashboardsGalleryRoute
   '/_serverRequired/_authenticated/g/$guildId/documents_/$documentId': typeof ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdRoute
   '/_serverRequired/_authenticated/g/$guildId/initiatives_/$initiativeId': typeof ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdRoute
+  '/_serverRequired/_authenticated/g/$guildId/marketplace_/$publicId': typeof ServerRequiredAuthenticatedGGuildIdMarketplacePublicIdRoute
   '/_serverRequired/_authenticated/g/$guildId/projects_/$projectId': typeof ServerRequiredAuthenticatedGGuildIdProjectsProjectIdRoute
   '/_serverRequired/_authenticated/g/$guildId/queues_/$queueId': typeof ServerRequiredAuthenticatedGGuildIdQueuesQueueIdRoute
   '/_serverRequired/_authenticated/g/$guildId/settings/advanced-tool': typeof ServerRequiredAuthenticatedGGuildIdSettingsAdvancedToolRoute
@@ -920,6 +940,7 @@ export interface FileRouteTypes {
     | '/g/$guildId/dashboards'
     | '/g/$guildId/documents'
     | '/g/$guildId/initiatives'
+    | '/g/$guildId/marketplace'
     | '/g/$guildId/projects'
     | '/g/$guildId/queues'
     | '/g/$guildId/settings'
@@ -942,6 +963,7 @@ export interface FileRouteTypes {
     | '/g/$guildId/dashboards/gallery'
     | '/g/$guildId/documents/$documentId'
     | '/g/$guildId/initiatives/$initiativeId'
+    | '/g/$guildId/marketplace/$publicId'
     | '/g/$guildId/projects/$projectId'
     | '/g/$guildId/queues/$queueId'
     | '/g/$guildId/settings/advanced-tool'
@@ -1002,6 +1024,7 @@ export interface FileRouteTypes {
     | '/g/$guildId/dashboards'
     | '/g/$guildId/documents'
     | '/g/$guildId/initiatives'
+    | '/g/$guildId/marketplace'
     | '/g/$guildId/projects'
     | '/g/$guildId/queues'
     | '/settings/admin/access'
@@ -1023,6 +1046,7 @@ export interface FileRouteTypes {
     | '/g/$guildId/dashboards/gallery'
     | '/g/$guildId/documents/$documentId'
     | '/g/$guildId/initiatives/$initiativeId'
+    | '/g/$guildId/marketplace/$publicId'
     | '/g/$guildId/projects/$projectId'
     | '/g/$guildId/queues/$queueId'
     | '/g/$guildId/settings/advanced-tool'
@@ -1089,6 +1113,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/g/$guildId/dashboards'
     | '/_serverRequired/_authenticated/g/$guildId/documents'
     | '/_serverRequired/_authenticated/g/$guildId/initiatives'
+    | '/_serverRequired/_authenticated/g/$guildId/marketplace'
     | '/_serverRequired/_authenticated/g/$guildId/projects'
     | '/_serverRequired/_authenticated/g/$guildId/queues'
     | '/_serverRequired/_authenticated/g/$guildId/settings'
@@ -1111,6 +1136,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/g/$guildId/dashboards_/gallery'
     | '/_serverRequired/_authenticated/g/$guildId/documents_/$documentId'
     | '/_serverRequired/_authenticated/g/$guildId/initiatives_/$initiativeId'
+    | '/_serverRequired/_authenticated/g/$guildId/marketplace_/$publicId'
     | '/_serverRequired/_authenticated/g/$guildId/projects_/$projectId'
     | '/_serverRequired/_authenticated/g/$guildId/queues_/$queueId'
     | '/_serverRequired/_authenticated/g/$guildId/settings/advanced-tool'
@@ -1437,6 +1463,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdInitiativesRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedGGuildIdRoute
     }
+    '/_serverRequired/_authenticated/g/$guildId/marketplace': {
+      id: '/_serverRequired/_authenticated/g/$guildId/marketplace'
+      path: '/marketplace'
+      fullPath: '/g/$guildId/marketplace'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdMarketplaceRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedGGuildIdRoute
+    }
     '/_serverRequired/_authenticated/g/$guildId/projects': {
       id: '/_serverRequired/_authenticated/g/$guildId/projects'
       path: '/projects'
@@ -1582,6 +1615,13 @@ declare module '@tanstack/react-router' {
       path: '/initiatives/$initiativeId'
       fullPath: '/g/$guildId/initiatives/$initiativeId'
       preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedGGuildIdRoute
+    }
+    '/_serverRequired/_authenticated/g/$guildId/marketplace_/$publicId': {
+      id: '/_serverRequired/_authenticated/g/$guildId/marketplace_/$publicId'
+      path: '/marketplace/$publicId'
+      fullPath: '/g/$guildId/marketplace/$publicId'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdMarketplacePublicIdRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedGGuildIdRoute
     }
     '/_serverRequired/_authenticated/g/$guildId/projects_/$projectId': {
@@ -1907,6 +1947,7 @@ interface ServerRequiredAuthenticatedGGuildIdRouteChildren {
   ServerRequiredAuthenticatedGGuildIdDashboardsRoute: typeof ServerRequiredAuthenticatedGGuildIdDashboardsRoute
   ServerRequiredAuthenticatedGGuildIdDocumentsRoute: typeof ServerRequiredAuthenticatedGGuildIdDocumentsRoute
   ServerRequiredAuthenticatedGGuildIdInitiativesRoute: typeof ServerRequiredAuthenticatedGGuildIdInitiativesRoute
+  ServerRequiredAuthenticatedGGuildIdMarketplaceRoute: typeof ServerRequiredAuthenticatedGGuildIdMarketplaceRoute
   ServerRequiredAuthenticatedGGuildIdProjectsRoute: typeof ServerRequiredAuthenticatedGGuildIdProjectsRoute
   ServerRequiredAuthenticatedGGuildIdQueuesRoute: typeof ServerRequiredAuthenticatedGGuildIdQueuesRoute
   ServerRequiredAuthenticatedGGuildIdSettingsRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsRouteWithChildren
@@ -1918,6 +1959,7 @@ interface ServerRequiredAuthenticatedGGuildIdRouteChildren {
   ServerRequiredAuthenticatedGGuildIdDashboardsGalleryRoute: typeof ServerRequiredAuthenticatedGGuildIdDashboardsGalleryRoute
   ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdRoute: typeof ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdRoute
   ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdRoute: typeof ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdRoute
+  ServerRequiredAuthenticatedGGuildIdMarketplacePublicIdRoute: typeof ServerRequiredAuthenticatedGGuildIdMarketplacePublicIdRoute
   ServerRequiredAuthenticatedGGuildIdProjectsProjectIdRoute: typeof ServerRequiredAuthenticatedGGuildIdProjectsProjectIdRoute
   ServerRequiredAuthenticatedGGuildIdQueuesQueueIdRoute: typeof ServerRequiredAuthenticatedGGuildIdQueuesQueueIdRoute
   ServerRequiredAuthenticatedGGuildIdTagsTagIdRoute: typeof ServerRequiredAuthenticatedGGuildIdTagsTagIdRoute
@@ -1945,6 +1987,8 @@ const ServerRequiredAuthenticatedGGuildIdRouteChildren: ServerRequiredAuthentica
       ServerRequiredAuthenticatedGGuildIdDocumentsRoute,
     ServerRequiredAuthenticatedGGuildIdInitiativesRoute:
       ServerRequiredAuthenticatedGGuildIdInitiativesRoute,
+    ServerRequiredAuthenticatedGGuildIdMarketplaceRoute:
+      ServerRequiredAuthenticatedGGuildIdMarketplaceRoute,
     ServerRequiredAuthenticatedGGuildIdProjectsRoute:
       ServerRequiredAuthenticatedGGuildIdProjectsRoute,
     ServerRequiredAuthenticatedGGuildIdQueuesRoute:
@@ -1967,6 +2011,8 @@ const ServerRequiredAuthenticatedGGuildIdRouteChildren: ServerRequiredAuthentica
       ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdRoute,
     ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdRoute:
       ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdRoute,
+    ServerRequiredAuthenticatedGGuildIdMarketplacePublicIdRoute:
+      ServerRequiredAuthenticatedGGuildIdMarketplacePublicIdRoute,
     ServerRequiredAuthenticatedGGuildIdProjectsProjectIdRoute:
       ServerRequiredAuthenticatedGGuildIdProjectsProjectIdRoute,
     ServerRequiredAuthenticatedGGuildIdQueuesQueueIdRoute:

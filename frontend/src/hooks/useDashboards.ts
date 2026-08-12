@@ -11,6 +11,7 @@ import {
   readWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGet,
   setDashboardGrantsApiV1GGuildIdDashboardsDashboardIdGrantsPut,
   updateDashboardApiV1GGuildIdDashboardsDashboardIdPatch,
+  upgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePost,
 } from "@/api/generated/dashboards/dashboards";
 import type {
   DashboardCreate,
@@ -104,6 +105,35 @@ export const useUpdateDashboard = (
         // save succeeds and renders the *old* server layout for a beat — a
         // dragged widget visibly snaps back to where it came from, then jumps
         // forward again when the refetch arrives.
+        queryClient.setQueryData(
+          getReadDashboardApiV1GGuildIdDashboardsDashboardIdGetQueryKey(guildId, dashboardId),
+          updated
+        );
+        return invalidateDashboardAndList(dashboardId);
+      },
+      errorKey: "dashboards:error",
+    },
+    options
+  );
+};
+
+/**
+ * Take the version a listing currently publishes.
+ *
+ * Only ever explicit: a new version sits in the catalog until someone with
+ * write access on this dashboard asks for it, and applying it re-pins this
+ * instance alone.
+ */
+export const useUpgradeDashboard = (
+  dashboardId: number,
+  options?: MutationOpts<DashboardRead, void>
+) => {
+  const guildId = useActiveGuildId();
+  return useGuildMutation<DashboardRead, void>(
+    {
+      mutationFn: (guildId) =>
+        upgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePost(guildId, dashboardId),
+      invalidate: (updated) => {
         queryClient.setQueryData(
           getReadDashboardApiV1GGuildIdDashboardsDashboardIdGetQueryKey(guildId, dashboardId),
           updated

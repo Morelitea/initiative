@@ -1,0 +1,47 @@
+{
+  "title": "Mercado",
+  "subtitle": "Paneles listos para usar que puedes añadir a una iniciativa.",
+  "searchPlaceholder": "Buscar en el mercado…",
+  "backToMarketplace": "Volver al mercado",
+  "card": {
+    "installed": "Instalado",
+    "version": "v{{version}}",
+    "needsUpdate": "Necesita una app más reciente"
+  },
+  "empty": {
+    "title": "Aquí no hay nada todavía",
+    "description": "Esta instalación no ofrece ningún elemento."
+  },
+  "noResults": {
+    "title": "Sin coincidencias",
+    "description": "Nada en el mercado coincide con «{{query}}»."
+  },
+  "detail": {
+    "by": "de {{publisher}}",
+    "installs_one": "{{count}} instalación",
+    "installs_other": "{{count}} instalaciones",
+    "install": "Añadir a una iniciativa",
+    "preview": "Vista previa",
+    "versions": "Versiones",
+    "needsUpdate": "Necesita una versión más reciente de la aplicación.",
+    "withdrawn": "Ya no está disponible.",
+    "notFound": "Elemento no encontrado",
+    "notFoundDescription": "Puede que se haya retirado o que el enlace sea incorrecto."
+  },
+  "install": {
+    "title": "Añadir {{name}}",
+    "description": "Elige dónde va. Puedes renombrarlo ahora o más tarde.",
+    "initiative": "Iniciativa",
+    "name": "Nombre",
+    "action": "Añadir",
+    "done": "{{name}} añadido.",
+    "failed": "No se pudo añadir ese elemento.",
+    "noInitiatives": "Todavía no puedes crear paneles en ninguna iniciativa. Pide acceso a una persona responsable de la iniciativa."
+  },
+  "update": {
+    "available": "Versión {{version}} disponible",
+    "action": "Actualizar",
+    "done": "Actualizado a {{version}}.",
+    "failed": "No se pudo actualizar este panel."
+  }
+}

@@ -18,6 +18,7 @@ import type importNs from "../../public/locales/en/import.json";
 import type importsNs from "../../public/locales/en/imports.json";
 import type initiatives from "../../public/locales/en/initiatives.json";
 import type landing from "../../public/locales/en/landing.json";
+import type marketplace from "../../public/locales/en/marketplace.json";
 import type nav from "../../public/locales/en/nav.json";
 import type notifications from "../../public/locales/en/notifications.json";
 import type projects from "../../public/locales/en/projects.json";
@@ -42,6 +43,7 @@ declare module "i18next" {
       command: typeof command;
       common: typeof common;
       counterGroups: typeof counterGroups;
+      marketplace: typeof marketplace;
       dashboard: typeof dashboard;
       dashboards: typeof dashboards;
       dates: typeof dates;
