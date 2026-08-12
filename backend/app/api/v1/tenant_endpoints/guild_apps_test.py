@@ -13,6 +13,10 @@ an initiative.
 The other is who may do this. Installing mounts a guild-wide surface, so it is a
 guild-admin action; reading the list is not, because the sidebar has to know
 what is there.
+
+An embed app is the other shape: it brings no content, so there is nothing to
+create, share or trash, and the answer to "who may open this" comes back on the
+app itself rather than from grants that do not exist.
 """
 
 import pytest
@@ -298,3 +302,81 @@ class TestUninstall:
         # permanent claim on the listing.
         again = await _install(client, a)
         assert again["config"]["calendar_id"] != app["config"]["calendar_id"]
+
+
+EMBED_APP_UID = marketplace_uid("advancedtool")
+
+
+@pytest.fixture
+async def embed_app(session):
+    return await create_marketplace_listing(
+        session,
+        uid=EMBED_APP_UID,
+        public_id="core.advanced-tool",
+        kind="app",
+        name="Automations",
+        definition={"app_kind": "embed", "embed_target": "advanced_tool"},
+    )
+
+
+class TestEmbedApp:
+    async def test_installing_creates_no_content(
+        self, client: AsyncClient, acting_user, session: AsyncSession, embed_app
+    ):
+        """The surface it opens already exists, wherever the operator pointed
+        it. The app row is the whole install."""
+        a = await acting_user(guild_role=GuildRole.admin)
+        response = await client.post(
+            a.g("/apps/"), headers=a.headers, json={"listing_uid": EMBED_APP_UID}
+        )
+        assert response.status_code == 201, response.text
+        app = response.json()
+
+        assert app["app_kind"] == "embed"
+        assert app["embed_target"] == "advanced_tool"
+        assert app["tool"] is None
+        assert app["config"] == {}
+        assert app["name"] == "Automations"
+
+        await route_session_to_guild(session, a.guild.id)
+        assert (await session.exec(select(Calendar))).all() == []
+
+    async def test_it_reports_itself_as_admin_only(
+        self, client: AsyncClient, acting_user, embed_app
+    ):
+        """A member is told not to bother: the endpoint that mints its handoff
+        is admin-only, so an entry offered to everyone would refuse most of
+        them. Decided here rather than by the client reading the kind."""
+        a = await acting_user(guild_role=GuildRole.admin)
+        await client.post(
+            a.g("/apps/"), headers=a.headers, json={"listing_uid": EMBED_APP_UID}
+        )
+        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+
+        response = await client.get(member.g("/apps/"), headers=member.headers)
+        assert response.status_code == 200
+        assert [item["admin_only"] for item in response.json()["items"]] == [True]
+
+    async def test_a_mounted_tool_is_not_admin_only(
+        self, client: AsyncClient, acting_user, calendar_app
+    ):
+        # It has grants of its own, which can say more than a flag can.
+        a = await acting_user(guild_role=GuildRole.admin)
+        app = await _install(client, a)
+        assert app["admin_only"] is False
+        assert app["embed_target"] is None
+
+    async def test_removing_it_takes_only_the_entry(
+        self, client: AsyncClient, acting_user, embed_app
+    ):
+        a = await acting_user(guild_role=GuildRole.admin)
+        installed = await client.post(
+            a.g("/apps/"), headers=a.headers, json={"listing_uid": EMBED_APP_UID}
+        )
+        app_id = installed.json()["id"]
+
+        response = await client.delete(a.g(f"/apps/{app_id}"), headers=a.headers)
+        assert response.status_code == 204
+        assert (await client.get(a.g("/apps/"), headers=a.headers)).json()[
+            "items"
+        ] == []

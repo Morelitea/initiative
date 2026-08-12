@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Dashboards.** A new tool inside an initiative: a canvas of widgets you drag and resize, reading that initiative's own projects and tasks. Seven kinds of widget — a headline number, charts (line, bar, stacked, area, pie), a progress bar, a funnel, a heatmap, a table, and a timeline — each with its own options, and a live preview while you pick one. Dashboards are read-only by design: they show work, they never change it. Sharing works like every other tool, so a dashboard can be yours alone, shared with named people or roles, or open to the whole initiative.
+- **Apps, and a marketplace to add them from.** The marketplace is a searchable shelf of ready-made dashboards you can install into an initiative in one step, and of apps that add something the whole guild shares rather than any one initiative. The first app is a guild calendar: an ordinary calendar that belongs to the guild, visible to every member from the moment it is added, with the same views, event editor and sharing as any other. Apps live above your initiatives in the sidebar and are managed under guild settings, where they can be renamed, turned off, or removed — removing one moves what it created to the trash rather than deleting it. Only guild admins can add or remove apps; a guild with none installed shows nothing to its members.
+
 ### Removed
 
 - **The pre-0.53.5 copies of guild data in the shared database schema are gone.** Installs that predate 0.53.5 kept a frozen second copy of every project, task, document and so on from before guilds moved into their own database schemas. Nothing has read or written it since; upgrading now drops it. Guild data lives solely in that guild's own schema. Installs created on 0.53.5 or later never had these copies and are unaffected. **This upgrade cannot be rolled back** — take a backup first if you would rather keep the old rows around, and if you are upgrading from before 0.53.2, boot a 0.53.x release once on the way through as its startup notice instructs.

@@ -1,5 +1,5 @@
 {
-  "uid": "GLDCALENDAR001",
+  "uid": "H4TC7RN2WQ5JXB",
   "public_id": "core.guild-calendar",
   "kind": "app",
   "name": "Guild calendar",
@@ -10,7 +10,6 @@
   "images": [],
   "version": "1.0.0",
   "release_notes": "First release.",
-  "min_app_version": "0.62.0",
   "definition": {
     "app_kind": "tool_instance",
     "tool": "calendar",

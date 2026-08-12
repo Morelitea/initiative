@@ -1929,6 +1929,8 @@ export interface GuildAppRead {
   enabled: boolean;
   config: GuildAppReadConfig;
   tool: string | null;
+  embed_target: string | null;
+  admin_only: boolean;
   installed_by_id: number;
   created_at: string;
   updated_at: string;

@@ -44,6 +44,7 @@ __all__ = [
     "resolve_installable_version",
     "listing_versions",
     "upsert_listing",
+    "withdraw_listing",
     "bump_installs_count",
     "version_is_compatible",
 ]
@@ -335,6 +336,26 @@ async def upsert_listing(
     session.add(listing)
     await session.flush()
     return listing
+
+
+async def withdraw_listing(session: AsyncSession, uid: str) -> bool:
+    """Take a listing out of the catalog, keeping the row. Returns whether one
+    was there to withdraw.
+
+    Withdrawn is not deleted: a guild that already installed it keeps its app,
+    its pinned definition and its provenance. It simply stops being offered and
+    cannot be installed again. Used when a deployment stops being able to serve
+    something it previously seeded — an operator removing the configuration an
+    app depends on — and later by the registry for a listing its publisher pulls.
+    """
+    listing = await get_listing_by_uid(session, uid)
+    if listing is None or not listing.available:
+        return False
+    listing.available = False
+    listing.updated_at = datetime.now(timezone.utc)
+    session.add(listing)
+    await session.flush()
+    return True
 
 
 async def listing_versions(

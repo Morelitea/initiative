@@ -26,5 +26,11 @@
     "action": "Añadir al gremio",
     "done": "{{name}} añadida.",
     "adminOnly": "Solo un administrador del gremio puede añadir aplicaciones."
+  },
+  "page": {
+    "notFound": "Aplicación no encontrada",
+    "notFoundDescription": "Puede que la hayan quitado o desactivado. Los administradores del gremio pueden comprobarlo en los ajustes del gremio.",
+    "noSurface": "{{name}} no tiene nada que mostrar aquí",
+    "noSurfaceDescription": "Esta aplicación no tiene una página propia."
   }
 }

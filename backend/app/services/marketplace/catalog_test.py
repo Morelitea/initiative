@@ -140,16 +140,45 @@ class TestDefinitions:
                 source="builtin",
             )
 
-    async def test_embed_apps_are_not_installable_yet(self, session):
-        with pytest.raises(CatalogError, match="not installable"):
+    async def test_an_embed_must_name_a_target_this_build_serves(self, session):
+        """An embed opens a surface the operator configured. A listing naming
+        its own target is refused until listings arrive from a source whose
+        signature has been checked — where a browser goes, and which origin may
+        talk back to the app, is not something an unverified manifest decides."""
+        with pytest.raises(CatalogError, match="unknown embed target"):
             await service.upsert_listing(
                 session,
                 _manifest(
                     kind="app",
-                    definition={"app_kind": "embed", "url": "https://x.test"},
+                    definition={
+                        "app_kind": "embed",
+                        "embed_target": "listing",
+                        "url": "https://x.test",
+                    },
                 ),
                 source="builtin",
             )
+
+    async def test_an_embed_stores_only_its_target(self, session):
+        listing = await service.upsert_listing(
+            session,
+            _manifest(
+                kind="app",
+                definition={
+                    "app_kind": "embed",
+                    "embed_target": "advanced_tool",
+                    "url": "https://somewhere.test",
+                },
+            ),
+            source="builtin",
+        )
+        version = await service.get_listing_version(session, listing.latest_version_id)
+        # The URL is dropped rather than kept: nothing a manifest carries is
+        # dereferenced, and a stored one would suggest otherwise.
+        assert version.definition == {
+            "app_kind": "embed",
+            "embed_target": "advanced_tool",
+        }
 
     async def test_a_valid_app_listing_is_stored_canonically(self, session):
         listing = await service.upsert_listing(

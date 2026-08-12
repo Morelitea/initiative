@@ -12,12 +12,17 @@
  *   anything *inside* one is that instance's own sharing, enforced where the
  *   content lives.
  *
+ * The exception is an app the server marks admin-only, which members do not see
+ * at all: it has no sharing to widen, so an entry would refuse everyone who
+ * clicked it. Which apps those are is the server's answer, not a kind the
+ * sidebar interprets.
+ *
  * Disabled apps are hidden here and stay visible in guild settings, which is
  * where an admin turns them back on.
  */
 
 import { Link } from "@tanstack/react-router";
-import { Blocks, CalendarDays, ChevronDown, Plus } from "lucide-react";
+import { Blocks, CalendarDays, ChevronDown, Plus, Workflow } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import type { GuildAppRead } from "@/api/generated/initiativeAPI.schemas";
@@ -39,6 +44,9 @@ import { cn } from "@/lib/utils";
  *  the closed set rather than trusting anything a listing supplies. */
 const TOOL_ICONS = { calendar: CalendarDays } as const;
 
+/** Same idea for the apps that open a configured surface instead. */
+const EMBED_ICONS = { advanced_tool: Workflow } as const;
+
 export interface AppsSectionProps {
   isGuildAdmin: boolean;
   /** Persisted open/closed state, keyed like the other sidebar sections. */
@@ -51,7 +59,9 @@ export function AppsSection({ isGuildAdmin, open, onOpenChange }: AppsSectionPro
   const gp = useGuildPath();
   const appsQuery = useGuildApps();
 
-  const apps = (appsQuery.data?.items ?? []).filter((app) => app.enabled);
+  const apps = (appsQuery.data?.items ?? []).filter(
+    (app) => app.enabled && (isGuildAdmin || !app.admin_only)
+  );
 
   // Nothing installed and nothing this person could do about it: show nothing.
   // A member should see initiatives, not an empty shelf.
@@ -107,7 +117,10 @@ export function AppsSection({ isGuildAdmin, open, onOpenChange }: AppsSectionPro
 function AppEntry({ app }: { app: GuildAppRead }) {
   const gp = useGuildPath();
   const path = guildAppPath(app);
-  const Icon = TOOL_ICONS[app.tool as keyof typeof TOOL_ICONS] ?? Blocks;
+  const Icon =
+    TOOL_ICONS[app.tool as keyof typeof TOOL_ICONS] ??
+    EMBED_ICONS[app.embed_target as keyof typeof EMBED_ICONS] ??
+    Blocks;
 
   return (
     <SidebarMenuItem>

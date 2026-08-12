@@ -1,0 +1,17 @@
+{
+  "uid": "T9PZ3KVD6BWRSN",
+  "public_id": "core.advanced-tool",
+  "kind": "app",
+  "name": "Advanced tool",
+  "publisher": "Initiative",
+  "description": "The companion service this deployment is connected to, for the whole guild.",
+  "long_description": "Opens the companion service your operator connected to this deployment, at guild level, for the things a guild runs across all of its initiatives.\n\nIt signs you in on the way through, so there is no second account to keep. The same service is available inside a single initiative from that initiative's own menu; this adds the guild-wide view of it.\n\nGuild admins only. Removing the app takes the entry away and changes nothing in the service itself.",
+  "avatar_url": "/marketplace/core-advanced-tool.svg",
+  "images": [],
+  "version": "1.0.0",
+  "release_notes": "First release.",
+  "definition": {
+    "app_kind": "embed",
+    "embed_target": "advanced_tool"
+  }
+}

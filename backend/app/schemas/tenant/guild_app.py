@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 from pydantic import ConfigDict, Field
 
 from app.schemas.base import SanitizedBaseModel
+from app.services.tenant.guild_apps import requires_guild_admin
 
 
 class GuildAppInstall(SanitizedBaseModel):
@@ -44,6 +45,13 @@ class GuildAppRead(SanitizedBaseModel):
     #: Which tool this app mounts, when it mounts one. Read off the pinned
     #: definition so the client need not fetch the catalog to render an entry.
     tool: Optional[str] = None
+    #: Which configured surface this app opens, when it is an embed. Same
+    #: reasoning as ``tool``, for the kind that has no content of its own.
+    embed_target: Optional[str] = None
+    #: Whether opening this app is a guild-admin action. Decided here, not by
+    #: the client reading the kind: an entry a member cannot use should not be
+    #: offered to them, and which apps those are is the server's call.
+    admin_only: bool = False
     installed_by_id: int
     created_at: datetime
     updated_at: datetime
@@ -67,6 +75,8 @@ def serialize_guild_app(app: Any) -> GuildAppRead:
         enabled=app.enabled,
         config=dict(app.config or {}),
         tool=definition.get("tool"),
+        embed_target=definition.get("embed_target"),
+        admin_only=requires_guild_admin(definition),
         installed_by_id=app.installed_by_id,
         created_at=app.created_at,
         updated_at=app.updated_at,
