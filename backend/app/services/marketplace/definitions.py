@@ -36,7 +36,12 @@ class ListingDefinitionError(ValueError):
 
 
 #: Kinds the catalog can hold.
-LISTING_KINDS: frozenset[str] = frozenset({"dashboard", "app"})
+#:
+#: ``auto`` is declared here so the vocabulary is complete — the marketplace can
+#: name and filter by it — while nothing installs one yet: a manifest carrying
+#: one is refused with a reason rather than stored as something no code can
+#: resolve. Same treatment ``embed`` apps get.
+LISTING_KINDS: frozenset[str] = frozenset({"dashboard", "app", "auto"})
 
 #: How an app presents itself.
 #:
@@ -88,6 +93,10 @@ def normalize_listing_definition(kind: str, definition: Any) -> dict[str, Any]:
     """Validate and canonicalize a listing's definition for its kind."""
     if kind not in LISTING_KINDS:
         raise ListingDefinitionError(f"unknown listing kind {kind!r}")
+    if kind == "auto":
+        raise ListingDefinitionError(
+            "automation listings are not installable in this build yet"
+        )
     if kind == "app":
         return _normalize_app_definition(definition)
     try:

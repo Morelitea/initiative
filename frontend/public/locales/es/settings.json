@@ -37,7 +37,8 @@
       "trash": "Papelera",
       "data": "Datos",
       "dangerZone": "Zona de peligro",
-      "auth": "Autenticación"
+      "auth": "Autenticación",
+      "apps": "Aplicaciones"
     }
   },
   "profile": {

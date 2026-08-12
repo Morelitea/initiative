@@ -37,7 +37,8 @@
       "trash": "Trash",
       "data": "Data",
       "dangerZone": "Danger zone",
-      "auth": "Authentication"
+      "auth": "Authentication",
+      "apps": "Apps"
     }
   },
   "profile": {

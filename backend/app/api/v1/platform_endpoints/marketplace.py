@@ -21,6 +21,7 @@ from app.models.platform.marketplace import (
 )
 from app.models.platform.user import User
 from app.schemas.platform.marketplace import (
+    ListingKind,
     MarketplaceListingDetail,
     MarketplaceListingPage,
     MarketplaceListingSummary,
@@ -78,7 +79,7 @@ def _summary(
 async def list_marketplace_listings(
     session: UserSessionDep,
     current_user: CurrentUser,
-    kind: Optional[str] = Query(default=None),
+    kind: Optional[ListingKind] = Query(default=None),  # type: ignore[valid-type]
     q: Optional[str] = Query(default=None, max_length=200),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=24, ge=1, le=MAX_PAGE_SIZE),

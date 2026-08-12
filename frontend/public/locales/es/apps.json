@@ -1,0 +1,30 @@
+{
+  "title": "Aplicaciones",
+  "add": "Añadir una aplicación",
+  "none": "Todavía no hay aplicaciones.",
+  "error": "Algo ha fallado con esa aplicación.",
+  "manage": {
+    "title": "Aplicaciones",
+    "description": "Las aplicaciones añaden algo que comparte todo el gremio. Solo los administradores del gremio pueden añadirlas o quitarlas.",
+    "empty": "Todavía no hay aplicaciones instaladas.",
+    "browse": "Explorar aplicaciones",
+    "installed": "Añadida el {{date}}",
+    "disabled": "Desactivada",
+    "enable": "Activar",
+    "disable": "Desactivar",
+    "rename": "Cambiar el nombre",
+    "remove": "Quitar",
+    "removeTitle": "¿Quitar {{name}}?",
+    "removeBody": "Lo que haya creado pasa a la papelera, desde donde aún puede restaurarse. Los miembros pierden el acceso de inmediato.",
+    "removed": "{{name}} quitada.",
+    "saved": "Guardado."
+  },
+  "install": {
+    "title": "Añadir {{name}}",
+    "description": "Esto añade algo para todo el gremio. Puedes cambiarle el nombre ahora o más tarde.",
+    "name": "Nombre",
+    "action": "Añadir al gremio",
+    "done": "{{name}} añadida.",
+    "adminOnly": "Solo un administrador del gremio puede añadir aplicaciones."
+  }
+}

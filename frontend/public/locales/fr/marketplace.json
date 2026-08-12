@@ -48,5 +48,7 @@
     "title": "Catalogue indisponible",
     "description": "Le catalogue n'a pas pu être joint. Réessayez dans un instant."
   },
-  "installedUnknown": "Impossible de vérifier lesquels vous possédez déjà : rien ci-dessous n'est donc marqué comme installé."
+  "installedUnknown": "Impossible de vérifier lesquels vous possédez déjà : rien ci-dessous n'est donc marqué comme installé.",
+  "subtitleApps": "Les applications ajoutent quelque chose que toute la guilde partage. Seuls les administrateurs de la guilde peuvent les ajouter.",
+  "subtitleAuto": "Les automatisations s'exécutent en arrière-plan pour toute la guilde."
 }
