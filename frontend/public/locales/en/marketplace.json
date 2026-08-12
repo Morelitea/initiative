@@ -47,5 +47,6 @@
   "unavailable": {
     "title": "Marketplace unavailable",
     "description": "The catalog could not be reached. Try again in a moment."
-  }
+  },
+  "installedUnknown": "Couldn't check which of these you already have, so nothing below is marked as installed."
 }

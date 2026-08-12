@@ -22,8 +22,13 @@ vi.mock("@/hooks/useMarketplace", () => ({
   useMarketplaceListings: (params: unknown) => listingsFor(params),
 }));
 
+let installedFailed = false;
+
 vi.mock("@/hooks/useDashboards", () => ({
-  useInstalledListings: () => ({ data: { counts: installed } }),
+  useInstalledListings: () => ({
+    data: installedFailed ? undefined : { counts: installed },
+    isError: installedFailed,
+  }),
 }));
 
 const listing = (overrides: Partial<MarketplaceListingSummary> = {}) =>
@@ -47,6 +52,7 @@ const listing = (overrides: Partial<MarketplaceListingSummary> = {}) =>
 
 beforeEach(() => {
   installed = {};
+  installedFailed = false;
   listingsFor.mockReturnValue({
     data: { items: [listing()], total: 1 },
     isLoading: false,
@@ -92,6 +98,23 @@ describe("MarketplaceBrowsePage", () => {
     await waitFor(() =>
       expect(listingsFor).toHaveBeenCalledWith(expect.objectContaining({ q: "burndown" }))
     );
+  });
+
+  it("says so rather than marking everything uninstalled when the check fails", async () => {
+    // "We do not know" and "you have none of these" look identical on a card,
+    // and only one of them is true — so the page says which.
+    installedFailed = true;
+    renderPage(MarketplaceBrowsePage);
+    await screen.findByText("Sprint health");
+    expect(screen.queryByText("Installed")).toBeNull();
+    expect(screen.getByText(/couldn't check which of these/i)).toBeInTheDocument();
+  });
+
+  it("says nothing extra when the check succeeds", async () => {
+    installed = { SPRNT000000001: 1 };
+    renderPage(MarketplaceBrowsePage);
+    await screen.findByText("Installed");
+    expect(screen.queryByText(/couldn't check which of these/i)).toBeNull();
   });
 
   it("does not present a failed catalog as an empty one", async () => {

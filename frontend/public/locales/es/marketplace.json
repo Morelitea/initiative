@@ -47,5 +47,6 @@
   "unavailable": {
     "title": "Mercado no disponible",
     "description": "No se pudo acceder al catálogo. Inténtalo de nuevo en un momento."
-  }
+  },
+  "installedUnknown": "No se pudo comprobar cuáles de estos ya tienes, así que nada de lo siguiente aparece como instalado."
 }

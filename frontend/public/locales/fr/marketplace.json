@@ -47,5 +47,6 @@
   "unavailable": {
     "title": "Catalogue indisponible",
     "description": "Le catalogue n'a pas pu être joint. Réessayez dans un instant."
-  }
+  },
+  "installedUnknown": "Impossible de vérifier lesquels vous possédez déjà : rien ci-dessous n'est donc marqué comme installé."
 }

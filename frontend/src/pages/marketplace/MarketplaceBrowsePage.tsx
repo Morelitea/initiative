@@ -42,8 +42,12 @@ export function MarketplaceBrowsePage() {
   // Which of these this guild already has, counted server-side over every
   // dashboard rather than over a page of them. A count, not a boolean: a guild
   // may hold several installs of one listing, at different versions.
+  //
+  // Left undefined when that request failed, rather than defaulted to an empty
+  // map: "we do not know" and "you have none of these" look identical on a card,
+  // and only one of them is true. The notice below says which.
   const installedQuery = useInstalledListings();
-  const installedByUid = installedQuery.data?.counts ?? {};
+  const installedByUid = installedQuery.isError ? undefined : installedQuery.data?.counts;
 
   const listings = listingsQuery.data?.items ?? [];
 
@@ -77,15 +81,20 @@ export function MarketplaceBrowsePage() {
           ))}
         </div>
       ) : listings.length ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {listings.map((listing) => (
-            <MarketplaceCard
-              key={listing.public_id}
-              listing={listing}
-              installedCount={installedByUid[listing.uid] ?? 0}
-            />
-          ))}
-        </div>
+        <>
+          {installedQuery.isError && (
+            <p className="text-muted-foreground text-sm">{t("installedUnknown")}</p>
+          )}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {listings.map((listing) => (
+              <MarketplaceCard
+                key={listing.public_id}
+                listing={listing}
+                installedCount={installedByUid?.[listing.uid] ?? 0}
+              />
+            ))}
+          </div>
+        </>
       ) : (
         <StatusMessage
           icon={<SearchX />}
