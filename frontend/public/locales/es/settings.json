@@ -789,7 +789,13 @@
       "users": "Usuarios",
       "storageLimit": "Límite de almacenamiento",
       "guildAuth": "Inicio de sesión por gremio",
-      "status": "Estado"
+      "status": "Estado",
+      "billing": "Facturación"
+    },
+    "billing": {
+      "noPlan": "Sin plan",
+      "openLabel": "Abrir la facturación de {{name}}",
+      "openError": "No se pudo abrir el portal de facturación."
     }
   },
   "storage": {

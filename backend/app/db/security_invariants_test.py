@@ -240,6 +240,50 @@ async def test_users_request_path_insert_is_pinned_to_member(engine):
     )
 
 
+async def test_guild_billing_columns_are_not_writable_by_request_roles(engine):
+    """Tier and cap columns on ``guilds`` are not writable by the request-path
+    floors (migration 0138). Drift guard."""
+    request_roles = ["app_guild_base", f"{settings.PLATFORM_ROLE_PREFIX}platform_base"]
+    billing_columns = [
+        "tier_name",
+        "max_storage_bytes",
+        "max_users",
+        "status",
+        "status_changed_at",
+    ]
+    async with engine.connect() as conn:
+        for role in request_roles:
+            writable = {
+                column
+                for column in billing_columns
+                if (
+                    await conn.execute(
+                        text(
+                            "SELECT has_column_privilege("
+                            ":role, 'public.guilds', :column, 'UPDATE')"
+                        ),
+                        {"role": role, "column": column},
+                    )
+                ).scalar()
+            }
+            assert writable == set(), (
+                f"{role} must hold no UPDATE on guilds billing columns — a tier "
+                f"or cap change is operator/billing-only: {sorted(writable)}"
+            )
+        # Positive control, so the assertion above can't pass on a blanket revoke.
+        identity_writable = (
+            await conn.execute(
+                text(
+                    "SELECT has_column_privilege("
+                    "'app_guild_base', 'public.guilds', 'name', 'UPDATE')"
+                )
+            )
+        ).scalar()
+        assert identity_writable, (
+            "app_guild_base must retain UPDATE on guilds.name (guild identity)"
+        )
+
+
 async def test_guild_membership_role_is_writable_only_by_the_system_engine(engine):
     """A guild membership's ``role`` is changed only on the system engine (the
     guild-admin endpoint). The request-path floors hold a column-scoped UPDATE

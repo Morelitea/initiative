@@ -15,6 +15,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from app.core.config import settings
+from app.core.security import billing_support_handoff_enabled
 from app.services.tenant.attachments import MAX_DOCUMENT_FILE_SIZE
 
 router = APIRouter()
@@ -65,6 +66,11 @@ class BillingConfig(BaseModel):
     """
 
     url: str
+    # Whether the operator route into the portal is wired up. The admin Guilds
+    # tab hides its billing control when false rather than offering one whose
+    # every click fails. Independent of ``url`` — the guild-admin link-out
+    # works without it.
+    operator_handoff: bool = False
 
 
 class AppConfig(BaseModel):
@@ -139,7 +145,14 @@ def get_app_config() -> AppConfig:
 
     # Billing portal link-out: exposed only when the operator configured a
     # billing URL. Absent ⇒ the SPA hides every tier/upgrade/manage surface.
-    billing = BillingConfig(url=settings.BILLING_URL) if settings.BILLING_URL else None
+    billing = (
+        BillingConfig(
+            url=settings.BILLING_URL,
+            operator_handoff=billing_support_handoff_enabled(),
+        )
+        if settings.BILLING_URL
+        else None
+    )
 
     return AppConfig(
         advanced_tool=advanced_tool,

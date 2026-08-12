@@ -24,6 +24,7 @@ from app.core.body_limit import BodySizeLimitMiddleware
 from app.api.v1.api import api_router
 from app.core.messages import GuildMessages
 from app.core.rate_limit import limiter
+from app.core.security import billing_support_handoff_enabled
 from app.core.config import API_V1_STR, PROJECT_NAME, settings
 from app.core.version import __version__
 from app.db.errors import INSUFFICIENT_PRIVILEGE_SQLSTATE, dbapi_sqlstate
@@ -104,6 +105,14 @@ async def lifespan(app: FastAPI):
             "ADVANCED_TOOL_URL is set but HANDOFF_SIGNING_PRIVATE_KEY_PEM is not; "
             "advanced-tool handoffs will fail closed until an RS256 signing key "
             "is configured."
+        )
+    if settings.BILLING_URL and not billing_support_handoff_enabled():
+        # The Guilds tab shows its billing button whenever a portal URL is set;
+        # without the signing pair every click fails closed (503).
+        logger.warning(
+            "BILLING_URL is set but BILLING_SUPPORT_HANDOFF_SECRET / "
+            "BILLING_SUPPORT_HANDOFF_KID are not; the operator billing handoff "
+            "will fail closed until both are configured."
         )
     backfill = await backfill_guild_schemas()
     if backfill.failed:

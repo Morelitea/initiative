@@ -789,7 +789,13 @@
       "users": "Benutzer",
       "storageLimit": "Speicherlimit",
       "guildAuth": "Gildenanmeldung",
-      "status": "Status"
+      "status": "Status",
+      "billing": "Abrechnung"
+    },
+    "billing": {
+      "noPlan": "Kein Tarif",
+      "openLabel": "Abrechnung für {{name}} öffnen",
+      "openError": "Das Abrechnungsportal konnte nicht geöffnet werden."
     }
   },
   "storage": {

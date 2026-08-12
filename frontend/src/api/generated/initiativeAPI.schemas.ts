@@ -529,6 +529,7 @@ export interface CaptchaConfig {
  */
 export interface BillingConfig {
   url: string;
+  operator_handoff?: boolean;
 }
 
 /**
@@ -2770,6 +2771,7 @@ export interface PlatformGuildStorageRead {
   id: number;
   name: string;
   member_count: number;
+  tier_name: string | null;
   max_storage_bytes: number | null;
   max_users: number | null;
   status: GuildStatus;

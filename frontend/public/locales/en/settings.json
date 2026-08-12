@@ -780,7 +780,13 @@
       "users": "Users",
       "storageLimit": "Storage limit",
       "guildAuth": "Per-guild sign-in",
-      "status": "Status"
+      "status": "Status",
+      "billing": "Billing"
+    },
+    "billing": {
+      "noPlan": "No plan",
+      "openLabel": "Open billing for {{name}}",
+      "openError": "Could not open the billing portal."
     }
   },
   "adminDashboard": {

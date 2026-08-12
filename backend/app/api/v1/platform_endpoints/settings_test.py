@@ -15,6 +15,7 @@ from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import Guild, GuildRole, GuildStatus
+from app.models.platform.access_grant import AccessLevel
 from app.models.platform.user import UserRole
 from app.services import email as email_service
 from app.testing import (
@@ -1182,3 +1183,365 @@ async def test_guild_posture_keeps_platform_oidc_dormant(
     login_resp = await client.get("/api/v1/auth/oidc/login")
     assert login_resp.status_code == 404
     assert login_resp.json()["detail"] == "OIDC_NOT_ENABLED"
+
+
+# --- Guilds tab: billing portal operator handoff ---
+
+_TEST_HANDOFF_SECRET = "test-billing-support-handoff-secret-0123456789"
+
+
+def _configure_billing(monkeypatch):
+    from app.core.config import settings as app_settings
+
+    monkeypatch.setattr(app_settings, "BILLING_URL", "https://billing.example.com")
+    monkeypatch.setattr(
+        app_settings, "BILLING_SUPPORT_HANDOFF_SECRET", _TEST_HANDOFF_SECRET
+    )
+    monkeypatch.setattr(app_settings, "BILLING_SUPPORT_HANDOFF_KID", "k1")
+
+
+@pytest.mark.integration
+async def test_guild_list_exposes_tier_name(client: AsyncClient, session: AsyncSession):
+    """The Guilds tab reads the plan label verbatim off the guild row."""
+    owner = await create_user(session, email="owner@example.com", role=UserRole.owner)
+    guild = await create_guild(session)
+    guild.tier_name = "Bespoke Plan"
+    session.add(guild)
+    await session.commit()
+
+    resp = await client.get("/api/v1/settings/guilds", headers=get_auth_headers(owner))
+    assert resp.status_code == 200
+    row = next(g for g in resp.json() if g["id"] == guild.id)
+    assert row["tier_name"] == "Bespoke Plan"
+
+
+@pytest.mark.integration
+async def test_billing_handoff_404_when_billing_url_unset(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    from app.core.config import settings as app_settings
+
+    monkeypatch.setattr(app_settings, "BILLING_URL", None)
+
+    owner = await create_user(session, email="owner@example.com", role=UserRole.owner)
+    guild = await create_guild(session)
+
+    resp = await client.post(
+        f"/api/v1/settings/guilds/{guild.id}/billing/service-handoff",
+        headers=get_auth_headers(owner),
+    )
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "BILLING_PORTAL_NOT_CONFIGURED"
+
+
+@pytest.mark.integration
+async def test_billing_handoff_requires_guilds_manage(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """A plain platform member is refused even as the guild's own admin."""
+    _configure_billing(monkeypatch)
+
+    member = await create_user(session, email="member@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(
+        session, user=member, guild=guild, role=GuildRole.admin
+    )
+
+    resp = await client.post(
+        f"/api/v1/settings/guilds/{guild.id}/billing/service-handoff",
+        headers=get_auth_headers(member),
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.integration
+async def test_billing_handoff_requires_authentication(
+    client: AsyncClient, monkeypatch
+):
+    _configure_billing(monkeypatch)
+
+    resp = await client.post("/api/v1/settings/guilds/1/billing/service-handoff")
+    assert resp.status_code == 401
+
+
+@pytest.mark.integration
+async def test_billing_handoff_404_for_unknown_guild(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    _configure_billing(monkeypatch)
+
+    owner = await create_user(session, email="owner@example.com", role=UserRole.owner)
+
+    resp = await client.post(
+        "/api/v1/settings/guilds/99999/billing/service-handoff",
+        headers=get_auth_headers(owner),
+    )
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "SETTINGS_GUILD_NOT_FOUND"
+
+
+@pytest.mark.integration
+async def test_billing_handoff_503_when_signing_material_unset(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    from app.core.config import settings as app_settings
+
+    monkeypatch.setattr(app_settings, "BILLING_URL", "https://billing.example.com")
+    monkeypatch.setattr(app_settings, "BILLING_SUPPORT_HANDOFF_SECRET", None)
+    monkeypatch.setattr(app_settings, "BILLING_SUPPORT_HANDOFF_KID", None)
+
+    owner = await create_user(session, email="owner@example.com", role=UserRole.owner)
+    guild = await create_guild(session)
+
+    resp = await client.post(
+        f"/api/v1/settings/guilds/{guild.id}/billing/service-handoff",
+        headers=get_auth_headers(owner),
+    )
+    assert resp.status_code == 503
+    assert resp.json()["detail"] == "BILLING_PORTAL_SIGNING_NOT_CONFIGURED"
+
+
+@pytest.mark.integration
+async def test_billing_handoff_self_issues_a_grant_and_names_it(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The token verifies against the shared key and carries the claim set the
+    receiver requires, naming the grant it just self-issued."""
+    import jwt
+    from sqlmodel import select as sm_select
+
+    from app.core.security import (
+        BILLING_SUPPORT_HANDOFF_AUDIENCE,
+        BILLING_SUPPORT_HANDOFF_ISSUER,
+    )
+    from app.models.platform.access_grant import AccessGrant
+
+    _configure_billing(monkeypatch)
+
+    owner = await create_user(session, email="owner@example.com", role=UserRole.owner)
+    guild = await create_guild(session)  # owner deliberately not a member
+
+    resp = await client.post(
+        f"/api/v1/settings/guilds/{guild.id}/billing/service-handoff",
+        headers=get_auth_headers(owner),
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert 0 < body["expires_in_seconds"] <= 300
+
+    header = jwt.get_unverified_header(body["handoff_token"])
+    assert header["kid"] == "k1"
+    payload = jwt.decode(
+        body["handoff_token"],
+        _TEST_HANDOFF_SECRET,
+        algorithms=[header["alg"]],
+        audience=BILLING_SUPPORT_HANDOFF_AUDIENCE,
+        issuer=BILLING_SUPPORT_HANDOFF_ISSUER,
+    )
+    assert payload["sub"] == str(owner.id)
+    assert payload["guild_id"] == guild.id
+    assert payload["jti"]
+    # Lifetime stays inside the receiver's ceiling.
+    assert payload["exp"] - payload["iat"] <= 300
+
+    grant = (
+        await session.exec(
+            sm_select(AccessGrant).where(
+                AccessGrant.user_id == owner.id, AccessGrant.guild_id == guild.id
+            )
+        )
+    ).one()
+    assert payload["grant_id"] == str(grant.id)
+    assert payload["approver"] == str(owner.id)
+    assert grant.access_level == "read"
+    assert grant.status == "approved"
+
+
+@pytest.mark.integration
+async def test_billing_handoff_reuses_a_live_grant(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """A second click inside the window names the same grant, not a new one."""
+    import jwt
+    from sqlmodel import select as sm_select
+
+    from app.models.platform.access_grant import AccessGrant
+
+    _configure_billing(monkeypatch)
+
+    owner = await create_user(session, email="owner@example.com", role=UserRole.owner)
+    guild = await create_guild(session)
+
+    first = await client.post(
+        f"/api/v1/settings/guilds/{guild.id}/billing/service-handoff",
+        headers=get_auth_headers(owner),
+    )
+    second = await client.post(
+        f"/api/v1/settings/guilds/{guild.id}/billing/service-handoff",
+        headers=get_auth_headers(owner),
+    )
+    assert first.status_code == second.status_code == 200
+
+    def grant_of(resp):
+        return jwt.decode(
+            resp.json()["handoff_token"], options={"verify_signature": False}
+        )["grant_id"]
+
+    assert grant_of(first) == grant_of(second)
+    # ...and each click is a distinct one-shot token.
+    assert first.json()["handoff_token"] != second.json()["handoff_token"]
+
+    grants = (
+        await session.exec(
+            sm_select(AccessGrant).where(
+                AccessGrant.user_id == owner.id, AccessGrant.guild_id == guild.id
+            )
+        )
+    ).all()
+    assert len(grants) == 1
+
+
+@pytest.mark.integration
+async def test_billing_handoff_breaks_glass_even_for_a_member(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """Belonging to the guild is content access, not billing authority, so the
+    grant is still issued and named."""
+    import jwt
+    from sqlmodel import select as sm_select
+
+    from app.models.platform.access_grant import AccessGrant
+
+    _configure_billing(monkeypatch)
+
+    owner = await create_user(session, email="owner@example.com", role=UserRole.owner)
+    guild = await create_guild(session)
+    await create_guild_membership(
+        session, user=owner, guild=guild, role=GuildRole.admin
+    )
+
+    resp = await client.post(
+        f"/api/v1/settings/guilds/{guild.id}/billing/service-handoff",
+        headers=get_auth_headers(owner),
+    )
+    assert resp.status_code == 200
+
+    grant = (
+        await session.exec(
+            sm_select(AccessGrant).where(
+                AccessGrant.user_id == owner.id, AccessGrant.guild_id == guild.id
+            )
+        )
+    ).one()
+    payload = jwt.decode(
+        resp.json()["handoff_token"], options={"verify_signature": False}
+    )
+    assert payload["grant_id"] == str(grant.id)
+    assert grant.access_level == "read"
+
+
+@pytest.mark.integration
+async def test_billing_grant_confers_no_access_to_the_guild(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The grant the billing button issues authorises billing and nothing else:
+    a non-member holding one still cannot reach the guild."""
+    _configure_billing(monkeypatch)
+
+    owner = await create_user(session, email="owner@example.com", role=UserRole.owner)
+    guild = await create_guild(session)  # owner is not a member
+
+    before = await client.get(
+        f"/api/v1/g/{guild.id}/initiatives/", headers=get_auth_headers(owner)
+    )
+    assert before.status_code == 403
+
+    minted = await client.post(
+        f"/api/v1/settings/guilds/{guild.id}/billing/service-handoff",
+        headers=get_auth_headers(owner),
+    )
+    assert minted.status_code == 200
+
+    # Still refused: the live grant is a billing one, so the guild resolver
+    # does not accept it.
+    after = await client.get(
+        f"/api/v1/g/{guild.id}/initiatives/", headers=get_auth_headers(owner)
+    )
+    assert after.status_code == 403
+
+
+@pytest.mark.integration
+async def test_billing_grant_does_not_block_a_content_break_glass(session, monkeypatch):
+    """The two purposes stack independently — holding a billing grant must not
+    make the ordinary break-glass path report an overlap."""
+    from app.models.platform.access_grant import AccessGrantPurpose
+    from app.schemas.platform.access_grant import BreakGlassCreate
+    from app.services.platform import access_grants as service
+
+    owner = await create_user(session, email="owner@example.com", role=UserRole.owner)
+    guild = await create_guild(session)
+
+    billing = await service.break_glass(
+        session,
+        actor=owner,
+        payload=BreakGlassCreate(
+            guild_id=guild.id, reason="billing portal", access_level=AccessLevel.read
+        ),
+        purpose=AccessGrantPurpose.billing,
+    )
+    content = await service.break_glass(
+        session,
+        actor=owner,
+        payload=BreakGlassCreate(
+            guild_id=guild.id, reason="incident", access_level=AccessLevel.read
+        ),
+    )
+    assert billing.purpose == "billing"
+    assert content.purpose == "content"
+
+    # Each purpose resolves only its own row.
+    assert (
+        await service.get_live_grant(session, user_id=owner.id, guild_id=guild.id)
+    ).id == content.id
+    assert (
+        await service.get_live_grant(
+            session,
+            user_id=owner.id,
+            guild_id=guild.id,
+            purpose=AccessGrantPurpose.billing,
+        )
+    ).id == billing.id
+
+
+@pytest.mark.integration
+async def test_billing_grant_does_not_block_a_content_request(session):
+    """A live billing grant must not make the request->approve flow report an
+    overlap: the two authorities are independent."""
+    from app.models.platform.access_grant import AccessGrantPurpose
+    from app.schemas.platform.access_grant import AccessGrantCreate, BreakGlassCreate
+    from app.services.platform import access_grants as service
+
+    support = await create_user(
+        session, email="support@example.com", role=UserRole.support
+    )
+    guild = await create_guild(session)
+
+    await service.break_glass(
+        session,
+        actor=support,
+        payload=BreakGlassCreate(
+            guild_id=guild.id, reason="billing portal", access_level=AccessLevel.read
+        ),
+        purpose=AccessGrantPurpose.billing,
+    )
+
+    requested = await service.request_grant(
+        session,
+        requester=support,
+        payload=AccessGrantCreate(
+            guild_id=guild.id,
+            reason="investigating a ticket",
+            access_level=AccessLevel.read,
+        ),
+    )
+    assert requested.purpose == "content"
