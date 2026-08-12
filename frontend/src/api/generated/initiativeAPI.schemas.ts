@@ -2747,6 +2747,28 @@ export interface OIDCSettingsUpdate {
   scopes?: string[];
 }
 
+/**
+ * A manifest the scan would not publish, named so it can be fixed.
+ */
+export interface OperatorCatalogProblem {
+  file: string;
+  reason: string;
+}
+
+/**
+ * What a rescan of the operator's catalog directory did.
+ *
+ * Read by the person who just dropped a file in, so it reports the skipped
+ * files as well as the count: a listing that did not appear should say why
+ * without a trip to the server log.
+ */
+export interface OperatorCatalogScanResult {
+  published: number;
+  withdrawn: number;
+  skipped: number;
+  problems: OperatorCatalogProblem[];
+}
+
 export interface PasswordResetRequest {
   email: string;
 }
