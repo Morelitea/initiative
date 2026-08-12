@@ -15,6 +15,7 @@ from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import Guild, GuildRole, GuildStatus
+from app.models.platform.access_grant import AccessLevel
 from app.models.platform.user import UserRole
 from app.services import email as email_service
 from app.testing import (
@@ -1437,3 +1438,76 @@ async def test_billing_handoff_breaks_glass_even_for_a_member(
     )
     assert payload["grant_id"] == str(grant.id)
     assert grant.access_level == "read"
+
+
+@pytest.mark.integration
+async def test_billing_grant_confers_no_access_to_the_guild(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The grant the billing button issues authorises billing and nothing else:
+    a non-member holding one still cannot reach the guild."""
+    _configure_billing(monkeypatch)
+
+    owner = await create_user(session, email="owner@example.com", role=UserRole.owner)
+    guild = await create_guild(session)  # owner is not a member
+
+    before = await client.get(
+        f"/api/v1/g/{guild.id}/initiatives/", headers=get_auth_headers(owner)
+    )
+    assert before.status_code == 403
+
+    minted = await client.post(
+        f"/api/v1/settings/guilds/{guild.id}/billing/service-handoff",
+        headers=get_auth_headers(owner),
+    )
+    assert minted.status_code == 200
+
+    # Still refused: the live grant is a billing one, so the guild resolver
+    # does not accept it.
+    after = await client.get(
+        f"/api/v1/g/{guild.id}/initiatives/", headers=get_auth_headers(owner)
+    )
+    assert after.status_code == 403
+
+
+@pytest.mark.integration
+async def test_billing_grant_does_not_block_a_content_break_glass(session, monkeypatch):
+    """The two purposes stack independently — holding a billing grant must not
+    make the ordinary break-glass path report an overlap."""
+    from app.models.platform.access_grant import AccessGrantPurpose
+    from app.schemas.platform.access_grant import BreakGlassCreate
+    from app.services.platform import access_grants as service
+
+    owner = await create_user(session, email="owner@example.com", role=UserRole.owner)
+    guild = await create_guild(session)
+
+    billing = await service.break_glass(
+        session,
+        actor=owner,
+        payload=BreakGlassCreate(
+            guild_id=guild.id, reason="billing portal", access_level=AccessLevel.read
+        ),
+        purpose=AccessGrantPurpose.billing,
+    )
+    content = await service.break_glass(
+        session,
+        actor=owner,
+        payload=BreakGlassCreate(
+            guild_id=guild.id, reason="incident", access_level=AccessLevel.read
+        ),
+    )
+    assert billing.purpose == "billing"
+    assert content.purpose == "content"
+
+    # Each purpose resolves only its own row.
+    assert (
+        await service.get_live_grant(session, user_id=owner.id, guild_id=guild.id)
+    ).id == content.id
+    assert (
+        await service.get_live_grant(
+            session,
+            user_id=owner.id,
+            guild_id=guild.id,
+            purpose=AccessGrantPurpose.billing,
+        )
+    ).id == billing.id

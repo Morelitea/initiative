@@ -13,6 +13,17 @@ class AccessLevel(str, Enum):
     read_write = "read_write"
 
 
+class AccessGrantPurpose(str, Enum):
+    """What a grant authorises. A grant is only ever spent on its own purpose.
+
+    ``billing`` covers the external billing account and carries no access to
+    the guild itself.
+    """
+
+    content = "content"
+    billing = "billing"
+
+
 class AccessGrantStatus(str, Enum):
     """Lifecycle of a privileged-access grant.
 
@@ -33,6 +44,9 @@ class AccessGrantStatus(str, Enum):
 ACCESS_LEVELS: tuple[str, ...] = tuple(level.value for level in AccessLevel)
 ACCESS_GRANT_STATUSES: tuple[str, ...] = tuple(
     status.value for status in AccessGrantStatus
+)
+ACCESS_GRANT_PURPOSES: tuple[str, ...] = tuple(
+    purpose.value for purpose in AccessGrantPurpose
 )
 
 
@@ -67,6 +81,14 @@ class AccessGrant(SQLModel, table=True):
             String(16),
             nullable=False,
             server_default=AccessGrantStatus.pending.value,
+            index=True,
+        )
+    )
+    purpose: str = Field(
+        sa_column=Column(
+            String(16),
+            nullable=False,
+            server_default=AccessGrantPurpose.content.value,
             index=True,
         )
     )

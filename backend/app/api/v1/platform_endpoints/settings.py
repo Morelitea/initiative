@@ -51,7 +51,7 @@ from app.schemas.platform.guild import (
     PlatformGuildStorageRead,
     PlatformGuildStorageUpdate,
 )
-from app.models.platform.access_grant import AccessLevel
+from app.models.platform.access_grant import AccessGrantPurpose, AccessLevel
 from app.schemas.platform.access_grant import BreakGlassCreate
 from app.schemas.platform.billing import BillingPortalHandoffResponse
 from app.schemas.platform.push import FCMConfigResponse
@@ -540,7 +540,10 @@ async def create_platform_guild_billing_service_handoff(
         )
 
     grant = await access_grants_service.get_live_grant(
-        session, user_id=admin.id, guild_id=guild_id
+        session,
+        user_id=admin.id,
+        guild_id=guild_id,
+        purpose=AccessGrantPurpose.billing,
     )
     if grant is None:
         try:
@@ -555,6 +558,7 @@ async def create_platform_guild_billing_service_handoff(
                 # Belonging to the guild says nothing about billing authority,
                 # so a member still breaks glass for it.
                 allow_member=True,
+                purpose=AccessGrantPurpose.billing,
             )
         except access_grants_service.AccessGrantError as exc:
             raise HTTPException(
