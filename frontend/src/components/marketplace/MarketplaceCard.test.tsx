@@ -18,15 +18,13 @@ import { MarketplaceCard } from "./MarketplaceCard";
 describe("MarketplaceCard", () => {
   // A card carries a router Link, so it mounts through renderPage and its
   // first paint is a tick away — hence findByText rather than getByText.
-  it("says where the listing came from, not just who claims it", async () => {
+  it("names the author before anyone clicks through", async () => {
     const listing = buildMarketplaceListing({
       source: "operator",
       author_name: "Acme Widgets",
     });
     renderPage(() => <MarketplaceCard listing={listing} />);
-    expect(
-      await screen.findByText("by Acme Widgets · added by your administrator")
-    ).toBeInTheDocument();
+    expect(await screen.findByText("by Acme Widgets")).toBeInTheDocument();
   });
 
   it("puts no second link inside the card's own link", async () => {
@@ -36,7 +34,7 @@ describe("MarketplaceCard", () => {
       author_url: "https://acme.example",
     });
     renderPage(() => <MarketplaceCard listing={listing} />);
-    expect(await screen.findByText("by Acme Widgets · verified")).toBeInTheDocument();
+    expect(await screen.findByText("by Acme Widgets")).toBeInTheDocument();
     // Only the card itself.
     expect(screen.getAllByRole("link")).toHaveLength(1);
   });

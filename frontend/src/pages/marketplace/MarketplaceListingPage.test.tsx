@@ -102,7 +102,7 @@ describe("MarketplaceListingPage", () => {
     } as unknown as MarketplaceListingDetail;
     renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
     await screen.findByRole("heading", { name: "Guild calendar" });
-    expect(screen.getByText("by Acme Widgets · added by your administrator")).toBeInTheDocument();
+    expect(screen.getByText("by Acme Widgets")).toBeInTheDocument();
     const link = screen.getByRole("link", { name: "Author's website" });
     expect(link).toHaveAttribute("rel", "noopener noreferrer nofollow");
     expect(link).toHaveAttribute("target", "_blank");

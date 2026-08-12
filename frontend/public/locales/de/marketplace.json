@@ -10,8 +10,6 @@
   },
   "provenance": {
     "builtin": "von Initiative",
-    "registry": "von {{author}} · verifiziert",
-    "operator": "von {{author}} · durch deine Administration hinzugefügt",
     "plain": "von {{author}}",
     "website": "Website des Autors"
   },

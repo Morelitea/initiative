@@ -1,24 +1,29 @@
 /**
- * Who wrote a listing — always said together with how the listing got here.
+ * Who wrote a listing.
  *
- * A name on its own cannot answer "who wrote this?", because three different
- * trust stories print the same string: code shipped in this build, a listing a
- * trusted registry signed, and a file someone's administrator dropped in. So
- * the author is never rendered alone. The source picks the sentence, the name
- * is interpolated into it as claimed, and an unverified listing naming a
- * first-party author still reads "added by your administrator".
+ * Every app on a deployment is there because an administrator put it there —
+ * they choose the registry to trust, the files to drop in, and the apps to
+ * install. So the question a user has before installing is authorship, not
+ * approval, and this renders exactly that: the author, as claimed, with
+ * first-party listings named as ours.
+ *
+ * Deliberately not a trust gradient. Ranking listings by where they came from
+ * would imply some of them arrived without the administrator's say-so, which is
+ * not a state this platform has. What keeps the claim honest is enforcement
+ * rather than a badge: `core.*` is reserved to listings shipped in this
+ * repository, and a registry's index is signature-checked against a key the
+ * deployment configured before any listing in it is read.
  *
  * One component for the card, the detail page and the install dialog, so the
  * three cannot answer the question differently.
  */
 
-import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/utils";
 
 /**
- * The fields provenance reads. Structural rather than the generated summary
+ * The fields attribution reads. Structural rather than the generated summary
  * type, so a browse card, a detail page and a dialog all satisfy it.
  */
 export interface ListingAttribution {
@@ -30,34 +35,12 @@ export interface ListingAttribution {
 export interface ListingProvenanceProps {
   listing: ListingAttribution;
   /**
-   * Whether to offer the author's own address alongside the sentence. Off on
-   * cards, whose whole surface is already a link to the listing.
+   * Whether to offer the author's own address alongside the name. Off on cards,
+   * whose whole surface is already a link to the listing.
    */
   showAuthorUrl?: boolean;
   className?: string;
 }
-
-/**
- * The sentence for one listing. Written as an explicit branch per source so the
- * displayed string is readable next to the three cases it implements, and so an
- * unrecognized source falls through to stating the claim and nothing more —
- * never to a trust story this build cannot vouch for.
- */
-const provenanceLine = (listing: ListingAttribution, t: TFunction<"marketplace">): string => {
-  const author = listing.author_name;
-  switch (listing.source) {
-    case "builtin":
-      // Shipped and reviewed in this repository, so the answer is this build
-      // rather than anything the manifest claims.
-      return t("provenance.builtin");
-    case "registry":
-      return t("provenance.registry", { author });
-    case "operator":
-      return t("provenance.operator", { author });
-    default:
-      return t("provenance.plain", { author });
-  }
-};
 
 /**
  * The author's address, only when it is one we will hand a click to.
@@ -84,10 +67,17 @@ export function ListingProvenance({
 
   const claimedUrl = listing.author_url?.trim() || null;
   const href = linkableUrl(claimedUrl);
+  // Listings shipped in this repository are named as ours rather than by
+  // whatever their manifest says, since `core.*` is reserved and the answer
+  // there is this build.
+  const line =
+    listing.source === "builtin"
+      ? t("provenance.builtin")
+      : t("provenance.plain", { author: listing.author_name });
 
   return (
     <p className={cn("text-muted-foreground text-xs", className)}>
-      {provenanceLine(listing, t)}
+      {line}
       {showAuthorUrl && claimedUrl && (
         <>
           <span aria-hidden="true"> · </span>
