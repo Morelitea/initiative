@@ -36,6 +36,7 @@ import httpx
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.security import auto_delegation_configured
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.services.safe_http import request_public_target
 from app.services.webhook_target_url import (
@@ -47,6 +48,11 @@ logger = logging.getLogger(__name__)
 
 
 _TIMEOUT = httpx.Timeout(connect=3.0, read=5.0, write=5.0, pool=5.0)
+
+#: Whether this process has already said that dispatch is inert. Every write
+#: that produces an event calls the dispatcher, so the explanation is worth
+#: saying once per process and never per event.
+_inert_logged = False
 
 
 def _sign(secret: str, timestamp: str, body: bytes) -> str:
@@ -143,7 +149,22 @@ async def dispatch_event(
     all deliveries return or time out (5s each). For v0 that latency is
     acceptable because the typical case is zero or one subscriber.
     Move to a background queue when delivery counts climb.
+
+    With no automation delegate configured this returns immediately: the
+    delegate owns delivery targets, so on such a deployment there are none to
+    deliver to. Returning before the query keeps the cost of the feature at
+    zero on the write path rather than one query per event.
     """
+    if not auto_delegation_configured():
+        global _inert_logged
+        if not _inert_logged:
+            _inert_logged = True
+            logger.info(
+                "webhook dispatch inert: no automation delegate configured "
+                "(set AUTO_DELEGATION_PUBLIC_KEY_PEM to enable event delivery)"
+            )
+        return
+
     statement = select(WebhookSubscription).where(
         WebhookSubscription.guild_id == guild_id,
         WebhookSubscription.active.is_(True),

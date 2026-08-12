@@ -43,7 +43,12 @@ export const FOCUS_DEFAULTS: FocusPreferences = {
 
 export const FOCUS_DUE_WITHIN_CHOICES = [0, 2, 7] as const;
 
-const OPEN_CATEGORIES = ["todo", "in_progress"];
+/**
+ * Everything that is not finished. `backlog` belongs here as much as the other
+ * two: it is the default status for a newly created task, so leaving it out
+ * hides the bulk of most people's work — including tasks that are overdue.
+ */
+const OPEN_CATEGORIES = ["backlog", "todo", "in_progress"];
 const URGENT_PRIORITIES = ["urgent", "high"];
 /**
  * The API's per-page maximum. There is deliberately no display cap on top of
@@ -56,18 +61,24 @@ const pinKey = (guildId: number | null | undefined, taskId: number) =>
   `${guildId ?? "none"}:${taskId}`;
 
 /**
- * Conditions for the rule-driven half of the section: open work that is due
- * soon or explicitly urgent, plus anything finished today so completions stay
- * visible instead of vanishing the moment they're checked off.
+ * Conditions for the rule-driven half of the section: open work that has come
+ * due (or already started) within the window, or is explicitly urgent, plus
+ * anything finished today so completions stay visible instead of vanishing the
+ * moment they're checked off.
+ *
+ * The window applies to `start_date` as well as `due_date`, matching how the
+ * task table below groups by date (`getTaskDateStatus`): a task whose start
+ * date has passed is work in hand even if nobody put a deadline on it.
  *
  * Exported for testing — the OR nesting is the part worth pinning down.
  */
 export function buildFocusConditions({
-  dueBefore,
+  horizon,
   includeHighPriority,
   completedSince,
 }: {
-  dueBefore: Date;
+  /** Far edge of the date window; both start and due dates are measured to it. */
+  horizon: Date;
   includeHighPriority: boolean;
   completedSince: Date;
 }): FilterGroup[] {
@@ -77,14 +88,18 @@ export function buildFocusConditions({
     value: OPEN_CATEGORIES,
   };
 
-  // "Open AND (due soon OR urgent)" is written out as two AND legs rather than
-  // nesting an OR inside the AND: the API caps condition nesting at two group
-  // levels and rejects a third outright. Distributing the shared leg costs one
-  // duplicated leaf and keeps the same meaning.
+  // "Open AND (due soon OR started OR urgent)" is written out as sibling AND
+  // legs rather than nesting an OR inside the AND: the API caps condition
+  // nesting at two group levels and rejects a third outright. Distributing the
+  // shared leg costs one duplicated leaf per branch and keeps the same meaning.
   const legs: FilterGroup[] = [
     {
       logic: "and",
-      conditions: [stillOpen, { field: "due_date", op: "lte", value: dueBefore.toISOString() }],
+      conditions: [stillOpen, { field: "due_date", op: "lte", value: horizon.toISOString() }],
+    },
+    {
+      logic: "and",
+      conditions: [stillOpen, { field: "start_date", op: "lte", value: horizon.toISOString() }],
     },
   ];
 
@@ -117,8 +132,16 @@ const completedOnOrAfter = (task: TaskListRead, since: number) =>
 
 const byDueDate = (a: TaskListRead, b: TaskListRead) => {
   // Undated work sorts last: it has no clock pressure, so it should never
-  // displace something with a deadline from a capped list.
-  if (!a.due_date && !b.due_date) return a.id - b.id;
+  // displace something with a deadline. Within that group, work that has
+  // already started leads — it is in hand, whatever the table says about it.
+  if (!a.due_date && !b.due_date) {
+    if (a.start_date && b.start_date) {
+      return a.start_date.localeCompare(b.start_date) || a.id - b.id;
+    }
+    if (a.start_date) return -1;
+    if (b.start_date) return 1;
+    return a.id - b.id;
+  }
   if (!a.due_date) return 1;
   if (!b.due_date) return -1;
   return a.due_date.localeCompare(b.due_date);
@@ -163,7 +186,7 @@ export function useFocusSummary({ enabled = true }: { enabled?: boolean } = {}) 
   const ruleParams = useMemo<ListMyTasksApiV1MeTasksGetParams>(
     () => ({
       conditions: buildFocusConditions({
-        dueBefore: endOfDay(addDays(new Date(today), prefs.dueWithinDays)),
+        horizon: endOfDay(addDays(new Date(today), prefs.dueWithinDays)),
         includeHighPriority: prefs.includeHighPriority,
         completedSince: new Date(today),
       }),

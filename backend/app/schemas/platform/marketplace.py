@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import ConfigDict
 
-from app.schemas.base import SanitizedBaseModel
+from app.schemas.base import RawTextStr, SanitizedBaseModel
 from app.services.marketplace.definitions import LISTING_KINDS
 
 # Derived from the validator's own set rather than restated, the way WidgetType
@@ -79,3 +79,33 @@ class MarketplaceListingPage(SanitizedBaseModel):
 
     items: List[MarketplaceListingSummary]
     total: int
+
+
+class OperatorCatalogProblem(SanitizedBaseModel):
+    """A manifest the scan would not publish, named so it can be fixed."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    #: The file's name inside the catalog directory.
+    file: str
+    #: Why it was skipped, in the words the validator used. Carried verbatim
+    #: and length-bounded at the source: a diagnostic quoting the offending
+    #: character is only useful if it still says which character.
+    reason: RawTextStr
+
+
+class OperatorCatalogScanResult(SanitizedBaseModel):
+    """What a rescan of the operator's catalog directory did.
+
+    Read by the person who just dropped a file in, so it reports the skipped
+    files as well as the count: a listing that did not appear should say why
+    without a trip to the server log.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    published: int = 0
+    #: Listings retired because no manifest in the directory publishes them.
+    withdrawn: int = 0
+    skipped: int = 0
+    problems: List[OperatorCatalogProblem] = []

@@ -194,6 +194,29 @@ async def lifespan(app: FastAPI):
         # every already-installed dashboard keeps its own pinned definition.
         logger.exception("marketplace: built-in listing seed failed")
 
+    # Listings the operator publishes themselves, from the directory
+    # MARKETPLACE_EXTRA_CATALOG_DIR names. Same writer, same validation as the
+    # built-ins; a manifest that has been removed retires its listing. With the
+    # setting unset nothing is read and nothing is said.
+    from app.services.marketplace.operator_catalog import (
+        operator_catalog_dir,
+        scan_operator_catalog,
+    )
+
+    if operator_catalog_dir() is not None:
+        try:
+            async with AdminSessionLocal() as operator_catalog_session:
+                scan = await scan_operator_catalog(operator_catalog_session)
+                await operator_catalog_session.commit()
+            logger.info(
+                "marketplace: operator catalog — %d published, %d withdrawn, "
+                "%d skipped",
+                scan.published,
+                scan.withdrawn,
+                scan.skipped,
+            )
+        except Exception:
+            logger.exception("marketplace: operator catalog scan failed")
     # App services the deployment declares in a mounted file (APP_SERVICES_CONFIG).
     # Database-only: an app's container may boot after this one, so the handshake
     # is a separate step and a declared registration lands unverified rather than
