@@ -60,6 +60,12 @@ export const ShareControl = ({
   // Guild-level resource: there is no initiative to read, so the roster comes
   // from the guild. Roles stay empty — a guild role is not an initiative role,
   // and granting to one is not something this build does.
+  //
+  // Both rosters here are whole-list reads, and a guild's is the larger of the
+  // two. The bounded alternative is the search endpoint, but it answers with
+  // UserSummary — no email — and every row in this control shows one, so moving
+  // to it is a change to what sharing displays for all six tools rather than a
+  // swap. Worth doing as its own change; noted so it isn't re-derived.
   const guildScoped = initiativeId == null;
   const { data: roles = [] } = useInitiativeRoles(initiativeId);
   const { data: initiative } = useInitiative(initiativeId);
