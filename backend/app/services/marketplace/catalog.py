@@ -264,19 +264,29 @@ async def upsert_listing(
         )
 
     now = datetime.now(timezone.utc)
-    listing = existing or MarketplaceListing(
-        uid=uid, public_id=public_id, created_at=now, updated_at=now
-    )
-    listing.kind = kind
-    listing.source = source
-    listing.name = str(manifest["name"])
-    listing.publisher = str(manifest["publisher"])
-    listing.description = str(manifest["description"])
-    listing.long_description = manifest.get("long_description")
-    listing.avatar_url = str(manifest["avatar_url"])
-    listing.images = list(images)
-    listing.available = True
-    listing.updated_at = now
+    # Everything a publish sets, whether the row is new or being updated. Built
+    # once so a new listing is constructed complete rather than assembled by
+    # assignment after the fact.
+    published = {
+        "kind": kind,
+        "source": source,
+        "name": str(manifest["name"]),
+        "publisher": str(manifest["publisher"]),
+        "description": str(manifest["description"]),
+        "long_description": manifest.get("long_description"),
+        "avatar_url": str(manifest["avatar_url"]),
+        "images": list(images),
+        "available": True,
+        "updated_at": now,
+    }
+    if existing is None:
+        listing = MarketplaceListing(
+            uid=uid, public_id=public_id, created_at=now, **published
+        )
+    else:
+        listing = existing
+        for field, value in published.items():
+            setattr(listing, field, value)
     session.add(listing)
     await session.flush()
 

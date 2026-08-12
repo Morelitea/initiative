@@ -35,6 +35,10 @@ from app.core.messages import (
     MarketplaceMessages,
 )
 from app.core.tools import Tool
+from app.models.platform.marketplace import (
+    MarketplaceListing,
+    MarketplaceListingVersion,
+)
 from app.models.platform.user import User
 from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.initiative import Initiative, PermissionKey
@@ -92,8 +96,8 @@ def _normalize_body(definition: dict, config: dict) -> tuple[dict, dict]:
 
 async def _resolve_listing_install(
     session: RLSSessionDep, listing_uid: str
-) -> tuple[str, str, dict, int]:
-    """What installing a listing gives you: its name, version, definition, id.
+) -> tuple[MarketplaceListing, MarketplaceListingVersion]:
+    """The catalog rows behind an install: the listing, and the version to pin.
 
     The definition comes from the catalog row, never from the request — a client
     names a listing and the server reads what that listing publishes, so an
@@ -121,16 +125,18 @@ async def _resolve_listing_install(
             status_code=status.HTTP_409_CONFLICT,
             detail=MarketplaceMessages.LISTING_VERSION_INCOMPATIBLE,
         )
-    return listing.name, version.version, dict(version.definition), listing.id
+    return listing, version
 
 
-async def _count_install(listing_id: int) -> None:
+async def _count_install(listing_id: Optional[int]) -> None:
     """Add one to a listing's install tally, after the install has committed.
 
     On the system engine because the catalog has no request-path writer, and
     best-effort because it is a display number: a failed bump must never fail an
     install that already happened. Nothing about *which* guild is recorded.
     """
+    if listing_id is None:
+        return
     try:
         # Read off the module rather than bound at import: the session maker is
         # swapped per test, and a name captured at import time would keep
@@ -328,15 +334,15 @@ async def create_dashboard(
     listing_id: Optional[int] = None
     listing_version: Optional[str] = None
     if dashboard_in.listing_uid:
-        (
-            _,
-            listing_version,
-            listing_definition,
-            listing_id,
-        ) = await _resolve_listing_install(session, dashboard_in.listing_uid)
+        listing, version = await _resolve_listing_install(
+            session, dashboard_in.listing_uid
+        )
+        listing_id, listing_version = listing.id, version.version
         # Validated again on the way in: the catalog validated it at publish
         # time, but this build decides what it can render *now*.
-        definition, config = _normalize_body(listing_definition, dashboard_in.config)
+        definition, config = _normalize_body(
+            dict(version.definition), dashboard_in.config
+        )
     else:
         definition, config = _normalize_body(
             dashboard_in.definition, dashboard_in.config
@@ -475,19 +481,17 @@ async def upgrade_dashboard(
             detail=MarketplaceMessages.NOT_INSTALLED_FROM_LISTING,
         )
 
-    _, version, listing_definition, _ = await _resolve_listing_install(
-        session, dashboard.listing_uid
-    )
-    if version == dashboard.listing_version:
+    _, version = await _resolve_listing_install(session, dashboard.listing_uid)
+    if version.version == dashboard.listing_version:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=MarketplaceMessages.ALREADY_LATEST_VERSION,
         )
 
-    definition, config = _normalize_body(listing_definition, dashboard.config)
+    definition, config = _normalize_body(dict(version.definition), dashboard.config)
     dashboard.definition = definition
     dashboard.config = config
-    dashboard.listing_version = version
+    dashboard.listing_version = version.version
     dashboard.updated_at = datetime.now(timezone.utc)
     session.add(dashboard)
     await session.commit()
