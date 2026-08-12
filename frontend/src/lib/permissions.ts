@@ -24,6 +24,7 @@ export const Capability = {
   accessApprove: "access.approve",
   accessRead: "access.read",
   configManage: "config.manage",
+  appsManage: "apps.manage",
 } as const;
 
 export type Capability = (typeof Capability)[keyof typeof Capability];
@@ -43,8 +44,11 @@ export function hasAnyCapability(user: WithCapabilities, capabilities: Capabilit
 }
 
 /** Capabilities behind the **Platform settings** area (app-wide config:
- * auth, branding, email, AI). Owner-only in practice (`config.manage`). */
-const PLATFORM_SETTINGS_CAPABILITIES: Capability[] = [Capability.configManage];
+ * auth, branding, email, AI, app services). Owner-only in practice. */
+const PLATFORM_SETTINGS_CAPABILITIES: Capability[] = [
+  Capability.configManage,
+  Capability.appsManage,
+];
 
 /** Capabilities behind the **Admin dashboard** area (operational: platform
  * users + time-bound access grants). */

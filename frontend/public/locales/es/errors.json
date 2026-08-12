@@ -380,5 +380,18 @@
   "GUILD_APP_ADMIN_REQUIRED": "Solo los administradores del gremio pueden gestionar aplicaciones.",
   "GUILD_APP_LISTING_NOT_AN_APP": "Ese elemento no se puede instalar como aplicación.",
   "GUILD_APP_ALREADY_INSTALLED": "Este gremio ya tiene esa aplicación instalada.",
-  "GUILD_APP_KIND_NOT_INSTALLABLE": "Este tipo de aplicación todavía no se puede instalar en esta versión de Initiative."
+  "GUILD_APP_KIND_NOT_INSTALLABLE": "Este tipo de aplicación todavía no se puede instalar en esta versión de Initiative.",
+  "APP_SERVICE_NOT_FOUND": "Ese servicio de aplicación ya no está registrado.",
+  "APP_SERVICE_DUPLICATE_PUBLIC_ID": "Ya hay un servicio de aplicación registrado con ese identificador.",
+  "APP_SERVICE_INVALID_PUBLIC_ID": "Ese identificador de aplicación no es válido. Usa la forma editor.nombre, en minúsculas.",
+  "APP_SERVICE_INVALID_BASE_URL": "Esa dirección no es válida. Indica la URL base de la aplicación, sin parámetros de consulta.",
+  "APP_SERVICE_INVALID_ORIGIN": "Uno de los orígenes permitidos no es válido. Usa esquema://host con un puerto opcional y sin ruta.",
+  "APP_SERVICE_UNKNOWN_GRANT": "Ese permiso no se le puede conceder a un servicio de aplicación.",
+  "APP_SERVICE_SECRET_REQUIRED": "Este servicio de aplicación necesita un secreto compartido antes de poder verificarse.",
+  "APP_SERVICE_SIGNING_NOT_CONFIGURED": "Los servicios de aplicación necesitan una clave de firma que aún no está configurada. Contacta con tu administración.",
+  "APP_SERVICE_UNREACHABLE": "No se pudo contactar con el servicio de aplicación. Comprueba que esté en marcha y que la dirección sea correcta.",
+  "APP_SERVICE_INVALID_MANIFEST": "El servicio de aplicación se describió de una forma que esta versión no puede aceptar.",
+  "APP_SERVICE_MANIFEST_CHANGED": "Este servicio de aplicación ahora se describe de otra manera. Revisa el cambio y vuelve a verificarlo para aceptarlo.",
+  "APP_SERVICE_PUBLIC_ID_MISMATCH": "Esa dirección responde por una aplicación distinta de la de este registro.",
+  "APP_SERVICE_SIGNATURE_MISMATCH": "El servicio de aplicación respondió con un secreto distinto. Comprueba que ambas partes usen el mismo."
 }

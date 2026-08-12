@@ -44,6 +44,7 @@ from app.api.v1.platform_endpoints import (
     access_grants,
     admin,
     ai_settings as platform_ai_settings,
+    app_services,
     auth,
     auth_providers,
     billing,
@@ -86,6 +87,11 @@ api_router.include_router(
     access_grants.router, prefix="/access-grants", tags=["access-grants"]
 )
 api_router.include_router(settings.router, prefix="/settings", tags=["settings"])
+# Deployment-level app service wiring (apps.manage — owner). Platform-addressed
+# like the catalog: a registration belongs to the deployment, never to a guild.
+api_router.include_router(
+    app_services.router, prefix="/app-services", tags=["app-services"]
+)
 api_router.include_router(
     auth_providers.router, prefix="/settings/auth/providers", tags=["auth-providers"]
 )

@@ -415,6 +415,37 @@ def create_billing_portal_handoff_token(
     return token, int(expires_in.total_seconds())
 
 
+class AppPlatformSigningNotConfiguredError(RuntimeError):
+    """Raised when app-platform signing material is needed but absent.
+
+    The app platform has its own dedicated keypair and deliberately no
+    fallback to any other configured key: an app verifies context JWTs against
+    the published public half, and two boundaries sharing one key would share
+    one rotation. Callers translate this into a fail-closed 503.
+    """
+
+
+def app_platform_signing_enabled() -> bool:
+    """True when this deployment can sign for the app platform."""
+    return bool(settings.APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM)
+
+
+def resolve_app_platform_signing_material() -> tuple[str, str, str | None]:
+    """Return (private_key_pem, "RS256", kid) for app-platform tokens."""
+    private_pem = settings.APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM
+    if not private_pem:
+        raise AppPlatformSigningNotConfiguredError(
+            "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM is required to run the app "
+            "platform; it has no fallback to another service's key"
+        )
+    return private_pem, "RS256", settings.APP_PLATFORM_SIGNING_KEY_ID
+
+
+def app_platform_audience(public_id: str) -> str:
+    """The ``aud`` a token minted for one app service carries."""
+    return f"{settings.APP_PLATFORM_AUDIENCE_PREFIX}{public_id}"
+
+
 # Pinned on both sides of the boundary — not deployment knobs.
 BILLING_SUPPORT_HANDOFF_ISSUER = "initiative"
 BILLING_SUPPORT_HANDOFF_AUDIENCE = "initiative:billing-support"

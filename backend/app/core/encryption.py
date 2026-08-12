@@ -23,6 +23,7 @@ SALT_AI_API_KEY = b"ai-api-key"
 SALT_S3_SECRET_KEY = b"s3-secret-key"
 SALT_EMAIL = b"email"
 SALT_EVENT_PUBLISHER_PAYLOAD = b"event-publisher-payload"
+SALT_APP_SERVICE_SECRET = b"app-service-secret"
 
 
 def _resolve_secret_key(secret_key: str | None) -> str:

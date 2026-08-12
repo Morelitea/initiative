@@ -590,6 +590,39 @@ class Settings(BaseSettings):
     AUTO_DELEGATION_AUDIENCE: str = "initiative:auto-delegation"
     AUTO_DELEGATION_ISSUER: str = "initiative-auto"
 
+    # --- App platform (external app services; default OFF) ----------------
+    # An app service is an external container this deployment has wired up
+    # (see the app service registry). Everything below is unset on a default
+    # install, and with it unset the platform simply has no app services: the
+    # registry lists nothing, and the endpoints that would mint credentials for
+    # one fail closed rather than improvising.
+    #
+    # RSA private key (PEM) signing Initiative -> app context JWTs. This is a
+    # DEDICATED keypair with no fallback: an app verifies these against the
+    # published public half, so borrowing another service's key would put two
+    # unrelated trust boundaries on one rotation schedule. Generate one with
+    # ``openssl genrsa -out app-platform.pem 2048``. Unset ⇒ registering and
+    # verifying app services refuse with APP_SERVICE_SIGNING_NOT_CONFIGURED.
+    APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM: str | None = None
+    # Key id stamped on the JWT header so an app can pick the right verifying
+    # key out of the published JWKS while a rotation is in flight.
+    APP_PLATFORM_SIGNING_KEY_ID: str | None = None
+    # ``iss`` on context JWTs.
+    APP_PLATFORM_ISSUER: str = "initiative"
+    # ``aud`` is this prefix plus the registration's public_id, so a token
+    # minted for one app is not accepted by another.
+    APP_PLATFORM_AUDIENCE_PREFIX: str = "initiative-app:"
+    # Path to a mounted file of app service registrations, reconciled into the
+    # database at startup so a chart can wire approved apps with no admin
+    # clicks. JSON (or a JSON array in a .json file):
+    #   [{"public_id": "acme.shopify", "base_url": "http://shopify:9100",
+    #     "secret_env": "SHOPIFY_APP_SECRET", "allowed_origins": ["…"],
+    #     "grants": [], "mandatory": false}]
+    # The secret is named, never inlined, so the file can be a plain ConfigMap.
+    # Unset (the default) ⇒ no reconciliation runs. Reconciliation never
+    # re-enables a registration an operator disabled, and never blocks boot.
+    APP_SERVICES_CONFIG: str | None = None
+
     # --- Billing (hosted deployments only; default OFF) -------------------
     # Billing is an optional EXTERNAL service. Every BILLING_* setting below
     # is unset on a self-hosted install, and with them unset the app behaves

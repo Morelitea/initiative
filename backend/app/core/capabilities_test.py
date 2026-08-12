@@ -24,6 +24,13 @@ def test_config_manage_is_owner_only():
 
 
 @pytest.mark.unit
+def test_apps_manage_is_owner_only():
+    """Wiring an app service is deployment configuration — the same tier
+    ``config.manage`` occupies, and no lower one."""
+    assert roles_with_capability(Capability.APPS_MANAGE) == frozenset({UserRole.owner})
+
+
+@pytest.mark.unit
 def test_data_bypass_is_admin_and_owner():
     assert roles_with_capability(Capability.DATA_BYPASS) == frozenset(
         {UserRole.operator, UserRole.owner}
