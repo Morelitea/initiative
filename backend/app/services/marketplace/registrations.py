@@ -319,12 +319,16 @@ async def create_registration(
             ) from exc
         row_status = exc.status
     else:
-        if declared_id is not None and declared_id != result.public_id:
+        # Normalized before it is compared or stored: how an app spells its own
+        # id in its manifest is its business, but one canonical form is what
+        # every later lookup and audience is built from.
+        result_id = normalize_public_id(result.public_id)
+        if declared_id is not None and declared_id != result_id:
             raise HTTPException(
                 status_code=http_status.HTTP_400_BAD_REQUEST,
                 detail=AppServiceMessages.PUBLIC_ID_MISMATCH,
             )
-        resolved_id = result.public_id
+        resolved_id = result_id
         listing_uid = result.listing_uid
         manifest_hash = result.manifest_hash
         protocol_version = result.protocol_version
@@ -525,6 +529,11 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
         return ReconcileResult()
 
     created = updated = unchanged = skipped = 0
+    # A public_id already handled in this pass. The row for it is pending rather
+    # than flushed, so a second entry naming it would look absent, insert a
+    # duplicate, and fail the unique constraint at the shared commit — taking
+    # every other registration in the file down with it.
+    seen: set[str] = set()
     for entry in entries:
         try:
             public_id = normalize_public_id(str(entry.get("public_id", "")))
@@ -539,6 +548,16 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
             )
             skipped += 1
             continue
+
+        if public_id in seen:
+            logger.warning(
+                "app services: %r appears more than once in %s — later entry skipped",
+                public_id,
+                path,
+            )
+            skipped += 1
+            continue
+        seen.add(public_id)
 
         secret_env = entry.get("secret_env")
         secret = os.environ.get(secret_env) if isinstance(secret_env, str) else None

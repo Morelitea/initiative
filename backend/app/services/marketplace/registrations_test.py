@@ -399,3 +399,49 @@ async def test_reconcile_survives_an_unreadable_file(session, tmp_path, monkeypa
     monkeypatch.setattr(settings, "APP_SERVICES_CONFIG", str(path))
 
     assert (await service.reconcile_from_config(session)).total == 0
+
+
+async def test_a_repeated_public_id_costs_only_that_entry(
+    session, tmp_path, monkeypatch
+):
+    """A duplicate in the file is one operator mistake, not a failed boot.
+
+    Rows are pending rather than flushed during the pass, so a second entry
+    naming the same app looks absent, inserts a duplicate, and fails the unique
+    constraint at the shared commit — which would take every other registration
+    in the file with it. The later entry is skipped instead.
+    """
+    monkeypatch.setenv("TEST_APP_SECRET", "from-the-environment")
+    monkeypatch.setattr(
+        settings,
+        "APP_SERVICES_CONFIG",
+        _write_config(
+            tmp_path,
+            [
+                {
+                    "public_id": "acme.twice",
+                    "base_url": BASE_URL,
+                    "secret_env": "TEST_APP_SECRET",
+                },
+                {
+                    "public_id": "acme.twice",
+                    "base_url": "https://other.example.com",
+                    "secret_env": "TEST_APP_SECRET",
+                },
+                {
+                    "public_id": "acme.innocent",
+                    "base_url": BASE_URL,
+                    "secret_env": "TEST_APP_SECRET",
+                },
+            ],
+        ),
+    )
+
+    result = await service.reconcile_from_config(session)
+
+    assert (result.created, result.skipped) == (2, 1)
+    rows = (await session.exec(select(AppServiceRegistration))).all()
+    assert sorted(row.public_id for row in rows) == ["acme.innocent", "acme.twice"]
+    # The first entry won, so the duplicate did not quietly retarget the app.
+    kept = next(row for row in rows if row.public_id == "acme.twice")
+    assert kept.base_url == BASE_URL
