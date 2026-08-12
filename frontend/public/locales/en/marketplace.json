@@ -8,6 +8,13 @@
     "version": "v{{version}}",
     "needsUpdate": "Needs a newer app"
   },
+  "provenance": {
+    "builtin": "by Initiative",
+    "registry": "by {{author}} · verified",
+    "operator": "by {{author}} · added by your administrator",
+    "plain": "by {{author}}",
+    "website": "Author's website"
+  },
   "empty": {
     "title": "Nothing here yet",
     "description": "This deployment has no listings to offer."
@@ -17,7 +24,6 @@
     "description": "Nothing in the marketplace matches “{{query}}”."
   },
   "detail": {
-    "by": "by {{publisher}}",
     "installs_one": "{{count}} install",
     "installs_other": "{{count}} installs",
     "install": "Add to an initiative",

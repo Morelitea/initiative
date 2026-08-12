@@ -8,6 +8,13 @@
     "version": "v{{version}}",
     "needsUpdate": "Benötigt neuere App"
   },
+  "provenance": {
+    "builtin": "von Initiative",
+    "registry": "von {{author}} · verifiziert",
+    "operator": "von {{author}} · durch deine Administration hinzugefügt",
+    "plain": "von {{author}}",
+    "website": "Website des Autors"
+  },
   "empty": {
     "title": "Noch nichts hier",
     "description": "Diese Installation bietet keine Einträge an."
@@ -17,7 +24,6 @@
     "description": "Nichts im Marktplatz passt zu „{{query}}“."
   },
   "detail": {
-    "by": "von {{publisher}}",
     "installs_one": "{{count}} Installation",
     "installs_other": "{{count}} Installationen",
     "install": "Zu einer Initiative hinzufügen",

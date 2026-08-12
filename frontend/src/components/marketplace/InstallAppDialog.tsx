@@ -15,6 +15,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { MarketplaceListingDetail } from "@/api/generated/initiativeAPI.schemas";
+import { ListingProvenance } from "@/components/marketplace/ListingProvenance";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -68,6 +69,10 @@ export function InstallAppDialog({ listing, open, onOpenChange }: InstallAppDial
           <DialogTitle>{t("apps:install.title", { name: listing.name })}</DialogTitle>
           <DialogDescription>{t("apps:install.description")}</DialogDescription>
         </DialogHeader>
+
+        {/* An app reaches the whole guild, so who wrote it is said here too —
+            the same sentence the card and the listing page showed. */}
+        <ListingProvenance listing={listing} />
 
         <div className="space-y-1.5">
           <Label htmlFor="install-app-name">{t("apps:install.name")}</Label>

@@ -2421,6 +2421,17 @@ export const ListingKind = {
 } as const;
 
 /**
+ * How a listing reached this deployment.
+ */
+export type ListingSource = (typeof ListingSource)[keyof typeof ListingSource];
+
+export const ListingSource = {
+  builtin: "builtin",
+  operator: "operator",
+  registry: "registry",
+} as const;
+
+/**
  * One sign-in provider offered on the login page (non-secret metadata).
  */
 export interface LoginProviderEntry {
@@ -2458,9 +2469,12 @@ export interface MarketplaceListingDetail {
   uid: string;
   public_id: string;
   kind: ListingKind;
-  source: string;
+  source: ListingSource;
   name: string;
   publisher: string;
+  author_name: string;
+  author_url: string | null;
+  author_contact: string | null;
   description: string;
   avatar_url: string;
   images: string[];
@@ -2481,9 +2495,12 @@ export interface MarketplaceListingSummary {
   uid: string;
   public_id: string;
   kind: ListingKind;
-  source: string;
+  source: ListingSource;
   name: string;
   publisher: string;
+  author_name: string;
+  author_url: string | null;
+  author_contact: string | null;
   description: string;
   avatar_url: string;
   images: string[];

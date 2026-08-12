@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional
 from pydantic import ConfigDict
 
 from app.schemas.base import SanitizedBaseModel
-from app.services.marketplace.definitions import LISTING_KINDS
+from app.services.marketplace.definitions import LISTING_KINDS, LISTING_SOURCES
 
 # Derived from the validator's own set rather than restated, the way WidgetType
 # derives from the widget registry: a new kind reaches the API — and, through
@@ -22,6 +22,14 @@ ListingKind = Enum(
     "ListingKind", {name: name for name in sorted(LISTING_KINDS)}, type=str
 )
 ListingKind.__doc__ = "What a marketplace listing installs as."
+
+# Derived the same way, and for a stronger reason: the UI shows a different
+# sentence per source, so the closed vocabulary belongs in the schema the client
+# is generated from rather than as a bare string it has to guess at.
+ListingSource = Enum(
+    "ListingSource", {name: name for name in sorted(LISTING_SOURCES)}, type=str
+)
+ListingSource.__doc__ = "How a listing reached this deployment."
 
 
 class MarketplaceVersionRead(SanitizedBaseModel):
@@ -46,9 +54,19 @@ class MarketplaceListingSummary(SanitizedBaseModel):
     uid: str
     public_id: str
     kind: ListingKind  # type: ignore[valid-type]
-    source: str
+    #: How the listing reached this deployment. Served on every card, because
+    #: the author below is a claim and this is what bounds it — the two are
+    #: shown together, never one without the other.
+    source: ListingSource  # type: ignore[valid-type]
     name: str
     publisher: str
+    #: Who the listing says wrote it. Required in the catalog, so this is
+    #: always present.
+    author_name: str
+    #: Where they say they can be found. A claim like the name: displayed,
+    #: never requested by the server, and never taken as identity.
+    author_url: Optional[str] = None
+    author_contact: Optional[str] = None
     description: str
     avatar_url: str
     images: List[str] = []

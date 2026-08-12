@@ -17,6 +17,7 @@ import { useTranslation } from "react-i18next";
 
 import type { MarketplaceListingDetail, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { Tool as ToolEnum } from "@/api/generated/initiativeAPI.schemas";
+import { ListingProvenance } from "@/components/marketplace/ListingProvenance";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -101,6 +102,9 @@ export function InstallListingDialog({
           <DialogTitle>{t("marketplace:install.title", { name: listing.name })}</DialogTitle>
           <DialogDescription>{t("marketplace:install.description")}</DialogDescription>
         </DialogHeader>
+
+        {/* The last place to see who wrote this, while it is still a choice. */}
+        <ListingProvenance listing={listing} />
 
         {nowhereToInstall ? (
           <p className="text-muted-foreground text-sm">{t("marketplace:install.noInitiatives")}</p>

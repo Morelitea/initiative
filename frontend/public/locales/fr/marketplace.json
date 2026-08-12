@@ -8,6 +8,13 @@
     "version": "v{{version}}",
     "needsUpdate": "Nécessite une app plus récente"
   },
+  "provenance": {
+    "builtin": "par Initiative",
+    "registry": "par {{author}} · vérifié",
+    "operator": "par {{author}} · ajouté par votre administration",
+    "plain": "par {{author}}",
+    "website": "Site web de l'auteur"
+  },
   "empty": {
     "title": "Rien ici pour l'instant",
     "description": "Cette instance ne propose aucune fiche."
@@ -17,7 +24,6 @@
     "description": "Rien dans le catalogue ne correspond à « {{query}} »."
   },
   "detail": {
-    "by": "par {{publisher}}",
     "installs_one": "{{count}} installation",
     "installs_other": "{{count}} installations",
     "install": "Ajouter à une initiative",

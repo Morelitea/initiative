@@ -10,6 +10,7 @@ import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import type { MarketplaceListingSummary } from "@/api/generated/initiativeAPI.schemas";
+import { ListingProvenance } from "@/components/marketplace/ListingProvenance";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -51,7 +52,10 @@ export function MarketplaceCard({ listing, installedCount = 0 }: MarketplaceCard
                 </Badge>
               )}
             </div>
-            <p className="truncate text-muted-foreground text-xs">{listing.publisher}</p>
+            {/* The card answers "who wrote this?" before the click, and the
+                author's own address is left off: the whole card is already a
+                link, and a link inside a link is neither valid nor clickable. */}
+            <ListingProvenance listing={listing} showAuthorUrl={false} className="truncate" />
             <p className="mt-1.5 line-clamp-2 text-muted-foreground text-sm">
               {listing.description}
             </p>

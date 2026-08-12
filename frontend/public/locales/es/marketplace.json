@@ -8,6 +8,13 @@
     "version": "v{{version}}",
     "needsUpdate": "Necesita una app más reciente"
   },
+  "provenance": {
+    "builtin": "de Initiative",
+    "registry": "de {{author}} · verificado",
+    "operator": "de {{author}} · añadido por tu administración",
+    "plain": "de {{author}}",
+    "website": "Sitio web del autor"
+  },
   "empty": {
     "title": "Aquí no hay nada todavía",
     "description": "Esta instalación no ofrece ningún elemento."
@@ -17,7 +24,6 @@
     "description": "Nada en el mercado coincide con «{{query}}»."
   },
   "detail": {
-    "by": "de {{publisher}}",
     "installs_one": "{{count}} instalación",
     "installs_other": "{{count}} instalaciones",
     "install": "Añadir a una iniciativa",

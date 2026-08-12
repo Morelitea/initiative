@@ -168,6 +168,54 @@ class TestDetail:
         assert body["latest_version"]["compatible"] is False
 
 
+class TestAttribution:
+    """Who wrote a listing, served with what bounds the claim.
+
+    The name is what a manifest asserts and ``source`` is how the listing
+    actually reached this deployment. The UI shows one only ever with the other,
+    so the API never serves a card carrying just the name.
+    """
+
+    async def test_a_card_carries_the_author_and_its_provenance(
+        self, client, acting_user, session
+    ):
+        await create_marketplace_listing(
+            session,
+            # Crockford base32: no I, L, O or U.
+            uid="ATTRBT00000001",
+            public_id="tests.attributed",
+            name="Attributed",
+            author={
+                "name": "Acme Widgets",
+                "url": "https://acme.example",
+                "contact": "hello@acme.example",
+            },
+        )
+        actor = await acting_user("member")
+        response = await client.get(
+            "/api/v1/marketplace/listings",
+            params={"q": "Attributed"},
+            headers=actor.headers,
+        )
+        card = response.json()["items"][0]
+        assert card["author_name"] == "Acme Widgets"
+        assert card["author_url"] == "https://acme.example"
+        assert card["author_contact"] == "hello@acme.example"
+        assert card["source"] == "builtin"
+
+    async def test_the_detail_page_carries_them_too(self, client, acting_user, listing):
+        # The page where the install decision is made reads the same two
+        # fields as the card, so they cannot disagree.
+        actor = await acting_user("member")
+        response = await client.get(
+            "/api/v1/marketplace/listings/tests.browse", headers=actor.headers
+        )
+        body = response.json()
+        assert body["author_name"] == "Tests"
+        assert body["author_url"] is None
+        assert body["source"] == "builtin"
+
+
 class TestNoWrites:
     @pytest.mark.parametrize("method", ["post", "put", "patch", "delete"])
     async def test_the_catalog_has_no_write_route(
