@@ -201,6 +201,50 @@ class TestDefinitions:
         }
 
 
+class TestArtwork:
+    """Artwork stays same-origin.
+
+    Every member who scrolls past a listing fetches its avatar, so an artwork
+    URL decides who gets told about those page views. The catalog refuses
+    anything but a local path — a registry wanting third-party art will mirror
+    it, not link it.
+    """
+
+    @pytest.mark.parametrize(
+        "avatar_url",
+        [
+            "https://elsewhere.test/logo.png",
+            "http://elsewhere.test/logo.png",
+            # Scheme-relative: an absolute URL wearing a path's clothes.
+            "//elsewhere.test/logo.png",
+            "marketplace/relative.svg",
+        ],
+    )
+    async def test_offsite_avatar_is_refused(self, session, avatar_url):
+        with pytest.raises(CatalogError, match="same-origin path"):
+            await service.upsert_listing(
+                session, _manifest(avatar_url=avatar_url), source="builtin"
+            )
+
+    async def test_offsite_screenshot_is_refused(self, session):
+        with pytest.raises(CatalogError, match="same-origin path"):
+            await service.upsert_listing(
+                session,
+                _manifest(
+                    images=["/marketplace/ok.png", "https://elsewhere.test/x.png"]
+                ),
+                source="builtin",
+            )
+
+    async def test_local_artwork_is_accepted(self, session):
+        listing = await service.upsert_listing(
+            session,
+            _manifest(images=["/marketplace/shot-1.png"]),
+            source="builtin",
+        )
+        assert listing.images == ["/marketplace/shot-1.png"]
+
+
 class TestVersions:
     async def test_republishing_a_version_unchanged_is_a_no_op(self, session):
         """Boot re-seeds the shipped listings on every start, so publishing the

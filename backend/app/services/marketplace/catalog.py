@@ -86,6 +86,25 @@ def _check_public_id(public_id: str) -> str:
     return public_id
 
 
+def _check_artwork_path(value: str, *, field: str) -> str:
+    """A listing's artwork must be a same-origin path.
+
+    Artwork is fetched by every member who so much as scrolls past the listing,
+    so where it points decides who learns about those page views. Keeping it
+    same-origin means browsing the marketplace talks to nobody but the app —
+    the shipped files live under ``/marketplace/``. If a remote registry later
+    wants third-party artwork, the right shape is mirroring it locally, not
+    loosening this.
+
+    ``//host/...`` is refused along with full URLs: browsers read a leading
+    double slash as scheme-relative, which is an absolute URL wearing a path's
+    clothes.
+    """
+    if not value.startswith("/") or value.startswith("//"):
+        raise CatalogError(f"{field} must be a same-origin path starting with '/'")
+    return value
+
+
 def _check_version(version: str) -> str:
     if not version or len(version) > _MAX_VERSION:
         raise CatalogError("version must be 1..32 characters")
@@ -245,9 +264,13 @@ async def upsert_listing(
         if not manifest.get(required):
             raise CatalogError(f"{public_id}: {required} is required")
 
+    _check_artwork_path(str(manifest["avatar_url"]), field=f"{public_id}: avatar_url")
+
     images = manifest.get("images") or []
     if not isinstance(images, list) or any(not isinstance(i, str) for i in images):
         raise CatalogError(f"{public_id}: images must be a list of strings")
+    for image in images:
+        _check_artwork_path(image, field=f"{public_id}: images")
 
     existing = await get_listing_by_uid(session, uid)
     if existing is None:
