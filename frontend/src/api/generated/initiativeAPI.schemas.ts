@@ -529,6 +529,7 @@ export interface CaptchaConfig {
  */
 export interface BillingConfig {
   url: string;
+  operator_handoff?: boolean;
 }
 
 /**

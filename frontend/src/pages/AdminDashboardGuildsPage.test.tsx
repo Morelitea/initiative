@@ -55,7 +55,10 @@ let authScope: "platform" | "guild" = "platform";
 
 // The billing column only renders when a portal is configured; flip this to
 // exercise the self-hosted case (no portal, no column).
-let billingConfig: { url: string } | null = { url: "https://billing.example.com" };
+let billingConfig: { url: string; operator_handoff: boolean } | null = {
+  url: "https://billing.example.com",
+  operator_handoff: true,
+};
 
 const mintHandoff = vi.fn();
 
@@ -92,7 +95,7 @@ describe("AdminDashboardGuildsPage", () => {
     mutate.mockClear();
     mintHandoff.mockReset();
     authScope = "platform";
-    billingConfig = { url: "https://billing.example.com" };
+    billingConfig = { url: "https://billing.example.com", operator_handoff: true };
   });
 
   describe("storage limits", () => {
@@ -310,6 +313,14 @@ describe("AdminDashboardGuildsPage", () => {
 
     it("is absent when no billing portal is configured", async () => {
       billingConfig = null;
+      renderPage();
+
+      expect(await screen.findByText("Capped Guild")).toBeInTheDocument();
+      expect(screen.queryByLabelText("Open billing for Capped Guild")).not.toBeInTheDocument();
+    });
+
+    it("is absent when the operator route into the portal is not wired", async () => {
+      billingConfig = { url: "https://billing.example.com", operator_handoff: false };
       renderPage();
 
       expect(await screen.findByText("Capped Guild")).toBeInTheDocument();

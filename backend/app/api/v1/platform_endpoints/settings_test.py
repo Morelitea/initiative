@@ -1511,3 +1511,37 @@ async def test_billing_grant_does_not_block_a_content_break_glass(session, monke
             purpose=AccessGrantPurpose.billing,
         )
     ).id == billing.id
+
+
+@pytest.mark.integration
+async def test_billing_grant_does_not_block_a_content_request(session):
+    """A live billing grant must not make the request->approve flow report an
+    overlap: the two authorities are independent."""
+    from app.models.platform.access_grant import AccessGrantPurpose
+    from app.schemas.platform.access_grant import AccessGrantCreate, BreakGlassCreate
+    from app.services.platform import access_grants as service
+
+    support = await create_user(
+        session, email="support@example.com", role=UserRole.support
+    )
+    guild = await create_guild(session)
+
+    await service.break_glass(
+        session,
+        actor=support,
+        payload=BreakGlassCreate(
+            guild_id=guild.id, reason="billing portal", access_level=AccessLevel.read
+        ),
+        purpose=AccessGrantPurpose.billing,
+    )
+
+    requested = await service.request_grant(
+        session,
+        requester=support,
+        payload=AccessGrantCreate(
+            guild_id=guild.id,
+            reason="investigating a ticket",
+            access_level=AccessLevel.read,
+        ),
+    )
+    assert requested.purpose == "content"

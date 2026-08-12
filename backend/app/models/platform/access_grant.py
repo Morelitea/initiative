@@ -85,12 +85,13 @@ class AccessGrant(SQLModel, table=True):
         )
     )
     purpose: str = Field(
+        default=AccessGrantPurpose.content.value,
         sa_column=Column(
             String(16),
             nullable=False,
             server_default=AccessGrantPurpose.content.value,
             index=True,
-        )
+        ),
     )
 
     # Justification supplied by the requester and the originally-requested

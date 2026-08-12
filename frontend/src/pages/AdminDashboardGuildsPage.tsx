@@ -398,8 +398,9 @@ export const AdminDashboardGuildsPage = () => {
       enableSorting: false,
       cell: ({ row }) => <GuildStatusCell guild={row.original} />,
     },
-    // Only when this deployment links a billing portal; self-hosted has none.
-    ...(billing
+    // Only when this deployment links a billing portal AND the operator route
+    // into it is wired — otherwise the button could only ever fail.
+    ...(billing?.operator_handoff
       ? [
           {
             id: "billing",

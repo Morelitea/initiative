@@ -219,11 +219,13 @@ async def request_grant(
     duration = _capped_duration(payload.requested_duration_minutes, requester.role)
 
     # Reject a second open request for the same guild while one is still
-    # pending or live.
+    # pending or live. Scoped to the purpose this flow issues, so an unrelated
+    # authority for the same guild neither blocks a request nor satisfies one.
     existing = await session.exec(
         select(AccessGrant).where(
             AccessGrant.user_id == requester.id,
             AccessGrant.guild_id == payload.guild_id,
+            AccessGrant.purpose == AccessGrantPurpose.content.value,
             AccessGrant.status.in_(
                 [AccessGrantStatus.pending.value, AccessGrantStatus.approved.value]
             ),
@@ -237,6 +239,7 @@ async def request_grant(
         user_id=requester.id,
         guild_id=payload.guild_id,
         access_level=payload.access_level.value,
+        purpose=AccessGrantPurpose.content.value,
         status=AccessGrantStatus.pending.value,
         reason=payload.reason,
         requested_duration_minutes=duration,
