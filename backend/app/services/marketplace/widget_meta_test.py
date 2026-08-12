@@ -188,4 +188,5 @@ class TestValidateWidgetMeta:
                 "options": {"mark": {"label": {"en": "Mark"}, "values": ["Bar"]}},
             }
         )
+        assert meta is not None
         assert meta["options"] == {"mark": {"label": {"en": "Mark"}}}

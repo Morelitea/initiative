@@ -552,7 +552,10 @@ def _check_features(features: list[str], cleaned: dict[str, Any]) -> None:
     """
     declared = set(features)
     for feature, block in FEATURE_BLOCKS.items():
-        present = bool(cleaned.get(block))
+        # Membership, not truthiness: whether a block was stored is the question,
+        # and reading it as a value would let a stored-but-empty block count as
+        # absent here while still being persisted.
+        present = block in cleaned
         if feature in declared and not present:
             fail(
                 f"service app: the {feature!r} feature is declared but "
@@ -637,7 +640,11 @@ def normalize_service_app_definition(definition: Any) -> dict[str, Any]:
     if events:
         cleaned["events"] = events
     automation = _automation(body.get("automation"))
-    if automation is not None:
+    # Same rule as every block above: an empty one is left out rather than
+    # stored as a second way of saying "none". An automation block that is
+    # present but empty describes nothing, and storing it would let a manifest
+    # carry a block its `features` never declared.
+    if automation:
         cleaned["automation"] = automation
 
     default_name = clean_text(

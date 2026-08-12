@@ -180,6 +180,20 @@ class TestFeaturesMatchBlocks:
         with pytest.raises(ListingDefinitionError, match="unknown feature"):
             _normalize(features=["telemetry"])
 
+    def test_an_empty_block_is_not_a_block(self):
+        """Empty means absent, the same way for every block.
+
+        An automation block that is present but empty describes nothing.
+        Storing it would be a second shape meaning "none" — and one the feature
+        cross-check could read differently from the way it was stored, letting a
+        manifest carry a block its own ``features`` never declared.
+        """
+        definition = _normalize(automation={})
+        assert "automation" not in definition
+
+        with pytest.raises(ListingDefinitionError, match="is declared but"):
+            _normalize(features=["automations"], automation={})
+
     def test_an_app_may_offer_no_local_features(self):
         definition = _normalize()
         assert definition["features"] == []
