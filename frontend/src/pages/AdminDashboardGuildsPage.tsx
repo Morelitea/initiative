@@ -209,9 +209,12 @@ const GuildBillingCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
           guild.id
         );
       const lang = i18n.resolvedLanguage ?? i18n.language;
-      const url = `${billing.url}/support?guild=${guild.id}&lang=${encodeURIComponent(
+      // The token rides in the fragment, which never leaves the browser. The
+      // console reads the guild off the exchanged session, so the URL does not
+      // name one — only the language carries over.
+      const url = `${billing.url}/support?lang=${encodeURIComponent(
         lang
-      )}#handoff=${encodeURIComponent(handoff_token)}`;
+      )}#support_handoff=${encodeURIComponent(handoff_token)}`;
       if (tab) tab.location.href = url;
       else window.open(url, "_blank", "noopener,noreferrer");
     } catch (err) {

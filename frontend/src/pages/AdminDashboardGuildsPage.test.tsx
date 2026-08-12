@@ -337,9 +337,13 @@ describe("AdminDashboardGuildsPage", () => {
       await userEvent.click(await screen.findByLabelText("Open billing for Capped Guild"));
 
       expect(mintHandoff).toHaveBeenCalledWith(7);
-      expect(location.href).toContain("https://billing.example.com/support?guild=7");
-      // The token rides in the fragment, so it never reaches the server.
-      expect(location.href).toContain("#handoff=tok-123");
+      // The console reads the guild off the session it exchanges, so the URL
+      // never names one; the token rides in the fragment, which is not sent to
+      // the server. The key is `support_handoff` — the console ignores the
+      // `handoff` the guild-admin flow uses.
+      const [path, fragment] = location.href.split("#");
+      expect(path).toBe("https://billing.example.com/support?lang=en");
+      expect(fragment).toBe("support_handoff=tok-123");
       expect(tab.opener).toBeNull();
 
       openSpy.mockRestore();
