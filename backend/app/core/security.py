@@ -505,6 +505,17 @@ class AutoDelegationVerificationError(Exception):
     """Raised when the inbound delegation JWT fails any check."""
 
 
+def auto_delegation_configured() -> bool:
+    """True when this deployment has an automation delegate.
+
+    The delegate is identified by the public half of its signing key, so the
+    presence of that key is what "a delegate exists here" means. Single source
+    of truth for every surface that is delegate-owned: the subscription
+    endpoints refuse without it and the outbound dispatcher stays inert.
+    """
+    return bool(settings.AUTO_DELEGATION_PUBLIC_KEY_PEM)
+
+
 def verify_auto_delegation_token(token: str) -> AutoDelegationClaims:
     """Verify a delegation JWT minted by initiative-auto.
 

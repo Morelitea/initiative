@@ -15,6 +15,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { GuildProvider, useGuilds } from "@/hooks/useGuilds";
 import { KeepScreenAwakeProvider } from "@/hooks/useKeepScreenAwake";
 import { PrideProvider } from "@/hooks/usePride";
+import { useRouteGuardSync } from "@/hooks/useRouteGuardSync";
 import { ServerProvider, useServer } from "@/hooks/useServer";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { queryClient } from "@/lib/queryClient";
@@ -31,6 +32,11 @@ const InnerApp = () => {
   const auth = useAuth();
   const guilds = useGuilds();
   const server = useServer();
+
+  // Auth and server state settle after the first router load, so ask the router
+  // to re-run its `beforeLoad` guards when they do — that keeps redirects at the
+  // navigation layer instead of the render path.
+  useRouteGuardSync(router, auth, server);
 
   return (
     <>

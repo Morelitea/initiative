@@ -5,16 +5,25 @@ globally unique identifiers, so these routes take no guild segment. The catalog
 holds catalog metadata only, which is why "which of these do I already have?" is
 answered by the guild-scoped tool endpoints and merged in the client.
 
-Read-only. The catalog's only writer is the system engine (boot seeding, and
-later the registry refresh); installing writes a guild's own schema through the
-tool's endpoints, never here.
+Browsing is read-only. The catalog's only writer is the system engine (boot
+seeding, and later the registry refresh); installing writes a guild's own schema
+through the tool's endpoints, never here.
+
+One route writes: the operator's rescan of their own catalog directory. It runs
+the boot scan on demand, on the system engine, gated on the capability that
+governs deployment configuration — because that is what publishing a listing
+from a mounted volume is.
 """
 
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlmodel.ext.asyncio.session import AsyncSession
+
 from app.api.deps import get_current_active_user, UserSessionDep
+from app.api.v1.platform_endpoints.admin import ConfigManageDep
 from app.core.messages import MarketplaceMessages
+from app.db.session import get_admin_session
 from app.models.platform.marketplace import (
     MarketplaceListing,
     MarketplaceListingVersion,
@@ -26,12 +35,16 @@ from app.schemas.platform.marketplace import (
     MarketplaceListingPage,
     MarketplaceListingSummary,
     MarketplaceVersionRead,
+    OperatorCatalogProblem,
+    OperatorCatalogScanResult,
 )
 from app.services.marketplace import catalog as catalog_service
+from app.services.marketplace import operator_catalog as operator_catalog_service
 
 router = APIRouter()
 
 CurrentUser = Annotated[User, Depends(get_current_active_user)]
+AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 
 MAX_PAGE_SIZE = 100
 
@@ -160,3 +173,44 @@ async def read_marketplace_listing(
             detail=MarketplaceMessages.LISTING_NOT_FOUND,
         )
     return await _detail(session, listing)
+
+
+@router.post("/operator-catalog/rescan", response_model=OperatorCatalogScanResult)
+async def rescan_operator_catalog(
+    session: AdminSessionDep,
+    _admin: ConfigManageDep,
+) -> OperatorCatalogScanResult:
+    """Re-read the deployment's own catalog directory (``config.manage``).
+
+    The same scan the boot runs, so a manifest dropped into the mounted
+    directory appears without a restart, and one removed from it retires its
+    listing. Answers 400 when no directory is configured or the configured one
+    is not there, and 409 while a scan is already running.
+    """
+    if operator_catalog_service.operator_catalog_dir() is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=MarketplaceMessages.OPERATOR_CATALOG_NOT_CONFIGURED,
+        )
+    try:
+        scan = await operator_catalog_service.scan_operator_catalog(session)
+    except operator_catalog_service.OperatorCatalogScanRunning:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=MarketplaceMessages.OPERATOR_CATALOG_SCAN_RUNNING,
+        ) from None
+    if scan.directory_missing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=MarketplaceMessages.OPERATOR_CATALOG_DIR_MISSING,
+        )
+    await session.commit()
+    return OperatorCatalogScanResult(
+        published=scan.published,
+        withdrawn=scan.withdrawn,
+        skipped=scan.skipped,
+        problems=[
+            OperatorCatalogProblem(file=problem.file, reason=problem.reason)
+            for problem in scan.problems
+        ],
+    )

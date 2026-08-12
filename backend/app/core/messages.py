@@ -468,6 +468,15 @@ class MarketplaceMessages:
     #: installed — there is no listing to re-pin it to.
     NOT_INSTALLED_FROM_LISTING = "MARKETPLACE_NOT_INSTALLED_FROM_LISTING"
     ALREADY_LATEST_VERSION = "MARKETPLACE_ALREADY_LATEST_VERSION"
+    #: A rescan was asked for on a deployment that publishes no catalog
+    #: directory of its own — nothing to scan until one is configured.
+    OPERATOR_CATALOG_NOT_CONFIGURED = "MARKETPLACE_OPERATOR_CATALOG_NOT_CONFIGURED"
+    #: The directory is configured but not present — usually a volume that did
+    #: not mount, or a path that differs from the one inside the container.
+    OPERATOR_CATALOG_DIR_MISSING = "MARKETPLACE_OPERATOR_CATALOG_DIRECTORY_MISSING"
+    #: One scan at a time: the answer a second one would give is the one
+    #: already being computed.
+    OPERATOR_CATALOG_SCAN_RUNNING = "MARKETPLACE_OPERATOR_CATALOG_SCAN_RUNNING"
 
 
 class QueueMessages:
@@ -550,6 +559,13 @@ class WebhookSubscriptionMessages:
     PRIVATE_TARGET_URL = "WEBHOOK_PRIVATE_TARGET_URL"
     NOT_FOUND = "WEBHOOK_SUBSCRIPTION_NOT_FOUND"
     NOT_OWNER = "WEBHOOK_SUBSCRIPTION_NOT_OWNER"
+    # Delivery targets are owned by the configured automation delegate.
+    # No delegate is configured on this deployment, so there is nothing that
+    # may own one (503 — a configuration state, not a caller fault).
+    DELEGATE_NOT_CONFIGURED = "AUTOMATION_DELEGATE_NOT_CONFIGURED"
+    # The request authenticated as an ordinary user or API key rather than
+    # over the delegation credential.
+    DELEGATE_REQUIRED = "AUTOMATION_DELEGATE_REQUIRED"
 
 
 class AIMessages:

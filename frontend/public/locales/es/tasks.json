@@ -125,7 +125,7 @@
     "pin": "Fijar en Enfoque",
     "unpin": "Quitar de Enfoque",
     "settings": "Ajustes de Enfoque",
-    "dueWithinLabel": "Mostrar trabajo con vencimiento",
+    "dueWithinLabel": "Mostrar trabajo que vence o comienza",
     "dueWithin": {
       "0": "Hoy",
       "2": "Próximos 2 días",

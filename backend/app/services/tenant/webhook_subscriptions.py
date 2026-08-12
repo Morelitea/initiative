@@ -116,9 +116,8 @@ def _assert_can_mutate(
     is_guild_admin: bool,
 ) -> None:
     """Only the creator or a guild admin may mutate or delete a
-    subscription. Without this, any guild member could quietly redirect
-    or disable another member's webhook target — an authorization gap,
-    even when RLS already keeps things inside the guild boundary."""
+    subscription. RLS keeps subscriptions inside the guild boundary; this
+    decides which member within it owns a given delivery target."""
     if is_guild_admin or subscription.created_by_user_id == acting_user_id:
         return
     raise WebhookSubscriptionOwnershipError(

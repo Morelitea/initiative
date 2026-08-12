@@ -60,6 +60,14 @@ To protect open registration from automated sign-ups, you can require a captcha:
 
 Leave it off unless you want that surface. See [API keys & integrations](../account/api-keys-and-integrations.md) for how users connect.
 
+## Your own marketplace listings
+
+| Variable | What it does | Default |
+|---|---|---|
+| `MARKETPLACE_EXTRA_CATALOG_DIR` | A directory of listing files this server publishes as its own. Mount a folder there and its listings appear in your marketplace beside the built-in ones. Unset means no directory is read. | — |
+
+See [Publishing your own listings](publishing-listings.md).
+
 ## File storage and push notifications
 
 These have their own pages:
@@ -81,5 +89,5 @@ docker compose up -d
 
 ## Related
 
-- [Single sign-on](single-sign-on.md) · [Email](email.md) · [Push notifications](push-notifications.md) · [Object storage](object-storage.md)
+- [Single sign-on](single-sign-on.md) · [Email](email.md) · [Push notifications](push-notifications.md) · [Object storage](object-storage.md) · [Publishing your own listings](publishing-listings.md)
 - [Platform roles](platform-roles.md) — who can change in-app platform settings.

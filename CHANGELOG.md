@@ -16,9 +16,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Apps, and a marketplace to add them from.** The marketplace is a searchable shelf of ready-made dashboards you can install into an initiative in one step, and of apps that add something the whole guild shares rather than any one initiative. The first app is a guild calendar: an ordinary calendar that belongs to the guild, visible to every member from the moment it is added, with the same views, event editor and sharing as any other. Apps live above your initiatives in the sidebar and are managed under guild settings, where they can be renamed, turned off, or removed — removing one moves what it created to the trash rather than deleting it. Only guild admins can add or remove apps; a guild with none installed shows nothing to its members.
 - **The marketplace shows examples using sample data.** A listing's preview draws sample rows, so you see the shape of what you would get without it reading anything from your guild.
 
+### Changed
+
+- **Sign-in and server-connection redirects are now decided before a page renders.** Landing on an app page while signed out, signing out, or opening the mobile app before a server is set now hands you straight to the right screen instead of briefly mounting the app shell and bouncing out of it. The old approach depended on that shell tearing down at exactly the right moment — the failure behind the blank page in 0.61.0.
+
 ### Removed
 
 - **The pre-0.53.5 copies of guild data in the shared database schema are gone.** Installs that predate 0.53.5 kept a frozen second copy of every project, task, document and so on from before guilds moved into their own database schemas. Nothing has read or written it since; upgrading now drops it. Guild data lives solely in that guild's own schema. Installs created on 0.53.5 or later never had these copies and are unaffected. **This upgrade cannot be rolled back** — take a backup first if you would rather keep the old rows around, and if you are upgrading from before 0.53.2, boot a 0.53.x release once on the way through as its startup notice instructs.
+
+### Fixed
+
+- **The Focus list on My Tasks stayed empty even with overdue work waiting.** It only counted tasks someone had moved to To Do or In Progress, and Backlog is where a new task starts — so on an ordinary setup it had nothing to show. It now looks at every unfinished task, whatever column it sits in. It also reads dates the way the task table beneath it does: work whose start date has arrived belongs on the list even if nobody gave it a due date.
 
 ## [0.61.3] - 2026-08-11
 
