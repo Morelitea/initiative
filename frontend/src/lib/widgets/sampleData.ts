@@ -17,6 +17,13 @@ const DAY = 86_400_000;
  *  calendar. Renders stay byte-identical across runs. */
 const T0 = Date.UTC(2026, 7, 3);
 
+/** The clock a preview runs under. Previews draw these frozen samples, so a
+ *  clock-reading widget (the gantt marking work late) must see a frozen "now"
+ *  that sits inside them — the real clock would drift past the samples and
+ *  shift how they read a little more each day. Live tiles never use this; the
+ *  host hands them the real minute. */
+export const SAMPLE_NOW = T0;
+
 export interface WidgetSample {
   source: WidgetSource;
   data: WidgetData;

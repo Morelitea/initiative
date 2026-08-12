@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Event planner dashboard in the marketplace.** The initiative's events laid out the way an organizer thinks: everything on a weekly timeline, with the full event list underneath. Installs in one step and needs no setup.
 - **Team activity dashboard in the marketplace.** A ready-made pulse of the initiative's people: work by person, the daily rhythm of completions, the open pile by priority, and the finished total as the headline. Installs in one step and needs no setup.
 - **Apps, and a marketplace to add them from.** The marketplace is a searchable shelf of ready-made dashboards you can install into an initiative in one step, and of apps that add something the whole guild shares rather than any one initiative. The first app is a guild calendar: an ordinary calendar that belongs to the guild, visible to every member from the moment it is added, with the same views, event editor and sharing as any other. Apps live above your initiatives in the sidebar and are managed under guild settings, where they can be renamed, turned off, or removed — removing one moves what it created to the trash rather than deleting it. Only guild admins can add or remove apps; a guild with none installed shows nothing to its members.
+- **The marketplace shows examples using sample data.** A listing's preview draws sample rows, so you see the shape of what you would get without it reading anything from your guild.
 
 ### Removed
 

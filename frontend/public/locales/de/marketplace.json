@@ -22,6 +22,7 @@
     "installs_other": "{{count}} Installationen",
     "install": "Zu einer Initiative hinzufügen",
     "preview": "Vorschau",
+    "previewIsSample": "Beispiel mit Beispieldaten",
     "versions": "Versionen",
     "needsUpdate": "Benötigt eine neuere Version der App.",
     "withdrawn": "Wird nicht mehr angeboten.",

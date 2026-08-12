@@ -71,6 +71,9 @@ export interface DashboardCanvasProps {
   initiativeId: number | undefined;
   /** DAC write on this dashboard. Arranging is authoring. */
   canEdit: boolean;
+  /** Render every widget from the sample library instead of its binding — the
+   *  marketplace preview's mode. Nothing is fetched; see `DashboardWidget`. */
+  sampleData?: boolean;
   /** The dashboard row is still on its way. The canvas is the only region that
    *  shows this — the page around it is already correct and must not flicker. */
   isLoading?: boolean;
@@ -85,6 +88,7 @@ export function DashboardCanvas({
   catalog,
   initiativeId,
   canEdit,
+  sampleData,
   isLoading,
   onLayoutChange,
   onConfigureWidget,
@@ -212,6 +216,7 @@ export function DashboardCanvas({
                     binding={effectiveBinding(widget, config)}
                     initiativeId={initiativeId}
                     canEdit={canEdit}
+                    sampleData={sampleData}
                     onConfigure={onConfigureWidget}
                     onRemove={onRemoveWidget}
                   />
