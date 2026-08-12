@@ -269,7 +269,11 @@ async def request_grant(
 
 
 async def break_glass(
-    session: AsyncSession, *, actor: User, payload: BreakGlassCreate
+    session: AsyncSession,
+    *,
+    actor: User,
+    payload: BreakGlassCreate,
+    allow_member: bool = False,
 ) -> AccessGrant:
     """Self-issue a time-bound break-glass grant for ``actor`` to one guild.
 
@@ -280,6 +284,11 @@ async def break_glass(
     reason, so emergency reach is always audited and never ambient. Read-only by
     default; ``read_write`` is a deliberate escalation. Short window, capped
     server-side; re-issue to extend.
+
+    ``allow_member`` is for callers whose authority is not guild content, so
+    membership does not already confer it and the grant is still the record of
+    the action. The row is inert on the request path either way — the resolver
+    consults a grant only when there is no membership.
     """
     guild = await guilds_service.get_guild(session, guild_id=payload.guild_id)
     if guild is None:
@@ -289,7 +298,7 @@ async def break_glass(
     membership = await guilds_service.get_membership(
         session, guild_id=payload.guild_id, user_id=actor.id
     )
-    if membership is not None:
+    if membership is not None and not allow_member:
         raise AccessGrantError("ALREADY_MEMBER")
 
     # Serialize concurrent self-issues for this (actor, guild) so the

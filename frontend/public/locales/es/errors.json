@@ -365,5 +365,5 @@
   "DASHBOARD_CONFIG_INVALID": "No se pudieron leer los ajustes de este panel",
   "BILLING_PORTAL_NOT_CONFIGURED": "No hay ningún portal de facturación configurado en esta instancia.",
   "BILLING_PORTAL_SIGNING_NOT_CONFIGURED": "El portal de facturación aún no está configurado por completo. Contacta con tu administración.",
-  "BILLING_PORTAL_GRANT_UNAVAILABLE": "Perteneces a este gremio, así que abre su facturación desde los ajustes del propio gremio."
+  "BILLING_PORTAL_GRANT_UNAVAILABLE": "No se pudo obtener acceso a la facturación de este gremio. Comprueba si tienes una solicitud de acceso pendiente."
 }

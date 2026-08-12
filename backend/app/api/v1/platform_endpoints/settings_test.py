@@ -1401,10 +1401,16 @@ async def test_billing_handoff_reuses_a_live_grant(
 
 
 @pytest.mark.integration
-async def test_billing_handoff_409_when_operator_is_a_member(
+async def test_billing_handoff_breaks_glass_even_for_a_member(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
-    """A member has no grant to name; they use the guild's own settings."""
+    """Belonging to the guild is content access, not billing authority, so the
+    grant is still issued and named."""
+    import jwt
+    from sqlmodel import select as sm_select
+
+    from app.models.platform.access_grant import AccessGrant
+
     _configure_billing(monkeypatch)
 
     owner = await create_user(session, email="owner@example.com", role=UserRole.owner)
@@ -1417,5 +1423,17 @@ async def test_billing_handoff_409_when_operator_is_a_member(
         f"/api/v1/settings/guilds/{guild.id}/billing/service-handoff",
         headers=get_auth_headers(owner),
     )
-    assert resp.status_code == 409
-    assert resp.json()["detail"] == "BILLING_PORTAL_GRANT_UNAVAILABLE"
+    assert resp.status_code == 200
+
+    grant = (
+        await session.exec(
+            sm_select(AccessGrant).where(
+                AccessGrant.user_id == owner.id, AccessGrant.guild_id == guild.id
+            )
+        )
+    ).one()
+    payload = jwt.decode(
+        resp.json()["handoff_token"], options={"verify_signature": False}
+    )
+    assert payload["grant_id"] == str(grant.id)
+    assert grant.access_level == "read"

@@ -365,5 +365,5 @@
   "DASHBOARD_CONFIG_INVALID": "Die Einstellungen dieses Dashboards konnten nicht gelesen werden",
   "BILLING_PORTAL_NOT_CONFIGURED": "Für diese Instanz ist kein Abrechnungsportal konfiguriert.",
   "BILLING_PORTAL_SIGNING_NOT_CONFIGURED": "Das Abrechnungsportal ist noch nicht vollständig konfiguriert. Wende dich an deine Administration.",
-  "BILLING_PORTAL_GRANT_UNAVAILABLE": "Du gehörst zu dieser Gilde – öffne die Abrechnung über deren eigene Einstellungen."
+  "BILLING_PORTAL_GRANT_UNAVAILABLE": "Zugriff auf die Abrechnung dieser Gilde nicht möglich. Prüfe, ob dafür noch eine Zugriffsanfrage offen ist."
 }

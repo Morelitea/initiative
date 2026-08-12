@@ -365,5 +365,5 @@
   "DASHBOARD_CONFIG_INVALID": "This dashboard's settings couldn't be read",
   "BILLING_PORTAL_NOT_CONFIGURED": "No billing portal is configured for this deployment.",
   "BILLING_PORTAL_SIGNING_NOT_CONFIGURED": "The billing portal is not fully configured yet. Contact your administrator.",
-  "BILLING_PORTAL_GRANT_UNAVAILABLE": "You belong to this guild, so open its billing from the guild's own settings."
+  "BILLING_PORTAL_GRANT_UNAVAILABLE": "Could not obtain access to this guild's billing. Check whether you have an access request still pending for it."
 }

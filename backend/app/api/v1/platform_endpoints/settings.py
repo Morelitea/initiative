@@ -552,11 +552,11 @@ async def create_platform_guild_billing_service_handoff(
                     access_level=AccessLevel.read,
                     reason=BILLING_PORTAL_GRANT_REASON,
                 ),
+                # Belonging to the guild says nothing about billing authority,
+                # so a member still breaks glass for it.
+                allow_member=True,
             )
         except access_grants_service.AccessGrantError as exc:
-            # ALREADY_MEMBER: the operator belongs to this guild, so there is
-            # no grant to name — they reach billing through the guild's own
-            # settings instead.
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=BillingMessages.PORTAL_GRANT_UNAVAILABLE,
