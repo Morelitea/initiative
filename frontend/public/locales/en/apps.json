@@ -1,0 +1,30 @@
+{
+  "title": "Apps",
+  "add": "Add an app",
+  "none": "No apps yet.",
+  "error": "Something went wrong with that app.",
+  "manage": {
+    "title": "Apps",
+    "description": "Apps add something the whole guild shares. Only guild admins can add or remove them.",
+    "empty": "No apps installed yet.",
+    "browse": "Browse apps",
+    "installed": "Added {{date}}",
+    "disabled": "Turned off",
+    "enable": "Turn on",
+    "disable": "Turn off",
+    "rename": "Rename",
+    "remove": "Remove",
+    "removeTitle": "Remove {{name}}?",
+    "removeBody": "What it created moves to the trash, where it can still be restored. Members lose access to it straight away.",
+    "removed": "{{name}} removed.",
+    "saved": "Saved."
+  },
+  "install": {
+    "title": "Add {{name}}",
+    "description": "This adds something for the whole guild. You can rename it now or later.",
+    "name": "Name",
+    "action": "Add to guild",
+    "done": "{{name}} added.",
+    "adminOnly": "Only a guild admin can add apps."
+  }
+}

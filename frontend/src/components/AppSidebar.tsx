@@ -19,6 +19,7 @@ import { useTranslation } from "react-i18next";
 import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { GuildSidebar } from "@/components/guilds/GuildSidebar";
+import { AppsSection } from "@/components/sidebar/AppsSection";
 import { HomeSidebarContent } from "@/components/sidebar/HomeSidebarContent";
 import { InitiativeSection } from "@/components/sidebar/InitiativeSection";
 import { SidebarUserFooter } from "@/components/sidebar/SidebarUserFooter";
@@ -184,6 +185,13 @@ export const AppSidebar = () => {
 
   // Collapse/expand all for initiatives
   const [initiativeCollapseKey, setInitiativeCollapseKey] = useState(0);
+  // Remembered like the other sections; open by default so a newly installed
+  // app is visible without hunting for it.
+  const [appsOpen, setAppsOpenState] = useState(() => getItem("apps-section-open") !== "false");
+  const setAppsOpen = (open: boolean) => {
+    setAppsOpenState(open);
+    setItem("apps-section-open", String(open));
+  };
   const collapseAllInitiatives = useCallback(() => {
     const states: Record<number, boolean> = {};
     for (const init of visibleInitiatives) {
@@ -377,6 +385,14 @@ export const AppSidebar = () => {
                             <SidebarSeparator />
                           </>
                         )}
+
+                        {/* Apps: guild-wide surfaces, so they sit above the
+                            initiatives rather than inside any of them. */}
+                        <AppsSection
+                          isGuildAdmin={isGuildAdmin}
+                          open={appsOpen}
+                          onOpenChange={setAppsOpen}
+                        />
 
                         {/* Initiatives Section */}
                         <SidebarGroup>

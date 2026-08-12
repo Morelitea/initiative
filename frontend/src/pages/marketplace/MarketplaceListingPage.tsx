@@ -12,6 +12,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { DashboardCanvas } from "@/components/initiativeTools/dashboards/DashboardCanvas";
+import { InstallAppDialog } from "@/components/marketplace/InstallAppDialog";
 import { InstallListingDialog } from "@/components/marketplace/InstallListingDialog";
 import { StatusMessage } from "@/components/StatusMessage";
 import { Badge } from "@/components/ui/badge";
@@ -26,20 +27,26 @@ import {
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWidgetCatalog } from "@/hooks/useDashboards";
+import { useGuilds } from "@/hooks/useGuilds";
 import { useMarketplaceListing } from "@/hooks/useMarketplace";
 import { useGuildPath } from "@/lib/guildUrl";
 import { readConfig, readDefinition } from "@/lib/widgets/definition";
 
 export function MarketplaceListingPage() {
-  const { t } = useTranslation("marketplace");
+  const { t } = useTranslation(["marketplace", "apps"]);
   const { publicId } = useParams({ strict: false }) as { publicId: string };
   const gp = useGuildPath();
 
   const listingQuery = useMarketplaceListing(publicId ?? null);
   const catalogQuery = useWidgetCatalog();
   const [installing, setInstalling] = useState(false);
+  const { activeGuild } = useGuilds();
 
   const listing = listingQuery.data;
+  const isApp = listing?.kind === "app";
+  // Installing an app is a guild-admin action; the server enforces it, and the
+  // button says so rather than failing after the click.
+  const isGuildAdmin = activeGuild?.role === "admin";
 
   if (listingQuery.isError) {
     return (
@@ -110,14 +117,22 @@ export function MarketplaceListingPage() {
 
         {listing && (
           <div className="flex flex-col items-end gap-1">
-            <Button onClick={() => setInstalling(true)} disabled={!listing.installable}>
+            <Button
+              onClick={() => setInstalling(true)}
+              disabled={!listing.installable || (isApp && !isGuildAdmin)}
+            >
               <Download className="mr-1.5 h-4 w-4" />
-              {t("detail.install")}
+              {isApp ? t("apps:install.action") : t("detail.install")}
             </Button>
-            {!listing.installable && (
+            {!listing.installable ? (
               <span className="text-muted-foreground text-xs">
                 {listing.available ? t("detail.needsUpdate") : t("detail.withdrawn")}
               </span>
+            ) : (
+              isApp &&
+              !isGuildAdmin && (
+                <span className="text-muted-foreground text-xs">{t("apps:install.adminOnly")}</span>
+              )
             )}
           </div>
         )}
@@ -144,23 +159,27 @@ export function MarketplaceListingPage() {
         </div>
       ) : null}
 
-      <div className="space-y-2">
-        <h2 className="font-medium text-sm">{t("detail.preview")}</h2>
-        {listing?.definition ? (
-          // The same canvas a live dashboard renders, read-only: `canEdit` false
-          // means static tiles, no drag handles, and no layout writes.
-          <DashboardCanvas
-            definition={readDefinition(listing.definition)}
-            config={readConfig({})}
-            catalog={catalogQuery.data}
-            initiativeId={undefined}
-            canEdit={false}
-            onLayoutChange={() => {}}
-          />
-        ) : (
-          <Skeleton className="h-64 w-full rounded-lg" />
-        )}
-      </div>
+      {/* An app mounts one of this build's tools; there is no canvas to draw,
+          so the preview is a dashboard-only affordance. */}
+      {!isApp && (
+        <div className="space-y-2">
+          <h2 className="font-medium text-sm">{t("detail.preview")}</h2>
+          {listing?.definition ? (
+            // The same canvas a live dashboard renders, read-only: `canEdit` false
+            // means static tiles, no drag handles, and no layout writes.
+            <DashboardCanvas
+              definition={readDefinition(listing.definition)}
+              config={readConfig({})}
+              catalog={catalogQuery.data}
+              initiativeId={undefined}
+              canEdit={false}
+              onLayoutChange={() => {}}
+            />
+          ) : (
+            <Skeleton className="h-64 w-full rounded-lg" />
+          )}
+        </div>
+      )}
 
       {listing && listing.versions.length > 1 && (
         <div className="space-y-2">
@@ -178,9 +197,12 @@ export function MarketplaceListingPage() {
         </div>
       )}
 
-      {listing && (
-        <InstallListingDialog listing={listing} open={installing} onOpenChange={setInstalling} />
-      )}
+      {listing &&
+        (isApp ? (
+          <InstallAppDialog listing={listing} open={installing} onOpenChange={setInstalling} />
+        ) : (
+          <InstallListingDialog listing={listing} open={installing} onOpenChange={setInstalling} />
+        ))}
     </div>
   );
 }

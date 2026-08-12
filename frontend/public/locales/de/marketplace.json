@@ -48,5 +48,6 @@
     "title": "Marktplatz nicht erreichbar",
     "description": "Der Katalog konnte nicht geladen werden. Versuche es gleich noch einmal."
   },
-  "installedUnknown": "Es konnte nicht geprüft werden, welche davon du bereits hast – deshalb ist unten nichts als installiert markiert."
+  "installedUnknown": "Es konnte nicht geprüft werden, welche davon du bereits hast – deshalb ist unten nichts als installiert markiert.",
+  "subtitleApps": "Apps ergänzen etwas, das die ganze Gilde teilt. Nur Gildenadmins können sie hinzufügen."
 }

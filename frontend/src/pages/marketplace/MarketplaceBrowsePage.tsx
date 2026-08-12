@@ -9,6 +9,7 @@
  * matched up client-side.
  */
 
+import { useSearch } from "@tanstack/react-router";
 import { CloudOff, SearchX } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -28,13 +29,16 @@ const SKELETON_KEYS = ["a", "b", "c", "d", "e", "f"];
 
 export function MarketplaceBrowsePage() {
   const { t } = useTranslation("marketplace");
+  // Which shelf: dashboards, or the apps a guild admin adds. The route
+  // normalizes anything unexpected back to dashboards.
+  const { kind } = useSearch({ strict: false }) as { kind?: "dashboard" | "app" };
   const [query, setQuery] = useState("");
   // The catalog is a network call per keystroke otherwise, and the grid keeps
   // the previous page while the next one loads.
   const search = useDebouncedValue(query, 250);
 
   const listingsQuery = useMarketplaceListings({
-    kind: "dashboard",
+    kind,
     q: search.trim() || undefined,
     page_size: PAGE_SIZE,
   });
@@ -55,7 +59,9 @@ export function MarketplaceBrowsePage() {
     <div className="space-y-6">
       <div className="space-y-1">
         <h1 className="font-semibold text-3xl tracking-tight">{t("title")}</h1>
-        <p className="text-muted-foreground text-sm">{t("subtitle")}</p>
+        <p className="text-muted-foreground text-sm">
+          {kind === "app" ? t("subtitleApps") : t("subtitle")}
+        </p>
       </div>
 
       <Input

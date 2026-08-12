@@ -1,0 +1,30 @@
+{
+  "title": "Apps",
+  "add": "App hinzufügen",
+  "none": "Noch keine Apps.",
+  "error": "Mit dieser App ist etwas schiefgelaufen.",
+  "manage": {
+    "title": "Apps",
+    "description": "Apps ergänzen etwas, das die ganze Gilde teilt. Nur Gildenadmins können sie hinzufügen oder entfernen.",
+    "empty": "Noch keine Apps installiert.",
+    "browse": "Apps durchsuchen",
+    "installed": "Hinzugefügt am {{date}}",
+    "disabled": "Ausgeschaltet",
+    "enable": "Einschalten",
+    "disable": "Ausschalten",
+    "rename": "Umbenennen",
+    "remove": "Entfernen",
+    "removeTitle": "{{name}} entfernen?",
+    "removeBody": "Was sie erstellt hat, wandert in den Papierkorb und kann von dort wiederhergestellt werden. Mitglieder verlieren sofort den Zugriff.",
+    "removed": "{{name}} entfernt.",
+    "saved": "Gespeichert."
+  },
+  "install": {
+    "title": "{{name}} hinzufügen",
+    "description": "Das ergänzt etwas für die ganze Gilde. Umbenennen kannst du es jetzt oder später.",
+    "name": "Name",
+    "action": "Zur Gilde hinzufügen",
+    "done": "{{name}} hinzugefügt.",
+    "adminOnly": "Nur Gildenadmins können Apps hinzufügen."
+  }
+}

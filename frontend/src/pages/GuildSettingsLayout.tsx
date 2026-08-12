@@ -66,6 +66,11 @@ export const GuildSettingsLayout = () => {
         path: urlGuildId ? guildPath(urlGuildId, "/settings/initiatives") : "/settings/initiatives",
       },
       {
+        value: "apps",
+        label: t("guildLayout.tabs.apps"),
+        path: urlGuildId ? guildPath(urlGuildId, "/settings/apps") : "/settings/apps",
+      },
+      {
         value: "trash",
         label: t("guildLayout.tabs.trash"),
         path: urlGuildId ? guildPath(urlGuildId, "/settings/trash") : "/settings/trash",
