@@ -43,5 +43,9 @@
     "action": "Update",
     "done": "Updated to {{version}}.",
     "failed": "Could not update this dashboard."
+  },
+  "unavailable": {
+    "title": "Marketplace unavailable",
+    "description": "The catalog could not be reached. Try again in a moment."
   }
 }

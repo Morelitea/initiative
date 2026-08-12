@@ -43,5 +43,9 @@
     "action": "Mettre à jour",
     "done": "Mis à jour vers {{version}}.",
     "failed": "Impossible de mettre à jour ce tableau de bord."
+  },
+  "unavailable": {
+    "title": "Catalogue indisponible",
+    "description": "Le catalogue n'a pas pu être joint. Réessayez dans un instant."
   }
 }

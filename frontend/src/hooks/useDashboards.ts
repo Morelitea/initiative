@@ -5,9 +5,11 @@ import {
   deleteDashboardApiV1GGuildIdDashboardsDashboardIdDelete,
   getListDashboardsApiV1GGuildIdDashboardsGetQueryKey,
   getReadDashboardApiV1GGuildIdDashboardsDashboardIdGetQueryKey,
+  getReadInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGetQueryKey,
   getReadWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGetQueryKey,
   listDashboardsApiV1GGuildIdDashboardsGet,
   readDashboardApiV1GGuildIdDashboardsDashboardIdGet,
+  readInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGet,
   readWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGet,
   setDashboardGrantsApiV1GGuildIdDashboardsDashboardIdGrantsPut,
   updateDashboardApiV1GGuildIdDashboardsDashboardIdPatch,
@@ -15,6 +17,7 @@ import {
 } from "@/api/generated/dashboards/dashboards";
 import type {
   DashboardCreate,
+  DashboardInstalledListings,
   DashboardListResponse,
   DashboardRead,
   DashboardUpdate,
@@ -70,6 +73,22 @@ export const useWidgetCatalog = (options?: QueryOpts<WidgetCatalog>) => {
     queryKey: getReadWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGetQueryKey(guildId),
     queryFn: () => readWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGet(guildId),
     staleTime: Number.POSITIVE_INFINITY,
+    ...options,
+  });
+};
+
+/**
+ * Which marketplace listings this guild has installed, and how many of each.
+ *
+ * Keyed by the listing uid an install pins. Separate from the dashboards list on
+ * purpose: that list is paginated, and deriving "already installed" from one
+ * page would mark some installs and miss the rest.
+ */
+export const useInstalledListings = (options?: QueryOpts<DashboardInstalledListings>) => {
+  const guildId = useActiveGuildId();
+  return useQuery<DashboardInstalledListings>({
+    queryKey: getReadInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGetQueryKey(guildId),
+    queryFn: () => readInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGet(guildId),
     ...options,
   });
 };

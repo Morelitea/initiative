@@ -32,10 +32,13 @@ export function DashboardUpdateBadge({ dashboard, canEdit }: DashboardUpdateBadg
   const listingQuery = useMarketplaceListingByUid(dashboard.listing_uid);
   const upgrade = useUpgradeDashboard(dashboard.id);
 
-  const latest = listingQuery.data?.latest_version;
-  // Nothing to offer: not installed, the listing is gone, this build cannot run
-  // the new version, or it is already the pinned one.
-  if (!latest?.compatible || latest.version === dashboard.listing_version) {
+  const listing = listingQuery.data;
+  const latest = listing?.latest_version;
+  // `installable` is the server's own verdict — still offered, has a version,
+  // and that version runs on this build — so the button appears only when the
+  // upgrade would actually be accepted. Re-deriving it here is how a withdrawn
+  // listing ends up offering an update that 409s.
+  if (!listing?.installable || !latest || latest.version === dashboard.listing_version) {
     return null;
   }
 

@@ -11,22 +11,19 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderPage } from "@/__tests__/helpers/render";
-import type {
-  DashboardSummary,
-  MarketplaceListingSummary,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { MarketplaceListingSummary } from "@/api/generated/initiativeAPI.schemas";
 
 import { MarketplaceBrowsePage } from "./MarketplaceBrowsePage";
 
 const listingsFor = vi.fn();
-let dashboards: Partial<DashboardSummary>[] = [];
+let installed: Record<string, number> = {};
 
 vi.mock("@/hooks/useMarketplace", () => ({
   useMarketplaceListings: (params: unknown) => listingsFor(params),
 }));
 
 vi.mock("@/hooks/useDashboards", () => ({
-  useDashboardsList: () => ({ data: { items: dashboards } }),
+  useInstalledListings: () => ({ data: { counts: installed } }),
 }));
 
 const listing = (overrides: Partial<MarketplaceListingSummary> = {}) =>
@@ -49,7 +46,7 @@ const listing = (overrides: Partial<MarketplaceListingSummary> = {}) =>
   }) as MarketplaceListingSummary;
 
 beforeEach(() => {
-  dashboards = [];
+  installed = {};
   listingsFor.mockReturnValue({
     data: { items: [listing()], total: 1 },
     isLoading: false,
@@ -70,22 +67,16 @@ describe("MarketplaceBrowsePage", () => {
   });
 
   it("marks a listing this guild already installed", async () => {
-    // Matched on the uid an install pins — the catalog says nothing about who
-    // installed what, so this can only come from the guild's own dashboards.
-    dashboards = [{ id: 1, listing_uid: "SPRNT000000001" } as Partial<DashboardSummary>];
+    // Counted server-side over every dashboard. Deriving this from the
+    // paginated dashboard list would mark some installs and miss the rest once
+    // a guild has more dashboards than fit on a page.
+    installed = { SPRNT000000001: 1 };
     renderPage(MarketplaceBrowsePage);
     expect(await screen.findByText("Installed")).toBeInTheDocument();
   });
 
   it("does not mark a listing whose uid nobody here pinned", async () => {
-    dashboards = [{ id: 1, listing_uid: "SMTHNG00000001" } as Partial<DashboardSummary>];
-    renderPage(MarketplaceBrowsePage);
-    await screen.findByText("Sprint health");
-    expect(screen.queryByText("Installed")).toBeNull();
-  });
-
-  it("does not mark a dashboard that was authored here", async () => {
-    dashboards = [{ id: 1, listing_uid: null } as Partial<DashboardSummary>];
+    installed = { SMTHNG00000001: 2 };
     renderPage(MarketplaceBrowsePage);
     await screen.findByText("Sprint health");
     expect(screen.queryByText("Installed")).toBeNull();
@@ -101,6 +92,14 @@ describe("MarketplaceBrowsePage", () => {
     await waitFor(() =>
       expect(listingsFor).toHaveBeenCalledWith(expect.objectContaining({ q: "burndown" }))
     );
+  });
+
+  it("does not present a failed catalog as an empty one", async () => {
+    // "Nothing to offer" would send someone looking for listings that exist.
+    listingsFor.mockReturnValue({ data: undefined, isLoading: false, isError: true });
+    renderPage(MarketplaceBrowsePage);
+    expect(await screen.findByText(/marketplace unavailable/i)).toBeInTheDocument();
+    expect(screen.queryByText(/nothing here yet/i)).toBeNull();
   });
 
   it("says so when a search matches nothing", async () => {

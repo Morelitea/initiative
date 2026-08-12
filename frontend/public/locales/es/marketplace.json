@@ -43,5 +43,9 @@
     "action": "Actualizar",
     "done": "Actualizado a {{version}}.",
     "failed": "No se pudo actualizar este panel."
+  },
+  "unavailable": {
+    "title": "Mercado no disponible",
+    "description": "No se pudo acceder al catálogo. Inténtalo de nuevo en un momento."
   }
 }

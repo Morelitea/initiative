@@ -60,6 +60,21 @@ class DashboardCreate(DashboardBase):
     )
 
 
+class DashboardInstalledListings(SanitizedBaseModel):
+    """How many dashboards in this guild came from each marketplace listing.
+
+    Keyed by listing uid, because that is what an install pins. Answered here
+    rather than by the catalog: which listings a guild has is guild data, and the
+    catalog holds none of it. Small and unpaginated by construction — one entry
+    per distinct listing, not per dashboard — so a browse surface can mark what
+    is already installed without walking the dashboard list.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    counts: Dict[str, int] = Field(default_factory=dict)
+
+
 class DashboardUpdate(SanitizedBaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=255)
     description: Optional[str] = Field(default=None, max_length=2000)

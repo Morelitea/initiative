@@ -44,6 +44,7 @@ from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.initiative import Initiative, PermissionKey
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.schemas.tenant.dashboard import (
+    DashboardInstalledListings,
     DashboardCreate,
     DashboardListResponse,
     DashboardRead,
@@ -276,6 +277,34 @@ async def list_dashboards(
         page=page,
         page_size=page_size,
         has_next=has_next,
+    )
+
+
+# Declared before /{dashboard_id} so the literal path wins the match.
+@router.get("/installed-listings", response_model=DashboardInstalledListings)
+async def read_installed_listings(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> DashboardInstalledListings:
+    """Which marketplace listings this guild has installed, and how many of each.
+
+    One row per distinct listing rather than per dashboard, so the answer is
+    complete in one response — the dashboard list is paginated, and a partial
+    page would mark some installs and miss others.
+
+    RLS-scoped like every other read here: it counts the dashboards the caller
+    can see.
+    """
+    rows = (
+        await session.exec(
+            select(Dashboard.listing_uid, func.count())
+            .where(Dashboard.listing_uid.is_not(None))
+            .group_by(Dashboard.listing_uid)
+        )
+    ).all()
+    return DashboardInstalledListings(
+        counts={uid: int(count) for uid, count in rows if uid}
     )
 
 

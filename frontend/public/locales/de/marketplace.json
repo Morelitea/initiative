@@ -43,5 +43,9 @@
     "action": "Aktualisieren",
     "done": "Auf {{version}} aktualisiert.",
     "failed": "Dieses Dashboard konnte nicht aktualisiert werden."
+  },
+  "unavailable": {
+    "title": "Marktplatz nicht erreichbar",
+    "description": "Der Katalog konnte nicht geladen werden. Versuche es gleich noch einmal."
   }
 }

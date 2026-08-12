@@ -9,15 +9,15 @@
  * matched up client-side.
  */
 
-import { SearchX } from "lucide-react";
-import { useMemo, useState } from "react";
+import { CloudOff, SearchX } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { MarketplaceCard } from "@/components/marketplace/MarketplaceCard";
 import { StatusMessage } from "@/components/StatusMessage";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useDashboardsList } from "@/hooks/useDashboards";
+import { useInstalledListings } from "@/hooks/useDashboards";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useMarketplaceListings } from "@/hooks/useMarketplace";
 
@@ -39,17 +39,11 @@ export function MarketplaceBrowsePage() {
     page_size: PAGE_SIZE,
   });
 
-  // Which of these this guild already has. A count, not a boolean: a guild may
-  // hold several installs of one listing, at different versions.
-  const dashboardsQuery = useDashboardsList();
-  const installedByUid = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const dashboard of dashboardsQuery.data?.items ?? []) {
-      if (!dashboard.listing_uid) continue;
-      counts.set(dashboard.listing_uid, (counts.get(dashboard.listing_uid) ?? 0) + 1);
-    }
-    return counts;
-  }, [dashboardsQuery.data]);
+  // Which of these this guild already has, counted server-side over every
+  // dashboard rather than over a page of them. A count, not a boolean: a guild
+  // may hold several installs of one listing, at different versions.
+  const installedQuery = useInstalledListings();
+  const installedByUid = installedQuery.data?.counts ?? {};
 
   const listings = listingsQuery.data?.items ?? [];
 
@@ -68,7 +62,15 @@ export function MarketplaceBrowsePage() {
         className="max-w-md"
       />
 
-      {listingsQuery.isLoading ? (
+      {listingsQuery.isError ? (
+        // A catalog that failed to answer is not a catalog with nothing in it,
+        // and saying so would send someone looking for listings that exist.
+        <StatusMessage
+          icon={<CloudOff />}
+          title={t("unavailable.title")}
+          description={t("unavailable.description")}
+        />
+      ) : listingsQuery.isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {SKELETON_KEYS.map((key) => (
             <Skeleton key={key} className="h-32 w-full rounded-xl" />
@@ -80,7 +82,7 @@ export function MarketplaceBrowsePage() {
             <MarketplaceCard
               key={listing.public_id}
               listing={listing}
-              installedCount={installedByUid.get(listing.uid) ?? 0}
+              installedCount={installedByUid[listing.uid] ?? 0}
             />
           ))}
         </div>

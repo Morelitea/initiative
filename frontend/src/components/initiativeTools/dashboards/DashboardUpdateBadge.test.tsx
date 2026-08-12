@@ -42,8 +42,9 @@ const dashboard = (overrides: Partial<DashboardRead> = {}) =>
     ...overrides,
   }) as DashboardRead;
 
-const publishing = (version: string, compatible = true) => ({
-  latest_version: { version, compatible },
+const publishing = (version: string, installable = true) => ({
+  installable,
+  latest_version: { version, compatible: installable },
 });
 
 beforeEach(() => {
@@ -91,6 +92,20 @@ describe("DashboardUpdateBadge", () => {
     // Offering it would produce a 409; the listing page is where "upgrade the
     // app first" belongs, not a button here that cannot work.
     listing = publishing("3.0.0", false) as Partial<MarketplaceListingDetail>;
+    const { container } = renderWithProviders(
+      <DashboardUpdateBadge dashboard={dashboard()} canEdit />
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("shows nothing when the listing has been withdrawn", () => {
+    // A withdrawn listing can still have a newer version on record. Installing
+    // or upgrading it is refused, so offering the button would only fail.
+    listing = {
+      installable: false,
+      available: false,
+      latest_version: { version: "2.0.0", compatible: true },
+    } as Partial<MarketplaceListingDetail>;
     const { container } = renderWithProviders(
       <DashboardUpdateBadge dashboard={dashboard()} canEdit />
     );
