@@ -31,7 +31,7 @@ from sqlalchemy.dialects import postgresql
 from app.db.guild_migrations import run_for_each_guild_schema
 
 revision = "20260812_0171"
-down_revision = "20260812_0168"
+down_revision = "20260812_0170"
 branch_labels = None
 depends_on = None
 
