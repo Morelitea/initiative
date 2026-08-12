@@ -51,7 +51,7 @@ import { useWidgetMetas } from "@/hooks/useWidgetMeta";
 import { cn } from "@/lib/utils";
 import type { WidgetSource } from "@/lib/widgets/dataShapes";
 import { MAX_WIDGETS, unboundSlots } from "@/lib/widgets/definition";
-import { sampleFor } from "@/lib/widgets/sampleData";
+import { SAMPLE_NOW, sampleFor } from "@/lib/widgets/sampleData";
 import { localized, type WidgetMeta, widgetDisplayName } from "@/lib/widgets/widgetMeta";
 
 import { WidgetTile } from "./WidgetTile";
@@ -248,7 +248,7 @@ function WidgetDetail({
       {/* min-w-0 + overflow-hidden: a wide preview (a table) clips inside its
           pane instead of forcing the dialog wider than the screen. */}
       <div className="h-52 shrink-0 overflow-hidden rounded-lg border bg-card p-3">
-        <WidgetTile type={entry.type} data={data} config={options} chromeless />
+        <WidgetTile type={entry.type} data={data} config={options} now={SAMPLE_NOW} chromeless />
       </div>
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">

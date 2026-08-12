@@ -36,6 +36,10 @@ export interface WidgetTileProps {
   /** Drop the border and title — the canvas frames its own widgets, and two
    *  nested frames read as a bug. The scene still cannot escape its box. */
   chromeless?: boolean;
+  /** Freeze the widget's clock. Previews render frozen sample data and pass
+   *  the samples' own anchor here, so a clock-reading widget draws the same
+   *  picture every time; live tiles omit it and get the real minute. */
+  now?: number;
 }
 
 type State = { status: "loading" } | { status: "done"; outcome: WidgetRenderOutcome };
@@ -49,6 +53,7 @@ export function WidgetTile({
   source,
   isLoading,
   chromeless,
+  now,
 }: WidgetTileProps) {
   const [state, setState] = useState<State>({ status: "loading" });
 
@@ -68,14 +73,14 @@ export function WidgetTile({
     // blanking to a skeleton every time the data changes makes a live tile
     // flicker on each refetch. The scene already on screen stays until the new
     // one is ready.
-    renderWidget({ source: moduleSource, data, config: config ?? {} }).then((outcome) => {
+    renderWidget({ source: moduleSource, data, config: config ?? {}, now }).then((outcome) => {
       if (!cancelled) setState({ status: "done", outcome });
     });
 
     return () => {
       cancelled = true;
     };
-  }, [type, data, config, source]);
+  }, [type, data, config, source, now]);
 
   const body =
     isLoading || state.status === "loading" ? (

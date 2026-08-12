@@ -17,6 +17,13 @@ const DAY = 86_400_000;
  *  calendar. Renders stay byte-identical across runs. */
 const T0 = Date.UTC(2026, 7, 3);
 
+/** The clock a preview runs under. Previews draw these frozen samples, so a
+ *  clock-reading widget (the agenda) must see a frozen "now" that sits inside
+ *  them — the real clock would drift past the samples and empty the preview a
+ *  little more each day. Live tiles never use this; the host hands them the
+ *  real minute. */
+export const SAMPLE_NOW = T0;
+
 export interface WidgetSample {
   source: WidgetSource;
   data: WidgetData;
@@ -77,6 +84,37 @@ const tasks: WidgetSample = {
     ],
   },
   empty: { source: "tasks", rows: [] },
+  variants: {
+    // A week of due dates straddling the sample clock, so the preview shows
+    // the widget's whole point: late work flagged above the queue of what is
+    // coming. One finished task and one undated task prove both stay out.
+    agenda: {
+      source: "tasks",
+      rows: [
+        { title: "Chase the vendor", due: -4, status: "Blocked", category: "todo" },
+        { title: "Sign the venue", due: -1, status: "In progress", category: "in_progress" },
+        { title: "Draft the spec", due: 1, status: "In review", category: "in_progress" },
+        { title: "Order supplies", due: 2, status: "To do", category: "todo" },
+        { title: "Book travel", due: 3, status: "To do", category: "todo" },
+        { title: "Publish the plan", due: 6, status: "In progress", category: "in_progress" },
+        { title: "Send invitations", due: 9, status: "To do", category: "todo" },
+        { title: "Ship the migration", due: 1, status: "Done", category: "done" },
+        { title: "Tidy the backlog", due: null, status: "To do", category: "todo" },
+      ].map((task, index) => ({
+        id: 400 + index,
+        title: task.title,
+        status: task.status,
+        statusCategory: task.category,
+        priority: (["high", "medium", "low", null] as const)[index % 4],
+        startDate: task.due === null ? null : T0 + (task.due - 5) * DAY,
+        dueDate: task.due === null ? null : T0 + task.due * DAY,
+        completedAt: task.category === "done" ? T0 - DAY : null,
+        projectId: index % 2 === 0 ? 10 : 11,
+        projectName: index % 2 === 0 ? "Apollo" : "Borealis",
+        assignees: [index % 2 === 0 ? "Ada" : "Grace"],
+      })),
+    },
+  },
 };
 
 const projects: WidgetSample = {
@@ -131,6 +169,30 @@ const calendarEntries: WidgetSample = {
     ],
   },
   empty: { source: "calendar_entries", rows: [] },
+  variants: {
+    // A fuller fortnight than the base pair, anchored around the sample clock:
+    // one event already over (the agenda must drop it), one under way, and a
+    // run of upcoming ones for the list itself.
+    agenda: {
+      source: "calendar_entries",
+      rows: [
+        { title: "Sprint planning", offset: -2, hours: 1 },
+        { title: "All-hands", offset: 0, hours: 26 },
+        { title: "Design review", offset: 9, hours: 1 },
+        { title: "Vendor call", offset: 10, hours: 2 },
+        { title: "Release cut", offset: 12, hours: 1 },
+        { title: "Retro", offset: 14, hours: 1 },
+        { title: "Roadmap workshop", offset: 16, hours: 3 },
+      ].map((event, index) => ({
+        id: 110 + index,
+        title: event.title,
+        start: T0 + event.offset * DAY - 2 * 3_600_000,
+        end: T0 + event.offset * DAY + (event.hours - 2) * 3_600_000,
+        calendarName: index % 2 === 0 ? "Team" : "Releases",
+        allDay: event.hours >= 24,
+      })),
+    },
+  },
 };
 
 const taskCounts: WidgetSample = {
@@ -252,6 +314,7 @@ export const sampleFor = (source: WidgetSource, widgetType?: string): WidgetData
  */
 export const SOURCES_BY_WIDGET: Record<string, WidgetSource[]> = {
   gantt: ["tasks", "projects", "calendar_entries"],
+  agenda: ["calendar_entries", "tasks"],
   stat: ["counter", "task_counts", "sheet_range"],
   chart: ["task_counts", "counter_group", "sheet_range", "projects"],
   funnel: ["task_counts", "sheet_range"],

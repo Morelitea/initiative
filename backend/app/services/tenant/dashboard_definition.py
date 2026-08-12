@@ -89,6 +89,15 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
         sources=frozenset({"tasks", "projects", "calendar_entries"}),
         options={"scale": frozenset({"day", "week", "month", "quarter"})},
     ),
+    # What is next and what is late, as a list — events ahead, or open tasks
+    # by due date.
+    "agenda": WidgetSpec(
+        min_w=3,
+        min_h=3,
+        default_w=4,
+        default_h=5,
+        sources=frozenset({"calendar_entries", "tasks"}),
+    ),
     # One big number.
     "stat": WidgetSpec(
         min_w=2,

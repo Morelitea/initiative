@@ -13,6 +13,7 @@
  * two and fails on drift.
  */
 
+import agendaSource from "./builtins/agenda.widget.js?raw";
 import chartSource from "./builtins/chart.widget.js?raw";
 import funnelSource from "./builtins/funnel.widget.js?raw";
 import ganttSource from "./builtins/gantt.widget.js?raw";
@@ -29,6 +30,7 @@ import tableSource from "./builtins/table.widget.js?raw";
  */
 export const BUILTIN_WIDGETS: Record<string, string> = {
   gantt: ganttSource,
+  agenda: agendaSource,
   stat: statSource,
   chart: chartSource,
   funnel: funnelSource,
