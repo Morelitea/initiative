@@ -47,7 +47,9 @@ export function MarketplaceListingPage() {
   const listing = listingQuery.data;
   const isApp = listing?.kind === "app";
   // Back to the shelf this listing was found on, falling back to the listing's
-  // own kind when someone arrived by direct link.
+  // own kind when someone arrived by direct link. Both can be unknown when the
+  // listing failed to load — there is nothing to infer a shelf from then, and
+  // the browse route normalizes an absent kind to dashboards.
   const backToShelf = { kind: shelf ?? listing?.kind };
   // Installing an app is a guild-admin action; the server enforces it, and the
   // button says so rather than failing after the click.
@@ -60,6 +62,7 @@ export function MarketplaceListingPage() {
         title={t("detail.notFound")}
         description={t("detail.notFoundDescription")}
         backTo={gp("/marketplace")}
+        backSearch={backToShelf}
         backLabel={t("backToMarketplace")}
       />
     );

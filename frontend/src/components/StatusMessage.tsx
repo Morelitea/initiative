@@ -15,10 +15,20 @@ interface StatusMessageProps {
   title: string;
   description?: string;
   backTo?: string;
+  /** Search params for the back link — without this, returning from an error
+   *  state drops whatever the destination was filtered to. */
+  backSearch?: Record<string, unknown>;
   backLabel?: string;
 }
 
-export function StatusMessage({ icon, title, description, backTo, backLabel }: StatusMessageProps) {
+export function StatusMessage({
+  icon,
+  title,
+  description,
+  backTo,
+  backSearch,
+  backLabel,
+}: StatusMessageProps) {
   return (
     <Empty>
       <EmptyHeader>
@@ -28,7 +38,9 @@ export function StatusMessage({ icon, title, description, backTo, backLabel }: S
       </EmptyHeader>
       {backTo && backLabel && (
         <Button variant="link" size="sm" asChild className="px-0">
-          <Link to={backTo}>{backLabel}</Link>
+          <Link to={backTo} search={backSearch}>
+            {backLabel}
+          </Link>
         </Button>
       )}
     </Empty>
