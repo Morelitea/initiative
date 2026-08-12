@@ -1295,6 +1295,10 @@ export const useSetEventTagsApiV1GGuildIdCalendarEventsEventIdTagsPut = <
  * Mirrors the tasks/documents shape: anyone with write access on the calendar
  * (or guild admin) can attach values; cross-initiative definitions return 404
  * DEFINITION_NOT_FOUND via the service layer.
+ *
+ * Property definitions belong to an initiative. A guild calendar belongs to
+ * none, so there are no definitions its events could carry and the request is
+ * refused; clearing values stays available.
  * @summary Set Event Properties
  */
 export const setEventPropertiesApiV1GGuildIdCalendarEventsEventIdPropertiesPut = (
