@@ -86,22 +86,24 @@ def _check_public_id(public_id: str) -> str:
     return public_id
 
 
+#: Characters an artwork path may use — an explicit allow-list, so a stored
+#: path is exactly what a browser will request.
+_ARTWORK_CHARS = frozenset(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/._-"
+)
+
+
 def _check_artwork_path(value: str, *, field: str) -> str:
-    """A listing's artwork must be a same-origin path.
-
-    Artwork is fetched by every member who so much as scrolls past the listing,
-    so where it points decides who learns about those page views. Keeping it
-    same-origin means browsing the marketplace talks to nobody but the app —
-    the shipped files live under ``/marketplace/``. If a remote registry later
-    wants third-party artwork, the right shape is mirroring it locally, not
-    loosening this.
-
-    ``//host/...`` is refused along with full URLs: browsers read a leading
-    double slash as scheme-relative, which is an absolute URL wearing a path's
-    clothes.
-    """
-    if not value.startswith("/") or value.startswith("//"):
+    """A listing's artwork must be a same-origin path — the shipped files live
+    under ``/marketplace/``. A registry wanting third-party artwork mirrors it
+    locally rather than linking out."""
+    if not value.startswith("/"):
         raise CatalogError(f"{field} must be a same-origin path starting with '/'")
+    for char in value:
+        if char not in _ARTWORK_CHARS:
+            raise CatalogError(f"{field} contains {char!r}, which is not allowed")
+    if "//" in value or "/../" in value or value.endswith("/.."):
+        raise CatalogError(f"{field} must be a plain path with no '//' or '..'")
     return value
 
 

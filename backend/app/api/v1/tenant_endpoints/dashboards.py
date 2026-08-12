@@ -54,6 +54,7 @@ from app.schemas.tenant.dashboard import (
     serialize_dashboard,
     serialize_dashboard_summary,
 )
+from app.schemas.tenant.initiative import InitiativeGroupedCountsResponse
 from app.schemas.tenant.recent_view import RecentViewWrite
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.db import session as db_session
@@ -277,6 +278,45 @@ async def list_dashboards(
         page=page,
         page_size=page_size,
         has_next=has_next,
+    )
+
+
+# Declared before /{dashboard_id} so the literal path wins the match.
+@router.get("/counts/by-initiative", response_model=InitiativeGroupedCountsResponse)
+async def get_dashboard_counts_by_initiative(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> InitiativeGroupedCountsResponse:
+    """Visible-dashboard counts grouped by initiative.
+
+    Lightweight endpoint for the sidebar badges — same visibility rules as the
+    dashboard list (dashboards-enabled initiatives, DAC), one GROUP BY instead
+    of a capped list page.
+    """
+    conditions = [
+        Dashboard.guild_id == guild_context.guild_id,
+        Dashboard.initiative_id.in_(
+            select(Initiative.id).where(Initiative.dashboards_enabled == True)  # noqa: E712
+        ),
+    ]
+    if not rls_service.is_guild_admin(guild_context.role) and not guild_context.is_pam:
+        conditions.append(
+            Dashboard.id.in_(
+                permissions_service.visible_resource_ids_subquery(
+                    "dashboard", current_user.id
+                )
+            )
+        )
+
+    statement = (
+        select(Dashboard.initiative_id, func.count(Dashboard.id))
+        .where(*conditions)
+        .group_by(Dashboard.initiative_id)
+    )
+    rows = (await session.exec(statement)).all()
+    return InitiativeGroupedCountsResponse(
+        counts={initiative_id: count for initiative_id, count in rows}
     )
 
 

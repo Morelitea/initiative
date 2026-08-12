@@ -426,9 +426,14 @@ class CalendarEventMessages:
     INVALID_ATTENDEE_IDS = "CALENDAR_EVENT_INVALID_ATTENDEE_IDS"
     ICAL_PARSE_FAILED = "ICAL_PARSE_FAILED"
     ICAL_NO_EVENTS = "ICAL_NO_EVENTS_FOUND"
-    # Custom properties are defined on an initiative. A guild calendar belongs
-    # to none, so there are no definitions its events could carry.
+    # A guild calendar holds guild-level content only. Things defined on an
+    # initiative — custom properties, documents — have no counterpart at guild
+    # scope, so an event there cannot carry them; and an event cannot be moved
+    # across the guild/initiative line, because it would take its initiative
+    # attachments with it.
     GUILD_CALENDAR_NO_PROPERTIES = "CALENDAR_EVENT_GUILD_CALENDAR_NO_PROPERTIES"
+    GUILD_CALENDAR_NO_DOCUMENTS = "CALENDAR_EVENT_GUILD_CALENDAR_NO_DOCUMENTS"
+    CANNOT_CROSS_SCOPE = "CALENDAR_EVENT_CANNOT_CROSS_SCOPE"
 
 
 class DashboardMessages:

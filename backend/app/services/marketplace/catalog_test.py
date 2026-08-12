@@ -202,32 +202,32 @@ class TestDefinitions:
 
 
 class TestArtwork:
-    """Artwork stays same-origin.
-
-    Every member who scrolls past a listing fetches its avatar, so an artwork
-    URL decides who gets told about those page views. The catalog refuses
-    anything but a local path — a registry wanting third-party art will mirror
-    it, not link it.
-    """
+    """Artwork must be a same-origin path; anything else is refused."""
 
     @pytest.mark.parametrize(
         "avatar_url",
         [
             "https://elsewhere.test/logo.png",
             "http://elsewhere.test/logo.png",
-            # Scheme-relative: an absolute URL wearing a path's clothes.
             "//elsewhere.test/logo.png",
             "marketplace/relative.svg",
+            # Outside the allow-list.
+            "/\\elsewhere.test/logo.png",
+            "/\telsewhere.test/logo.png",
+            "/marketplace/../logo.png",
+            "/marketplace//logo.png",
         ],
     )
     async def test_offsite_avatar_is_refused(self, session, avatar_url):
-        with pytest.raises(CatalogError, match="same-origin path"):
+        # Which of the three checks refuses it varies by case; that it names
+        # the field is the contract.
+        with pytest.raises(CatalogError, match="avatar_url"):
             await service.upsert_listing(
                 session, _manifest(avatar_url=avatar_url), source="builtin"
             )
 
     async def test_offsite_screenshot_is_refused(self, session):
-        with pytest.raises(CatalogError, match="same-origin path"):
+        with pytest.raises(CatalogError, match="images"):
             await service.upsert_listing(
                 session,
                 _manifest(

@@ -348,6 +348,8 @@
   "CALENDAR_EVENT_NOT_FOUND": "Événement introuvable",
   "CALENDAR_EVENT_INVALID_ATTENDEE_IDS": "Certaines de ces personnes ne peuvent pas être ajoutées à cet événement",
   "CALENDAR_EVENT_GUILD_CALENDAR_NO_PROPERTIES": "Les propriétés personnalisées appartiennent à une initiative ; les événements d'un calendrier de guilde ne peuvent donc pas en avoir",
+  "CALENDAR_EVENT_GUILD_CALENDAR_NO_DOCUMENTS": "Les documents appartiennent à une initiative ; les événements d'un calendrier de guilde ne peuvent donc pas en lier",
+  "CALENDAR_EVENT_CANNOT_CROSS_SCOPE": "Les événements ne peuvent pas être déplacés entre un calendrier de guilde et le calendrier d'une initiative",
   "DASHBOARD_NOT_FOUND": "Tableau de bord introuvable",
   "DASHBOARD_CREATE_PERMISSION_REQUIRED": "Vous n'avez pas l'autorisation de créer des tableaux de bord dans cette initiative",
   "DASHBOARDS_NOT_ENABLED": "Les tableaux de bord ne sont pas activés pour cette initiative",

@@ -45,7 +45,10 @@ export interface SandboxLimits {
 
 export const DEFAULT_LIMITS: SandboxLimits = {
   timeoutMs: 250,
-  memoryBytes: 16 * 1024 * 1024,
+  // Sized with the scene limits in mind: a legitimately large binding (a
+  // 10k-row table and the data it was built from, both alive at once during
+  // render) has to fit with room to spare, or the cap punishes real data.
+  memoryBytes: 64 * 1024 * 1024,
   stackBytes: 512 * 1024,
 };
 

@@ -3,6 +3,8 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   createDashboardApiV1GGuildIdDashboardsPost,
   deleteDashboardApiV1GGuildIdDashboardsDashboardIdDelete,
+  getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet,
+  getGetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGetQueryKey,
   getListDashboardsApiV1GGuildIdDashboardsGetQueryKey,
   getReadDashboardApiV1GGuildIdDashboardsDashboardIdGetQueryKey,
   getReadInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGetQueryKey,
@@ -21,6 +23,7 @@ import type {
   DashboardListResponse,
   DashboardRead,
   DashboardUpdate,
+  InitiativeGroupedCountsResponse,
   ListDashboardsApiV1GGuildIdDashboardsGetParams,
   ResourceGrantSchema,
   WidgetCatalog,
@@ -33,6 +36,22 @@ import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
 // ── Queries ─────────────────────────────────────────────────────────────────
+
+/** Visible-dashboard counts per initiative, for the sidebar badges. */
+export const useDashboardCountsByInitiative = (
+  options?: QueryOpts<InitiativeGroupedCountsResponse>
+) => {
+  const guildId = useActiveGuildId();
+  return useQuery<InitiativeGroupedCountsResponse>({
+    queryKey:
+      getGetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGetQueryKey(
+        guildId
+      ),
+    queryFn: () =>
+      getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet(guildId),
+    ...options,
+  });
+};
 
 export const useDashboardsList = (
   params?: ListDashboardsApiV1GGuildIdDashboardsGetParams,

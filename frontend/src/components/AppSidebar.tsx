@@ -44,7 +44,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
 import { useAutoCloseSidebar } from "@/hooks/useAutoCloseSidebar";
+import { useCalendarCountsByInitiative } from "@/hooks/useCalendars";
 import { useCounterGroupCountsByInitiative } from "@/hooks/useCounters";
+import { useDashboardCountsByInitiative } from "@/hooks/useDashboards";
 import { compareVersions, useDockerHubVersion } from "@/hooks/useDockerHubVersion";
 import { useDocumentCountsByInitiative } from "@/hooks/useDocuments";
 import { useGuilds } from "@/hooks/useGuilds";
@@ -162,6 +164,30 @@ export const AppSidebar = () => {
     });
     return map;
   }, [counterGroupCountsQuery.data]);
+
+  const calendarCountsQuery = useCalendarCountsByInitiative({
+    enabled: guildTreeEnabled,
+    staleTime: 60_000,
+  });
+  const calendarCountsByInitiative = useMemo(() => {
+    const map = new Map<number, number>();
+    Object.entries(calendarCountsQuery.data?.counts ?? {}).forEach(([initiativeId, count]) => {
+      map.set(Number(initiativeId), count);
+    });
+    return map;
+  }, [calendarCountsQuery.data]);
+
+  const dashboardCountsQuery = useDashboardCountsByInitiative({
+    enabled: guildTreeEnabled,
+    staleTime: 60_000,
+  });
+  const dashboardCountsByInitiative = useMemo(() => {
+    const map = new Map<number, number>();
+    Object.entries(dashboardCountsQuery.data?.counts ?? {}).forEach(([initiativeId, count]) => {
+      map.set(Number(initiativeId), count);
+    });
+    return map;
+  }, [dashboardCountsQuery.data]);
 
   const visibleInitiatives = useMemo(
     () => filterVisible(Array.isArray(initiativesQuery.data) ? initiativesQuery.data : []),
@@ -462,6 +488,10 @@ export const AppSidebar = () => {
                                           queueCountsByInitiative.get(initiative.id) ?? 0,
                                         [Tool.counter_group]:
                                           counterGroupCountsByInitiative.get(initiative.id) ?? 0,
+                                        [Tool.calendar]:
+                                          calendarCountsByInitiative.get(initiative.id) ?? 0,
+                                        [Tool.dashboard]:
+                                          dashboardCountsByInitiative.get(initiative.id) ?? 0,
                                       }}
                                       activeGuildId={activeGuildId}
                                       collapseKey={initiativeCollapseKey}

@@ -8,8 +8,8 @@
   "long_description": "A flow view of the initiative's work: the funnel from the widest stage to the narrowest, the same counts as a chart, and a calendar grid of day-by-day activity.\n\nUseful for spotting where work piles up rather than for tracking any one task.",
   "avatar_url": "/marketplace/core-task-flow.svg",
   "images": [],
-  "version": "1.0.1",
-  "release_notes": "Installable on the build that ships it.",
+  "version": "1.0.0",
+  "release_notes": "First release.",
   "definition": {
     "schema_version": 1,
     "kind": "dashboard",

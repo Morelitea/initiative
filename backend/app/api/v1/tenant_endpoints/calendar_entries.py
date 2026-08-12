@@ -46,6 +46,7 @@ async def list_calendar_entries(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     initiative_id: Optional[int] = Query(default=None),
+    calendar_ids: Optional[List[int]] = Query(default=None),
     start_after: Optional[datetime] = Query(default=None),
     start_before: Optional[datetime] = Query(default=None),
     property_filters: Optional[str] = Query(default=None),
@@ -60,7 +61,9 @@ async def list_calendar_entries(
     """Events + task markers for one guild's calendar over a date window.
 
     Skip a leg with ``include_events=false`` / ``include_tasks=false`` (e.g. when
-    the calendar has that type toggled off).
+    the calendar has that type toggled off). ``calendar_ids`` narrows the event
+    leg to named calendars — a surface showing a single calendar (a guild app)
+    asks for exactly it rather than everything and filtering client-side.
     """
     events_out = []
     if include_events:
@@ -69,6 +72,7 @@ async def list_calendar_entries(
             current_user,
             guild_context,
             initiative_id=initiative_id,
+            calendar_ids=calendar_ids,
             start_after=start_after,
             start_before=start_before,
             property_filters=property_filters,

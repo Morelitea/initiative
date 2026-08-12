@@ -170,13 +170,16 @@ export function DashboardDetailPage() {
         onRemoveWidget={editor.removeWidget}
       />
 
-      <WidgetConfigDialog
-        widget={configuring}
-        catalog={catalogQuery.data}
-        open={configuring !== null}
-        onOpenChange={(next) => !next && setConfiguringId(null)}
-        onSave={(patch) => configuringId && editor.updateWidget(configuringId, patch)}
-      />
+      {dashboard != null && (
+        <WidgetConfigDialog
+          widget={configuring}
+          catalog={catalogQuery.data}
+          initiativeId={dashboard.initiative_id}
+          open={configuring !== null}
+          onOpenChange={(next) => !next && setConfiguringId(null)}
+          onSave={(patch) => configuringId && editor.updateWidget(configuringId, patch)}
+        />
+      )}
     </div>
   );
 }

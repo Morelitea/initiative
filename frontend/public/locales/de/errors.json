@@ -348,6 +348,8 @@
   "CALENDAR_EVENT_NOT_FOUND": "Termin nicht gefunden",
   "CALENDAR_EVENT_INVALID_ATTENDEE_IDS": "Einige dieser Personen können diesem Termin nicht hinzugefügt werden",
   "CALENDAR_EVENT_GUILD_CALENDAR_NO_PROPERTIES": "Eigene Eigenschaften gehören zu einer Initiative, deshalb können Termine in einem Gildenkalender keine haben",
+  "CALENDAR_EVENT_GUILD_CALENDAR_NO_DOCUMENTS": "Dokumente gehören zu einer Initiative, deshalb können Termine in einem Gildenkalender keine verknüpfen",
+  "CALENDAR_EVENT_CANNOT_CROSS_SCOPE": "Termine können nicht zwischen einem Gildenkalender und dem Kalender einer Initiative verschoben werden",
   "DASHBOARD_NOT_FOUND": "Dashboard nicht gefunden",
   "DASHBOARD_CREATE_PERMISSION_REQUIRED": "Sie haben keine Berechtigung, Dashboards in dieser Initiative zu erstellen",
   "DASHBOARDS_NOT_ENABLED": "Dashboards sind für diese Initiative nicht aktiviert",

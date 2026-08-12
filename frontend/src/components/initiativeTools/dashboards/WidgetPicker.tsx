@@ -149,7 +149,7 @@ export function WidgetPicker({ catalog, widgetCount, onAdd }: WidgetPickerProps)
             {t("canvas.addWidget")}
           </Button>
         </DialogTrigger>
-        <DialogContent className="flex h-[min(44rem,90vh)] max-w-5xl flex-col gap-4">
+        <DialogContent className="flex h-[min(44rem,90vh)] w-[min(72rem,95vw)] max-w-none flex-col gap-4 sm:max-w-none">
           <DialogHeader>
             <DialogTitle>{t("picker.title")}</DialogTitle>
             <DialogDescription>{t("picker.description")}</DialogDescription>
@@ -170,7 +170,7 @@ export function WidgetPicker({ catalog, widgetCount, onAdd }: WidgetPickerProps)
           </div>
 
           {selected ? (
-            <div className="grid min-h-0 flex-1 gap-4 md:grid-cols-[15rem_1fr]">
+            <div className="grid min-h-0 flex-1 gap-4 md:grid-cols-[15rem_minmax(0,1fr)]">
               <ul
                 className="max-h-40 min-h-0 space-y-1 overflow-y-auto pr-1 md:max-h-none"
                 aria-label={t("picker.listLabel")}
@@ -244,8 +244,10 @@ function WidgetDetail({
   const data = useMemo(() => sampleFor(source, entry.type), [source, entry.type]);
 
   return (
-    <div className="flex min-h-0 flex-col gap-3">
-      <div className="h-52 shrink-0 rounded-lg border bg-card p-3">
+    <div className="flex min-h-0 min-w-0 flex-col gap-3">
+      {/* min-w-0 + overflow-hidden: a wide preview (a table) clips inside its
+          pane instead of forcing the dialog wider than the screen. */}
+      <div className="h-52 shrink-0 overflow-hidden rounded-lg border bg-card p-3">
         <WidgetTile type={entry.type} data={data} config={options} chromeless />
       </div>
 

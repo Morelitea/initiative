@@ -11,10 +11,15 @@ it is pinned separately from the unfiltered one.
 """
 
 import pytest
+from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.models.platform.guild import Guild, GuildMembership
+from app.models.platform.user import User
+from app.models.tenant.initiative import Initiative
 from app.services.tenant.calendars import list_calendar_ids_for_export
 from app.testing import (
     create_calendar,
+    create_guild,
     create_guild_calendar,
     create_guild_membership,
     create_initiative,
@@ -25,10 +30,10 @@ from app.testing import (
 pytestmark = pytest.mark.asyncio
 
 
-async def _workspace(session, *, calendars_enabled: bool):
+async def _workspace(
+    session: AsyncSession, *, calendars_enabled: bool
+) -> tuple[User, Guild, GuildMembership, Initiative]:
     user = await create_user(session)
-    from app.testing import create_guild
-
     guild = await create_guild(session, creator=user)
     membership = await create_guild_membership(session, user=user, guild=guild)
     initiative = await create_initiative(

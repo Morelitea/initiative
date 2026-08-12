@@ -39,7 +39,8 @@ export interface InitiativeSectionProps {
   userId: number | undefined;
   /** Per-tool view/create access, from useInitiativeAccess().permissionsFor. */
   access: InitiativeToolAccess;
-  /** Per-tool sidebar counts — only read for tools with sidebarCount. */
+  /** Per-tool sidebar counts. Every in-app list tool shows one — the rows all
+   *  present the same way; a hand-off (embedded) tool has no list to count. */
   counts: Partial<Record<Tool, number>>;
   activeGuildId: number | null;
   /** Changing this value re-syncs the open/closed state from storage. */
@@ -227,7 +228,7 @@ export const InitiativeSection = memo(
                           <span className="min-w-0 flex-1 truncate">
                             {toolDisplayName(tool, t(toolNavLabelKey(tool)), advancedTool)}
                           </span>
-                          {def.sidebarCount && (
+                          {def.inAppCreate && (
                             <span className="text-muted-foreground text-xs">
                               {counts[tool] ?? 0}
                             </span>

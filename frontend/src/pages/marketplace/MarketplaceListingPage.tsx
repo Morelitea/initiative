@@ -2,8 +2,11 @@
  * One listing's page: what it is, what it looks like, and how to get it.
  *
  * The preview is the real thing — the listing's definition rendered by the same
- * canvas a live dashboard uses, read-only, over sample data. Someone deciding
- * whether to install sees what they would get rather than a description of it.
+ * canvas a live dashboard uses, read-only, bound to the guild's default
+ * initiative (id 1, seeded with the guild and always present). Someone deciding
+ * whether to install sees what they would get rather than a description of it;
+ * tiles they can't read there render empty, which is what an install would show
+ * them too.
  */
 
 import { Link, useParams, useSearch } from "@tanstack/react-router";
@@ -181,7 +184,10 @@ export function MarketplaceListingPage() {
               definition={readDefinition(listing.definition)}
               config={readConfig({})}
               catalog={catalogQuery.data}
-              initiativeId={undefined}
+              // The guild's default initiative: seeded with the guild, so id 1
+              // always exists. Widgets are initiative-confined, so a preview
+              // has to name one — this is the one every guild has.
+              initiativeId={1}
               canEdit={false}
               onLayoutChange={() => {}}
             />

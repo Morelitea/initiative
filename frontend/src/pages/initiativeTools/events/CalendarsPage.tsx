@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
+  CalendarSummary,
   FilterCondition,
   FilterGroup,
   ListCalendarEntriesApiV1GGuildIdCalendarEntriesGetParams,
@@ -139,12 +140,18 @@ type CalendarsViewProps = {
   /** Focus a single calendar (the /calendars/$calendarId route): it is forced
    * visible so the deep link always shows its events. */
   focusCalendarId?: number;
+  /** A guild calendar rendered as its own whole surface — the calendar app.
+   * Guild apps show guild-level content only, so this mode shows exactly this
+   * calendar's events: no tasks, no projects, no other calendars, no
+   * initiative-flavored filters. */
+  soloCalendar?: CalendarSummary;
 };
 
 export const CalendarsView = ({
   fixedInitiativeId,
   canCreate,
   focusCalendarId,
+  soloCalendar,
 }: CalendarsViewProps) => {
   const { t } = useTranslation(["calendars", "tasks", "common", "access"]);
   const router = useRouter();
@@ -158,9 +165,13 @@ export const CalendarsView = ({
 
   const weekStartsOn = (user?.week_starts_on ?? 0) as 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
-  // Resolve initiative from prop or URL param
-  const initiativeId =
-    fixedInitiativeId ?? (searchParams.initiativeId ? Number(searchParams.initiativeId) : null);
+  const solo = soloCalendar != null;
+
+  // Resolve initiative from prop or URL param. A solo (guild) calendar belongs
+  // to no initiative, so none applies.
+  const initiativeId = solo
+    ? null
+    : (fixedInitiativeId ?? (searchParams.initiativeId ? Number(searchParams.initiativeId) : null));
 
   const searchParamsRef = useRef(searchParams);
   searchParamsRef.current = searchParams;
@@ -269,8 +280,20 @@ export const CalendarsView = ({
   }, [initiativeId, statusFilters, priorityFilters, propertyFilters]);
 
   // --- One request: events + task markers over the visible window. ---
-  const entriesParams = useMemo(
-    (): ListCalendarEntriesApiV1GGuildIdCalendarEntriesGetParams => ({
+  const entriesParams = useMemo((): ListCalendarEntriesApiV1GGuildIdCalendarEntriesGetParams => {
+    // Solo: exactly this calendar's events, and nothing task- or
+    // initiative-shaped at all.
+    if (solo) {
+      return {
+        calendar_ids: [soloCalendar.id],
+        start_after: visibleRange.start.toISOString(),
+        start_before: visibleRange.end.toISOString(),
+        tz: userTimezone,
+        include_events: true,
+        include_tasks: false,
+      };
+    }
+    return {
       ...(initiativeId ? { initiative_id: initiativeId } : {}),
       start_after: visibleRange.start.toISOString(),
       start_before: visibleRange.end.toISOString(),
@@ -279,18 +302,31 @@ export const CalendarsView = ({
       tz: userTimezone,
       include_events: true,
       include_tasks: true,
-    }),
-    [initiativeId, visibleRange, propertyFiltersParam, taskConditions, userTimezone]
-  );
+    };
+  }, [
+    solo,
+    soloCalendar?.id,
+    initiativeId,
+    visibleRange,
+    propertyFiltersParam,
+    taskConditions,
+    userTimezone,
+  ]);
 
   const entriesQuery = useCalendarEntries(entriesParams);
 
   // The real calendars backing the list panel, colors, and the create seams.
-  const calendarsQuery = useCalendarsList({
-    page_size: 200,
-    ...(initiativeId ? { initiative_id: initiativeId } : {}),
-  });
-  const calendars = useMemo(() => calendarsQuery.data?.items ?? [], [calendarsQuery.data]);
+  const calendarsQuery = useCalendarsList(
+    {
+      page_size: 200,
+      ...(initiativeId ? { initiative_id: initiativeId } : {}),
+    },
+    { enabled: !solo }
+  );
+  const calendars = useMemo(
+    () => (solo ? [soloCalendar] : (calendarsQuery.data?.items ?? [])),
+    [solo, soloCalendar, calendarsQuery.data]
+  );
   const calendarsById = useMemo(() => {
     const map = new Map<number, (typeof calendars)[number]>();
     for (const calendar of calendars) map.set(calendar.id, calendar);
@@ -298,7 +334,7 @@ export const CalendarsView = ({
   }, [calendars]);
 
   // Same param shape the sidebar and dashboard use, so this shares their cache.
-  const projectsQuery = useProjects(undefined, { staleTime: 30_000 });
+  const projectsQuery = useProjects(undefined, { staleTime: 30_000, enabled: !solo });
   const projectNamesById = useMemo(() => {
     const map = new Map<number, string>();
     for (const project of projectsQuery.data?.items ?? []) map.set(project.id, project.name);
@@ -327,7 +363,7 @@ export const CalendarsView = ({
   const { canCreate: canCreateCalendarsDerived } = useToolCreateAccess(Tool.calendar, {
     initiativeId,
   });
-  const canCreateCalendars = canCreate ?? canCreateCalendarsDerived;
+  const canCreateCalendars = solo ? false : (canCreate ?? canCreateCalendarsDerived);
   const writableCalendars = useMemo(() => calendars.filter(isWritableCalendar), [calendars]);
   const canCreateEvents = writableCalendars.length > 0;
 
@@ -472,112 +508,124 @@ export const CalendarsView = ({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-semibold text-3xl tracking-tight">{t("title")}</h1>
+        <h1 className="font-semibold text-3xl tracking-tight">
+          {solo ? soloCalendar.name : t("title")}
+        </h1>
         <div className="flex items-center gap-2">
-          <ExportButton
-            endpoint={toolExportEndpoint(Tool.calendar)}
-            params={initiativeId ? { initiative_id: initiativeId } : {}}
-            formats={TOOL_EXPORT_FORMATS[Tool.calendar] ?? []}
-            filenameStem={exportFilenameStem(t("title"), "calendars")}
-          />
+          {/* Export and tool import aggregate across calendars, which is not
+              what a single guild calendar's surface is; ICS import stays — a
+              club calendar is exactly what one imports events into. */}
+          {!solo && (
+            <ExportButton
+              endpoint={toolExportEndpoint(Tool.calendar)}
+              params={initiativeId ? { initiative_id: initiativeId } : {}}
+              formats={TOOL_EXPORT_FORMATS[Tool.calendar] ?? []}
+              filenameStem={exportFilenameStem(t("title"), "calendars")}
+            />
+          )}
           {canCreateEvents && (
             <Button variant="outline" size="sm" onClick={() => setImportDialogOpen(true)}>
               <Upload className="h-4 w-4" />
               {t("import.importIcs")}
             </Button>
           )}
-          <ToolImportAction
-            tool={Tool.calendar}
-            canImport={canCreateCalendars}
-            fixedInitiativeId={fixedInitiativeId}
-          />
+          {!solo && (
+            <ToolImportAction
+              tool={Tool.calendar}
+              canImport={canCreateCalendars}
+              fixedInitiativeId={fixedInitiativeId}
+            />
+          )}
         </div>
       </div>
 
-      {/* Filters */}
-      <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="space-y-2">
-        <div className="flex items-center justify-between sm:hidden">
-          <div className="inline-flex items-center gap-2 font-medium text-muted-foreground text-sm">
-            <Filter className="h-4 w-4" />
-            {t("filters.heading")}
+      {/* Filters — task- and initiative-shaped, so the solo (guild calendar)
+          surface has none of them. */}
+      {!solo && (
+        <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="space-y-2">
+          <div className="flex items-center justify-between sm:hidden">
+            <div className="inline-flex items-center gap-2 font-medium text-muted-foreground text-sm">
+              <Filter className="h-4 w-4" />
+              {t("filters.heading")}
+            </div>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 px-3">
+                {filtersOpen ? t("filters.hide") : t("filters.show")}
+                <ChevronDown
+                  className={`h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
+                />
+              </Button>
+            </CollapsibleTrigger>
           </div>
-          <CollapsibleTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 px-3">
-              {filtersOpen ? t("filters.hide") : t("filters.show")}
-              <ChevronDown
-                className={`h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
-              />
-            </Button>
-          </CollapsibleTrigger>
-        </div>
-        <CollapsibleContent forceMount className="data-[state=closed]:hidden">
-          <div className="mt-2 flex flex-wrap items-end gap-4 rounded-md border border-muted bg-background/40 p-3 sm:mt-0">
-            {/* Calendar visibility — real calendars + per-project task
+          <CollapsibleContent forceMount className="data-[state=closed]:hidden">
+            <div className="mt-2 flex flex-wrap items-end gap-4 rounded-md border border-muted bg-background/40 p-3 sm:mt-0">
+              {/* Calendar visibility — real calendars + per-project task
                 calendars behind one dropdown, so the grid keeps full width. */}
-            <div className="flex items-end">
-              <CalendarPanelDropdown
-                calendars={calendars}
-                projectCalendars={projectCalendars}
-                isCalendarHidden={(calendar) => hiddenCalendarIds.has(calendar.id)}
-                isProjectHidden={(project) => hiddenProjectIds.has(project.projectId)}
-                onToggleCalendar={(calendar) =>
-                  setHiddenCalendarIds((prev) => toggleInSet(prev, calendar.id))
-                }
-                onToggleProject={(project) =>
-                  setHiddenProjectIds((prev) => toggleInSet(prev, project.projectId))
-                }
-                settingsPathFor={(calendar) => gp(`/calendars/${calendar.id}/settings`)}
-                canCreate={canCreateCalendars}
-                onCreate={() => setCreateCalendarOpen(true)}
-              />
-            </div>
+              <div className="flex items-end">
+                <CalendarPanelDropdown
+                  calendars={calendars}
+                  projectCalendars={projectCalendars}
+                  isCalendarHidden={(calendar) => hiddenCalendarIds.has(calendar.id)}
+                  isProjectHidden={(project) => hiddenProjectIds.has(project.projectId)}
+                  onToggleCalendar={(calendar) =>
+                    setHiddenCalendarIds((prev) => toggleInSet(prev, calendar.id))
+                  }
+                  onToggleProject={(project) =>
+                    setHiddenProjectIds((prev) => toggleInSet(prev, project.projectId))
+                  }
+                  settingsPathFor={(calendar) => gp(`/calendars/${calendar.id}/settings`)}
+                  canCreate={canCreateCalendars}
+                  onCreate={() => setCreateCalendarOpen(true)}
+                />
+              </div>
 
-            {/* Status filter (for tasks) */}
-            <div className="w-full sm:w-48 lg:flex-1">
-              <Label className="mb-2 block font-medium text-muted-foreground text-xs">
-                {t("tasks:filters.filterByStatusCategory")}
-              </Label>
-              <MultiSelect
-                selectedValues={statusFilters}
-                options={statusOptions}
-                onChange={(values) => setStatusFilters(values as TaskStatusCategory[])}
-                placeholder={t("tasks:filters.allStatusCategories")}
-                emptyMessage={t("tasks:filters.noStatusCategories")}
-              />
-            </div>
+              {/* Status filter (for tasks) */}
+              <div className="w-full sm:w-48 lg:flex-1">
+                <Label className="mb-2 block font-medium text-muted-foreground text-xs">
+                  {t("tasks:filters.filterByStatusCategory")}
+                </Label>
+                <MultiSelect
+                  selectedValues={statusFilters}
+                  options={statusOptions}
+                  onChange={(values) => setStatusFilters(values as TaskStatusCategory[])}
+                  placeholder={t("tasks:filters.allStatusCategories")}
+                  emptyMessage={t("tasks:filters.noStatusCategories")}
+                />
+              </div>
 
-            {/* Priority filter (for tasks) */}
-            <div className="w-full sm:w-48 lg:flex-1">
-              <Label className="mb-2 block font-medium text-muted-foreground text-xs">
-                {t("tasks:filters.filterByPriority")}
-              </Label>
-              <MultiSelect
-                selectedValues={priorityFilters}
-                options={PRIORITY_ORDER.map((p) => ({
-                  value: p,
-                  label: t(`tasks:priority.${p}` as never),
-                }))}
-                onChange={(values) => setPriorityFilters(values as TaskPriority[])}
-                placeholder={t("tasks:filters.allPriorities")}
-                emptyMessage={t("tasks:filters.noPriorities")}
-              />
-            </div>
+              {/* Priority filter (for tasks) */}
+              <div className="w-full sm:w-48 lg:flex-1">
+                <Label className="mb-2 block font-medium text-muted-foreground text-xs">
+                  {t("tasks:filters.filterByPriority")}
+                </Label>
+                <MultiSelect
+                  selectedValues={priorityFilters}
+                  options={PRIORITY_ORDER.map((p) => ({
+                    value: p,
+                    label: t(`tasks:priority.${p}` as never),
+                  }))}
+                  onChange={(values) => setPriorityFilters(values as TaskPriority[])}
+                  placeholder={t("tasks:filters.allPriorities")}
+                  emptyMessage={t("tasks:filters.noPriorities")}
+                />
+              </div>
 
-            {/* Custom property filters — applied to both events and tasks
+              {/* Custom property filters — applied to both events and tasks
                 rendered on the calendar. Scoped to the active initiative
                 when one is selected, union across accessible initiatives
                 otherwise. Nested inside the same bordered filter container
                 so it lines up with the other controls. */}
-            <div className="w-full">
-              <PropertyFilter
-                value={propertyFilters}
-                onChange={setPropertyFilters}
-                {...(initiativeId != null ? { initiativeId } : {})}
-              />
+              <div className="w-full">
+                <PropertyFilter
+                  value={propertyFilters}
+                  onChange={setPropertyFilters}
+                  {...(initiativeId != null ? { initiativeId } : {})}
+                />
+              </div>
             </div>
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
 
       {isLoading ? (
         <div className="flex items-center gap-2 text-muted-foreground text-sm">
@@ -601,6 +649,7 @@ export const CalendarsView = ({
       <CreateEventDialog
         open={createDialogOpen}
         onOpenChange={handleCreateDialogOpenChange}
+        {...(solo ? { calendarId: soloCalendar.id } : {})}
         defaultCalendarId={focusCalendarId}
         {...(fixedInitiativeId !== undefined ? { initiativeId: fixedInitiativeId } : {})}
         defaultStartDate={defaultStartDate}
@@ -629,7 +678,8 @@ export function CalendarsPage() {
 export function CalendarFocusPage() {
   const { calendarId: calendarIdParam, guildId } = useParams({ strict: false });
   const calendarId = Number(calendarIdParam);
-  const { data: calendar } = useCalendar(Number.isFinite(calendarId) ? calendarId : null);
+  const calendarQuery = useCalendar(Number.isFinite(calendarId) ? calendarId : null);
+  const calendar = calendarQuery.data;
 
   // Track recently viewed calendars for the layout header tabs bar — only
   // once the read succeeds (access checks passed).
@@ -640,5 +690,18 @@ export function CalendarFocusPage() {
     recordViewMutation.mutate(viewedCalendarId);
   }, [viewedCalendarId, recordViewMutation.mutate]);
 
-  return <CalendarsView focusCalendarId={Number.isFinite(calendarId) ? calendarId : undefined} />;
+  // Which kind of calendar decides which surface renders, so nothing renders
+  // until the read resolves: a guild calendar (the app) must never flash the
+  // guild-wide view, whose fetches reach into initiative content.
+  if (!calendar) {
+    return <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />;
+  }
+
+  const isGuildCalendar = calendar.initiative_id == null;
+  return (
+    <CalendarsView
+      focusCalendarId={calendar.id}
+      soloCalendar={isGuildCalendar ? calendar : undefined}
+    />
+  );
 }

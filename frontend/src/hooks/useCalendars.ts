@@ -3,6 +3,8 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   createCalendarApiV1GGuildIdCalendarsPost,
   deleteCalendarApiV1GGuildIdCalendarsCalendarIdDelete,
+  getCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGet,
+  getGetCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGetQueryKey,
   getListCalendarsApiV1GGuildIdCalendarsGetQueryKey,
   getListMyCalendarsApiV1MeCalendarsGetQueryKey,
   getReadCalendarApiV1GGuildIdCalendarsCalendarIdGetQueryKey,
@@ -17,6 +19,7 @@ import type {
   CalendarListResponse,
   CalendarRead,
   CalendarUpdate,
+  InitiativeGroupedCountsResponse,
   ListCalendarsApiV1GGuildIdCalendarsGetParams,
   ListMyCalendarsApiV1MeCalendarsGetParams,
   ResourceGrantSchema,
@@ -38,6 +41,20 @@ export const useCalendarsList = (
     queryKey: getListCalendarsApiV1GGuildIdCalendarsGetQueryKey(guildId, params),
     queryFn: () => listCalendarsApiV1GGuildIdCalendarsGet(guildId, params),
     placeholderData: keepPreviousData,
+    ...options,
+  });
+};
+
+/** Visible-calendar counts per initiative, for the sidebar badges. */
+export const useCalendarCountsByInitiative = (
+  options?: QueryOpts<InitiativeGroupedCountsResponse>
+) => {
+  const guildId = useActiveGuildId();
+  return useQuery<InitiativeGroupedCountsResponse>({
+    queryKey:
+      getGetCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGetQueryKey(guildId),
+    queryFn: () =>
+      getCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByInitiativeGet(guildId),
     ...options,
   });
 };

@@ -5096,6 +5096,7 @@ export type ListCalendarEventsApiV1GGuildIdCalendarEventsGetParams = {
 
 export type ListCalendarEntriesApiV1GGuildIdCalendarEntriesGetParams = {
   initiative_id?: number | null;
+  calendar_ids?: number[] | null;
   start_after?: string | null;
   start_before?: string | null;
   property_filters?: string | null;

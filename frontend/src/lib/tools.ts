@@ -59,7 +59,6 @@ export interface ToolDef {
    * (the calendar page is one view, not a counted collection); the advanced
    * tool renders as a single link, not a counted collection.
    */
-  sidebarCount: boolean;
   /**
    * Appears in the recent-items tabs bar. Must mirror the backend's
    * RECENTABLE_TOOLS (the advanced tool has no detail route to return to).
@@ -99,7 +98,6 @@ export const TOOL_REGISTRY: Record<Tool, ToolDef> = {
   [Tool.project]: {
     icon: ListTodo,
     core: true,
-    sidebarCount: true,
     recents: true,
     commandPalette: true,
     notifications: true,
@@ -111,7 +109,6 @@ export const TOOL_REGISTRY: Record<Tool, ToolDef> = {
   [Tool.document]: {
     icon: ScrollText,
     core: true,
-    sidebarCount: true,
     recents: true,
     commandPalette: true,
     notifications: true,
@@ -123,7 +120,6 @@ export const TOOL_REGISTRY: Record<Tool, ToolDef> = {
   [Tool.queue]: {
     icon: GalleryHorizontalEnd,
     core: false,
-    sidebarCount: true,
     recents: true,
     commandPalette: true,
     notifications: false,
@@ -135,7 +131,6 @@ export const TOOL_REGISTRY: Record<Tool, ToolDef> = {
   [Tool.counter_group]: {
     icon: Gauge,
     core: false,
-    sidebarCount: true,
     recents: true,
     commandPalette: true,
     notifications: false,
@@ -147,7 +142,6 @@ export const TOOL_REGISTRY: Record<Tool, ToolDef> = {
   [Tool.calendar]: {
     icon: CalendarDays,
     core: false,
-    sidebarCount: false,
     recents: true,
     commandPalette: true,
     notifications: true,
@@ -159,7 +153,6 @@ export const TOOL_REGISTRY: Record<Tool, ToolDef> = {
   [Tool.dashboard]: {
     icon: LayoutDashboard,
     core: false,
-    sidebarCount: false,
     recents: true,
     commandPalette: true,
     notifications: false,
@@ -171,7 +164,6 @@ export const TOOL_REGISTRY: Record<Tool, ToolDef> = {
   [Tool.advanced_tool]: {
     icon: Sparkles,
     core: false,
-    sidebarCount: false,
     recents: false,
     commandPalette: true,
     notifications: false,

@@ -37,26 +37,39 @@ export const WIDGET_API_VERSION = 1;
 // theoretical headroom: a year of daily heatmap cells is ~366, a Gantt over a
 // large project is a few hundred bars, a table page is 100 rows.
 
+/** Abuse backstops, not display budgets.
+ *
+ * Large data is normal on a dashboard — a busy initiative's table or timeline
+ * legitimately runs to thousands of entries, and a widget that faithfully
+ * renders its binding must never hit these. They exist so a hostile widget
+ * module cannot emit an effectively unbounded scene, and they are sized an
+ * order of magnitude past real content: reaching one is a malfunctioning
+ * widget, which is exactly what the error tile says.
+ *
+ * The structural limits (nodes, depth) stay tight — they bound composition,
+ * which no amount of data grows.
+ */
 export const SCENE_LIMITS = {
-  /** Total nodes in one scene, across all nesting. */
+  /** Total nodes in one scene, across all nesting. Leaf collections (rows,
+   *  points, cells…) are budgeted by their own caps below, not per item. */
   maxNodes: 200,
   /** `stack` nesting depth. Composition is useful; recursion is not. */
   maxDepth: 4,
-  /** Rendered length of any single string. */
+  /** Rendered length of any single string (truncated, never rejected). */
   maxTextLength: 200,
   /** Series per `series` node, and points per series. */
-  maxSeries: 12,
-  maxPoints: 500,
+  maxSeries: 24,
+  maxPoints: 10_000,
   /** Lanes per `timeline`, and spans per lane. */
-  maxLanes: 100,
-  maxSpansPerLane: 100,
-  /** `matrix` cells (a year of daily activity is ~366). */
-  maxCells: 500,
+  maxLanes: 2_000,
+  maxSpansPerLane: 2_000,
+  /** `matrix` cells (a decade of daily activity is ~3,700). */
+  maxCells: 10_000,
   /** `table` shape. */
-  maxColumns: 12,
-  maxRows: 100,
+  maxColumns: 32,
+  maxRows: 10_000,
   /** `funnel` stages. */
-  maxStages: 12,
+  maxStages: 32,
 } as const;
 
 // --- vocabulary ------------------------------------------------------------
