@@ -26,5 +26,11 @@
     "action": "Add to guild",
     "done": "{{name}} added.",
     "adminOnly": "Only a guild admin can add apps."
+  },
+  "page": {
+    "notFound": "App not found",
+    "notFoundDescription": "It may have been removed or turned off. Guild admins can check under guild settings.",
+    "noSurface": "{{name}} has nothing to show here",
+    "noSurfaceDescription": "This app does not have a page of its own."
   }
 }

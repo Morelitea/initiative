@@ -86,13 +86,16 @@ export const useUninstallGuildApp = (options?: MutationOpts<void, number>) => {
  * Where an app's own surface lives.
  *
  * A tool-instance app mounts an existing tool, so its entry links at the tool's
- * own route with the id the install recorded. An app whose content cannot be
- * resolved gets no link — better a plain row than one that 404s.
+ * own route with the id the install recorded — the calendar an app created is
+ * just a calendar. An app with no content of its own has nothing to link at, so
+ * it gets a page of its own instead. An app whose content cannot be resolved
+ * gets no link at all — better a plain row than one that 404s.
  */
 export const guildAppPath = (app: GuildAppRead): string | null => {
   if (app.tool === "calendar") {
     const calendarId = app.config?.calendar_id;
     return typeof calendarId === "number" ? `/calendars/${calendarId}` : null;
   }
+  if (app.embed_target) return `/apps/${app.id}`;
   return null;
 };

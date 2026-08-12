@@ -162,6 +162,9 @@ _TIER_NAME_ALLOWED = {
     "api/v1/platform_endpoints/billing.py",  # the boundary endpoints
     "schemas/platform/guild.py",  # GuildRead display field
     "api/v1/platform_endpoints/guilds.py",  # _serialize_guild passes it through
+    # The operator's guild list shows the label next to the caps it does NOT
+    # set; both uses build PlatformGuildStorageRead and read nothing from it.
+    "api/v1/platform_endpoints/settings.py",
 }
 
 

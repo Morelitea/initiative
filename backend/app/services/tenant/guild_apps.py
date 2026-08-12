@@ -1,16 +1,23 @@
 """Installing and removing guild apps.
 
-An app mounts one of this build's own tools at guild scope. Installing creates
-an ordinary row in that tool's ordinary table with no initiative — a guild-level
-calendar is a `calendars` row with `initiative_id` NULL — and records its id on
-the app so the sidebar can link straight to it. Nothing about the tool changes:
-same table, same UI, same sharing, same trash.
+Two shapes, and the difference is whether the app brings content with it.
 
+A **tool instance** mounts one of this build's own tools at guild scope.
+Installing creates an ordinary row in that tool's ordinary table with no
+initiative — a guild-level calendar is a `calendars` row with `initiative_id`
+NULL — and records its id on the app so the sidebar can link straight to it.
+Nothing about the tool changes: same table, same UI, same sharing, same trash.
 The content is seeded shared with everyone in the guild, which is what makes an
 app useful the moment it lands. From there its grants behave like any other
 instance's: remove the everyone grant to make it private, add write grants to
 let particular members or roles post. Guild admins keep full authority through
 the existing admin override.
+
+An **embed** brings none. It opens a surface the operator configured, so there
+is no row to create, nothing to share, and nothing to trash on the way out —
+installing it adds an entry, and removing it takes the entry away. Who may open
+it is settled by the endpoint that mints its handoff rather than by grants,
+which is why such an app reports itself as admin-only.
 """
 
 from __future__ import annotations
@@ -26,10 +33,31 @@ from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services.tenant.soft_delete import soft_delete_entity
 
-__all__ = ["create_app_content", "remove_app_content", "get_app_content_id"]
+__all__ = [
+    "create_app_content",
+    "remove_app_content",
+    "get_app_content_id",
+    "requires_guild_admin",
+]
 
 #: Where each mountable tool records the id of what the install created.
 _CONTENT_KEY: dict[str, str] = {"calendar": "calendar_id"}
+
+#: Embed targets only a guild admin may open.
+#:
+#: The deployment's advanced-tool surface is one: the endpoint that mints its
+#: handoff has always been admin-only, and an app entry that refuses everyone who
+#: clicks it is worse than no entry. Anything with content of its own is absent
+#: from here — a tool instance is governed by its grants, which can say things a
+#: single flag cannot.
+_ADMIN_ONLY_EMBED_TARGETS = frozenset({"advanced_tool"})
+
+
+def requires_guild_admin(definition: dict) -> bool:
+    """Whether only a guild admin can open what this app installed."""
+    if definition.get("app_kind") != "embed":
+        return False
+    return definition.get("embed_target") in _ADMIN_ONLY_EMBED_TARGETS
 
 
 def get_app_content_id(app: GuildApp) -> Optional[int]:
@@ -51,6 +79,11 @@ async def create_app_content(
     name: str,
 ) -> dict:
     """Create what the app mounts, and return the config that points at it."""
+    if definition.get("app_kind") == "embed":
+        # Nothing to create: the surface already exists, wherever the operator
+        # pointed it. The app row alone is the install.
+        return {}
+
     tool = definition.get("tool")
     if tool != "calendar":
         # Unreachable through the endpoints — the definition validator admits

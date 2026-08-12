@@ -24,6 +24,7 @@ __all__ = [
     "ListingDefinitionError",
     "LISTING_KINDS",
     "APP_KINDS",
+    "EMBED_TARGETS",
     "MOUNTABLE_TOOLS",
     "normalize_listing_definition",
 ]
@@ -40,17 +41,28 @@ class ListingDefinitionError(ValueError):
 #: ``auto`` is declared here so the vocabulary is complete — the marketplace can
 #: name and filter by it — while nothing installs one yet: a manifest carrying
 #: one is refused with a reason rather than stored as something no code can
-#: resolve. Same treatment ``embed`` apps get.
+#: resolve.
 LISTING_KINDS: frozenset[str] = frozenset({"dashboard", "app", "auto"})
 
 #: How an app presents itself.
 #:
 #: ``tool_instance`` mounts one of the app's own tools at guild scope — the app
 #: creates an ordinary row in an ordinary table and the existing UI renders it.
-#: ``embed`` hosts an external surface in an iframe; it is declared here so a
-#: manifest naming it is refused with a reason rather than silently accepted,
-#: and gets its validator with the machinery that serves it.
+#: ``embed`` hosts an external surface in an iframe, driven by the signed handoff
+#: machinery.
 APP_KINDS: frozenset[str] = frozenset({"tool_instance", "embed"})
+
+#: Where an embed's target comes from.
+#:
+#: ``advanced_tool`` means the deployment's own configuration supplies it — the
+#: URL, the origin allowlist, the audience and the display name all come from
+#: the operator's ``ADVANCED_TOOL_*`` settings, and the listing carries none of
+#: them. An install without that configuration has nothing to open, which is why
+#: the listing is served only where it is set.
+#:
+#: Targets supplied by a listing itself arrive with the signed remote registry.
+#: Until then a definition naming one is refused by name.
+EMBED_TARGETS: frozenset[str] = frozenset({"advanced_tool"})
 
 #: Tools an app may mount at guild scope. A tool qualifies when its content is
 #: meaningful without an initiative — a calendar of the guild's own events is;
@@ -62,10 +74,12 @@ MOUNTABLE_TOOLS: frozenset[str] = frozenset({"calendar"})
 def _normalize_app_definition(definition: Any) -> dict[str, Any]:
     """An app's body: which kind it is, and what that kind needs.
 
-    Deliberately narrow. An app definition names a *kind* and, for a tool
-    instance, which of this build's tools to mount — it never carries code, a
-    URL a guild could type, or anything that would be dereferenced. Unknown keys
-    are dropped rather than stored, so a definition always has canonical shape.
+    Deliberately narrow. An app definition names a *kind* and then one thing:
+    which of this build's tools to mount, or which configured embed target to
+    open. It carries no code and no URL — an embed target names a slot in the
+    deployment's own configuration, which is where the address comes from.
+    Unknown keys are dropped rather than stored, so a definition always has
+    canonical shape.
     """
     if not isinstance(definition, dict):
         raise ListingDefinitionError("app definition must be an object")
@@ -73,15 +87,23 @@ def _normalize_app_definition(definition: Any) -> dict[str, Any]:
     app_kind = definition.get("app_kind")
     if app_kind not in APP_KINDS:
         raise ListingDefinitionError(f"unknown app kind {app_kind!r}")
+
+    cleaned: dict[str, Any] = {"app_kind": app_kind}
     if app_kind == "embed":
-        raise ListingDefinitionError("embed apps are not installable in this build yet")
+        target = definition.get("embed_target")
+        if target not in EMBED_TARGETS:
+            raise ListingDefinitionError(
+                f"unknown embed target {target!r}; this build serves only "
+                f"{sorted(EMBED_TARGETS)}"
+            )
+        cleaned["embed_target"] = target
+    else:
+        tool = definition.get("tool")
+        if tool not in MOUNTABLE_TOOLS:
+            raise ListingDefinitionError(f"{tool!r} cannot be mounted at guild scope")
+        cleaned["tool"] = tool
 
-    tool = definition.get("tool")
-    if tool not in MOUNTABLE_TOOLS:
-        raise ListingDefinitionError(f"{tool!r} cannot be mounted at guild scope")
-
-    cleaned: dict[str, Any] = {"app_kind": app_kind, "tool": tool}
-    # A starting name for the content the install creates; the guild renames it
+    # A starting name for what the install produces; the guild renames it
     # afterwards like anything else.
     default_name = definition.get("default_name")
     if isinstance(default_name, str) and default_name.strip():

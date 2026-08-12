@@ -26,5 +26,11 @@
     "action": "Ajouter à la guilde",
     "done": "{{name}} ajoutée.",
     "adminOnly": "Seul un administrateur de la guilde peut ajouter des applications."
+  },
+  "page": {
+    "notFound": "Application introuvable",
+    "notFoundDescription": "Elle a peut-être été retirée ou désactivée. Les administrateurs de la guilde peuvent vérifier dans les paramètres de la guilde.",
+    "noSurface": "{{name}} n'a rien à afficher ici",
+    "noSurfaceDescription": "Cette application n'a pas de page qui lui soit propre."
   }
 }

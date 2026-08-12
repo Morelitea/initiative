@@ -1,37 +1,98 @@
+/**
+ * An installed app's own surface.
+ *
+ * Apps that mount a tool link straight at that tool and never come here — a
+ * guild calendar is a calendar, rendered by the calendar. This page is for the
+ * other shape: an app that opens a surface the operator configured, which has
+ * no route of its own to link to.
+ *
+ * The embed itself is the machinery that used to live in guild settings, moved
+ * rather than rebuilt: the backend mints the handoff, it reaches the iframe by
+ * postMessage, and inbound messages are matched against the operator's origin
+ * allowlist.
+ */
+
+import { useParams } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { createGuildAdvancedToolHandoffApiV1GuildsGuildIdAdvancedToolHandoffPost } from "@/api/generated/guilds/guilds";
-import type { AdvancedToolHandoffResponse } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  AdvancedToolHandoffResponse,
+  GuildAppRead,
+} from "@/api/generated/initiativeAPI.schemas";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAppConfig } from "@/hooks/useAppConfig";
+import { useGuildApps } from "@/hooks/useGuildApps";
 import { useGuilds } from "@/hooks/useGuilds";
 
+export const GuildAppPage = () => {
+  const { t } = useTranslation(["apps", "initiatives", "common"]);
+  const { appId: appIdParam } = useParams({ strict: false }) as { appId?: string };
+  const appId = Number(appIdParam);
+  const appsQuery = useGuildApps();
+
+  const app = useMemo(
+    () => appsQuery.data?.items.find((item) => item.id === appId) ?? null,
+    [appsQuery.data, appId]
+  );
+
+  if (appsQuery.isLoading) {
+    return (
+      <div className="flex items-center gap-2 text-muted-foreground text-sm">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        {t("common:loading")}
+      </div>
+    );
+  }
+
+  if (!app?.enabled) {
+    // Turned off reads the same as gone: an admin turns it back on in guild
+    // settings, and until then there is nothing here to show.
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("apps:page.notFound")}</CardTitle>
+          <CardDescription>{t("apps:page.notFoundDescription")}</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  if (app.embed_target === "advanced_tool") {
+    return <AdvancedToolEmbed app={app} />;
+  }
+
+  // An app kind this build has no surface for. Reachable only by editing the
+  // URL, since nothing links here for one.
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t("apps:page.noSurface", { name: app.name })}</CardTitle>
+        <CardDescription>{t("apps:page.noSurfaceDescription")}</CardDescription>
+      </CardHeader>
+    </Card>
+  );
+};
+
 /**
- * Guild-scoped advanced-tool embed.
+ * The deployment's configured advanced tool, at guild scope.
  *
- * Mirrors the initiative-scoped page but for guild admins. The URL exposes
- * a ``scope=guild`` query param as a routing hint — the proprietary embed
- * MUST trust the JWT's ``scope`` claim, not this param. The param exists
- * solely to help the receiving service render the right view when the
- * token is also present.
- *
- * Authorization checks happen on the backend handoff endpoint (admin-only,
- * configured-only). This component renders a "not configured" empty state
- * if the runtime config doesn't expose an advanced tool, and a loading
- * spinner while the handoff is being minted.
+ * Guild admins only, which the backend handoff endpoint enforces; this renders
+ * the empty state rather than an iframe that would fail to load.
  */
-export const SettingsGuildAdvancedToolPage = () => {
+const AdvancedToolEmbed = ({ app }: { app: GuildAppRead }) => {
   const { t, i18n } = useTranslation(["initiatives", "common"]);
-  const { activeGuild, activeGuildId } = useGuilds();
+  const { activeGuild } = useGuilds();
+  const guildId = useActiveGuildId();
   const isGuildAdmin = activeGuild?.role === "admin";
 
   const { advancedTool, isLoading: configLoading } = useAppConfig();
 
-  // Outbound postMessage target = iframe's own origin (from configured URL).
-  // Inbound allowlist = the operator-configured set from runtime config,
-  // which always includes the iframe URL origin as the first entry.
+  // Outbound postMessage goes to the iframe's own origin, derived from the
+  // configured URL.
   const iframeOrigin = useMemo(() => {
     if (!advancedTool?.url) return null;
     try {
@@ -41,6 +102,8 @@ export const SettingsGuildAdvancedToolPage = () => {
     }
   }, [advancedTool?.url]);
 
+  // Inbound allowlist = the operator-configured set, which always includes the
+  // iframe URL's origin as its first entry.
   const allowedOrigins = useMemo(
     () => new Set(advancedTool?.allowed_origins ?? []),
     [advancedTool?.allowed_origins]
@@ -49,9 +112,9 @@ export const SettingsGuildAdvancedToolPage = () => {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const handoffRef = useRef<AdvancedToolHandoffResponse | null>(null);
   // See AdvancedToolPage for the rationale on these refs:
-  // - handoffSentRef: tracks first-vs-subsequent ``advanced-tool:ready`` so
-  //   we mint a fresh token if the embed reloads itself (cached token
-  //   would already be jti-blocklisted on the embed side).
+  // - handoffSentRef: tracks first-vs-subsequent ``advanced-tool:ready`` so a
+  //   fresh token is minted if the embed reloads itself (the cached one has
+  //   been redeemed by then).
   // - tRef / localeRef: hold the latest values without re-attaching the
   //   listener, which would cancel any in-flight re-mint.
   const handoffSentRef = useRef(false);
@@ -62,11 +125,11 @@ export const SettingsGuildAdvancedToolPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
 
-  // Mint a fresh handoff token on mount. Short-lived (60s) so re-fetched
-  // on every render rather than cached.
+  // Mint a fresh handoff on mount. Short-lived, so re-fetched rather than
+  // cached across mounts.
   useEffect(() => {
     let cancelled = false;
-    if (activeGuildId === null || !advancedTool || !iframeOrigin || !isGuildAdmin) return;
+    if (guildId === null || !advancedTool || !iframeOrigin || !isGuildAdmin) return;
 
     setError(null);
     setIsReady(false);
@@ -76,7 +139,7 @@ export const SettingsGuildAdvancedToolPage = () => {
       try {
         const response =
           (await createGuildAdvancedToolHandoffApiV1GuildsGuildIdAdvancedToolHandoffPost(
-            activeGuildId
+            guildId
           )) as unknown as AdvancedToolHandoffResponse;
         if (cancelled) return;
         handoffRef.current = response;
@@ -91,15 +154,16 @@ export const SettingsGuildAdvancedToolPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [activeGuildId, advancedTool, iframeOrigin, isGuildAdmin]);
+  }, [guildId, advancedTool, iframeOrigin, isGuildAdmin]);
 
-  // postMessage bridge — strict origin check on every inbound message.
+  // postMessage bridge. Every inbound message is matched against the allowlist
+  // before it is read.
   useEffect(() => {
-    if (!iframeOrigin || activeGuildId === null) return;
+    if (!iframeOrigin || guildId === null) return;
 
-    // initiative_id is forwarded as null at guild scope so the envelope
-    // shape stays identical to the initiative-scoped handoff and the
-    // embed can dispatch on a single message type.
+    // initiative_id is forwarded as null at guild scope so the envelope shape
+    // stays identical to the initiative-scoped handoff and the embed can
+    // dispatch on a single message type.
     const postHandoff = (target: Window, handoff: AdvancedToolHandoffResponse) => {
       target.postMessage(
         {
@@ -123,10 +187,9 @@ export const SettingsGuildAdvancedToolPage = () => {
         const target = iframeRef.current?.contentWindow;
         if (!target) return;
 
-        // First ready: cached token from initial mint. Subsequent ready
-        // events imply the embed reloaded itself; the cached token's
-        // jti has been redeemed already, so mint fresh before forwarding
-        // so the user has a recovery path without refreshing the parent.
+        // First ready: the cached token from the initial mint. A later ready
+        // means the embed reloaded itself and that token is spent, so mint
+        // fresh — otherwise recovery needs a reload of the parent page.
         if (!handoffSentRef.current && handoffRef.current) {
           postHandoff(target, handoffRef.current);
           handoffSentRef.current = true;
@@ -137,7 +200,7 @@ export const SettingsGuildAdvancedToolPage = () => {
           try {
             const fresh =
               (await createGuildAdvancedToolHandoffApiV1GuildsGuildIdAdvancedToolHandoffPost(
-                activeGuildId
+                guildId
               )) as unknown as AdvancedToolHandoffResponse;
             handoffRef.current = fresh;
             postHandoff(target, fresh);
@@ -154,10 +217,9 @@ export const SettingsGuildAdvancedToolPage = () => {
 
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [iframeOrigin, allowedOrigins, activeGuildId]);
+  }, [iframeOrigin, allowedOrigins, guildId]);
 
-  // Push locale changes through to the embed (matches the initiative-scoped
-  // page). Embed is free to ignore.
+  // Push locale changes through to the embed. It is free to ignore them.
   useEffect(() => {
     if (!iframeOrigin) return;
     const target = iframeRef.current?.contentWindow;
@@ -174,8 +236,9 @@ export const SettingsGuildAdvancedToolPage = () => {
     );
   }
 
-  // The tab is gated by GuildSettingsLayout, but defensively re-check both
-  // gates here so a deep link can never bypass the empty states.
+  // The listing is withdrawn when the deployment stops being configured, but an
+  // app installed while it was stays installed — so this state is reachable and
+  // says what happened rather than showing a blank frame.
   if (!advancedTool || !iframeOrigin) {
     return (
       <Card>
@@ -187,7 +250,7 @@ export const SettingsGuildAdvancedToolPage = () => {
     );
   }
 
-  if (!isGuildAdmin || activeGuildId === null) {
+  if (!isGuildAdmin || guildId === null) {
     return (
       <Card>
         <CardHeader>
@@ -218,22 +281,24 @@ export const SettingsGuildAdvancedToolPage = () => {
     );
   }
 
-  // Renders inside the guild settings tab content — NOT full-screen. The
-  // iframe height fills most of the visible viewport but leaves the page
-  // header, tabs, and main padding intact above it. ``min-h`` keeps it
-  // usable on short windows where the calc would otherwise crush it.
-  // ``?scope=guild`` is a routing hint — the proprietary backend MUST also
-  // verify the JWT's scope claim. Without the signed token, the param is
-  // useless.
+  // Full-bleed, like the initiative-scoped embed: this is the app's whole
+  // surface now rather than the contents of a settings tab. Offset by the
+  // sticky header and, on desktop, the sidebar.
+  //
+  // ``?scope=guild`` tells the receiving service which view to render. The
+  // scope it acts on comes from the signed token's claim.
   return (
-    <iframe
-      ref={iframeRef}
-      src={`${advancedTool.url}/embed?scope=guild`}
-      title={advancedTool.name}
-      className="block h-[calc(100dvh-22rem)] min-h-[500px] w-full rounded-md border bg-background"
-      sandbox="allow-scripts allow-same-origin allow-forms allow-downloads"
-      referrerPolicy="no-referrer"
-      allow="clipboard-read; clipboard-write"
-    />
+    <div className="fixed inset-x-0 top-12 bottom-0 md:left-[var(--sidebar-width,20rem)]">
+      <iframe
+        ref={iframeRef}
+        src={`${advancedTool.url}/embed?scope=guild`}
+        title={app.name}
+        className="block h-full w-full border-0 bg-background"
+        // Minimum capabilities for an embedded SPA.
+        sandbox="allow-scripts allow-same-origin allow-forms allow-downloads"
+        referrerPolicy="no-referrer"
+        allow="clipboard-read; clipboard-write"
+      />
+    </div>
   );
 };

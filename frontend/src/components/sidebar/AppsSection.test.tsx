@@ -8,6 +8,10 @@
  *
  * Disabled apps belong in guild settings, not here — the sidebar shows what is
  * on.
+ *
+ * An admin-only app is hidden from members for the same reason an empty section
+ * is: it has no sharing to widen, so the entry would refuse everyone who clicked
+ * it. The server says which apps those are; this only honors the answer.
  */
 import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -25,6 +29,20 @@ vi.mock("@/hooks/useGuildApps", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useGuildApps")>()),
   useGuildApps: () => ({ data: { items: apps }, isLoading: false }),
 }));
+
+/** An app that opens the deployment's configured surface: no content of its
+ *  own, and admin-only because the endpoint behind it is. */
+const embedApp = (overrides: Partial<GuildAppRead> = {}) =>
+  ({
+    id: 7,
+    name: "Automations",
+    tool: null,
+    embed_target: "advanced_tool",
+    admin_only: true,
+    enabled: true,
+    config: {},
+    ...overrides,
+  }) as GuildAppRead;
 
 const app = (overrides: Partial<GuildAppRead> = {}) =>
   ({
@@ -47,14 +65,25 @@ const render = (isGuildAdmin: boolean) =>
     </TooltipProvider>
   ));
 
+/**
+ * Absence, waited for.
+ *
+ * The page renders through a router, so it renders nothing synchronously —
+ * asserting an empty DOM the moment `render` returns passes before the section
+ * has had a chance to appear, and would pass just as well if it were broken.
+ * This waits for the section instead, and requires that it never arrives.
+ */
+const expectNoSection = () =>
+  expect(screen.findByText("Apps", {}, { timeout: 400 })).rejects.toThrow();
+
 beforeEach(() => {
   apps = [];
 });
 
 describe("AppsSection", () => {
-  it("shows nothing to a member when the guild has no apps", () => {
-    const { container } = render(false);
-    expect(container).toBeEmptyDOMElement();
+  it("shows nothing to a member when the guild has no apps", async () => {
+    render(false);
+    await expectNoSection();
   });
 
   it("invites an admin to add one when the guild has no apps", async () => {
@@ -87,10 +116,10 @@ describe("AppsSection", () => {
     expect(screen.queryByText("Guild calendar")).toBeNull();
   });
 
-  it("shows a member nothing when every app is disabled", () => {
+  it("shows a member nothing when every app is disabled", async () => {
     apps = [app({ enabled: false })];
-    const { container } = render(false);
-    expect(container).toBeEmptyDOMElement();
+    render(false);
+    await expectNoSection();
   });
 
   it("renders an app with nothing to link to without a link", async () => {
@@ -98,5 +127,28 @@ describe("AppsSection", () => {
     render(false);
     const entry = await screen.findByText("Guild calendar");
     expect(entry.closest("a")).toBeNull();
+  });
+
+  it("hides an admin-only app from a member", async () => {
+    // Nothing it could offer them: its surface is minted admin-only, and there
+    // are no grants to widen.
+    apps = [embedApp()];
+    render(false);
+    await expectNoSection();
+  });
+
+  it("shows an admin-only app to an admin, at its own page", async () => {
+    apps = [embedApp()];
+    render(true);
+    const link = (await screen.findByText("Automations")).closest("a");
+    expect(link?.getAttribute("href")).toContain("/apps/7");
+  });
+
+  it("keeps listing shareable apps for a member alongside a hidden one", async () => {
+    // The filter is per app, not a switch on the whole section.
+    apps = [embedApp(), app()];
+    render(false);
+    expect(await screen.findByText("Guild calendar")).toBeInTheDocument();
+    expect(screen.queryByText("Automations")).toBeNull();
   });
 });

@@ -210,14 +210,41 @@ async def _migrate_under_lock() -> None:
         await lock_conn.close()  # closing the connection releases the advisory lock
 
 
+async def _refresh_template_rls() -> None:
+    """Put the registry-rendered RLS on ``guild_template``, as boot does.
+
+    Migrations deliberately do not render the registry — a historical migration
+    would freeze whatever it said the day it was written — so a guild table added
+    after the baseline snapshot reaches the template with structure but no
+    policies. Every real install closes that gap in ``backfill_guild_schemas``
+    moments after migrating; a database built by migrations alone never does, and
+    would leave the template a picture no guild schema matches.
+
+    This is ``apply_template_rls`` against the worker's own database: that helper
+    goes through the app's provisioning engine, which points at the DATABASE_URL
+    database rather than this one.
+    """
+    from app.db.guild_ddl import TEMPLATE_SCHEMA
+    from app.db.schema_provisioning import apply_guild_rls
+
+    engine = create_async_engine(TEST_DATABASE_URL)
+    try:
+        async with engine.begin() as conn:
+            await apply_guild_rls(conn, TEMPLATE_SCHEMA)
+    finally:
+        await engine.dispose()
+
+
 def _run_test_migrations() -> None:
     """Ensure the worker's test database exists and migrate it (serialized across
-    workers by the advisory lock), then arm the statement_timeout net.
+    workers by the advisory lock), refresh the template's RLS the way boot does,
+    then arm the statement_timeout net.
 
     ``_set_db_statement_timeout`` is a per-worker ``ALTER DATABASE`` on this
     worker's OWN DB — no shared catalog — so it runs OUTSIDE the cross-worker lock,
     and after migrations so a slow migration isn't bounded by it."""
     asyncio.run(_migrate_under_lock())
+    asyncio.run(_refresh_template_rls())
     asyncio.run(_set_db_statement_timeout())
 
 

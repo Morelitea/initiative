@@ -26,5 +26,11 @@
     "action": "Zur Gilde hinzufügen",
     "done": "{{name}} hinzugefügt.",
     "adminOnly": "Nur Gildenadmins können Apps hinzufügen."
+  },
+  "page": {
+    "notFound": "App nicht gefunden",
+    "notFoundDescription": "Sie wurde vielleicht entfernt oder abgeschaltet. Gildenadmins können in den Gildeneinstellungen nachsehen.",
+    "noSurface": "{{name}} hat hier nichts anzuzeigen",
+    "noSurfaceDescription": "Diese App hat keine eigene Seite."
   }
 }
