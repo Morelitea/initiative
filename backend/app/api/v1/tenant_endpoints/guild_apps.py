@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
 from app.api.deps import (
@@ -152,11 +153,23 @@ async def install_guild_app(
         installed_by_id=current_user.id,
     )
     session.add(app)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError as exc:
+        # The look-up above and this insert are not one atomic step, so two
+        # installs arriving together both get past it. The unique constraint is
+        # what actually holds; this turns losing that race into the same answer
+        # the look-up gives.
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=GuildAppMessages.ALREADY_INSTALLED,
+        ) from exc
     await session.refresh(app)
 
+    installed = serialize_guild_app(app)
     await _count_install(listing.id)
-    return serialize_guild_app(app)
+    return installed
 
 
 @router.patch("/{app_id}", response_model=GuildAppRead)

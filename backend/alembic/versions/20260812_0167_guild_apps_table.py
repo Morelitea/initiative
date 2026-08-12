@@ -61,6 +61,9 @@ def _apply_upgrade() -> None:
             ["users.id"],
         ),
         sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "guild_id", "listing_uid", name="guild_apps_unique_listing"
+        ),
     )
     with op.batch_alter_table("guild_apps", schema=None) as batch_op:
         batch_op.create_index(

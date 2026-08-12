@@ -31,7 +31,7 @@ from app.core.role_context import (
 from app.core.tools import Tool
 from app.services.membership import guild_member_clause
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.tenant.project import (
     Project,
     ProjectPermissionLevel,
@@ -417,15 +417,18 @@ async def replace_resource_grants(
     resource_type: str,
     resource_id: int,
     guild_id: int,
-    initiative_id: int,
+    initiative_id: int | None,
     owner_id: int,
     grants: Any,
 ) -> None:
     """Rebuild a resource's non-owner grants from ``grants`` (a list of
-    ResourceAccessGrant rows). Each row is sorted by grantee kind — all-initiative-
-    members, per-user, or per-role. The owner grant is preserved; owner-level
-    entries and grantees outside the initiative are dropped. Caller commits +
-    reapplies RLS."""
+    ResourceAccessGrant rows). Each row is sorted by grantee kind — all-members,
+    per-user, or per-role. The owner grant is preserved; owner-level entries and
+    grantees outside the resource's scope are dropped. Caller commits.
+
+    ``initiative_id`` is None for a guild-level resource. There "all members"
+    means the guild's, and a named grantee is validated against guild
+    membership; role grants are not resolvable (see below)."""
     all_members_level: str | None = None
     user_levels: dict[int, str] = {}
     role_levels: dict[int, str] = {}
@@ -440,20 +443,43 @@ async def replace_resource_grants(
         elif g.role_id is not None:
             role_levels[g.role_id] = level
 
+    guild_scoped = initiative_id is None
+
     valid_users: set[int] = set()
     if user_levels:
-        valid_users = set(
-            (
-                await session.exec(
-                    select(InitiativeMember.user_id).where(
-                        InitiativeMember.initiative_id == initiative_id,
-                        InitiativeMember.user_id.in_(list(user_levels)),
+        if guild_scoped:
+            # The resource belongs to no initiative, so a named grantee is
+            # someone in the *guild*. Validating against initiative membership
+            # here would compare against NULL and match nobody, silently
+            # dropping every named grant on a guild-level resource.
+            valid_users = set(
+                (
+                    await session.exec(
+                        select(GuildMembership.user_id).where(
+                            GuildMembership.guild_id == guild_id,
+                            GuildMembership.user_id.in_(list(user_levels)),
+                        )
                     )
-                )
-            ).all()
-        )
+                ).all()
+            )
+        else:
+            valid_users = set(
+                (
+                    await session.exec(
+                        select(InitiativeMember.user_id).where(
+                            InitiativeMember.initiative_id == initiative_id,
+                            InitiativeMember.user_id.in_(list(user_levels)),
+                        )
+                    )
+                ).all()
+            )
+
     valid_roles: set[int] = set()
-    if role_levels:
+    # Role grants are initiative roles. A guild-level resource has no initiative
+    # for a role to belong to, and a guild role is not an ``initiative_roles``
+    # row, so there is nothing to validate against — guild-scope sharing is by
+    # everyone or by named user until guild-role principals have a design.
+    if role_levels and not guild_scoped:
         valid_roles = set(
             (
                 await session.exec(
