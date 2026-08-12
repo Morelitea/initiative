@@ -9,8 +9,13 @@ Two audiences, and the split between them is the security shape of this module:
   (boot seeding today, the registry refresh later). No user request reaches it.
 
 Everything a publisher supplies is validated before it lands: the uid's shape,
-the ``public_id``'s, the version string's, and the definition's — the last by the
-same validator the guild-scoped API uses.
+the ``public_id``'s, the version string's, the attribution, and the definition's
+— the last by the same validator the guild-scoped API uses.
+
+Two of those checks are about *who* rather than *what*. Attribution is required,
+so nothing is published anonymously; and the ``core.*`` namespace is refused to
+any source but this build, so an id cannot imply a provenance the listing does
+not have.
 """
 
 from __future__ import annotations
@@ -31,9 +36,13 @@ from app.models.platform.marketplace import (
 )
 from app.services.marketplace.definitions import (
     LISTING_KINDS,
+    LISTING_SOURCES,
     ListingDefinitionError,
+    normalize_author,
     normalize_listing_definition,
+    reserved_prefix_problem,
 )
+from app.services.marketplace.manifest_values import check_public_id
 
 __all__ = [
     "CatalogError",
@@ -49,16 +58,11 @@ __all__ = [
     "version_is_compatible",
 ]
 
-#: Characters a ``public_id`` may use: ``<publisher>.<slug>``, lowercase.
-_PUBLIC_ID_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789.-_")
-_MAX_PUBLIC_ID = 120
 #: Characters a version string may use. Deliberately an explicit set rather than
 #: a semver pattern — the catalog stores what the publisher published and only
 #: needs it to be a safe, short, comparable token.
 _VERSION_CHARS = frozenset("0123456789.-+abcdefghijklmnopqrstuvwxyz")
 _MAX_VERSION = 32
-
-_SOURCES = frozenset({"builtin", "registry"})
 
 
 class CatalogError(ValueError):
@@ -76,14 +80,12 @@ def _check_uid(uid: str) -> str:
 
 
 def _check_public_id(public_id: str) -> str:
-    if not public_id or len(public_id) > _MAX_PUBLIC_ID:
-        raise CatalogError("public_id must be 1..120 characters")
-    for char in public_id:
-        if char not in _PUBLIC_ID_CHARS:
-            raise CatalogError(f"public_id contains {char!r}, which is not allowed")
-    if "." not in public_id:
-        raise CatalogError("public_id must be '<publisher>.<slug>'")
-    return public_id
+    # One rule for the shape of a `<publisher>.<slug>` id, wherever it appears —
+    # a listing's own, or the one a service app names itself by.
+    try:
+        return check_public_id(public_id, what="public_id")
+    except ListingDefinitionError as exc:
+        raise CatalogError(str(exc)) from exc
 
 
 #: Characters an artwork path may use — an explicit allow-list, so a stored
@@ -247,11 +249,14 @@ async def upsert_listing(
     and vice versa, so a uid keeps meaning the listing it was first published
     for.
     """
-    if source not in _SOURCES:
+    if source not in LISTING_SOURCES:
         raise CatalogError(f"unknown listing source {source!r}")
 
     uid = _check_uid(str(manifest.get("uid", "")))
     public_id = _check_public_id(str(manifest.get("public_id", "")))
+    reserved = reserved_prefix_problem(public_id, source=source)
+    if reserved is not None:
+        raise CatalogError(f"{public_id}: {reserved}")
     kind = str(manifest.get("kind", ""))
     if kind not in LISTING_KINDS:
         raise CatalogError(f"unknown listing kind {kind!r}")
@@ -259,12 +264,20 @@ async def upsert_listing(
 
     try:
         definition = normalize_listing_definition(kind, manifest.get("definition"))
+        # Required on every ingestion path: seeding, an operator upload, a
+        # registry refresh. There is no path that publishes without one.
+        author = normalize_author(manifest.get("author"))
     except ListingDefinitionError as exc:
         raise CatalogError(f"{public_id}: {exc}") from exc
 
-    for required in ("name", "publisher", "description", "avatar_url"):
+    for required in ("name", "description", "avatar_url"):
         if not manifest.get(required):
             raise CatalogError(f"{public_id}: {required} is required")
+
+    # The namespace the listing publishes under, which is the author unless the
+    # manifest says otherwise — a publisher and an author differ only when
+    # someone publishes on someone else's behalf.
+    publisher = str(manifest.get("publisher") or author.name)
 
     _check_artwork_path(str(manifest["avatar_url"]), field=f"{public_id}: avatar_url")
 
@@ -297,7 +310,10 @@ async def upsert_listing(
         "kind": kind,
         "source": source,
         "name": str(manifest["name"]),
-        "publisher": str(manifest["publisher"]),
+        "publisher": publisher,
+        "author_name": author.name,
+        "author_url": author.url,
+        "author_contact": author.contact,
         "description": str(manifest["description"]),
         "long_description": manifest.get("long_description"),
         "avatar_url": str(manifest["avatar_url"]),

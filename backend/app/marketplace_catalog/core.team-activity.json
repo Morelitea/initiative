@@ -3,7 +3,9 @@
   "public_id": "core.team-activity",
   "kind": "dashboard",
   "name": "Team activity",
-  "publisher": "Initiative",
+  "author": {
+    "name": "Initiative"
+  },
   "description": "Who is doing what, and when it gets done.",
   "long_description": "A read-only pulse of the initiative's people. How the work spreads across the team, the daily rhythm of what gets finished, and how the open pile leans by priority — with the finished total as the headline.\n\nNothing here needs setting up — every widget reads the initiative the dashboard lives on.",
   "avatar_url": "/marketplace/core-team-activity.svg",

@@ -375,5 +375,10 @@
   "MARKETPLACE_LISTING_UNAVAILABLE": "Este elemento se ha retirado y ya no se puede instalar.",
   "MARKETPLACE_LISTING_VERSION_INCOMPATIBLE": "Este elemento necesita una versión más reciente de la aplicación. Pide a un administrador que la actualice y vuelve a intentarlo.",
   "MARKETPLACE_NOT_INSTALLED_FROM_LISTING": "Esto se creó aquí en lugar de instalarse, así que no hay ningún elemento desde el que actualizarlo.",
-  "MARKETPLACE_ALREADY_LATEST_VERSION": "Ya está en la última versión."
+  "MARKETPLACE_ALREADY_LATEST_VERSION": "Ya está en la última versión.",
+  "GUILD_APP_NOT_FOUND": "Esa aplicación no está instalada en este gremio.",
+  "GUILD_APP_ADMIN_REQUIRED": "Solo los administradores del gremio pueden gestionar aplicaciones.",
+  "GUILD_APP_LISTING_NOT_AN_APP": "Ese elemento no se puede instalar como aplicación.",
+  "GUILD_APP_ALREADY_INSTALLED": "Este gremio ya tiene esa aplicación instalada.",
+  "GUILD_APP_KIND_NOT_INSTALLABLE": "Este tipo de aplicación todavía no se puede instalar en esta versión de Initiative."
 }

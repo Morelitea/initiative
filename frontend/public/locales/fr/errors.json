@@ -375,5 +375,10 @@
   "MARKETPLACE_LISTING_UNAVAILABLE": "Cette fiche a été retirée et ne peut plus être installée.",
   "MARKETPLACE_LISTING_VERSION_INCOMPATIBLE": "Cette fiche nécessite une version plus récente de l'application. Demandez à une administratrice ou un administrateur de la mettre à jour, puis réessayez.",
   "MARKETPLACE_NOT_INSTALLED_FROM_LISTING": "Ceci a été créé ici plutôt qu'installé : il n'y a donc aucune fiche depuis laquelle le mettre à jour.",
-  "MARKETPLACE_ALREADY_LATEST_VERSION": "Ceci est déjà à la dernière version."
+  "MARKETPLACE_ALREADY_LATEST_VERSION": "Ceci est déjà à la dernière version.",
+  "GUILD_APP_NOT_FOUND": "Cette application n'est pas installée dans cette guilde.",
+  "GUILD_APP_ADMIN_REQUIRED": "Seules les administratrices et administrateurs de la guilde peuvent gérer les applications.",
+  "GUILD_APP_LISTING_NOT_AN_APP": "Cette fiche ne peut pas être installée en tant qu'application.",
+  "GUILD_APP_ALREADY_INSTALLED": "Cette guilde a déjà installé cette application.",
+  "GUILD_APP_KIND_NOT_INSTALLABLE": "Ce type d'application ne peut pas encore être installé sur cette version d'Initiative."
 }

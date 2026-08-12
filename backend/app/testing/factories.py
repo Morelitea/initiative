@@ -939,6 +939,9 @@ async def create_marketplace_listing(
         "kind": kind,
         "name": overrides.pop("name", "Test listing"),
         "publisher": overrides.pop("publisher", "Tests"),
+        # Attribution is required on every ingestion path, so a test listing
+        # carries one too.
+        "author": overrides.pop("author", {"name": "Tests"}),
         "description": overrides.pop("description", "A listing for tests."),
         "avatar_url": overrides.pop("avatar_url", "/marketplace/test.svg"),
         "version": version,

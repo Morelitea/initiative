@@ -3,7 +3,9 @@
   "public_id": "core.advanced-tool",
   "kind": "app",
   "name": "Advanced tool",
-  "publisher": "Initiative",
+  "author": {
+    "name": "Initiative"
+  },
   "description": "Bring {name} to the whole guild.",
   "long_description": "Adds a guild-wide entry for {name} — one place for the work that spans every initiative.\n\nYou're signed in automatically; there's no second account to manage. Each initiative still has its own view of {name} in its own menu.\n\nGuild admins only. Removing the app removes the entry here — {name} itself is untouched.",
   "avatar_url": "/marketplace/core-advanced-tool.svg",
