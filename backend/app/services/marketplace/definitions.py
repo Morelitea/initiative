@@ -60,10 +60,8 @@ APP_KINDS: frozenset[str] = frozenset({"tool_instance", "embed"})
 #: them. An install without that configuration has nothing to open, which is why
 #: the listing is served only where it is set.
 #:
-#: A listing that names its *own* target belongs to the signed remote registry:
-#: an embed URL decides where a member's browser goes and which origin may talk
-#: back to the app, so it may only arrive from a source whose signature has been
-#: verified. Until that exists, a definition carrying one is refused by name.
+#: Targets supplied by a listing itself arrive with the signed remote registry.
+#: Until then a definition naming one is refused by name.
 EMBED_TARGETS: frozenset[str] = frozenset({"advanced_tool"})
 
 #: Tools an app may mount at guild scope. A tool qualifies when its content is
@@ -78,10 +76,10 @@ def _normalize_app_definition(definition: Any) -> dict[str, Any]:
 
     Deliberately narrow. An app definition names a *kind* and then one thing:
     which of this build's tools to mount, or which configured embed target to
-    open. It never carries code, and it never carries a URL — the only embed
-    target this build accepts is one the operator configured, so nothing a
-    manifest says is ever dereferenced. Unknown keys are dropped rather than
-    stored, so a definition always has canonical shape.
+    open. It carries no code and no URL — an embed target names a slot in the
+    deployment's own configuration, which is where the address comes from.
+    Unknown keys are dropped rather than stored, so a definition always has
+    canonical shape.
     """
     if not isinstance(definition, dict):
         raise ListingDefinitionError("app definition must be an object")

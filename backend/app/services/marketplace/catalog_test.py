@@ -141,10 +141,9 @@ class TestDefinitions:
             )
 
     async def test_an_embed_must_name_a_target_this_build_serves(self, session):
-        """An embed opens a surface the operator configured. A listing naming
-        its own target is refused until listings arrive from a source whose
-        signature has been checked — where a browser goes, and which origin may
-        talk back to the app, is not something an unverified manifest decides."""
+        """An embed opens a surface the operator configured, named by its slot.
+        Targets a listing supplies itself arrive with the signed registry, so
+        one naming its own is refused for now."""
         with pytest.raises(CatalogError, match="unknown embed target"):
             await service.upsert_listing(
                 session,
@@ -173,8 +172,8 @@ class TestDefinitions:
             source="builtin",
         )
         version = await service.get_listing_version(session, listing.latest_version_id)
-        # The URL is dropped rather than kept: nothing a manifest carries is
-        # dereferenced, and a stored one would suggest otherwise.
+        # Only the target is kept. The address belongs to the deployment's
+        # configuration, so a URL in the manifest has nothing to say.
         assert version.definition == {
             "app_kind": "embed",
             "embed_target": "advanced_tool",

@@ -7,10 +7,9 @@
  * no route of its own to link to.
  *
  * The embed itself is the machinery that used to live in guild settings, moved
- * rather than rebuilt. The handoff is minted by the backend (admin-only,
- * configured-only), delivered to the iframe by postMessage and never in the
- * URL, and every inbound message is checked against the operator's origin
- * allowlist before anything in it is believed.
+ * rather than rebuilt: the backend mints the handoff, it reaches the iframe by
+ * postMessage, and inbound messages are matched against the operator's origin
+ * allowlist.
  */
 
 import { useParams } from "@tanstack/react-router";
@@ -92,8 +91,8 @@ const AdvancedToolEmbed = ({ app }: { app: GuildAppRead }) => {
 
   const { advancedTool, isLoading: configLoading } = useAppConfig();
 
-  // Outbound postMessage target = the iframe's own origin, derived from the
-  // configured URL. Never "*".
+  // Outbound postMessage goes to the iframe's own origin, derived from the
+  // configured URL.
   const iframeOrigin = useMemo(() => {
     if (!advancedTool?.url) return null;
     try {
@@ -157,7 +156,8 @@ const AdvancedToolEmbed = ({ app }: { app: GuildAppRead }) => {
     };
   }, [guildId, advancedTool, iframeOrigin, isGuildAdmin]);
 
-  // postMessage bridge — strict origin check on every inbound message.
+  // postMessage bridge. Every inbound message is matched against the allowlist
+  // before it is read.
   useEffect(() => {
     if (!iframeOrigin || guildId === null) return;
 
@@ -285,8 +285,8 @@ const AdvancedToolEmbed = ({ app }: { app: GuildAppRead }) => {
   // surface now rather than the contents of a settings tab. Offset by the
   // sticky header and, on desktop, the sidebar.
   //
-  // ``?scope=guild`` is a routing hint only — the receiving service MUST read
-  // the signed token's scope claim. Without the token the param does nothing.
+  // ``?scope=guild`` tells the receiving service which view to render. The
+  // scope it acts on comes from the signed token's claim.
   return (
     <div className="fixed inset-x-0 top-12 bottom-0 md:left-[var(--sidebar-width,20rem)]">
       <iframe
