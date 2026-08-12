@@ -220,17 +220,24 @@ async def _refresh_template_rls() -> None:
     moments after migrating; a database built by migrations alone never does, and
     would leave the template a picture no guild schema matches.
 
-    This is ``apply_template_rls`` against the worker's own database: that helper
-    goes through the app's provisioning engine, which points at the DATABASE_URL
-    database rather than this one.
+    Renders the registry directly rather than calling ``apply_template_rls``.
+    That helper goes through the provisioning bundle, which reflects structure
+    live from the app's own DATABASE_URL database — a database CI has no reason
+    to have built. The RLS half needs no reflection: it is a pure function of the
+    registry, so it can be rendered here and run against this worker's database.
     """
-    from app.db.guild_ddl import TEMPLATE_SCHEMA
-    from app.db.schema_provisioning import apply_guild_rls
+    from app.db.guild_ddl import TEMPLATE_SCHEMA, render_guild_rls_ddl
 
+    ddl = render_guild_rls_ddl()
     engine = create_async_engine(TEST_DATABASE_URL)
     try:
         async with engine.begin() as conn:
-            await apply_guild_rls(conn, TEMPLATE_SCHEMA)
+            raw = await conn.get_raw_connection()
+            await raw.driver_connection.execute(
+                f'SET search_path TO "{TEMPLATE_SCHEMA}", public;\n'
+                f"{ddl}\n"
+                "SET search_path TO public;"
+            )
     finally:
         await engine.dispose()
 
