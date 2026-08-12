@@ -163,10 +163,11 @@ INITIATIVE_PATHS: dict[str, PathBuilder] = {
     "dashboards": direct(),
     "property_definitions": direct(),
     "resource_grants": direct(),
-    # Advanced tools: initiative_id is NULLABLE — a NULL row is guild-wide, and
-    # initiative_access(NULL, …) resolves to the admin/PAM legs only (the function
-    # is STABLE, not STRICT), so direct() gives admin-only for guild-wide rows and
-    # normal membership for initiative-scoped ones.
+    # Advanced tools: initiative_id is NULLABLE, and a NULL row is guild-level —
+    # initiative_access(NULL, …) passes for any session routed into the guild
+    # schema, so direct() gives guild scope for those rows and normal membership
+    # for initiative-scoped ones. Who may read or write a guild-level row is
+    # decided by its grants, at the app layer, exactly as for initiative content.
     "advanced_tools": direct(),
     # One hop -> projects
     "tasks": via("projects", "project_id"),

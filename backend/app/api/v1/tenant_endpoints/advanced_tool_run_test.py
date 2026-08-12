@@ -234,8 +234,16 @@ async def test_delegated_run_feature_disabled_403(
 async def test_delegated_run_guild_wide_tool(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """Guild-wide tools run for a delegated guild admin; a plain member never
-    even sees the row (RLS), so their delegated run answers 404."""
+    """Guild-wide tools run for a delegated guild admin; an ungranted member is
+    refused.
+
+    The refusal is a 403 rather than a 404 because a guild-wide row is inside the
+    guild — every member of it passes the initiative gate, which has nothing to
+    decide about a row that belongs to no initiative — and its grants are what
+    say who may use it. That is the same answer an ungranted member gets on a
+    shared-but-not-with-them initiative resource. (A row in an initiative they
+    are not in is still a 404: there, the initiative gate hides it outright.)
+    """
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
     tool = await _create_tool(client, admin)  # no initiative_id → guild-wide
     assert tool["initiative_id"] is None
@@ -259,4 +267,4 @@ async def test_delegated_run_guild_wide_tool(
         headers=_delegation_headers(user_id=member.user.id, guild_id=admin.guild.id),
         json={},
     )
-    assert hidden.status_code == 404
+    assert hidden.status_code == 403

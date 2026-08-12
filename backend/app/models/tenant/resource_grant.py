@@ -75,13 +75,19 @@ class ResourceGrant(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
     # Carried directly so RLS is a plain initiative_access(initiative_id) — no hop.
-    initiative_id: int = Field(
+    #
+    # NULL means the grant is on a guild-level resource: one that belongs to no
+    # initiative, so its scope is the guild itself. The DAC semantics are
+    # unchanged — a grant still names a user, a role, or everyone — and at guild
+    # scope "everyone" reads as every guild member.
+    initiative_id: Optional[int] = Field(
+        default=None,
         sa_column=Column(
             Integer,
             ForeignKey("initiatives.id", ondelete="CASCADE"),
-            nullable=False,
+            nullable=True,
             index=True,
-        )
+        ),
     )
     # resource_id is polymorphic (keyed by resource_type) — no FK; cleaned up in the
     # resource's delete path, inert if orphaned.
