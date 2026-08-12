@@ -1413,6 +1413,21 @@ export interface DashboardCreate {
   grants?: ResourceGrantSchema[];
 }
 
+export type DashboardInstalledListingsCounts = { [key: string]: number };
+
+/**
+ * How many dashboards in this guild came from each marketplace listing.
+ *
+ * Keyed by listing uid, because that is what an install pins. Answered here
+ * rather than by the catalog: which listings a guild has is guild data, and the
+ * catalog holds none of it. Small and unpaginated by construction — one entry
+ * per distinct listing, not per dashboard — so a browse surface can mark what
+ * is already installed without walking the dashboard list.
+ */
+export interface DashboardInstalledListings {
+  counts: DashboardInstalledListingsCounts;
+}
+
 export interface DashboardSummary {
   /**
    * @minLength 1

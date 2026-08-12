@@ -1,0 +1,52 @@
+{
+  "title": "Marktplatz",
+  "subtitle": "Fertige Dashboards, die du einer Initiative hinzufügen kannst.",
+  "searchPlaceholder": "Marktplatz durchsuchen…",
+  "backToMarketplace": "Zurück zum Marktplatz",
+  "card": {
+    "installed": "Installiert",
+    "version": "v{{version}}",
+    "needsUpdate": "Benötigt neuere App"
+  },
+  "empty": {
+    "title": "Noch nichts hier",
+    "description": "Diese Installation bietet keine Einträge an."
+  },
+  "noResults": {
+    "title": "Keine Treffer",
+    "description": "Nichts im Marktplatz passt zu „{{query}}“."
+  },
+  "detail": {
+    "by": "von {{publisher}}",
+    "installs_one": "{{count}} Installation",
+    "installs_other": "{{count}} Installationen",
+    "install": "Zu einer Initiative hinzufügen",
+    "preview": "Vorschau",
+    "versions": "Versionen",
+    "needsUpdate": "Benötigt eine neuere Version der App.",
+    "withdrawn": "Wird nicht mehr angeboten.",
+    "notFound": "Eintrag nicht gefunden",
+    "notFoundDescription": "Er wurde vielleicht zurückgezogen, oder der Link stimmt nicht."
+  },
+  "install": {
+    "title": "{{name}} hinzufügen",
+    "description": "Wähle, wohin es kommt. Umbenennen kannst du es jetzt oder später.",
+    "initiative": "Initiative",
+    "name": "Name",
+    "action": "Hinzufügen",
+    "done": "{{name}} hinzugefügt.",
+    "failed": "Dieser Eintrag konnte nicht hinzugefügt werden.",
+    "noInitiatives": "Du kannst noch in keiner Initiative Dashboards erstellen. Frage eine Initiativleitung nach Zugriff."
+  },
+  "update": {
+    "available": "Version {{version}} verfügbar",
+    "action": "Aktualisieren",
+    "done": "Auf {{version}} aktualisiert.",
+    "failed": "Dieses Dashboard konnte nicht aktualisiert werden."
+  },
+  "unavailable": {
+    "title": "Marktplatz nicht erreichbar",
+    "description": "Der Katalog konnte nicht geladen werden. Versuche es gleich noch einmal."
+  },
+  "installedUnknown": "Es konnte nicht geprüft werden, welche davon du bereits hast – deshalb ist unten nichts als installiert markiert."
+}

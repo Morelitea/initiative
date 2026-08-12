@@ -379,6 +379,64 @@ class TestUpgrade:
         assert response.json()["config"]["widgets"] == {}
 
 
+class TestInstalledListings:
+    async def test_counts_every_install_regardless_of_list_paging(
+        self, client: AsyncClient, acting_user, session, listing
+    ):
+        """The dashboard list is paginated; this answer is not. A browse surface
+        deriving 'already installed' from a page would mark some installs and
+        miss others."""
+        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        await _enable(session, a.initiative)
+        for name in ("One", "Two", "Three"):
+            response = await client.post(
+                a.g("/dashboards/"),
+                headers=a.headers,
+                json={
+                    "name": name,
+                    "initiative_id": a.initiative.id,
+                    "listing_uid": INSTALL_UID,
+                },
+            )
+            assert response.status_code == 201, response.text
+
+        response = await client.get(
+            a.g("/dashboards/installed-listings"), headers=a.headers
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["counts"] == {INSTALL_UID: 3}
+
+    async def test_a_dashboard_authored_here_is_not_counted(
+        self, client: AsyncClient, acting_user, session
+    ):
+        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        await _enable(session, a.initiative)
+        await client.post(
+            a.g("/dashboards/"),
+            headers=a.headers,
+            json={
+                "name": "Mine",
+                "initiative_id": a.initiative.id,
+                "definition": _definition(),
+            },
+        )
+        response = await client.get(
+            a.g("/dashboards/installed-listings"), headers=a.headers
+        )
+        assert response.json()["counts"] == {}
+
+    async def test_the_literal_path_is_not_read_as_a_dashboard_id(
+        self, client: AsyncClient, acting_user, session
+    ):
+        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        await _enable(session, a.initiative)
+        response = await client.get(
+            a.g("/dashboards/installed-listings"), headers=a.headers
+        )
+        assert response.status_code == 200
+        assert "counts" in response.json()
+
+
 class TestCatalogIsolation:
     async def test_a_routed_session_can_read_the_catalog_but_not_write_it(
         self, role_session, acting_user, session, listing

@@ -5,15 +5,19 @@ import {
   deleteDashboardApiV1GGuildIdDashboardsDashboardIdDelete,
   getListDashboardsApiV1GGuildIdDashboardsGetQueryKey,
   getReadDashboardApiV1GGuildIdDashboardsDashboardIdGetQueryKey,
+  getReadInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGetQueryKey,
   getReadWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGetQueryKey,
   listDashboardsApiV1GGuildIdDashboardsGet,
   readDashboardApiV1GGuildIdDashboardsDashboardIdGet,
+  readInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGet,
   readWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGet,
   setDashboardGrantsApiV1GGuildIdDashboardsDashboardIdGrantsPut,
   updateDashboardApiV1GGuildIdDashboardsDashboardIdPatch,
+  upgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePost,
 } from "@/api/generated/dashboards/dashboards";
 import type {
   DashboardCreate,
+  DashboardInstalledListings,
   DashboardListResponse,
   DashboardRead,
   DashboardUpdate,
@@ -73,6 +77,22 @@ export const useWidgetCatalog = (options?: QueryOpts<WidgetCatalog>) => {
   });
 };
 
+/**
+ * Which marketplace listings this guild has installed, and how many of each.
+ *
+ * Keyed by the listing uid an install pins. Separate from the dashboards list on
+ * purpose: that list is paginated, and deriving "already installed" from one
+ * page would mark some installs and miss the rest.
+ */
+export const useInstalledListings = (options?: QueryOpts<DashboardInstalledListings>) => {
+  const guildId = useActiveGuildId();
+  return useQuery<DashboardInstalledListings>({
+    queryKey: getReadInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGetQueryKey(guildId),
+    queryFn: () => readInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGet(guildId),
+    ...options,
+  });
+};
+
 // ── Mutations ───────────────────────────────────────────────────────────────
 
 const invalidateDashboardAndList = (dashboardId: number) =>
@@ -104,6 +124,35 @@ export const useUpdateDashboard = (
         // save succeeds and renders the *old* server layout for a beat — a
         // dragged widget visibly snaps back to where it came from, then jumps
         // forward again when the refetch arrives.
+        queryClient.setQueryData(
+          getReadDashboardApiV1GGuildIdDashboardsDashboardIdGetQueryKey(guildId, dashboardId),
+          updated
+        );
+        return invalidateDashboardAndList(dashboardId);
+      },
+      errorKey: "dashboards:error",
+    },
+    options
+  );
+};
+
+/**
+ * Take the version a listing currently publishes.
+ *
+ * Only ever explicit: a new version sits in the catalog until someone with
+ * write access on this dashboard asks for it, and applying it re-pins this
+ * instance alone.
+ */
+export const useUpgradeDashboard = (
+  dashboardId: number,
+  options?: MutationOpts<DashboardRead, void>
+) => {
+  const guildId = useActiveGuildId();
+  return useGuildMutation<DashboardRead, void>(
+    {
+      mutationFn: (guildId) =>
+        upgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePost(guildId, dashboardId),
+      invalidate: (updated) => {
         queryClient.setQueryData(
           getReadDashboardApiV1GGuildIdDashboardsDashboardIdGetQueryKey(guildId, dashboardId),
           updated

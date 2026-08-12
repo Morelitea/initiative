@@ -78,5 +78,6 @@
   "advancedTools": "Herramientas avanzadas",
   "createAdvancedTool": "Nueva herramienta avanzada",
   "createExternally": "Se crea en {{name}}",
-  "adminDashboard": "Panel de administración"
+  "adminDashboard": "Panel de administración",
+  "marketplace": "Mercado"
 }

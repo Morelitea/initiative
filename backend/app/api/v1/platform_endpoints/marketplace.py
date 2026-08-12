@@ -100,19 +100,7 @@ async def list_marketplace_listings(
     return MarketplaceListingPage(items=items, total=total)
 
 
-@router.get("/listings/{public_id}", response_model=MarketplaceListingDetail)
-async def read_marketplace_listing(
-    public_id: str,
-    session: UserSessionDep,
-    current_user: CurrentUser,
-) -> MarketplaceListingDetail:
-    """One listing, with what it would install and every version it has."""
-    listing = await catalog_service.get_listing(session, public_id)
-    if listing is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=MarketplaceMessages.LISTING_NOT_FOUND,
-        )
+async def _detail(session, listing: MarketplaceListing) -> MarketplaceListingDetail:
     latest = await catalog_service.get_listing_version(
         session, listing.latest_version_id
     )
@@ -126,3 +114,42 @@ async def read_marketplace_listing(
         definition=dict(latest.definition) if latest else None,
         versions=[read for v in versions if (read := _version_read(v))],
     )
+
+
+# Declared before ``/listings/{public_id}`` so the literal segment wins: uids and
+# public ids are different identifier spaces and a path has to pick one.
+@router.get("/listings/by-uid/{uid}", response_model=MarketplaceListingDetail)
+async def resolve_marketplace_listing(
+    uid: str,
+    session: UserSessionDep,
+    current_user: CurrentUser,
+) -> MarketplaceListingDetail:
+    """The listing a code names.
+
+    This is what an installed instance uses to find where it came from: the
+    instance stores the uid, and the catalog answers with the listing and the
+    version it currently publishes.
+    """
+    listing = await catalog_service.get_listing_by_uid(session, uid)
+    if listing is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=MarketplaceMessages.LISTING_NOT_FOUND,
+        )
+    return await _detail(session, listing)
+
+
+@router.get("/listings/{public_id}", response_model=MarketplaceListingDetail)
+async def read_marketplace_listing(
+    public_id: str,
+    session: UserSessionDep,
+    current_user: CurrentUser,
+) -> MarketplaceListingDetail:
+    """One listing, with what it would install and every version it has."""
+    listing = await catalog_service.get_listing(session, public_id)
+    if listing is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=MarketplaceMessages.LISTING_NOT_FOUND,
+        )
+    return await _detail(session, listing)

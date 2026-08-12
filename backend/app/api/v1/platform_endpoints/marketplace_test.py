@@ -110,6 +110,36 @@ class TestDetail:
         assert [v["version"] for v in body["versions"]] == ["1.0.0"]
         assert body["installable"] is True
 
+    async def test_a_uid_resolves_to_its_listing(self, client, acting_user, listing):
+        """An installed dashboard stores the uid, not the public id, so this is
+        how it finds the listing it came from."""
+        actor = await acting_user("member")
+        response = await client.get(
+            "/api/v1/marketplace/listings/by-uid/BRWSE000000001", headers=actor.headers
+        )
+        assert response.status_code == 200
+        assert response.json()["public_id"] == "tests.browse"
+        assert response.json()["latest_version"]["version"] == "1.0.0"
+
+    async def test_an_unknown_uid_is_a_404(self, client, acting_user, listing):
+        actor = await acting_user("member")
+        response = await client.get(
+            "/api/v1/marketplace/listings/by-uid/NTHERE00000001",
+            headers=actor.headers,
+        )
+        assert response.status_code == 404
+
+    async def test_the_uid_route_is_not_read_as_a_public_id(
+        self, client, acting_user, listing
+    ):
+        """`by-uid` is a literal segment, not a listing called 'by-uid'."""
+        actor = await acting_user("member")
+        response = await client.get(
+            "/api/v1/marketplace/listings/by-uid", headers=actor.headers
+        )
+        assert response.status_code == 404
+        assert response.json()["detail"] == MarketplaceMessages.LISTING_NOT_FOUND
+
     async def test_an_unknown_listing_is_a_404(self, client, acting_user):
         actor = await acting_user("member")
         response = await client.get(

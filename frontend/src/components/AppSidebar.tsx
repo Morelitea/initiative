@@ -9,6 +9,7 @@ import {
   ScrollText,
   Settings,
   Star,
+  Store,
   Tag,
   Users,
 } from "lucide-react";
@@ -466,6 +467,23 @@ export const AppSidebar = () => {
                                 </SidebarMenuItem>
                               </SidebarMenu>
                             )}
+                          </SidebarGroupContent>
+                        </SidebarGroup>
+
+                        {/* Guild-level, below the initiatives: browsing is open
+                            to every member — installing is where the gates are. */}
+                        <SidebarGroup>
+                          <SidebarGroupContent>
+                            <SidebarMenu>
+                              <SidebarMenuItem>
+                                <SidebarMenuButton asChild size="sm">
+                                  <Link to={gp("/marketplace")}>
+                                    <Store className="h-4 w-4" />
+                                    <span>{t("marketplace")}</span>
+                                  </Link>
+                                </SidebarMenuButton>
+                              </SidebarMenuItem>
+                            </SidebarMenu>
                           </SidebarGroupContent>
                         </SidebarGroup>
                       </SidebarContent>

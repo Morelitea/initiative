@@ -205,6 +205,176 @@ export function useListMarketplaceListingsApiV1MarketplaceListingsGet<
 }
 
 /**
+ * The listing a code names.
+ *
+ * This is what an installed instance uses to find where it came from: the
+ * instance stores the uid, and the catalog answers with the listing and the
+ * version it currently publishes.
+ * @summary Resolve Marketplace Listing
+ */
+export const resolveMarketplaceListingApiV1MarketplaceListingsByUidUidGet = (
+  uid: string,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<MarketplaceListingDetail>(
+    { url: `/api/v1/marketplace/listings/by-uid/${uid}`, method: "GET", signal },
+    options
+  );
+};
+
+export const getResolveMarketplaceListingApiV1MarketplaceListingsByUidUidGetQueryKey = (
+  uid: string
+) => {
+  return [`/api/v1/marketplace/listings/by-uid/${uid}`] as const;
+};
+
+export const getResolveMarketplaceListingApiV1MarketplaceListingsByUidUidGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof resolveMarketplaceListingApiV1MarketplaceListingsByUidUidGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  uid: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof resolveMarketplaceListingApiV1MarketplaceListingsByUidUidGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getResolveMarketplaceListingApiV1MarketplaceListingsByUidUidGetQueryKey(uid);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof resolveMarketplaceListingApiV1MarketplaceListingsByUidUidGet>>
+  > = ({ signal }) =>
+    resolveMarketplaceListingApiV1MarketplaceListingsByUidUidGet(uid, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: uid !== null && uid !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof resolveMarketplaceListingApiV1MarketplaceListingsByUidUidGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ResolveMarketplaceListingApiV1MarketplaceListingsByUidUidGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof resolveMarketplaceListingApiV1MarketplaceListingsByUidUidGet>>
+>;
+export type ResolveMarketplaceListingApiV1MarketplaceListingsByUidUidGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useResolveMarketplaceListingApiV1MarketplaceListingsByUidUidGet<
+  TData = Awaited<ReturnType<typeof resolveMarketplaceListingApiV1MarketplaceListingsByUidUidGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  uid: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof resolveMarketplaceListingApiV1MarketplaceListingsByUidUidGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof resolveMarketplaceListingApiV1MarketplaceListingsByUidUidGet>>,
+          TError,
+          Awaited<ReturnType<typeof resolveMarketplaceListingApiV1MarketplaceListingsByUidUidGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useResolveMarketplaceListingApiV1MarketplaceListingsByUidUidGet<
+  TData = Awaited<ReturnType<typeof resolveMarketplaceListingApiV1MarketplaceListingsByUidUidGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  uid: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof resolveMarketplaceListingApiV1MarketplaceListingsByUidUidGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof resolveMarketplaceListingApiV1MarketplaceListingsByUidUidGet>>,
+          TError,
+          Awaited<ReturnType<typeof resolveMarketplaceListingApiV1MarketplaceListingsByUidUidGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useResolveMarketplaceListingApiV1MarketplaceListingsByUidUidGet<
+  TData = Awaited<ReturnType<typeof resolveMarketplaceListingApiV1MarketplaceListingsByUidUidGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  uid: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof resolveMarketplaceListingApiV1MarketplaceListingsByUidUidGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Resolve Marketplace Listing
+ */
+
+export function useResolveMarketplaceListingApiV1MarketplaceListingsByUidUidGet<
+  TData = Awaited<ReturnType<typeof resolveMarketplaceListingApiV1MarketplaceListingsByUidUidGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  uid: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof resolveMarketplaceListingApiV1MarketplaceListingsByUidUidGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getResolveMarketplaceListingApiV1MarketplaceListingsByUidUidGetQueryOptions(
+    uid,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
  * One listing, with what it would install and every version it has.
  * @summary Read Marketplace Listing
  */
