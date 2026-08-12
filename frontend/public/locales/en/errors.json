@@ -362,5 +362,8 @@
   "DASHBOARD_BINDING_INVALID": "A widget's data settings couldn't be read",
   "DASHBOARD_BINDING_SOURCE_UNKNOWN": "A widget points at a data source this app doesn't support",
   "DASHBOARD_BINDING_SOURCE_NOT_ALLOWED": "That data source can't be shown with this widget",
-  "DASHBOARD_CONFIG_INVALID": "This dashboard's settings couldn't be read"
+  "DASHBOARD_CONFIG_INVALID": "This dashboard's settings couldn't be read",
+  "BILLING_PORTAL_NOT_CONFIGURED": "No billing portal is configured for this deployment.",
+  "BILLING_PORTAL_SIGNING_NOT_CONFIGURED": "The billing portal is not fully configured yet. Contact your administrator.",
+  "BILLING_PORTAL_GRANT_UNAVAILABLE": "You belong to this guild, so open its billing from the guild's own settings."
 }

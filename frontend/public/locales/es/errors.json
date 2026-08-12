@@ -362,5 +362,8 @@
   "DASHBOARD_BINDING_INVALID": "No se pudieron leer los ajustes de datos de un widget",
   "DASHBOARD_BINDING_SOURCE_UNKNOWN": "Un widget apunta a una fuente de datos que esta aplicación no admite",
   "DASHBOARD_BINDING_SOURCE_NOT_ALLOWED": "Esa fuente de datos no se puede mostrar con este widget",
-  "DASHBOARD_CONFIG_INVALID": "No se pudieron leer los ajustes de este panel"
+  "DASHBOARD_CONFIG_INVALID": "No se pudieron leer los ajustes de este panel",
+  "BILLING_PORTAL_NOT_CONFIGURED": "No hay ningún portal de facturación configurado en esta instancia.",
+  "BILLING_PORTAL_SIGNING_NOT_CONFIGURED": "El portal de facturación aún no está configurado por completo. Contacta con tu administración.",
+  "BILLING_PORTAL_GRANT_UNAVAILABLE": "Perteneces a este gremio, así que abre su facturación desde los ajustes del propio gremio."
 }

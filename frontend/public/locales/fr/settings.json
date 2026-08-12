@@ -789,7 +789,13 @@
       "users": "Utilisateurs",
       "storageLimit": "Limite de stockage",
       "guildAuth": "Connexion par groupe",
-      "status": "Statut"
+      "status": "Statut",
+      "billing": "Facturation"
+    },
+    "billing": {
+      "noPlan": "Aucun forfait",
+      "openLabel": "Ouvrir la facturation de {{name}}",
+      "openError": "Impossible d'ouvrir le portail de facturation."
     }
   },
   "storage": {

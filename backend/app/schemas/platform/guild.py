@@ -126,6 +126,11 @@ class PlatformGuildStorageRead(SanitizedBaseModel):
     id: int
     name: str
     member_count: int = 0
+    # Plan label exactly as the billing service last set it — display/audit
+    # metadata, never an enforcement input (the caps below are what enforce).
+    # Echoed verbatim; this app neither invents nor interprets a plan name, and
+    # None means no billing service has named one for this guild.
+    tier_name: Optional[str] = None
     # Max total stored blob bytes for this guild. None means "unlimited".
     max_storage_bytes: Optional[int] = None
     # Max number of members for this guild. None means "unlimited".

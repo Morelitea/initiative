@@ -362,5 +362,8 @@
   "DASHBOARD_BINDING_INVALID": "Die Dateneinstellungen eines Widgets konnten nicht gelesen werden",
   "DASHBOARD_BINDING_SOURCE_UNKNOWN": "Ein Widget verweist auf eine Datenquelle, die diese App nicht unterstützt",
   "DASHBOARD_BINDING_SOURCE_NOT_ALLOWED": "Diese Datenquelle kann mit diesem Widget nicht angezeigt werden",
-  "DASHBOARD_CONFIG_INVALID": "Die Einstellungen dieses Dashboards konnten nicht gelesen werden"
+  "DASHBOARD_CONFIG_INVALID": "Die Einstellungen dieses Dashboards konnten nicht gelesen werden",
+  "BILLING_PORTAL_NOT_CONFIGURED": "Für diese Instanz ist kein Abrechnungsportal konfiguriert.",
+  "BILLING_PORTAL_SIGNING_NOT_CONFIGURED": "Das Abrechnungsportal ist noch nicht vollständig konfiguriert. Wende dich an deine Administration.",
+  "BILLING_PORTAL_GRANT_UNAVAILABLE": "Du gehörst zu dieser Gilde – öffne die Abrechnung über deren eigene Einstellungen."
 }
