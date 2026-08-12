@@ -4,15 +4,18 @@
  * Initiative API
  * OpenAPI spec version: 0.61.3
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
   DataTag,
   DefinedInitialDataOptions,
   DefinedUseQueryResult,
+  MutationFunction,
   QueryClient,
   QueryFunction,
   QueryKey,
   UndefinedInitialDataOptions,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
@@ -22,6 +25,7 @@ import type {
   ListMarketplaceListingsApiV1MarketplaceListingsGetParams,
   MarketplaceListingDetail,
   MarketplaceListingPage,
+  OperatorCatalogScanResult,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -539,3 +543,93 @@ export function useReadMarketplaceListingApiV1MarketplaceListingsPublicIdGet<
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+/**
+ * Re-read the deployment's own catalog directory (``config.manage``).
+ *
+ * The same scan the boot runs, so a manifest dropped into the mounted
+ * directory appears without a restart, and one removed from it retires its
+ * listing. Answers 400 when no directory is configured or the configured one
+ * is not there, and 409 while a scan is already running.
+ * @summary Rescan Operator Catalog
+ */
+export const rescanOperatorCatalogApiV1MarketplaceOperatorCatalogRescanPost = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<OperatorCatalogScanResult>(
+    { url: `/api/v1/marketplace/operator-catalog/rescan`, method: "POST", signal },
+    options
+  );
+};
+
+export const getRescanOperatorCatalogApiV1MarketplaceOperatorCatalogRescanPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rescanOperatorCatalogApiV1MarketplaceOperatorCatalogRescanPost>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof rescanOperatorCatalogApiV1MarketplaceOperatorCatalogRescanPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["rescanOperatorCatalogApiV1MarketplaceOperatorCatalogRescanPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof rescanOperatorCatalogApiV1MarketplaceOperatorCatalogRescanPost>>,
+    void
+  > = () => {
+    return rescanOperatorCatalogApiV1MarketplaceOperatorCatalogRescanPost(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RescanOperatorCatalogApiV1MarketplaceOperatorCatalogRescanPostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof rescanOperatorCatalogApiV1MarketplaceOperatorCatalogRescanPost>>
+  >;
+
+export type RescanOperatorCatalogApiV1MarketplaceOperatorCatalogRescanPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Rescan Operator Catalog
+ */
+export const useRescanOperatorCatalogApiV1MarketplaceOperatorCatalogRescanPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof rescanOperatorCatalogApiV1MarketplaceOperatorCatalogRescanPost>>,
+      TError,
+      void,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof rescanOperatorCatalogApiV1MarketplaceOperatorCatalogRescanPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(
+    getRescanOperatorCatalogApiV1MarketplaceOperatorCatalogRescanPostMutationOptions(options),
+    queryClient
+  );
+};

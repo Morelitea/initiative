@@ -87,6 +87,7 @@ nav = [
     "en/admin/email.md",
     "en/admin/push-notifications.md",
     "en/admin/object-storage.md",
+    "en/admin/publishing-listings.md",
     "en/admin/platform-roles.md",
     "en/admin/backups-and-updates.md",
     "en/admin/maintaining-these-docs.md",
