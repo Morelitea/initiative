@@ -1,0 +1,67 @@
+"""Resolving the catalog rows behind an install, for every kind of install.
+
+Installing a dashboard and installing an app ask the catalog the same three
+questions — does this listing exist, may it still be installed, and which
+version does this build pin — and a second copy of that reasoning is how the two
+drift into answering them differently. So there is one resolver, and the caller
+says which kind of listing it is expecting.
+
+The request supplies a uid and nothing else that matters: what gets stored comes
+from the catalog row. Errors are raised as a plain exception carrying a message
+code, so this stays free of any HTTP vocabulary and each router maps it to a
+response.
+"""
+
+from __future__ import annotations
+
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.core.messages import MarketplaceMessages
+from app.models.platform.marketplace import (
+    MarketplaceListing,
+    MarketplaceListingVersion,
+)
+from app.services.marketplace import catalog as catalog_service
+
+__all__ = ["ListingInstallError", "resolve_listing_install"]
+
+
+class ListingInstallError(Exception):
+    """A listing that cannot be installed, and why.
+
+    ``code`` is a message code the client localizes; ``not_found`` separates
+    "no such listing" (which the caller reports as 404) from the conflicts a
+    real listing can be in.
+    """
+
+    def __init__(self, code: str, *, not_found: bool = False) -> None:
+        super().__init__(code)
+        self.code = code
+        self.not_found = not_found
+
+
+async def resolve_listing_install(
+    session: AsyncSession, listing_uid: str, *, kind: str
+) -> tuple[MarketplaceListing, MarketplaceListingVersion]:
+    """The listing and the version to pin, or a reason it cannot be installed.
+
+    A listing of the wrong kind reads as *not found* rather than as a type
+    error: a dashboard uid handed to the app installer names nothing that
+    installer can install, and saying so any more precisely only describes the
+    catalog to someone guessing at it.
+
+    The lookup runs on the session the request already has, which holds read
+    access to the catalog.
+    """
+    listing = await catalog_service.get_listing_by_uid(session, listing_uid)
+    if listing is None or listing.kind != kind:
+        raise ListingInstallError(MarketplaceMessages.LISTING_NOT_FOUND, not_found=True)
+    if not listing.available:
+        raise ListingInstallError(MarketplaceMessages.LISTING_UNAVAILABLE)
+    version = await catalog_service.resolve_installable_version(session, listing)
+    if version is None:
+        # Either it has published nothing, or its current version needs a newer
+        # app. Silently installing an older one would be worse: the guild would
+        # get something other than what the listing page showed them.
+        raise ListingInstallError(MarketplaceMessages.LISTING_VERSION_INCOMPATIBLE)
+    return listing, version

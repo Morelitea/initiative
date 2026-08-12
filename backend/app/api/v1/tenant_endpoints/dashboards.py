@@ -61,6 +61,10 @@ from app.db import session as db_session
 from app.services import permissions as permissions_service
 from app.services import rls as rls_service
 from app.services.marketplace import catalog as catalog_service
+from app.services.marketplace.installs import (
+    ListingInstallError,
+    resolve_listing_install,
+)
 from app.services.tenant import dashboards as dashboards_service
 from app.services.tenant import recent_views as recent_views_service
 from app.services.tenant import tags as tags_service
@@ -99,33 +103,21 @@ def _normalize_body(definition: dict, config: dict) -> tuple[dict, dict]:
 async def _resolve_listing_install(
     session: RLSSessionDep, listing_uid: str
 ) -> tuple[MarketplaceListing, MarketplaceListingVersion]:
-    """The catalog rows behind an install: the listing, and the version to pin.
+    """The catalog rows behind an install, as an HTTP answer.
 
-    The definition is read from the catalog row; the request supplies only the
-    listing's uid. The lookup runs on the session the request already has, which
-    holds read access to the catalog.
+    The resolving itself is shared with the app installer
+    (``services.marketplace.installs``) so both kinds ask the catalog the same
+    questions; only the mapping to a status code belongs to this layer.
     """
-    listing = await catalog_service.get_listing_by_uid(session, listing_uid)
-    if listing is None or listing.kind != "dashboard":
+    try:
+        return await resolve_listing_install(session, listing_uid, kind="dashboard")
+    except ListingInstallError as exc:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=MarketplaceMessages.LISTING_NOT_FOUND,
-        )
-    if not listing.available:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=MarketplaceMessages.LISTING_UNAVAILABLE,
-        )
-    version = await catalog_service.resolve_installable_version(session, listing)
-    if version is None:
-        # Either it has published nothing, or its current version needs a newer
-        # app. Silently installing an older one would be worse: the guild would
-        # get something other than what the listing page showed them.
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=MarketplaceMessages.LISTING_VERSION_INCOMPATIBLE,
-        )
-    return listing, version
+            status_code=(
+                status.HTTP_404_NOT_FOUND if exc.not_found else status.HTTP_409_CONFLICT
+            ),
+            detail=exc.code,
+        ) from exc
 
 
 async def _count_install(listing_id: Optional[int]) -> None:

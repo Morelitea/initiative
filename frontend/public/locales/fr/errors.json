@@ -409,5 +409,16 @@
   "MARKETPLACE_REGISTRY_RESERVED_NAMESPACE": "Cette fiche utilise un nom d'éditeur réservé aux fiches fournies avec l'application : elle a été ignorée.",
   "MARKETPLACE_REGISTRY_ARTIFACT_UNREACHABLE": "Un fichier référencé par l'index du registre n'a pas pu être téléchargé.",
   "MARKETPLACE_REGISTRY_ARTIFACT_INVALID": "Un fichier référencé par l'index du registre ne correspond pas à ce qu'annonce l'index.",
-  "MARKETPLACE_REGISTRY_LISTING_REJECTED": "Cette fiche a été refusée car son contenu n'est pas valide."
+  "MARKETPLACE_REGISTRY_LISTING_REJECTED": "Cette fiche a été refusée car son contenu n'est pas valide.",
+  "GUILD_APP_CONFIG_UNKNOWN_CONNECTION": "Cette application n'a aucune connexion portant ce nom.",
+  "GUILD_APP_CONFIG_UNKNOWN_FIELD": "La connexion de cette application n'a aucun réglage portant ce nom.",
+  "GUILD_APP_CONFIG_INVALID_VALUE": "Cette valeur ne correspond pas à ce que ce réglage attend.",
+  "GUILD_APP_CONFIG_VALUE_TOO_LONG": "Cette valeur est trop longue pour ce réglage.",
+  "GUILD_APP_CONFIG_REQUIRED_FIELD": "Renseignez tous les champs obligatoires avant d'enregistrer.",
+  "GUILD_APP_CONFIG_MANAGED_FIELD": "L'application le renseigne elle-même lors de la connexion : vous ne pouvez pas le saisir ici.",
+  "GUILD_APP_CONNECTION_NOT_FOUND": "Cette connexion ne fait pas partie de cette application.",
+  "GUILD_APP_CONNECTION_NOT_INTERACTIVE": "Cette connexion utilise un seul identifiant pour toute la guilde : il n'y a donc aucun compte à connecter.",
+  "GUILD_APP_CONNECTION_NOT_STATIC": "Cette connexion appartient à chaque membre : elle se connecte au lieu de se remplir.",
+  "GUILD_APP_CONNECTION_BLOCKED": "L'administration de la guilde vous a interdit cette connexion.",
+  "GUILD_APP_DISABLED": "Cette application est désactivée : rien ne passe par elle."
 }

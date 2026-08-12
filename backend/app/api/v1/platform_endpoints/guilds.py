@@ -47,6 +47,8 @@ from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.services.auth.identity import has_federated_identity
 from app.services.auth.platform_provider import is_login_ready
 from app.services.platform import guilds as guilds_service
+from app.services.tenant import app_connections as app_connections_service
+from app.services.tenant import app_revocation as app_revocation_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services import rls as rls_service
 from app.services.stream_authz import authority as stream_authority
@@ -592,6 +594,12 @@ async def delete_guild(
             detail=GuildMessages.CONFIRMATION_MISMATCH,
         )
 
+    # End the guild's app access while the schema is still there to read. The
+    # DROP below would take the rows with it silently, which would leave vendor
+    # grants outliving the guild that authorized them — so each app is told to
+    # let go first, and the intents are delivered once the deletion commits.
+    await app_connections_service.delete_guild_connections(session)
+
     # Delete the guild ROW first — reliable, and the guild is immediately gone from
     # the app's point of view. Its ON DELETE CASCADE FKs clear the shared roster
     # (memberships, invites, OIDC mappings, access grants). The guild-scoped data
@@ -600,6 +608,9 @@ async def delete_guild(
     # public.guilds guild_delete RLS policy (current_guild_id) matches.
     await guilds_service.delete_guild(session, guild)
     await session.commit()
+    await app_revocation_service.dispatch_revocations(
+        app_revocation_service.drain_revocations(session)
+    )
 
     # Drop the schema + role as best-effort cleanup. Reset the assumed guild role
     # first (committed) so DROP ROLE can run. With the cross-schema FKs gone,
@@ -1000,4 +1011,10 @@ async def leave_guild(
     await session.commit()
     # Left the guild — drop this user's live content streams immediately.
     await stream_authority.revoke_user(guild_id, current_user.id)
+    # …and tell this guild's apps that the credentials this person connected
+    # under it are finished. After the commit, so an app is never told to let go
+    # of something a rollback would have put back.
+    await app_revocation_service.dispatch_revocations(
+        app_revocation_service.drain_revocations(session)
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)

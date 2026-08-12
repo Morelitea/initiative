@@ -269,6 +269,16 @@ def _build_tables(sync_conn) -> list[str]:
         for con in list(t.constraints):
             if isinstance(con, CheckConstraint):
                 t.constraints.discard(con)
+        # ``CreateTable`` renders constraints in the order reflection happened to
+        # build them, which the catalog does not promise to repeat. That order
+        # reaches the provisioning stamp, and the stamp is what decides whether a
+        # guild schema is stale — so an unstable one would re-provision every
+        # guild on every boot. Restamp it from each constraint's own name, which
+        # is fixed. Only visible on a table carrying more than one.
+        for order, con in enumerate(
+            sorted(t.constraints, key=lambda c: (type(c).__name__, c.name or ""))
+        ):
+            con._creation_order = order
         for col in t.columns:
             if hasattr(col.type, "create_type"):
                 col.type.create_type = False  # ty: ignore[invalid-assignment]

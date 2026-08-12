@@ -36,8 +36,10 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import logging
 from dataclasses import dataclass, field
+from typing import Any
 
 from cryptography.fernet import InvalidToken
 from sqlalchemy import text
@@ -47,6 +49,7 @@ from app.core.config import settings
 from app.core.encryption import (
     SALT_AI_API_KEY,
     SALT_APP_SERVICE_SECRET,
+    SALT_APP_CONFIG,
     SALT_EMAIL,
     SALT_OIDC_CLIENT_SECRET,
     SALT_OIDC_REFRESH_TOKEN,
@@ -98,6 +101,17 @@ _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
 _GUILD_SCHEMA_COLUMNS: list[tuple[str, str, bytes]] = [
     ("guild_ai_connections", "api_key_encrypted", SALT_AI_API_KEY),
     ("guild_ai_member_keys", "api_key_encrypted", SALT_AI_API_KEY),
+]
+
+# Guild-schema columns holding SEVERAL ciphertexts inside one JSONB map, rather
+# than one per column. An app declares many connection fields, so its values
+# cannot each have a column of their own; they are keyed instead, and every
+# string leaf of the map is a Fernet token. (table, column, salt) — rewritten by
+# primary key, because the value as a whole is not a token and so cannot be its
+# own WHERE clause the way a single-column ciphertext can.
+_GUILD_SCHEMA_JSON_MAPS: list[tuple[str, str, bytes]] = [
+    ("guild_apps", "config_secrets", SALT_APP_CONFIG),
+    ("guild_app_user_connections", "config_secrets", SALT_APP_CONFIG),
 ]
 
 
@@ -223,6 +237,94 @@ async def _rotate_fernet_column(
                 {"new": new_value, "old": value},
             )
             result.rotated += res.rowcount or 0
+    return result
+
+
+def _rotate_map(
+    value: Any, salt: bytes, old_key: str, new_key: str, result: ColumnResult
+) -> tuple[Any, bool]:
+    """Re-key every ciphertext inside one JSONB map, counting as it goes.
+
+    Walks nested maps because the two shapes differ: an install keys its values
+    by connection and then by field, a member's connection keys them by field
+    alone. Every string leaf is a token; anything else is left exactly as it is,
+    so a non-secret value sharing the map is never touched.
+
+    Returns the rewritten value and whether anything in it actually moved.
+    """
+    if isinstance(value, dict):
+        out: dict[str, Any] = {}
+        changed = False
+        for key, inner in value.items():
+            new_inner, inner_changed = _rotate_map(
+                inner, salt, old_key, new_key, result
+            )
+            out[key] = new_inner
+            changed = changed or inner_changed
+        return out, changed
+    if not isinstance(value, str):
+        return value, False
+
+    status, new_value = _rotate_value(value, salt, old_key, new_key)
+    if status == "skipped":
+        result.skipped += 1
+        return value, False
+    if status == "failed":
+        result.failed += 1
+        return value, False
+    result.rotated += 1
+    return new_value, True
+
+
+async def _rotate_fernet_json_map(
+    read_conn: AsyncConnection,
+    write_conn: AsyncConnection,
+    schema: str,
+    table: str,
+    column: str,
+    salt: bytes,
+    old_key: str,
+    new_key: str,
+    dry_run: bool,
+) -> ColumnResult:
+    """Re-encrypt the ciphertexts held inside one JSONB column.
+
+    Rewritten by ``id`` rather than by matching the old value: the column holds
+    a document, not a token, so it has no single ciphertext to key the UPDATE
+    on. Reads stream and writes go to a second connection, for the same reason
+    the single-column sweep does.
+    """
+    result = ColumnResult(schema, table, column)
+    if (
+        await read_conn.scalar(
+            text("SELECT to_regclass(:rel)"), {"rel": f'"{schema}"."{table}"'}
+        )
+        is None
+    ):
+        return result
+    stream = await read_conn.stream(
+        text(
+            f'SELECT id, "{column}" FROM "{schema}"."{table}" '  # noqa: S608
+            f'WHERE "{column}" IS NOT NULL AND "{column}"::text <> \'{{}}\''
+        )
+    )
+    async for row_id, value in stream:
+        # The driver decodes JSONB to a Python object, but a raw text() query is
+        # not guaranteed to have that codec in place, so accept either form.
+        if isinstance(value, str):
+            value = json.loads(value)
+        rewritten, changed = _rotate_map(value, salt, old_key, new_key, result)
+        if not changed or dry_run:
+            continue
+        await write_conn.execute(
+            # Identifiers come from this module's hardcoded registry; values are
+            # bind params.
+            text(
+                f'UPDATE "{schema}"."{table}" SET "{column}" = CAST(:new AS jsonb) '  # noqa: S608
+                f"WHERE id = :id"
+            ),
+            {"new": json.dumps(rewritten), "id": row_id},
+        )
     return result
 
 
@@ -371,6 +473,20 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
                 for table, column, salt in _GUILD_SCHEMA_COLUMNS:
                     summary.columns.append(
                         await _rotate_fernet_column(
+                            read_conn,
+                            write_conn,
+                            schema,
+                            table,
+                            column,
+                            salt,
+                            old_key,
+                            new_key,
+                            dry_run,
+                        )
+                    )
+                for table, column, salt in _GUILD_SCHEMA_JSON_MAPS:
+                    summary.columns.append(
+                        await _rotate_fernet_json_map(
                             read_conn,
                             write_conn,
                             schema,

@@ -703,7 +703,17 @@ async def remove_user_from_guild(
     guild_id: int,
     user_id: int,
 ) -> None:
-    """Remove a user from a guild and all its initiatives."""
+    """Remove a user from a guild, its initiatives, and its apps.
+
+    Leaving a guild ends what that guild's apps let this person reach at an
+    outside vendor: the credentials they connected under this guild's authority
+    are deleted and the apps holding them are told to let go. Their connections
+    in other guilds are untouched — those relationships have not ended.
+
+    The session must already be routed into the guild. Revocations are queued on
+    it and delivered by the caller after the commit.
+    """
+    from app.services.tenant import app_connections as app_connections_service
     from app.services.tenant import initiatives as initiatives_service
 
     # Remove from all initiatives in this guild
@@ -711,6 +721,10 @@ async def remove_user_from_guild(
         session,
         guild_id=guild_id,
         user_id=user_id,
+    )
+
+    await app_connections_service.delete_member_connections(
+        session, user_id=user_id, reason="left_guild"
     )
 
     # Remove guild membership

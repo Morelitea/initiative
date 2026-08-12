@@ -67,6 +67,8 @@ from app.core.messages import AuthMessages, GuildMessages, UserMessages
 from app.services import notifications as notifications_service
 from app.services.auth import sessions as session_service
 from app.services.auth.identity import has_federated_identity
+from app.services.tenant import app_connections as app_connections_service
+from app.services.tenant import app_revocation as app_revocation_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.platform import guilds as guilds_service
 from app.services.stream_authz import authority as stream_authority
@@ -1161,9 +1163,17 @@ async def delete_user(
         guild_id=guild_context.guild_id,
         user_id=user_id,
     )
+    # Being removed ends what this guild's apps let this person reach at an
+    # outside vendor, exactly as leaving voluntarily does.
+    await app_connections_service.delete_member_connections(
+        session, user_id=user_id, reason="removed_from_guild"
+    )
 
     await session.delete(membership)
     await session.commit()
     # Kicked from the guild — drop the user's live content streams immediately
     # (guild-level access change), consistent with the other removal paths.
     await stream_authority.revoke_user(guild_context.guild_id, user_id)
+    await app_revocation_service.dispatch_revocations(
+        app_revocation_service.drain_revocations(session)
+    )

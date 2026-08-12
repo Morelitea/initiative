@@ -409,5 +409,16 @@
   "MARKETPLACE_REGISTRY_RESERVED_NAMESPACE": "Dieser Eintrag verwendet einen Anbieternamen, der für mitgelieferte Einträge reserviert ist, und wurde übersprungen.",
   "MARKETPLACE_REGISTRY_ARTIFACT_UNREACHABLE": "Eine im Verzeichnis-Index referenzierte Datei konnte nicht heruntergeladen werden.",
   "MARKETPLACE_REGISTRY_ARTIFACT_INVALID": "Eine im Verzeichnis-Index referenzierte Datei entspricht nicht dem, was der Index angibt.",
-  "MARKETPLACE_REGISTRY_LISTING_REJECTED": "Dieser Eintrag wurde abgelehnt, weil sein Inhalt ungültig ist."
+  "MARKETPLACE_REGISTRY_LISTING_REJECTED": "Dieser Eintrag wurde abgelehnt, weil sein Inhalt ungültig ist.",
+  "GUILD_APP_CONFIG_UNKNOWN_CONNECTION": "Diese App hat keine Verbindung mit diesem Namen.",
+  "GUILD_APP_CONFIG_UNKNOWN_FIELD": "Die Verbindung dieser App hat keine Einstellung mit diesem Namen.",
+  "GUILD_APP_CONFIG_INVALID_VALUE": "Dieser Wert passt nicht zu dieser Einstellung.",
+  "GUILD_APP_CONFIG_VALUE_TOO_LONG": "Dieser Wert ist für diese Einstellung zu lang.",
+  "GUILD_APP_CONFIG_REQUIRED_FIELD": "Fülle vor dem Speichern alle Pflichtfelder aus.",
+  "GUILD_APP_CONFIG_MANAGED_FIELD": "Das trägt die App beim Verbinden selbst ein — hier kannst du es nicht eingeben.",
+  "GUILD_APP_CONNECTION_NOT_FOUND": "Diese Verbindung gehört nicht zu dieser App.",
+  "GUILD_APP_CONNECTION_NOT_INTERACTIVE": "Diese Verbindung nutzt eine Zugangsberechtigung für die ganze Gilde, es gibt also kein Konto zu verbinden.",
+  "GUILD_APP_CONNECTION_NOT_STATIC": "Diese Verbindung gehört jedem Mitglied selbst und wird verbunden statt ausgefüllt.",
+  "GUILD_APP_CONNECTION_BLOCKED": "Eine Gildenadministration hat dir diese Verbindung untersagt.",
+  "GUILD_APP_DISABLED": "Diese App ist ausgeschaltet, es läuft nichts über sie."
 }

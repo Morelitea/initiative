@@ -1969,6 +1969,121 @@ export interface GenerateSubtasksResponse {
 }
 
 /**
+ * One thing an install produced.
+ */
+export interface GuildAppArtifact {
+  type: string;
+  id: number;
+}
+
+export type GuildAppConfigUpdateValues = { [key: string]: { [key: string]: unknown } };
+
+/**
+ * Guild-scoped connection values, keyed by connection then field.
+ *
+ * A key sent as ``null`` clears that value; a key left out is untouched, so a
+ * form rendering part of a connection cannot wipe the rest.
+ *
+ * Deliberately untyped at this layer. A credential is opaque bytes to us, so
+ * sanitizing one would corrupt it, and the declared field types live in the
+ * pinned definition rather than in this schema — the service checks each value
+ * against the type its own connection declared, which coercion here would
+ * quietly defeat (a ``true`` arriving at an ``int`` field must be refused, not
+ * turned into ``1``).
+ */
+export interface GuildAppConfigUpdate {
+  values?: GuildAppConfigUpdateValues;
+}
+
+/**
+ * Where to send the member so the app can run the vendor's flow.
+ *
+ * ``connection_ref`` is the handle the app will store its result against, and
+ * the only name it ever learns for this person.
+ */
+export interface GuildAppConnectStart {
+  connection_id: string;
+  connection_ref: string;
+  connect_path: string;
+  status: string;
+}
+
+export type GuildAppConnectionReadLabel = { [key: string]: string };
+
+export type GuildAppConnectionReadFieldsItem = { [key: string]: unknown };
+
+export type GuildAppConnectionReadAccessHint = { [key: string]: unknown } | null;
+
+export type GuildAppConnectionReadValues = { [key: string]: unknown };
+
+export type GuildAppConnectionReadHasValue = { [key: string]: boolean };
+
+/**
+ * One connection of an install, as the current viewer sees it.
+ *
+ * ``has_value`` is the whole of what is disclosed about stored values. For a
+ * per-member connection the presence, status and account label are the
+ * *viewer's own* — a colleague who has connected and one who has not are both
+ * looking at a correct answer, because the underlying vendor access genuinely
+ * differs per person.
+ */
+export interface GuildAppConnectionRead {
+  id: string;
+  scope: string;
+  label: GuildAppConnectionReadLabel;
+  fields: GuildAppConnectionReadFieldsItem[];
+  access_hint: GuildAppConnectionReadAccessHint;
+  values: GuildAppConnectionReadValues;
+  has_value: GuildAppConnectionReadHasValue;
+  satisfied: boolean;
+  connect_path: string | null;
+  status: string | null;
+  account_label: string | null;
+  blocked: boolean;
+}
+
+export type GuildAppConnectionSummaryLabel = { [key: string]: string };
+
+/**
+ * The aggregate an admin actually wants: how many of the guild connected.
+ */
+export interface GuildAppConnectionSummary {
+  connection_id: string;
+  label: GuildAppConnectionSummaryLabel;
+  connected_count: number;
+  blocked_count: number;
+  member_count: number;
+}
+
+/**
+ * An install plus its connections, for the settings page.
+ *
+ * Separate from the list payload because the connection blocks carry the whole
+ * pinned form and the sidebar has no use for it.
+ */
+export interface GuildAppDetail {
+  id: number;
+  guild_id: number;
+  listing_uid: string;
+  listing_version: string;
+  app_kind: string;
+  name: string;
+  enabled: boolean;
+  artifacts: GuildAppArtifact[];
+  needs_config: boolean;
+  config_state: string;
+  config_state_detail: string | null;
+  tool: string | null;
+  embed_target: string | null;
+  features: string[];
+  admin_only: boolean;
+  installed_by_id: number;
+  created_at: string;
+  updated_at: string;
+  connections: GuildAppConnectionRead[];
+}
+
+/**
  * Install a listing into this guild.
  *
  * Names a listing and nothing else that matters: the definition comes from the
@@ -1980,8 +2095,6 @@ export interface GuildAppInstall {
   name?: string | null;
 }
 
-export type GuildAppReadConfig = { [key: string]: unknown };
-
 export interface GuildAppRead {
   id: number;
   guild_id: number;
@@ -1990,9 +2103,13 @@ export interface GuildAppRead {
   app_kind: string;
   name: string;
   enabled: boolean;
-  config: GuildAppReadConfig;
+  artifacts: GuildAppArtifact[];
+  needs_config: boolean;
+  config_state: string;
+  config_state_detail: string | null;
   tool: string | null;
   embed_target: string | null;
+  features: string[];
   admin_only: boolean;
   installed_by_id: number;
   created_at: string;
@@ -2001,6 +2118,30 @@ export interface GuildAppRead {
 
 export interface GuildAppListResponse {
   items: GuildAppRead[];
+}
+
+/**
+ * One member's connection, in the admin's Members view.
+ *
+ * Who connected, as which vendor account, when, and whether they are blocked.
+ * No values, and no ``connection_ref`` — the handle is between the platform
+ * and the app, and putting it in an admin screen would make it something
+ * people copy around.
+ */
+export interface GuildAppMemberConnection {
+  connection_id: string;
+  user_id: number;
+  status: string;
+  account_label: string | null;
+  blocked: boolean;
+  blocked_by_id: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GuildAppMembersResponse {
+  summary: GuildAppConnectionSummary[];
+  items: GuildAppMemberConnection[];
 }
 
 export interface GuildAppUpdate {

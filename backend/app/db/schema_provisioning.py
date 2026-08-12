@@ -92,6 +92,10 @@ SUPPORT_WRITE_PROTECTED_TABLES: tuple[str, ...] = (
     "initiative_roles",
     "initiative_role_permissions",
     "resource_grants",
+    # A member's own credential for an installed app. Deciding who reaches an
+    # outside system through this guild is access management, not the
+    # edit-existing-content a scoped read_write grant is for.
+    "guild_app_user_connections",
 )
 
 

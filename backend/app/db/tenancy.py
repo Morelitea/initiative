@@ -148,6 +148,14 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # or pref, so these carry own_row_* policies (owner OR guild admin).
         "guild_ai_member_keys",
         "guild_ai_member_prefs",
+        # A member's own connection to an installed app's vendor. No FK to any
+        # initiative — an app is guild-wide — so it can't use initiative_access.
+        # Rows belong to ONE member and hold that member's credential, so it
+        # carries own_row_* policies: the owner manages their own, and a guild
+        # admin manages every one in their guild (a personal connection is
+        # guild-governed access, not private property). The ciphertext is never
+        # returned by the API to anyone, admin included.
+        "guild_app_user_connections",
     }
 )
 
@@ -163,6 +171,7 @@ OWN_ROW_TABLES: dict[str, str] = {
     "import_jobs": "created_by_id",
     "guild_ai_member_keys": "user_id",
     "guild_ai_member_prefs": "user_id",
+    "guild_app_user_connections": "user_id",
 }
 
 # --- Guild-scoped (derived) -------------------------------------------------

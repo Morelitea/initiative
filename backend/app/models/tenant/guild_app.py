@@ -6,11 +6,22 @@ nature (a club's own events calendar), and a tool that lives in one initiative
 cannot be that.
 
 The row is *installation state*, not content. It records which listing was
-installed, at which version, and whatever the app needs to find its own content
-(``config``). The content itself is an ordinary row in an ordinary table — a
-guild-level ``calendars`` row, for instance — governed by its own grants like
-anything else. That split is deliberate: apps mount existing tools at guild
-scope rather than introducing a parallel one.
+installed, at which version, what the install produced (``artifacts``), and how
+the guild configured it (``config`` / ``config_secrets``). The content itself is
+an ordinary row in an ordinary table — a guild-level ``calendars`` row, for
+instance — governed by its own grants like anything else. That split is
+deliberate: apps mount existing tools at guild scope rather than introducing a
+parallel one.
+
+One install can produce more than one thing, so ``artifacts`` is a list of
+``{"type": …, "id": …}`` rather than a single id on ``config``. Removal walks
+that list through a per-type handler, which is what lets a later app mount two
+tools at once without the removal path growing a special case.
+
+``config_secrets`` holds the values a guild admin typed into an app's connection
+form, encrypted per key. This row is the custodian: the values are written
+through the API and never read back out of it — a read reports only whether a
+value is present.
 
 Managing apps is a guild-admin action; the row is readable by any member of the
 guild, because the sidebar has to know an app is there. What a member may do
@@ -63,11 +74,36 @@ class GuildApp(SQLModel, table=True):
         default_factory=dict,
         sa_column=Column(JSONB, nullable=False, server_default="{}"),
     )
-    # What the install produced or the guild configured — for a tool instance,
-    # the id of the row it created.
+    # Non-secret connection values, keyed by connection id then field key:
+    # ``{"admin_read": {"shop_domain": "example.myshopify.com"}}``.
     config: dict[str, Any] = Field(
         default_factory=dict,
         sa_column=Column(JSONB, nullable=False, server_default="{}"),
+    )
+    # The same shape, holding one Fernet ciphertext per secret field. Written
+    # through the config endpoint, read only by the code that hands values to
+    # the app — never serialized back to a client.
+    config_secrets: dict[str, Any] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default="{}"),
+    )
+    # What the app reported back about the configuration it was given:
+    # ``unverified`` until it says otherwise, then ``ok`` or ``invalid``.
+    # Presence of values is what this build can know by itself; whether a
+    # credential carries the permissions it needs is the app's to report.
+    config_state: str = Field(
+        default="unverified",
+        sa_column=Column(String(16), nullable=False, server_default="unverified"),
+    )
+    #: The app's own short code for an ``invalid`` state, shown beside it.
+    config_state_detail: Optional[str] = Field(
+        default=None, sa_column=Column(String(120), nullable=True)
+    )
+
+    # What this install created: ``[{"type": "calendar", "id": 7}, …]``.
+    artifacts: list[Any] = Field(
+        default_factory=list,
+        sa_column=Column(JSONB, nullable=False, server_default="[]"),
     )
 
     installed_by_id: int = Field(foreign_key="users.id", nullable=False)
