@@ -22,6 +22,7 @@
     "installs_other": "{{count}} Installationen",
     "install": "Zu einer Initiative hinzufügen",
     "preview": "Vorschau",
+    "previewIsSample": "Beispieldaten – eine nicht installierte Anwendung liest nichts aus deiner Gilde.",
     "versions": "Versionen",
     "needsUpdate": "Benötigt eine neuere Version der App.",
     "withdrawn": "Wird nicht mehr angeboten.",

@@ -23,6 +23,7 @@ import { useWidgetData, type WidgetBinding } from "@/hooks/useWidgetData";
 import { useWidgetMeta } from "@/hooks/useWidgetMeta";
 import { cn } from "@/lib/utils";
 import { type DefinitionWidget, unboundSlots } from "@/lib/widgets/definition";
+import { SAMPLE_NOW, sampleFor } from "@/lib/widgets/sampleData";
 
 export interface DashboardWidgetProps {
   widget: DefinitionWidget;
@@ -30,6 +31,11 @@ export interface DashboardWidgetProps {
   /** The dashboard's own initiative — the only one its widgets read from. */
   initiativeId: number | undefined;
   canEdit: boolean;
+  /** Draw the sample library instead of resolving the binding — nothing is
+   *  fetched at all. This is the marketplace preview's mode: a listing that
+   *  isn't installed shows what it *looks like*, never anyone's data, so it
+   *  renders the same for every viewer. */
+  sampleData?: boolean;
   onConfigure?: (widgetId: string) => void;
   onRemove?: (widgetId: string) => void;
 }
@@ -39,12 +45,19 @@ export function DashboardWidget({
   binding,
   initiativeId,
   canEdit,
+  sampleData,
   onConfigure,
   onRemove,
 }: DashboardWidgetProps) {
   const { t } = useTranslation("dashboards");
   const { name } = useWidgetMeta(widget.type);
-  const { data, isLoading, isUnbound } = useWidgetData(binding, initiativeId);
+  // In sample mode the hook still runs (hooks are unconditional) but is handed
+  // no initiative, which fail-closes every query — a preview issues no
+  // requests, exactly like the widget picker's.
+  const live = useWidgetData(binding, sampleData ? undefined : initiativeId);
+  const data = sampleData ? sampleFor(binding.source, widget.type) : live.data;
+  const isLoading = sampleData ? false : live.isLoading;
+  const isUnbound = sampleData ? false : live.isUnbound;
 
   const title = widget.title || name;
   const missing = unboundSlots(binding);
@@ -104,6 +117,7 @@ export function DashboardWidget({
             data={data}
             config={widget.options}
             isLoading={isLoading}
+            now={sampleData ? SAMPLE_NOW : undefined}
             chromeless
           />
         )}

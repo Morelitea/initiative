@@ -22,6 +22,7 @@
     "installs_other": "{{count}} installations",
     "install": "Ajouter à une initiative",
     "preview": "Aperçu",
+    "previewIsSample": "Données d'exemple — une annonce non installée ne lit rien dans votre guilde.",
     "versions": "Versions",
     "needsUpdate": "Nécessite une version plus récente de l'application.",
     "withdrawn": "N'est plus proposé.",

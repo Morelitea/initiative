@@ -1,12 +1,16 @@
 /**
  * One listing's page: what it is, what it looks like, and how to get it.
  *
- * The preview is the real thing — the listing's definition rendered by the same
- * canvas a live dashboard uses, read-only, bound to the guild's default
- * initiative (id 1, seeded with the guild and always present). Someone deciding
- * whether to install sees what they would get rather than a description of it;
- * tiles they can't read there render empty, which is what an install would show
- * them too.
+ * The preview runs the real pipeline — the listing's definition through the same
+ * canvas, sandbox, and renderer a live dashboard uses — over **sample rows**.
+ * A listing is not installed, so it has no initiative to read and is given
+ * none: the canvas is told to draw samples, which fetches nothing at all.
+ *
+ * That is the point rather than a convenience. What someone shopping needs to
+ * see is the *shape* of the dashboard, and a preview drawn from their own data
+ * would be misleading twice over: it would look empty for a new initiative that
+ * has nothing yet, and it would read as if the listing already knew about
+ * their work.
  */
 
 import { Link, useParams, useSearch } from "@tanstack/react-router";
@@ -176,7 +180,10 @@ export function MarketplaceListingPage() {
           so the preview is a dashboard-only affordance. */}
       {!isApp && (
         <div className="space-y-2">
-          <h2 className="font-medium text-sm">{t("detail.preview")}</h2>
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <h2 className="font-medium text-sm">{t("detail.preview")}</h2>
+            <p className="text-muted-foreground text-xs">{t("detail.previewIsSample")}</p>
+          </div>
           {listing?.definition ? (
             // The same canvas a live dashboard renders, read-only: `canEdit` false
             // means static tiles, no drag handles, and no layout writes.
@@ -184,10 +191,10 @@ export function MarketplaceListingPage() {
               definition={readDefinition(listing.definition)}
               config={readConfig({})}
               catalog={catalogQuery.data}
-              // The guild's default initiative: seeded with the guild, so id 1
-              // always exists. Widgets are initiative-confined, so a preview
-              // has to name one — this is the one every guild has.
-              initiativeId={1}
+              // Sample rows, and therefore no initiative: an uninstalled
+              // listing reads nothing from this guild.
+              sampleData
+              initiativeId={undefined}
               canEdit={false}
               onLayoutChange={() => {}}
             />

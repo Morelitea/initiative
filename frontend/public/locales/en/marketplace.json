@@ -22,6 +22,7 @@
     "installs_other": "{{count}} installs",
     "install": "Add to an initiative",
     "preview": "Preview",
+    "previewIsSample": "Sample data — a listing you haven't installed reads nothing from your guild.",
     "versions": "Versions",
     "needsUpdate": "Needs a newer version of the app.",
     "withdrawn": "No longer offered.",
