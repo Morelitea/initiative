@@ -51,6 +51,12 @@ If you only *use* Initiative, you can happily skip this section. Everything you 
 
     [:octicons-arrow-right-24: Object storage](object-storage.md)
 
+-   :material-package-variant-plus: __Publishing your own listings__
+
+    Add your own dashboards and apps to the marketplace.
+
+    [:octicons-arrow-right-24: Publishing listings](publishing-listings.md)
+
 -   :material-shield-crown-outline: __Platform roles__
 
     Server-wide roles, capabilities, and break-glass access.

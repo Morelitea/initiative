@@ -125,7 +125,7 @@
     "pin": "Épingler au Focus",
     "unpin": "Retirer du Focus",
     "settings": "Paramètres du Focus",
-    "dueWithinLabel": "Afficher le travail à échéance",
+    "dueWithinLabel": "Afficher le travail à échéance ou qui commence",
     "dueWithin": {
       "0": "Aujourd'hui",
       "2": "2 prochains jours",

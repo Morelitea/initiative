@@ -431,6 +431,16 @@ class Settings(BaseSettings):
     S3_LOCAL_FALLBACK: bool = False
     STATIC_DIR: str = "static"
 
+    # --- Marketplace ------------------------------------------------------
+    # A directory of listing manifests (*.json) this deployment publishes as
+    # its own. Mount a volume, drop files in, and they appear in the
+    # marketplace alongside the ones this build ships — publishing needs no
+    # change to the application. Scanned at boot and on demand from
+    # Settings → Platform; a file that is removed retires its listing.
+    # Unset (the default) means no directory is read and nothing is published
+    # beyond the built-ins.
+    MARKETPLACE_EXTRA_CATALOG_DIR: str | None = None
+
     # --- Data export engine ---
     # Render backend seam. Only "local" (typst-py in-process) ships; a
     # distributed/cloud backend would be an additive second implementation.
