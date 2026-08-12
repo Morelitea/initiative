@@ -77,6 +77,34 @@ const tasks: WidgetSample = {
     ],
   },
   empty: { source: "tasks", rows: [] },
+  variants: {
+    // A quarter of finished work rather than the base sample's single done
+    // task, so the preview draws a real throughput curve. One row per finished
+    // task, all of a week's completions on the same day so the stated weekly
+    // counts are exactly what the chart shows — including the genuinely quiet
+    // week and the strong finish.
+    velocity: {
+      source: "tasks",
+      rows: [2, 3, 1, 4, 3, 0, 2, 5, 3, 4, 2, 6].flatMap((count, week) =>
+        Array.from({ length: count }, (_, slot) => {
+          const completedAt = T0 - (11 - week) * 7 * DAY;
+          return {
+            id: 200 + week * 10 + slot,
+            title: `Task ${week * 10 + slot}`,
+            status: "Done",
+            statusCategory: "done",
+            priority: (["high", "medium", "low", null] as const)[(week + slot) % 4],
+            startDate: completedAt - 4 * DAY,
+            dueDate: completedAt + DAY,
+            completedAt,
+            projectId: 10,
+            projectName: "Apollo",
+            assignees: [slot % 2 === 0 ? "Ada" : "Grace"],
+          };
+        })
+      ),
+    },
+  },
 };
 
 const projects: WidgetSample = {
@@ -254,6 +282,7 @@ export const SOURCES_BY_WIDGET: Record<string, WidgetSource[]> = {
   gantt: ["tasks", "projects", "calendar_entries"],
   stat: ["counter", "task_counts", "sheet_range"],
   chart: ["task_counts", "counter_group", "sheet_range", "projects"],
+  velocity: ["tasks"],
   funnel: ["task_counts", "sheet_range"],
   progress: ["counter", "task_counts", "projects"],
   heatmap: ["task_counts"],

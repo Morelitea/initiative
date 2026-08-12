@@ -110,6 +110,16 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
             "stacked": frozenset({"true", "false"}),
         },
     ),
+    # Throughput over time: work finished per week, with the latest week held
+    # against the one before.
+    "velocity": WidgetSpec(
+        min_w=3,
+        min_h=3,
+        default_w=6,
+        default_h=4,
+        sources=frozenset({"tasks"}),
+        options={"mark": frozenset({"bar", "line", "area"})},
+    ),
     # Staged counts, widest bucket first.
     "funnel": WidgetSpec(
         min_w=3,

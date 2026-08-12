@@ -20,6 +20,7 @@ import heatmapSource from "./builtins/heatmap.widget.js?raw";
 import progressSource from "./builtins/progress.widget.js?raw";
 import statSource from "./builtins/stat.widget.js?raw";
 import tableSource from "./builtins/table.widget.js?raw";
+import velocitySource from "./builtins/velocity.widget.js?raw";
 
 /**
  * Module source per built-in type — and *only* that. Which sources a widget may
@@ -31,6 +32,7 @@ export const BUILTIN_WIDGETS: Record<string, string> = {
   gantt: ganttSource,
   stat: statSource,
   chart: chartSource,
+  velocity: velocitySource,
   funnel: funnelSource,
   progress: progressSource,
   heatmap: heatmapSource,

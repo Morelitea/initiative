@@ -4328,6 +4328,7 @@ export const WidgetType = {
   progress: "progress",
   stat: "stat",
   table: "table",
+  velocity: "velocity",
 } as const;
 
 export interface WidgetOption {
