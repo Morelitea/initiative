@@ -19,7 +19,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Optional, Sequence
 
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, update as sa_update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -298,15 +298,40 @@ async def upsert_listing(
             )
         )
     ).first()
+    release_notes = manifest.get("release_notes")
+    min_app_version = manifest.get("min_app_version")
     if version is None:
         version = MarketplaceListingVersion(
-            listing_id=listing.id, version=version_str, published_at=now
+            listing_id=listing.id,
+            version=version_str,
+            published_at=now,
+            definition=definition,
+            release_notes=release_notes,
+            min_app_version=min_app_version,
         )
-    version.definition = definition
-    version.release_notes = manifest.get("release_notes")
-    version.min_app_version = manifest.get("min_app_version")
-    session.add(version)
-    await session.flush()
+        session.add(version)
+        await session.flush()
+    elif (
+        version.definition != definition
+        or version.release_notes != release_notes
+        or version.min_app_version != min_app_version
+    ):
+        # A published version is immutable. Two reasons, and the second is why
+        # this is an error rather than an overwrite:
+        #
+        #   * instances *pin* a version, and the upgrade path has nothing to
+        #     offer an instance already on this one — so a changed body under an
+        #     unchanged version could never reach anybody who installed it;
+        #   * the catalog is shared. `uid` + version has to name the same thing
+        #     on every deployment, or a code someone shares resolves to
+        #     different content depending on where it is redeemed.
+        #
+        # Correcting a listing means publishing a new version. Its name, blurb
+        # and artwork are listing-level and stay editable without one.
+        raise CatalogError(
+            f"{public_id}: version {version_str} is already published with "
+            "different content; publish a new version instead"
+        )
 
     listing.latest_version_id = version.id
     session.add(listing)
@@ -334,12 +359,11 @@ async def bump_installs_count(session: AsyncSession, listing_id: int) -> None:
     telemetry rather than tenant data. Called post-commit and best-effort by the
     install path — a failed bump must never fail an install.
     """
-    listing = (
-        await session.exec(
-            select(MarketplaceListing).where(MarketplaceListing.id == listing_id)
-        )
-    ).first()
-    if listing is None:
-        return
-    listing.installs_count = (listing.installs_count or 0) + 1
-    session.add(listing)
+    # One statement, incremented in the database: two installs landing together
+    # would otherwise both read the same number and both write it back plus one,
+    # quietly losing an install.
+    await session.exec(
+        sa_update(MarketplaceListing)
+        .where(MarketplaceListing.id == listing_id)
+        .values(installs_count=MarketplaceListing.installs_count + 1)
+    )

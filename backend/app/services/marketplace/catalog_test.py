@@ -9,7 +9,9 @@ from.
 """
 
 import pytest
+from sqlmodel import select
 
+from app.models.platform.marketplace import MarketplaceListing
 from app.services.marketplace import catalog as service
 from app.services.marketplace.catalog import CatalogError
 from app.testing import create_marketplace_listing
@@ -132,24 +134,61 @@ class TestDefinitions:
 
 
 class TestVersions:
-    async def test_republishing_the_same_version_updates_it_in_place(self, session):
+    async def test_republishing_a_version_unchanged_is_a_no_op(self, session):
+        """Boot re-seeds the shipped listings on every start, so publishing the
+        same manifest twice has to be harmless."""
+        await service.upsert_listing(session, _manifest(), source="builtin")
+        listing = await service.upsert_listing(session, _manifest(), source="builtin")
+        assert len(await service.listing_versions(session, listing.id)) == 1
+
+    async def test_a_published_version_cannot_be_rewritten(self, session):
+        """The definition under a version is frozen once published.
+
+        An instance pins its version, and the upgrade path has nothing to offer
+        one already on it — so a changed body under an unchanged version could
+        never reach whoever installed it. It would also mean `uid` + version
+        named different content on different deployments, which is exactly what
+        a shared code must not do.
+        """
+        await service.upsert_listing(session, _manifest(), source="builtin")
+        with pytest.raises(CatalogError, match="already published with different"):
+            await service.upsert_listing(
+                session,
+                _manifest(
+                    definition={
+                        "widgets": [
+                            {
+                                "id": "w1",
+                                "type": "table",
+                                "binding": {"source": "tasks"},
+                            }
+                        ]
+                    }
+                ),
+                source="builtin",
+            )
+
+    async def test_a_published_version_cannot_move_its_app_floor(self, session):
+        # Changing min_app_version would change who can install that exact
+        # version, after the fact.
+        await service.upsert_listing(session, _manifest(), source="builtin")
+        with pytest.raises(CatalogError, match="already published with different"):
+            await service.upsert_listing(
+                session, _manifest(min_app_version="999.0.0"), source="builtin"
+            )
+
+    async def test_listing_metadata_stays_editable_without_a_new_version(self, session):
+        """A publisher fixing a typo in their blurb should not need a release —
+        the name, description and artwork belong to the listing, not the
+        version."""
         await service.upsert_listing(session, _manifest(), source="builtin")
         listing = await service.upsert_listing(
             session,
-            _manifest(
-                description="Reworded.",
-                definition={
-                    "widgets": [
-                        {"id": "w1", "type": "table", "binding": {"source": "tasks"}}
-                    ]
-                },
-            ),
+            _manifest(name="Renamed", description="Reworded."),
             source="builtin",
         )
-        assert listing.description == "Reworded."
-        versions = await service.listing_versions(session, listing.id)
-        assert len(versions) == 1
-        assert versions[0].definition["widgets"][0]["type"] == "table"
+        assert (listing.name, listing.description) == ("Renamed", "Reworded.")
+        assert len(await service.listing_versions(session, listing.id)) == 1
 
     async def test_a_new_version_becomes_the_latest(self, session):
         await service.upsert_listing(session, _manifest(), source="builtin")
@@ -245,6 +284,39 @@ class TestInstallsCount:
         await session.commit()
         await session.refresh(listing)
         assert listing.installs_count == 1
+
+    async def test_the_counter_increments_in_the_database(self, session, role_session):
+        """Two installs that overlap must both count.
+
+        Staged rather than raced, so it is deterministic: one connection has
+        already loaded the row when a second install lands and commits. An
+        increment computed in Python would write that connection's stale value
+        back and lose the other install; one computed in SQL cannot.
+        """
+        listing = await create_marketplace_listing(
+            session, uid="CNCRRENT000001", public_id="tests.concurrent"
+        )
+
+        first = await role_session("app_admin")
+        second = await role_session("app_admin")
+        # `first` reads the row at 0 and holds it.
+        loaded = (
+            await first.exec(
+                select(MarketplaceListing).where(MarketplaceListing.id == listing.id)
+            )
+        ).one()
+        assert loaded.installs_count == 0
+
+        # A second install lands and commits in the meantime.
+        await service.bump_installs_count(second, listing.id)
+        await second.commit()
+
+        # Then the first one does. It must not write back the 0 it is holding.
+        await service.bump_installs_count(first, listing.id)
+        await first.commit()
+
+        await session.refresh(listing)
+        assert listing.installs_count == 2
         # There is no column that could say *who* — the catalog must not be able
         # to answer that.
         assert not hasattr(listing, "guild_id")
