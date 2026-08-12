@@ -10,8 +10,8 @@ from alembic import op
 
 from app.models.platform.access_grant import ACCESS_GRANT_PURPOSES
 
-revision = "20260812_0165"
-down_revision = "20260812_0164"
+revision = "20260812_0166"
+down_revision = "20260812_0165"
 branch_labels = None
 depends_on = None
 
