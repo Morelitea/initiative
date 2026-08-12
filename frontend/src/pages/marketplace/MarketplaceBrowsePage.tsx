@@ -11,18 +11,26 @@
 
 import { useSearch } from "@tanstack/react-router";
 import { CloudOff, SearchX } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { ListingKind } from "@/api/generated/initiativeAPI.schemas";
 import { MarketplaceCard } from "@/components/marketplace/MarketplaceCard";
 import { StatusMessage } from "@/components/StatusMessage";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useInstalledListings } from "@/hooks/useDashboards";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useGuildApps } from "@/hooks/useGuildApps";
 import { useMarketplaceListings } from "@/hooks/useMarketplace";
 
 const PAGE_SIZE = 24;
+/** One line per shelf, so a new kind shows its own rather than the dashboards'. */
+const SUBTITLE_KEYS = {
+  [ListingKind.dashboard]: "subtitle",
+  [ListingKind.app]: "subtitleApps",
+  [ListingKind.auto]: "subtitleAuto",
+} as const;
 /** Stable keys for the loading placeholders — they never reorder, and an index
  *  key on a list that can change is the lint rule this avoids. */
 const SKELETON_KEYS = ["a", "b", "c", "d", "e", "f"];
@@ -36,8 +44,8 @@ export function MarketplaceBrowsePage() {
   // relying on that default would mean the filter silently disappears anywhere
   // the page is mounted another way, and the grid would mix apps into the
   // dashboards.
-  const search_ = useSearch({ strict: false }) as { kind?: "dashboard" | "app" };
-  const kind = search_.kind ?? "dashboard";
+  const search_ = useSearch({ strict: false }) as { kind?: ListingKind };
+  const kind = search_.kind ?? ListingKind.dashboard;
   const [query, setQuery] = useState("");
   // The catalog is a network call per keystroke otherwise, and the grid keeps
   // the previous page while the next one loads.
@@ -49,15 +57,28 @@ export function MarketplaceBrowsePage() {
     page_size: PAGE_SIZE,
   });
 
-  // Which of these this guild already has, counted server-side over every
-  // dashboard rather than over a page of them. A count, not a boolean: a guild
-  // may hold several installs of one listing, at different versions.
+  // Which of these this guild already has. Each shelf has to ask its own tool:
+  // the dashboards aggregate knows nothing about apps, so using it on the apps
+  // shelf would report every app as not installed.
   //
-  // Left undefined when that request failed, rather than defaulted to an empty
+  // Left undefined when the request failed, rather than defaulted to an empty
   // map: "we do not know" and "you have none of these" look identical on a card,
   // and only one of them is true. The notice below says which.
-  const installedQuery = useInstalledListings();
-  const installedByUid = installedQuery.isError ? undefined : installedQuery.data?.counts;
+  const dashboardInstalls = useInstalledListings({ enabled: kind === ListingKind.dashboard });
+  const appInstalls = useGuildApps({ enabled: kind === ListingKind.app });
+  const installedQuery = kind === ListingKind.app ? appInstalls : dashboardInstalls;
+
+  const installedByUid = useMemo(() => {
+    if (installedQuery.isError) return undefined;
+    if (kind === ListingKind.app) {
+      // One install per listing per guild, so this is a presence map that
+      // happens to be shaped like the dashboards' counts.
+      const counts: Record<string, number> = {};
+      for (const app of appInstalls.data?.items ?? []) counts[app.listing_uid] = 1;
+      return counts;
+    }
+    return dashboardInstalls.data?.counts;
+  }, [kind, installedQuery.isError, appInstalls.data, dashboardInstalls.data]);
 
   const listings = listingsQuery.data?.items ?? [];
 
@@ -65,9 +86,7 @@ export function MarketplaceBrowsePage() {
     <div className="space-y-6">
       <div className="space-y-1">
         <h1 className="font-semibold text-3xl tracking-tight">{t("title")}</h1>
-        <p className="text-muted-foreground text-sm">
-          {kind === "app" ? t("subtitleApps") : t("subtitle")}
-        </p>
+        <p className="text-muted-foreground text-sm">{t(SUBTITLE_KEYS[kind])}</p>
       </div>
 
       <Input

@@ -7,11 +7,21 @@ than by anything here.
 """
 
 from datetime import datetime
+from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from pydantic import ConfigDict
 
 from app.schemas.base import SanitizedBaseModel
+from app.services.marketplace.definitions import LISTING_KINDS
+
+# Derived from the validator's own set rather than restated, the way WidgetType
+# derives from the widget registry: a new kind reaches the API — and, through
+# the generated types, the frontend — without an edit here.
+ListingKind = Enum(
+    "ListingKind", {name: name for name in sorted(LISTING_KINDS)}, type=str
+)
+ListingKind.__doc__ = "What a marketplace listing installs as."
 
 
 class MarketplaceVersionRead(SanitizedBaseModel):
@@ -35,7 +45,7 @@ class MarketplaceListingSummary(SanitizedBaseModel):
 
     uid: str
     public_id: str
-    kind: str
+    kind: ListingKind  # type: ignore[valid-type]
     source: str
     name: str
     publisher: str

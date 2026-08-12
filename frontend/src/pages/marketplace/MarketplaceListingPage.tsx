@@ -6,11 +6,12 @@
  * whether to install sees what they would get rather than a description of it.
  */
 
-import { Link, useParams } from "@tanstack/react-router";
+import { Link, useParams, useSearch } from "@tanstack/react-router";
 import { Download, SearchX } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { ListingKind } from "@/api/generated/initiativeAPI.schemas";
 import { DashboardCanvas } from "@/components/initiativeTools/dashboards/DashboardCanvas";
 import { InstallAppDialog } from "@/components/marketplace/InstallAppDialog";
 import { InstallListingDialog } from "@/components/marketplace/InstallListingDialog";
@@ -35,6 +36,7 @@ import { readConfig, readDefinition } from "@/lib/widgets/definition";
 export function MarketplaceListingPage() {
   const { t } = useTranslation(["marketplace", "apps"]);
   const { publicId } = useParams({ strict: false }) as { publicId: string };
+  const { kind: shelf } = useSearch({ strict: false }) as { kind?: ListingKind };
   const gp = useGuildPath();
 
   const listingQuery = useMarketplaceListing(publicId ?? null);
@@ -44,6 +46,9 @@ export function MarketplaceListingPage() {
 
   const listing = listingQuery.data;
   const isApp = listing?.kind === "app";
+  // Back to the shelf this listing was found on, falling back to the listing's
+  // own kind when someone arrived by direct link.
+  const backToShelf = { kind: shelf ?? listing?.kind };
   // Installing an app is a guild-admin action; the server enforces it, and the
   // button says so rather than failing after the click.
   const isGuildAdmin = activeGuild?.role === "admin";
@@ -66,7 +71,9 @@ export function MarketplaceListingPage() {
         <BreadcrumbList>
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
-              <Link to={gp("/marketplace")}>{t("title")}</Link>
+              <Link to={gp("/marketplace")} search={backToShelf}>
+                {t("title")}
+              </Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />

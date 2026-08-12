@@ -129,18 +129,14 @@ export const GuildSettingsLayout = () => {
     ? extractSubPath(currentPath).replace(/\/+$/, "") || "/"
     : currentPath.replace(/\/+$/, "") || "/";
 
-  // Map normalized sub-paths to tab values
-  const tabSubPaths = [
-    { value: "guild", path: "/settings" },
-    { value: "ai", path: "/settings/ai" },
-    { value: "users", path: "/settings/users" },
-    { value: "auth", path: "/settings/auth" },
-    { value: "initiatives", path: "/settings/initiatives" },
-    { value: "trash", path: "/settings/trash" },
-    { value: "data", path: "/settings/data" },
-    { value: "advanced-tool", path: "/settings/advanced-tool" },
-    { value: "danger-zone", path: "/settings/danger-zone" },
-  ];
+  // Derived from the tabs themselves rather than restated: a second hand-kept
+  // list is a tab that highlights the wrong one the day someone adds a tab and
+  // updates only the list they happened to be looking at. The tab paths are
+  // guild-prefixed; matching happens on the sub-path.
+  const tabSubPaths = guildSettingsTabs.map((tab) => ({
+    value: tab.value,
+    path: extractSubPath(tab.path),
+  }));
 
   const activeTab = matchActiveTab(tabSubPaths, normalizedPath, availableTabs[0]?.value ?? "guild");
 

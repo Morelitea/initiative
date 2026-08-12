@@ -2408,6 +2408,17 @@ export interface LeaveGuildRequest {
 }
 
 /**
+ * What a marketplace listing installs as.
+ */
+export type ListingKind = (typeof ListingKind)[keyof typeof ListingKind];
+
+export const ListingKind = {
+  app: "app",
+  auto: "auto",
+  dashboard: "dashboard",
+} as const;
+
+/**
  * One sign-in provider offered on the login page (non-secret metadata).
  */
 export interface LoginProviderEntry {
@@ -2444,7 +2455,7 @@ export interface MarketplaceVersionRead {
 export interface MarketplaceListingDetail {
   uid: string;
   public_id: string;
-  kind: string;
+  kind: ListingKind;
   source: string;
   name: string;
   publisher: string;
@@ -2467,7 +2478,7 @@ export interface MarketplaceListingDetail {
 export interface MarketplaceListingSummary {
   uid: string;
   public_id: string;
-  kind: string;
+  kind: ListingKind;
   source: string;
   name: string;
   publisher: string;
@@ -4510,7 +4521,7 @@ export type GetMyInitiativeMembersApiV1UsersMeInitiativeMembersInitiativeIdGetPa
 };
 
 export type ListMarketplaceListingsApiV1MarketplaceListingsGetParams = {
-  kind?: string | null;
+  kind?: ListingKind | null;
   q?: string | null;
   /**
    * @minimum 1

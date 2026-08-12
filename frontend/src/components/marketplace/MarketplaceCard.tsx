@@ -29,6 +29,9 @@ export function MarketplaceCard({ listing, installedCount = 0 }: MarketplaceCard
     <Card className="h-full transition-colors hover:border-primary/50">
       <Link
         to={gp(`/marketplace/${listing.public_id}`)}
+        // Carry the shelf through, so going back from a listing returns to the
+        // one you were browsing rather than to the dashboards.
+        search={{ kind: listing.kind }}
         className="block h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <CardContent className="flex h-full gap-3 p-4">
