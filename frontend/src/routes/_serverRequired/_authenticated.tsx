@@ -1,11 +1,4 @@
-import {
-  createFileRoute,
-  Link,
-  Navigate,
-  Outlet,
-  redirect,
-  useLocation,
-} from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, redirect, useLocation } from "@tanstack/react-router";
 import { Loader2, LogOut, Plus, Search, Settings, Ticket, UserCog } from "lucide-react";
 import { Suspense, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -37,7 +30,6 @@ import {
   useClearRecentViews,
   useRecents,
 } from "@/hooks/useRecents";
-import { useServer } from "@/hooks/useServer";
 import { useVersionCheck } from "@/hooks/useVersionCheck";
 import { isJustSignedIn } from "@/lib/authTransition";
 import { chooseNoGuildLayout } from "@/lib/noGuildLayout";
@@ -83,7 +75,6 @@ function AppLayout() {
   // ALL hooks must be called before any conditional returns
   const { t } = useTranslation("command");
   const { user, loading, logout } = useAuth();
-  const { isNativePlatform } = useServer();
   const isMac = useMemo(
     () => typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.userAgent),
     []
@@ -116,12 +107,15 @@ function AppLayout() {
     return <FullScreenLoader />;
   }
 
-  // Redirect to login/welcome if not authenticated. The just-signed-in
-  // window covers the render before the auth context commits the new user;
-  // logout clears it, so signing out always leaves the authenticated shell.
+  // Not authenticated: the redirect belongs to `beforeLoad` above, which
+  // re-runs as soon as the auth context settles (``useRouteGuardSync``). Hold
+  // the loader for the render or two before that lands rather than redirecting
+  // from the render path — a rendered `<Navigate>` re-navigates on every render
+  // and stops only because this layout unmounts. The just-signed-in window
+  // covers the render before the auth context commits the new user; logout
+  // clears it, so signing out always leaves the authenticated shell.
   if (!user && !isJustSignedIn()) {
-    const redirectTo = isNativePlatform ? "/login" : "/welcome";
-    return <Navigate to={redirectTo} replace />;
+    return <FullScreenLoader />;
   }
 
   // No-guild empty-state branch. The user-scoped settings routes

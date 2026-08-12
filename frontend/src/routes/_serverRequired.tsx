@@ -1,10 +1,16 @@
-import { createFileRoute, Navigate, Outlet, redirect, useSearch } from "@tanstack/react-router";
+import { createFileRoute, Outlet, redirect, useSearch } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 
 import { NativeUpdateRequiredDialog } from "@/components/NativeUpdateRequiredDialog";
 import { VersionDialog } from "@/components/VersionDialog";
 import { useNativeUpdate } from "@/hooks/useNativeUpdate";
 import { useServer } from "@/hooks/useServer";
+
+const FullScreenLoader = () => (
+  <div className="flex min-h-screen items-center justify-center">
+    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+  </div>
+);
 
 /**
  * Layout route that requires a server to be configured on native platforms.
@@ -47,16 +53,16 @@ function ServerRequiredLayout() {
 
   // Show loading state while server context initializes
   if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <FullScreenLoader />;
   }
 
-  // On native, if no server is configured (and we didn't just connect), redirect to connect page
+  // On native with no server configured (and we didn't just connect), the
+  // redirect belongs to `beforeLoad` above, which re-runs once the server
+  // context settles (``useRouteGuardSync``). Hold the loader until it lands
+  // rather than redirecting from the render path — a rendered `<Navigate>`
+  // re-navigates on every render and stops only because this layout unmounts.
   if (isNativePlatform && !isServerConfigured && !justConnected) {
-    return <Navigate to="/connect" replace />;
+    return <FullScreenLoader />;
   }
 
   return (
