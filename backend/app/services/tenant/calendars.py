@@ -169,15 +169,17 @@ async def list_calendar_ids_for_export(
     initiative. Deterministic order for stable output.
 
     Narrowed to an initiative, a guild calendar is not among them: it belongs to
-    no initiative, so it is in no initiative's export either."""
+    no initiative, so it is in no initiative's export either. The tool switch
+    applies in both shapes — the narrowing composes with it rather than
+    replacing it, so a disabled initiative exports nothing here just as it
+    lists nothing everywhere else."""
     from app.services import permissions as permissions_service
     from app.services.platform import guilds as guilds_service
     from app.services.rls import is_guild_admin
 
+    conditions = [tool_enabled_clause()]
     if initiative_id is not None:
-        conditions = [Calendar.initiative_id == initiative_id]
-    else:
-        conditions = [tool_enabled_clause()]
+        conditions.append(Calendar.initiative_id == initiative_id)
 
     membership = await guilds_service.get_membership(
         session, guild_id=guild_id, user_id=current_user.id

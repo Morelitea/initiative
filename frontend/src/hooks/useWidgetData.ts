@@ -81,14 +81,22 @@ const TASK_BACKED: WidgetSource[] = ["tasks", "task_counts", "projects"];
  * Resolve one widget's binding.
  *
  * `initiativeId` is the dashboard's own — every fetch below is scoped to it, and
- * a binding cannot say otherwise. Sharing a dashboard therefore shares a view of
- * that initiative, never a window into another one.
+ * a binding cannot say otherwise: dashboards are an initiative's tool, so a
+ * widget reads that initiative and nothing else, exactly as a project board
+ * reads its project. That holds three ways, all fail-closed:
+ *
+ * - without an initiative, nothing is fetched at all (unbound, not guild-wide);
+ * - list sources carry the initiative in the query itself;
+ * - id sources (a counter group, a document) are fetched by id and then held
+ *   against the initiative — an id pointing into another one resolves to
+ *   absent, the same rendering as a deleted or unshared target.
  */
 export function useWidgetData(
   binding: WidgetBinding,
   initiativeId: number | undefined
 ): WidgetDataResult {
   const source = binding.source;
+  const scoped = typeof initiativeId === "number" && Number.isFinite(initiativeId);
 
   /**
    * The task query, scoped through the filter DSL.
@@ -131,30 +139,33 @@ export function useWidgetData(
     };
   }, [binding.window_days]);
 
+  // Every query below is enabled only under `scoped`: with no initiative there
+  // is nothing a dashboard widget may read, so nothing is requested.
   const tasksQuery = useTasks(taskParams, {
-    enabled: TASK_BACKED.includes(source),
+    enabled: scoped && TASK_BACKED.includes(source),
   });
   // The projects list has no initiative filter of its own, so its rows are
   // narrowed after the fetch — which also keeps the query key shared with every
   // other projects consumer.
-  const projectsQuery = useProjects(undefined, { enabled: source === "projects" });
+  const projectsQuery = useProjects(undefined, { enabled: scoped && source === "projects" });
   const entriesQuery = useCalendarEntries(
     {
       start_after: window.start,
       start_before: window.end,
       include_events: true,
-      ...(initiativeId ? { initiative_id: initiativeId } : {}),
+      initiative_id: initiativeId,
     },
-    { enabled: source === "calendar_entries" }
+    { enabled: scoped && source === "calendar_entries" }
   );
-  const calendarsQuery = useCalendarsList(undefined, {
-    enabled: source === "calendar_entries",
-  });
+  const calendarsQuery = useCalendarsList(
+    { initiative_id: initiativeId },
+    { enabled: scoped && source === "calendar_entries" }
+  );
   const counterGroupQuery = useCounterGroup(binding.counter_group_id ?? null, {
-    enabled: source === "counter" || source === "counter_group",
+    enabled: scoped && (source === "counter" || source === "counter_group"),
   });
   const documentQuery = useDocument(
-    source === "sheet_range" ? (binding.document_id ?? null) : null
+    scoped && source === "sheet_range" ? (binding.document_id ?? null) : null
   );
 
   return useMemo<WidgetDataResult>(() => {
@@ -163,6 +174,9 @@ export function useWidgetData(
       isLoading: false,
       isUnbound: true,
     });
+
+    // No initiative, no data — fail closed rather than fan out.
+    if (!scoped) return unbound();
 
     switch (source) {
       case "tasks": {
@@ -207,9 +221,13 @@ export function useWidgetData(
 
       case "counter": {
         if (!binding.counter_group_id || !binding.counter_id) return unbound();
-        const counter = counterGroupQuery.data?.counters?.find(
-          (candidate) => candidate.id === binding.counter_id
-        );
+        // A group in another initiative resolves to absent, exactly like a
+        // deleted or unshared one — bindings do not reach across initiatives.
+        const group =
+          counterGroupQuery.data?.initiative_id === initiativeId
+            ? counterGroupQuery.data
+            : undefined;
+        const counter = group?.counters?.find((candidate) => candidate.id === binding.counter_id);
         if (!counter) {
           return {
             data: emptyDataFor(source),
@@ -227,7 +245,7 @@ export function useWidgetData(
 
       case "counter_group": {
         if (!binding.counter_group_id) return unbound();
-        if (!counterGroupQuery.data) {
+        if (!counterGroupQuery.data || counterGroupQuery.data.initiative_id !== initiativeId) {
           return {
             data: emptyDataFor(source),
             isLoading: counterGroupQuery.isLoading,
@@ -244,9 +262,11 @@ export function useWidgetData(
 
       case "sheet_range": {
         if (!binding.document_id || !binding.range) return unbound();
-        const range = documentQuery.data
-          ? normalizeSheetRange(documentQuery.data, binding.sheet, binding.range)
-          : null;
+        // Same rule as counter groups: a document outside this initiative is
+        // absent, not readable.
+        const document =
+          documentQuery.data?.initiative_id === initiativeId ? documentQuery.data : undefined;
+        const range = document ? normalizeSheetRange(document, binding.sheet, binding.range) : null;
         if (!range) {
           return {
             data: emptyDataFor(source),
@@ -281,6 +301,7 @@ export function useWidgetData(
     counterGroupQuery.isLoading,
     documentQuery.data,
     documentQuery.isLoading,
+    scoped,
   ]);
 }
 

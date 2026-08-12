@@ -15,6 +15,8 @@ from app.testing import (
     create_calendar,
     create_calendar_event,
     route_session_to_guild,
+    create_initiative,
+    create_guild_calendar,
 )
 
 
@@ -374,3 +376,26 @@ async def test_my_calendars_spans_guilds_and_applies_dac(
     assert shared.name in member_names
     assert secret.name not in member_names
     assert away.name not in member_names  # not a member of guild b
+
+
+async def test_calendar_counts_by_initiative(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Grouped counts mirror the list: DAC-visible calendars in calendars-enabled
+    initiatives, and never a guild calendar — the sidebar rows the counts sit on
+    are initiative rows, and a guild calendar belongs to none of them."""
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _calendars_enabled(session, admin.initiative)
+    disabled_initiative = await create_initiative(
+        session, admin.guild, admin.user, calendars_enabled=False
+    )
+
+    await create_calendar(session, admin.initiative, admin.user, name="Team")
+    await create_calendar(session, disabled_initiative, admin.user, name="Hidden")
+    await create_guild_calendar(session, admin.guild, admin.user)
+
+    response = await client.get(
+        admin.g("/calendars/counts/by-initiative"), headers=admin.headers
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["counts"] == {str(admin.initiative.id): 1}

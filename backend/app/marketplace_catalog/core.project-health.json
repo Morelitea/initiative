@@ -8,8 +8,8 @@
   "long_description": "A read-only overview of the initiative's projects. Shows how much of each project is done, how the open work splits across statuses, and the full project list underneath.\n\nNothing here needs setting up — every widget reads the initiative the dashboard lives on.",
   "avatar_url": "/marketplace/core-project-health.svg",
   "images": [],
-  "version": "1.0.1",
-  "release_notes": "Installable on the build that ships it.",
+  "version": "1.0.0",
+  "release_notes": "First release.",
   "definition": {
     "schema_version": 1,
     "kind": "dashboard",

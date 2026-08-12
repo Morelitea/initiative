@@ -146,14 +146,29 @@ const taskCounts: WidgetSample = {
   empty: { source: "task_counts", rows: [] },
   variants: {
     // Grouped by day rather than status — the only grouping with a calendar
-    // shape, and the one a heatmap binding would ask for.
+    // shape, and the one a heatmap binding would ask for. Half a year of days,
+    // so the preview fills a contribution grid the way real activity does:
+    // a weekly rhythm, quiet weekends, and the occasional busy spell — all
+    // deterministic, so the picker draws the same picture every time.
     heatmap: {
       source: "task_counts",
-      rows: Array.from({ length: 21 }, (_, index) => ({
-        bucket: new Date(T0 + index * DAY).toISOString().slice(0, 10),
-        count: (index * 5) % 7,
-        date: T0 + index * DAY,
-      })),
+      // Starting on a Sunday keeps the 26-week grid a clean rectangle — a
+      // mid-week start would leave the first column ragged.
+      rows: Array.from({ length: 182 }, (_, index) => {
+        const windowStart = T0 - 181 * DAY;
+        const sunday = windowStart - new Date(windowStart).getUTCDay() * DAY;
+        const date = sunday + index * DAY;
+        const weekday = new Date(date).getUTCDay();
+        const weekend = weekday === 0 || weekday === 6;
+        const rhythm = (index * 7) % 5;
+        const spike = index % 23 === 0 ? 4 : 0;
+        const count = weekend ? (index % 13 === 0 ? 2 : 0) : rhythm + spike;
+        return {
+          bucket: new Date(date).toISOString().slice(0, 10),
+          count,
+          date,
+        };
+      }),
     },
   },
 };

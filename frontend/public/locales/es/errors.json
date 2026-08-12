@@ -348,6 +348,8 @@
   "CALENDAR_EVENT_NOT_FOUND": "Evento no encontrado",
   "CALENDAR_EVENT_INVALID_ATTENDEE_IDS": "Algunas de esas personas no se pueden añadir a este evento",
   "CALENDAR_EVENT_GUILD_CALENDAR_NO_PROPERTIES": "Las propiedades personalizadas pertenecen a una iniciativa, así que los eventos de un calendario de gremio no pueden tenerlas",
+  "CALENDAR_EVENT_GUILD_CALENDAR_NO_DOCUMENTS": "Los documentos pertenecen a una iniciativa, así que los eventos de un calendario de gremio no pueden enlazarlos",
+  "CALENDAR_EVENT_CANNOT_CROSS_SCOPE": "Los eventos no se pueden mover entre un calendario de gremio y el calendario de una iniciativa",
   "DASHBOARD_NOT_FOUND": "Panel no encontrado",
   "DASHBOARD_CREATE_PERMISSION_REQUIRED": "No tienes permiso para crear paneles en esta iniciativa",
   "DASHBOARDS_NOT_ENABLED": "Los paneles no están habilitados en esta iniciativa",

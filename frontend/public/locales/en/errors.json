@@ -348,6 +348,8 @@
   "CALENDAR_EVENT_NOT_FOUND": "Event not found",
   "CALENDAR_EVENT_INVALID_ATTENDEE_IDS": "Some of those people can't be added to this event",
   "CALENDAR_EVENT_GUILD_CALENDAR_NO_PROPERTIES": "Custom properties belong to an initiative, so events on a guild calendar can't have them",
+  "CALENDAR_EVENT_GUILD_CALENDAR_NO_DOCUMENTS": "Documents belong to an initiative, so events on a guild calendar can't link them",
+  "CALENDAR_EVENT_CANNOT_CROSS_SCOPE": "Events can't move between a guild calendar and an initiative's calendar",
   "DASHBOARD_NOT_FOUND": "Dashboard not found",
   "DASHBOARD_CREATE_PERMISSION_REQUIRED": "You don't have permission to create dashboards in this initiative",
   "DASHBOARDS_NOT_ENABLED": "Dashboards are not enabled for this initiative",

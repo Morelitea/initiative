@@ -141,7 +141,17 @@ async def set_event_documents(
     guild_id: int,
     user_id: int,
 ) -> None:
-    """Replace all document links on a calendar event."""
+    """Replace all document links on a calendar event.
+
+    Documents are initiative content, and a guild calendar holds none of that —
+    an event there cannot link one. Clearing links is always fine.
+    Requires ``event.calendar`` to be eager-loaded.
+    """
+    if document_ids and event.calendar.initiative_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=CalendarEventMessages.GUILD_CALENDAR_NO_DOCUMENTS,
+        )
     if document_ids:
         docs_stmt = select(Document.id).where(
             Document.id.in_(document_ids),

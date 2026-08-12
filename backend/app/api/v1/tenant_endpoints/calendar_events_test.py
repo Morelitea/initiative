@@ -22,6 +22,7 @@ from app.models.tenant.resource_grant import ResourceGrant
 from app.testing import (
     create_calendar,
     create_calendar_event,
+    create_document,
     create_guild_calendar,
     create_property_definition,
     create_tag,
@@ -721,3 +722,52 @@ class TestGuildCalendarEvents:
             response.json()["detail"]
             == CalendarEventMessages.GUILD_CALENDAR_NO_PROPERTIES
         )
+
+    async def test_documents_cannot_be_linked(
+        self, client: AsyncClient, acting_user, session
+    ):
+        """Documents belong to an initiative; a guild calendar holds guild-level
+        content only, so an event there cannot link one."""
+        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        document = await create_document(session, a.initiative, a.user)
+        calendar = await create_guild_calendar(session, a.guild, a.user)
+        event = await create_calendar_event(session, calendar, a.user)
+
+        response = await client.put(
+            a.g(f"/calendar-events/{event.id}/documents"),
+            headers=a.headers,
+            json=[document.id],
+        )
+        assert response.status_code == 400
+        assert (
+            response.json()["detail"]
+            == CalendarEventMessages.GUILD_CALENDAR_NO_DOCUMENTS
+        )
+
+    async def test_an_event_cannot_move_across_the_scope_line(
+        self, client: AsyncClient, acting_user, session
+    ):
+        """Both directions: an event carries its initiative attachments, so a
+        move between a guild calendar and an initiative calendar is refused."""
+        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        await _switch_calendars_on(session, a.initiative)
+        guild_calendar = await create_guild_calendar(session, a.guild, a.user)
+        team_calendar = await create_calendar(session, a.initiative, a.user)
+        guild_event = await create_calendar_event(session, guild_calendar, a.user)
+        team_event = await create_calendar_event(session, team_calendar, a.user)
+
+        out = await client.patch(
+            a.g(f"/calendar-events/{guild_event.id}"),
+            headers=a.headers,
+            json={"calendar_id": team_calendar.id},
+        )
+        assert out.status_code == 400
+        assert out.json()["detail"] == CalendarEventMessages.CANNOT_CROSS_SCOPE
+
+        into = await client.patch(
+            a.g(f"/calendar-events/{team_event.id}"),
+            headers=a.headers,
+            json={"calendar_id": guild_calendar.id},
+        )
+        assert into.status_code == 400
+        assert into.json()["detail"] == CalendarEventMessages.CANNOT_CROSS_SCOPE

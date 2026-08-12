@@ -43,6 +43,10 @@ import { localized } from "@/lib/widgets/widgetMeta";
 export interface WidgetConfigDialogProps {
   widget: DefinitionWidget | null;
   catalog: WidgetCatalog | undefined;
+  /** The dashboard's initiative. Every picker below offers this initiative's
+   *  content and nothing else — a dashboard is an initiative's tool, and its
+   *  bindings cannot reach outside it. */
+  initiativeId: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (patch: Partial<DefinitionWidget>) => void;
@@ -55,6 +59,7 @@ const BUCKETS = ["status_category", "status", "priority", "project", "assignee",
 export function WidgetConfigDialog({
   widget,
   catalog,
+  initiativeId,
   open,
   onOpenChange,
   onSave,
@@ -83,15 +88,21 @@ export function WidgetConfigDialog({
   const needsCounterGroup = source === "counter" || source === "counter_group";
   const needsDocument = source === "sheet_range";
 
-  const counterGroups = useCounterGroupsList({}, { enabled: open && needsCounterGroup });
+  // All four pickers ask the server for this initiative's content only; the
+  // projects list has no initiative filter of its own, so it narrows below.
+  const counterGroups = useCounterGroupsList(
+    { initiative_id: initiativeId },
+    { enabled: open && needsCounterGroup }
+  );
   const documents = useDocumentsList(
-    { document_type: "spreadsheet" },
+    { document_type: "spreadsheet", initiative_id: initiativeId },
     { enabled: open && needsDocument }
   );
   const projects = useProjects(undefined, { enabled: open && source === "tasks" });
-  const calendars = useCalendarsList(undefined, {
-    enabled: open && source === "calendar_entries",
-  });
+  const calendars = useCalendarsList(
+    { initiative_id: initiativeId },
+    { enabled: open && source === "calendar_entries" }
+  );
 
   // The list endpoint returns group summaries; the counters themselves come
   // from the group's own read, which is also the query the widget will use.
@@ -258,11 +269,13 @@ export function WidgetConfigDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{t("dashboards:config.allProjects")}</SelectItem>
-                  {(projects.data?.items ?? []).map((project) => (
-                    <SelectItem key={project.id} value={String(project.id)}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
+                  {(projects.data?.items ?? [])
+                    .filter((project) => project.initiative_id === initiativeId)
+                    .map((project) => (
+                      <SelectItem key={project.id} value={String(project.id)}>
+                        {project.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>

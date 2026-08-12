@@ -27,6 +27,7 @@ import type {
   DashboardRead,
   DashboardUpdate,
   HTTPValidationError,
+  InitiativeGroupedCountsResponse,
   ListDashboardsApiV1GGuildIdDashboardsGetParams,
   RecentViewWrite,
   ResourceGrantSchema,
@@ -319,6 +320,240 @@ export const useCreateDashboardApiV1GGuildIdDashboardsPost = <
     queryClient
   );
 };
+/**
+ * Visible-dashboard counts grouped by initiative.
+ *
+ * Lightweight endpoint for the sidebar badges — same visibility rules as the
+ * dashboard list (dashboards-enabled initiatives, DAC), one GROUP BY instead
+ * of a capped list page.
+ * @summary Get Dashboard Counts By Initiative
+ */
+export const getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet = (
+  guildId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<InitiativeGroupedCountsResponse>(
+    { url: `/api/v1/g/${guildId}/dashboards/counts/by-initiative`, method: "GET", signal },
+    options
+  );
+};
+
+export const getGetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGetQueryKey =
+  (guildId: number) => {
+    return [`/api/v1/g/${guildId}/dashboards/counts/by-initiative`] as const;
+  };
+
+export const getGetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGetQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet>
+    >,
+    TError = ErrorType<HTTPValidationError>,
+  >(
+    guildId: number,
+    options?: {
+      query?: Partial<
+        UseQueryOptions<
+          Awaited<
+            ReturnType<
+              typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
+            >
+          >,
+          TError,
+          TData
+        >
+      >;
+      request?: SecondParameter<typeof apiMutator>;
+    }
+  ) => {
+    const { query: queryOptions, request: requestOptions } = options ?? {};
+
+    const queryKey =
+      queryOptions?.queryKey ??
+      getGetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGetQueryKey(
+        guildId
+      );
+
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<
+          typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
+        >
+      >
+    > = ({ signal }) =>
+      getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet(
+        guildId,
+        requestOptions,
+        signal
+      );
+
+    return {
+      queryKey,
+      queryFn,
+      enabled: guildId !== null && guildId !== undefined,
+      ...queryOptions,
+    } as UseQueryOptions<
+      Awaited<
+        ReturnType<
+          typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
+        >
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
+
+export type GetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGetQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet>
+    >
+  >;
+export type GetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useGetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet<
+  TData = Awaited<
+    ReturnType<typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
+            >
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet<
+  TData = Awaited<
+    ReturnType<typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
+            >
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet<
+  TData = Awaited<
+    ReturnType<typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Dashboard Counts By Initiative
+ */
+
+export function useGetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet<
+  TData = Awaited<
+    ReturnType<typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getGetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGetQueryOptions(
+      guildId,
+      options
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
 /**
  * Which marketplace listings this guild has installed, and how many of each.
  *

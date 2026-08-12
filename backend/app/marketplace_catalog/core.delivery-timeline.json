@@ -8,8 +8,8 @@
   "long_description": "Puts every dated task in the initiative on a shared timeline, grouped into lanes, with the open count beside it and the full list below.\n\nTasks with no start or due date do not appear on the timeline — they are still counted, and still listed.",
   "avatar_url": "/marketplace/core-delivery-timeline.svg",
   "images": [],
-  "version": "1.0.1",
-  "release_notes": "Installable on the build that ships it.",
+  "version": "1.0.0",
+  "release_notes": "First release.",
   "definition": {
     "schema_version": 1,
     "kind": "dashboard",

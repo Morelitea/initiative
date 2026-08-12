@@ -69,17 +69,25 @@ def _deployment_naming(manifest: dict[str, Any]) -> dict[str, Any]:
     """The manifest as this deployment presents it.
 
     An advanced-tool embed is whatever the operator calls it — the same name the
-    initiative-level surface already uses — so the catalog shows that rather than
-    a generic one. Everything else is published as written.
+    initiative-level surface already uses — so the catalog shows that name, and
+    the blurbs speak it too: the shipped copy carries a ``{name}`` token that is
+    filled in here, so a listing never says "the service" when the operator has
+    called the thing Automations. Everything else is published as written.
     """
     definition = manifest.get("definition")
     if not isinstance(definition, Mapping):
         return manifest
     if definition.get("embed_target") != "advanced_tool":
         return manifest
-    if not settings.ADVANCED_TOOL_NAME:
-        return manifest
-    return {**manifest, "name": settings.ADVANCED_TOOL_NAME}
+    # Fall back to the manifest's own name so the token never reaches the
+    # catalog unfilled on a deployment that set the URL but skipped the name.
+    name = settings.ADVANCED_TOOL_NAME or str(manifest.get("name", ""))
+    named = {**manifest, "name": name}
+    for field in ("description", "long_description"):
+        value = named.get(field)
+        if isinstance(value, str):
+            named[field] = value.replace("{name}", name)
+    return named
 
 
 def load_builtin_manifests(directory: Path | None = None) -> Iterator[dict[str, Any]]:

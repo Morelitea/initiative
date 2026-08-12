@@ -682,9 +682,19 @@ async def update_calendar_event(
         and update_data["calendar_id"] != event.calendar_id
     ):
         # Moving between calendars needs write on the destination too.
-        await _get_writable_calendar(
+        destination = await _get_writable_calendar(
             session, update_data["calendar_id"], current_user, guild_context
         )
+        # And the move may not cross the guild/initiative line in either
+        # direction: an event carries its attendees, property values and
+        # document links, all of which belong to one side of it.
+        if (destination.initiative_id is None) != (
+            event.calendar.initiative_id is None
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=CalendarEventMessages.CANNOT_CROSS_SCOPE,
+            )
         event.calendar_id = update_data["calendar_id"]
         updated = True
 

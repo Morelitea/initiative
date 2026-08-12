@@ -201,6 +201,50 @@ class TestDefinitions:
         }
 
 
+class TestArtwork:
+    """Artwork must be a same-origin path; anything else is refused."""
+
+    @pytest.mark.parametrize(
+        "avatar_url",
+        [
+            "https://elsewhere.test/logo.png",
+            "http://elsewhere.test/logo.png",
+            "//elsewhere.test/logo.png",
+            "marketplace/relative.svg",
+            # Outside the allow-list.
+            "/\\elsewhere.test/logo.png",
+            "/\telsewhere.test/logo.png",
+            "/marketplace/../logo.png",
+            "/marketplace//logo.png",
+        ],
+    )
+    async def test_offsite_avatar_is_refused(self, session, avatar_url):
+        # Which of the three checks refuses it varies by case; that it names
+        # the field is the contract.
+        with pytest.raises(CatalogError, match="avatar_url"):
+            await service.upsert_listing(
+                session, _manifest(avatar_url=avatar_url), source="builtin"
+            )
+
+    async def test_offsite_screenshot_is_refused(self, session):
+        with pytest.raises(CatalogError, match="images"):
+            await service.upsert_listing(
+                session,
+                _manifest(
+                    images=["/marketplace/ok.png", "https://elsewhere.test/x.png"]
+                ),
+                source="builtin",
+            )
+
+    async def test_local_artwork_is_accepted(self, session):
+        listing = await service.upsert_listing(
+            session,
+            _manifest(images=["/marketplace/shot-1.png"]),
+            source="builtin",
+        )
+        assert listing.images == ["/marketplace/shot-1.png"]
+
+
 class TestVersions:
     async def test_republishing_a_version_unchanged_is_a_no_op(self, session):
         """Boot re-seeds the shipped listings on every start, so publishing the

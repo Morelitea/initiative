@@ -86,6 +86,27 @@ def _check_public_id(public_id: str) -> str:
     return public_id
 
 
+#: Characters an artwork path may use — an explicit allow-list, so a stored
+#: path is exactly what a browser will request.
+_ARTWORK_CHARS = frozenset(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/._-"
+)
+
+
+def _check_artwork_path(value: str, *, field: str) -> str:
+    """A listing's artwork must be a same-origin path — the shipped files live
+    under ``/marketplace/``. A registry wanting third-party artwork mirrors it
+    locally rather than linking out."""
+    if not value.startswith("/"):
+        raise CatalogError(f"{field} must be a same-origin path starting with '/'")
+    for char in value:
+        if char not in _ARTWORK_CHARS:
+            raise CatalogError(f"{field} contains {char!r}, which is not allowed")
+    if "//" in value or "/../" in value or value.endswith("/.."):
+        raise CatalogError(f"{field} must be a plain path with no '//' or '..'")
+    return value
+
+
 def _check_version(version: str) -> str:
     if not version or len(version) > _MAX_VERSION:
         raise CatalogError("version must be 1..32 characters")
@@ -245,9 +266,13 @@ async def upsert_listing(
         if not manifest.get(required):
             raise CatalogError(f"{public_id}: {required} is required")
 
+    _check_artwork_path(str(manifest["avatar_url"]), field=f"{public_id}: avatar_url")
+
     images = manifest.get("images") or []
     if not isinstance(images, list) or any(not isinstance(i, str) for i in images):
         raise CatalogError(f"{public_id}: images must be a list of strings")
+    for image in images:
+        _check_artwork_path(image, field=f"{public_id}: images")
 
     existing = await get_listing_by_uid(session, uid)
     if existing is None:

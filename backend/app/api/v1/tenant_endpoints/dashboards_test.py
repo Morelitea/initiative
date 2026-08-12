@@ -423,3 +423,27 @@ async def test_widget_catalog_path_is_not_read_as_an_id(
     response = await client.get(a.g("/dashboards/widget-catalog"), headers=a.headers)
     assert response.status_code == 200
     assert "widgets" in response.json()
+
+
+async def test_dashboard_counts_by_initiative(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Grouped counts mirror the list: DAC-visible dashboards in
+    dashboards-enabled initiatives only."""
+    from app.testing import create_initiative
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _dashboards_enabled(session, a.initiative)
+    disabled_initiative = await create_initiative(
+        session, a.guild, a.user, dashboards_enabled=False
+    )
+
+    await create_dashboard(session, a.initiative, a.user, name="Health")
+    await create_dashboard(session, a.initiative, a.user, name="Flow")
+    await create_dashboard(session, disabled_initiative, a.user, name="Hidden")
+
+    response = await client.get(
+        a.g("/dashboards/counts/by-initiative"), headers=a.headers
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["counts"] == {str(a.initiative.id): 2}
