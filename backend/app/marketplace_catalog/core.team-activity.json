@@ -1,0 +1,88 @@
+{
+  "uid": "AWVQBK0Q2GVX5G",
+  "public_id": "core.team-activity",
+  "kind": "dashboard",
+  "name": "Team activity",
+  "publisher": "Initiative",
+  "description": "Who is doing what, and when it gets done.",
+  "long_description": "A read-only pulse of the initiative's people. How the work spreads across the team, the daily rhythm of what gets finished, and how the open pile leans by priority — with the finished total as the headline.\n\nNothing here needs setting up — every widget reads the initiative the dashboard lives on.",
+  "avatar_url": "/marketplace/core-team-activity.svg",
+  "images": [],
+  "version": "1.0.0",
+  "release_notes": "First release.",
+  "definition": {
+    "schema_version": 1,
+    "kind": "dashboard",
+    "layout": {
+      "columns": 12
+    },
+    "widgets": [
+      {
+        "id": "w1",
+        "type": "stat",
+        "grid": {
+          "x": 0,
+          "y": 0,
+          "w": 3,
+          "h": 3
+        },
+        "binding": {
+          "source": "task_counts",
+          "bucket": "day"
+        },
+        "title": "Finished"
+      },
+      {
+        "id": "w2",
+        "type": "heatmap",
+        "grid": {
+          "x": 3,
+          "y": 0,
+          "w": 9,
+          "h": 3
+        },
+        "binding": {
+          "source": "task_counts",
+          "bucket": "day"
+        },
+        "title": "Completions by day"
+      },
+      {
+        "id": "w3",
+        "type": "chart",
+        "grid": {
+          "x": 0,
+          "y": 3,
+          "w": 6,
+          "h": 4
+        },
+        "binding": {
+          "source": "task_counts",
+          "bucket": "assignee"
+        },
+        "title": "Work by person",
+        "options": {
+          "mark": "bar"
+        }
+      },
+      {
+        "id": "w4",
+        "type": "chart",
+        "grid": {
+          "x": 6,
+          "y": 3,
+          "w": 6,
+          "h": 4
+        },
+        "binding": {
+          "source": "task_counts",
+          "bucket": "priority"
+        },
+        "title": "By priority",
+        "options": {
+          "mark": "pie"
+        }
+      }
+    ]
+  }
+}
