@@ -94,8 +94,9 @@ async def list_advanced_tools(
         conditions.append(AdvancedTool.initiative_id == initiative_id)
     else:
         # Guild-wide (NULL) rows, plus initiative-scoped rows in an enabled
-        # initiative. RLS hides guild-wide rows from non-admins; the DAC narrowing
-        # below removes any initiative-scoped row the user has no grant on.
+        # initiative. A guild-level row is inside the guild schema and nothing
+        # more, so the DAC narrowing below is what decides who sees it — same as
+        # it does for an initiative-scoped row the user has no grant on.
         conditions.append(
             or_(
                 AdvancedTool.initiative_id.is_(None),
@@ -108,8 +109,9 @@ async def list_advanced_tools(
         )
 
     # DAC narrowing for ordinary members (a PAM grantee / guild admin sees all the
-    # RLS lets through). visible_resource_ids_subquery is grant-based, so it also
-    # naturally excludes guild-wide rows (which hold no grants).
+    # RLS lets through). visible_resource_ids_subquery is grant-based, so a
+    # guild-wide row appears only once someone grants it — an ungranted one stays
+    # unlisted, which is how they behaved before guild scope had a meaning.
     if not rls_service.is_guild_admin(guild_context.role) and not guild_context.is_pam:
         conditions.append(
             AdvancedTool.id.in_(

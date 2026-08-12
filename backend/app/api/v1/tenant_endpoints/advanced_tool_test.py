@@ -84,14 +84,20 @@ async def test_create_guild_wide_admin_only(client: AsyncClient, acting_user):
     assert forbidden.status_code == 403
     assert forbidden.json()["detail"] == "ADVANCED_TOOL_GUILD_WIDE_REQUIRES_ADMIN"
 
-    # ...and can't even see the admin's guild-wide tool (RLS admin-only).
+    # ...and is refused the admin's guild-wide tool, which holds no grant for
+    # them. A 403 rather than a 404: a guild-wide row belongs to the guild they
+    # are in, so what withholds it is its sharing, not the initiative gate.
     hidden = await client.get(
         member.g(f"/advanced-tools/{tool_id}"), headers=member.headers
     )
-    assert hidden.status_code == 404
+    assert hidden.status_code == 403
 
 
 async def test_guild_wide_rejects_sharing(client: AsyncClient, acting_user):
+    """Guild-wide tools cannot be shared yet, so in practice they stay
+    admin-only: no grant can be written, and the list narrows to granted rows.
+    Opening this up is what makes them grant-governed in full — separate work
+    from giving guild scope a meaning."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
     created = await client.post(
         admin.g("/advanced-tools/"), headers=admin.headers, json={"name": "gw"}
