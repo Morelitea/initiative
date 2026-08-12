@@ -13,6 +13,7 @@ Sharing a dashboard therefore shares the *view*, never the underlying data:
 a viewer who cannot read a bound counter simply sees an empty widget.
 """
 
+import logging
 from datetime import datetime, timezone
 from typing import Annotated, List, Optional
 
@@ -28,8 +29,16 @@ from app.api.deps import (
     get_current_active_user,
     get_guild_membership,
 )
-from app.core.messages import DashboardMessages, InitiativeMessages
+from app.core.messages import (
+    DashboardMessages,
+    InitiativeMessages,
+    MarketplaceMessages,
+)
 from app.core.tools import Tool
+from app.models.platform.marketplace import (
+    MarketplaceListing,
+    MarketplaceListingVersion,
+)
 from app.models.platform.user import User
 from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.initiative import Initiative, PermissionKey
@@ -46,8 +55,10 @@ from app.schemas.tenant.dashboard import (
 )
 from app.schemas.tenant.recent_view import RecentViewWrite
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
+from app.db import session as db_session
 from app.services import permissions as permissions_service
 from app.services import rls as rls_service
+from app.services.marketplace import catalog as catalog_service
 from app.services.tenant import dashboards as dashboards_service
 from app.services.tenant import recent_views as recent_views_service
 from app.services.tenant import tags as tags_service
@@ -56,6 +67,8 @@ from app.services.tenant.dashboard_definition import (
     normalize_dashboard_config,
     normalize_dashboard_definition,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -79,6 +92,62 @@ def _normalize_body(definition: dict, config: dict) -> tuple[dict, dict]:
             detail=str(exc),
         ) from exc
     return clean_definition, clean_config
+
+
+async def _resolve_listing_install(
+    session: RLSSessionDep, listing_uid: str
+) -> tuple[MarketplaceListing, MarketplaceListingVersion]:
+    """The catalog rows behind an install: the listing, and the version to pin.
+
+    The definition is read from the catalog row; the request supplies only the
+    listing's uid. The lookup runs on the session the request already has, which
+    holds read access to the catalog.
+    """
+    listing = await catalog_service.get_listing_by_uid(session, listing_uid)
+    if listing is None or listing.kind != "dashboard":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=MarketplaceMessages.LISTING_NOT_FOUND,
+        )
+    if not listing.available:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=MarketplaceMessages.LISTING_UNAVAILABLE,
+        )
+    version = await catalog_service.resolve_installable_version(session, listing)
+    if version is None:
+        # Either it has published nothing, or its current version needs a newer
+        # app. Silently installing an older one would be worse: the guild would
+        # get something other than what the listing page showed them.
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=MarketplaceMessages.LISTING_VERSION_INCOMPATIBLE,
+        )
+    return listing, version
+
+
+async def _count_install(listing_id: Optional[int]) -> None:
+    """Add one to a listing's install tally, after the install has committed.
+
+    On the system engine because the catalog has no request-path writer, and
+    best-effort because it is a display number: a failed bump must never fail an
+    install that already happened. Nothing about *which* guild is recorded.
+    """
+    if listing_id is None:
+        return
+    try:
+        # Read off the module rather than bound at import: the session maker is
+        # swapped per test, and a name captured at import time would keep
+        # pointing at the real database.
+        async with db_session.AdminSessionLocal() as session:
+            await catalog_service.bump_installs_count(session, listing_id)
+            await session.commit()
+    except Exception:
+        logger.warning(
+            "marketplace: install count bump failed for listing %s",
+            listing_id,
+            exc_info=True,
+        )
 
 
 async def _get_initiative_for_dashboard(
@@ -260,7 +329,22 @@ async def create_dashboard(
         )
     await _check_create_permission(session, initiative, current_user, guild_context)
 
-    definition, config = _normalize_body(dashboard_in.definition, dashboard_in.config)
+    listing_id: Optional[int] = None
+    listing_version: Optional[str] = None
+    if dashboard_in.listing_uid:
+        listing, version = await _resolve_listing_install(
+            session, dashboard_in.listing_uid
+        )
+        listing_id, listing_version = listing.id, version.version
+        # Validated again on the way in: the catalog validated it at publish
+        # time, but this build decides what it can render *now*.
+        definition, config = _normalize_body(
+            dict(version.definition), dashboard_in.config
+        )
+    else:
+        definition, config = _normalize_body(
+            dashboard_in.definition, dashboard_in.config
+        )
 
     dashboard = Dashboard(
         guild_id=guild_context.guild_id,
@@ -270,6 +354,8 @@ async def create_dashboard(
         description=dashboard_in.description,
         definition=definition,
         config=config,
+        listing_uid=dashboard_in.listing_uid,
+        listing_version=listing_version,
     )
     session.add(dashboard)
     await session.flush()
@@ -308,6 +394,8 @@ async def create_dashboard(
         )
 
     await session.commit()
+    if listing_id is not None:
+        await _count_install(listing_id)
     hydrated = await _refetch_dashboard(session, dashboard.id)
     return serialize_dashboard(hydrated, user_id=current_user.id)
 
@@ -353,6 +441,58 @@ async def update_dashboard(
         dashboard.updated_at = datetime.now(timezone.utc)
         session.add(dashboard)
         await session.commit()
+
+    hydrated = await _refetch_dashboard(session, dashboard.id)
+    return serialize_dashboard(hydrated, user_id=current_user.id)
+
+
+@router.post("/{dashboard_id}/upgrade", response_model=DashboardRead)
+async def upgrade_dashboard(
+    dashboard_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> DashboardRead:
+    """Re-pin an installed dashboard to its listing's current version.
+
+    Nothing is ever pushed into a guild: a new version sits in the catalog until
+    someone with write access here asks for it. Applying one replaces this
+    instance's definition and nothing else — other instances of the same
+    listing, in this guild or any other, are untouched.
+
+    The instance's own config survives. A binding slot the new version dropped
+    takes its config key with it, which is the same normalization an edit does,
+    so config can never outlive the widget it configured.
+    """
+    dashboard = await resource_access.load_authorized(
+        session,
+        Tool.dashboard,
+        dashboard_id,
+        current_user,
+        guild_context,
+        access="write",
+    )
+    if not dashboard.listing_uid:
+        # Authored here, not installed — there is no listing to re-pin to.
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=MarketplaceMessages.NOT_INSTALLED_FROM_LISTING,
+        )
+
+    _, version = await _resolve_listing_install(session, dashboard.listing_uid)
+    if version.version == dashboard.listing_version:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=MarketplaceMessages.ALREADY_LATEST_VERSION,
+        )
+
+    definition, config = _normalize_body(dict(version.definition), dashboard.config)
+    dashboard.definition = definition
+    dashboard.config = config
+    dashboard.listing_version = version.version
+    dashboard.updated_at = datetime.now(timezone.utc)
+    session.add(dashboard)
+    await session.commit()
 
     hydrated = await _refetch_dashboard(session, dashboard.id)
     return serialize_dashboard(hydrated, user_id=current_user.id)

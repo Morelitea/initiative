@@ -1,0 +1,68 @@
+{
+  "uid": "R3H8FZ5PW2KDQY",
+  "public_id": "core.delivery-timeline",
+  "kind": "dashboard",
+  "name": "Delivery timeline",
+  "publisher": "Initiative",
+  "description": "Scheduled work on one timeline, with what is still ahead.",
+  "long_description": "Puts every dated task in the initiative on a shared timeline, grouped into lanes, with the open count beside it and the full list below.\n\nTasks with no start or due date do not appear on the timeline — they are still counted, and still listed.",
+  "avatar_url": "/marketplace/core-delivery-timeline.svg",
+  "images": [],
+  "version": "1.0.0",
+  "release_notes": "First release.",
+  "min_app_version": "0.62.0",
+  "definition": {
+    "schema_version": 1,
+    "kind": "dashboard",
+    "layout": {
+      "columns": 12
+    },
+    "widgets": [
+      {
+        "id": "w1",
+        "type": "gantt",
+        "grid": {
+          "x": 0,
+          "y": 0,
+          "w": 12,
+          "h": 6
+        },
+        "binding": {
+          "source": "tasks"
+        },
+        "title": "Schedule",
+        "options": {
+          "scale": "week"
+        }
+      },
+      {
+        "id": "w2",
+        "type": "stat",
+        "grid": {
+          "x": 0,
+          "y": 6,
+          "w": 3,
+          "h": 2
+        },
+        "binding": {
+          "source": "task_counts"
+        },
+        "title": "Still open"
+      },
+      {
+        "id": "w3",
+        "type": "table",
+        "grid": {
+          "x": 3,
+          "y": 6,
+          "w": 9,
+          "h": 5
+        },
+        "binding": {
+          "source": "tasks"
+        },
+        "title": "Open work"
+      }
+    ]
+  }
+}

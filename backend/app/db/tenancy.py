@@ -79,6 +79,10 @@ SHARED_TABLES: frozenset[str] = frozenset(
         "guild_auth_policies",  # per-guild sign-in requirement, read pre-routing by the gate
         # Platform-wide
         "app_settings",  # OIDC / SMTP / branding config
+        # Marketplace catalog: what is installable, platform-wide. Holds no
+        # guild_id by design — the catalog never records who installed what.
+        "marketplace_listings",
+        "marketplace_listing_versions",
         "platform_ai_connections",  # operator AI connections (platform config mode)
         "access_grants",  # PAM — inherently cross-guild (request -> approve -> scoped)
         "notifications",  # per-user inbox spanning guilds (carries guild_id after split)

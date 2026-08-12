@@ -2,12 +2,11 @@
  * How a binding becomes a request.
  *
  * The load-bearing case is scope. A dashboard reads the initiative it lives on,
- * and the tasks endpoint narrows on exactly one thing — the filter DSL. It takes
- * no `initiative_id` or `project_id` query parameter, so scope stated as one is
- * accepted by the type checker, dropped by the server, and the widget quietly
- * aggregates every task the viewer can read across the guild. That failure is
- * invisible on a canvas (a chart with plausible-looking numbers), which is why
- * it is pinned here on the request rather than on what gets drawn.
+ * and the tasks endpoint narrows on exactly one thing — the filter DSL. Scope
+ * expressed any other way is accepted by the type checker and ignored by the
+ * server, and the difference is invisible on a canvas (a chart with
+ * plausible-looking numbers), so it is pinned here on the request itself rather
+ * than on what gets drawn.
  */
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";

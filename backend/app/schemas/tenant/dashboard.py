@@ -40,6 +40,11 @@ class DashboardBase(SanitizedBaseModel):
 class DashboardCreate(DashboardBase):
     initiative_id: int
     tag_ids: Optional[List[int]] = None
+    # Install from the marketplace instead of authoring: name a catalog listing
+    # by its uid and the server resolves it, taking the definition from the
+    # catalog row and pinning the version. Nothing about the body below is read
+    # when this is set — an installed definition is never client-supplied.
+    listing_uid: Optional[str] = Field(default=None, max_length=14)
     # The canvas body. Validated + canonicalized by
     # ``dashboard_definition.normalize_dashboard_definition`` before it is
     # stored, so only known widget/binding vocabulary ever lands in the row.

@@ -93,10 +93,10 @@ export function useWidgetData(
   /**
    * The task query, scoped through the filter DSL.
    *
-   * `conditions` is the *only* narrowing the tasks endpoint reads — it takes no
-   * `initiative_id` or `project_id` query parameter, so scope stated as one is
-   * silently dropped and the widget aggregates every task the viewer can read
-   * across the guild. Both go in as conditions, AND-ed with the binding's own.
+   * `conditions` is the only narrowing the tasks endpoint reads — it has no
+   * `initiative_id` or `project_id` query parameter — so the dashboard's
+   * initiative and any bound project go in as conditions, AND-ed with the
+   * binding's own.
    *
    * Flat, deliberately: the DSL caps group nesting, and the author's own
    * conditions may already use it, so adding a wrapper of our own would spend a

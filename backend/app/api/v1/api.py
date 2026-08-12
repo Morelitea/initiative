@@ -49,6 +49,7 @@ from app.api.v1.platform_endpoints import (
     config,
     guild_auth_providers,
     guilds,
+    marketplace,
     native,
     notifications,
     push,
@@ -71,6 +72,12 @@ api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(guilds.router, prefix="/guilds", tags=["guilds"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
+# The marketplace catalog is platform-addressed: one shared surface, globally
+# unique ids, and no tenant data — so it takes no guild segment. Installing is
+# guild-scoped and lives on the tool routers.
+api_router.include_router(
+    marketplace.router, prefix="/marketplace", tags=["marketplace"]
+)
 api_router.include_router(push.router, prefix="/push", tags=["push"])
 # Platform / app-wide config (owner-only) and cross-guild PAM management — NOT
 # guild-scoped (AdminSessionDep / capability-gated), so they stay top-level.

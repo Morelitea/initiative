@@ -1407,6 +1407,7 @@ export interface DashboardCreate {
   description?: string | null;
   initiative_id: number;
   tag_ids?: number[] | null;
+  listing_uid?: string | null;
   definition?: DashboardCreateDefinition;
   config?: DashboardCreateConfig;
   grants?: ResourceGrantSchema[];
@@ -2368,6 +2369,67 @@ export interface LoginProviderEntry {
 export interface LoginProvidersResponse {
   providers: LoginProviderEntry[];
   guild_name: string | null;
+}
+
+export type MarketplaceListingDetailDefinition = { [key: string]: unknown } | null;
+
+/**
+ * One published version of a listing.
+ */
+export interface MarketplaceVersionRead {
+  version: string;
+  release_notes: string | null;
+  min_app_version: string | null;
+  published_at: string;
+  compatible: boolean;
+}
+
+/**
+ * A listing's full page, including what it would install.
+ */
+export interface MarketplaceListingDetail {
+  uid: string;
+  public_id: string;
+  kind: string;
+  source: string;
+  name: string;
+  publisher: string;
+  description: string;
+  avatar_url: string;
+  images: string[];
+  installs_count: number;
+  available: boolean;
+  latest_version: MarketplaceVersionRead | null;
+  installable: boolean;
+  updated_at: string;
+  long_description: string | null;
+  definition: MarketplaceListingDetailDefinition;
+  versions: MarketplaceVersionRead[];
+}
+
+/**
+ * A listing as it appears on a browse card.
+ */
+export interface MarketplaceListingSummary {
+  uid: string;
+  public_id: string;
+  kind: string;
+  source: string;
+  name: string;
+  publisher: string;
+  description: string;
+  avatar_url: string;
+  images: string[];
+  installs_count: number;
+  available: boolean;
+  latest_version: MarketplaceVersionRead | null;
+  installable: boolean;
+  updated_at: string;
+}
+
+export interface MarketplaceListingPage {
+  items: MarketplaceListingSummary[];
+  total: number;
 }
 
 /**
@@ -4390,6 +4452,20 @@ export type AdminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMemb
 
 export type GetMyInitiativeMembersApiV1UsersMeInitiativeMembersInitiativeIdGetParams = {
   guild_id: number;
+};
+
+export type ListMarketplaceListingsApiV1MarketplaceListingsGetParams = {
+  kind?: string | null;
+  q?: string | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  page_size?: number;
 };
 
 export type ListAccessGrantsApiV1AccessGrantsGetParams = {

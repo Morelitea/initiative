@@ -867,6 +867,107 @@ export const useDeleteDashboardApiV1GGuildIdDashboardsDashboardIdDelete = <
   );
 };
 /**
+ * Re-pin an installed dashboard to its listing's current version.
+ *
+ * Nothing is ever pushed into a guild: a new version sits in the catalog until
+ * someone with write access here asks for it. Applying one replaces this
+ * instance's definition and nothing else — other instances of the same
+ * listing, in this guild or any other, are untouched.
+ *
+ * The instance's own config survives. A binding slot the new version dropped
+ * takes its config key with it, which is the same normalization an edit does,
+ * so config can never outlive the widget it configured.
+ * @summary Upgrade Dashboard
+ */
+export const upgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePost = (
+  guildId: number,
+  dashboardId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DashboardRead>(
+    { url: `/api/v1/g/${guildId}/dashboards/${dashboardId}/upgrade`, method: "POST", signal },
+    options
+  );
+};
+
+export const getUpgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePost>>,
+    TError,
+    { guildId: number; dashboardId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof upgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePost>>,
+  TError,
+  { guildId: number; dashboardId: number },
+  TContext
+> => {
+  const mutationKey = ["upgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof upgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePost>>,
+    { guildId: number; dashboardId: number }
+  > = (props) => {
+    const { guildId, dashboardId } = props ?? {};
+
+    return upgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePost(
+      guildId,
+      dashboardId,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof upgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePost>>
+  >;
+
+export type UpgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Upgrade Dashboard
+ */
+export const useUpgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof upgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePost>>,
+      TError,
+      { guildId: number; dashboardId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof upgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePost>>,
+  TError,
+  { guildId: number; dashboardId: number },
+  TContext
+> => {
+  return useMutation(
+    getUpgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePostMutationOptions(options),
+    queryClient
+  );
+};
+/**
  * Replace the dashboard's entire sharing state in one call — the body is
  * the full list of grants (all-initiative-members / per-user / per-role).
  * Every non-owner grant is rebuilt from it; the owner is always preserved.
