@@ -19,11 +19,17 @@ from app.core.role_context import (
     set_content_read_only_guild,
     set_override_sharing_initiatives,
 )
-from app.core.messages import AuthMessages, GuildMessages, UserMessages
+from app.core.messages import (
+    AuthMessages,
+    GuildMessages,
+    UserMessages,
+    WebhookSubscriptionMessages,
+)
 from app.core.security import (
     SESSION_COOKIE_NAME,
     AutoDelegationVerificationError,
     UploadTokenError,
+    auto_delegation_configured,
     decode_session_token,
     verify_auto_delegation_token,
     verify_upload_token,
@@ -590,6 +596,56 @@ def require_guild_roles(*roles: GuildRole) -> Callable:
         return context
 
     return dependency
+
+
+async def require_auto_delegate(
+    request: Request,
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+) -> GuildContext:
+    """Guild context for endpoints only the automation delegate may call.
+
+    Some surfaces belong to the deployment's automation delegate rather than to
+    the people in a guild — outbound event subscriptions are the case this was
+    written for: apps and users emit events, the delegate owns the delivery
+    targets. Returns the same ``GuildContext`` as ``get_guild_membership`` so an
+    endpoint gets its guild scoping *through* the gate and cannot hold one
+    without the other.
+
+    Three answers:
+
+    * **503** when no delegate is configured (no delegation public key). The
+      deployment has no automation delegate, so no caller can qualify; this is
+      an operator configuration state, not a caller fault, and it resolves
+      itself once a delegate is configured.
+    * **403** when the request authenticated as an ordinary user, session or
+      API key rather than over the delegation credential.
+    * the guild context when the request arrived over the delegation path and
+      its token names the guild in the URL path.
+
+    Authentication itself already happened in ``get_current_user`` —
+    ``_authenticate_auto_delegation`` verified the delegation JWT (signature,
+    audience, issuer, one-shot jti) and recorded its guild on the request. This
+    reads that state rather than verifying the token a second time. The
+    token-guild vs path-guild comparison is also made in
+    ``get_guild_membership``; it is repeated here so the gate holds on its own.
+    """
+    if not auto_delegation_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=WebhookSubscriptionMessages.DELEGATE_NOT_CONFIGURED,
+        )
+    delegated_guild_id = getattr(request.state, "delegated_guild_id", None)
+    if delegated_guild_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=WebhookSubscriptionMessages.DELEGATE_REQUIRED,
+        )
+    if delegated_guild_id != guild_context.guild_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=GuildMessages.GUILD_ACCESS_DENIED,
+        )
+    return guild_context
 
 
 async def _apply_guild_session_context(

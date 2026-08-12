@@ -292,6 +292,8 @@
   "ADVANCED_TOOL_GUILD_WIDE_REQUIRES_ADMIN": "Nur Gilden-Admins können gildenweite erweiterte Tools erstellen",
   "ADVANCED_TOOL_GUILD_WIDE_NOT_SHAREABLE": "Gildenweite erweiterte Tools sind nur für Admins und können nicht geteilt werden",
   "ADVANCED_TOOL_DELEGATED_RUN_ONLY": "Läufe erweiterter Tools können nur vom Automatisierungsdienst gestartet werden",
+  "AUTOMATION_DELEGATE_NOT_CONFIGURED": "Für diese Bereitstellung ist kein Automatisierungsdienst konfiguriert, daher ist die Ereigniszustellung nicht verfügbar.",
+  "AUTOMATION_DELEGATE_REQUIRED": "Ereignis-Abonnements können nur vom Automatisierungsdienst verwaltet werden.",
   "AI_INVALID_BASE_URL": "Die Basis-URL ist nicht zulässig. Verwende einen öffentlichen Hostnamen.",
   "AI_PROVIDER_NOT_ALLOWED": "Ollama kann nur auf Plattformebene konfiguriert werden.",
   "fallback": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
