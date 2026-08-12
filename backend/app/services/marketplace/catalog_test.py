@@ -126,11 +126,51 @@ class TestDefinitions:
         assert version.definition["kind"] == "dashboard"
         assert version.definition["layout"] == {"columns": 12}
 
-    async def test_app_listings_are_not_installable_yet(self, session):
+    async def test_an_app_listing_must_name_a_mountable_tool(self, session):
+        """An app definition is narrow on purpose: a kind, and which of this
+        build's tools it mounts. It cannot name one we do not mount at guild
+        scope."""
+        with pytest.raises(CatalogError, match="cannot be mounted"):
+            await service.upsert_listing(
+                session,
+                _manifest(
+                    kind="app",
+                    definition={"app_kind": "tool_instance", "tool": "dashboard"},
+                ),
+                source="builtin",
+            )
+
+    async def test_embed_apps_are_not_installable_yet(self, session):
         with pytest.raises(CatalogError, match="not installable"):
             await service.upsert_listing(
-                session, _manifest(kind="app"), source="builtin"
+                session,
+                _manifest(
+                    kind="app",
+                    definition={"app_kind": "embed", "url": "https://x.test"},
+                ),
+                source="builtin",
             )
+
+    async def test_a_valid_app_listing_is_stored_canonically(self, session):
+        listing = await service.upsert_listing(
+            session,
+            _manifest(
+                kind="app",
+                definition={
+                    "app_kind": "tool_instance",
+                    "tool": "calendar",
+                    "default_name": "Guild calendar",
+                    "unexpected": "dropped",
+                },
+            ),
+            source="builtin",
+        )
+        version = await service.get_listing_version(session, listing.latest_version_id)
+        assert version.definition == {
+            "app_kind": "tool_instance",
+            "tool": "calendar",
+            "default_name": "Guild calendar",
+        }
 
 
 class TestVersions:

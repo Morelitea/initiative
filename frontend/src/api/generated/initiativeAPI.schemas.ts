@@ -842,7 +842,7 @@ export interface CalendarEventSummary {
   recurrence: EventRecurrence | null;
   id: number;
   calendar_id: number;
-  initiative_id: number;
+  initiative_id: number | null;
   guild_id: number;
   created_by_id: number;
   attendee_count: number;
@@ -1115,7 +1115,7 @@ export interface CalendarEventRead {
   recurrence: EventRecurrence | null;
   id: number;
   calendar_id: number;
-  initiative_id: number;
+  initiative_id: number | null;
   guild_id: number;
   created_by_id: number;
   attendee_count: number;
@@ -1151,7 +1151,7 @@ export interface CalendarSummary {
   /** @maxLength 32 */
   color: string;
   id: number;
-  initiative_id: number;
+  initiative_id: number | null;
   guild_id: number;
   created_by_id: number;
   created_at: string;
@@ -1179,7 +1179,7 @@ export interface CalendarRead {
   /** @maxLength 32 */
   color: string;
   id: number;
-  initiative_id: number;
+  initiative_id: number | null;
   guild_id: number;
   created_by_id: number;
   created_at: string;
@@ -1903,6 +1903,44 @@ export interface GenerateDocumentSummaryResponse {
  */
 export interface GenerateSubtasksResponse {
   subtasks: string[];
+}
+
+/**
+ * Install a listing into this guild.
+ *
+ * Names a listing and nothing else that matters: the definition comes from the
+ * catalog, and the content the install creates is made server-side.
+ */
+export interface GuildAppInstall {
+  /** @maxLength 14 */
+  listing_uid: string;
+  name?: string | null;
+}
+
+export type GuildAppReadConfig = { [key: string]: unknown };
+
+export interface GuildAppRead {
+  id: number;
+  guild_id: number;
+  listing_uid: string;
+  listing_version: string;
+  app_kind: string;
+  name: string;
+  enabled: boolean;
+  config: GuildAppReadConfig;
+  tool: string | null;
+  installed_by_id: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GuildAppListResponse {
+  items: GuildAppRead[];
+}
+
+export interface GuildAppUpdate {
+  name?: string | null;
+  enabled?: boolean | null;
 }
 
 export type GuildAuthPolicyReadPolicy =

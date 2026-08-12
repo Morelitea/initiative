@@ -485,8 +485,13 @@ class TestMigrationsAgainstDatabase:
         # Rewind the stamp rather than downgrading: 0163 is a one-way door, and
         # this is the state it exists for — a database at 0162 still carrying a
         # frozen copy.
+        #
+        # Replay to 0163 specifically, not to head: the stamp moved but the
+        # schema did not, so anything after 0163 would be re-applied over the
+        # objects it already created. 0163 is the revision under test; the rest
+        # of the chain is covered by the other cases here.
         _execute_sql("UPDATE alembic_version SET version_num = '20260811_0162'")
-        _run_alembic("upgrade", "head")
+        _run_alembic("upgrade", "20260811_0163")
 
         assert not _table_exists("tasks"), (
             "20260811_0163 must drop a frozen public copy of a guild-content table"
