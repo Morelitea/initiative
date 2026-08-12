@@ -618,6 +618,13 @@ class Settings(BaseSettings):
     # numbers). Set ⇒ the link-out buttons appear. Mirrors the
     # ADVANCED_TOOL_URL pattern: the OSS core defers to an external service.
     BILLING_URL: str | None = None
+    # Signing material for the operator handoff into the billing portal's
+    # support console, shared with that service. Unset (the default) ⇒ the
+    # Guilds tab renders no billing button and the mint endpoint 503s. The
+    # key id selects which of the receiver's keys to verify against, so the
+    # pair can be rotated without downtime.
+    BILLING_SUPPORT_HANDOFF_SECRET: str | None = None
+    BILLING_SUPPORT_HANDOFF_KID: str | None = None
 
     # Local-dev only: when true, outbound webhook / custom-AI targets may
     # use http and resolve to private/loopback addresses, for round-tripping

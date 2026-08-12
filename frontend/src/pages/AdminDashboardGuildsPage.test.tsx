@@ -18,6 +18,7 @@ const guildsData = [
     id: 7,
     name: "Capped Guild",
     member_count: 3,
+    tier_name: "Bespoke Plan",
     max_storage_bytes: 10 * GIB,
     max_users: 10,
     status: "active",
@@ -28,6 +29,7 @@ const guildsData = [
     id: 8,
     name: "Open Guild",
     member_count: 0,
+    tier_name: null,
     max_storage_bytes: null,
     max_users: null,
     status: "active",
@@ -38,6 +40,7 @@ const guildsData = [
     id: 9,
     name: "Full Guild",
     member_count: 12,
+    tier_name: "Bespoke Plan",
     max_storage_bytes: null,
     max_users: 10,
     status: "suspended",
@@ -49,6 +52,25 @@ const guildsData = [
 // The guild-auth toggle column only renders under per-guild posture; flip this
 // before a render to exercise both cases.
 let authScope: "platform" | "guild" = "platform";
+
+// The billing column only renders when a portal is configured; flip this to
+// exercise the self-hosted case (no portal, no column).
+let billingConfig: { url: string; operator_handoff: boolean } | null = {
+  url: "https://billing.example.com",
+  operator_handoff: true,
+};
+
+const mintHandoff = vi.fn();
+
+vi.mock("@/hooks/useAppConfig", () => ({
+  useAppConfig: () => ({ billing: billingConfig }),
+}));
+
+vi.mock("@/api/generated/settings/settings", () => ({
+  createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPost: (
+    guildId: number
+  ) => mintHandoff(guildId),
+}));
 
 vi.mock("@/hooks/useSettings", () => ({
   usePlatformGuilds: () => ({ data: guildsData, isLoading: false, isError: false }),
@@ -71,7 +93,9 @@ const userLimitInput = (guildName: string) =>
 describe("AdminDashboardGuildsPage", () => {
   beforeEach(() => {
     mutate.mockClear();
+    mintHandoff.mockReset();
     authScope = "platform";
+    billingConfig = { url: "https://billing.example.com", operator_handoff: true };
   });
 
   describe("storage limits", () => {
@@ -272,6 +296,67 @@ describe("AdminDashboardGuildsPage", () => {
 
       await user.click(authToggle("Open Guild"));
       expect(mutate).toHaveBeenCalledWith({ guildId: 8, data: { guild_auth_enabled: false } });
+    });
+  });
+
+  describe("billing column", () => {
+    it("labels each button with the guild's plan, verbatim", async () => {
+      renderPage();
+
+      expect(await screen.findByText("Capped Guild")).toBeInTheDocument();
+      expect(screen.getByLabelText("Open billing for Capped Guild")).toHaveTextContent(
+        "Bespoke Plan"
+      );
+      // No plan named by billing -> neutral label, never an invented tier.
+      expect(screen.getByLabelText("Open billing for Open Guild")).toHaveTextContent("No plan");
+    });
+
+    it("is absent when no billing portal is configured", async () => {
+      billingConfig = null;
+      renderPage();
+
+      expect(await screen.findByText("Capped Guild")).toBeInTheDocument();
+      expect(screen.queryByLabelText("Open billing for Capped Guild")).not.toBeInTheDocument();
+    });
+
+    it("is absent when the operator route into the portal is not wired", async () => {
+      billingConfig = { url: "https://billing.example.com", operator_handoff: false };
+      renderPage();
+
+      expect(await screen.findByText("Capped Guild")).toBeInTheDocument();
+      expect(screen.queryByLabelText("Open billing for Capped Guild")).not.toBeInTheDocument();
+    });
+
+    it("mints a handoff for that guild and opens the portal with it", async () => {
+      const location = { href: "" };
+      const tab = { opener: {} as unknown, location, close: vi.fn() };
+      const openSpy = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+      mintHandoff.mockResolvedValue({ handoff_token: "tok-123", expires_in_seconds: 60 });
+
+      renderPage();
+      await userEvent.click(await screen.findByLabelText("Open billing for Capped Guild"));
+
+      expect(mintHandoff).toHaveBeenCalledWith(7);
+      expect(location.href).toContain("https://billing.example.com/support?guild=7");
+      // The token rides in the fragment, so it never reaches the server.
+      expect(location.href).toContain("#handoff=tok-123");
+      expect(tab.opener).toBeNull();
+
+      openSpy.mockRestore();
+    });
+
+    it("closes the blank tab when minting fails", async () => {
+      const tab = { opener: {} as unknown, location: { href: "" }, close: vi.fn() };
+      const openSpy = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+      mintHandoff.mockRejectedValue(new Error("nope"));
+
+      renderPage();
+      await userEvent.click(await screen.findByLabelText("Open billing for Capped Guild"));
+
+      expect(tab.close).toHaveBeenCalled();
+      expect(tab.location.href).toBe("");
+
+      openSpy.mockRestore();
     });
   });
 });

@@ -415,6 +415,68 @@ def create_billing_portal_handoff_token(
     return token, int(expires_in.total_seconds())
 
 
+# Pinned on both sides of the boundary — not deployment knobs.
+BILLING_SUPPORT_HANDOFF_ISSUER = "initiative"
+BILLING_SUPPORT_HANDOFF_AUDIENCE = "initiative:billing-support"
+
+# Lifetime of a billing-support handoff, and the ceiling the receiver accepts.
+BILLING_SUPPORT_HANDOFF_LIFETIME = timedelta(seconds=60)
+BILLING_SUPPORT_HANDOFF_MAX_LIFETIME = timedelta(seconds=300)
+
+
+class BillingSupportHandoffNotConfiguredError(RuntimeError):
+    """Raised when a billing-support handoff is requested but the shared
+    signing material is absent. Fails closed — the caller returns 503."""
+
+
+def billing_support_handoff_enabled() -> bool:
+    """True when this deployment can mint billing-support handoffs."""
+    return bool(
+        settings.BILLING_SUPPORT_HANDOFF_SECRET and settings.BILLING_SUPPORT_HANDOFF_KID
+    )
+
+
+def create_billing_support_handoff_token(
+    *,
+    user_id: int,
+    guild_id: int,
+    grant_id: int | str,
+    approver_id: int | str | None = None,
+    expires_in: timedelta = BILLING_SUPPORT_HANDOFF_LIFETIME,
+) -> tuple[str, int]:
+    """Mint the billing-support handoff token.
+
+    ``grant_id`` names the ``access_grants`` row that authorises the visit, so
+    both sides log the same grant.
+    """
+    if not billing_support_handoff_enabled():
+        raise BillingSupportHandoffNotConfiguredError(
+            "BILLING_SUPPORT_HANDOFF_SECRET and _KID are required to mint "
+            "billing-support handoffs"
+        )
+    lifetime = min(expires_in, BILLING_SUPPORT_HANDOFF_MAX_LIFETIME)
+    now = datetime.now(timezone.utc)
+    payload: dict[str, Any] = {
+        "jti": str(uuid.uuid4()),
+        "sub": str(user_id),
+        "aud": BILLING_SUPPORT_HANDOFF_AUDIENCE,
+        "iss": BILLING_SUPPORT_HANDOFF_ISSUER,
+        "iat": int(now.timestamp()),
+        "exp": int((now + lifetime).timestamp()),
+        "guild_id": int(guild_id),
+        "grant_id": str(grant_id),
+    }
+    if approver_id is not None:
+        payload["approver"] = str(approver_id)
+    token = jwt.encode(
+        payload,
+        settings.BILLING_SUPPORT_HANDOFF_SECRET,
+        algorithm="HS256",
+        headers={"kid": settings.BILLING_SUPPORT_HANDOFF_KID},
+    )
+    return token, int(lifetime.total_seconds())
+
+
 # ──────────────────────────────────────────────────────────────────────────
 # Inbound delegation from initiative-auto
 #

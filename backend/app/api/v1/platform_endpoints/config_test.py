@@ -66,13 +66,34 @@ async def test_config_omits_billing_when_url_unset(client: AsyncClient, monkeypa
 @pytest.mark.integration
 async def test_config_exposes_billing_url_when_set(client: AsyncClient, monkeypatch):
     """With a URL configured, the SPA gets the base URL to build its
-    link-out buttons. Only the URL crosses."""
+    link-out buttons. The operator route reports itself unavailable until its
+    own signing material is configured."""
     monkeypatch.setattr(settings, "BILLING_URL", "https://billing.example.com")
+    monkeypatch.setattr(settings, "BILLING_SUPPORT_HANDOFF_SECRET", None)
+    monkeypatch.setattr(settings, "BILLING_SUPPORT_HANDOFF_KID", None)
 
     response = await client.get("/api/v1/config")
 
     assert response.status_code == 200
-    assert response.json()["billing"] == {"url": "https://billing.example.com"}
+    assert response.json()["billing"] == {
+        "url": "https://billing.example.com",
+        "operator_handoff": False,
+    }
+
+
+@pytest.mark.integration
+async def test_config_reports_operator_handoff_when_signing_configured(
+    client: AsyncClient, monkeypatch
+):
+    """Both halves present ⇒ the admin Guilds tab may render its control."""
+    monkeypatch.setattr(settings, "BILLING_URL", "https://billing.example.com")
+    monkeypatch.setattr(settings, "BILLING_SUPPORT_HANDOFF_SECRET", "shared-secret")
+    monkeypatch.setattr(settings, "BILLING_SUPPORT_HANDOFF_KID", "k1")
+
+    response = await client.get("/api/v1/config")
+
+    assert response.status_code == 200
+    assert response.json()["billing"]["operator_handoff"] is True
 
 
 @pytest.mark.integration
