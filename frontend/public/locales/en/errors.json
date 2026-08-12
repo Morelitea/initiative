@@ -393,5 +393,21 @@
   "APP_SERVICE_INVALID_MANIFEST": "The app service described itself in a way this version can't accept.",
   "APP_SERVICE_MANIFEST_CHANGED": "This app service now describes itself differently. Review the change, then verify again to accept it.",
   "APP_SERVICE_PUBLIC_ID_MISMATCH": "That address answers for a different app than this registration.",
-  "APP_SERVICE_SIGNATURE_MISMATCH": "The app service answered with a different secret. Check that both sides share the same one."
+  "APP_SERVICE_SIGNATURE_MISMATCH": "The app service answered with a different secret. Check that both sides share the same one.",
+  "MARKETPLACE_MEDIA_NOT_FOUND": "That listing image is no longer available.",
+  "MARKETPLACE_REGISTRY_NOT_CONFIGURED": "No marketplace registry is configured for this deployment.",
+  "MARKETPLACE_REGISTRY_REFRESH_IN_PROGRESS": "A registry refresh is already running. Wait for it to finish, then try again.",
+  "MARKETPLACE_REGISTRY_KEYS_INVALID": "The configured registry signing keys could not be read. Check the key set in your configuration.",
+  "MARKETPLACE_REGISTRY_UNREACHABLE": "The registry could not be reached. Check the registry URL and this server's outbound access.",
+  "MARKETPLACE_REGISTRY_INDEX_TOO_LARGE": "The registry index is larger than this deployment accepts.",
+  "MARKETPLACE_REGISTRY_INDEX_MALFORMED": "The registry index could not be read. It is not in the expected format.",
+  "MARKETPLACE_REGISTRY_SIGNATURE_INVALID": "The registry index does not match its signature, so nothing from it was accepted.",
+  "MARKETPLACE_REGISTRY_KEY_UNKNOWN": "The registry index was signed by a key this deployment does not trust. Add the key to your configuration if you expect it.",
+  "MARKETPLACE_REGISTRY_SERIAL_REGRESSION": "The registry served an older index than the one already applied, so it was refused.",
+  "MARKETPLACE_REGISTRY_INDEX_STALE": "The registry index is too old to accept. The registry may have stopped publishing updates.",
+  "MARKETPLACE_REGISTRY_PUBLISHER_NOT_AUTHORIZED": "The signing key is not authorised to publish for that listing's publisher, so the listing was skipped.",
+  "MARKETPLACE_REGISTRY_RESERVED_NAMESPACE": "That listing uses a publisher name reserved for built-in listings, so it was skipped.",
+  "MARKETPLACE_REGISTRY_ARTIFACT_UNREACHABLE": "A file the registry index refers to could not be downloaded.",
+  "MARKETPLACE_REGISTRY_ARTIFACT_INVALID": "A file the registry index refers to does not match what the index says it is.",
+  "MARKETPLACE_REGISTRY_LISTING_REJECTED": "That listing was refused because its contents are not valid."
 }

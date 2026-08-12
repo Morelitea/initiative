@@ -393,5 +393,21 @@
   "APP_SERVICE_INVALID_MANIFEST": "El servicio de aplicación se describió de una forma que esta versión no puede aceptar.",
   "APP_SERVICE_MANIFEST_CHANGED": "Este servicio de aplicación ahora se describe de otra manera. Revisa el cambio y vuelve a verificarlo para aceptarlo.",
   "APP_SERVICE_PUBLIC_ID_MISMATCH": "Esa dirección responde por una aplicación distinta de la de este registro.",
-  "APP_SERVICE_SIGNATURE_MISMATCH": "El servicio de aplicación respondió con un secreto distinto. Comprueba que ambas partes usen el mismo."
+  "APP_SERVICE_SIGNATURE_MISMATCH": "El servicio de aplicación respondió con un secreto distinto. Comprueba que ambas partes usen el mismo.",
+  "MARKETPLACE_MEDIA_NOT_FOUND": "Esa imagen del elemento ya no está disponible.",
+  "MARKETPLACE_REGISTRY_NOT_CONFIGURED": "Esta instancia no tiene configurado ningún registro de mercado.",
+  "MARKETPLACE_REGISTRY_REFRESH_IN_PROGRESS": "Ya se está ejecutando una actualización del registro. Espera a que termine y vuelve a intentarlo.",
+  "MARKETPLACE_REGISTRY_KEYS_INVALID": "No se han podido leer las claves de firma del registro configuradas. Revisa el conjunto de claves en tu configuración.",
+  "MARKETPLACE_REGISTRY_UNREACHABLE": "No se ha podido contactar con el registro. Comprueba su URL y el acceso saliente de este servidor.",
+  "MARKETPLACE_REGISTRY_INDEX_TOO_LARGE": "El índice del registro es mayor de lo que acepta esta instancia.",
+  "MARKETPLACE_REGISTRY_INDEX_MALFORMED": "No se ha podido leer el índice del registro. No tiene el formato esperado.",
+  "MARKETPLACE_REGISTRY_SIGNATURE_INVALID": "El índice del registro no coincide con su firma, así que no se ha aceptado nada de él.",
+  "MARKETPLACE_REGISTRY_KEY_UNKNOWN": "El índice del registro está firmado con una clave en la que esta instancia no confía. Añádela a tu configuración si la esperabas.",
+  "MARKETPLACE_REGISTRY_SERIAL_REGRESSION": "El registro ha servido un índice más antiguo que el ya aplicado, así que se ha rechazado.",
+  "MARKETPLACE_REGISTRY_INDEX_STALE": "El índice del registro es demasiado antiguo para aceptarlo. Puede que el registro haya dejado de publicar actualizaciones.",
+  "MARKETPLACE_REGISTRY_PUBLISHER_NOT_AUTHORIZED": "La clave de firma no está autorizada a publicar para el editor de ese elemento, así que se ha omitido.",
+  "MARKETPLACE_REGISTRY_RESERVED_NAMESPACE": "Ese elemento usa un nombre de editor reservado para los elementos incluidos de serie, así que se ha omitido.",
+  "MARKETPLACE_REGISTRY_ARTIFACT_UNREACHABLE": "No se ha podido descargar un archivo al que hace referencia el índice del registro.",
+  "MARKETPLACE_REGISTRY_ARTIFACT_INVALID": "Un archivo al que hace referencia el índice del registro no coincide con lo que el índice indica.",
+  "MARKETPLACE_REGISTRY_LISTING_REJECTED": "Ese elemento se ha rechazado porque su contenido no es válido."
 }

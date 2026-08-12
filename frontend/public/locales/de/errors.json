@@ -393,5 +393,21 @@
   "APP_SERVICE_INVALID_MANIFEST": "Der App-Dienst hat sich auf eine Weise beschrieben, die diese Version nicht akzeptieren kann.",
   "APP_SERVICE_MANIFEST_CHANGED": "Dieser App-Dienst beschreibt sich jetzt anders. Prüfe die Änderung und überprüfe ihn erneut, um sie zu übernehmen.",
   "APP_SERVICE_PUBLIC_ID_MISMATCH": "Unter dieser Adresse antwortet eine andere App als in dieser Registrierung angegeben.",
-  "APP_SERVICE_SIGNATURE_MISMATCH": "Der App-Dienst hat mit einem anderen Geheimnis geantwortet. Prüfe, ob beide Seiten dasselbe verwenden."
+  "APP_SERVICE_SIGNATURE_MISMATCH": "Der App-Dienst hat mit einem anderen Geheimnis geantwortet. Prüfe, ob beide Seiten dasselbe verwenden.",
+  "MARKETPLACE_MEDIA_NOT_FOUND": "Dieses Eintragsbild ist nicht mehr verfügbar.",
+  "MARKETPLACE_REGISTRY_NOT_CONFIGURED": "Für diese Instanz ist kein Marktplatz-Verzeichnis konfiguriert.",
+  "MARKETPLACE_REGISTRY_REFRESH_IN_PROGRESS": "Eine Aktualisierung des Verzeichnisses läuft bereits. Warte, bis sie abgeschlossen ist, und versuche es dann erneut.",
+  "MARKETPLACE_REGISTRY_KEYS_INVALID": "Die konfigurierten Signaturschlüssel des Verzeichnisses konnten nicht gelesen werden. Prüfe den Schlüsselsatz in deiner Konfiguration.",
+  "MARKETPLACE_REGISTRY_UNREACHABLE": "Das Verzeichnis war nicht erreichbar. Prüfe die Verzeichnis-URL und den ausgehenden Netzwerkzugriff dieses Servers.",
+  "MARKETPLACE_REGISTRY_INDEX_TOO_LARGE": "Der Verzeichnis-Index ist größer, als diese Instanz akzeptiert.",
+  "MARKETPLACE_REGISTRY_INDEX_MALFORMED": "Der Verzeichnis-Index konnte nicht gelesen werden. Er hat nicht das erwartete Format.",
+  "MARKETPLACE_REGISTRY_SIGNATURE_INVALID": "Der Verzeichnis-Index passt nicht zu seiner Signatur; es wurde nichts daraus übernommen.",
+  "MARKETPLACE_REGISTRY_KEY_UNKNOWN": "Der Verzeichnis-Index wurde mit einem Schlüssel signiert, dem diese Instanz nicht vertraut. Nimm den Schlüssel in die Konfiguration auf, wenn du ihn erwartest.",
+  "MARKETPLACE_REGISTRY_SERIAL_REGRESSION": "Das Verzeichnis hat einen älteren Index ausgeliefert als den bereits übernommenen und wurde deshalb abgelehnt.",
+  "MARKETPLACE_REGISTRY_INDEX_STALE": "Der Verzeichnis-Index ist zu alt, um übernommen zu werden. Möglicherweise veröffentlicht das Verzeichnis keine Aktualisierungen mehr.",
+  "MARKETPLACE_REGISTRY_PUBLISHER_NOT_AUTHORIZED": "Der Signaturschlüssel ist nicht berechtigt, für den Anbieter dieses Eintrags zu veröffentlichen; der Eintrag wurde übersprungen.",
+  "MARKETPLACE_REGISTRY_RESERVED_NAMESPACE": "Dieser Eintrag verwendet einen Anbieternamen, der für mitgelieferte Einträge reserviert ist, und wurde übersprungen.",
+  "MARKETPLACE_REGISTRY_ARTIFACT_UNREACHABLE": "Eine im Verzeichnis-Index referenzierte Datei konnte nicht heruntergeladen werden.",
+  "MARKETPLACE_REGISTRY_ARTIFACT_INVALID": "Eine im Verzeichnis-Index referenzierte Datei entspricht nicht dem, was der Index angibt.",
+  "MARKETPLACE_REGISTRY_LISTING_REJECTED": "Dieser Eintrag wurde abgelehnt, weil sein Inhalt ungültig ist."
 }

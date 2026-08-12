@@ -393,5 +393,21 @@
   "APP_SERVICE_INVALID_MANIFEST": "Le service applicatif s'est décrit d'une manière que cette version ne peut pas accepter.",
   "APP_SERVICE_MANIFEST_CHANGED": "Ce service applicatif se décrit désormais différemment. Examinez le changement, puis vérifiez-le à nouveau pour l'accepter.",
   "APP_SERVICE_PUBLIC_ID_MISMATCH": "Cette adresse répond pour une application différente de celle de cet enregistrement.",
-  "APP_SERVICE_SIGNATURE_MISMATCH": "Le service applicatif a répondu avec un secret différent. Vérifiez que les deux côtés partagent le même."
+  "APP_SERVICE_SIGNATURE_MISMATCH": "Le service applicatif a répondu avec un secret différent. Vérifiez que les deux côtés partagent le même.",
+  "MARKETPLACE_MEDIA_NOT_FOUND": "Cette image de fiche n'est plus disponible.",
+  "MARKETPLACE_REGISTRY_NOT_CONFIGURED": "Aucun registre de catalogue n'est configuré pour cette instance.",
+  "MARKETPLACE_REGISTRY_REFRESH_IN_PROGRESS": "Une actualisation du registre est déjà en cours. Attendez qu'elle se termine, puis réessayez.",
+  "MARKETPLACE_REGISTRY_KEYS_INVALID": "Les clés de signature du registre configurées n'ont pas pu être lues. Vérifiez le jeu de clés dans votre configuration.",
+  "MARKETPLACE_REGISTRY_UNREACHABLE": "Le registre est injoignable. Vérifiez son URL et l'accès sortant de ce serveur.",
+  "MARKETPLACE_REGISTRY_INDEX_TOO_LARGE": "L'index du registre dépasse la taille acceptée par cette instance.",
+  "MARKETPLACE_REGISTRY_INDEX_MALFORMED": "L'index du registre n'a pas pu être lu. Il n'a pas le format attendu.",
+  "MARKETPLACE_REGISTRY_SIGNATURE_INVALID": "L'index du registre ne correspond pas à sa signature : rien n'en a été accepté.",
+  "MARKETPLACE_REGISTRY_KEY_UNKNOWN": "L'index du registre est signé par une clé à laquelle cette instance ne fait pas confiance. Ajoutez-la à votre configuration si vous l'attendiez.",
+  "MARKETPLACE_REGISTRY_SERIAL_REGRESSION": "Le registre a servi un index plus ancien que celui déjà appliqué : il a été refusé.",
+  "MARKETPLACE_REGISTRY_INDEX_STALE": "L'index du registre est trop ancien pour être accepté. Le registre a peut-être cessé de publier des mises à jour.",
+  "MARKETPLACE_REGISTRY_PUBLISHER_NOT_AUTHORIZED": "La clé de signature n'est pas autorisée à publier pour l'éditeur de cette fiche : la fiche a été ignorée.",
+  "MARKETPLACE_REGISTRY_RESERVED_NAMESPACE": "Cette fiche utilise un nom d'éditeur réservé aux fiches fournies avec l'application : elle a été ignorée.",
+  "MARKETPLACE_REGISTRY_ARTIFACT_UNREACHABLE": "Un fichier référencé par l'index du registre n'a pas pu être téléchargé.",
+  "MARKETPLACE_REGISTRY_ARTIFACT_INVALID": "Un fichier référencé par l'index du registre ne correspond pas à ce qu'annonce l'index.",
+  "MARKETPLACE_REGISTRY_LISTING_REJECTED": "Cette fiche a été refusée car son contenu n'est pas valide."
 }

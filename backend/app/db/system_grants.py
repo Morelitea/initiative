@@ -89,6 +89,12 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # The row holds the shared-secret ciphertext, so it stays off the bare
     # login role entirely (below).
     "app_service_registrations": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # Registry client state: read and written by the refresh job alone. One row
+    # per registry URL, recycled in place, so nothing is ever deleted.
+    "marketplace_registry_state": frozenset({"SELECT", "INSERT", "UPDATE"}),
+    # Mirrored listing artwork: written by the refresh job; DELETE prunes bytes
+    # no listing references any more.
+    "marketplace_media": frozenset({"SELECT", "INSERT", "DELETE"}),
     # operator AI connections: the request path never queries this directly —
     # the resolve step reads it via an in-process cache loaded on the system
     # engine (SELECT), and the secret-key rotation re-encrypts its key column on
@@ -171,6 +177,13 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # the system engine and readable by the platform owner under RLS. The bare
     # pre-routing login role has no reason to see it, so it holds nothing.
     "app_service_registrations": None,
+    # Refresh bookkeeping — system engine only, surfaced to an operator through
+    # a capability-gated endpoint rather than read on the request path.
+    "marketplace_registry_state": None,
+    # Mirrored listing artwork stands in for the static image files this build
+    # ships, so it is served exactly as they are: to anyone holding the digest,
+    # before a session is routed. Bytes only, addressed by their own hash.
+    "marketplace_media": frozenset({"SELECT"}),
     # operator AI connections are owner-managed + system-engine-read only; the
     # bare pre-routing login role never touches them
     "platform_ai_connections": None,

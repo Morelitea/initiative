@@ -87,6 +87,11 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # operator-conferred grants). Platform-wide by definition — one row per
         # app, never per guild — and owner-managed.
         "app_service_registrations",
+        # Registry client state: what this deployment last accepted from a
+        # signed index, and the artwork that index named, mirrored locally so
+        # listing media is served from here. Operator/system state, no guild.
+        "marketplace_registry_state",
+        "marketplace_media",
         "platform_ai_connections",  # operator AI connections (platform config mode)
         "access_grants",  # PAM — inherently cross-guild (request -> approve -> scoped)
         "notifications",  # per-user inbox spanning guilds (carries guild_id after split)

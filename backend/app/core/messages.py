@@ -468,6 +468,56 @@ class MarketplaceMessages:
     #: installed — there is no listing to re-pin it to.
     NOT_INSTALLED_FROM_LISTING = "MARKETPLACE_NOT_INSTALLED_FROM_LISTING"
     ALREADY_LATEST_VERSION = "MARKETPLACE_ALREADY_LATEST_VERSION"
+    MEDIA_NOT_FOUND = "MARKETPLACE_MEDIA_NOT_FOUND"
+
+
+class MarketplaceRegistryMessages:
+    """Outcomes of a signed-registry refresh.
+
+    Every code here either answers an operator's "refresh now" or is recorded
+    as the last refusal so the status panel can say why the catalog did not
+    move. The refusals are deliberately specific: an operator reading one has
+    to be able to tell a misconfigured key from an index their host is serving
+    from cache.
+    """
+
+    #: No registry URL and key set are configured, or the operator switched
+    #: ingestion off. The remote provider is absent rather than broken.
+    NOT_CONFIGURED = "MARKETPLACE_REGISTRY_NOT_CONFIGURED"
+    #: A refresh is already running; the second caller is told rather than
+    #: queued, because both would be fetching the same index.
+    REFRESH_IN_PROGRESS = "MARKETPLACE_REGISTRY_REFRESH_IN_PROGRESS"
+    #: The configured key set could not be read as a JWKS document.
+    KEYS_INVALID = "MARKETPLACE_REGISTRY_KEYS_INVALID"
+
+    #: The index or its signature could not be fetched.
+    UNREACHABLE = "MARKETPLACE_REGISTRY_UNREACHABLE"
+    #: The index exceeded the size a registry index is allowed to be.
+    INDEX_TOO_LARGE = "MARKETPLACE_REGISTRY_INDEX_TOO_LARGE"
+    #: The index parsed as JSON but is not shaped like an index.
+    INDEX_MALFORMED = "MARKETPLACE_REGISTRY_INDEX_MALFORMED"
+    #: The signature does not match the index bytes that were received.
+    SIGNATURE_INVALID = "MARKETPLACE_REGISTRY_SIGNATURE_INVALID"
+    #: The index was signed by a key this deployment does not trust.
+    KEY_UNKNOWN = "MARKETPLACE_REGISTRY_KEY_UNKNOWN"
+    #: The index is older than the one already accepted, or reuses its serial
+    #: for different content.
+    SERIAL_REGRESSION = "MARKETPLACE_REGISTRY_SERIAL_REGRESSION"
+    #: The index is outside the freshness window this deployment accepts.
+    INDEX_STALE = "MARKETPLACE_REGISTRY_INDEX_STALE"
+
+    #: The signing key is not authorized for that listing's publisher prefix.
+    PUBLISHER_NOT_AUTHORIZED = "MARKETPLACE_REGISTRY_PUBLISHER_NOT_AUTHORIZED"
+    #: ``core.*`` names listings shipped in this repo and is never published
+    #: by a registry.
+    RESERVED_NAMESPACE = "MARKETPLACE_REGISTRY_RESERVED_NAMESPACE"
+    #: A manifest or image the index named could not be fetched.
+    ARTIFACT_UNREACHABLE = "MARKETPLACE_REGISTRY_ARTIFACT_UNREACHABLE"
+    #: A manifest or image did not match what the index says it is — digest,
+    #: size, type, or the origin it is served from.
+    ARTIFACT_INVALID = "MARKETPLACE_REGISTRY_ARTIFACT_INVALID"
+    #: The listing itself was refused by the catalog's validator.
+    LISTING_REJECTED = "MARKETPLACE_REGISTRY_LISTING_REJECTED"
 
 
 class QueueMessages:
