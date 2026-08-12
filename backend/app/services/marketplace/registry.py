@@ -922,6 +922,12 @@ async def _run_refresh(
         )
     ).all()
     for listing in stale:
+        # A key retires listings only in the namespaces it may publish under.
+        # An index signed by one publisher says nothing about another's
+        # listings, and reading absence as a retirement would let any
+        # authorized key take down every other publisher by leaving them out.
+        if not key.may_publish(_publisher_prefix(listing.public_id)):
+            continue
         if listing.uid not in present and await withdraw_listing(session, listing.uid):
             withdrawn += 1
             logger.info(

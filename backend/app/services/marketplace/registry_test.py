@@ -685,6 +685,41 @@ class TestWithdrawal:
         assert gone.available is False
         assert (await _listing(session, "acme.widgets")).available is True
 
+    async def test_one_publishers_key_cannot_retire_anothers_listing(
+        self, session, monkeypatch, host, publisher_key
+    ):
+        """Absence from an index says nothing about a publisher who does not
+        sign it.
+
+        Two trusted keys, each authorized for its own namespace. The second
+        publishes an index that simply does not mention the first publisher's
+        listing — which must not read as a retirement, or any authorized key
+        could take down the whole catalog by omission.
+        """
+        other_key = Ed25519PrivateKey.generate()
+        monkeypatch.setattr(
+            settings,
+            "MARKETPLACE_REGISTRY_PUBLIC_KEYS",
+            _jwks(
+                ("publisher-1", publisher_key, ["acme"]),
+                ("publisher-2", other_key, ["globex"]),
+            ),
+        )
+
+        host.add("acme.widgets", "AAAAAAAAAAAAAA")
+        host.publish(publisher_key, serial=1)
+        assert (await registry.refresh_registry(session)).ok
+        assert (await _listing(session, "acme.widgets")).available is True
+
+        host.entries = []
+        host.add("globex.things", "CCCCCCCCCCCCCC")
+        host.publish(other_key, serial=2, kid="publisher-2")
+        result = await registry.refresh_registry(session)
+
+        assert result.ok
+        assert result.withdrawn == 0
+        assert (await _listing(session, "acme.widgets")).available is True
+
     async def test_a_listing_the_index_still_carries_is_not_withdrawn_when_skipped(
         self, session, host, publisher_key
     ):
