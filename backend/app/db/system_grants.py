@@ -76,6 +76,12 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     "access_grants": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # singleton config: seeded + updated, never deleted
     "app_settings": frozenset({"SELECT", "INSERT", "UPDATE"}),
+    # Marketplace catalog: the system engine is the only writer — boot seeding of
+    # the shipped listings, and later the registry refresh job. DELETE is there
+    # for versions a re-seed supersedes; a withdrawn *listing* is flipped to
+    # available=false rather than removed, so installs keep their provenance.
+    "marketplace_listings": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    "marketplace_listing_versions": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # operator AI connections: the request path never queries this directly —
     # the resolve step reads it via an in-process cache loaded on the system
     # engine (SELECT), and the secret-key rotation re-encrypts its key column on
@@ -150,6 +156,10 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     "user_api_keys": None,
     "auto_delegation_jti_blocklist": frozenset({"SELECT", "INSERT"}),
     "app_settings": frozenset({"SELECT"}),
+    # The catalog is read under a platform tier or a guild role, never by the
+    # bare pre-routing login role — browsing the marketplace requires a session.
+    "marketplace_listings": None,
+    "marketplace_listing_versions": None,
     # operator AI connections are owner-managed + system-engine-read only; the
     # bare pre-routing login role never touches them
     "platform_ai_connections": None,

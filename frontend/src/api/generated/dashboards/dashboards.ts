@@ -22,6 +22,7 @@ import type {
 
 import type {
   DashboardCreate,
+  DashboardInstalledListings,
   DashboardListResponse,
   DashboardRead,
   DashboardUpdate,
@@ -318,6 +319,213 @@ export const useCreateDashboardApiV1GGuildIdDashboardsPost = <
     queryClient
   );
 };
+/**
+ * Which marketplace listings this guild has installed, and how many of each.
+ *
+ * One row per distinct listing rather than per dashboard, so the answer is
+ * complete in one response — the dashboard list is paginated, and a partial
+ * page would mark some installs and miss others.
+ *
+ * RLS-scoped like every other read here: it counts the dashboards the caller
+ * can see.
+ * @summary Read Installed Listings
+ */
+export const readInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGet = (
+  guildId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DashboardInstalledListings>(
+    { url: `/api/v1/g/${guildId}/dashboards/installed-listings`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGetQueryKey = (
+  guildId: number
+) => {
+  return [`/api/v1/g/${guildId}/dashboards/installed-listings`] as const;
+};
+
+export const getReadInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGetQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof readInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof readInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getReadInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGetQueryKey(guildId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof readInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGet>>
+  > = ({ signal }) =>
+    readInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGet(
+      guildId,
+      requestOptions,
+      signal
+    );
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof readInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGetQueryResult =
+  NonNullable<
+    Awaited<ReturnType<typeof readInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGet>>
+  >;
+export type ReadInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useReadInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGet<
+  TData = Awaited<
+    ReturnType<typeof readInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof readInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof readInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGet>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof readInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGet>
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGet<
+  TData = Awaited<
+    ReturnType<typeof readInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof readInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof readInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGet>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof readInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGet>
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGet<
+  TData = Awaited<
+    ReturnType<typeof readInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof readInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read Installed Listings
+ */
+
+export function useReadInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGet<
+  TData = Awaited<
+    ReturnType<typeof readInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof readInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getReadInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGetQueryOptions(
+      guildId,
+      options
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
 /**
  * The widget vocabulary this build supports — size floors, bindable
  * sources, and display options per primitive, plus the named presets.
@@ -863,6 +1071,107 @@ export const useDeleteDashboardApiV1GGuildIdDashboardsDashboardIdDelete = <
 > => {
   return useMutation(
     getDeleteDashboardApiV1GGuildIdDashboardsDashboardIdDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Re-pin an installed dashboard to its listing's current version.
+ *
+ * Nothing is ever pushed into a guild: a new version sits in the catalog until
+ * someone with write access here asks for it. Applying one replaces this
+ * instance's definition and nothing else — other instances of the same
+ * listing, in this guild or any other, are untouched.
+ *
+ * The instance's own config survives. A binding slot the new version dropped
+ * takes its config key with it, which is the same normalization an edit does,
+ * so config can never outlive the widget it configured.
+ * @summary Upgrade Dashboard
+ */
+export const upgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePost = (
+  guildId: number,
+  dashboardId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DashboardRead>(
+    { url: `/api/v1/g/${guildId}/dashboards/${dashboardId}/upgrade`, method: "POST", signal },
+    options
+  );
+};
+
+export const getUpgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePost>>,
+    TError,
+    { guildId: number; dashboardId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof upgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePost>>,
+  TError,
+  { guildId: number; dashboardId: number },
+  TContext
+> => {
+  const mutationKey = ["upgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof upgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePost>>,
+    { guildId: number; dashboardId: number }
+  > = (props) => {
+    const { guildId, dashboardId } = props ?? {};
+
+    return upgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePost(
+      guildId,
+      dashboardId,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof upgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePost>>
+  >;
+
+export type UpgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Upgrade Dashboard
+ */
+export const useUpgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof upgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePost>>,
+      TError,
+      { guildId: number; dashboardId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof upgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePost>>,
+  TError,
+  { guildId: number; dashboardId: number },
+  TContext
+> => {
+  return useMutation(
+    getUpgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePostMutationOptions(options),
     queryClient
   );
 };

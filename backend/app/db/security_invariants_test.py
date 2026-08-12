@@ -46,6 +46,8 @@ _RLS_SHARED_TABLES = {
     "guild_invites",
     "guild_memberships",
     "guilds",
+    "marketplace_listing_versions",
+    "marketplace_listings",
     "oidc_claim_mappings",
     "platform_ai_connections",
     "storage_backfill_state",

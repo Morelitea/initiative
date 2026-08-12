@@ -167,6 +167,21 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.exception("Platform OIDC env seed failed; configure via settings UI")
 
+    # The marketplace listings this build ships with. Idempotent upsert on the
+    # system engine — the catalog has no request-path writer — so every install
+    # has a working marketplace with no network and no configuration.
+    from app.services.marketplace.builtin import seed_builtin_listings
+
+    try:
+        async with AdminSessionLocal() as catalog_session:
+            seeded = await seed_builtin_listings(catalog_session)
+            await catalog_session.commit()
+        logger.info("marketplace: %d built-in listing(s) seeded", seeded)
+    except Exception:
+        # A catalog that failed to seed costs the marketplace, not the boot:
+        # every already-installed dashboard keeps its own pinned definition.
+        logger.exception("marketplace: built-in listing seed failed")
+
     app.state.notification_tasks = background_tasks_service.start_background_tasks()
 
     try:

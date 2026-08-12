@@ -143,5 +143,6 @@
     "data": "Daten",
     "needsBinding": "Was genau angezeigt wird, legst du nach dem Hinzufügen fest.",
     "add": "{{widget}} hinzufügen"
-  }
+  },
+  "browseMarketplace": "Marktplatz durchsuchen"
 }

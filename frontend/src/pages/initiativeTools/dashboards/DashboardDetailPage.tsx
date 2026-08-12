@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { DashboardCanvas } from "@/components/initiativeTools/dashboards/DashboardCanvas";
+import { DashboardUpdateBadge } from "@/components/initiativeTools/dashboards/DashboardUpdateBadge";
 import { WidgetConfigDialog } from "@/components/initiativeTools/dashboards/WidgetConfigDialog";
 import { WidgetPicker } from "@/components/initiativeTools/dashboards/WidgetPicker";
 import { StatusMessage } from "@/components/StatusMessage";
@@ -140,18 +141,21 @@ export function DashboardDetailPage() {
           )}
         </div>
 
-        {canEdit && (
-          <div className="flex shrink-0 items-center gap-2">
-            {editor.isSaving && (
-              <span className="text-muted-foreground text-xs">{t("canvas.saving")}</span>
-            )}
-            <WidgetPicker
-              catalog={catalogQuery.data}
-              widgetCount={editor.definition.widgets.length}
-              onAdd={editor.addWidget}
-            />
-          </div>
-        )}
+        <div className="flex shrink-0 items-center gap-2">
+          {dashboard && <DashboardUpdateBadge dashboard={dashboard} canEdit={canEdit} />}
+          {canEdit && (
+            <>
+              {editor.isSaving && (
+                <span className="text-muted-foreground text-xs">{t("canvas.saving")}</span>
+              )}
+              <WidgetPicker
+                catalog={catalogQuery.data}
+                widgetCount={editor.definition.widgets.length}
+                onAdd={editor.addWidget}
+              />
+            </>
+          )}
+        </div>
       </div>
 
       <DashboardCanvas

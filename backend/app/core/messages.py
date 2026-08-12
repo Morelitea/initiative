@@ -450,6 +450,18 @@ class DashboardMessages:
     CONFIG_INVALID = "DASHBOARD_CONFIG_INVALID"
 
 
+class MarketplaceMessages:
+    LISTING_NOT_FOUND = "MARKETPLACE_LISTING_NOT_FOUND"
+    #: The listing exists but nothing about it can be installed here — withdrawn
+    #: by its publisher, or its only versions need a newer app.
+    LISTING_UNAVAILABLE = "MARKETPLACE_LISTING_UNAVAILABLE"
+    LISTING_VERSION_INCOMPATIBLE = "MARKETPLACE_LISTING_VERSION_INCOMPATIBLE"
+    #: An upgrade was asked for on a dashboard that was authored here, not
+    #: installed — there is no listing to re-pin it to.
+    NOT_INSTALLED_FROM_LISTING = "MARKETPLACE_NOT_INSTALLED_FROM_LISTING"
+    ALREADY_LATEST_VERSION = "MARKETPLACE_ALREADY_LATEST_VERSION"
+
+
 class QueueMessages:
     NOT_FOUND = "QUEUE_NOT_FOUND"
     ITEM_NOT_FOUND = "QUEUE_ITEM_NOT_FOUND"

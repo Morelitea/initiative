@@ -1,0 +1,52 @@
+{
+  "title": "Catalogue",
+  "subtitle": "Des tableaux de bord prêts à l'emploi, à ajouter à une initiative.",
+  "searchPlaceholder": "Rechercher dans le catalogue…",
+  "backToMarketplace": "Retour au catalogue",
+  "card": {
+    "installed": "Installé",
+    "version": "v{{version}}",
+    "needsUpdate": "Nécessite une app plus récente"
+  },
+  "empty": {
+    "title": "Rien ici pour l'instant",
+    "description": "Cette instance ne propose aucune fiche."
+  },
+  "noResults": {
+    "title": "Aucun résultat",
+    "description": "Rien dans le catalogue ne correspond à « {{query}} »."
+  },
+  "detail": {
+    "by": "par {{publisher}}",
+    "installs_one": "{{count}} installation",
+    "installs_other": "{{count}} installations",
+    "install": "Ajouter à une initiative",
+    "preview": "Aperçu",
+    "versions": "Versions",
+    "needsUpdate": "Nécessite une version plus récente de l'application.",
+    "withdrawn": "N'est plus proposé.",
+    "notFound": "Fiche introuvable",
+    "notFoundDescription": "Elle a peut-être été retirée, ou le lien est incorrect."
+  },
+  "install": {
+    "title": "Ajouter {{name}}",
+    "description": "Choisissez sa destination. Vous pourrez le renommer maintenant ou plus tard.",
+    "initiative": "Initiative",
+    "name": "Nom",
+    "action": "Ajouter",
+    "done": "{{name}} ajouté.",
+    "failed": "Impossible d'ajouter cette fiche.",
+    "noInitiatives": "Vous ne pouvez encore créer de tableaux de bord dans aucune initiative. Demandez l'accès à une personne responsable de l'initiative."
+  },
+  "update": {
+    "available": "Version {{version}} disponible",
+    "action": "Mettre à jour",
+    "done": "Mis à jour vers {{version}}.",
+    "failed": "Impossible de mettre à jour ce tableau de bord."
+  },
+  "unavailable": {
+    "title": "Catalogue indisponible",
+    "description": "Le catalogue n'a pas pu être joint. Réessayez dans un instant."
+  },
+  "installedUnknown": "Impossible de vérifier lesquels vous possédez déjà : rien ci-dessous n'est donc marqué comme installé."
+}

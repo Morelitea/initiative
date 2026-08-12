@@ -143,5 +143,6 @@
     "data": "Données",
     "needsBinding": "Vous choisirez précisément ce qu'il affiche après l'avoir ajouté.",
     "add": "Ajouter {{widget}}"
-  }
+  },
+  "browseMarketplace": "Parcourir le catalogue"
 }

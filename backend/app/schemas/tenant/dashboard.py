@@ -40,6 +40,11 @@ class DashboardBase(SanitizedBaseModel):
 class DashboardCreate(DashboardBase):
     initiative_id: int
     tag_ids: Optional[List[int]] = None
+    # Install from the marketplace instead of authoring: name a catalog listing
+    # by its uid and the server resolves it, taking the definition from the
+    # catalog row and pinning the version. Nothing about the body below is read
+    # when this is set — an installed definition is never client-supplied.
+    listing_uid: Optional[str] = Field(default=None, max_length=14)
     # The canvas body. Validated + canonicalized by
     # ``dashboard_definition.normalize_dashboard_definition`` before it is
     # stored, so only known widget/binding vocabulary ever lands in the row.
@@ -53,6 +58,21 @@ class DashboardCreate(DashboardBase):
             ResourceGrantSchema(all_initiative_members=True, level="read")
         ]
     )
+
+
+class DashboardInstalledListings(SanitizedBaseModel):
+    """How many dashboards in this guild came from each marketplace listing.
+
+    Keyed by listing uid, because that is what an install pins. Answered here
+    rather than by the catalog: which listings a guild has is guild data, and the
+    catalog holds none of it. Small and unpaginated by construction — one entry
+    per distinct listing, not per dashboard — so a browse surface can mark what
+    is already installed without walking the dashboard list.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    counts: Dict[str, int] = Field(default_factory=dict)
 
 
 class DashboardUpdate(SanitizedBaseModel):
