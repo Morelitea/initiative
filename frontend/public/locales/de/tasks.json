@@ -125,7 +125,7 @@
     "pin": "An Fokus anheften",
     "unpin": "Aus Fokus entfernen",
     "settings": "Fokus-Einstellungen",
-    "dueWithinLabel": "Fällige Arbeit anzeigen",
+    "dueWithinLabel": "Fällige oder beginnende Arbeit anzeigen",
     "dueWithin": {
       "0": "Heute",
       "2": "Nächste 2 Tage",

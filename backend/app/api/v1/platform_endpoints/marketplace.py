@@ -6,30 +6,27 @@ holds catalog metadata only, which is why "which of these do I already have?" is
 answered by the guild-scoped tool endpoints and merged in the client.
 
 Browsing is read-only. The catalog's only writer is the system engine (boot
-seeding and the registry refresh); installing writes a guild's own schema
-through the tool's endpoints, never here.
+seeding, the operator's own catalog directory, and the registry refresh);
+installing writes a guild's own schema through the tool's endpoints, never here.
 
-Two other things live on this surface: the mirrored artwork a signed registry's
-listings are served from, and the operator's view of that registry — its status
-and a "refresh now" that runs the same code path the background refresh does.
+Two write routes and one public one live on this surface: the operator's rescan
+of their catalog directory, their "refresh now" for the signed registry — both
+gated on the capability that governs deployment configuration, because that is
+what publishing a listing is — and the mirrored artwork a registry's listings
+are served from.
 """
 
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.deps import (
-    get_current_active_user,
-    require_capability,
-    SessionDep,
-    UserSessionDep,
-)
-from app.core.capabilities import Capability
+from app.api.deps import get_current_active_user, SessionDep, UserSessionDep
+from app.api.v1.platform_endpoints.admin import ConfigManageDep
 from app.core.config import settings
-from app.db.session import get_admin_session
 from app.core.messages import MarketplaceMessages, MarketplaceRegistryMessages
+from app.db.session import get_admin_session
 from app.models.platform.marketplace import (
     MarketplaceListing,
     MarketplaceListingVersion,
@@ -42,6 +39,8 @@ from app.schemas.platform.marketplace import (
     MarketplaceListingPage,
     MarketplaceListingSummary,
     MarketplaceVersionRead,
+    OperatorCatalogProblem,
+    OperatorCatalogScanResult,
 )
 from app.schemas.platform.marketplace_registry import (
     RegistryRefreshRead,
@@ -50,14 +49,12 @@ from app.schemas.platform.marketplace_registry import (
 )
 from app.services.marketplace import catalog as catalog_service
 from app.services.marketplace import registry as registry_service
+from app.services.marketplace import operator_catalog as operator_catalog_service
 
 router = APIRouter()
 
 CurrentUser = Annotated[User, Depends(get_current_active_user)]
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
-#: Pointing a deployment at a registry is deployment configuration, so it sits
-#: with the rest of what an owner configures.
-ConfigManageDep = Annotated[User, Depends(require_capability(Capability.CONFIG_MANAGE))]
 
 MAX_PAGE_SIZE = 100
 
@@ -184,6 +181,47 @@ async def read_marketplace_listing(
             detail=MarketplaceMessages.LISTING_NOT_FOUND,
         )
     return await _detail(session, listing)
+
+
+@router.post("/operator-catalog/rescan", response_model=OperatorCatalogScanResult)
+async def rescan_operator_catalog(
+    session: AdminSessionDep,
+    _admin: ConfigManageDep,
+) -> OperatorCatalogScanResult:
+    """Re-read the deployment's own catalog directory (``config.manage``).
+
+    The same scan the boot runs, so a manifest dropped into the mounted
+    directory appears without a restart, and one removed from it retires its
+    listing. Answers 400 when no directory is configured or the configured one
+    is not there, and 409 while a scan is already running.
+    """
+    if operator_catalog_service.operator_catalog_dir() is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=MarketplaceMessages.OPERATOR_CATALOG_NOT_CONFIGURED,
+        )
+    try:
+        scan = await operator_catalog_service.scan_operator_catalog(session)
+    except operator_catalog_service.OperatorCatalogScanRunning:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=MarketplaceMessages.OPERATOR_CATALOG_SCAN_RUNNING,
+        ) from None
+    if scan.directory_missing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=MarketplaceMessages.OPERATOR_CATALOG_DIR_MISSING,
+        )
+    await session.commit()
+    return OperatorCatalogScanResult(
+        published=scan.published,
+        withdrawn=scan.withdrawn,
+        skipped=scan.skipped,
+        problems=[
+            OperatorCatalogProblem(file=problem.file, reason=problem.reason)
+            for problem in scan.problems
+        ],
+    )
 
 
 # --- mirrored listing artwork ------------------------------------------------

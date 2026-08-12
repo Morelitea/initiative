@@ -117,6 +117,10 @@ class FakeRegistry:
             "kind": kind,
             "name": name,
             "publisher": "Acme",
+            # Attribution is required on every ingestion path, a registry's
+            # included — a manifest without it is refused by the validator
+            # before anything here gets a say.
+            "author": {"name": "Acme Widgets", "url": "https://acme.example"},
             "description": "A thing from a registry.",
             "avatar_url": avatar_url,
             "images": (

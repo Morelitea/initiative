@@ -107,7 +107,7 @@ describe("FocusSummary", () => {
     expect(screen.getByText("1 of 3 done")).toBeInTheDocument();
   });
 
-  it("asks for due-soon work, urgent work, and today's completions in one query", async () => {
+  it("asks for due-soon work, started work, urgent work, and today's completions in one query", async () => {
     mockMyTasks({});
     renderFocus({ dueWithinDays: 2, includeHighPriority: true });
 
@@ -117,16 +117,24 @@ describe("FocusSummary", () => {
     expect(conditions).toHaveLength(1);
     expect(conditions[0].logic).toBe("or");
 
-    const stillOpen = { field: "status_category", op: "in_", value: ["todo", "in_progress"] };
-    const [dueLeg, urgentLeg, doneLeg] = conditions[0].conditions;
+    const stillOpen = {
+      field: "status_category",
+      op: "in_",
+      value: ["backlog", "todo", "in_progress"],
+    };
+    const [dueLeg, startLeg, urgentLeg, doneLeg] = conditions[0].conditions;
 
-    // Due-soon OR urgent, as sibling AND legs. Two things ride on this shape:
-    // an AND between date and priority would empty the list on exactly the days
-    // it matters most, and a third level of nesting is rejected outright by the
-    // API's group-depth cap.
+    // Due-soon OR started OR urgent, as sibling AND legs. Two things ride on
+    // this shape: an AND between date and priority would empty the list on
+    // exactly the days it matters most, and a third level of nesting is
+    // rejected outright by the API's group-depth cap.
     expect(dueLeg.conditions).toEqual([
       stillOpen,
       { field: "due_date", op: "lte", value: expect.any(String) },
+    ]);
+    expect(startLeg.conditions).toEqual([
+      stillOpen,
+      { field: "start_date", op: "lte", value: expect.any(String) },
     ]);
     expect(urgentLeg.conditions).toEqual([
       stillOpen,
@@ -137,10 +145,60 @@ describe("FocusSummary", () => {
       { field: "completed_at", op: "gte", value: expect.any(String) },
     ]);
 
+    // Both dates are measured to the same edge of the window, so the setting
+    // means one thing rather than two.
+    expect(startLeg.conditions[1].value).toBe(dueLeg.conditions[1].value);
+
     // The list spans every guild the user belongs to and answers only to its
     // own settings — it is not scoped by the guild you happen to be viewing,
     // nor by the task table's filters.
     expect(captured[0].get("conditions")).not.toContain("guild_id");
+  });
+
+  it("asks for backlog work too, not just what someone moved to To Do", async () => {
+    // Backlog is the default status of a newly created task, so excluding it
+    // empties the section on an ordinary install — overdue tasks included.
+    mockMyTasks({});
+    renderFocus();
+
+    await waitFor(() => expect(captured.length).toBeGreaterThan(0));
+    const conditions = JSON.parse(captured[0].get("conditions") ?? "[]");
+
+    const openValues = conditions[0].conditions
+      .flatMap((leg: { conditions: { field: string; value: unknown }[] }) => leg.conditions)
+      .filter((c: { field: string }) => c.field === "status_category")
+      .map((c: { value: unknown }) => c.value);
+
+    for (const value of openValues) {
+      expect(value).not.toEqual(["todo", "in_progress"]);
+    }
+    expect(openValues).toContainEqual(["backlog", "todo", "in_progress"]);
+  });
+
+  it("shows a started task that carries no due date", async () => {
+    // The table below groups this as "Today" off its start date alone; the
+    // section agrees rather than needing a deadline before it will look.
+    mockMyTasks({
+      rules: buildTaskListResponse([
+        buildTask({
+          id: 1,
+          title: "Draft the launch post",
+          start_date: "2026-08-10T09:00:00Z",
+          due_date: null,
+        }),
+        buildTask({ id: 2, title: "Sign the contract", due_date: "2026-08-11T09:00:00Z" }),
+      ]),
+    });
+
+    renderFocus();
+
+    expect(await screen.findByText("Draft the launch post")).toBeInTheDocument();
+    // Dated work still leads: a deadline outranks work that merely started.
+    const titles = screen
+      .getAllByRole("link")
+      .map((link) => link.textContent)
+      .filter((title) => title === "Draft the launch post" || title === "Sign the contract");
+    expect(titles).toEqual(["Sign the contract", "Draft the launch post"]);
   });
 
   it("never nests condition groups deeper than the API accepts", async () => {
