@@ -4,9 +4,16 @@ A calendar is the shareable DAC anchor for its events (``resource_type=
 'calendar'``); events inherit access from it the way tasks inherit from their
 project, so the loaders here eager-load ``grants`` + ``initiative.memberships``
 for the permission engine.
+
+Two kinds of calendar live here. Nearly all of them belong to an initiative. A
+**guild calendar** — the one the calendar app installs — belongs to none, and
+that is the whole of what it is: a set of its own events, holding nothing from
+any initiative and reaching into none. Its ``initiative_id`` is NULL, so
+anything derived from an initiative has nothing to derive from and refuses.
 """
 
 from fastapi import HTTPException, status
+from sqlalchemy import or_
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -25,6 +32,32 @@ from app.models.tenant.initiative import Initiative
 from app.models.tenant.property import CalendarEventPropertyValue
 from app.models.tenant.resource_grant import ResourceGrant
 from app.services.tenant import tags as tags_service
+
+
+def tool_enabled_clause():
+    """Calendars whose tool is switched on.
+
+    An initiative calendar answers to that initiative's ``calendars_enabled``
+    switch. A guild calendar answers to no initiative, so the switch has nothing
+    to say about it — installing the app is what turned it on, and removing the
+    app is what takes it away.
+
+    Use this only where the question is "every calendar in scope". A query for
+    *one initiative's* calendars must keep comparing ``initiative_id`` directly:
+    a guild calendar belongs to no initiative and so belongs in no initiative's
+    view.
+    """
+    return or_(
+        Calendar.initiative_id.is_(None),
+        Calendar.initiative_id.in_(
+            select(Initiative.id).where(Initiative.calendars_enabled == True)  # noqa: E712
+        ),
+    )
+
+
+def guild_scoped(calendar: Calendar) -> bool:
+    """Whether this calendar belongs to the guild rather than an initiative."""
+    return calendar.initiative_id is None
 
 
 def calendar_loader_options() -> list:
@@ -131,16 +164,20 @@ async def list_calendar_ids_for_export(
     initiative_id: int | None = None,
 ) -> list[int]:
     """Ids of every calendar the user may export — the enumeration behind
-    "export my calendars": calendars in calendar-enabled initiatives, DAC-visible
-    to the user (guild admins see all via the membership role), optionally
-    narrowed to one initiative. Deterministic order for stable output."""
+    "export my calendars": calendars whose tool is on, DAC-visible to the user
+    (guild admins see all via the membership role), optionally narrowed to one
+    initiative. Deterministic order for stable output.
+
+    Narrowed to an initiative, a guild calendar is not among them: it belongs to
+    no initiative, so it is in no initiative's export either."""
     from app.services import permissions as permissions_service
     from app.services.platform import guilds as guilds_service
     from app.services.rls import is_guild_admin
 
-    conditions = [Initiative.calendars_enabled == True]  # noqa: E712
     if initiative_id is not None:
-        conditions.append(Calendar.initiative_id == initiative_id)
+        conditions = [Calendar.initiative_id == initiative_id]
+    else:
+        conditions = [tool_enabled_clause()]
 
     membership = await guilds_service.get_membership(
         session, guild_id=guild_id, user_id=current_user.id
@@ -158,7 +195,6 @@ async def list_calendar_ids_for_export(
 
     statement = (
         select(Calendar.id)
-        .join(Initiative, Initiative.id == Calendar.initiative_id)
         .where(*conditions)
         .order_by(Calendar.name.asc(), Calendar.id.asc())
     )

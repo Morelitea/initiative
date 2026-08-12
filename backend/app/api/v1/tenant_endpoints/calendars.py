@@ -147,11 +147,7 @@ async def list_calendars(
             )
         conditions.append(Calendar.initiative_id == initiative_id)
     else:
-        conditions.append(
-            Calendar.initiative_id.in_(
-                select(Initiative.id).where(Initiative.calendars_enabled == True)  # noqa: E712
-            )
-        )
+        conditions.append(calendars_service.tool_enabled_clause())
 
     # DAC: non-admins (and non-PAM) see only calendars shared with them.
     if not rls_service.is_guild_admin(guild_context.role) and not guild_context.is_pam:
@@ -362,7 +358,10 @@ async def list_my_calendars(
     """
 
     def _fetch(guild_session, guild_id):  # type: ignore[no-untyped-def]
-        conditions = [Initiative.calendars_enabled == True]  # noqa: E712
+        # A guild calendar is one of the user's own calendars like any other, so
+        # it belongs in this view — it is reached here and from the app, and
+        # nowhere that belongs to an initiative.
+        conditions = [calendars_service.tool_enabled_clause()]
         if role_context.active_guild_role(guild_id) != GuildRole.admin.value:
             conditions.append(
                 Calendar.id.in_(
@@ -373,7 +372,6 @@ async def list_my_calendars(
             )
         stmt = (
             select(Calendar)
-            .join(Initiative, Initiative.id == Calendar.initiative_id)
             .where(*conditions)
             .options(*calendars_service.calendar_loader_options())
         )

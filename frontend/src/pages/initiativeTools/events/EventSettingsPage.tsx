@@ -80,9 +80,10 @@ export function EventSettingsPage() {
   // the PropertyList. The list's debounced save handles persistence.
   const [pendingProperties, setPendingProperties] = useState<PropertyDefinitionRead[]>([]);
 
-  // Attendee candidates come from the initiative-scoped member typeahead
-  // (MemberMultiSelect below) — every initiative member may attend. Event DAC
-  // (the ShareControl below) is a separate concern tracked in #948. The current
+  // Attendee candidates come from whatever the event's calendar belongs to
+  // (MemberMultiSelect below): every member of its initiative, or every member
+  // of the guild when the calendar belongs to no initiative. Event DAC (the
+  // ShareControl below) is a separate concern tracked in #948. The current
   // attendees carry their own user summaries, so the chips render immediately.
   const attendeeUsers = useMemo(
     () => (event?.attendees ?? []).flatMap((a) => (a.user ? [a.user] : [])),
@@ -417,7 +418,11 @@ export function EventSettingsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <MemberMultiSelect
-            scope={{ type: "initiative", initiativeId: event?.initiative_id ?? null }}
+            scope={
+              event != null && event.initiative_id == null
+                ? { type: "guild" }
+                : { type: "initiative", initiativeId: event?.initiative_id ?? null }
+            }
             selectedIds={attendeeIds}
             selectedUsers={attendeeUsers}
             onChange={setAttendeeIds}

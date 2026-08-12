@@ -15,12 +15,15 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy import text
 
 from app.db.schema_provisioning import guild_schema_name
+from app.core.messages import CalendarEventMessages
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.resource_grant import ResourceGrant
 from app.testing import (
     create_calendar,
     create_calendar_event,
+    create_guild_calendar,
+    create_property_definition,
     create_tag,
     get_auth_headers,
 )
@@ -559,3 +562,162 @@ async def test_my_calendar_events_admin_sees_events_outside_their_initiatives(
     )
     assert resp.status_code == 200
     assert event.id in {item["id"] for item in resp.json()["items"]}
+
+
+async def _switch_calendars_on(session: AsyncSession, initiative) -> None:
+    """Switch the calendar tool on for an initiative, without creating one.
+
+    Off by default — and a guild calendar answers to this switch not at all,
+    which is part of what the tests below check."""
+    initiative.calendars_enabled = True
+    session.add(initiative)
+    await session.commit()
+    await session.refresh(initiative)
+
+
+class TestGuildCalendarEvents:
+    """A guild calendar holds its own events and reaches into no initiative.
+
+    Two questions, and they pull in opposite directions. Its events have to be
+    *visible* — the app's page and a member's own calendar are where they show,
+    and until now every one of those queries required an initiative, so they
+    showed nowhere at all. And its events must stay *out* of anything belonging
+    to an initiative, which is the same NULL read the other way.
+
+    The rest is what an event borrows from an initiative — its member list, its
+    property definitions. A guild calendar has no initiative to borrow from, so
+    those refuse rather than resolve to something else.
+    """
+
+    async def test_events_are_listed(self, client: AsyncClient, acting_user, session):
+        a = await acting_user(guild_role=GuildRole.admin)
+        calendar = await create_guild_calendar(session, a.guild, a.user)
+        await create_calendar_event(session, calendar, a.user, title="Club night")
+
+        response = await client.get(a.g("/calendar-events/"), headers=a.headers)
+        assert response.status_code == 200, response.text
+        assert [e["title"] for e in response.json()["items"]] == ["Club night"]
+
+    async def test_a_member_in_no_initiative_sees_them(
+        self, client: AsyncClient, acting_user, session
+    ):
+        """The point of the app: someone in none of the guild's initiatives
+        still has the guild's own calendar."""
+        a = await acting_user(guild_role=GuildRole.admin)
+        calendar = await create_guild_calendar(session, a.guild, a.user)
+        await create_calendar_event(session, calendar, a.user, title="Club night")
+        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+
+        response = await client.get(
+            member.g("/calendar-events/"), headers=member.headers
+        )
+        assert response.status_code == 200, response.text
+        assert [e["title"] for e in response.json()["items"]] == ["Club night"]
+
+    async def test_they_stay_out_of_an_initiative(
+        self, client: AsyncClient, acting_user, session
+    ):
+        """Asked for one initiative's events, a guild calendar has nothing to
+        contribute — it belongs to no initiative."""
+        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        await _switch_calendars_on(session, a.initiative)
+        guild_calendar = await create_guild_calendar(session, a.guild, a.user)
+        await create_calendar_event(session, guild_calendar, a.user, title="Club night")
+        own = await create_calendar(session, a.initiative, a.user)
+        await create_calendar_event(session, own, a.user, title="Sprint review")
+
+        response = await client.get(
+            a.g("/calendar-events/"),
+            headers=a.headers,
+            params={"initiative_id": a.initiative.id},
+        )
+        assert response.status_code == 200, response.text
+        assert [e["title"] for e in response.json()["items"]] == ["Sprint review"]
+
+    async def test_the_calendar_is_listed_but_not_under_an_initiative(
+        self, client: AsyncClient, acting_user, session
+    ):
+        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        await _switch_calendars_on(session, a.initiative)
+        await create_guild_calendar(session, a.guild, a.user, name="Guild calendar")
+        await create_calendar(session, a.initiative, a.user, name="Team calendar")
+
+        every = await client.get(a.g("/calendars/"), headers=a.headers)
+        assert sorted(c["name"] for c in every.json()["items"]) == [
+            "Guild calendar",
+            "Team calendar",
+        ]
+
+        scoped = await client.get(
+            a.g("/calendars/"),
+            headers=a.headers,
+            params={"initiative_id": a.initiative.id},
+        )
+        assert [c["name"] for c in scoped.json()["items"]] == ["Team calendar"]
+
+    async def test_anyone_in_the_guild_can_attend(
+        self, client: AsyncClient, acting_user, session
+    ):
+        """An initiative calendar draws attendees from its initiative; a guild
+        calendar has none, so the guild is who can attend — including a member
+        who belongs to no initiative at all."""
+        a = await acting_user(guild_role=GuildRole.admin)
+        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        calendar = await create_guild_calendar(session, a.guild, a.user)
+
+        response = await client.post(
+            a.g("/calendar-events/"),
+            headers=a.headers,
+            json={
+                "calendar_id": calendar.id,
+                "title": "Club night",
+                "start_at": "2026-09-01T18:00:00Z",
+                "end_at": "2026-09-01T20:00:00Z",
+                "attendee_ids": [member.user.id],
+            },
+        )
+        assert response.status_code == 201, response.text
+        assert [at["user"]["id"] for at in response.json()["attendees"]] == [
+            member.user.id
+        ]
+
+    async def test_someone_outside_the_guild_cannot_attend(
+        self, client: AsyncClient, acting_user, session
+    ):
+        a = await acting_user(guild_role=GuildRole.admin)
+        stranger = await acting_user(guild_role=GuildRole.admin)
+        calendar = await create_guild_calendar(session, a.guild, a.user)
+
+        response = await client.post(
+            a.g("/calendar-events/"),
+            headers=a.headers,
+            json={
+                "calendar_id": calendar.id,
+                "title": "Club night",
+                "start_at": "2026-09-01T18:00:00Z",
+                "end_at": "2026-09-01T20:00:00Z",
+                "attendee_ids": [stranger.user.id],
+            },
+        )
+        assert response.status_code == 400
+        assert response.json()["detail"] == CalendarEventMessages.INVALID_ATTENDEE_IDS
+
+    async def test_properties_are_refused(
+        self, client: AsyncClient, acting_user, session
+    ):
+        """Property definitions belong to an initiative too."""
+        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        definition = await create_property_definition(session, a.initiative)
+        calendar = await create_guild_calendar(session, a.guild, a.user)
+        event = await create_calendar_event(session, calendar, a.user)
+
+        response = await client.put(
+            a.g(f"/calendar-events/{event.id}/properties"),
+            headers=a.headers,
+            json={"values": [{"property_id": definition.id, "value": "anything"}]},
+        )
+        assert response.status_code == 400
+        assert (
+            response.json()["detail"]
+            == CalendarEventMessages.GUILD_CALENDAR_NO_PROPERTIES
+        )

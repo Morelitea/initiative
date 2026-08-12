@@ -31,12 +31,9 @@ pytestmark = pytest.mark.asyncio
 
 ADVANCED_TOOL_PUBLIC_ID = "core.advanced-tool"
 
-# Enough to look configured. The values are never dereferenced by seeding — it
-# asks whether they are set, not what they say.
-_CONFIGURED = {
-    "ADVANCED_TOOL_URL": "https://tool.example.test",
-    "HANDOFF_SIGNING_PRIVATE_KEY_PEM": "-----BEGIN PRIVATE KEY-----\nx\n-----END PRIVATE KEY-----",
-}
+# Enough to look configured. The value is never dereferenced by seeding — it
+# asks whether it is set, not what it says.
+_CONFIGURED = {"ADVANCED_TOOL_URL": "https://tool.example.test"}
 
 
 @pytest.fixture
@@ -128,14 +125,16 @@ class TestConditionalListing:
         listing = (await _seeded(session))[ADVANCED_TOOL_PUBLIC_ID]
         assert listing.available is False
 
-    async def test_the_signing_key_counts_as_configuration(self, monkeypatch):
-        """Without it the handoff endpoint fails closed, so the app would install
-        and then refuse to open."""
+    async def test_the_url_alone_is_enough(self, monkeypatch):
+        """The same setting that reveals the initiative-level surface reveals
+        this one. A missing signing key is a misconfiguration the boot log
+        names and the app reports when opened — not a reason to hide it, which
+        would leave an operator with half a tool and no explanation."""
         monkeypatch.setattr(settings, "ADVANCED_TOOL_URL", "https://tool.example.test")
         monkeypatch.setattr(settings, "HANDOFF_SIGNING_PRIVATE_KEY_PEM", None)
 
         definition = {"app_kind": "embed", "embed_target": "advanced_tool"}
-        assert deployment_serves(definition) is False
+        assert deployment_serves(definition) is True
 
     async def test_content_apps_are_served_everywhere(self):
         assert deployment_serves({"app_kind": "tool_instance", "tool": "calendar"})

@@ -845,6 +845,63 @@ async def create_calendar(
     return calendar
 
 
+async def create_guild_calendar(
+    session: AsyncSession,
+    guild: Guild,
+    creator: User,
+    *,
+    name: str | None = None,
+    shared_with_everyone: bool = True,
+    **overrides: Any,
+) -> Calendar:
+    """A guild calendar — the one the calendar app installs.
+
+    Belongs to no initiative, which is the whole of what makes it different: it
+    holds its own events and reaches into nothing. Mirrors what
+    ``guild_apps.create_app_content`` builds, so a test exercises the same row
+    an install produces rather than an approximation of one.
+    """
+    await route_session_to_guild(session, guild.id)
+
+    calendar = Calendar(
+        **{
+            "guild_id": guild.id,
+            "initiative_id": None,
+            "created_by_id": creator.id,
+            "name": name or "Guild calendar",
+            **overrides,
+        }
+    )
+    session.add(calendar)
+    await session.commit()
+    await session.refresh(calendar)
+
+    session.add(
+        ResourceGrant(
+            resource_type="calendar",
+            resource_id=calendar.id,
+            user_id=creator.id,
+            level=ResourceAccessLevel.owner,
+            guild_id=guild.id,
+            initiative_id=None,
+        )
+    )
+    if shared_with_everyone:
+        # At guild scope the everyone grant reads as every member of the guild.
+        session.add(
+            ResourceGrant(
+                resource_type="calendar",
+                resource_id=calendar.id,
+                all_initiative_members=True,
+                level=ResourceAccessLevel.read,
+                guild_id=guild.id,
+                initiative_id=None,
+            )
+        )
+    await session.commit()
+    return calendar
+
+
 def marketplace_uid(label: str) -> str:
     """A valid catalog uid from a readable label.
 

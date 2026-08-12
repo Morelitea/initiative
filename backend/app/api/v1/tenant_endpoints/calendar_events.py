@@ -59,6 +59,7 @@ from app.core.tools import Tool
 from app.models.tenant.resource_grant import ResourceGrant
 from app.services import permissions as permissions_service
 from app.services.tenant import calendar_events as events_service
+from app.services.tenant import calendars as calendars_service
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.services.tenant import ical_service
 from app.services import notifications as notifications_service
@@ -190,9 +191,9 @@ async def query_my_calendar_events(
     """
 
     def _fetch(guild_session, guild_id):  # type: ignore[no-untyped-def]
-        conditions = [
-            Initiative.calendars_enabled == True,  # noqa: E712
-        ]
+        # Guild calendars included: this is the user's own calendar view, one of
+        # the two places their events show (the app's page is the other).
+        conditions = [calendars_service.tool_enabled_clause()]
         if start_after is not None:
             conditions.append(CalendarEvent.start_at >= start_after)
         if start_before is not None:
@@ -203,7 +204,6 @@ async def query_my_calendar_events(
         stmt = (
             select(CalendarEvent)
             .join(Calendar, Calendar.id == CalendarEvent.calendar_id)
-            .join(Initiative, Initiative.id == Calendar.initiative_id)
             .where(*conditions)
             .options(*_calendar_event_loader_options())
         )
@@ -279,9 +279,7 @@ async def export_my_calendar_events_ics(
     """
 
     def _fetch(guild_session, guild_id):  # type: ignore[no-untyped-def]
-        conditions = [
-            Initiative.calendars_enabled == True,  # noqa: E712
-        ]
+        conditions = [calendars_service.tool_enabled_clause()]
         if start_after is not None:
             conditions.append(CalendarEvent.start_at >= start_after)
         if start_before is not None:
@@ -292,7 +290,6 @@ async def export_my_calendar_events_ics(
         stmt = (
             select(CalendarEvent)
             .join(Calendar, Calendar.id == CalendarEvent.calendar_id)
-            .join(Initiative, Initiative.id == Calendar.initiative_id)
             .where(*conditions)
             .options(
                 selectinload(CalendarEvent.attendees).selectinload(
@@ -462,15 +459,13 @@ async def query_guild_calendar_events(
             )
         )
     else:
+        # No initiative asked for: every calendar in scope, guild calendars
+        # among them. Narrowed to one initiative (above), they are excluded —
+        # a guild calendar belongs to no initiative, so its events never appear
+        # in an initiative's view of the calendar.
         conditions.append(
             CalendarEvent.calendar_id.in_(
-                select(Calendar.id).where(
-                    Calendar.initiative_id.in_(
-                        select(Initiative.id).where(
-                            Initiative.calendars_enabled == True  # noqa: E712
-                        )
-                    )
-                )
+                select(Calendar.id).where(calendars_service.tool_enabled_clause())
             )
         )
 
@@ -956,10 +951,19 @@ async def set_event_properties(
     Mirrors the tasks/documents shape: anyone with write access on the calendar
     (or guild admin) can attach values; cross-initiative definitions return 404
     DEFINITION_NOT_FOUND via the service layer.
+
+    Property definitions belong to an initiative. A guild calendar belongs to
+    none, so there are no definitions its events could carry and the request is
+    refused; clearing values stays available.
     """
     event = await _get_event_or_404(
         session, event_id, current_user, guild_context, access="write"
     )
+    if payload.values and event.calendar.initiative_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=CalendarEventMessages.GUILD_CALENDAR_NO_PROPERTIES,
+        )
     await properties_service.set_event_property_values(
         session, event, payload.values, initiative_id=event.calendar.initiative_id
     )

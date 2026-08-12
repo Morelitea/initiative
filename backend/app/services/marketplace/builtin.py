@@ -50,16 +50,18 @@ def deployment_serves(definition: Mapping[str, Any]) -> bool:
     """Whether this deployment can actually serve a listing with this body.
 
     Unconditional for everything except an embed on the deployment's own
-    advanced-tool slot, which needs two things from the operator: somewhere to
-    point the iframe, and the RSA key that signs the handoff the embed verifies.
-    With either missing there is nothing to open, so the listing is not offered.
+    advanced-tool slot, which needs somewhere to point the iframe.
+
+    That one setting, and not the signing key alongside it: the same URL is what
+    reveals the initiative-level surface, so gating this one differently would
+    show an operator one half of the same tool and hide the other. A URL without
+    its key is a misconfiguration the boot log already names, and the app says so
+    when opened rather than going missing from the catalog.
     """
     if definition.get("app_kind") != "embed":
         return True
     if definition.get("embed_target") == "advanced_tool":
-        return bool(
-            settings.ADVANCED_TOOL_URL and settings.HANDOFF_SIGNING_PRIVATE_KEY_PEM
-        )
+        return bool(settings.ADVANCED_TOOL_URL)
     return False
 
 

@@ -24,11 +24,15 @@ import {
 } from "@/components/ui/select";
 import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { useInitiative } from "@/hooks/useInitiatives";
+import { useUsers } from "@/hooks/useUsers";
 import { cn } from "@/lib/utils";
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
 export interface ShareControlProps {
+  /** The initiative whose members and roles can be named, or `null` for a
+   *  guild-level resource — where the people who can be named are the guild's
+   *  members, and no initiative is read at all. */
   initiativeId: number | null;
   /** Full grant list for the resource (may include the owner-level grant). */
   grants: ResourceGrantSchema[];
@@ -53,10 +57,27 @@ export const ShareControl = ({
 }: ShareControlProps) => {
   const { t } = useTranslation("access");
 
+  // Guild-level resource: there is no initiative to read, so the roster comes
+  // from the guild. Roles stay empty — a guild role is not an initiative role,
+  // and granting to one is not something this build does.
+  //
+  // Both rosters here are whole-list reads, and a guild's is the larger of the
+  // two. The bounded alternative is the search endpoint, but it answers with
+  // UserSummary — no email — and every row in this control shows one, so moving
+  // to it is a change to what sharing displays for all six tools rather than a
+  // swap. Worth doing as its own change; noted so it isn't re-derived.
+  const guildScoped = initiativeId == null;
   const { data: roles = [] } = useInitiativeRoles(initiativeId);
   const { data: initiative } = useInitiative(initiativeId);
+  const { data: guildUsers = [] } = useUsers({ enabled: guildScoped });
 
-  const members = useMemo(() => initiative?.members ?? [], [initiative?.members]);
+  const members = useMemo(
+    () =>
+      guildScoped
+        ? guildUsers.map((user) => ({ user }))
+        : (initiative?.members ?? []).map((member) => ({ user: member.user })),
+    [guildScoped, guildUsers, initiative?.members]
+  );
 
   // ── Derived grant buckets ────────────────────────────────────────────────
 
