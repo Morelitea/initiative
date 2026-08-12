@@ -539,6 +539,10 @@ class GuildAppMessages:
     #: This guild already has this listing installed. Apps mount one guild-wide
     #: surface each, so a second copy has nothing to be.
     ALREADY_INSTALLED = "GUILD_APP_ALREADY_INSTALLED"
+    #: A valid app of a kind this build does not mount into a guild yet — see
+    #: GUILD_INSTALLABLE_APP_KINDS. Publishable and browsable, not installable
+    #: here, and told so by name rather than half-mounted.
+    KIND_NOT_INSTALLABLE = "GUILD_APP_KIND_NOT_INSTALLABLE"
 
 
 class WebhookSubscriptionMessages:

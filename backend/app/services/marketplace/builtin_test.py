@@ -26,6 +26,11 @@ from app.services.marketplace.builtin import (
     load_builtin_manifests,
     seed_builtin_listings,
 )
+from app.services.marketplace.definitions import (
+    RESERVED_PUBLIC_ID_PREFIX,
+    normalize_author,
+    normalize_listing_definition,
+)
 
 pytestmark = pytest.mark.asyncio
 
@@ -55,6 +60,31 @@ async def _seeded(session) -> dict[str, MarketplaceListing]:
 
 
 class TestShippedManifests:
+    async def test_every_shipped_manifest_passes_the_validator(self):
+        """The manifest-level checks, on every file, with no database in the way.
+
+        Seeding logs and skips a manifest it cannot accept, so a shipped file
+        that stopped validating would be missing from the catalog rather than
+        loud. This runs the same checks directly, which is also what makes the
+        author requirement real for the listings we ship rather than only for
+        the ones other people write.
+        """
+        manifests = list(load_builtin_manifests())
+        assert manifests, "no manifests ship with this build"
+
+        for manifest in manifests:
+            public_id = manifest.get("public_id", "?")
+            author = normalize_author(manifest.get("author"))
+            assert author.name, f"{public_id} ships without an author"
+            normalize_listing_definition(
+                manifest.get("kind", ""), manifest.get("definition")
+            )
+            # Everything shipped here is, by definition, shipped here.
+            assert public_id.startswith(RESERVED_PUBLIC_ID_PREFIX), (
+                f"{public_id} is a built-in and should publish under "
+                f"{RESERVED_PUBLIC_ID_PREFIX}*"
+            )
+
     async def test_every_shipped_manifest_seeds(
         self, session, advanced_tool_configured
     ):

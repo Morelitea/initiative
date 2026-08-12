@@ -377,5 +377,10 @@
   "MARKETPLACE_LISTING_UNAVAILABLE": "This listing has been withdrawn and can no longer be installed.",
   "MARKETPLACE_LISTING_VERSION_INCOMPATIBLE": "This listing needs a newer version of the app. Ask an administrator to update, then try again.",
   "MARKETPLACE_NOT_INSTALLED_FROM_LISTING": "This was built here rather than installed, so there is no listing to update it from.",
-  "MARKETPLACE_ALREADY_LATEST_VERSION": "This is already on the latest version."
+  "MARKETPLACE_ALREADY_LATEST_VERSION": "This is already on the latest version.",
+  "GUILD_APP_NOT_FOUND": "That app isn't installed in this guild.",
+  "GUILD_APP_ADMIN_REQUIRED": "Only guild admins can manage apps.",
+  "GUILD_APP_LISTING_NOT_AN_APP": "That listing can't be installed as an app.",
+  "GUILD_APP_ALREADY_INSTALLED": "This guild already has that app installed.",
+  "GUILD_APP_KIND_NOT_INSTALLABLE": "This kind of app can't be installed on this version of Initiative yet."
 }

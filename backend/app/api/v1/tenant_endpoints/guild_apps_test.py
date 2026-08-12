@@ -380,3 +380,39 @@ class TestEmbedApp:
         assert (await client.get(a.g("/apps/"), headers=a.headers)).json()[
             "items"
         ] == []
+
+
+class TestKindsThisBuildCanMount:
+    """A listing can be a valid app without being something a guild can mount.
+
+    ``service`` apps are the case: the catalog validates, stores and describes
+    them, but mounting one needs the app platform's own machinery. The install
+    endpoint has to say so by name — reaching the installer with a kind it has
+    no handler for would answer a clear refusal with a 500.
+    """
+
+    async def test_a_service_app_is_refused_by_name(
+        self, client: AsyncClient, acting_user, session: AsyncSession
+    ):
+        await create_marketplace_listing(
+            session,
+            uid=marketplace_uid("servicekind"),
+            public_id="tests.service-kind",
+            kind="app",
+            name="A service app",
+            definition={
+                "app_kind": "service",
+                "service": {"public_id": "tests.service-kind"},
+                "features": [],
+            },
+        )
+        a = await acting_user(guild_role=GuildRole.admin)
+
+        response = await client.post(
+            a.g("/apps/"),
+            headers=a.headers,
+            json={"listing_uid": marketplace_uid("servicekind")},
+        )
+
+        assert response.status_code == 409
+        assert response.json()["detail"] == GuildAppMessages.KIND_NOT_INSTALLABLE

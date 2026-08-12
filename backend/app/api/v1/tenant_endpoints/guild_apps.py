@@ -37,7 +37,10 @@ from app.schemas.tenant.guild_app import (
 )
 from app.services import rls as rls_service
 from app.services.marketplace import catalog as catalog_service
-from app.services.marketplace.definitions import APP_KINDS
+from app.services.marketplace.definitions import (
+    APP_KINDS,
+    GUILD_INSTALLABLE_APP_KINDS,
+)
 from app.services.platform import guilds as guilds_service
 from app.services.tenant import guild_apps as guild_apps_service
 
@@ -128,10 +131,20 @@ async def install_guild_app(
         )
 
     definition = dict(version.definition)
-    if definition.get("app_kind") not in APP_KINDS:
+    app_kind = definition.get("app_kind")
+    if app_kind not in APP_KINDS:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=GuildAppMessages.NOT_AN_APP,
+        )
+    # Being an app is not the same as being installable here: a service app is
+    # a valid listing this build can hold and describe, but mounting one needs
+    # machinery that arrives with the app platform. Refused by name rather than
+    # reaching an installer with no handler for it.
+    if app_kind not in GUILD_INSTALLABLE_APP_KINDS:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=GuildAppMessages.KIND_NOT_INSTALLABLE,
         )
 
     name = (payload.name or definition.get("default_name") or listing.name).strip()

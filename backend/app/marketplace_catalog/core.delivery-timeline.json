@@ -3,7 +3,9 @@
   "public_id": "core.delivery-timeline",
   "kind": "dashboard",
   "name": "Delivery timeline",
-  "publisher": "Initiative",
+  "author": {
+    "name": "Initiative"
+  },
   "description": "Scheduled work on one timeline, with what is still ahead.",
   "long_description": "Puts every dated task in the initiative on a shared timeline, grouped into lanes, with the open count beside it and the full list below.\n\nTasks with no start or due date do not appear on the timeline — they are still counted, and still listed.",
   "avatar_url": "/marketplace/core-delivery-timeline.svg",

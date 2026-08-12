@@ -377,5 +377,10 @@
   "MARKETPLACE_LISTING_UNAVAILABLE": "Dieser Eintrag wurde zurückgezogen und kann nicht mehr installiert werden.",
   "MARKETPLACE_LISTING_VERSION_INCOMPATIBLE": "Dieser Eintrag benötigt eine neuere Version der App. Bitte eine Administratorin oder einen Administrator um ein Update und versuche es dann erneut.",
   "MARKETPLACE_NOT_INSTALLED_FROM_LISTING": "Das wurde hier erstellt und nicht installiert – es gibt also keinen Eintrag, von dem aus aktualisiert werden könnte.",
-  "MARKETPLACE_ALREADY_LATEST_VERSION": "Das ist bereits auf der neuesten Version."
+  "MARKETPLACE_ALREADY_LATEST_VERSION": "Das ist bereits auf der neuesten Version.",
+  "GUILD_APP_NOT_FOUND": "Diese App ist in dieser Gilde nicht installiert.",
+  "GUILD_APP_ADMIN_REQUIRED": "Nur Gildenadministratorinnen und -administratoren können Apps verwalten.",
+  "GUILD_APP_LISTING_NOT_AN_APP": "Dieser Eintrag kann nicht als App installiert werden.",
+  "GUILD_APP_ALREADY_INSTALLED": "Diese Gilde hat diese App bereits installiert.",
+  "GUILD_APP_KIND_NOT_INSTALLABLE": "Diese Art von App kann in dieser Version von Initiative noch nicht installiert werden."
 }

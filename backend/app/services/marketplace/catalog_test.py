@@ -26,6 +26,7 @@ def _manifest(**overrides):
         "kind": "dashboard",
         "name": "Example",
         "publisher": "Tests",
+        "author": {"name": "Tests"},
         "description": "An example listing.",
         "avatar_url": "/marketplace/example.svg",
         "version": "1.0.0",
@@ -77,6 +78,77 @@ class TestIdentity:
             await service.upsert_listing(
                 session, _manifest(public_id="noslug"), source="builtin"
             )
+
+
+class TestAttribution:
+    """Who wrote it is part of what a listing *is*, so it is settled here rather
+    than left to whatever surface happens to display the listing."""
+
+    async def test_a_listing_without_an_author_is_not_published(self, session):
+        manifest = _manifest()
+        del manifest["author"]
+        with pytest.raises(CatalogError, match="author is required"):
+            await service.upsert_listing(session, manifest, source="builtin")
+
+    async def test_the_author_lands_on_the_row(self, session):
+        listing = await service.upsert_listing(
+            session,
+            _manifest(
+                author={
+                    "name": "Widget Co",
+                    "url": "https://widget.test",
+                    "contact": "hello@widget.test",
+                }
+            ),
+            source="builtin",
+        )
+        assert listing.author_name == "Widget Co"
+        assert listing.author_url == "https://widget.test"
+        assert listing.author_contact == "hello@widget.test"
+
+    async def test_the_publisher_defaults_to_the_author(self, session):
+        """A manifest that states one name states it once."""
+        manifest = _manifest(author={"name": "Widget Co"})
+        del manifest["publisher"]
+        listing = await service.upsert_listing(session, manifest, source="builtin")
+        assert listing.publisher == "Widget Co"
+
+    async def test_a_manifest_may_still_name_its_own_publisher(self, session):
+        # They differ when someone publishes on someone else's behalf, which is
+        # also the prefix a signed registry binds to a key.
+        listing = await service.upsert_listing(
+            session,
+            _manifest(publisher="Widget Co", author={"name": "A. Developer"}),
+            source="builtin",
+        )
+        assert (listing.publisher, listing.author_name) == ("Widget Co", "A. Developer")
+
+
+class TestReservedNamespace:
+    """``core.*`` says "shipped in this repository", so only a built-in holds one.
+
+    A name can be typed by anyone; the namespace cannot, which is what keeps an
+    unverified listing from reading as a first-party one.
+    """
+
+    @pytest.mark.parametrize("source", ["operator", "registry"])
+    async def test_no_other_source_may_claim_it(self, session, source):
+        with pytest.raises(CatalogError, match="reserved"):
+            await service.upsert_listing(
+                session, _manifest(public_id="core.impostor"), source=source
+            )
+
+    async def test_a_built_in_publishes_under_it(self, session):
+        listing = await service.upsert_listing(
+            session, _manifest(public_id="core.example"), source="builtin"
+        )
+        assert listing.public_id == "core.example"
+
+    async def test_other_namespaces_stay_open(self, session):
+        listing = await service.upsert_listing(
+            session, _manifest(public_id="widgetco.thing"), source="registry"
+        )
+        assert listing.source == "registry"
 
 
 class TestDefinitions:
@@ -199,6 +271,37 @@ class TestDefinitions:
             "tool": "calendar",
             "default_name": "Guild calendar",
         }
+
+    async def test_a_service_app_reaches_the_catalog_as_data(self, session):
+        """The widest thing a publisher can send, through the ordinary path:
+        what lands is the canonical document, with the keys this build has no
+        use for gone — including anything that looks like an address, since
+        where an app lives is the deployment's statement, not the listing's."""
+        listing = await service.upsert_listing(
+            session,
+            _manifest(
+                kind="app",
+                definition={
+                    "app_kind": "service",
+                    "service": {
+                        "public_id": "tests.widget-co",
+                        "default_url": "https://widget.test",
+                    },
+                    "features": ["embeds"],
+                    "embeds": [
+                        {"id": "main", "path": "/embed/main", "name": {"en": "Main"}}
+                    ],
+                },
+            ),
+            source="builtin",
+        )
+        version = await service.get_listing_version(session, listing.latest_version_id)
+        assert version.definition["app_kind"] == "service"
+        assert version.definition["service"] == {
+            "public_id": "tests.widget-co",
+            "protocol": 1,
+        }
+        assert version.definition["embeds"][0]["path"] == "/embed/main"
 
 
 class TestArtwork:
