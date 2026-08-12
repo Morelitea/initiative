@@ -421,13 +421,18 @@ export const CreateEventDialog = ({
             </div>
           )}
 
-          {/* Attendees — scoped to the target calendar's initiative members,
-              so wait until a calendar is chosen. */}
+          {/* Attendees come from whatever the calendar belongs to — an
+              initiative's members, or the whole guild for a guild calendar,
+              which belongs to no initiative. Wait until a calendar is chosen. */}
           {effectiveCalendar != null && (
             <div className="space-y-2">
               <Label>{t("attendees")}</Label>
               <MemberMultiSelect
-                scope={{ type: "initiative", initiativeId: effectiveCalendar.initiative_id }}
+                scope={
+                  effectiveCalendar.initiative_id == null
+                    ? { type: "guild" }
+                    : { type: "initiative", initiativeId: effectiveCalendar.initiative_id }
+                }
                 selectedIds={attendeeIds}
                 selectedUsers={user ? [user] : undefined}
                 onChange={setAttendeeIds}

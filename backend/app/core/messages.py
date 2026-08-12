@@ -426,6 +426,9 @@ class CalendarEventMessages:
     INVALID_ATTENDEE_IDS = "CALENDAR_EVENT_INVALID_ATTENDEE_IDS"
     ICAL_PARSE_FAILED = "ICAL_PARSE_FAILED"
     ICAL_NO_EVENTS = "ICAL_NO_EVENTS_FOUND"
+    # Custom properties are defined on an initiative. A guild calendar belongs
+    # to none, so there are no definitions its events could carry.
+    GUILD_CALENDAR_NO_PROPERTIES = "CALENDAR_EVENT_GUILD_CALENDAR_NO_PROPERTIES"
 
 
 class DashboardMessages:
