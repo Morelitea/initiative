@@ -11,9 +11,23 @@ guild's ``guild_<id>`` schema before touching the database (see
 """
 
 from app.testing.actor import Actor, make_actor
+from app.testing.app_channel import (
+    APP_CHANNEL_SECRET,
+    channel_headers,
+    encode_body,
+    register_app_service,
+)
 from app.testing.factories import (
+    TOOL_FACTORIES,
+    enable_all_tools,
+    create_tool_entity,
+    create_app_service_registration,
     create_auth_provider,
     create_calendar,
+    create_guild_calendar,
+    create_dashboard,
+    create_marketplace_listing,
+    marketplace_uid,
     create_calendar_event,
     create_calendar_event_property_value,
     create_comment,
@@ -23,6 +37,7 @@ from app.testing.factories import (
     create_document_property_value,
     create_federated_identity,
     create_guild,
+    create_guild_app,
     create_guild_membership,
     create_initiative,
     create_initiative_member,
@@ -45,10 +60,22 @@ from app.testing.factories import (
 from app.testing.schema_harness import route_session_to_guild
 
 __all__ = [
+    "APP_CHANNEL_SECRET",
+    "channel_headers",
+    "encode_body",
+    "register_app_service",
+    "TOOL_FACTORIES",
+    "enable_all_tools",
+    "create_tool_entity",
     "Actor",
     "make_actor",
+    "create_app_service_registration",
     "create_auth_provider",
     "create_calendar",
+    "create_guild_calendar",
+    "create_dashboard",
+    "create_marketplace_listing",
+    "marketplace_uid",
     "create_calendar_event",
     "create_calendar_event_property_value",
     "create_comment",
@@ -58,6 +85,7 @@ __all__ = [
     "create_document_property_value",
     "create_federated_identity",
     "create_guild",
+    "create_guild_app",
     "create_guild_membership",
     "create_initiative",
     "create_initiative_member",

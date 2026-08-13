@@ -51,6 +51,8 @@
   "calendars": "Calendario",
   "allCalendarEvents": "Todos los eventos",
   "createCalendar": "Nuevo calendario",
+  "dashboards": "Paneles",
+  "createDashboard": "Nuevo panel",
   "bottomNav": {
     "label": "Navegación rápida",
     "menu": "Abrir menú",
@@ -73,8 +75,6 @@
   "counterGroups": "Contadores",
   "allCounterGroups": "Todos los contadores",
   "createCounterGroup": "Nuevo grupo de contadores",
-  "advancedTools": "Herramientas avanzadas",
-  "createAdvancedTool": "Nueva herramienta avanzada",
   "createExternally": "Se crea en {{name}}",
   "adminDashboard": "Panel de administración"
 }

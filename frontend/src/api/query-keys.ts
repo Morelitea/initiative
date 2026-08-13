@@ -232,6 +232,13 @@ export const invalidateOidcMappings = () =>
 // so its list lives in the personal/platform family, not under any /g/ key.
 export const invalidatePlatformGuilds = () => invalidatePersonalExact([`/api/v1/settings/guilds`]);
 
+// ── App services (personal / platform) ───────────────────────────────────────
+// Orval keys the list as `/api/v1/app-services/` (trailing slash) and each row
+// as `/api/v1/app-services/{id}` (no slash), so they are siblings rather than a
+// prefix pair. Match on the shared path so one call reaches the list and every
+// detail read.
+export const invalidateAppServices = () => invalidatePersonalPrefix("/api/v1/app-services");
+
 // ── AI Settings (platform config is personal; guild/member/resolved are guild-scoped) ──
 
 export const invalidateAllAISettings = () =>
@@ -332,12 +339,12 @@ export const invalidateAllCalendars = () =>
 export const invalidateCalendar = (calendarId: number) =>
   invalidateGuildExact([`/api/v1/calendars/${calendarId}`]);
 
-// ── Advanced Tools (guild) ────────────────────────────────────────────────────────
+// ── Dashboards (guild) ────────────────────────────────────────────────────────────
 
-export const invalidateAllAdvancedTools = () => invalidateGuildPrefix("/api/v1/advanced-tools");
+export const invalidateAllDashboards = () => invalidateGuildPrefix("/api/v1/dashboards");
 
-export const invalidateAdvancedTool = (advancedToolId: number) =>
-  invalidateGuildExact([`/api/v1/advanced-tools/${advancedToolId}`]);
+export const invalidateDashboard = (dashboardId: number) =>
+  invalidateGuildExact([`/api/v1/dashboards/${dashboardId}`]);
 
 // ── Subtasks (guild) ──────────────────────────────────────────────────────────────
 

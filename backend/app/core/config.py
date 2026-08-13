@@ -1,4 +1,5 @@
 import re
+from collections.abc import Sequence
 from enum import Enum
 from functools import lru_cache
 from urllib.parse import urlsplit
@@ -284,7 +285,13 @@ class Settings(BaseSettings):
 
     @property
     def content_security_policy(self) -> str:
-        """Enforced CSP for the served SPA (pentest MED-001).
+        """Enforced CSP for the served SPA (pentest MED-001)."""
+        return self.content_security_policy_with_frames(())
+
+    def content_security_policy_with_frames(
+        self, app_frame_origins: Sequence[str]
+    ) -> str:
+        """The app-wide CSP, optionally admitting one app's frame origins.
 
         Locks down the high-value vectors (``object-src``/``base-uri``/
         ``frame-ancestors``/``form-action``) and confines scripts to
@@ -293,8 +300,17 @@ class Settings(BaseSettings):
         ``'unsafe-inline'`` because the charting component and some UI libraries
         inject inline ``<style>``. Origins the app genuinely loads (Google
         Fonts, document embeds, and — when configured — the captcha provider and
-        advanced-tool iframe) are listed explicitly rather than via a blanket
+        app embeds) are listed explicitly rather than via a blanket
         ``https:``.
+
+        ``app_frame_origins`` is how a marketplace app's embedded surface gets
+        framed, and it is deliberately **per document**: the response that opens
+        one app's embed names that app's registered origins, and every other
+        response names none. Listing every registered app instead would make
+        this header grow with the size of the catalog, on every response, for a
+        capability almost no page uses — and would advertise each app's origins
+        to pages that have nothing to do with it. ``connect-src`` is untouched:
+        an app's data reaches the browser same-origin through the proxy.
         """
         ws = "wss:" if self.APP_URL.startswith("https") else "ws:"
 
@@ -314,11 +330,13 @@ class Settings(BaseSettings):
             frame_src += extra
             connect_src += extra
 
-        if self.ADVANCED_TOOL_URL:
-            tool_origin = _origin_of(self.ADVANCED_TOOL_URL)
-            if tool_origin:
-                frame_src.append(tool_origin)
-                connect_src.append(tool_origin)
+        # Only the surface being opened. Already canonical origins by the time
+        # they are stored on a registration, and re-reduced here so a value that
+        # somehow carried a path cannot widen the directive.
+        for candidate in app_frame_origins:
+            origin = _origin_of(candidate) if candidate else None
+            if origin:
+                frame_src.append(origin)
 
         directives = {
             "default-src": ["'self'"],
@@ -431,6 +449,16 @@ class Settings(BaseSettings):
     S3_LOCAL_FALLBACK: bool = False
     STATIC_DIR: str = "static"
 
+    # --- Marketplace ------------------------------------------------------
+    # A directory of listing manifests (*.json) this deployment publishes as
+    # its own. Mount a volume, drop files in, and they appear in the
+    # marketplace alongside the ones this build ships — publishing needs no
+    # change to the application. Scanned at boot and on demand from
+    # Settings → Platform; a file that is removed retires its listing.
+    # Unset (the default) means no directory is read and nothing is published
+    # beyond the built-ins.
+    MARKETPLACE_EXTRA_CATALOG_DIR: str | None = None
+
     # --- Data export engine ---
     # Render backend seam. Only "local" (typst-py in-process) ships; a
     # distributed/cloud backend would be an additive second implementation.
@@ -528,24 +556,6 @@ class Settings(BaseSettings):
     PAM_BREAK_GLASS_DEFAULT_MINUTES: int = 60  # 1 hour
     PAM_BREAK_GLASS_MAX_MINUTES: int = 240  # 4 hours (ceiling on a self-approved grant)
 
-    # Optional advanced tool plug-in: when ADVANCED_TOOL_URL is set, the SPA
-    # surfaces a per-initiative toggle that, when enabled, embeds the URL as
-    # an iframe sub-page under the initiative. Both unset on the default OSS
-    # image — the toggle and panel are then fully hidden.
-    ADVANCED_TOOL_NAME: str | None = None
-    ADVANCED_TOOL_URL: str | None = None
-
-    # Server-to-server link to the advanced tool's own backend. When a
-    # guild HARD-purges an advanced tool (manual trash purge or the
-    # retention worker), we notify that backend so its scheduling mirror
-    # is deleted too — a purge must not leave a live schedule pointing at
-    # nothing. ``ADVANCED_TOOL_BACKEND_URL`` is the service's API base
-    # (e.g. http://auto:9002/api/v1); ``ADVANCED_TOOL_PURGE_SECRET`` signs
-    # the notification (HMAC-SHA256, same envelope as webhook dispatch).
-    # Either unset -> notifications are skipped silently (default OSS image).
-    ADVANCED_TOOL_BACKEND_URL: str | None = None
-    ADVANCED_TOOL_PURGE_SECRET: str | None = None
-
     # Optional captcha gate on the public registration endpoint to push
     # back on bot signups. ``CAPTCHA_PROVIDER`` selects the vendor —
     # ``"hcaptcha"`` / ``"turnstile"`` / ``"recaptcha"`` — and the SPA
@@ -560,18 +570,11 @@ class Settings(BaseSettings):
     CAPTCHA_PROVIDER: str | None = None
     CAPTCHA_SITE_KEY: str | None = None
     CAPTCHA_SECRET_KEY: str | None = None
-    # Comma-separated origin allowlist for postMessage handoff to the
-    # advanced tool iframe. The frontend only accepts messages from these
-    # origins, and only sends messages to the iframe origin derived from
-    # ADVANCED_TOOL_URL. Defaults to the ADVANCED_TOOL_URL origin if unset.
-    ADVANCED_TOOL_ALLOWED_ORIGINS: list[str] | str | None = None
-
-    # RSA private key (PEM) for signing advanced-tool handoff JWTs. Handoff
-    # tokens cross a trust boundary — the proprietary embed backend verifies
-    # them with the matching public key — so signing is always RS256 and no
-    # secret is shared across that boundary. REQUIRED whenever
-    # ADVANCED_TOOL_URL is set: with the URL on and this unset, the handoff
-    # endpoints fail closed (503) and the app logs a warning at boot.
+    # RSA private key (PEM) for signing handoff JWTs. Handoff tokens cross a
+    # trust boundary — the receiving service verifies them with the matching
+    # public key — so signing is always RS256 and no secret is shared across
+    # that boundary. Required by whichever handoff a deployment uses: unset,
+    # those mint endpoints fail closed (503).
     # Generate a 2048-bit keypair with ``openssl genrsa -out private.pem 2048``
     # and feed the PEM here.
     HANDOFF_SIGNING_PRIVATE_KEY_PEM: str | None = None
@@ -579,7 +582,7 @@ class Settings(BaseSettings):
     # to pick the right verifying key — useful when rotating.
     HANDOFF_SIGNING_KEY_ID: str | None = None
 
-    # Inbound delegation from the advanced-tool service (initiative-auto).
+    # Inbound delegation from the automation service (initiative-auto).
     # When auto needs to call Initiative on behalf of a user — either
     # because the user is in the iframe right now, or because a workflow
     # they own is firing — it presents a JWT signed with RS256 by its
@@ -589,6 +592,45 @@ class Settings(BaseSettings):
     AUTO_DELEGATION_PUBLIC_KEY_PEM: str | None = None
     AUTO_DELEGATION_AUDIENCE: str = "initiative:auto-delegation"
     AUTO_DELEGATION_ISSUER: str = "initiative-auto"
+
+    # --- App platform (external app services; default OFF) ----------------
+    # An app service is an external container this deployment has wired up
+    # (see the app service registry). Everything below is unset on a default
+    # install, and with it unset the platform simply has no app services: the
+    # registry lists nothing, and the endpoints that would mint credentials for
+    # one fail closed rather than improvising.
+    #
+    # RSA private key (PEM) signing Initiative -> app context JWTs. This is a
+    # DEDICATED keypair with no fallback: an app verifies these against the
+    # published public half, so borrowing another service's key would put two
+    # unrelated trust boundaries on one rotation schedule. Generate one with
+    # ``openssl genrsa -out app-platform.pem 2048``. Unset ⇒ registering and
+    # verifying app services refuse with APP_SERVICE_SIGNING_NOT_CONFIGURED.
+    APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM: str | None = None
+    # Key id stamped on the JWT header so an app can pick the right verifying
+    # key out of the published JWKS while a rotation is in flight.
+    APP_PLATFORM_SIGNING_KEY_ID: str | None = None
+    # ``iss`` on context JWTs.
+    APP_PLATFORM_ISSUER: str = "initiative"
+    # ``aud`` is this prefix plus the registration's public_id, so a token
+    # minted for one app is not accepted by another.
+    APP_PLATFORM_AUDIENCE_PREFIX: str = "initiative-app:"
+    # Path to a mounted file of app service registrations, reconciled into the
+    # database at startup so a chart can wire approved apps with no admin
+    # clicks. JSON (or a JSON array in a .json file):
+    #   [{"public_id": "acme.shopify", "base_url": "http://shopify:9100",
+    #     "secret_env": "SHOPIFY_APP_SECRET", "allowed_origins": ["…"],
+    #     "grants": [], "mandatory": false}]
+    # The secret is named, never inlined, so the file can be a plain ConfigMap.
+    # Unset (the default) ⇒ no reconciliation runs. Reconciliation never
+    # re-enables a registration an operator disabled, and never blocks boot.
+    APP_SERVICES_CONFIG: str | None = None
+    # How often enabled registrations are re-verified in the background, so an
+    # app that went away (or changed what it claims) is marked rather than
+    # discovered by a member clicking it. 0 turns the sweep off; it also does
+    # not run at all without the signing keypair, since the app platform is
+    # inert without one.
+    APP_SERVICE_VERIFY_INTERVAL_SECONDS: int = Field(default=3600, ge=0)
 
     # --- Billing (hosted deployments only; default OFF) -------------------
     # Billing is an optional EXTERNAL service. Every BILLING_* setting below
@@ -615,9 +657,54 @@ class Settings(BaseSettings):
     # Public base URL of an external billing portal, surfaced to the SPA via
     # /config. Unset (the default) ⇒ the SPA shows NO tier label, upgrade, or
     # manage-billing UI; the usage panel still shows caps/usage (operator-set
-    # numbers). Set ⇒ the link-out buttons appear. Mirrors the
-    # ADVANCED_TOOL_URL pattern: the OSS core defers to an external service.
+    # numbers). Set ⇒ the link-out buttons appear: the OSS core defers to an
+    # external service.
     BILLING_URL: str | None = None
+    # Signing material for the operator handoff into the billing portal's
+    # support console, shared with that service. Unset (the default) ⇒ the
+    # Guilds tab renders no billing button and the mint endpoint 503s. The
+    # key id selects which of the receiver's keys to verify against, so the
+    # pair can be rotated without downtime.
+    BILLING_SUPPORT_HANDOFF_SECRET: str | None = None
+    BILLING_SUPPORT_HANDOFF_KID: str | None = None
+
+    # --- Marketplace registry (optional; default OFF) ---------------------
+    # A registry is not a service: it is a signed JSON index plus the manifest
+    # and artwork files it names by digest, on any static host. Only the client
+    # below runs. Both the URL and the key set are operator-supplied, so a
+    # self-hoster or a community can publish their own index with their own key
+    # and point a deployment at it.
+    #
+    # ``MARKETPLACE_REGISTRY_URL`` is the index document's URL; its detached
+    # signature is read from the same URL with ``.sig`` appended, and every
+    # artifact the index names resolves relative to it and must stay on the
+    # same origin.
+    #
+    # ``MARKETPLACE_REGISTRY_PUBLIC_KEYS`` is a JWKS-shaped JSON document of the
+    # keys this deployment trusts — ``{"keys": [{"kty": "OKP", "crv":
+    # "Ed25519", "kid": "...", "x": "<base64url>", "publisher_prefixes":
+    # ["acme"]}]}``. Several keys may be listed at once so a registry can
+    # rotate: add the new key in one release, sign with it, drop the old one
+    # later. ``publisher_prefixes`` states which listing namespaces that key may
+    # publish under (``["*"]`` for any); ``core.*`` is reserved for listings
+    # shipped in this repo and is never accepted from a registry.
+    #
+    # URL and keys are BOTH required, or the remote provider is simply absent:
+    # no background refresh starts, the refresh endpoints answer 503, and the
+    # catalog holds only what this build ships.
+    MARKETPLACE_REGISTRY_URL: str | None = None
+    MARKETPLACE_REGISTRY_PUBLIC_KEYS: str | None = None
+    # How often the background refresh re-fetches the index. ~15 minutes keeps a
+    # withdrawal reaching deployments promptly without polling a static host.
+    MARKETPLACE_REGISTRY_TTL_SECONDS: int = Field(default=900, ge=60)
+    # How old a signed index may be before it is refused. A signature stays
+    # valid forever, so freshness is what stops a served copy from being frozen
+    # in place; the publish pipeline re-signs on a schedule well inside this.
+    MARKETPLACE_REGISTRY_MAX_AGE_SECONDS: int = Field(default=7 * 86400, ge=300)
+    # Operator kill switch. False stops the background refresh and the
+    # "refresh now" endpoint without unsetting the URL or the keys, so a
+    # deployment can pause ingestion and resume with its trust settings intact.
+    MARKETPLACE_REGISTRY_ENABLED: bool = True
 
     # Local-dev only: when true, outbound webhook / custom-AI targets may
     # use http and resolve to private/loopback addresses, for round-tripping
@@ -695,19 +782,6 @@ class Settings(BaseSettings):
             for item in items
             if item and item.strip() and item.strip() != "*"
         ]
-
-    @field_validator("ADVANCED_TOOL_ALLOWED_ORIGINS", mode="before")
-    @classmethod
-    def parse_advanced_tool_origins(cls, value: str | list[str] | None) -> list[str]:
-        if value is None:
-            return []
-        if isinstance(value, str):
-            if not value.strip():
-                return []
-            items = value.split(",")
-        else:
-            items = value
-        return [item.strip() for item in items if item and item.strip()]
 
     @field_validator("OIDC_SCOPES", mode="before")
     @classmethod

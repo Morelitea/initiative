@@ -100,8 +100,10 @@ jobs:
             echo "scope=app/ $ALEMBIC_SCOPE" >> $GITHUB_OUTPUT
             echo "Shared infrastructure changed — running all tests"
           else
-            # Extract unique directories, strip backend/ prefix, and exclude non-code dirs
-            DIRS=$(echo "$NON_ALEMBIC" | sed 's|^backend/||' | grep -v '^app/locales/' | xargs -I{} dirname {} | sort -u | tr '\n' ' ')
+            # Extract unique directories, strip backend/ prefix, and exclude non-code dirs.
+            # Catalog data files carry no tests of their own — the marketplace
+            # service seeds and validates them, so its suite is the one to run.
+            DIRS=$(echo "$NON_ALEMBIC" | sed 's|^backend/||' | grep -v '^app/locales/' | xargs -I{} dirname {} | sed 's|^app/marketplace_catalog$|app/services/marketplace|' | sort -u | tr '\n' ' ')
             if [[ -z "${DIRS// }" ]]; then
               echo "scope=app/ $ALEMBIC_SCOPE" >> $GITHUB_OUTPUT
               echo "Only non-code files changed — running all tests"

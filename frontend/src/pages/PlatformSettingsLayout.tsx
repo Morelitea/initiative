@@ -13,9 +13,9 @@ import {
 import { matchActiveTab } from "@/lib/tabs";
 
 /**
- * App-wide *configuration* area: authentication, branding, email, and AI.
- * Owner-only (`config.manage`). Operational tools (users, access) live in the
- * separate Admin dashboard.
+ * App-wide *configuration* area: authentication, branding, email, AI, storage,
+ * and app service registrations. Owner-only (`config.manage` / `apps.manage`).
+ * Operational tools (users, access) live in the separate Admin dashboard.
  */
 export const PlatformSettingsLayout = () => {
   const { t } = useTranslation("settings");
@@ -24,7 +24,10 @@ export const PlatformSettingsLayout = () => {
   const router = useRouter();
 
   const tabs = useMemo(() => {
-    const all = [
+    // Two capabilities reach this area: `config.manage` owns app-wide
+    // configuration, `apps.manage` owns app service registrations. A holder of
+    // one shouldn't be shown the other's tabs.
+    const configTabs = [
       { value: "auth", label: t("platformLayout.tabs.auth"), path: "/settings/platform/auth" },
       {
         value: "branding",
@@ -39,7 +42,17 @@ export const PlatformSettingsLayout = () => {
         path: "/settings/platform/storage",
       },
     ];
-    return hasCapability(user, Capability.configManage) ? all : [];
+    const appTabs = [
+      {
+        value: "app-services",
+        label: t("platformLayout.tabs.appServices"),
+        path: "/settings/platform/app-services",
+      },
+    ];
+    return [
+      ...(hasCapability(user, Capability.configManage) ? configTabs : []),
+      ...(hasCapability(user, Capability.appsManage) ? appTabs : []),
+    ];
   }, [t, user]);
 
   if (!canManagePlatformConfig(user)) {
@@ -50,7 +63,8 @@ export const PlatformSettingsLayout = () => {
   }
 
   const normalizedPath = location.pathname.replace(/\/+$/, "") || "/";
-  const activeTab = matchActiveTab(tabs, normalizedPath, "auth");
+  // Fall back to whichever tab this user actually has, not always `auth`.
+  const activeTab = matchActiveTab(tabs, normalizedPath, tabs[0]?.value ?? "auth");
 
   return (
     <div className="space-y-6">

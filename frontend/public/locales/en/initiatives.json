@@ -71,8 +71,8 @@
     "projects": "Projects",
     "queues": "Queues",
     "calendars": "Calendar",
-    "counterGroups": "Counters",
-    "advancedTools": "Advanced Tools"
+    "dashboards": "Dashboards",
+    "counterGroups": "Counters"
   },
   "settings": {
     "title": "Initiative settings",
@@ -183,8 +183,8 @@
       "projects": "Projects",
       "queues": "Queues",
       "calendars": "Events",
-      "counterGroups": "Counters",
-      "advancedTools": "Advanced Tool"
+      "dashboards": "Dashboards",
+      "counterGroups": "Counters"
     },
     "permissions": {
       "viewDocuments": "View Documents",
@@ -195,8 +195,8 @@
       "createQueues": "Create Queues",
       "viewCalendars": "View Events",
       "createCalendars": "Create Events",
-      "viewAdvancedTools": "Open Advanced Tool",
-      "createAdvancedTools": "Create in Advanced Tool",
+      "viewDashboards": "View Dashboards",
+      "createDashboards": "Create Dashboards",
       "viewCounterGroups": "View Counters",
       "createCounterGroups": "Create Counters"
     }
@@ -207,20 +207,8 @@
   "queuesFeatureDescription": "Organize items by priority, track turn order, and manage who goes next.",
   "calendarsFeature": "Calendar",
   "calendarsFeatureDescription": "Organize events into shareable calendars with attendees and RSVP tracking.",
+  "dashboardsFeature": "Dashboards",
+  "dashboardsFeatureDescription": "Build a canvas of charts, KPIs, and timelines that displays existing work — a dashboard never edits the data it shows.",
   "counterGroupsFeature": "Counters",
-  "counterGroupsFeatureDescription": "Track numeric values like HP, scores, or budgets — clamped, stepped, and shown as numbers, bars, or radial gauges.",
-  "advancedToolsFeatureDescription": "Embed the {{name}} panel under this initiative.",
-  "advancedTool": {
-    "connecting": "Connecting…",
-    "handoffFailed": "Couldn’t establish a secure session with the embedded tool.",
-    "iframeError": "The embedded tool failed to load.",
-    "unavailableTitle": "Not configured",
-    "unavailableDescription": "This deployment does not have an advanced tool configured.",
-    "disabledTitle": "{{name}} is disabled for this initiative",
-    "disabledDescription": "Enable it from the initiative’s settings page to load the panel.",
-    "openSettings": "Open settings",
-    "guildAdminOnlyTitle": "Admins only",
-    "guildAdminOnlyDescription": "Only guild admins can manage automations at the guild level."
-  },
-  "advancedToolsFeature": "Advanced Tools"
+  "counterGroupsFeatureDescription": "Track numeric values like HP, scores, or budgets — clamped, stepped, and shown as numbers, bars, or radial gauges."
 }

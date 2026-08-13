@@ -37,7 +37,8 @@
       "trash": "Corbeille",
       "data": "Données",
       "dangerZone": "Zone de danger",
-      "auth": "Authentification"
+      "auth": "Authentification",
+      "apps": "Applications"
     }
   },
   "profile": {
@@ -732,14 +733,100 @@
   },
   "platformLayout": {
     "title": "Paramètres de la plateforme",
-    "subtitle": "Configurez l'authentification, la personnalisation, l'email et l'IA pour toute la plateforme.",
+    "subtitle": "Configurez l'authentification, la personnalisation, l'email, l'IA, le stockage des guildes et les services applicatifs pour toute la plateforme.",
     "tabs": {
       "auth": "Authentification",
       "branding": "Image de marque",
       "email": "E-mail",
       "ai": "IA",
-      "storage": "Stockage"
+      "storage": "Stockage",
+      "appServices": "Services applicatifs"
     }
+  },
+  "appServices": {
+    "adminOnly": "Seuls les propriétaires de la plateforme peuvent gérer les services applicatifs.",
+    "loading": "Chargement des services applicatifs…",
+    "loadError": "Impossible de charger les services applicatifs.",
+    "title": "Services applicatifs",
+    "description": "Les conteneurs qui exécutent les applications de cette instance. L'enregistrement est le seul endroit où sont consignés l'adresse, le secret partagé et les pouvoirs d'une application.",
+    "empty": "Aucun service applicatif n'est encore enregistré. Démarrez le conteneur d'une application, puis ajoutez-la ici avec le même secret partagé.",
+    "addService": "Ajouter un service applicatif",
+    "verify": "Vérifier",
+    "verifying": "Vérification…",
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "saving": "Enregistrement…",
+    "enabledLabel": "Actif",
+    "lastVerifiedLabel": "Dernière vérification",
+    "neverVerified": "Jamais vérifié",
+    "protocolVersion": "Protocole v{{version}}",
+    "allowedOriginsSummary": "Origines autorisées : {{origins}}",
+    "status": {
+      "ok": "Vérifié",
+      "unverified": "Non vérifié",
+      "unreachable": "Injoignable",
+      "manifest_mismatch": "Manifeste modifié",
+      "signature_mismatch": "Secret différent"
+    },
+    "statusHelp": {
+      "ok": "La dernière vérification a réussi et le manifeste correspond toujours à celui enregistré.",
+      "unverified": "Aucune vérification n'a encore abouti. C'est normal tant que le conteneur n'a pas répondu.",
+      "unreachable": "L'adresse n'a renvoyé aucun manifeste. Vérifiez que le conteneur fonctionne et qu'il est joignable.",
+      "manifest_mismatch": "L'application se décrit différemment de ce qui est enregistré. Vérifiez-la pour examiner le changement.",
+      "signature_mismatch": "L'application a répondu avec un autre secret partagé. Vérifiez que les deux côtés utilisent le même."
+    },
+    "disabledBadge": "Désactivé",
+    "disabledHelp": "Cette application est arrêtée pour toutes les guildes qui l'ont installée. Rien n'a été supprimé.",
+    "mandatoryBadge": "Dans toutes les guildes",
+    "mandatoryHelp": "Installée automatiquement dans chaque guilde. Les administratrices et administrateurs de guilde ne peuvent ni la retirer ni la désactiver.",
+    "delegationBadge": "Agit au nom des membres",
+    "delegationHelp": "Cette application peut appeler l'API en tant que membre réel, avec les permissions de cette personne.",
+    "createTitle": "Ajouter un service applicatif",
+    "editTitle": "Modifier le service applicatif",
+    "createDescription": "Faites pointer Initiative vers un conteneur d'application en fonctionnement. Les deux côtés doivent détenir le même secret partagé.",
+    "editDescription": "Modifier l'adresse ou le secret partagé efface la vérification enregistrée : vérifiez de nouveau l'application ensuite.",
+    "publicIdLabel": "Identifiant de l'application",
+    "publicIdPlaceholder": "editeur.nom-app",
+    "publicIdHelp": "Facultatif. Une application joignable s'identifie elle-même. Indiquez-le pour enregistrer avant que le conteneur ne fonctionne.",
+    "publicIdHelpEdit": "L'identifiant ne peut plus être modifié une fois l'enregistrement créé.",
+    "baseUrlLabel": "URL de base",
+    "baseUrlPlaceholder": "http://initiative-github:8080",
+    "baseUrlHelp": "Là où le conteneur répond. Ce peut être une adresse privée à l'intérieur de votre réseau.",
+    "allowedOriginsLabel": "Origines autorisées",
+    "allowedOriginsPlaceholder": "https://app.example.com",
+    "allowedOriginsHelp": "Une par ligne. Laissez vide pour n'autoriser que l'origine de l'URL de base.",
+    "allowedOriginsHelpEdit": "Une par ligne. Laissez vide pour conserver les origines actuelles.",
+    "secretLabel": "Secret partagé",
+    "secretPlaceholder": "Collez l'INITIATIVE_APP_SECRET de l'application",
+    "secretHelp": "Conservé chiffré et jamais réaffiché.",
+    "secretStored": "Un secret partagé est enregistré pour cette application.",
+    "secretMissing": "Aucun secret partagé n'est enregistré : cette application ne peut pas être vérifiée tant que vous n'en définissez pas un.",
+    "replaceSecret": "Remplacer le secret partagé",
+    "grantsTitle": "Pouvoirs accordés par l'exploitant",
+    "grantsHelp": "Vous seul pouvez les accorder. Une application ne peut jamais se les attribuer elle-même.",
+    "delegationLabel": "Agir au nom des membres (délégation)",
+    "mandatoryLabel": "Installer dans toutes les guildes",
+    "created": "Service applicatif enregistré.",
+    "saved": "Service applicatif mis à jour.",
+    "deleted": "Service applicatif supprimé.",
+    "enabledToast": "{{name}} est de nouveau actif.",
+    "disabledToast": "{{name}} est désactivé.",
+    "verifySuccess": "{{name}} vérifié.",
+    "saveError": "Impossible d'enregistrer le service applicatif.",
+    "deleteError": "Impossible de supprimer le service applicatif.",
+    "verifyError": "Impossible de vérifier le service applicatif.",
+    "toggleError": "Impossible de modifier le service applicatif.",
+    "disableTitle": "Désactiver {{name}} ?",
+    "disableDescription": "Toutes les guildes qui ont installé cette application cessent immédiatement de l'atteindre : données, configuration, événements et pages intégrées sont refusés. Rien n'est supprimé et vous pouvez la réactiver à tout moment.",
+    "disableConfirm": "Désactiver le service",
+    "deleteTitle": "Supprimer {{name}} ?",
+    "deleteDescription": "L'enregistrement et son secret partagé sont supprimés définitivement. Toutes les guildes qui ont installé cette application cessent de l'atteindre, et la rajouter suppose de saisir de nouveau le secret.",
+    "deleteConfirmLabel": "Saisissez l'identifiant de l'application pour confirmer",
+    "manifestChangedTitle": "{{name}} se décrit désormais différemment",
+    "manifestChangedDescription": "Le manifeste de cette application ne correspond plus à celui enregistré lors de son inscription : ses fonctionnalités, ses connexions ou ses pages intégrées ont pu changer. Accepter adopte le nouveau manifeste et marque l'application comme vérifiée. N'acceptez que si vous attendiez ce changement.",
+    "manifestChangedConfirm": "Accepter le nouveau manifeste"
   },
   "adminDashboard": {
     "title": "Tableau de bord admin",
@@ -789,7 +876,13 @@
       "users": "Utilisateurs",
       "storageLimit": "Limite de stockage",
       "guildAuth": "Connexion par groupe",
-      "status": "Statut"
+      "status": "Statut",
+      "billing": "Facturation"
+    },
+    "billing": {
+      "noPlan": "Aucun forfait",
+      "openLabel": "Ouvrir la facturation de {{name}}",
+      "openError": "Impossible d'ouvrir le portail de facturation."
     }
   },
   "storage": {

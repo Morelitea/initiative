@@ -33,9 +33,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core import config as config_module
 from app.db.jti_blocklist import purge_expired_jtis
 from app.models.platform.billing import BillingEventLog, BillingJti
+from app.services.tenant.attachments import (
+    StorageQuotaExceededError,
+    enforce_storage_quota,
+)
+from app.testing.schema_harness import route_session_to_guild
 from app.testing import (
     create_guild,
-    create_guild_membership,
     create_upload,
     create_user,
 )
@@ -357,6 +361,39 @@ async def test_sentinel_semantics_omit_vs_null(
     assert data["max_storage_bytes"] is None  # null -> unlimited
 
 
+async def test_the_pushed_ceiling_is_the_one_uploads_are_held_to(
+    client: AsyncClient, session: AsyncSession
+):
+    """The storage cap is the whole entitlement mechanism: whatever billing
+    pushes is what uploads are refused against, and a cleared cap is a real
+    "unlimited" rather than a large number. Tier names never enter it, which is
+    why selling more storage needs no feature flag on this side.
+    """
+    guild = await create_guild(session)
+    uploader = await create_user(session, email="ceiling@example.com")
+    await route_session_to_guild(session, guild.id)
+    await create_upload(session, guild, uploader, size_bytes=900)
+
+    # Cleared: no ceiling to hit.
+    assert (
+        await _post(
+            client, "guild-tier", _tier_payload(guild.id, max_storage_bytes=None)
+        )
+    ).status_code == 200
+    await route_session_to_guild(session, guild.id)
+    await enforce_storage_quota(session, guild_id=guild.id, incoming_bytes=200)
+
+    # Same upload, against a cap billing pushed after it.
+    assert (
+        await _post(
+            client, "guild-tier", _tier_payload(guild.id, max_storage_bytes=1000)
+        )
+    ).status_code == 200
+    await route_session_to_guild(session, guild.id)
+    with pytest.raises(StorageQuotaExceededError):
+        await enforce_storage_quota(session, guild_id=guild.id, incoming_bytes=200)
+
+
 async def test_status_change_stamps_status_changed_at(
     client: AsyncClient, session: AsyncSession
 ):
@@ -513,39 +550,19 @@ async def test_malformed_payload_rejected_after_verification(
     assert response.json()["detail"] == "BILLING_INVALID_PAYLOAD"
 
 
-# --- headcount ------------------------------------------------------------------
+# --- usage (signed storage read) -------------------------------------------------
 
 
-async def test_headcount(client: AsyncClient, session: AsyncSession):
-    guild = await create_guild(session)
-    for i in range(2):
-        member = await create_user(session, email=f"member{i}@example.com")
-        await create_guild_membership(session, user=member, guild=guild)
-
-    response = await _post(client, "headcount", {"guild_id": guild.id})
-    assert response.status_code == 200, response.text
-    assert response.json() == {"guild_id": guild.id, "member_count": 2}
-
-
-async def test_headcount_unknown_guild_404(client: AsyncClient, session: AsyncSession):
-    response = await _post(client, "headcount", {"guild_id": 999_999_999})
-    assert response.status_code == 404
-    assert response.json()["detail"] == "BILLING_GUILD_NOT_FOUND"
-
-
-async def test_headcount_burns_jti(client: AsyncClient, session: AsyncSession):
-    """Reads redeem their token too — a captured headcount request must not
-    be replayable inside the window."""
+async def test_a_read_burns_its_jti(client: AsyncClient, session: AsyncSession):
+    """Reads redeem their token too — a captured read request must not be
+    replayable inside the window."""
     guild = await create_guild(session)
     token = _mint_token(jti="billing-read-replay")
-    first = await _post(client, "headcount", {"guild_id": guild.id}, token=token)
+    first = await _post(client, "usage", {"guild_id": guild.id}, token=token)
     assert first.status_code == 200
-    second = await _post(client, "headcount", {"guild_id": guild.id}, token=token)
+    second = await _post(client, "usage", {"guild_id": guild.id}, token=token)
     assert second.status_code == 403
     assert second.json()["detail"] == "BILLING_REPLAYED_TOKEN"
-
-
-# --- usage (signed storage read) -------------------------------------------------
 
 
 async def test_usage_sums_guild_bytes(client: AsyncClient, session: AsyncSession):

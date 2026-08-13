@@ -27,8 +27,8 @@ from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
+from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.document import Document
-from app.models.tenant.advanced_tool import AdvancedTool
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue, QueueItem
@@ -47,9 +47,9 @@ SOFT_DELETE_MODELS: Sequence[type[SQLModel]] = (
     QueueItem,
     Calendar,
     CalendarEvent,
+    Dashboard,
     CounterGroup,
     Counter,
-    AdvancedTool,
 )
 
 # The table names behind SOFT_DELETE_MODELS — the single source of truth for

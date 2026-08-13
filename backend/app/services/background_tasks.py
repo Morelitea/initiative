@@ -54,8 +54,17 @@ def start_background_tasks() -> list[asyncio.Task]:
         EXPORT_POLL_SECONDS,
         EXPORT_GC_POLL_SECONDS,
     )
+    from app.services.marketplace.registry import (
+        process_registry_refresh,
+        registry_configured,
+    )
+    from app.services.marketplace.reverification import (
+        process_app_service_reverification,
+        reverification_configured,
+        reverification_interval_seconds,
+    )
 
-    return [
+    tasks = [
         asyncio.create_task(
             _loop_worker(
                 process_task_assignment_digests, DIGEST_POLL_SECONDS, "task-digest"
@@ -102,3 +111,39 @@ def start_background_tasks() -> list[asyncio.Task]:
             _loop_worker(process_import_gc, IMPORT_GC_POLL_SECONDS, "import-gc")
         ),
     ]
+
+    # The marketplace registry is optional. With no registry configured there
+    # is no worker at all rather than one that wakes up to find nothing to do —
+    # an unconfigured install runs no part of this and says nothing about it.
+    # The loop runs its first pass immediately, so boot is also the first
+    # refresh; the catalog this build ships is already seeded by then and the
+    # registry adds to it through the same writer.
+    if registry_configured():
+        from app.core.config import settings
+
+        tasks.append(
+            asyncio.create_task(
+                _loop_worker(
+                    process_registry_refresh,
+                    settings.MARKETPLACE_REGISTRY_TTL_SECONDS,
+                    "marketplace-registry",
+                )
+            )
+        )
+
+    # Re-verifying app services is the same shape: a deployment with no app
+    # platform configured runs no worker for it. What the sweep changes is the
+    # recorded status of a registration, never whether it is enabled — an
+    # unreachable app is reported, not switched off.
+    if reverification_configured():
+        tasks.append(
+            asyncio.create_task(
+                _loop_worker(
+                    process_app_service_reverification,
+                    reverification_interval_seconds(),
+                    "app-service-verify",
+                )
+            )
+        )
+
+    return tasks

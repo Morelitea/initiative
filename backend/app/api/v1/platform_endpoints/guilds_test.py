@@ -16,8 +16,12 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
-from app.models.platform.user import UserRole
+from sqlmodel import select
+
+from app.testing.schema_harness import route_session_to_guild
+from app.models.platform.guild import Guild, GuildMembership, GuildRole
+from app.models.platform.user import UserRole, UserStatus
+from app.models.tenant.initiative import InitiativeMember
 from app.testing.factories import (
     create_federated_identity,
     create_guild,
@@ -175,6 +179,153 @@ async def test_create_guild_sets_as_active(client: AsyncClient, session: AsyncSe
     response = await client.post("/api/v1/guilds/", headers=headers, json=payload)
 
     assert response.status_code == 201
+
+
+# --- creating a guild for another account ----------------------------------
+
+
+@pytest.mark.integration
+async def test_staff_can_create_a_guild_owned_by_someone_else(
+    client: AsyncClient, session: AsyncSession
+):
+    staff = await create_user(session, email="staff@example.com", role=UserRole.owner)
+    customer = await create_user(session, email="customer@example.com")
+
+    response = await client.post(
+        "/api/v1/guilds/",
+        headers=get_auth_headers(staff),
+        json={"name": "Acme", "owner_user_id": customer.id},
+    )
+
+    assert response.status_code == 201, response.text
+    guild_id = response.json()["id"]
+
+    # The named account is its admin...
+    memberships = (
+        await session.exec(
+            select(GuildMembership).where(GuildMembership.guild_id == guild_id)
+        )
+    ).all()
+    assert [(m.user_id, m.role) for m in memberships] == [
+        (customer.id, GuildRole.admin)
+    ]
+    # ...and the creator holds nothing in it.
+    assert staff.id not in {m.user_id for m in memberships}
+
+
+@pytest.mark.integration
+async def test_creating_for_someone_else_records_both_identities(
+    client: AsyncClient, session: AsyncSession
+):
+    """Who did it and who it was for, in the row rather than only a log line."""
+    staff = await create_user(session, email="staff@example.com", role=UserRole.owner)
+    customer = await create_user(session, email="customer@example.com")
+
+    response = await client.post(
+        "/api/v1/guilds/",
+        headers=get_auth_headers(staff),
+        json={"name": "Acme", "owner_user_id": customer.id},
+    )
+
+    guild = await session.get(Guild, response.json()["id"])
+    assert guild.created_by_user_id == staff.id
+    membership = (
+        await session.exec(
+            select(GuildMembership).where(GuildMembership.guild_id == guild.id)
+        )
+    ).one()
+    assert membership.user_id == customer.id
+
+
+@pytest.mark.integration
+async def test_the_owner_gets_the_default_initiative_not_the_staff_creator(
+    client: AsyncClient, session: AsyncSession
+):
+    """A guild made for another account must not leave its creator inside the
+    content either — the default initiative belongs to the owner."""
+    staff = await create_user(session, email="staff@example.com", role=UserRole.owner)
+    customer = await create_user(session, email="customer@example.com")
+
+    response = await client.post(
+        "/api/v1/guilds/",
+        headers=get_auth_headers(staff),
+        json={"name": "Acme", "owner_user_id": customer.id},
+    )
+    guild_id = response.json()["id"]
+
+    await route_session_to_guild(session, guild_id)
+    members = (await session.exec(select(InitiativeMember))).all()
+    assert {m.user_id for m in members} == {customer.id}
+
+
+@pytest.mark.integration
+async def test_an_ordinary_user_cannot_name_another_owner(
+    client: AsyncClient, session: AsyncSession
+):
+    """Refused, not silently ignored: creating the guild under the caller would
+    answer 201 for a request that named someone else."""
+    user = await create_user(session, email="member@example.com")
+    other = await create_user(session, email="other@example.com")
+
+    response = await client.post(
+        "/api/v1/guilds/",
+        headers=get_auth_headers(user),
+        json={"name": "Not yours", "owner_user_id": other.id},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "GUILD_OWNER_REQUIRES_CAPABILITY"
+    assert (
+        await session.exec(select(Guild).where(Guild.name == "Not yours"))
+    ).all() == []
+
+
+@pytest.mark.integration
+async def test_naming_yourself_needs_no_capability(
+    client: AsyncClient, session: AsyncSession
+):
+    """The field is about handing a guild to someone else; spelling out your
+    own id is the ordinary path."""
+    user = await create_user(session, email="member@example.com")
+
+    response = await client.post(
+        "/api/v1/guilds/",
+        headers=get_auth_headers(user),
+        json={"name": "Mine", "owner_user_id": user.id},
+    )
+
+    assert response.status_code == 201, response.text
+    assert response.json()["role"] == "admin"
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    "owner_id_of",
+    ["missing", "deactivated"],
+    ids=["unknown user", "deactivated user"],
+)
+async def test_an_unusable_owner_is_refused(
+    client: AsyncClient, session: AsyncSession, owner_id_of: str
+):
+    """This never creates an account, and never hands a guild to one that
+    cannot sign in to run it."""
+    staff = await create_user(session, email="staff@example.com", role=UserRole.owner)
+    if owner_id_of == "missing":
+        owner_id = 999_999_999
+    else:
+        deactivated = await create_user(
+            session, email="gone@example.com", status=UserStatus.deactivated
+        )
+        owner_id = deactivated.id
+
+    response = await client.post(
+        "/api/v1/guilds/",
+        headers=get_auth_headers(staff),
+        json={"name": "Acme", "owner_user_id": owner_id},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "GUILD_OWNER_NOT_FOUND"
 
 
 @pytest.mark.integration
@@ -706,152 +857,6 @@ async def test_create_guild_requires_authentication(client: AsyncClient):
     """Test that creating guilds requires authentication."""
     payload = {"name": "Test Guild"}
     response = await client.post("/api/v1/guilds/", json=payload)
-
-    assert response.status_code == 401
-
-
-# ---------------------------------------------------------------------------
-# Advanced-tool handoff endpoint (guild scope)
-#
-# Guild scope is admin-only — there's no per-role permission key to
-# negotiate, just the guild role and the deployment-level URL gate.
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.integration
-async def test_guild_advanced_tool_handoff_returns_404_when_url_unset(
-    client: AsyncClient, session: AsyncSession, monkeypatch
-):
-    """Without ADVANCED_TOOL_URL the embed isn't deployed; even an admin
-    must get 404 (not 403) so the endpoint is indistinguishable from a
-    deployment that doesn't expose the feature at all."""
-    from app.core.config import settings as app_settings
-
-    monkeypatch.setattr(app_settings, "ADVANCED_TOOL_URL", None)
-
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-
-    headers = get_auth_headers(admin)
-    response = await client.post(
-        f"/api/v1/guilds/{guild.id}/advanced-tool/handoff", headers=headers
-    )
-
-    assert response.status_code == 404
-    assert response.json()["detail"] == "ADVANCED_TOOL_NOT_CONFIGURED"
-
-
-@pytest.mark.integration
-async def test_guild_advanced_tool_handoff_rejects_non_admin(
-    client: AsyncClient, session: AsyncSession, monkeypatch
-):
-    """The whole point of the guild-scoped tab is admin-only access. A
-    regular member of the guild must be refused — this is the load-
-    bearing check; if it regressed, anyone could mint a guild-scoped
-    token."""
-    from app.core.config import settings as app_settings
-
-    monkeypatch.setattr(app_settings, "ADVANCED_TOOL_URL", "https://embed.example.com")
-
-    member = await create_user(session, email="member@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
-    )
-
-    headers = get_auth_headers(member)
-    response = await client.post(
-        f"/api/v1/guilds/{guild.id}/advanced-tool/handoff", headers=headers
-    )
-
-    assert response.status_code == 403
-
-
-@pytest.mark.integration
-async def test_guild_advanced_tool_handoff_rejects_non_member(
-    client: AsyncClient, session: AsyncSession, monkeypatch
-):
-    """A user with no membership in the guild can't elevate by hitting
-    the endpoint with that guild's id — guild isolation must hold."""
-    from app.core.config import settings as app_settings
-
-    monkeypatch.setattr(app_settings, "ADVANCED_TOOL_URL", "https://embed.example.com")
-
-    outsider = await create_user(session, email="outsider@example.com")
-    other_guild = await create_guild(session, name="Other guild")
-    await create_guild_membership(
-        session, user=outsider, guild=other_guild, role=GuildRole.admin
-    )
-
-    target_guild = await create_guild(session, name="Target guild")
-
-    # Use the outsider's auth but reference the target guild they aren't in
-    headers = get_auth_headers(outsider)
-    response = await client.post(
-        f"/api/v1/guilds/{target_guild.id}/advanced-tool/handoff", headers=headers
-    )
-
-    assert response.status_code == 403
-
-
-@pytest.mark.integration
-async def test_guild_advanced_tool_handoff_succeeds_for_admin(
-    client: AsyncClient, session: AsyncSession, monkeypatch
-):
-    """The happy path: admin gets a token with ``scope=guild``, no
-    ``initiative_id``, ``is_manager=true``, and ``can_create=true`` —
-    guild admins always have full access at this scope."""
-    from app.core.config import settings as app_settings
-    from app.core.security import ADVANCED_TOOL_AUDIENCE
-    import jwt
-
-    monkeypatch.setattr(app_settings, "ADVANCED_TOOL_URL", "https://embed.example.com")
-
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-
-    headers = get_auth_headers(admin)
-    response = await client.post(
-        f"/api/v1/guilds/{guild.id}/advanced-tool/handoff", headers=headers
-    )
-
-    assert response.status_code == 200
-    body = response.json()
-    assert body["scope"] == "guild"
-    assert body["initiative_id"] is None
-    assert body["iframe_url"] == "https://embed.example.com"
-    assert body["expires_in_seconds"] > 0
-
-    # The handoff signs RS256 across the trust boundary; assert the algorithm
-    # and read the claims (the signature round-trip is covered in security_test).
-    assert jwt.get_unverified_header(body["handoff_token"])["alg"] == "RS256"
-    payload = jwt.decode(body["handoff_token"], options={"verify_signature": False})
-    assert payload["aud"] == ADVANCED_TOOL_AUDIENCE
-    assert payload["sub"] == str(admin.id)
-    assert payload["scope"] == "guild"
-    assert "initiative_id" not in payload
-    assert payload["is_manager"] is True
-    assert payload["can_create"] is True
-    assert payload["guild_id"] == guild.id
-    assert payload["guild_role"] == "admin"
-
-
-@pytest.mark.integration
-async def test_guild_advanced_tool_handoff_requires_authentication(
-    client: AsyncClient, monkeypatch
-):
-    """No auth, no token — the auth dep runs before the URL/role gates."""
-    from app.core.config import settings as app_settings
-
-    monkeypatch.setattr(app_settings, "ADVANCED_TOOL_URL", "https://embed.example.com")
-
-    response = await client.post("/api/v1/guilds/1/advanced-tool/handoff")
 
     assert response.status_code == 401
 

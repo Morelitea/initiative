@@ -10,10 +10,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  EntityType,
   PermissionKey,
   RecentEntityType,
   Tool,
-  TrashItemEntityType,
 } from "@/api/generated/initiativeAPI.schemas";
 import { PALETTE_TOOLS, TOOL_PALETTE } from "@/lib/toolPalette";
 import {
@@ -68,10 +68,10 @@ describe("tool registry", () => {
   });
 
   it("every tool is a trash entity type with a label", () => {
-    const trashTypes = Object.values(TrashItemEntityType) as string[];
+    const trashTypes = Object.values(EntityType) as string[];
     const labels = trash.entityType as Record<string, string>;
     for (const tool of TOOLS) {
-      expect(trashTypes, `missing TrashItemEntityType for ${tool}`).toContain(tool);
+      expect(trashTypes, `missing EntityType for ${tool}`).toContain(tool);
     }
     for (const entityType of trashTypes) {
       expect(labels[entityType], `missing trash.json entityType.${entityType}`).toBeTruthy();
@@ -161,17 +161,11 @@ describe("tool i18n", () => {
 });
 
 describe("tool routes", () => {
-  it("every tool with an in-app collection has its guild list route", () => {
+  it("every tool has its guild list route", () => {
     for (const tool of TOOLS) {
-      if (tool === Tool.advanced_tool) continue; // embedded per-initiative page instead
       const file = `../routes/_serverRequired/_authenticated/g/$guildId/${toolRouteSegment(tool)}.tsx`;
       expect(guildRouteFiles, `missing route file ${file}`).toContain(file);
     }
-    // The advanced tool's embedded pages (initiative + guild settings).
-    expect(
-      guildRouteFiles.some((f) => f.includes("advanced-tool")),
-      "missing advanced-tool route under /g/$guildId"
-    ).toBe(true);
   });
 
   it("declared personal routes exist", () => {

@@ -250,8 +250,7 @@ async def get_initiative_blocker_details(
 
     Initiatives live in per-guild schemas, so this fans out across the user's
     guilds and runs the sole-PM query routed into each schema as superadmin.
-    A single cross-schema query is impossible; querying the unrouted (public)
-    default would read the frozen backup and miss every real blocker.
+    A single cross-schema query is impossible.
     """
     from app.models.tenant.initiative import (
         Initiative,
@@ -439,11 +438,10 @@ async def check_deletion_eligibility(
 
     # Sole-PM initiatives and owned projects are guild-scoped: fan out across
     # the user's guilds, routed into each schema as superadmin, and aggregate.
-    # (initiatives_requiring_new_pm / get_owned_projects on the unrouted public
-    # default would read the frozen backup and under-report blockers — letting
-    # a deletion proceed that should have been blocked.) The detached ORM rows
-    # collected here are only read for scalar fields downstream, so expunging
-    # between guilds (to avoid id-collision cache hits) is safe.
+    # A guild missed here is a blocker unseen, letting a deletion proceed that
+    # should have been stopped. The detached ORM rows collected here are only
+    # read for scalar fields downstream, so expunging between guilds (to avoid
+    # id-collision cache hits) is safe.
     sole_pm_initiatives: List = []
     owned_projects: List[ProjectBasic] = []
     for gid in await _user_guild_ids(session, user_id):
@@ -523,6 +521,8 @@ async def _drop_user_memberships(session: AsyncSession, user_id: int) -> User:
     # commit here: we ``flush`` so the SQL lands in the shared transaction the
     # caller will commit once, preserving the atomicity guarantee. ``expunge_all``
     # between guilds avoids ORM identity-map collisions (ids repeat per schema).
+    from app.services.tenant import app_connections as app_connections_service
+
     for gid in guild_ids:
         session.expunge_all()
         await set_rls_context(session, guild_id=gid, guild_role="admin")
@@ -530,6 +530,14 @@ async def _drop_user_memberships(session: AsyncSession, user_id: int) -> User:
             session,
             guild_id=gid,
             user_id=user_id,
+        )
+        # Every app credential this person connected, in every guild they
+        # belong to — one sweep rather than a per-guild chore, because losing
+        # the account has to end the vendor access it opened. Routed as guild
+        # admin, which is what lets the own-row policy admit rows the acting
+        # session does not own (an admin removing somebody else's account).
+        await app_connections_service.delete_member_connections(
+            session, user_id=user_id, reason="account_closed"
         )
         await session.flush()
 
@@ -565,6 +573,7 @@ async def deactivate_user(session: AsyncSession, user_id: int) -> None:
     user.updated_at = datetime.now(timezone.utc)
     session.add(user)
     await session.commit()
+    await _dispatch_queued_revocations(session)
 
 
 async def _scrub_invites_addressed_to(
@@ -724,6 +733,22 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     # Single commit: membership removal + PII wipe + auth-artifact
     # revocation either all succeed or all roll back together.
     await session.commit()
+    await _dispatch_queued_revocations(session)
+
+
+async def _dispatch_queued_revocations(session: AsyncSession) -> None:
+    """Tell each app that this person's credentials are finished.
+
+    After the commit, always: an app told to let go of a credential the database
+    then kept would be the one disagreement worth avoiding. Delivery is
+    best-effort — the account is closed either way, and our own delete is the
+    authoritative half.
+    """
+    from app.services.tenant import app_revocation as app_revocation_service
+
+    await app_revocation_service.dispatch_revocations(
+        app_revocation_service.drain_revocations(session)
+    )
 
 
 class InvalidTransferRecipient(Exception):
@@ -823,9 +848,7 @@ async def transfer_owned_projects(
     Projects live in per-guild schemas, so this fans out across the user's
     guilds (routed as superadmin) and transfers the owned projects found in
     each. ``project_transfers`` is keyed by ``"guild_id:project_id"`` because a
-    bare project id is ambiguous across guild schemas. Running the transfer on
-    the unrouted public default would target the frozen backup and leave the
-    live project still owned by the departing user. Propagates
+    bare project id is ambiguous across guild schemas. Propagates
     :class:`InvalidTransferRecipient` so the caller can surface a 400. Resets to
     the public baseline on the way out.
     """

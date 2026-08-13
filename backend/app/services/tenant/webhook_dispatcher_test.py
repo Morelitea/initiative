@@ -2,7 +2,8 @@
 
 These cover the cryptographic contract — given a known secret and
 known body, the signature is deterministic and verifies — plus the
-matching rules that decide which subscriptions get a given event.
+matching rules that decide which subscriptions get a given event, and
+the delegate condition that decides whether any of it runs at all.
 HTTP delivery is mocked; we don't need a real socket to assert that
 the right URL was called with the right headers and body.
 """
@@ -13,12 +14,30 @@ import hashlib
 import hmac
 import json
 from datetime import datetime, timezone
+from typing import NoReturn
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from app.core import config as config_module
 from app.models.tenant.webhook_subscription import WebhookSubscription
+from app.services.tenant import webhook_dispatcher
 from app.services.tenant.webhook_dispatcher import _sign, dispatch_event
+
+# Delivery targets belong to the automation delegate, so the dispatcher only
+# runs on a deployment that has one. The setting is only tested for presence,
+# so a placeholder value is enough here.
+_DELEGATE_PEM = "-----BEGIN PUBLIC KEY-----\ntest-delegate\n-----END PUBLIC KEY-----"
+
+
+@pytest.fixture(autouse=True)
+def _delegate_configured(monkeypatch):
+    """Every test below assumes a configured delegate unless it says otherwise
+    — with none, dispatch is inert and there is nothing to assert about
+    matching or signing."""
+    monkeypatch.setattr(
+        config_module.settings, "AUTO_DELEGATION_PUBLIC_KEY_PEM", _DELEGATE_PEM
+    )
 
 
 def _verify_signature(secret: str, timestamp: str, body: bytes, signature: str) -> bool:
@@ -334,3 +353,114 @@ async def test_dispatch_does_not_cross_guilds(session):
             payload={"id": 1},
         )
         assert mock_deliver.await_count == 0
+
+
+# ── The delegate condition ────────────────────────────────────────────
+
+
+class _ExplodingSession:
+    """A session that fails the test if it is touched at all.
+
+    Lets the inert path assert the *absence* of per-event database work,
+    not just the absence of a delivery.
+    """
+
+    def __getattr__(self, name: str) -> NoReturn:
+        raise AssertionError(f"dispatch queried the database (session.{name})")
+
+
+@pytest.mark.integration
+async def test_dispatch_delivers_when_a_delegate_is_configured(session):
+    """The baseline for the two tests below: with a delegate configured, a
+    matching subscription is delivered to."""
+    from app.testing.factories import create_guild, create_user
+
+    user = await create_user(session, email="dispatcher-configured@example.com")
+    guild = await create_guild(session, creator=user)
+    await _make_subscription(
+        session,
+        guild=guild,
+        user=user,
+        target_url="https://configured.example.com/hook",
+        event_types=["task.created"],
+    )
+
+    delivered_to: list[str] = []
+
+    async def fake_deliver(*, target_url: str, secret: str, envelope: dict) -> None:
+        delivered_to.append(target_url)
+
+    with patch("app.services.tenant.webhook_dispatcher._deliver", new=fake_deliver):
+        await dispatch_event(
+            session,
+            event_type="task.created",
+            guild_id=guild.id,
+            payload={"id": 1},
+        )
+
+    assert delivered_to == ["https://configured.example.com/hook"]
+
+
+@pytest.mark.integration
+async def test_dispatch_is_inert_without_a_delegate(session, monkeypatch):
+    """No delegate, no delivery — and no work of any kind.
+
+    The delegate owns delivery targets, so a deployment without one has none
+    to deliver to. An existing subscription row (left from a deployment that
+    once had a delegate) does not change that, and the dispatcher returns
+    before it would query for one.
+    """
+    from app.testing.factories import create_guild, create_user
+
+    user = await create_user(session, email="dispatcher-inert@example.com")
+    guild = await create_guild(session, creator=user)
+    await _make_subscription(
+        session,
+        guild=guild,
+        user=user,
+        target_url="https://orphaned.example.com/hook",
+        event_types=["task.created"],
+    )
+
+    monkeypatch.setattr(config_module.settings, "AUTO_DELEGATION_PUBLIC_KEY_PEM", None)
+    monkeypatch.setattr(webhook_dispatcher, "_inert_logged", False)
+
+    with patch(
+        "app.services.tenant.webhook_dispatcher._deliver", new=AsyncMock()
+    ) as mock_deliver:
+        await dispatch_event(
+            session,
+            event_type="task.created",
+            guild_id=guild.id,
+            payload={"id": 1},
+        )
+        assert mock_deliver.await_count == 0
+
+        # …and the matching row above was never even looked for.
+        await dispatch_event(
+            _ExplodingSession(),
+            event_type="task.created",
+            guild_id=guild.id,
+            payload={"id": 1},
+        )
+        assert mock_deliver.await_count == 0
+
+
+@pytest.mark.unit
+async def test_inert_dispatch_explains_itself_once_per_process(monkeypatch):
+    """Every write that produces an event calls the dispatcher, so the
+    "no delegate configured" explanation is logged once per process rather
+    than once per event."""
+    monkeypatch.setattr(config_module.settings, "AUTO_DELEGATION_PUBLIC_KEY_PEM", None)
+    monkeypatch.setattr(webhook_dispatcher, "_inert_logged", False)
+
+    with patch.object(webhook_dispatcher.logger, "info") as mock_info:
+        for _ in range(3):
+            await dispatch_event(
+                _ExplodingSession(),
+                event_type="task.created",
+                guild_id=1,
+                payload={"id": 1},
+            )
+
+    assert mock_info.call_count == 1

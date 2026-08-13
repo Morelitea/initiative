@@ -1,0 +1,212 @@
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+
+import {
+  createDashboardApiV1GGuildIdDashboardsPost,
+  deleteDashboardApiV1GGuildIdDashboardsDashboardIdDelete,
+  getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet,
+  getGetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGetQueryKey,
+  getListDashboardsApiV1GGuildIdDashboardsGetQueryKey,
+  getReadDashboardApiV1GGuildIdDashboardsDashboardIdGetQueryKey,
+  getReadInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGetQueryKey,
+  getReadWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGetQueryKey,
+  listDashboardsApiV1GGuildIdDashboardsGet,
+  readDashboardApiV1GGuildIdDashboardsDashboardIdGet,
+  readInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGet,
+  readWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGet,
+  setDashboardGrantsApiV1GGuildIdDashboardsDashboardIdGrantsPut,
+  updateDashboardApiV1GGuildIdDashboardsDashboardIdPatch,
+  upgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePost,
+} from "@/api/generated/dashboards/dashboards";
+import type {
+  DashboardCreate,
+  DashboardInstalledListings,
+  DashboardListResponse,
+  DashboardRead,
+  DashboardUpdate,
+  InitiativeGroupedCountsResponse,
+  ListDashboardsApiV1GGuildIdDashboardsGetParams,
+  ResourceGrantSchema,
+  WidgetCatalog,
+} from "@/api/generated/initiativeAPI.schemas";
+import { invalidateAllDashboards, invalidateDashboard } from "@/api/query-keys";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useGuildMutation } from "@/hooks/useApiMutation";
+import { queryClient } from "@/lib/queryClient";
+import type { MutationOpts } from "@/types/mutation";
+import type { QueryOpts } from "@/types/query";
+
+// ── Queries ─────────────────────────────────────────────────────────────────
+
+/** Visible-dashboard counts per initiative, for the sidebar badges. */
+export const useDashboardCountsByInitiative = (
+  options?: QueryOpts<InitiativeGroupedCountsResponse>
+) => {
+  const guildId = useActiveGuildId();
+  return useQuery<InitiativeGroupedCountsResponse>({
+    queryKey:
+      getGetDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGetQueryKey(
+        guildId
+      ),
+    queryFn: () =>
+      getDashboardCountsByInitiativeApiV1GGuildIdDashboardsCountsByInitiativeGet(guildId),
+    ...options,
+  });
+};
+
+export const useDashboardsList = (
+  params?: ListDashboardsApiV1GGuildIdDashboardsGetParams,
+  options?: QueryOpts<DashboardListResponse>
+) => {
+  const guildId = useActiveGuildId();
+  return useQuery<DashboardListResponse>({
+    queryKey: getListDashboardsApiV1GGuildIdDashboardsGetQueryKey(guildId, params),
+    queryFn: () => listDashboardsApiV1GGuildIdDashboardsGet(guildId, params),
+    placeholderData: keepPreviousData,
+    ...options,
+  });
+};
+
+export const useDashboard = (dashboardId: number | null, options?: QueryOpts<DashboardRead>) => {
+  const guildId = useActiveGuildId();
+  const { enabled: userEnabled = true, ...rest } = options ?? {};
+  return useQuery<DashboardRead>({
+    queryKey: getReadDashboardApiV1GGuildIdDashboardsDashboardIdGetQueryKey(guildId, dashboardId!),
+    queryFn: () => readDashboardApiV1GGuildIdDashboardsDashboardIdGet(guildId, dashboardId!),
+    enabled: dashboardId !== null && Number.isFinite(dashboardId) && userEnabled,
+    ...rest,
+  });
+};
+
+/**
+ * The widget vocabulary this build supports — size floors, bindable sources,
+ * and options per primitive, plus the named presets.
+ *
+ * Served rather than duplicated: the backend's ``WIDGET_SPECS`` is the authority
+ * on which widgets exist and what each may bind to, so the palette and the
+ * canvas read it from here instead of carrying a second copy. Static for the
+ * life of a deployment, hence the long stale time.
+ */
+export const useWidgetCatalog = (options?: QueryOpts<WidgetCatalog>) => {
+  const guildId = useActiveGuildId();
+  return useQuery<WidgetCatalog>({
+    queryKey: getReadWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGetQueryKey(guildId),
+    queryFn: () => readWidgetCatalogApiV1GGuildIdDashboardsWidgetCatalogGet(guildId),
+    staleTime: Number.POSITIVE_INFINITY,
+    ...options,
+  });
+};
+
+/**
+ * Which marketplace listings this guild has installed, and how many of each.
+ *
+ * Keyed by the listing uid an install pins. Separate from the dashboards list on
+ * purpose: that list is paginated, and deriving "already installed" from one
+ * page would mark some installs and miss the rest.
+ */
+export const useInstalledListings = (options?: QueryOpts<DashboardInstalledListings>) => {
+  const guildId = useActiveGuildId();
+  return useQuery<DashboardInstalledListings>({
+    queryKey: getReadInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGetQueryKey(guildId),
+    queryFn: () => readInstalledListingsApiV1GGuildIdDashboardsInstalledListingsGet(guildId),
+    ...options,
+  });
+};
+
+// ── Mutations ───────────────────────────────────────────────────────────────
+
+const invalidateDashboardAndList = (dashboardId: number) =>
+  Promise.all([invalidateDashboard(dashboardId), invalidateAllDashboards()]);
+
+export const useCreateDashboard = (options?: MutationOpts<DashboardRead, DashboardCreate>) =>
+  useGuildMutation<DashboardRead, DashboardCreate>(
+    {
+      mutationFn: (guildId, data) => createDashboardApiV1GGuildIdDashboardsPost(guildId, data),
+      invalidate: () => invalidateAllDashboards(),
+      errorKey: "dashboards:error",
+    },
+    options
+  );
+
+export const useUpdateDashboard = (
+  dashboardId: number,
+  options?: MutationOpts<DashboardRead, DashboardUpdate>
+) => {
+  const guildId = useActiveGuildId();
+  return useGuildMutation<DashboardRead, DashboardUpdate>(
+    {
+      mutationFn: (guildId, data) =>
+        updateDashboardApiV1GGuildIdDashboardsDashboardIdPatch(guildId, dashboardId, data),
+      invalidate: (updated) => {
+        // The PATCH answers with the row a refetch would fetch, so seed it
+        // rather than leaving the cache on the pre-save copy until the refetch
+        // lands. Without this the canvas drops its local draft the moment a
+        // save succeeds and renders the *old* server layout for a beat — a
+        // dragged widget visibly snaps back to where it came from, then jumps
+        // forward again when the refetch arrives.
+        queryClient.setQueryData(
+          getReadDashboardApiV1GGuildIdDashboardsDashboardIdGetQueryKey(guildId, dashboardId),
+          updated
+        );
+        return invalidateDashboardAndList(dashboardId);
+      },
+      errorKey: "dashboards:error",
+    },
+    options
+  );
+};
+
+/**
+ * Take the version a listing currently publishes.
+ *
+ * Only ever explicit: a new version sits in the catalog until someone with
+ * write access on this dashboard asks for it, and applying it re-pins this
+ * instance alone.
+ */
+export const useUpgradeDashboard = (
+  dashboardId: number,
+  options?: MutationOpts<DashboardRead, void>
+) => {
+  const guildId = useActiveGuildId();
+  return useGuildMutation<DashboardRead, void>(
+    {
+      mutationFn: (guildId) =>
+        upgradeDashboardApiV1GGuildIdDashboardsDashboardIdUpgradePost(guildId, dashboardId),
+      invalidate: (updated) => {
+        queryClient.setQueryData(
+          getReadDashboardApiV1GGuildIdDashboardsDashboardIdGetQueryKey(guildId, dashboardId),
+          updated
+        );
+        return invalidateDashboardAndList(dashboardId);
+      },
+      errorKey: "dashboards:error",
+    },
+    options
+  );
+};
+
+export const useDeleteDashboard = (options?: MutationOpts<void, number>) =>
+  useGuildMutation<void, number>(
+    {
+      mutationFn: (guildId, dashboardId) =>
+        deleteDashboardApiV1GGuildIdDashboardsDashboardIdDelete(guildId, dashboardId),
+      invalidate: () => invalidateAllDashboards(),
+      errorKey: "dashboards:error",
+    },
+    options
+  );
+
+// ── Grants Mutation (unified resource sharing) ──────────────────────────────
+
+export const useSetDashboardGrants = (
+  dashboardId: number,
+  options?: MutationOpts<DashboardRead, ResourceGrantSchema[]>
+) =>
+  useGuildMutation<DashboardRead, ResourceGrantSchema[]>(
+    {
+      mutationFn: (guildId, grants) =>
+        setDashboardGrantsApiV1GGuildIdDashboardsDashboardIdGrantsPut(guildId, dashboardId, grants),
+      invalidate: () => invalidateDashboardAndList(dashboardId),
+      errorKey: "dashboards:error",
+    },
+    options
+  );

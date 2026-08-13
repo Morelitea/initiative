@@ -23,9 +23,8 @@ def make_include_object(guild_autogen: bool) -> IncludeObject:
 
     Default mode compares shared/public tables only: guild-content tables live
     in the per-guild schemas, so without the filter autogenerate would try to
-    CREATE them in ``public`` on a fresh database (the model metadata still
-    declares them for the ORM) or DROP/ALTER the frozen legacy copies on a
-    pre-squash database.
+    CREATE them in ``public`` (the model metadata still declares them for the
+    ORM).
 
     Guild mode (``-x guild``) inverts the table filter (guild-content tables
     only, compared against ``guild_template``) and additionally scopes WHAT

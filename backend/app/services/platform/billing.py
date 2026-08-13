@@ -1,8 +1,8 @@
 """Verification and operations for the external billing service.
 
 ``apply_guild_tier`` writes the tier label and billing-computed caps onto
-``public.guilds``; ``guild_member_count`` reads one guild's headcount. Tier
-definitions live in the billing service's own database — no pricing data,
+``public.guilds``; ``guild_storage_usage`` reads one guild's stored bytes for
+billing's usage read. Tier definitions live in the billing service's own database — no pricing data,
 tier matrix, or plan math may ever live in this repository, and the FOSS app
 enforces only the numeric caps and status it is handed (``tier_name`` is
 display/audit metadata, never an enforcement input).
@@ -294,16 +294,6 @@ async def apply_guild_tier(
         member_count=await _member_count(session, payload.guild_id),
         applied=applied,
     )
-
-
-async def guild_member_count(session: AsyncSession, guild_id: int) -> int:
-    """Headcount for per-user billing."""
-    exists = (
-        await session.exec(select(Guild.id).where(Guild.id == guild_id))
-    ).one_or_none()
-    if exists is None:
-        raise BillingGuildNotFoundError(guild_id)
-    return await _member_count(session, guild_id)
 
 
 async def guild_storage_usage(admin_session: AsyncSession, guild_id: int) -> int:

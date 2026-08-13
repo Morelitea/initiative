@@ -8,14 +8,22 @@ from fastapi import APIRouter
 #                          …), including the cross-guild "my" aggregates that read
 #                          them — the one place tenant data is read without a
 #                          single guild context (see /me routes below).
+#   app_service_endpoints/ — the channels an external app service calls back on.
+#                          Split by CALLER rather than by data: no user is
+#                          resolved, the caller is established from a request
+#                          signature, and which guild it may reach follows from
+#                          that.
+from app.api.v1 import app_service_endpoints
 from app.api.v1.tenant_endpoints import (
-    advanced_tool,
     ai_settings,
+    app_data,
     attachments,
     auto_subscriptions,
     calendar_entries,
     calendar_events,
     calendars,
+    dashboards,
+    guild_apps,
     collaboration,
     comments,
     counters,
@@ -42,12 +50,15 @@ from app.api.v1.platform_endpoints import (
     access_grants,
     admin,
     ai_settings as platform_ai_settings,
+    app_platform,
+    app_services,
     auth,
     auth_providers,
     billing,
     config,
     guild_auth_providers,
     guilds,
+    marketplace,
     native,
     notifications,
     push,
@@ -70,6 +81,12 @@ api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(guilds.router, prefix="/guilds", tags=["guilds"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
+# The marketplace catalog is platform-addressed: one shared surface, globally
+# unique ids, and no tenant data — so it takes no guild segment. Installing is
+# guild-scoped and lives on the tool routers.
+api_router.include_router(
+    marketplace.router, prefix="/marketplace", tags=["marketplace"]
+)
 api_router.include_router(push.router, prefix="/push", tags=["push"])
 # Platform / app-wide config (owner-only) and cross-guild PAM management — NOT
 # guild-scoped (AdminSessionDep / capability-gated), so they stay top-level.
@@ -77,6 +94,23 @@ api_router.include_router(
     access_grants.router, prefix="/access-grants", tags=["access-grants"]
 )
 api_router.include_router(settings.router, prefix="/settings", tags=["settings"])
+# Deployment-level app service wiring (apps.manage — owner). Platform-addressed
+# like the catalog: a registration belongs to the deployment, never to a guild.
+api_router.include_router(
+    app_services.router, prefix="/app-services", tags=["app-services"]
+)
+# Public: apps verify the context JWTs we send them against this key set. No
+# credential, because requiring one to fetch a verification key is circular.
+api_router.include_router(
+    app_platform.router, prefix="/app-platform", tags=["app-platform"]
+)
+# The other half of that wiring: what a registered app service may call back on.
+# Authenticated by request signature against its registration's shared secret —
+# no user, no session, no guild in a header. The guild each call operates in is
+# named in the path and re-checked against the caller's own installs.
+api_router.include_router(
+    app_service_endpoints.router, prefix="/app-service", tags=["app-service"]
+)
 api_router.include_router(
     auth_providers.router, prefix="/settings/auth/providers", tags=["auth-providers"]
 )
@@ -133,6 +167,17 @@ guild_router.include_router(
 )
 guild_router.include_router(calendars.router, prefix="/calendars", tags=["calendars"])
 guild_router.include_router(
+    dashboards.router, prefix="/dashboards", tags=["dashboards"]
+)
+# Apps installed at guild scope. Every member reads them (the sidebar needs to
+# know what is there); installing and removing are guild-admin actions.
+#
+# The data plane is included FIRST so its literal ``/apps/widget-catalog`` wins
+# the match against ``/apps/{app_id}`` below — the same ordering rule the
+# dashboards router uses for its own widget catalog.
+guild_router.include_router(app_data.router, prefix="/apps", tags=["apps"])
+guild_router.include_router(guild_apps.router, prefix="/apps", tags=["apps"])
+guild_router.include_router(
     calendar_events.router, prefix="/calendar-events", tags=["calendar-events"]
 )
 # Aggregate view: events + task markers in one request (calendar surfaces).
@@ -146,9 +191,6 @@ guild_router.include_router(storage.router, prefix="/storage", tags=["storage"])
 guild_router.include_router(tags.router, prefix="/tags", tags=["tags"])
 # Generic per-tool surfaces addressed by the Tool enum ({tool} path param).
 guild_router.include_router(tools.router, prefix="/tools", tags=["tools"])
-guild_router.include_router(
-    advanced_tool.router, prefix="/advanced-tools", tags=["advanced-tools"]
-)
 guild_router.include_router(
     property_definitions.router,
     prefix="/property-definitions",

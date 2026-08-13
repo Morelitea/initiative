@@ -1,0 +1,81 @@
+{
+  "uid": "K7M2QX8N4TVB9C",
+  "public_id": "core.project-health",
+  "kind": "dashboard",
+  "name": "Project health",
+  "publisher": "Initiative",
+  "description": "Where every project in this initiative stands, and what is still open.",
+  "long_description": "A read-only overview of the initiative's projects. Shows how much of each project is done, how the open work splits across statuses, and the full project list underneath.\n\nNothing here needs setting up — every widget reads the initiative the dashboard lives on.",
+  "avatar_url": "/marketplace/core-project-health.svg",
+  "images": [],
+  "version": "1.0.0",
+  "release_notes": "First release.",
+  "definition": {
+    "schema_version": 1,
+    "kind": "dashboard",
+    "layout": {
+      "columns": 12
+    },
+    "widgets": [
+      {
+        "id": "w1",
+        "type": "stat",
+        "grid": {
+          "x": 0,
+          "y": 0,
+          "w": 3,
+          "h": 2
+        },
+        "binding": {
+          "source": "task_counts"
+        },
+        "title": "Open work"
+      },
+      {
+        "id": "w2",
+        "type": "chart",
+        "grid": {
+          "x": 3,
+          "y": 0,
+          "w": 9,
+          "h": 4
+        },
+        "binding": {
+          "source": "task_counts"
+        },
+        "title": "Work by status",
+        "options": {
+          "mark": "bar"
+        }
+      },
+      {
+        "id": "w3",
+        "type": "progress",
+        "grid": {
+          "x": 0,
+          "y": 2,
+          "w": 3,
+          "h": 2
+        },
+        "binding": {
+          "source": "projects"
+        },
+        "title": "Overall progress"
+      },
+      {
+        "id": "w4",
+        "type": "table",
+        "grid": {
+          "x": 0,
+          "y": 4,
+          "w": 12,
+          "h": 5
+        },
+        "binding": {
+          "source": "projects"
+        },
+        "title": "Projects"
+      }
+    ]
+  }
+}

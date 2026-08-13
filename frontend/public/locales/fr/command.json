@@ -11,7 +11,7 @@
     "queues": "Files",
     "counterGroups": "Groupes de compteurs",
     "calendars": "Calendriers",
-    "advancedTools": "Outils avancés"
+    "dashboards": "Tableaux de bord"
   },
   "actions": {
     "addTask": "Ajouter une tâche",

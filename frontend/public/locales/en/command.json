@@ -11,7 +11,7 @@
     "queues": "Queues",
     "counterGroups": "Counter Groups",
     "calendars": "Calendars",
-    "advancedTools": "Advanced Tools"
+    "dashboards": "Dashboards"
   },
   "actions": {
     "addTask": "Add Task",

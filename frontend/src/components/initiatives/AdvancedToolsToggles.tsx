@@ -4,14 +4,7 @@ import type { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { useAppConfig } from "@/hooks/useAppConfig";
-import {
-  TOGGLEABLE_TOOLS,
-  toolAvailable,
-  toolCamelPlural,
-  toolDisplayName,
-  toolRouteSegment,
-} from "@/lib/tools";
+import { TOGGLEABLE_TOOLS, toolCamelPlural, toolRouteSegment } from "@/lib/tools";
 
 export interface AdvancedToolsSectionProps {
   /** Current master-switch value per toggleable tool. */
@@ -54,9 +47,7 @@ const AdvancedToolToggle = ({
 
 /**
  * One master-switch row per toggleable tool, derived from the registry
- * (core tools are always on and never get a row). The advanced tool renders
- * under the deployment's own name for it and only when the runtime config
- * exposes one.
+ * (core tools are always on and never get a row).
  */
 export const AdvancedToolsSection = ({
   values,
@@ -67,23 +58,18 @@ export const AdvancedToolsSection = ({
   idPrefix = "advanced-tools",
 }: AdvancedToolsSectionProps) => {
   const { t } = useTranslation("initiatives");
-  const { advancedTool } = useAppConfig();
   const disabled = !canManage || isSaving;
 
   const rows = (
     <div className="space-y-3">
       {TOGGLEABLE_TOOLS.map((tool) => {
-        if (!toolAvailable(tool, advancedTool)) return null;
         const camel = toolCamelPlural(tool);
-        const title = toolDisplayName(tool, t(`${camel}Feature` as never), advancedTool);
         return (
           <AdvancedToolToggle
             key={tool}
             id={`${idPrefix}-${toolRouteSegment(tool)}-toggle`}
-            title={title}
-            description={t(`${camel}FeatureDescription` as never, {
-              name: advancedTool?.name ?? "",
-            })}
+            title={t(`${camel}Feature` as never)}
+            description={t(`${camel}FeatureDescription` as never)}
             checked={values[tool] ?? false}
             onCheckedChange={(value) => onToggle(tool, value)}
             disabled={disabled}

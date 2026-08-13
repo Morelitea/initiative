@@ -40,6 +40,7 @@ from app.schemas.tenant.calendar import (
     serialize_calendar,
     serialize_calendar_summary,
 )
+from app.schemas.tenant.initiative import InitiativeGroupedCountsResponse
 from app.schemas.tenant.recent_view import RecentViewWrite
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services import permissions as permissions_service
@@ -147,11 +148,7 @@ async def list_calendars(
             )
         conditions.append(Calendar.initiative_id == initiative_id)
     else:
-        conditions.append(
-            Calendar.initiative_id.in_(
-                select(Initiative.id).where(Initiative.calendars_enabled == True)  # noqa: E712
-            )
-        )
+        conditions.append(calendars_service.tool_enabled_clause())
 
     # DAC: non-admins (and non-PAM) see only calendars shared with them.
     if not rls_service.is_guild_admin(guild_context.role) and not guild_context.is_pam:
@@ -187,6 +184,46 @@ async def list_calendars(
         page=page,
         page_size=page_size,
         has_next=has_next,
+    )
+
+
+# Declared before /{calendar_id} so the literal path wins the match.
+@router.get("/counts/by-initiative", response_model=InitiativeGroupedCountsResponse)
+async def get_calendar_counts_by_initiative(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> InitiativeGroupedCountsResponse:
+    """Visible-calendar counts grouped by initiative.
+
+    Lightweight endpoint for the sidebar badges — same visibility rules as the
+    calendar list (calendars-enabled initiatives, DAC), one GROUP BY instead of
+    a capped list page. Guild calendars belong to no initiative, so they fall
+    outside every group here — the sidebar rows are initiative rows.
+    """
+    conditions = [
+        Calendar.guild_id == guild_context.guild_id,
+        Calendar.initiative_id.in_(
+            select(Initiative.id).where(Initiative.calendars_enabled == True)  # noqa: E712
+        ),
+    ]
+    if not rls_service.is_guild_admin(guild_context.role) and not guild_context.is_pam:
+        conditions.append(
+            Calendar.id.in_(
+                permissions_service.visible_resource_ids_subquery(
+                    "calendar", current_user.id
+                )
+            )
+        )
+
+    statement = (
+        select(Calendar.initiative_id, func.count(Calendar.id))
+        .where(*conditions)
+        .group_by(Calendar.initiative_id)
+    )
+    rows = (await session.exec(statement)).all()
+    return InitiativeGroupedCountsResponse(
+        counts={initiative_id: count for initiative_id, count in rows}
     )
 
 
@@ -362,7 +399,10 @@ async def list_my_calendars(
     """
 
     def _fetch(guild_session, guild_id):  # type: ignore[no-untyped-def]
-        conditions = [Initiative.calendars_enabled == True]  # noqa: E712
+        # A guild calendar is one of the user's own calendars like any other, so
+        # it belongs in this view — it is reached here and from the app, and
+        # nowhere that belongs to an initiative.
+        conditions = [calendars_service.tool_enabled_clause()]
         if role_context.active_guild_role(guild_id) != GuildRole.admin.value:
             conditions.append(
                 Calendar.id.in_(
@@ -373,7 +413,6 @@ async def list_my_calendars(
             )
         stmt = (
             select(Calendar)
-            .join(Initiative, Initiative.id == Calendar.initiative_id)
             .where(*conditions)
             .options(*calendars_service.calendar_loader_options())
         )

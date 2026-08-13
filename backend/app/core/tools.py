@@ -18,7 +18,7 @@ class Tool(str, Enum):
     queue = "queue"
     counter_group = "counter_group"
     calendar = "calendar"
-    advanced_tool = "advanced_tool"
+    dashboard = "dashboard"
 
     @property
     def plural(self) -> str:
@@ -54,23 +54,28 @@ class Tool(str, Enum):
 CORE_TOOLS = frozenset({Tool.project, Tool.document})
 TOGGLEABLE_TOOLS = tuple(t for t in Tool if t not in CORE_TOOLS)
 
-# Tools that appear in the recent-items bar. The advanced tool is deliberately
-# absent: it has no per-entity detail route to return to.
-RECENTABLE_TOOLS = tuple(t for t in Tool if t is not Tool.advanced_tool)
+# Tools that appear in the recent-items bar — every tool has a per-entity
+# detail route to return to.
+RECENTABLE_TOOLS = tuple(Tool)
+
+# Tools WITHOUT an export-engine source, and why. Stated as an exclusion so the
+# default is "a new tool is exportable": the adapter-coverage test then fails
+# until the tool either has an adapter or is listed here deliberately. An
+# inclusion list would instead let a new tool silently ship with no export.
+NON_EXPORTABLE_TOOLS = frozenset(
+    {
+        # Export/import ships with the marketplace, which owns the definition
+        # envelope format.
+        Tool.dashboard,
+    }
+)
 
 # Tools with an export-engine source (single-entity + bulk selection export).
 # The engine's source name / endpoint segment is the KEBAB SINGULAR of the
 # tool ("counter_group" -> "counter-group"); the bulk selector param is
-# ``{tool}_ids``. Intentional gap: the advanced tool (its content lives in
-# the external service). The frontend mirrors this as TOOL_REGISTRY's
-# ``bulkExport`` flag.
-BULK_EXPORT_TOOLS = (
-    Tool.project,
-    Tool.document,
-    Tool.queue,
-    Tool.counter_group,
-    Tool.calendar,
-)
+# ``{tool}_ids``. The frontend mirrors this as TOOL_REGISTRY's ``bulkExport``
+# flag.
+BULK_EXPORT_TOOLS = tuple(t for t in Tool if t not in NON_EXPORTABLE_TOOLS)
 
 
 # Tag-assignment surfaces: EVERY tool is taggable, plus these content-level
@@ -81,6 +86,23 @@ BULK_EXPORT_TOOLS = (
 # any surface drifts.
 TAGGABLE_EXTRAS: tuple[str, ...] = ("task", "queue_item", "calendar_event")
 TAG_TARGETS: tuple[str, ...] = tuple(t.value for t in Tool) + TAGGABLE_EXTRAS
+
+
+# Trash surfaces: EVERY tool is trashable, plus these extras — sub-resources of
+# a tool (tasks, counters), the initiative itself, and the guild-level content
+# that isn't a tool (tags). Same shape as TAG_TARGETS above, for the same
+# reason: the trash EntityType and its registry derive from this, so a new Tool
+# reaches the trash can with no per-surface edit.
+TRASHABLE_EXTRAS: tuple[str, ...] = (
+    "task",
+    "queue_item",
+    "calendar_event",
+    "counter",
+    "comment",
+    "initiative",
+    "tag",
+)
+TRASH_TARGETS: tuple[str, ...] = tuple(t.value for t in Tool) + TRASHABLE_EXTRAS
 
 
 def tool_export_source(tool: Tool) -> str:

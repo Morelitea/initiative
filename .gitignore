@@ -1,4 +1,8 @@
 # General
+# Key material — the app platform, handoff signing and delegation all take a
+# PEM, and openssl writes one wherever it is run. Nothing here is tracked.
+*.pem
+*.key
 .DS_Store
 .env
 .env.*

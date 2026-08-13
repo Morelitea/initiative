@@ -51,8 +51,16 @@ from app.schemas.platform.guild import (
     PlatformGuildStorageRead,
     PlatformGuildStorageUpdate,
 )
+from app.models.platform.access_grant import AccessGrantPurpose, AccessLevel
+from app.schemas.platform.access_grant import BreakGlassCreate
+from app.schemas.platform.billing import BillingPortalHandoffResponse
 from app.schemas.platform.push import FCMConfigResponse
-from app.core.messages import GuildMessages, SettingsMessages
+from app.core.messages import BillingMessages, GuildMessages, SettingsMessages
+from app.core.security import (
+    BillingSupportHandoffNotConfiguredError,
+    create_billing_support_handoff_token,
+)
+from app.services.platform import access_grants as access_grants_service
 from app.services.auth import platform_provider as platform_provider_service
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import guilds as guilds_service
@@ -60,6 +68,9 @@ from app.services import email as email_service
 from app.services import storage_backfill, storage_config
 
 logger = logging.getLogger(__name__)
+
+# Reason stamped on a grant self-issued by the Guilds tab's billing button.
+BILLING_PORTAL_GRANT_REASON = "Opened the billing portal from the Guilds tab"
 
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 
@@ -419,6 +430,7 @@ async def list_platform_guild_storage(
             id=g.id,
             name=g.name,
             member_count=counts.get(g.id, 0),
+            tier_name=g.tier_name,
             max_storage_bytes=g.max_storage_bytes,
             max_users=g.max_users,
             status=GuildStatus(g.status),
@@ -486,11 +498,98 @@ async def update_platform_guild_storage(
         id=guild.id,
         name=guild.name,
         member_count=member_count,
+        tier_name=guild.tier_name,
         max_storage_bytes=guild.max_storage_bytes,
         max_users=guild.max_users,
         status=GuildStatus(guild.status),
         status_changed_at=guild.status_changed_at,
         guild_auth_enabled=guild.guild_auth_enabled,
+    )
+
+
+@router.post(
+    "/guilds/{guild_id}/billing/service-handoff",
+    response_model=BillingPortalHandoffResponse,
+)
+async def create_platform_guild_billing_service_handoff(
+    guild_id: int,
+    session: AdminSessionDep,
+    admin: GuildsManageDep,
+) -> BillingPortalHandoffResponse:
+    """Mint the operator handoff into the billing portal for one guild.
+
+    Backs the Guilds tab's per-guild billing button. Admin/owner
+    (``guilds.manage``). The token names the ``access_grants`` row that
+    authorises the visit: an already-live grant is reused, otherwise one is
+    self-issued (read-only — the operator is not reaching guild content
+    through this) so the visit is recorded on both sides.
+    """
+    if not app_config.BILLING_URL:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=BillingMessages.PORTAL_NOT_CONFIGURED,
+        )
+
+    exists = (
+        await session.exec(select(Guild.id).where(Guild.id == guild_id))
+    ).one_or_none()
+    if exists is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=SettingsMessages.GUILD_NOT_FOUND,
+        )
+
+    grant = await access_grants_service.get_live_grant(
+        session,
+        user_id=admin.id,
+        guild_id=guild_id,
+        purpose=AccessGrantPurpose.billing,
+    )
+    if grant is None:
+        try:
+            grant = await access_grants_service.break_glass(
+                session,
+                actor=admin,
+                payload=BreakGlassCreate(
+                    guild_id=guild_id,
+                    access_level=AccessLevel.read,
+                    reason=BILLING_PORTAL_GRANT_REASON,
+                ),
+                # Belonging to the guild says nothing about billing authority,
+                # so a member still breaks glass for it.
+                allow_member=True,
+                purpose=AccessGrantPurpose.billing,
+            )
+        except access_grants_service.AccessGrantError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=BillingMessages.PORTAL_GRANT_UNAVAILABLE,
+            ) from exc
+
+    try:
+        token, expires_in_seconds = create_billing_support_handoff_token(
+            user_id=admin.id,
+            guild_id=guild_id,
+            grant_id=grant.id,
+            approver_id=grant.approved_by_id,
+        )
+    except BillingSupportHandoffNotConfiguredError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=BillingMessages.PORTAL_SIGNING_NOT_CONFIGURED,
+        ) from exc
+
+    await session.commit()
+    logger.info(
+        "billing portal: operator %s (%s) opened guild %s under grant %s",
+        admin.id,
+        admin.role.value,
+        guild_id,
+        grant.id,
+    )
+    return BillingPortalHandoffResponse(
+        handoff_token=token,
+        expires_in_seconds=expires_in_seconds,
     )
 
 
@@ -575,7 +674,7 @@ async def _enrich_mapping(
 
     if mapping.initiative_id is not None:
         # Initiatives/roles are guild-scoped: resolve their names inside the
-        # mapping's guild schema, not the empty public copies.
+        # mapping's guild schema, the only place they exist.
         initiative, role = await _lookup_guild_initiative(
             session,
             mapping.guild_id,
@@ -827,8 +926,8 @@ async def get_oidc_mapping_options(
     guilds = (await session.exec(select(Guild).order_by(Guild.name))).all()
     guild_payload = [{"id": g.id, "name": g.name} for g in guilds]
 
-    # Initiatives and initiative roles are guild-scoped content: their rows live in
-    # each guild's guild_<id> schema, not in the empty public copies. Route into
+    # Initiatives and initiative roles are guild-scoped content: their rows live
+    # only in each guild's guild_<id> schema. Route into
     # every guild's schema in turn and collect them. Row ids are unique only within
     # a schema, so each role carries its guild_id for the client to disambiguate
     # against colliding initiative ids across guilds.

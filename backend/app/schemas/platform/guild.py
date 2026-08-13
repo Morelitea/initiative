@@ -18,7 +18,13 @@ class GuildBase(SanitizedBaseModel):
 
 
 class GuildCreate(GuildBase):
-    pass
+    #: Make another account the guild's admin instead of the caller.
+    #:
+    #: Honoured only for a caller holding ``guilds.manage``; anyone else
+    #: sending it is refused rather than quietly ignored, so a request that
+    #: names an owner never succeeds under a different one. The account must
+    #: already exist — this never creates one.
+    owner_user_id: Optional[int] = Field(default=None, ge=1)
 
 
 class GuildRead(GuildBase):
@@ -126,6 +132,11 @@ class PlatformGuildStorageRead(SanitizedBaseModel):
     id: int
     name: str
     member_count: int = 0
+    # Plan label exactly as the billing service last set it — display/audit
+    # metadata, never an enforcement input (the caps below are what enforce).
+    # Echoed verbatim; this app neither invents nor interprets a plan name, and
+    # None means no billing service has named one for this guild.
+    tier_name: Optional[str] = None
     # Max total stored blob bytes for this guild. None means "unlimited".
     max_storage_bytes: Optional[int] = None
     # Max number of members for this guild. None means "unlimited".

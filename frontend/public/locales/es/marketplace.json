@@ -1,0 +1,58 @@
+{
+  "title": "Mercado",
+  "subtitle": "Paneles listos para usar que puedes añadir a una iniciativa.",
+  "searchPlaceholder": "Buscar en el mercado…",
+  "backToMarketplace": "Volver al mercado",
+  "card": {
+    "installed": "Instalado",
+    "version": "v{{version}}",
+    "needsUpdate": "Necesita una app más reciente"
+  },
+  "provenance": {
+    "builtin": "de Initiative",
+    "plain": "de {{publisher}}"
+  },
+  "empty": {
+    "title": "Aquí no hay nada todavía",
+    "description": "Esta instalación no ofrece ningún elemento."
+  },
+  "noResults": {
+    "title": "Sin coincidencias",
+    "description": "Nada en el mercado coincide con «{{query}}»."
+  },
+  "detail": {
+    "installs_one": "{{count}} instalación",
+    "installs_other": "{{count}} instalaciones",
+    "install": "Añadir a una iniciativa",
+    "preview": "Vista previa",
+    "previewIsSample": "Ejemplo con datos de muestra",
+    "versions": "Versiones",
+    "needsUpdate": "Necesita una versión más reciente de la aplicación.",
+    "withdrawn": "Ya no está disponible.",
+    "notFound": "Elemento no encontrado",
+    "notFoundDescription": "Puede que se haya retirado o que el enlace sea incorrecto."
+  },
+  "install": {
+    "title": "Añadir {{name}}",
+    "description": "Elige dónde va. Puedes renombrarlo ahora o más tarde.",
+    "initiative": "Iniciativa",
+    "name": "Nombre",
+    "action": "Añadir",
+    "done": "{{name}} añadido.",
+    "failed": "No se pudo añadir ese elemento.",
+    "noInitiatives": "Todavía no puedes crear paneles en ninguna iniciativa. Pide acceso a una persona responsable de la iniciativa."
+  },
+  "update": {
+    "available": "Versión {{version}} disponible",
+    "action": "Actualizar",
+    "done": "Actualizado a {{version}}.",
+    "failed": "No se pudo actualizar este panel."
+  },
+  "unavailable": {
+    "title": "Mercado no disponible",
+    "description": "No se pudo acceder al catálogo. Inténtalo de nuevo en un momento."
+  },
+  "installedUnknown": "No se pudo comprobar cuáles de estos ya tienes, así que nada de lo siguiente aparece como instalado.",
+  "subtitleApps": "Las aplicaciones añaden algo que comparte todo el gremio. Solo los administradores del gremio pueden añadirlas.",
+  "subtitleAuto": "Las automatizaciones se ejecutan en segundo plano para todo el gremio."
+}

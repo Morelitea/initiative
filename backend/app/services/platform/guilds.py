@@ -142,9 +142,8 @@ async def ensure_membership(
     )
     session.add(membership)
     await session.flush()
-    # Event-driven seats (billing plan D5): nudge billing to recompute this
-    # guild's caps from the authoritative headcount. No-op unless a hosted
-    # deployment configured the outbound billing settings.
+    # Nudge billing that this guild's membership changed. No-op unless a
+    # hosted deployment configured the outbound billing settings.
     billing_ping.notify_membership_changed(guild_id)
     return membership
 
@@ -361,11 +360,16 @@ async def create_guild(
     description: str | None = None,
     icon_base64: str | None = None,
     creator: User | None = None,
+    owner: User | None = None,
 ) -> Guild:
-    """Create a guild's *shared* rows only — the guild row (public) and the
-    creator's admin membership (public). The guild-scoped seed rows (settings +
-    default initiative) live in the guild's schema, which doesn't exist yet, so
-    the caller commits this, then calls :func:`seed_guild_content`.
+    """Create a guild's *shared* rows only — the guild row (public) and its
+    admin membership (public). The guild-scoped seed rows (settings + default
+    initiative) live in the guild's schema, which doesn't exist yet, so the
+    caller commits this, then calls :func:`seed_guild_content`.
+
+    ``creator`` is who performed the creation and is recorded as such;
+    ``owner`` is who gets the admin membership, defaulting to the creator. The
+    row therefore says both who made the guild and who it is for.
     """
     now = datetime.now(timezone.utc)
     guild = Guild(
@@ -380,11 +384,12 @@ async def create_guild(
     )
     session.add(guild)
     await session.flush()
-    if creator:
+    admin = owner or creator
+    if admin:
         await ensure_membership(
             session,
             guild_id=guild.id,
-            user_id=creator.id,
+            user_id=admin.id,
             role=GuildRole.admin,
         )
     return guild
@@ -394,30 +399,56 @@ async def seed_guild_content(
     session: AsyncSession,
     *,
     guild_id: int,
-    creator: User,
+    owner: User,
 ) -> None:
     """Provision a new guild's schema and create its guild-scoped seed rows
-    (settings + default initiative) *inside* it.
+    (settings + default initiative + the apps this deployment provides) *inside*
+    it.
+
+    ``owner`` is the user the guild is **for** — its admin, and the default
+    initiative's manager. When someone creates a guild for another account,
+    that account is the owner and the creator is left holding nothing in it.
 
     The shared guild row must already exist; this provisions the schema + role and
     seeds into it (the caller commits around the call). On failure the caller
     should ``deprovision_guild`` and remove the shared rows.
+
+    Mandatory apps (§7.7) land here, beside the default initiative, because that
+    is what "every guild has it" means. They are also the one part allowed to
+    fail quietly: the install is a local row, and an app service whose listing
+    has not arrived yet is no reason a guild cannot be created — the boot sweep
+    installs what is missing.
     """
     from app.db.schema_provisioning import provision_guild
     from app.db.session import set_rls_context
     from app.services.tenant import initiatives as initiatives_service
+    from app.services.tenant import mandatory_apps as mandatory_apps_service
 
     await provision_guild(guild_id)
     await set_rls_context(
         session,
-        user_id=creator.id,
+        user_id=owner.id,
         guild_id=guild_id,
         guild_role=GuildRole.admin.value,
     )
     await create_guild_settings(session, guild_id)
     await initiatives_service.ensure_default_initiative(
-        session, creator, guild_id=guild_id
+        session, owner, guild_id=guild_id
     )
+    try:
+        # Inside a savepoint, so a failure here rolls back the app install and
+        # nothing else: the guild being created must survive whatever an app's
+        # listing or registration is doing.
+        async with session.begin_nested():
+            await mandatory_apps_service.install_mandatory_apps(
+                session, guild_id=guild_id, installed_by_id=owner.id
+            )
+    except Exception:
+        logger.exception(
+            "mandatory apps: guild %s was created without them; the boot sweep "
+            "installs what is missing",
+            guild_id,
+        )
 
 
 async def update_guild(
@@ -703,7 +734,17 @@ async def remove_user_from_guild(
     guild_id: int,
     user_id: int,
 ) -> None:
-    """Remove a user from a guild and all its initiatives."""
+    """Remove a user from a guild, its initiatives, and its apps.
+
+    Leaving a guild ends what that guild's apps let this person reach at an
+    outside vendor: the credentials they connected under this guild's authority
+    are deleted and the apps holding them are told to let go. Their connections
+    in other guilds are untouched — those relationships have not ended.
+
+    The session must already be routed into the guild. Revocations are queued on
+    it and delivered by the caller after the commit.
+    """
+    from app.services.tenant import app_connections as app_connections_service
     from app.services.tenant import initiatives as initiatives_service
 
     # Remove from all initiatives in this guild
@@ -711,6 +752,10 @@ async def remove_user_from_guild(
         session,
         guild_id=guild_id,
         user_id=user_id,
+    )
+
+    await app_connections_service.delete_member_connections(
+        session, user_id=user_id, reason="left_guild"
     )
 
     # Remove guild membership
@@ -721,7 +766,6 @@ async def remove_user_from_guild(
     result = await session.exec(stmt)
     # Only a real removal is a membership change — mirror the insert side,
     # which pings only on a genuine insert (a no-op remove of a non-member
-    # must not nudge billing). Billing decides what to do with shrinkage; the
-    # ping only triggers a recompute from the committed headcount (plan D5).
+    # must not nudge billing).
     if result.rowcount:
         billing_ping.notify_membership_changed(guild_id)

@@ -21,7 +21,6 @@ import {
 } from "@/api/generated/tags/tags";
 import { setTaskTagsApiV1GGuildIdTasksTaskIdTagsPut } from "@/api/generated/tasks/tasks";
 import {
-  invalidateAllAdvancedTools,
   invalidateAllCalendars,
   invalidateAllCounterGroups,
   invalidateAllDocuments,
@@ -45,7 +44,6 @@ const invalidateTagBearers = () => {
   void invalidateAllQueues();
   void invalidateAllCounterGroups();
   void invalidateAllCalendars();
-  void invalidateAllAdvancedTools();
 };
 
 export const useTags = (options?: { enabled?: boolean }) => {

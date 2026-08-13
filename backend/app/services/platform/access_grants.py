@@ -22,7 +22,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.capabilities import Capability, roles_with_capability
 from app.core.config import settings
 from app.core.email_i18n import translate
-from app.models.platform.access_grant import AccessGrant, AccessGrantStatus, AccessLevel
+from app.models.platform.access_grant import (
+    AccessGrant,
+    AccessGrantPurpose,
+    AccessGrantStatus,
+    AccessLevel,
+)
 from app.models.platform.guild import GuildStatus
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import User, UserRole, UserStatus
@@ -214,11 +219,13 @@ async def request_grant(
     duration = _capped_duration(payload.requested_duration_minutes, requester.role)
 
     # Reject a second open request for the same guild while one is still
-    # pending or live.
+    # pending or live. Scoped to the purpose this flow issues, so an unrelated
+    # authority for the same guild neither blocks a request nor satisfies one.
     existing = await session.exec(
         select(AccessGrant).where(
             AccessGrant.user_id == requester.id,
             AccessGrant.guild_id == payload.guild_id,
+            AccessGrant.purpose == AccessGrantPurpose.content.value,
             AccessGrant.status.in_(
                 [AccessGrantStatus.pending.value, AccessGrantStatus.approved.value]
             ),
@@ -232,6 +239,7 @@ async def request_grant(
         user_id=requester.id,
         guild_id=payload.guild_id,
         access_level=payload.access_level.value,
+        purpose=AccessGrantPurpose.content.value,
         status=AccessGrantStatus.pending.value,
         reason=payload.reason,
         requested_duration_minutes=duration,
@@ -269,7 +277,12 @@ async def request_grant(
 
 
 async def break_glass(
-    session: AsyncSession, *, actor: User, payload: BreakGlassCreate
+    session: AsyncSession,
+    *,
+    actor: User,
+    payload: BreakGlassCreate,
+    allow_member: bool = False,
+    purpose: AccessGrantPurpose = AccessGrantPurpose.content,
 ) -> AccessGrant:
     """Self-issue a time-bound break-glass grant for ``actor`` to one guild.
 
@@ -280,6 +293,9 @@ async def break_glass(
     reason, so emergency reach is always audited and never ambient. Read-only by
     default; ``read_write`` is a deliberate escalation. Short window, capped
     server-side; re-issue to extend.
+
+    ``purpose`` scopes what the grant authorises; ``allow_member`` goes with a
+    non-content purpose, which membership does not already confer.
     """
     guild = await guilds_service.get_guild(session, guild_id=payload.guild_id)
     if guild is None:
@@ -289,7 +305,7 @@ async def break_glass(
     membership = await guilds_service.get_membership(
         session, guild_id=payload.guild_id, user_id=actor.id
     )
-    if membership is not None:
+    if membership is not None and not allow_member:
         raise AccessGrantError("ALREADY_MEMBER")
 
     # Serialize concurrent self-issues for this (actor, guild) so the
@@ -309,6 +325,7 @@ async def break_glass(
         select(AccessGrant).where(
             AccessGrant.user_id == actor.id,
             AccessGrant.guild_id == payload.guild_id,
+            AccessGrant.purpose == purpose.value,
             AccessGrant.status.in_(
                 [AccessGrantStatus.pending.value, AccessGrantStatus.approved.value]
             ),
@@ -326,6 +343,7 @@ async def break_glass(
         user_id=actor.id,
         guild_id=payload.guild_id,
         access_level=payload.access_level.value,
+        purpose=purpose.value,
         # Created AND approved in one step — self-approved, so there's no wait.
         status=AccessGrantStatus.approved.value,
         reason=payload.reason,
@@ -496,17 +514,21 @@ async def get_live_grant(
     *,
     user_id: int,
     guild_id: int,
+    purpose: AccessGrantPurpose = AccessGrantPurpose.content,
 ) -> Optional[AccessGrant]:
     """Return the user's currently-live grant for ``guild_id``, if any.
 
     Used when resolving guild session context so a grantee can act in a guild
-    they aren't a member of, for the grant's window only.
+    they aren't a member of, for the grant's window only. Scoped to ``purpose``
+    so a grant issued for one authority is never spent as another — the default
+    keeps the content path seeing only content grants.
     """
     now = _now()
     result = await session.exec(
         select(AccessGrant).where(
             AccessGrant.user_id == user_id,
             AccessGrant.guild_id == guild_id,
+            AccessGrant.purpose == purpose.value,
             AccessGrant.status == AccessGrantStatus.approved.value,
             AccessGrant.expires_at > now,
         )

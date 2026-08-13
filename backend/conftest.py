@@ -210,14 +210,48 @@ async def _migrate_under_lock() -> None:
         await lock_conn.close()  # closing the connection releases the advisory lock
 
 
+async def _refresh_template_rls() -> None:
+    """Put the registry-rendered RLS on ``guild_template``, as boot does.
+
+    Migrations deliberately do not render the registry — a historical migration
+    would freeze whatever it said the day it was written — so a guild table added
+    after the baseline snapshot reaches the template with structure but no
+    policies. Every real install closes that gap in ``backfill_guild_schemas``
+    moments after migrating; a database built by migrations alone never does, and
+    would leave the template a picture no guild schema matches.
+
+    Renders the registry directly rather than calling ``apply_template_rls``.
+    That helper goes through the provisioning bundle, which reflects structure
+    live from the app's own DATABASE_URL database — a database CI has no reason
+    to have built. The RLS half needs no reflection: it is a pure function of the
+    registry, so it can be rendered here and run against this worker's database.
+    """
+    from app.db.guild_ddl import TEMPLATE_SCHEMA, render_guild_rls_ddl
+
+    ddl = render_guild_rls_ddl()
+    engine = create_async_engine(TEST_DATABASE_URL)
+    try:
+        async with engine.begin() as conn:
+            raw = await conn.get_raw_connection()
+            await raw.driver_connection.execute(
+                f'SET search_path TO "{TEMPLATE_SCHEMA}", public;\n'
+                f"{ddl}\n"
+                "SET search_path TO public;"
+            )
+    finally:
+        await engine.dispose()
+
+
 def _run_test_migrations() -> None:
     """Ensure the worker's test database exists and migrate it (serialized across
-    workers by the advisory lock), then arm the statement_timeout net.
+    workers by the advisory lock), refresh the template's RLS the way boot does,
+    then arm the statement_timeout net.
 
     ``_set_db_statement_timeout`` is a per-worker ``ALTER DATABASE`` on this
     worker's OWN DB — no shared catalog — so it runs OUTSIDE the cross-worker lock,
     and after migrations so a slow migration isn't bounded by it."""
     asyncio.run(_migrate_under_lock())
+    asyncio.run(_refresh_template_rls())
     asyncio.run(_set_db_statement_timeout())
 
 
@@ -261,6 +295,22 @@ def _reset_auth_scope(monkeypatch):
     (platform by default) and monkeypatch restores it at teardown — otherwise a
     guild-posture test would leak into the next."""
     monkeypatch.setattr(settings, "AUTH_SCOPE", settings.AUTH_SCOPE)
+
+
+@pytest.fixture(autouse=True)
+def _reset_app_registration_cache():
+    """Start and end every test with no cached app service registrations.
+
+    The request path reads registrations through a short-lived in-process
+    snapshot (see ``registration_lookup``). Test databases are rebuilt per test
+    while that snapshot is module state, so without this a registration created
+    in one test would still be answering reads in the next.
+    """
+    from app.services.marketplace.registration_lookup import invalidate_registrations
+
+    invalidate_registrations()
+    yield
+    invalidate_registrations()
 
 
 @pytest.fixture(autouse=True)

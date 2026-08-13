@@ -2,15 +2,15 @@ import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { setToolTagsApiV1GGuildIdToolsToolToolIdTagsPut } from "@/api/generated/tools/tools";
 import {
-  invalidateAdvancedTool,
-  invalidateAllAdvancedTools,
   invalidateAllCalendars,
   invalidateAllCounterGroups,
+  invalidateAllDashboards,
   invalidateAllDocuments,
   invalidateAllProjects,
   invalidateAllQueues,
   invalidateCalendar,
   invalidateCounterGroup,
+  invalidateDashboard,
   invalidateQueue,
 } from "@/api/query-keys";
 import { useGuildMutation } from "@/hooks/useApiMutation";
@@ -43,9 +43,9 @@ const TOOL_TAG_INVALIDATORS: Record<Tool, (id: number) => void> = {
     void invalidateCalendar(id);
     void invalidateAllCalendars();
   },
-  [Tool.advanced_tool]: (id) => {
-    void invalidateAdvancedTool(id);
-    void invalidateAllAdvancedTools();
+  [Tool.dashboard]: (id) => {
+    void invalidateDashboard(id);
+    void invalidateAllDashboards();
   },
 };
 

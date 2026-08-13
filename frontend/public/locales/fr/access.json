@@ -102,7 +102,7 @@
     "resource_counter_group_other": "groupes de compteurs",
     "resource_calendar_one": "calendrier",
     "resource_calendar_other": "calendriers",
-    "resource_advanced_tool_one": "outil avancé",
-    "resource_advanced_tool_other": "outils avancés"
+    "resource_dashboard_one": "tableau de bord",
+    "resource_dashboard_other": "tableaux de bord"
   }
 }

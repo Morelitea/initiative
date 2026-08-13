@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 
 import { SettingsTabsNav } from "@/components/settings/SettingsTabsNav";
 import { Badge } from "@/components/ui/badge";
-import { useAppConfig } from "@/hooks/useAppConfig";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInterfaceSettings } from "@/hooks/useSettings";
 import { extractSubPath, guildPath, isGuildScopedPath } from "@/lib/guildUrl";
@@ -17,10 +16,6 @@ export const GuildSettingsLayout = () => {
   const location = useLocation();
   const router = useRouter();
   const params = useParams({ strict: false }) as { guildId?: string };
-  // Surface the Automations tab only when the deployment has an advanced
-  // tool URL configured; OSS instances without it never see this tab even
-  // if a user is a guild admin.
-  const { advancedTool } = useAppConfig();
   // The Authentication tab exists only when the platform has opted into
   // per-guild auth (non-secret posture info from the public interface settings)
   // AND an operator has enabled sign-in for this specific guild. Disabling the
@@ -66,6 +61,11 @@ export const GuildSettingsLayout = () => {
         path: urlGuildId ? guildPath(urlGuildId, "/settings/initiatives") : "/settings/initiatives",
       },
       {
+        value: "apps",
+        label: t("guildLayout.tabs.apps"),
+        path: urlGuildId ? guildPath(urlGuildId, "/settings/apps") : "/settings/apps",
+      },
+      {
         value: "trash",
         label: t("guildLayout.tabs.trash"),
         path: urlGuildId ? guildPath(urlGuildId, "/settings/trash") : "/settings/trash",
@@ -76,18 +76,6 @@ export const GuildSettingsLayout = () => {
         path: urlGuildId ? guildPath(urlGuildId, "/settings/data") : "/settings/data",
       },
     ];
-    if (advancedTool) {
-      tabs.push({
-        value: "advanced-tool",
-        // The configured runtime name (e.g. "Automations") is what the
-        // user actually sees — keeps wording consistent with the
-        // initiative sidebar entry and panel header.
-        label: advancedTool.name,
-        path: urlGuildId
-          ? guildPath(urlGuildId, "/settings/advanced-tool")
-          : "/settings/advanced-tool",
-      });
-    }
     // Danger zone lives last — destructive guild deletion is deliberately
     // tucked behind its own tab rather than the first screen.
     tabs.push({
@@ -96,11 +84,11 @@ export const GuildSettingsLayout = () => {
       path: urlGuildId ? guildPath(urlGuildId, "/settings/danger-zone") : "/settings/danger-zone",
     });
     return tabs;
-  }, [urlGuildId, t, advancedTool, guildAuthEnabled]);
+  }, [urlGuildId, t, guildAuthEnabled]);
 
   const canViewSettings = isGuildAdmin;
   // A suspended guild refuses every /g content endpoint, so tabs backed by
-  // them (AI, users, initiatives, trash, automations, auth) would only render
+  // them (AI, users, initiatives, apps, trash, auth) would only render
   // errors. Keep the surfaces that stay functional: the general tab (identity,
   // usage, plan) and the danger zone (deletion / data ownership).
   const isSuspended = activeGuild?.status === "suspended";
@@ -124,18 +112,14 @@ export const GuildSettingsLayout = () => {
     ? extractSubPath(currentPath).replace(/\/+$/, "") || "/"
     : currentPath.replace(/\/+$/, "") || "/";
 
-  // Map normalized sub-paths to tab values
-  const tabSubPaths = [
-    { value: "guild", path: "/settings" },
-    { value: "ai", path: "/settings/ai" },
-    { value: "users", path: "/settings/users" },
-    { value: "auth", path: "/settings/auth" },
-    { value: "initiatives", path: "/settings/initiatives" },
-    { value: "trash", path: "/settings/trash" },
-    { value: "data", path: "/settings/data" },
-    { value: "advanced-tool", path: "/settings/advanced-tool" },
-    { value: "danger-zone", path: "/settings/danger-zone" },
-  ];
+  // Derived from the tabs themselves rather than restated: a second hand-kept
+  // list is a tab that highlights the wrong one the day someone adds a tab and
+  // updates only the list they happened to be looking at. The tab paths are
+  // guild-prefixed; matching happens on the sub-path.
+  const tabSubPaths = guildSettingsTabs.map((tab) => ({
+    value: tab.value,
+    path: extractSubPath(tab.path),
+  }));
 
   const activeTab = matchActiveTab(tabSubPaths, normalizedPath, availableTabs[0]?.value ?? "guild");
 

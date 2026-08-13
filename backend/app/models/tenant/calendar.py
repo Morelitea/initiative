@@ -32,7 +32,14 @@ class Calendar(SoftDeleteMixin, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
-    initiative_id: int = Field(foreign_key="initiatives.id", nullable=False, index=True)
+    # NULL means a guild-level calendar: it belongs to the guild rather than to
+    # any initiative, and who may read or write it is decided by its grants.
+    # Everything else about a calendar — its events, its UI, its permission
+    # computation — is unchanged, which is the point of reusing the table rather
+    # than adding a parallel one.
+    initiative_id: Optional[int] = Field(
+        default=None, foreign_key="initiatives.id", nullable=True, index=True
+    )
     name: str = Field(index=True, nullable=False, max_length=255)
     description: Optional[str] = Field(
         default=None, sa_column=Column(Text, nullable=True)

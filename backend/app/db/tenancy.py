@@ -79,6 +79,23 @@ SHARED_TABLES: frozenset[str] = frozenset(
         "guild_auth_policies",  # per-guild sign-in requirement, read pre-routing by the gate
         # Platform-wide
         "app_settings",  # OIDC / SMTP / branding config
+        # Marketplace catalog: what is installable, platform-wide. Holds no
+        # guild_id by design — the catalog never records who installed what.
+        "marketplace_listings",
+        "marketplace_listing_versions",
+        # Deployment-level wiring for external app services (URL, shared secret,
+        # operator-conferred grants). Platform-wide by definition — one row per
+        # app, never per guild — and owner-managed.
+        "app_service_registrations",
+        # Spent one-shot nonces from the app-service request-signing channel.
+        # Hangs off a registration, which is platform-wide, and a single signed
+        # request may address any guild — so the guard cannot live in a schema.
+        "app_service_nonces",
+        # Registry client state: what this deployment last accepted from a
+        # signed index, and the artwork that index named, mirrored locally so
+        # listing media is served from here. Operator/system state, no guild.
+        "marketplace_registry_state",
+        "marketplace_media",
         "platform_ai_connections",  # operator AI connections (platform config mode)
         "access_grants",  # PAM — inherently cross-guild (request -> approve -> scoped)
         "notifications",  # per-user inbox spanning guilds (carries guild_id after split)
@@ -100,6 +117,11 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # soft_delete_admin_purge), never a membership scope. See the rendered RLS DDL.
         # Guild-wide config / data (no initiative scope)
         "guild_settings",
+        # Installed apps: guild-wide by definition, and readable by any member —
+        # the sidebar has to know an app is there. Installing/removing is gated
+        # at the endpoint (guild admin); what a member may do *inside* an app is
+        # decided by that instance's own grants, not by this row.
+        "guild_apps",
         "guild_ai_connections",  # guild admin's AI connections (guild config mode);
         # guild-wide config, no initiative scope. The api_key ciphertext is never
         # returned by the API (reads expose only has_key).
@@ -130,6 +152,14 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # or pref, so these carry own_row_* policies (owner OR guild admin).
         "guild_ai_member_keys",
         "guild_ai_member_prefs",
+        # A member's own connection to an installed app's vendor. No FK to any
+        # initiative — an app is guild-wide — so it can't use initiative_access.
+        # Rows belong to ONE member and hold that member's credential, so it
+        # carries own_row_* policies: the owner manages their own, and a guild
+        # admin manages every one in their guild (a personal connection is
+        # guild-governed access, not private property). The ciphertext is never
+        # returned by the API to anyone, admin included.
+        "guild_app_user_connections",
     }
 )
 
@@ -145,6 +175,7 @@ OWN_ROW_TABLES: dict[str, str] = {
     "import_jobs": "created_by_id",
     "guild_ai_member_keys": "user_id",
     "guild_ai_member_prefs": "user_id",
+    "guild_app_user_connections": "user_id",
 }
 
 # --- Guild-scoped (derived) -------------------------------------------------

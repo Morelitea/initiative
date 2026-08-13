@@ -115,9 +115,7 @@ def comments_path() -> PathBuilder:
 # recent_views is polymorphic over (entity_type, entity_id). Every entity it can
 # point at is an initiative-scoped table with a direct initiative_id, so the path
 # is a per-type EXISTS join. Derived from the canonical Tool enum: entity_type is
-# the tool's string value, its table is the pluralized stem. (RECENTABLE_TOOLS
-# excludes the advanced tool — recents never point at one, and CHECK-constraint
-# enforcement on the table matches.)
+# the tool's string value, its table is the pluralized stem.
 RECENT_ENTITY_TABLES: dict[str, str] = {t.value: t.plural for t in RECENTABLE_TOOLS}
 
 
@@ -160,13 +158,9 @@ INITIATIVE_PATHS: dict[str, PathBuilder] = {
     "queues": direct(),
     "counter_groups": direct(),
     "calendars": direct(),
+    "dashboards": direct(),
     "property_definitions": direct(),
     "resource_grants": direct(),
-    # Advanced tools: initiative_id is NULLABLE — a NULL row is guild-wide, and
-    # initiative_access(NULL, …) resolves to the admin/PAM legs only (the function
-    # is STABLE, not STRICT), so direct() gives admin-only for guild-wide rows and
-    # normal membership for initiative-scoped ones.
-    "advanced_tools": direct(),
     # One hop -> projects
     "tasks": via("projects", "project_id"),
     "task_statuses": via("projects", "project_id"),
@@ -182,12 +176,11 @@ INITIATIVE_PATHS: dict[str, PathBuilder] = {
     # One hop -> counter_groups
     "counters": via("counter_groups", "counter_group_id"),
     "counter_group_tags": via("counter_groups", "counter_group_id"),
-    # One hop -> advanced_tools (initiative_id nullable: a guild-wide tool's
-    # tags resolve to the admin/PAM legs only, mirroring the parent row)
-    "advanced_tool_tags": via("advanced_tools", "advanced_tool_id"),
     # One hop -> calendars
     "calendar_events": via("calendars", "calendar_id"),
     "calendar_tags": via("calendars", "calendar_id"),
+    # One hop -> dashboards
+    "dashboard_tags": via("dashboards", "dashboard_id"),
     # Two hops -> tasks -> projects
     "subtasks": via_task_project("task_id"),
     "task_assignees": via_task_project("task_id"),

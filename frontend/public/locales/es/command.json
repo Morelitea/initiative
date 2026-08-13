@@ -11,7 +11,7 @@
     "queues": "Colas",
     "counterGroups": "Grupos de contadores",
     "calendars": "Calendarios",
-    "advancedTools": "Herramientas avanzadas"
+    "dashboards": "Paneles"
   },
   "actions": {
     "addTask": "Agregar tarea",

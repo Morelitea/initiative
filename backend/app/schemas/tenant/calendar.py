@@ -48,7 +48,9 @@ class CalendarSummary(CalendarBase):
     )
 
     id: int
-    initiative_id: int
+    #: NULL on a guild-level calendar — one an app mounted, belonging to the
+    #: guild rather than to any initiative.
+    initiative_id: Optional[int] = None
     guild_id: int
     created_by_id: int
     created_at: datetime

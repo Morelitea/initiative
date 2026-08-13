@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.62.0] - 2026-08-13
+
+### Added
+
+- **A platform administrator can create a guild for another account.** The named account becomes the guild's admin and owns its first initiative, and the administrator who created it is left holding nothing in it. Everyone else creates guilds for themselves as before.
+- **Dashboards.** A new tool inside an initiative: a canvas of widgets you drag and resize, reading that initiative's own projects and tasks. Seven kinds of widget — a headline number, charts (line, bar, stacked, area, pie), a progress bar, a funnel, a heatmap, a table, and a timeline — each with its own options, and a live preview while you pick one. Dashboards are read-only by design: they show work, they never change it. Sharing works like every other tool, so a dashboard can be yours alone, shared with named people or roles, or open to the whole initiative.
+- **Counter board dashboard in the marketplace.** A scoreboard for whatever the initiative is tallying: one counter as the headline, its progress toward the goal, and the rest of its group charted alongside. Install it, then point each widget at the counters you want.
+- **Event planner dashboard in the marketplace.** The initiative's events laid out the way an organizer thinks: everything on a weekly timeline, with the full event list underneath. Installs in one step and needs no setup.
+- **Team activity dashboard in the marketplace.** A ready-made pulse of the initiative's people: work by person, the daily rhythm of completions, the open pile by priority, and the finished total as the headline. Installs in one step and needs no setup.
+- **Apps, and a marketplace to add them from.** The marketplace is a searchable shelf of ready-made dashboards you can install into an initiative in one step, and of apps that add something the whole guild shares rather than any one initiative. The first app is a guild calendar: an ordinary calendar that belongs to the guild, visible to every member from the moment it is added, with the same views, event editor and sharing as any other. Apps live above your initiatives in the sidebar and are managed under guild settings, where they can be renamed, turned off, or removed — removing one moves what it created to the trash rather than deleting it. Only guild admins can add or remove apps; a guild with none installed shows nothing to its members.
+- **The marketplace shows examples using sample data.** A listing's preview draws sample rows, so you see the shape of what you would get without it reading anything from your guild.
+- **The app platform.** An app can now be more than something the marketplace lists: it can be a service your operator connects, which contributes widgets to dashboards, pages inside Initiative, and events. Your operator registers an app once for the whole deployment; a guild admin installs it and fills in whatever it asks for, and where an app authorizes people individually — the way GitHub does — each member connects their own account, so nobody borrows anyone else's access. Admins can see who has connected, and revoke or block any of it. Removing an app, leaving a guild, or closing an account takes the credentials with it. Some apps are provided by the platform and appear in every guild; those cannot be removed, and they say so.
+
+### Changed
+
+- **Sign-in and server-connection redirects are now decided before a page renders.** Landing on an app page while signed out, signing out, or opening the mobile app before a server is set now hands you straight to the right screen instead of briefly mounting the app shell and bouncing out of it. The old approach depended on that shell tearing down at exactly the right moment — the failure behind the blank page in 0.61.0.
+
+### Removed
+
+- **The advanced tool is gone.** The optional embedded panel an administrator could point at a companion service — configured with `ADVANCED_TOOL_NAME` / `ADVANCED_TOOL_URL`, switched on per initiative, and listed as a tool inside one — has been removed, along with its list, sharing, tags, trash entries and role permissions. What Initiative stored for it was a name and a sharing record around content the connected service already owned, and those rows are deleted on upgrade; the service keeps everything it holds. A deployment that wants a companion surface connects it through the app platform instead, which is the general form of what those settings were a single-purpose version of. The `ADVANCED_TOOL_*` settings are now ignored and can be dropped from your configuration.
+- **The pre-0.53.5 copies of guild data in the shared database schema are gone.** Installs that predate 0.53.5 kept a frozen second copy of every project, task, document and so on from before guilds moved into their own database schemas. Nothing has read or written it since; upgrading now drops it. Guild data lives solely in that guild's own schema. Installs created on 0.53.5 or later never had these copies and are unaffected. **This upgrade cannot be rolled back** — take a backup first if you would rather keep the old rows around, and if you are upgrading from before 0.53.2, boot a 0.53.x release once on the way through as its startup notice instructs.
+
+### Fixed
+
+- **The Focus list on My Tasks stayed empty even with overdue work waiting.** It only counted tasks someone had moved to To Do or In Progress, and Backlog is where a new task starts — so on an ordinary setup it had nothing to show. It now looks at every unfinished task, whatever column it sits in. It also reads dates the way the task table beneath it does: work whose start date has arrived belongs on the list even if nobody gave it a due date.
+
 ## [0.61.3] - 2026-08-11
 
 ### Fixed

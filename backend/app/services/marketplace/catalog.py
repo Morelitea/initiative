@@ -1,0 +1,431 @@
+"""Reading and populating the marketplace catalog.
+
+Two audiences, and the split between them is the security shape of this module:
+
+* **Readers** — every browse and detail query, and the listing lookup an install
+  does. These run on whatever session the request already has (a platform tier,
+  or a guild role), and touch nothing but the two catalog tables.
+* **The writer** — ``upsert_listing``, called only from the system-engine path
+  (boot seeding today, the registry refresh later). No user request reaches it.
+
+Everything a publisher supplies is validated before it lands: the uid's shape,
+the ``public_id``'s, the version string's, the attribution, and the definition's
+— the last by the same validator the guild-scoped API uses.
+
+Two of those checks are about *who* rather than *what*. Attribution is required,
+so nothing is published anonymously; and the ``core.*`` namespace is refused to
+any source but this build, so an id cannot imply a provenance the listing does
+not have.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import Any, Optional, Sequence
+
+from sqlalchemy import func, or_, update as sa_update
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.core.version import get_version
+from app.models.platform.marketplace import (
+    MarketplaceListing,
+    MarketplaceListingVersion,
+    UID_ALPHABET,
+    UID_LENGTH,
+)
+from app.services.marketplace.definitions import (
+    LISTING_KINDS,
+    LISTING_SOURCES,
+    ListingDefinitionError,
+    normalize_publisher,
+    normalize_listing_definition,
+    reserved_prefix_problem,
+)
+from app.services.marketplace.manifest_values import check_public_id
+
+__all__ = [
+    "CatalogError",
+    "list_listings",
+    "get_listing",
+    "get_listing_by_uid",
+    "get_listing_version",
+    "resolve_installable_version",
+    "listing_versions",
+    "upsert_listing",
+    "withdraw_listing",
+    "bump_installs_count",
+    "version_is_compatible",
+]
+
+#: Characters a version string may use. Deliberately an explicit set rather than
+#: a semver pattern — the catalog stores what the publisher published and only
+#: needs it to be a safe, short, comparable token.
+_VERSION_CHARS = frozenset("0123456789.-+abcdefghijklmnopqrstuvwxyz")
+_MAX_VERSION = 32
+
+
+class CatalogError(ValueError):
+    """A listing the catalog will not accept. Raised during seeding/refresh, so
+    the message names the problem for whoever is publishing."""
+
+
+def _check_uid(uid: str) -> str:
+    if len(uid) != UID_LENGTH:
+        raise CatalogError(f"uid must be {UID_LENGTH} characters, got {len(uid)}")
+    for char in uid:
+        if char not in UID_ALPHABET:
+            raise CatalogError(f"uid contains {char!r}, which is not in the alphabet")
+    return uid
+
+
+def _check_public_id(public_id: str) -> str:
+    # One rule for the shape of a `<publisher>.<slug>` id, wherever it appears —
+    # a listing's own, or the one a service app names itself by.
+    try:
+        return check_public_id(public_id, what="public_id")
+    except ListingDefinitionError as exc:
+        raise CatalogError(str(exc)) from exc
+
+
+#: Characters an artwork path may use — an explicit allow-list, so a stored
+#: path is exactly what a browser will request.
+_ARTWORK_CHARS = frozenset(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/._-"
+)
+
+
+#: Shown for a listing that ships no artwork of its own. The app's own mark,
+#: which is the honest thing for it to say: nobody drew an icon for this one.
+#: Same-origin like every other artwork path, so it obeys the rule below.
+DEFAULT_AVATAR_URL = "/icons/logo.svg"
+
+
+def _check_artwork_path(value: str, *, field: str) -> str:
+    """A listing's artwork must be a same-origin path — the shipped files live
+    under ``/marketplace/``. A registry wanting third-party artwork mirrors it
+    locally rather than linking out."""
+    if not value.startswith("/"):
+        raise CatalogError(f"{field} must be a same-origin path starting with '/'")
+    for char in value:
+        if char not in _ARTWORK_CHARS:
+            raise CatalogError(f"{field} contains {char!r}, which is not allowed")
+    if "//" in value or "/../" in value or value.endswith("/.."):
+        raise CatalogError(f"{field} must be a plain path with no '//' or '..'")
+    return value
+
+
+def _check_version(version: str) -> str:
+    if not version or len(version) > _MAX_VERSION:
+        raise CatalogError("version must be 1..32 characters")
+    for char in version:
+        if char not in _VERSION_CHARS:
+            raise CatalogError(f"version contains {char!r}, which is not allowed")
+    return version
+
+
+def _version_tuple(value: str) -> tuple[int, ...]:
+    """A version as comparable integers, ignoring any pre-release suffix.
+
+    Only used to answer "is this deployment new enough", so a coarse reading is
+    the right one: `1.2.3-rc1` and `1.2.3` are the same floor.
+    """
+    head = value.split("-", 1)[0].split("+", 1)[0]
+    parts: list[int] = []
+    for chunk in head.split("."):
+        try:
+            parts.append(int(chunk))
+        except ValueError:
+            break
+    return tuple(parts)
+
+
+def version_is_compatible(min_app_version: Optional[str]) -> bool:
+    """Whether this deployment is new enough to run a listing version.
+
+    A definition can name only what its app build has a renderer for, so a
+    version needing a newer app is hidden from browse and refused on install
+    rather than landing as a canvas full of error tiles.
+    """
+    if not min_app_version:
+        return True
+    return _version_tuple(get_version()) >= _version_tuple(min_app_version)
+
+
+# --- reads ------------------------------------------------------------------
+
+
+async def list_listings(
+    session: AsyncSession,
+    *,
+    kind: Optional[str] = None,
+    query: Optional[str] = None,
+    include_unavailable: bool = False,
+    offset: int = 0,
+    limit: int = 50,
+) -> tuple[Sequence[MarketplaceListing], int]:
+    """A page of listings, newest first, with the total that matched."""
+    statement = select(MarketplaceListing)
+    count_statement = select(func.count()).select_from(MarketplaceListing)
+
+    filters = []
+    if not include_unavailable:
+        filters.append(MarketplaceListing.available.is_(True))
+    if kind:
+        filters.append(MarketplaceListing.kind == kind)
+    if query:
+        # Case-insensitive across the three fields someone would actually type.
+        needle = f"%{query.strip()}%"
+        filters.append(
+            or_(
+                MarketplaceListing.name.ilike(needle),
+                MarketplaceListing.description.ilike(needle),
+                MarketplaceListing.publisher.ilike(needle),
+            )
+        )
+    for condition in filters:
+        statement = statement.where(condition)
+        count_statement = count_statement.where(condition)
+
+    total = (await session.exec(count_statement)).one()
+    statement = statement.order_by(MarketplaceListing.name).offset(offset).limit(limit)
+    return (await session.exec(statement)).all(), int(total)
+
+
+async def get_listing(
+    session: AsyncSession, public_id: str
+) -> Optional[MarketplaceListing]:
+    return (
+        await session.exec(
+            select(MarketplaceListing).where(MarketplaceListing.public_id == public_id)
+        )
+    ).first()
+
+
+async def get_listing_by_uid(
+    session: AsyncSession, uid: str
+) -> Optional[MarketplaceListing]:
+    return (
+        await session.exec(
+            select(MarketplaceListing).where(MarketplaceListing.uid == uid)
+        )
+    ).first()
+
+
+async def get_listing_version(
+    session: AsyncSession, version_id: Optional[int]
+) -> Optional[MarketplaceListingVersion]:
+    if version_id is None:
+        return None
+    return (
+        await session.exec(
+            select(MarketplaceListingVersion).where(
+                MarketplaceListingVersion.id == version_id
+            )
+        )
+    ).first()
+
+
+async def resolve_installable_version(
+    session: AsyncSession, listing: MarketplaceListing
+) -> Optional[MarketplaceListingVersion]:
+    """The version a guild would get right now, or ``None`` if there is none it
+    can run. A listing whose latest version needs a newer app is not silently
+    downgraded to an older one — the guild is told to upgrade instead."""
+    version = await get_listing_version(session, listing.latest_version_id)
+    if version is None:
+        return None
+    return version if version_is_compatible(version.min_app_version) else None
+
+
+# --- writes (system engine only) --------------------------------------------
+
+
+async def upsert_listing(
+    session: AsyncSession,
+    manifest: dict[str, Any],
+    *,
+    source: str,
+) -> MarketplaceListing:
+    """Create or update one listing and the version its manifest describes.
+
+    Idempotent by ``uid``: re-seeding the same manifest updates metadata in place
+    and leaves the version rows alone. Both identities are unique and neither is
+    reassignable — a uid already held by a different ``public_id`` is refused,
+    and vice versa, so a uid keeps meaning the listing it was first published
+    for.
+    """
+    if source not in LISTING_SOURCES:
+        raise CatalogError(f"unknown listing source {source!r}")
+
+    uid = _check_uid(str(manifest.get("uid", "")))
+    public_id = _check_public_id(str(manifest.get("public_id", "")))
+    reserved = reserved_prefix_problem(public_id, source=source)
+    if reserved is not None:
+        raise CatalogError(f"{public_id}: {reserved}")
+    kind = str(manifest.get("kind", ""))
+    if kind not in LISTING_KINDS:
+        raise CatalogError(f"unknown listing kind {kind!r}")
+    version_str = _check_version(str(manifest.get("version", "")))
+
+    try:
+        definition = normalize_listing_definition(kind, manifest.get("definition"))
+        # Required on every ingestion path: seeding, an operator upload, a
+        # registry refresh. There is no path that publishes without one.
+        publisher = normalize_publisher(manifest.get("publisher"))
+    except ListingDefinitionError as exc:
+        raise CatalogError(f"{public_id}: {exc}") from exc
+
+    for required in ("name", "description"):
+        if not manifest.get(required):
+            raise CatalogError(f"{public_id}: {required} is required")
+
+    # Artwork is optional: a listing without one gets the app's own mark rather
+    # than being refused over a picture. A supplied one is still held to the
+    # same-origin rule — the default is not a way in for a remote URL.
+    avatar_url = str(manifest.get("avatar_url") or DEFAULT_AVATAR_URL)
+    _check_artwork_path(avatar_url, field=f"{public_id}: avatar_url")
+
+    images = manifest.get("images") or []
+    if not isinstance(images, list) or any(not isinstance(i, str) for i in images):
+        raise CatalogError(f"{public_id}: images must be a list of strings")
+    for image in images:
+        _check_artwork_path(image, field=f"{public_id}: images")
+
+    existing = await get_listing_by_uid(session, uid)
+    if existing is None:
+        # A public_id that exists under a *different* uid is the same conflict
+        # from the other side: both identities are unique, and neither may be
+        # reassigned by a later publish.
+        by_public_id = await get_listing(session, public_id)
+        if by_public_id is not None:
+            raise CatalogError(
+                f"{public_id} is already published under uid {by_public_id.uid}"
+            )
+    elif existing.public_id != public_id:
+        raise CatalogError(
+            f"uid {uid} is already held by {existing.public_id}; refusing to reassign"
+        )
+
+    now = datetime.now(timezone.utc)
+    # Everything a publish sets, whether the row is new or being updated. Built
+    # once so a new listing is constructed complete rather than assembled by
+    # assignment after the fact.
+    published = {
+        "kind": kind,
+        "source": source,
+        "name": str(manifest["name"]),
+        "publisher": publisher,
+        "description": str(manifest["description"]),
+        "long_description": manifest.get("long_description"),
+        "avatar_url": avatar_url,
+        "images": list(images),
+        "available": True,
+        "updated_at": now,
+    }
+    if existing is None:
+        listing = MarketplaceListing(
+            uid=uid, public_id=public_id, created_at=now, **published
+        )
+    else:
+        listing = existing
+        for field, value in published.items():
+            setattr(listing, field, value)
+    session.add(listing)
+    await session.flush()
+
+    version = (
+        await session.exec(
+            select(MarketplaceListingVersion).where(
+                MarketplaceListingVersion.listing_id == listing.id,
+                MarketplaceListingVersion.version == version_str,
+            )
+        )
+    ).first()
+    release_notes = manifest.get("release_notes")
+    min_app_version = manifest.get("min_app_version")
+    if version is None:
+        version = MarketplaceListingVersion(
+            listing_id=listing.id,
+            version=version_str,
+            published_at=now,
+            definition=definition,
+            release_notes=release_notes,
+            min_app_version=min_app_version,
+        )
+        session.add(version)
+        await session.flush()
+    elif (
+        version.definition != definition
+        or version.release_notes != release_notes
+        or version.min_app_version != min_app_version
+    ):
+        # A published version is immutable, for two reasons:
+        #
+        #   * instances *pin* a version, and the upgrade path has nothing to
+        #     offer an instance already on this one — so a changed body under an
+        #     unchanged version would never reach whoever installed it;
+        #   * the catalog is shared, so `uid` + version has to name the same
+        #     content on every deployment for a shared code to be meaningful.
+        #
+        # Correcting a listing means publishing a new version. Its name, blurb
+        # and artwork are listing-level and stay editable without one.
+        raise CatalogError(
+            f"{public_id}: version {version_str} is already published with "
+            "different content; publish a new version instead"
+        )
+
+    listing.latest_version_id = version.id
+    session.add(listing)
+    await session.flush()
+    return listing
+
+
+async def withdraw_listing(session: AsyncSession, uid: str) -> bool:
+    """Take a listing out of the catalog, keeping the row. Returns whether one
+    was there to withdraw.
+
+    Withdrawn is not deleted: a guild that already installed it keeps its app,
+    its pinned definition and its provenance. It simply stops being offered and
+    cannot be installed again. Used when a deployment stops being able to serve
+    something it previously seeded — an operator removing the configuration an
+    app depends on — and later by the registry for a listing its publisher pulls.
+    """
+    listing = await get_listing_by_uid(session, uid)
+    if listing is None or not listing.available:
+        return False
+    listing.available = False
+    listing.updated_at = datetime.now(timezone.utc)
+    session.add(listing)
+    await session.flush()
+    return True
+
+
+async def listing_versions(
+    session: AsyncSession, listing_id: int
+) -> Sequence[MarketplaceListingVersion]:
+    """Every published version of a listing, newest first."""
+    return (
+        await session.exec(
+            select(MarketplaceListingVersion)
+            .where(MarketplaceListingVersion.listing_id == listing_id)
+            .order_by(MarketplaceListingVersion.published_at.desc())
+        )
+    ).all()
+
+
+async def bump_installs_count(session: AsyncSession, listing_id: int) -> None:
+    """Add one to a listing's cumulative install count.
+
+    A number and nothing else: no guild is recorded, so this stays catalog
+    telemetry rather than tenant data. Called post-commit and best-effort by the
+    install path — a failed bump must never fail an install.
+    """
+    # One statement, incremented in the database: two installs landing together
+    # would otherwise both read the same number and both write it back plus one,
+    # quietly losing an install.
+    await session.exec(
+        sa_update(MarketplaceListing)
+        .where(MarketplaceListing.id == listing_id)
+        .values(installs_count=MarketplaceListing.installs_count + 1)
+    )

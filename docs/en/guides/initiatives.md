@@ -56,7 +56,6 @@ Permissions are grouped by tool:
 | **Queues** | View, Create |
 | **Counters** | View, Create |
 | **Events** (calendar) | View, Create |
-| **Advanced tool** | Open, Create |
 
 So you might give "Cast" members permission to *view* projects and documents but not create them, while "Director" can create everything.
 

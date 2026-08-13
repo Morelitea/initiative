@@ -20,18 +20,37 @@ from typing import Any
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
+from app.core.encryption import (
+    encrypt_field,
+    hash_email,
+    SALT_APP_SERVICE_SECRET,
+    SALT_EMAIL,
+)
+from app.core.tools import TOGGLEABLE_TOOLS, Tool
 from app.core.security import (
     create_access_token,
     get_password_hash,
     mint_access_token,
 )
+from app.models.platform.app_service_registration import AppServiceRegistration
 from app.models.tenant.calendar import Calendar
+from app.models.platform.marketplace import (
+    MarketplaceListing,
+    UID_ALPHABET,
+    UID_LENGTH,
+)
+from app.models.tenant.dashboard import Dashboard
+from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
 from app.models.tenant.document import Document, DocumentType
 from app.models.platform.guild import Guild, GuildMembership, GuildRole
+from app.services.marketplace import catalog as marketplace_catalog
+from app.services.marketplace.registration_lookup import invalidate_registrations
+from app.services.tenant.dashboard_definition import (
+    normalize_dashboard_definition,
+)
 from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceGrant, ResourceAccessLevel
@@ -833,6 +852,289 @@ async def create_calendar(
     return calendar
 
 
+async def create_guild_calendar(
+    session: AsyncSession,
+    guild: Guild,
+    creator: User,
+    *,
+    name: str | None = None,
+    shared_with_everyone: bool = True,
+    **overrides: Any,
+) -> Calendar:
+    """A guild calendar — the one the calendar app installs.
+
+    Belongs to no initiative, which is the whole of what makes it different: it
+    holds its own events and reaches into nothing. Mirrors what
+    ``guild_apps.create_app_artifacts`` builds, so a test exercises the same row
+    an install produces rather than an approximation of one.
+    """
+    await route_session_to_guild(session, guild.id)
+
+    calendar = Calendar(
+        **{
+            "guild_id": guild.id,
+            "initiative_id": None,
+            "created_by_id": creator.id,
+            "name": name or "Guild calendar",
+            **overrides,
+        }
+    )
+    session.add(calendar)
+    await session.commit()
+    await session.refresh(calendar)
+
+    session.add(
+        ResourceGrant(
+            resource_type="calendar",
+            resource_id=calendar.id,
+            user_id=creator.id,
+            level=ResourceAccessLevel.owner,
+            guild_id=guild.id,
+            initiative_id=None,
+        )
+    )
+    if shared_with_everyone:
+        # At guild scope the everyone grant reads as every member of the guild.
+        session.add(
+            ResourceGrant(
+                resource_type="calendar",
+                resource_id=calendar.id,
+                all_initiative_members=True,
+                level=ResourceAccessLevel.read,
+                guild_id=guild.id,
+                initiative_id=None,
+            )
+        )
+    await session.commit()
+    return calendar
+
+
+async def create_guild_app(
+    session: AsyncSession,
+    guild: Guild,
+    creator: User,
+    *,
+    definition: dict[str, Any],
+    listing_uid: str = "TESTAPP0000001",
+    listing_version: str = "1.0.0",
+    name: str = "Test app",
+    **overrides: Any,
+) -> GuildApp:
+    """An installed app, written straight into the guild's schema.
+
+    Deliberately not routed through the install endpoint. A ``service`` app's
+    definition is publishable and storable today but the install path does not
+    mount one yet (``GUILD_INSTALLABLE_APP_KINDS``), and the configuration and
+    connection machinery it carries needs an install to exist to be exercised
+    at all. This is that install: the same row the endpoint will write once the
+    kind is admitted, so the tests hold the real endpoints rather than a mock.
+    """
+    await route_session_to_guild(session, guild.id)
+
+    app = GuildApp(
+        **{
+            "guild_id": guild.id,
+            "listing_uid": listing_uid,
+            "listing_version": listing_version,
+            "app_kind": definition.get("app_kind", "service"),
+            "name": name,
+            "definition": definition,
+            "installed_by_id": creator.id,
+            **overrides,
+        }
+    )
+    session.add(app)
+    await session.commit()
+    await session.refresh(app)
+    return app
+
+
+async def create_app_service_registration(
+    session: AsyncSession,
+    *,
+    public_id: str = "tests.app-service",
+    base_url: str = "https://app.example.test",
+    listing_uid: str | None = None,
+    allowed_origins: list[str] | None = None,
+    grants: list[str] | None = None,
+    mandatory: bool = False,
+    enabled: bool = True,
+    status: str = "ok",
+    **overrides: Any,
+) -> AppServiceRegistration:
+    """A deployment-level registration, written straight into ``public``.
+
+    Deliberately not routed through :mod:`app.services.marketplace.registrations`:
+    creating one there runs the handshake against a live container, which a test
+    has no business standing up. The row is what everything downstream reads, so
+    this is the wiring an operator would have done.
+
+    The in-process snapshot is dropped afterwards, so the very next read sees
+    this registration rather than whatever a previous test left cached.
+    """
+    row = AppServiceRegistration(
+        **{
+            "public_id": public_id,
+            "listing_uid": listing_uid,
+            "base_url": base_url,
+            "allowed_origins": allowed_origins
+            if allowed_origins is not None
+            else [base_url],
+            "secret_encrypted": encrypt_field("test-secret", SALT_APP_SERVICE_SECRET),
+            "grants": grants or [],
+            "mandatory": mandatory,
+            "enabled": enabled,
+            "status": status,
+            **overrides,
+        }
+    )
+    session.add(row)
+    await session.commit()
+    await session.refresh(row)
+    invalidate_registrations()
+    return row
+
+
+def marketplace_uid(label: str) -> str:
+    """A valid catalog uid from a readable label.
+
+    Crockford base32 leaves out I, L, O and U so a code can be transcribed by
+    hand — which makes most words unusable verbatim. This drops the letters the
+    alphabet does not have and pads to length, so a test can say what a listing
+    is instead of carrying an opaque literal.
+    """
+    kept = [c for c in label.upper() if c in UID_ALPHABET]
+    return "".join(kept)[:UID_LENGTH].ljust(UID_LENGTH, "0")
+
+
+async def create_marketplace_listing(
+    session: AsyncSession,
+    *,
+    uid: str = "TEST0000000001",
+    public_id: str = "test.listing",
+    kind: str = "dashboard",
+    version: str = "1.0.0",
+    definition: dict[str, Any] | None = None,
+    min_app_version: str | None = None,
+    available: bool = True,
+    commit: bool = True,
+    **overrides: Any,
+) -> MarketplaceListing:
+    """A catalog listing with one published version.
+
+    Built through the real upsert, so a test listing is held to the same
+    validation a shipped or downloaded one is — a definition this build cannot
+    render fails here rather than in the assertion.
+    """
+    manifest = {
+        "uid": uid,
+        "public_id": public_id,
+        "kind": kind,
+        "name": overrides.pop("name", "Test listing"),
+        # Required on every ingestion path, so a test listing carries one too.
+        "publisher": overrides.pop("publisher", "Tests"),
+        "description": overrides.pop("description", "A listing for tests."),
+        "avatar_url": overrides.pop("avatar_url", "/marketplace/test.svg"),
+        "version": version,
+        "min_app_version": min_app_version,
+        "definition": definition
+        if definition is not None
+        else {
+            "widgets": [
+                {
+                    "id": "w1",
+                    "type": "stat",
+                    "binding": {"source": "task_counts"},
+                }
+            ]
+        },
+        **overrides,
+    }
+    listing = await marketplace_catalog.upsert_listing(
+        session, manifest, source="builtin"
+    )
+    if not available:
+        listing.available = False
+        session.add(listing)
+    if commit:
+        await session.commit()
+        await session.refresh(listing)
+    return listing
+
+
+async def create_dashboard(
+    session: AsyncSession,
+    initiative: Initiative,
+    creator: User,
+    *,
+    name: str | None = None,
+    definition: dict[str, Any] | None = None,
+    commit: bool = True,
+    **overrides: Any,
+) -> Dashboard:
+    """Create a test dashboard with sensible defaults.
+
+    Mirrors the create endpoint's default sharing: the creator owns it and
+    every initiative member can read it. ``definition`` defaults to a single
+    KPI widget so the row carries a realistic, already-normalized canvas; the
+    initiative is expected to be dashboards-enabled.
+    """
+    await route_session_to_guild(session, initiative.guild_id)
+
+    defaults = {
+        "guild_id": initiative.guild_id,
+        "initiative_id": initiative.id,
+        "created_by_id": creator.id,
+        "name": name or f"Dashboard {datetime.now(timezone.utc).timestamp()}",
+        "definition": definition
+        if definition is not None
+        else normalize_dashboard_definition(
+            {
+                "widgets": [
+                    {
+                        "id": "w1",
+                        "type": "stat",
+                        "binding": {"source": "counter", "counter_id": None},
+                    }
+                ]
+            }
+        ),
+        "config": {"widgets": {}},
+    }
+
+    data = {**defaults, **overrides}
+    dashboard = Dashboard(**data)
+    session.add(dashboard)
+
+    if commit:
+        await session.commit()
+        await session.refresh(dashboard)
+
+        session.add(
+            ResourceGrant(
+                resource_type="dashboard",
+                resource_id=dashboard.id,
+                user_id=creator.id,
+                level=ResourceAccessLevel.owner,
+                guild_id=dashboard.guild_id,
+                initiative_id=dashboard.initiative_id,
+            )
+        )
+        session.add(
+            ResourceGrant(
+                resource_type="dashboard",
+                resource_id=dashboard.id,
+                all_initiative_members=True,
+                level=ResourceAccessLevel.read,
+                guild_id=dashboard.guild_id,
+                initiative_id=dashboard.initiative_id,
+            )
+        )
+        await session.commit()
+
+    return dashboard
+
+
 async def create_calendar_event(
     session: AsyncSession,
     calendar: Calendar,
@@ -1250,3 +1552,54 @@ async def create_federated_identity(
         await session.refresh(identity)
 
     return identity
+
+
+# --- generic tool construction ---------------------------------------------
+#
+# One arm per Tool, so a test that needs "an instance of every tool" derives it
+# from the enum instead of restating the list. The completeness check runs at
+# import time: a new Tool member fails here once, with a message naming it,
+# rather than in each test that happens to enumerate tools.
+
+TOOL_FACTORIES: dict[Tool, Any] = {
+    Tool.project: create_project,
+    Tool.document: create_document,
+    Tool.queue: create_queue,
+    Tool.counter_group: create_counter_group,
+    Tool.calendar: create_calendar,
+    Tool.dashboard: create_dashboard,
+}
+
+if set(TOOL_FACTORIES) != set(Tool):
+    missing = set(Tool) - set(TOOL_FACTORIES)
+    extra = set(TOOL_FACTORIES) - set(Tool)
+    raise RuntimeError(
+        f"TOOL_FACTORIES must cover the Tool enum exactly "
+        f"(missing: {sorted(t.value for t in missing)}, "
+        f"unknown: {sorted(getattr(t, 'value', t) for t in extra)})"
+    )
+
+
+async def create_tool_entity(
+    session: AsyncSession,
+    tool: Tool,
+    initiative: Initiative,
+    creator: User,
+    **overrides: Any,
+) -> Any:
+    """Create one instance of ``tool``'s content, whichever tool it is."""
+    return await TOOL_FACTORIES[tool](session, initiative, creator, **overrides)
+
+
+async def enable_all_tools(session: AsyncSession, initiative: Initiative) -> Initiative:
+    """Flip on every toggleable tool's master switch, derived from the enum so a
+    new tool is enabled here without an edit."""
+    await route_session_to_guild(session, initiative.guild_id)
+    fresh = await session.get(Initiative, initiative.id)
+    assert fresh is not None
+    for tool in TOGGLEABLE_TOOLS:
+        setattr(fresh, tool.view_permission, True)
+    session.add(fresh)
+    await session.commit()
+    await session.refresh(fresh)
+    return fresh

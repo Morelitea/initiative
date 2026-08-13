@@ -46,6 +46,10 @@ class GuildMessages:
     GUILD_ADMIN_REQUIRED = "GUILD_ADMIN_REQUIRED"
     GUILD_CREATION_DISABLED = "GUILD_CREATION_DISABLED"
     GUILD_NAME_REQUIRED = "GUILD_NAME_REQUIRED"
+    # Naming another user as a new guild's admin is platform-staff only.
+    GUILD_OWNER_REQUIRES_CAPABILITY = "GUILD_OWNER_REQUIRES_CAPABILITY"
+    # ...and that user has to exist already; we never create one.
+    GUILD_OWNER_NOT_FOUND = "GUILD_OWNER_NOT_FOUND"
     GUILD_NOT_FOUND = "GUILD_NOT_FOUND"
     GUILD_MEMBERSHIP_CREATE_FAILED = "GUILD_MEMBERSHIP_CREATE_FAILED"
     GUILD_PROVISION_FAILED = "GUILD_PROVISION_FAILED"
@@ -426,6 +430,107 @@ class CalendarEventMessages:
     INVALID_ATTENDEE_IDS = "CALENDAR_EVENT_INVALID_ATTENDEE_IDS"
     ICAL_PARSE_FAILED = "ICAL_PARSE_FAILED"
     ICAL_NO_EVENTS = "ICAL_NO_EVENTS_FOUND"
+    # A guild calendar holds guild-level content only. Things defined on an
+    # initiative — custom properties, documents — have no counterpart at guild
+    # scope, so an event there cannot carry them; and an event cannot be moved
+    # across the guild/initiative line, because it would take its initiative
+    # attachments with it.
+    GUILD_CALENDAR_NO_PROPERTIES = "CALENDAR_EVENT_GUILD_CALENDAR_NO_PROPERTIES"
+    GUILD_CALENDAR_NO_DOCUMENTS = "CALENDAR_EVENT_GUILD_CALENDAR_NO_DOCUMENTS"
+    CANNOT_CROSS_SCOPE = "CALENDAR_EVENT_CANNOT_CROSS_SCOPE"
+
+
+class DashboardMessages:
+    NOT_FOUND = "DASHBOARD_NOT_FOUND"
+    CREATE_PERMISSION_REQUIRED = "DASHBOARD_CREATE_PERMISSION_REQUIRED"
+    FEATURE_DISABLED = "DASHBOARDS_NOT_ENABLED"
+    PERMISSION_REQUIRED = "DASHBOARD_PERMISSION_REQUIRED"
+    OWNER_REQUIRED = "DASHBOARD_OWNER_REQUIRED"
+    WRITE_ACCESS_REQUIRED = "DASHBOARD_WRITE_ACCESS_REQUIRED"
+    GRANT_CANNOT_MANAGE_MEMBERS = "DASHBOARD_GRANT_CANNOT_MANAGE_MEMBERS"
+    # Definition / config validation (app.services.tenant.dashboard_definition).
+    DEFINITION_INVALID = "DASHBOARD_DEFINITION_INVALID"
+    DEFINITION_VERSION_UNSUPPORTED = "DASHBOARD_DEFINITION_VERSION_UNSUPPORTED"
+    WIDGET_INVALID = "DASHBOARD_WIDGET_INVALID"
+    WIDGET_TYPE_UNKNOWN = "DASHBOARD_WIDGET_TYPE_UNKNOWN"
+    WIDGET_ID_DUPLICATE = "DASHBOARD_WIDGET_ID_DUPLICATE"
+    WIDGET_OPTION_INVALID = "DASHBOARD_WIDGET_OPTION_INVALID"
+    TOO_MANY_WIDGETS = "DASHBOARD_TOO_MANY_WIDGETS"
+    BINDING_INVALID = "DASHBOARD_BINDING_INVALID"
+    BINDING_SOURCE_UNKNOWN = "DASHBOARD_BINDING_SOURCE_UNKNOWN"
+    BINDING_SOURCE_NOT_ALLOWED = "DASHBOARD_BINDING_SOURCE_NOT_ALLOWED"
+    CONFIG_INVALID = "DASHBOARD_CONFIG_INVALID"
+
+
+class MarketplaceMessages:
+    LISTING_NOT_FOUND = "MARKETPLACE_LISTING_NOT_FOUND"
+    #: The listing exists but nothing about it can be installed here — withdrawn
+    #: by its publisher, or its only versions need a newer app.
+    LISTING_UNAVAILABLE = "MARKETPLACE_LISTING_UNAVAILABLE"
+    LISTING_VERSION_INCOMPATIBLE = "MARKETPLACE_LISTING_VERSION_INCOMPATIBLE"
+    #: An upgrade was asked for on a dashboard that was authored here, not
+    #: installed — there is no listing to re-pin it to.
+    NOT_INSTALLED_FROM_LISTING = "MARKETPLACE_NOT_INSTALLED_FROM_LISTING"
+    ALREADY_LATEST_VERSION = "MARKETPLACE_ALREADY_LATEST_VERSION"
+    MEDIA_NOT_FOUND = "MARKETPLACE_MEDIA_NOT_FOUND"
+    #: A rescan was asked for on a deployment that publishes no catalog
+    #: directory of its own — nothing to scan until one is configured.
+    OPERATOR_CATALOG_NOT_CONFIGURED = "MARKETPLACE_OPERATOR_CATALOG_NOT_CONFIGURED"
+    #: The directory is configured but not present — usually a volume that did
+    #: not mount, or a path that differs from the one inside the container.
+    OPERATOR_CATALOG_DIR_MISSING = "MARKETPLACE_OPERATOR_CATALOG_DIRECTORY_MISSING"
+    #: One scan at a time: the answer a second one would give is the one
+    #: already being computed.
+    OPERATOR_CATALOG_SCAN_RUNNING = "MARKETPLACE_OPERATOR_CATALOG_SCAN_RUNNING"
+
+
+class MarketplaceRegistryMessages:
+    """Outcomes of a signed-registry refresh.
+
+    Every code here either answers an operator's "refresh now" or is recorded
+    as the last refusal so the status panel can say why the catalog did not
+    move. The refusals are deliberately specific: an operator reading one has
+    to be able to tell a misconfigured key from an index their host is serving
+    from cache.
+    """
+
+    #: No registry URL and key set are configured, or the operator switched
+    #: ingestion off. The remote provider is absent rather than broken.
+    NOT_CONFIGURED = "MARKETPLACE_REGISTRY_NOT_CONFIGURED"
+    #: A refresh is already running; the second caller is told rather than
+    #: queued, because both would be fetching the same index.
+    REFRESH_IN_PROGRESS = "MARKETPLACE_REGISTRY_REFRESH_IN_PROGRESS"
+    #: The configured key set could not be read as a JWKS document.
+    KEYS_INVALID = "MARKETPLACE_REGISTRY_KEYS_INVALID"
+
+    #: The index or its signature could not be fetched.
+    UNREACHABLE = "MARKETPLACE_REGISTRY_UNREACHABLE"
+    #: The index exceeded the size a registry index is allowed to be.
+    INDEX_TOO_LARGE = "MARKETPLACE_REGISTRY_INDEX_TOO_LARGE"
+    #: The index parsed as JSON but is not shaped like an index.
+    INDEX_MALFORMED = "MARKETPLACE_REGISTRY_INDEX_MALFORMED"
+    #: The signature does not match the index bytes that were received.
+    SIGNATURE_INVALID = "MARKETPLACE_REGISTRY_SIGNATURE_INVALID"
+    #: The index was signed by a key this deployment does not trust.
+    KEY_UNKNOWN = "MARKETPLACE_REGISTRY_KEY_UNKNOWN"
+    #: The index is older than the one already accepted, or reuses its serial
+    #: for different content.
+    SERIAL_REGRESSION = "MARKETPLACE_REGISTRY_SERIAL_REGRESSION"
+    #: The index is outside the freshness window this deployment accepts.
+    INDEX_STALE = "MARKETPLACE_REGISTRY_INDEX_STALE"
+
+    #: The signing key is not authorized for that listing's publisher prefix.
+    PUBLISHER_NOT_AUTHORIZED = "MARKETPLACE_REGISTRY_PUBLISHER_NOT_AUTHORIZED"
+    #: ``core.*`` names listings shipped in this repo and is never published
+    #: by a registry.
+    RESERVED_NAMESPACE = "MARKETPLACE_REGISTRY_RESERVED_NAMESPACE"
+    #: A manifest or image the index named could not be fetched.
+    ARTIFACT_UNREACHABLE = "MARKETPLACE_REGISTRY_ARTIFACT_UNREACHABLE"
+    #: A manifest or image did not match what the index says it is — digest,
+    #: size, type, or the origin it is served from.
+    ARTIFACT_INVALID = "MARKETPLACE_REGISTRY_ARTIFACT_INVALID"
+    #: The listing itself was refused by the catalog's validator.
+    LISTING_REJECTED = "MARKETPLACE_REGISTRY_LISTING_REJECTED"
 
 
 class QueueMessages:
@@ -468,24 +573,190 @@ class TrashMessages:
     UNKNOWN_ENTITY_TYPE = "TRASH_UNKNOWN_ENTITY_TYPE"
 
 
-class AdvancedToolMessages:
-    NOT_CONFIGURED = "ADVANCED_TOOL_NOT_CONFIGURED"
-    NOT_ENABLED = "ADVANCED_TOOL_NOT_ENABLED"
-    NOT_FOUND = "ADVANCED_TOOL_NOT_FOUND"
-    NO_ACCESS = "ADVANCED_TOOL_NO_ACCESS"
-    OWNER_REQUIRED = "ADVANCED_TOOL_OWNER_REQUIRED"
-    WRITE_ACCESS_REQUIRED = "ADVANCED_TOOL_WRITE_ACCESS_REQUIRED"
-    GRANT_CANNOT_MANAGE_MEMBERS = "ADVANCED_TOOL_GRANT_CANNOT_MANAGE_MEMBERS"
-    CREATE_PERMISSION_REQUIRED = "ADVANCED_TOOL_CREATE_PERMISSION_REQUIRED"
-    # Creating a guild-wide advanced tool (no initiative) is guild-admin only.
-    GUILD_WIDE_REQUIRES_ADMIN = "ADVANCED_TOOL_GUILD_WIDE_REQUIRES_ADMIN"
-    # Guild-wide tools are admin-only and hold no per-user/role grants.
-    GUILD_WIDE_NOT_SHAREABLE = "ADVANCED_TOOL_GUILD_WIDE_NOT_SHAREABLE"
-    # The run endpoint only accepts the automation service's delegation tokens.
-    DELEGATED_RUN_ONLY = "ADVANCED_TOOL_DELEGATED_RUN_ONLY"
-    # ADVANCED_TOOL_URL is set but no handoff signing key is configured, so the
-    # handoff cannot be minted (fail closed, retryable once configured).
-    SIGNING_NOT_CONFIGURED = "ADVANCED_TOOL_SIGNING_NOT_CONFIGURED"
+class GuildAppMessages:
+    NOT_FOUND = "GUILD_APP_NOT_FOUND"
+    ADMIN_REQUIRED = "GUILD_APP_ADMIN_REQUIRED"
+    #: The listing named is not an app, or names an app kind this build cannot
+    #: install.
+    NOT_AN_APP = "GUILD_APP_LISTING_NOT_AN_APP"
+    #: This guild already has this listing installed. Apps mount one guild-wide
+    #: surface each, so a second copy has nothing to be.
+    ALREADY_INSTALLED = "GUILD_APP_ALREADY_INSTALLED"
+    #: A valid app of a kind this build does not mount into a guild yet — see
+    #: GUILD_INSTALLABLE_APP_KINDS. Publishable and browsable, not installable
+    #: here, and told so by name rather than half-mounted.
+    KIND_NOT_INSTALLABLE = "GUILD_APP_KIND_NOT_INSTALLABLE"
+
+    # --- configuration ---
+    #: The request named a connection the pinned definition does not declare.
+    CONFIG_UNKNOWN_CONNECTION = "GUILD_APP_CONFIG_UNKNOWN_CONNECTION"
+    #: The request named a field that connection does not declare.
+    CONFIG_UNKNOWN_FIELD = "GUILD_APP_CONFIG_UNKNOWN_FIELD"
+    #: A value that does not match its declared type, or an empty one.
+    CONFIG_INVALID_VALUE = "GUILD_APP_CONFIG_INVALID_VALUE"
+    #: A value longer than this build stores for that field.
+    CONFIG_VALUE_TOO_LONG = "GUILD_APP_CONFIG_VALUE_TOO_LONG"
+    #: A required field left without a value.
+    CONFIG_REQUIRED_FIELD = "GUILD_APP_CONFIG_REQUIRED_FIELD"
+    #: A field the app writes back itself when it completes a vendor flow; the
+    #: settings form is not where it is set.
+    CONFIG_MANAGED_FIELD = "GUILD_APP_CONFIG_MANAGED_FIELD"
+
+    # --- connections ---
+    #: No such connection on this install, or no such member connection.
+    CONNECTION_NOT_FOUND = "GUILD_APP_CONNECTION_NOT_FOUND"
+    #: Connecting an account is for the connections a vendor authorizes per
+    #: person; a guild-wide credential is configured instead.
+    CONNECTION_NOT_INTERACTIVE = "GUILD_APP_CONNECTION_NOT_INTERACTIVE"
+    #: Guild-wide values are configured through the config endpoint; a
+    #: per-member connection is not.
+    CONNECTION_NOT_STATIC = "GUILD_APP_CONNECTION_NOT_STATIC"
+    #: A guild admin has stopped this member connecting this one.
+    CONNECTION_BLOCKED = "GUILD_APP_CONNECTION_BLOCKED"
+    #: The app is installed but turned off, so nothing flows through it.
+    DISABLED = "GUILD_APP_DISABLED"
+
+    # --- apps the deployment provides ---
+    #: The deployment installs this app in every guild and a guild admin does
+    #: not remove or disable it. The affordances are absent rather than
+    #: erroring; this answers a request that arrives anyway.
+    MANDATORY = "GUILD_APP_MANDATORY"
+
+    # --- service apps ---
+    #: This install's app service is not wired up here — never registered, or
+    #: the operator turned the registration off. Nothing this app offers can be
+    #: reached until that changes.
+    SERVICE_NOT_REGISTERED = "GUILD_APP_SERVICE_NOT_REGISTERED"
+    #: The pinned definition declares no surface under that id.
+    SURFACE_NOT_FOUND = "GUILD_APP_SURFACE_NOT_FOUND"
+    #: The surface declares ``visibility: guild_admin`` and the caller is a
+    #: plain member.
+    SURFACE_ADMIN_ONLY = "GUILD_APP_SURFACE_ADMIN_ONLY"
+    #: An interactive connection whose pinned definition carries no
+    #: ``connect_path``, so there is no vendor flow to send the member to.
+    CONNECT_PATH_MISSING = "GUILD_APP_CONNECT_PATH_MISSING"
+
+
+class AppServiceMessages:
+    """Codes for the deployment-level app service registry.
+
+    Read by an operator wiring an app up, so each code names the step that
+    refused rather than a generic failure.
+    """
+
+    NOT_FOUND = "APP_SERVICE_NOT_FOUND"
+    #: Another registration already carries this public_id.
+    DUPLICATE_PUBLIC_ID = "APP_SERVICE_DUPLICATE_PUBLIC_ID"
+    #: public_id, base_url, an origin, or a version string this build refuses.
+    INVALID_PUBLIC_ID = "APP_SERVICE_INVALID_PUBLIC_ID"
+    INVALID_BASE_URL = "APP_SERVICE_INVALID_BASE_URL"
+    INVALID_ORIGIN = "APP_SERVICE_INVALID_ORIGIN"
+    #: A grant outside the closed operator-conferred vocabulary.
+    UNKNOWN_GRANT = "APP_SERVICE_UNKNOWN_GRANT"
+    #: A registration with no stored secret cannot complete a handshake.
+    SECRET_REQUIRED = "APP_SERVICE_SECRET_REQUIRED"
+    #: The APP_PLATFORM_* signing keypair is not configured. It is required and
+    #: has no fallback, so registration and verification fail closed until an
+    #: operator supplies one.
+    SIGNING_NOT_CONFIGURED = "APP_SERVICE_SIGNING_NOT_CONFIGURED"
+    #: The service could not be reached, or did not answer with a manifest.
+    UNREACHABLE = "APP_SERVICE_UNREACHABLE"
+    #: The manifest was served but this build will not accept it (unknown
+    #: protocol version, missing fields, or a definition the validator refuses).
+    INVALID_MANIFEST = "APP_SERVICE_INVALID_MANIFEST"
+    #: The served manifest no longer hashes to the one recorded at registration.
+    MANIFEST_CHANGED = "APP_SERVICE_MANIFEST_CHANGED"
+    #: The manifest names a different app than the registration does.
+    PUBLIC_ID_MISMATCH = "APP_SERVICE_PUBLIC_ID_MISMATCH"
+    #: The challenge came back signed with a different secret.
+    SIGNATURE_MISMATCH = "APP_SERVICE_SIGNATURE_MISMATCH"
+
+
+class AppDataMessages:
+    """Codes for the widget data proxy.
+
+    Read by a member looking at a dashboard, so each one distinguishes a state
+    they can act on (connect an account, ask an admin to configure the app) from
+    one they can only wait out (the app is unreachable).
+    """
+
+    #: The install names no such data source, or the pinned definition is not a
+    #: service app's at all.
+    SOURCE_NOT_FOUND = "APP_DATA_SOURCE_NOT_FOUND"
+    #: The source is declared for guild admins and the caller is a member.
+    ADMIN_ONLY = "APP_DATA_ADMIN_ONLY"
+    #: The install is turned off in this guild.
+    APP_DISABLED = "APP_DATA_APP_DISABLED"
+    #: No registration wires this app up on this deployment.
+    SERVICE_NOT_REGISTERED = "APP_DATA_SERVICE_NOT_REGISTERED"
+    #: The operator's kill switch is off, or the registration has not verified.
+    SERVICE_DISABLED = "APP_DATA_SERVICE_DISABLED"
+    #: A parameter the source does not declare, or a value that does not match
+    #: its declared type.
+    INVALID_PARAMS = "APP_DATA_INVALID_PARAMS"
+    #: A guild-scoped credential this source needs has not been supplied.
+    NEEDS_CONFIGURATION = "APP_DATA_NEEDS_CONFIGURATION"
+    #: The source reads the member's own vendor account and they have not
+    #: connected it yet.
+    CONNECTION_REQUIRED = "APP_DATA_CONNECTION_REQUIRED"
+    #: The app could not be reached, timed out, or answered with something that
+    #: is not a data response.
+    SERVICE_UNAVAILABLE = "APP_SERVICE_UNAVAILABLE"
+    #: The app answered past the response ceiling.
+    RESPONSE_TOO_LARGE = "APP_DATA_RESPONSE_TOO_LARGE"
+    #: This worker already has as many calls in flight to this app as it will
+    #: hold open, so one slow app cannot consume the pool.
+    BUSY = "APP_DATA_BUSY"
+    #: Reserved for the platform-wide limiter, which spans containers and
+    #: arrives with the rate-limiting workstream.
+    RATE_LIMITED = "APP_DATA_RATE_LIMITED"
+
+
+class AppChannelMessages:
+    """Codes for the channels an app service calls back into Initiative on.
+
+    Read by an app author rather than by a person in the UI, so each names the
+    step that refused: an envelope this build will not accept, an install this
+    caller does not own, or a payload outside what the pinned manifest declared.
+    """
+
+    # --- the signed envelope ---
+    #: A required signing header is absent or unusably shaped.
+    MISSING_SIGNATURE = "APP_CHANNEL_MISSING_SIGNATURE"
+    #: The signed timestamp sits outside the freshness window.
+    STALE_TIMESTAMP = "APP_CHANNEL_STALE_TIMESTAMP"
+    #: No registration answers to the app id the request named.
+    UNKNOWN_APP = "APP_CHANNEL_UNKNOWN_APP"
+    #: The signature does not match what this registration's secret produces.
+    INVALID_SIGNATURE = "APP_CHANNEL_INVALID_SIGNATURE"
+    #: This nonce was already spent, so the request has been seen before.
+    REPLAYED_REQUEST = "APP_CHANNEL_REPLAYED_REQUEST"
+    #: The operator turned this registration off; every channel it backs stops.
+    APP_DISABLED = "APP_CHANNEL_APP_DISABLED"
+
+    # --- the install being addressed ---
+    #: No install of this app in that guild — never installed, uninstalled, or
+    #: the guild is not one this caller may see.
+    INSTALL_NOT_FOUND = "APP_CHANNEL_INSTALL_NOT_FOUND"
+    #: The install exists but the guild turned it off.
+    INSTALL_DISABLED = "APP_CHANNEL_INSTALL_DISABLED"
+    #: The guild is frozen, so this channel accepts no writes into it.
+    GUILD_READ_ONLY = "APP_CHANNEL_GUILD_READ_ONLY"
+    #: No connection on this install answers to that reference.
+    CONNECTION_NOT_FOUND = "APP_CHANNEL_CONNECTION_NOT_FOUND"
+    #: A guild admin stopped this member's connection; the app may not revive it.
+    CONNECTION_BLOCKED = "APP_CHANNEL_CONNECTION_BLOCKED"
+
+    # --- what the app sent ---
+    #: The body is not the JSON object this channel expects.
+    INVALID_PAYLOAD = "APP_CHANNEL_INVALID_PAYLOAD"
+    #: An event type the pinned definition does not declare, or one namespaced
+    #: under an app other than the caller.
+    UNKNOWN_EVENT_TYPE = "APP_CHANNEL_UNKNOWN_EVENT_TYPE"
+    #: The event body is larger than this build will carry.
+    EVENT_TOO_LARGE = "APP_CHANNEL_EVENT_TOO_LARGE"
+    #: A config state outside what an app may report.
+    INVALID_CONFIG_STATE = "APP_CHANNEL_INVALID_CONFIG_STATE"
 
 
 class WebhookSubscriptionMessages:
@@ -493,6 +764,13 @@ class WebhookSubscriptionMessages:
     PRIVATE_TARGET_URL = "WEBHOOK_PRIVATE_TARGET_URL"
     NOT_FOUND = "WEBHOOK_SUBSCRIPTION_NOT_FOUND"
     NOT_OWNER = "WEBHOOK_SUBSCRIPTION_NOT_OWNER"
+    # Delivery targets are owned by the configured automation delegate.
+    # No delegate is configured on this deployment, so there is nothing that
+    # may own one (503 — a configuration state, not a caller fault).
+    DELEGATE_NOT_CONFIGURED = "AUTOMATION_DELEGATE_NOT_CONFIGURED"
+    # The request authenticated as an ordinary user or API key rather than
+    # over the delegation credential.
+    DELEGATE_REQUIRED = "AUTOMATION_DELEGATE_REQUIRED"
 
 
 class AIMessages:
@@ -528,3 +806,4 @@ class BillingMessages:
     ACTOR_REQUIRED = "BILLING_ACTOR_REQUIRED"
     PORTAL_NOT_CONFIGURED = "BILLING_PORTAL_NOT_CONFIGURED"
     PORTAL_SIGNING_NOT_CONFIGURED = "BILLING_PORTAL_SIGNING_NOT_CONFIGURED"
+    PORTAL_GRANT_UNAVAILABLE = "BILLING_PORTAL_GRANT_UNAVAILABLE"

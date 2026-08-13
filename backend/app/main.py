@@ -20,10 +20,15 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_upload_user
+from app.api.embed_csp import embed_document_csp
 from app.core.body_limit import BodySizeLimitMiddleware
 from app.api.v1.api import api_router
 from app.core.messages import GuildMessages
 from app.core.rate_limit import limiter
+from app.core.security import (
+    app_platform_signing_enabled,
+    billing_support_handoff_enabled,
+)
 from app.core.config import API_V1_STR, PROJECT_NAME, settings
 from app.core.version import __version__
 from app.db.errors import INSUFFICIENT_PRIVILEGE_SQLSTATE, dbapi_sqlstate
@@ -97,13 +102,13 @@ async def lifespan(app: FastAPI):
     # GRANTs when a deployment's URLs connect as other logins.
     await verify_effective_shared_grants()
     await warn_if_privileged_database_url()
-    if settings.ADVANCED_TOOL_URL and not settings.HANDOFF_SIGNING_PRIVATE_KEY_PEM:
-        # The advanced-tool embed verifies handoff tokens by RS256 public key;
-        # without the private key the handoff endpoints fail closed (503).
+    if settings.BILLING_URL and not billing_support_handoff_enabled():
+        # The Guilds tab shows its billing button whenever a portal URL is set;
+        # without the signing pair every click fails closed (503).
         logger.warning(
-            "ADVANCED_TOOL_URL is set but HANDOFF_SIGNING_PRIVATE_KEY_PEM is not; "
-            "advanced-tool handoffs will fail closed until an RS256 signing key "
-            "is configured."
+            "BILLING_URL is set but BILLING_SUPPORT_HANDOFF_SECRET / "
+            "BILLING_SUPPORT_HANDOFF_KID are not; the operator billing handoff "
+            "will fail closed until both are configured."
         )
     backfill = await backfill_guild_schemas()
     if backfill.failed:
@@ -166,6 +171,97 @@ async def lifespan(app: FastAPI):
             await seed_platform_provider_from_env(seed_session)
     except Exception:
         logger.exception("Platform OIDC env seed failed; configure via settings UI")
+
+    # The marketplace listings this build ships with. Idempotent upsert on the
+    # system engine — the catalog has no request-path writer — so every install
+    # has a working marketplace with no network and no configuration.
+    from app.services.marketplace.builtin import seed_builtin_listings
+
+    try:
+        async with AdminSessionLocal() as catalog_session:
+            seeded = await seed_builtin_listings(catalog_session)
+            await catalog_session.commit()
+        logger.info("marketplace: %d built-in listing(s) seeded", seeded)
+    except Exception:
+        # A catalog that failed to seed costs the marketplace, not the boot:
+        # every already-installed dashboard keeps its own pinned definition.
+        logger.exception("marketplace: built-in listing seed failed")
+
+    # Listings the operator publishes themselves, from the directory
+    # MARKETPLACE_EXTRA_CATALOG_DIR names. Same writer, same validation as the
+    # built-ins; a manifest that has been removed retires its listing. With the
+    # setting unset nothing is read and nothing is said.
+    from app.services.marketplace.operator_catalog import (
+        operator_catalog_dir,
+        scan_operator_catalog,
+    )
+
+    if operator_catalog_dir() is not None:
+        try:
+            async with AdminSessionLocal() as operator_catalog_session:
+                scan = await scan_operator_catalog(operator_catalog_session)
+                await operator_catalog_session.commit()
+            logger.info(
+                "marketplace: operator catalog — %d published, %d withdrawn, "
+                "%d skipped",
+                scan.published,
+                scan.withdrawn,
+                scan.skipped,
+            )
+        except Exception:
+            logger.exception("marketplace: operator catalog scan failed")
+    # App services the deployment declares in a mounted file (APP_SERVICES_CONFIG).
+    # Database-only: an app's container may boot after this one, so the handshake
+    # is a separate step and a declared registration lands unverified rather than
+    # holding up startup. No-op when the setting is unset.
+    if settings.APP_SERVICES_CONFIG:
+        if not app_platform_signing_enabled():
+            # Registrations reconcile fine, but verifying one (and later minting
+            # its context tokens) needs the platform's own keypair.
+            logger.warning(
+                "APP_SERVICES_CONFIG is set but APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM "
+                "is not; app service verification will fail closed until a signing "
+                "key is configured."
+            )
+        try:
+            from app.services.marketplace import registrations as app_registrations
+
+            async with AdminSessionLocal() as app_service_session:
+                reconciled = await app_registrations.reconcile_from_config(
+                    app_service_session
+                )
+            logger.info(
+                "app services: %d created, %d updated, %d unchanged, %d skipped",
+                reconciled.created,
+                reconciled.updated,
+                reconciled.unchanged,
+                reconciled.skipped,
+            )
+        except Exception:
+            # A registration that failed to reconcile costs that app, not the
+            # boot; already-stored registrations keep working unchanged.
+            logger.exception("app services: reconciliation from config failed")
+
+    # Apps the deployment provides to every guild (§7.7). New guilds get theirs
+    # at creation; this is how the flag reaches guilds that predate it, on the
+    # same sweep pattern that reprovisions stale schemas. Returns immediately
+    # when nothing is marked mandatory, which is every install that has not
+    # asked for this.
+    try:
+        from app.services.tenant import mandatory_apps as mandatory_apps_service
+
+        backfilled = await mandatory_apps_service.backfill_mandatory_apps()
+        if backfilled.installed or backfilled.failed:
+            logger.info(
+                "mandatory apps: %d installed across %d guild(s), %d failed",
+                backfilled.installed,
+                backfilled.guilds,
+                backfilled.failed,
+            )
+    except Exception:
+        # A guild missing a mandatory app is a gap the next boot closes; it is
+        # not a reason to refuse to start.
+        logger.exception("mandatory apps: backfill failed")
 
     app.state.notification_tasks = background_tasks_service.start_background_tasks()
 
@@ -575,7 +671,7 @@ def _resolve_static_file(path: str) -> Path | None:
 
 
 @app.get("/{full_path:path}", include_in_schema=False)
-async def serve_spa(full_path: str) -> FileResponse:
+async def serve_spa(request: Request, full_path: str) -> FileResponse:
     if _is_reserved_path(full_path):
         raise HTTPException(status_code=404)
     static_file = _resolve_static_file(full_path) if full_path else None
@@ -590,8 +686,13 @@ async def serve_spa(full_path: str) -> FileResponse:
             headers={"Cache-Control": "public, max-age=3600"},
         )
     if static_index_path.is_file():
-        return FileResponse(
-            static_index_path,
-            headers={"Cache-Control": "no-cache"},
-        )
+        headers = {"Cache-Control": "no-cache"}
+        # The document that opens one app's embed carries the frame permission
+        # for that app's registered origins; every other document carries none
+        # (see app.api.embed_csp). The middleware sets the app-wide policy with
+        # setdefault, so this scoped one wins where it applies.
+        scoped_csp = await embed_document_csp(request, full_path)
+        if scoped_csp is not None:
+            headers["Content-Security-Policy"] = scoped_csp
+        return FileResponse(static_index_path, headers=headers)
     raise HTTPException(status_code=404, detail="SPA bundle not found")

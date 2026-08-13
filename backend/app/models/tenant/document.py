@@ -42,6 +42,7 @@ class DocumentType(str, Enum):
 class Document(SoftDeleteMixin, table=True):
     __tablename__ = "documents"
     _owner_field = "created_by_id"
+    _display_field = "title"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: Optional[int] = Field(

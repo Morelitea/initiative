@@ -2,6 +2,8 @@
 
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.guild import Guild, GuildMembership, GuildInvite
+from app.models.tenant.guild_app import GuildApp
+from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.models.tenant.guild_setting import GuildSetting
 from app.models.tenant.project import Project
 from app.models.tenant.task import Task, TaskAssignee, TaskStatus, Subtask
@@ -40,6 +42,7 @@ from app.models.tenant.calendar_event import (
     CalendarEventDocument,
 )
 from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
+from app.models.tenant.dashboard import Dashboard, DashboardTag
 from app.models.tenant.counter import (
     Counter,
     CounterGroup,
@@ -60,10 +63,15 @@ from app.models.platform.billing import BillingEventLog, BillingJti
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.models.tenant.resource_grant import ResourceGrant
-from app.models.tenant.advanced_tool import AdvancedTool
 from app.models.tenant.export_job import ExportJob
 from app.models.tenant.import_job import ImportJob
+from app.models.platform.marketplace_registry import (
+    MarketplaceMedia,
+    MarketplaceRegistryState,
+)
 from app.models.platform.ai_connection import PlatformAIConnection
+from app.models.platform.app_service_registration import AppServiceRegistration
+from app.models.platform.app_service_nonce import AppServiceNonce
 from app.models.tenant.ai_connection import GuildAIConnection
 from app.models.tenant.ai_member_key import GuildAIMemberKey
 from app.models.tenant.ai_member_pref import GuildAIMemberPref
@@ -78,7 +86,6 @@ __all__ = [
     "FederatedIdentitySecret",
     "GuildAuthPolicy",
     "ResourceGrant",
-    "AdvancedTool",
     "ExportJob",
     "ImportJob",
     "Project",
@@ -122,6 +129,8 @@ __all__ = [
     "CalendarEventTag",
     "CalendarEventDocument",
     "EventReminderDispatch",
+    "Dashboard",
+    "DashboardTag",
     "Counter",
     "CounterGroup",
     "Upload",
@@ -133,8 +142,14 @@ __all__ = [
     "BillingJti",
     "TaskAssignmentDigestItem",
     "WebhookSubscription",
+    "AppServiceRegistration",
+    "AppServiceNonce",
+    "MarketplaceMedia",
+    "MarketplaceRegistryState",
     "PlatformAIConnection",
     "GuildAIConnection",
     "GuildAIMemberKey",
     "GuildAIMemberPref",
+    "GuildApp",
+    "GuildAppUserConnection",
 ]

@@ -31,6 +31,7 @@ import {
   CalendarDays,
   GalleryHorizontalEnd,
   Gauge,
+  LayoutDashboard,
   ListTodo,
   type LucideIcon,
   ScrollText,
@@ -54,38 +55,23 @@ export interface ToolDef {
    */
   core: boolean;
   /**
-   * Sidebar count badge + count query. Calendars deliberately have none
-   * (the calendar page is one view, not a counted collection); the advanced
-   * tool renders as a single link, not a counted collection.
-   */
-  sidebarCount: boolean;
-  /**
    * Appears in the recent-items tabs bar. Must mirror the backend's
-   * RECENTABLE_TOOLS (the advanced tool has no detail route to return to).
+   * RECENTABLE_TOOLS.
    */
   recents: boolean;
-  /** Has a command-palette group (or, for the advanced tool, nav entries). */
+  /** Has a command-palette group. */
   commandPalette: boolean;
   /**
-   * Has dedicated notification types. Intentional gap for queues, counter
-   * groups, and advanced tools — recorded here, not scattered as TODOs.
+   * Has dedicated notification types. Intentional gap for queues and counter
+   * groups — recorded here, not scattered as TODOs.
    */
   notifications: boolean;
   /** Personal cross-guild page under the top-level router, if any. */
   personalRoute: string | null;
   /**
-   * The tool's rows are created inside the app (a create dialog at the list
-   * route). The advanced tool's content is authored in the external service
-   * (name comes from runtime config), so its create affordance is a live
-   * hand-off to the embedded page — which signals a "new" intent to that
-   * service — rather than an in-app dialog.
-   */
-  inAppCreate: boolean;
-  /**
    * Has an export-engine source: single-entity export plus bulk selection
    * export (`{tool}_ids` selectors; a calendar exports as one combined
-   * file carrying its events). Intentional gap: the advanced tool (its
-   * content lives in the external service).
+   * file carrying its events).
    */
   bulkExport: boolean;
   /** Has an import surface: a JSON envelope of this type can be imported
@@ -98,72 +84,60 @@ export const TOOL_REGISTRY: Record<Tool, ToolDef> = {
   [Tool.project]: {
     icon: ListTodo,
     core: true,
-    sidebarCount: true,
     recents: true,
     commandPalette: true,
     notifications: true,
     personalRoute: "/my-projects",
-    inAppCreate: true,
     bulkExport: true,
     importable: true,
   },
   [Tool.document]: {
     icon: ScrollText,
     core: true,
-    sidebarCount: true,
     recents: true,
     commandPalette: true,
     notifications: true,
     personalRoute: "/my-documents",
-    inAppCreate: true,
     bulkExport: true,
     importable: true,
   },
   [Tool.queue]: {
     icon: GalleryHorizontalEnd,
     core: false,
-    sidebarCount: true,
     recents: true,
     commandPalette: true,
     notifications: false,
     personalRoute: null,
-    inAppCreate: true,
     bulkExport: true,
     importable: true,
   },
   [Tool.counter_group]: {
     icon: Gauge,
     core: false,
-    sidebarCount: true,
     recents: true,
     commandPalette: true,
     notifications: false,
     personalRoute: null,
-    inAppCreate: true,
     bulkExport: true,
     importable: true,
   },
   [Tool.calendar]: {
     icon: CalendarDays,
     core: false,
-    sidebarCount: false,
     recents: true,
     commandPalette: true,
     notifications: true,
     personalRoute: "/my-calendar",
-    inAppCreate: true,
     bulkExport: true,
     importable: true,
   },
-  [Tool.advanced_tool]: {
-    icon: Sparkles,
+  [Tool.dashboard]: {
+    icon: LayoutDashboard,
     core: false,
-    sidebarCount: false,
-    recents: false,
+    recents: true,
     commandPalette: true,
     notifications: false,
     personalRoute: null,
-    inAppCreate: false,
     bulkExport: false,
     importable: false,
   },
@@ -183,13 +157,12 @@ export const BULK_EXPORT_TOOLS = TOOLS.filter((t) => TOOL_REGISTRY[t].bulkExport
 export const IMPORTABLE_TOOLS = TOOLS.filter((t) => TOOL_REGISTRY[t].importable);
 
 /**
- * Sidebar display order within an initiative. The advanced tool is pinned to
- * the top when its integration is on; projects render last because the
+ * Sidebar display order within an initiative. Projects render last because the
  * initiative's project list expands directly beneath that row.
  */
 export const SIDEBAR_TOOLS: Tool[] = [
-  Tool.advanced_tool,
   Tool.calendar,
+  Tool.dashboard,
   Tool.document,
   Tool.queue,
   Tool.counter_group,
@@ -274,46 +247,16 @@ export const isToolEnabled = (tool: Tool, initiative: InitiativeRead): boolean =
   TOOL_REGISTRY[tool].core ||
   Boolean(initiative[`${toolPlural(tool)}_enabled` as keyof InitiativeRead]);
 
-// ---------------------------------------------------------------------------
-// Runtime-config gating & hand-off routing — the ONE place a tool's "I'm
-// different" traits live, so every surface (sidebar, tabs, palette, create
-// button, settings toggles) derives them instead of re-checking
-// `tool === Tool.advanced_tool`. Adding a tool to the registry wires it here.
-// ---------------------------------------------------------------------------
-
-/** Tools whose availability depends on deployment runtime config (an external
- *  integration must be configured). Today only the advanced tool. */
-const RUNTIME_CONFIGURED_TOOLS = new Set<Tool>([Tool.advanced_tool]);
-
-/** The runtime config a config-gated tool depends on (structural subset of the
- *  advanced-tool config — the only runtime-configured integration today). */
-export type RuntimeToolConfig = { name?: string | null } | null | undefined;
-
-/** Whether a tool is usable given the deployment config: config-gated tools
- *  need their integration configured; every other tool is always available. */
-export const toolAvailable = (tool: Tool, config: RuntimeToolConfig): boolean =>
-  !RUNTIME_CONFIGURED_TOOLS.has(tool) || Boolean(config);
-
-/** Display name for a tool: a config-gated tool uses its deployment-provided
- *  name when set; otherwise (and for every other tool) the caller's `fallback`. */
-export const toolDisplayName = (tool: Tool, fallback: string, config: RuntimeToolConfig): string =>
-  RUNTIME_CONFIGURED_TOOLS.has(tool) && config?.name ? config.name : fallback;
-
-/** Kebab singular of a tool ("advanced_tool" → "advanced-tool") — the embedded
- *  per-initiative page segment for hand-off tools. */
-export const toolEmbedSegment = (tool: Tool): string => tool.replaceAll("_", "-");
-
-/** Guild-relative sidebar/nav row target for a tool inside an initiative.
- *  Hand-off tools (`inAppCreate: false`) open one embedded page per initiative;
- *  in-app tools open their shared list filtered to the initiative. Callers
- *  prepend the guild prefix (`useGuildPath`). */
+/** Guild-relative sidebar/nav row target for a tool inside an initiative: its
+ *  shared list route, filtered to that initiative. Callers prepend the guild
+ *  prefix (`useGuildPath`). */
 export const toolRowTarget = (
   tool: Tool,
   initiativeId: number
-): { to: string; search: { initiativeId: string } | undefined } =>
-  TOOL_REGISTRY[tool].inAppCreate
-    ? { to: toolListRoute(tool), search: { initiativeId: String(initiativeId) } }
-    : { to: `/initiatives/${initiativeId}/${toolEmbedSegment(tool)}`, search: undefined };
+): { to: string; search: { initiativeId: string } } => ({
+  to: toolListRoute(tool),
+  search: { initiativeId: String(initiativeId) },
+});
 
 /** Guild-relative create target for a tool inside an initiative. In-app tools
  *  open their list route's create dialog (`?create=true`); hand-off tools open
@@ -321,7 +264,7 @@ export const toolRowTarget = (
 export const toolCreateTarget = (
   tool: Tool,
   initiativeId: number
-): { to: string; search: Record<string, string> } =>
-  TOOL_REGISTRY[tool].inAppCreate
-    ? { to: toolListRoute(tool), search: { create: "true", initiativeId: String(initiativeId) } }
-    : { to: `/initiatives/${initiativeId}/${toolEmbedSegment(tool)}`, search: { create: "true" } };
+): { to: string; search: Record<string, string> } => ({
+  to: toolListRoute(tool),
+  search: { create: "true", initiativeId: String(initiativeId) },
+});

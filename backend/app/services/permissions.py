@@ -31,7 +31,7 @@ from app.core.role_context import (
 from app.core.tools import Tool
 from app.services.membership import guild_member_clause
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.tenant.project import (
     Project,
     ProjectPermissionLevel,
@@ -43,12 +43,12 @@ from app.models.tenant.document import (
 from app.models.tenant.initiative import InitiativeMember, InitiativeRoleModel
 from app.models.platform.user import User
 from app.core.messages import (
-    AdvancedToolMessages,
     ProjectMessages,
     DocumentMessages,
     QueueMessages,
     CounterMessages,
     CalendarMessages,
+    DashboardMessages,
 )
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 
@@ -153,7 +153,14 @@ def visible_resource_ids_subquery(resource_type: str, user_id: int):
             ResourceGrant.role_id.in_(my_roles),
             and_(
                 ResourceGrant.all_initiative_members.is_(True),
-                ResourceGrant.initiative_id.in_(my_initiatives),
+                or_(
+                    ResourceGrant.initiative_id.in_(my_initiatives),
+                    # Guild scope: a grant on a resource that belongs to no
+                    # initiative. "Everyone" reads as every member of the guild,
+                    # and being able to run this query at all means being in it
+                    # — the rows live in that guild's schema.
+                    ResourceGrant.initiative_id.is_(None),
+                ),
             ),
         ),
     )
@@ -231,6 +238,11 @@ def request_bypasses_dac(
     return request_overrides_sharing(initiative_id)
 
 
+#: Distinguishes "this row has no initiative_id column" from "its initiative_id
+#: is NULL". Only the second means guild scope.
+_NO_SCOPE_COLUMN = object()
+
+
 def initiative_scope_ok(
     entity: Any,
     user: User,
@@ -248,6 +260,13 @@ def initiative_scope_ok(
     reaches a guild only through an explicit break-glass grant, which surfaces
     here as ``has_active_grant``.
     """
+    # A row that names no initiative is guild-level, and the initiative gate has
+    # nothing to decide about it — the same branch `public.initiative_access`
+    # takes, kept in step here because this is its app-layer counterpart. The
+    # guild boundary already applied (the request resolved this guild) and the
+    # row's grants decide the rest.
+    if getattr(entity, "initiative_id", _NO_SCOPE_COLUMN) is None:
+        return True
     initiative = getattr(entity, "initiative", None)
     memberships = (
         getattr(initiative, "memberships", None) if initiative is not None else None
@@ -313,12 +332,12 @@ DAC_RESOURCES: dict[Tool, DacResource] = {
         CalendarMessages.OWNER_REQUIRED,
         CalendarMessages.WRITE_ACCESS_REQUIRED,
     ),
-    Tool.advanced_tool: DacResource(
-        Tool.advanced_tool,
-        False,
-        AdvancedToolMessages.NO_ACCESS,
-        AdvancedToolMessages.OWNER_REQUIRED,
-        AdvancedToolMessages.WRITE_ACCESS_REQUIRED,
+    Tool.dashboard: DacResource(
+        Tool.dashboard,
+        True,
+        DashboardMessages.PERMISSION_REQUIRED,
+        DashboardMessages.OWNER_REQUIRED,
+        DashboardMessages.WRITE_ACCESS_REQUIRED,
     ),
 }
 
@@ -347,8 +366,14 @@ def serialize_grants(row: Any) -> list:
 def effective_level(resource: DacResource, row: Any, user_id: int) -> str | None:
     """Highest grant level (read<write<owner) for ``user_id`` on ``row`` — from the
     user's own grant, a grant to one of their initiative roles, or an
-    all-initiative-members grant when the user is a member, else None. Reads
-    eagerly-loaded ``grants`` + ``initiative.memberships``."""
+    all-members grant when the user is a member, else None. Reads
+    eagerly-loaded ``grants`` + ``initiative.memberships``.
+
+    On a guild-level row (no initiative) the all-members grant applies to every
+    member of the guild. Role grants there are not resolved yet — a guild role is
+    not an ``initiative_roles`` row — so guild-scope sharing is by everyone or by
+    named user until that has its own design.
+    """
     grants = getattr(row, "grants", None) or []
     initiative = getattr(row, "initiative", None)
     memberships = (
@@ -357,7 +382,12 @@ def effective_level(resource: DacResource, row: Any, user_id: int) -> str | None
     role_ids = {
         m.role_id for m in memberships if m.user_id == user_id and m.role_id is not None
     }
-    is_member = any(m.user_id == user_id for m in memberships)
+    # A row that names no initiative is guild-level, and there "all members"
+    # means the guild's. Reading the column through a sentinel rather than
+    # `getattr(row, "initiative_id", None)`: a row type that has no such column
+    # at all must not be mistaken for one that has it set to NULL.
+    scope = getattr(row, "initiative_id", _NO_SCOPE_COLUMN)
+    is_member = scope is None or any(m.user_id == user_id for m in memberships)
     best: str | None = None
     best_rank = -1
     for g in grants:
@@ -379,15 +409,18 @@ async def replace_resource_grants(
     resource_type: str,
     resource_id: int,
     guild_id: int,
-    initiative_id: int,
+    initiative_id: int | None,
     owner_id: int,
     grants: Any,
 ) -> None:
     """Rebuild a resource's non-owner grants from ``grants`` (a list of
-    ResourceAccessGrant rows). Each row is sorted by grantee kind — all-initiative-
-    members, per-user, or per-role. The owner grant is preserved; owner-level
-    entries and grantees outside the initiative are dropped. Caller commits +
-    reapplies RLS."""
+    ResourceAccessGrant rows). Each row is sorted by grantee kind — all-members,
+    per-user, or per-role. The owner grant is preserved; owner-level entries and
+    grantees outside the resource's scope are dropped. Caller commits.
+
+    ``initiative_id`` is None for a guild-level resource. There "all members"
+    means the guild's, and a named grantee is validated against guild
+    membership; role grants are not resolvable (see below)."""
     all_members_level: str | None = None
     user_levels: dict[int, str] = {}
     role_levels: dict[int, str] = {}
@@ -402,20 +435,43 @@ async def replace_resource_grants(
         elif g.role_id is not None:
             role_levels[g.role_id] = level
 
+    guild_scoped = initiative_id is None
+
     valid_users: set[int] = set()
     if user_levels:
-        valid_users = set(
-            (
-                await session.exec(
-                    select(InitiativeMember.user_id).where(
-                        InitiativeMember.initiative_id == initiative_id,
-                        InitiativeMember.user_id.in_(list(user_levels)),
+        if guild_scoped:
+            # The resource belongs to no initiative, so a named grantee is
+            # someone in the *guild*. Validating against initiative membership
+            # here would compare against NULL and match nobody, silently
+            # dropping every named grant on a guild-level resource.
+            valid_users = set(
+                (
+                    await session.exec(
+                        select(GuildMembership.user_id).where(
+                            GuildMembership.guild_id == guild_id,
+                            GuildMembership.user_id.in_(list(user_levels)),
+                        )
                     )
-                )
-            ).all()
-        )
+                ).all()
+            )
+        else:
+            valid_users = set(
+                (
+                    await session.exec(
+                        select(InitiativeMember.user_id).where(
+                            InitiativeMember.initiative_id == initiative_id,
+                            InitiativeMember.user_id.in_(list(user_levels)),
+                        )
+                    )
+                ).all()
+            )
+
     valid_roles: set[int] = set()
-    if role_levels:
+    # Role grants are initiative roles. A guild-level resource has no initiative
+    # for a role to belong to, and a guild role is not an ``initiative_roles``
+    # row, so there is nothing to validate against — guild-scope sharing is by
+    # everyone or by named user until guild-role principals have a design.
+    if role_levels and not guild_scoped:
         valid_roles = set(
             (
                 await session.exec(
@@ -599,6 +655,13 @@ def compute_document_permission(
 def compute_calendar_permission(calendar: Any, user_id: int) -> str | None:
     """Effective calendar permission string for the client (delegates to the engine)."""
     return compute_permission(DAC_RESOURCES[Tool.calendar], calendar, user_id)
+
+
+def compute_dashboard_permission(dashboard: Any, user_id: int) -> str | None:
+    """Effective dashboard permission string for the client (delegates to the
+    engine). Governs authoring the canvas only — the data each widget displays
+    is authorized separately, per viewer, by that data's own tool."""
+    return compute_permission(DAC_RESOURCES[Tool.dashboard], dashboard, user_id)
 
 
 def require_document_access(

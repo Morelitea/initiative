@@ -1,0 +1,58 @@
+{
+  "title": "Marketplace",
+  "subtitle": "Ready-made dashboards you can add to an initiative.",
+  "searchPlaceholder": "Search the marketplace…",
+  "backToMarketplace": "Back to the marketplace",
+  "card": {
+    "installed": "Installed",
+    "version": "v{{version}}",
+    "needsUpdate": "Needs a newer app"
+  },
+  "provenance": {
+    "builtin": "by Initiative",
+    "plain": "by {{publisher}}"
+  },
+  "empty": {
+    "title": "Nothing here yet",
+    "description": "This deployment has no listings to offer."
+  },
+  "noResults": {
+    "title": "No matches",
+    "description": "Nothing in the marketplace matches “{{query}}”."
+  },
+  "detail": {
+    "installs_one": "{{count}} install",
+    "installs_other": "{{count}} installs",
+    "install": "Add to an initiative",
+    "preview": "Preview",
+    "previewIsSample": "Example shown with sample data",
+    "versions": "Versions",
+    "needsUpdate": "Needs a newer version of the app.",
+    "withdrawn": "No longer offered.",
+    "notFound": "Listing not found",
+    "notFoundDescription": "It may have been withdrawn, or the link may be wrong."
+  },
+  "install": {
+    "title": "Add {{name}}",
+    "description": "Choose where it goes. You can rename it now or later.",
+    "initiative": "Initiative",
+    "name": "Name",
+    "action": "Add",
+    "done": "{{name}} added.",
+    "failed": "Could not add that listing.",
+    "noInitiatives": "You cannot create dashboards in any initiative yet. Ask an initiative manager for access."
+  },
+  "update": {
+    "available": "Version {{version}} available",
+    "action": "Update",
+    "done": "Updated to {{version}}.",
+    "failed": "Could not update this dashboard."
+  },
+  "unavailable": {
+    "title": "Marketplace unavailable",
+    "description": "The catalog could not be reached. Try again in a moment."
+  },
+  "installedUnknown": "Couldn't check which of these you already have, so nothing below is marked as installed.",
+  "subtitleApps": "Apps add something the whole guild shares. Only guild admins can add them.",
+  "subtitleAuto": "Automations run in the background for the whole guild."
+}

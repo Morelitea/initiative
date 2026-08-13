@@ -49,6 +49,9 @@ from app.core.security import get_password_hash  # noqa: E402
 from app.db.schema_provisioning import provision_guild  # noqa: E402
 from app.db.session import AdminSessionLocal, set_rls_context  # noqa: E402
 from app.db.tenancy import GUILD_SCOPED_TABLES  # noqa: E402
+from app.services.tenant.dashboard_definition import (  # noqa: E402
+    normalize_dashboard_definition,
+)
 from app.models.tenant.calendar import (  # noqa: E402
     DEFAULT_CALENDAR_COLOR,
     Calendar,
@@ -66,6 +69,7 @@ from app.models.tenant.counter import (  # noqa: E402
     CounterGroup,
     CounterViewMode,
 )
+from app.models.tenant.dashboard import Dashboard  # noqa: E402
 from app.models.tenant.document import (  # noqa: E402
     Document,
     DocumentLink,
@@ -349,6 +353,8 @@ class IDTracker:
             "counters": [],
             "counter_group_permissions": [],
             "counter_group_role_permissions": [],
+            "dashboards": [],
+            "dashboard_permissions": [],
             "calendars": [],
             "calendar_events": [],
             "calendar_event_attendees": [],
@@ -508,6 +514,7 @@ async def _create_initiative(
     queues_enabled: bool = False,
     counter_groups_enabled: bool = False,
     calendars_enabled: bool = False,
+    dashboards_enabled: bool = False,
 ) -> tuple[Initiative, InitiativeRoleModel, InitiativeRoleModel]:
     """Create an initiative with roles and members."""
     initiative = Initiative(
@@ -518,6 +525,7 @@ async def _create_initiative(
         queues_enabled=queues_enabled,
         counter_groups_enabled=counter_groups_enabled,
         calendars_enabled=calendars_enabled,
+        dashboards_enabled=dashboards_enabled,
     )
     session.add(initiative)
     await session.flush()
@@ -1433,6 +1441,181 @@ async def _create_counter_groups(
     return groups
 
 
+def _widget(
+    widget_id: str,
+    widget_type: str,
+    source: str,
+    *,
+    x: int,
+    y: int,
+    w: int,
+    h: int,
+    title: str | None = None,
+    options: dict | None = None,
+    **params,
+) -> dict:
+    """One widget in a dashboard definition.
+
+    ``params`` are the binding's own — a project id, a filter-DSL ``conditions``
+    block, a counter to point at. There is deliberately no initiative here: a
+    dashboard reads within the initiative it lives on, and the normalizer drops
+    the key if one is supplied.
+    """
+    widget: dict = {
+        "id": widget_id,
+        "type": widget_type,
+        "grid": {"x": x, "y": y, "w": w, "h": h},
+        "binding": {"source": source, **params},
+    }
+    if title:
+        widget["title"] = title
+    if options:
+        widget["options"] = options
+    return widget
+
+
+async def _create_dashboards(
+    session: AsyncSession,
+    ids: IDTracker,
+    guild: Guild,
+    all_users: dict[str, User],
+    groups: dict[str, CounterGroup],
+    dashboard_defs: list[dict],
+) -> dict[str, Dashboard]:
+    """Create dashboards with their widget definitions and permissions.
+
+    Each ``dashboard_def`` has:
+        initiative_id, name, description, created_by (user name),
+        widgets: list of ``_widget(...)`` results,
+        role_grants: list of {role_id, level},
+        general_access: ResourceAccessLevel for an all-initiative-members grant.
+
+    A widget binding may name ``counter_group``/``counter`` by *name*; both are
+    resolved to ids here, the way ``created_by`` names a user. Every definition
+    goes through the real normalizer before it is stored, so a seed that drifts
+    from the widget vocabulary fails here rather than rendering as an error tile.
+    """
+
+    def _grant(**fields) -> ResourceGrant:
+        """One grant row, checked before it reaches Postgres.
+
+        ``resource_grants`` requires exactly one grantee (a user, a role, or the
+        whole initiative). SQLModel accepts an unknown kwarg silently — a
+        misspelled column name leaves the real one NULL and the row arrives with
+        no grantee at all, which surfaces as a check-constraint traceback a long
+        way from the typo.
+        """
+        grant = ResourceGrant(**fields)
+        grantees = (
+            int(grant.user_id is not None)
+            + int(grant.role_id is not None)
+            + int(bool(grant.all_initiative_members))
+        )
+        if grantees != 1:
+            raise RuntimeError(
+                f"grant needs exactly one grantee, got {grantees}: {fields}"
+            )
+        return grant
+
+    dashboards: dict[str, Dashboard] = {}
+    for dd in dashboard_defs:
+        creator = all_users[dd["created_by"]]
+
+        widgets = []
+        for widget in dd.get("widgets", []):
+            binding = dict(widget["binding"])
+            group_name = binding.pop("counter_group", None)
+            counter_name = binding.pop("counter", None)
+            if group_name:
+                group = groups[group_name]
+                binding["counter_group_id"] = group.id
+                if counter_name:
+                    found = (
+                        await session.exec(
+                            select(Counter).where(
+                                Counter.counter_group_id == group.id,
+                                Counter.name == counter_name,
+                            )
+                        )
+                    ).first()
+                    if found is None:
+                        raise RuntimeError(
+                            f"dashboard {dd['name']!r} names unknown counter {counter_name!r}"
+                        )
+                    binding["counter_id"] = found.id
+            widgets.append({**widget, "binding": binding})
+
+        definition = normalize_dashboard_definition(
+            {
+                "schema_version": 1,
+                "kind": "dashboard",
+                "layout": {"columns": 12},
+                "widgets": widgets,
+            }
+        )
+
+        dashboard = Dashboard(
+            guild_id=guild.id,
+            initiative_id=dd["initiative_id"],
+            name=dd["name"],
+            description=dd.get("description"),
+            definition=definition,
+            created_by_id=creator.id,
+        )
+        session.add(dashboard)
+        await session.flush()
+        ids.add("dashboards", dashboard.id)
+
+        owner_perm = _grant(
+            resource_type="dashboard",
+            resource_id=dashboard.id,
+            user_id=creator.id,
+            guild_id=guild.id,
+            initiative_id=dashboard.initiative_id,
+            level=ResourceAccessLevel.owner,
+        )
+        session.add(owner_perm)
+        ids.add(
+            "dashboard_permissions",
+            {"dashboard_id": dashboard.id, "user_id": creator.id},
+        )
+
+        for grant in dd.get("role_grants", []):
+            rp = _grant(
+                resource_type="dashboard",
+                resource_id=dashboard.id,
+                role_id=grant["role_id"],
+                guild_id=guild.id,
+                initiative_id=dashboard.initiative_id,
+                level=grant.get("level", ResourceAccessLevel.read),
+            )
+            session.add(rp)
+            ids.add(
+                "dashboard_permissions",
+                {"dashboard_id": dashboard.id, "role_id": grant["role_id"]},
+            )
+
+        if dd.get("general_access") is not None:
+            ga = _grant(
+                resource_type="dashboard",
+                resource_id=dashboard.id,
+                guild_id=guild.id,
+                initiative_id=dashboard.initiative_id,
+                level=dd["general_access"],
+                all_initiative_members=True,
+            )
+            session.add(ga)
+            ids.add(
+                "dashboard_permissions",
+                {"dashboard_id": dashboard.id, "general": True},
+            )
+
+        await session.flush()
+        dashboards[dd["name"]] = dashboard
+
+    return dashboards
+
+
 async def _create_calendar_events(
     session: AsyncSession,
     ids: IDTracker,
@@ -2001,6 +2184,7 @@ async def seed() -> None:
             queues_enabled=True,
             counter_groups_enabled=True,
             calendars_enabled=True,
+            dashboards_enabled=True,
         )
 
         # --- Initiative: Lost Mine of Phandelver ---
@@ -2016,6 +2200,7 @@ async def seed() -> None:
             queues_enabled=True,
             counter_groups_enabled=True,
             calendars_enabled=True,
+            dashboards_enabled=True,
         )
 
         # -- Projects --
@@ -3035,7 +3220,7 @@ async def seed() -> None:
 
         # -- Counters --
         print("  Creating Guild 1 counter groups...")
-        await _create_counter_groups(
+        g1_groups = await _create_counter_groups(
             session,
             ids,
             g1,
@@ -3176,6 +3361,155 @@ async def seed() -> None:
         )
         await _enable_role_feature(
             session, [g1_strahd_mem, g1_lmop_mem], "counter_groups_enabled"
+        )
+
+        # -- Dashboards --
+        print("  Creating Guild 1 dashboards...")
+        await _create_dashboards(
+            session,
+            ids,
+            g1,
+            all_users,
+            g1_groups,
+            [
+                {
+                    "initiative_id": g1_strahd.id,
+                    "name": "Campaign Overview",
+                    "description": "Where the party stands, at a glance.",
+                    "created_by": "Dungeon Master",
+                    "general_access": ResourceAccessLevel.read,
+                    "widgets": [
+                        _widget(
+                            "w1",
+                            "stat",
+                            "counter",
+                            x=0,
+                            y=0,
+                            w=3,
+                            h=2,
+                            title="Thorn's hit points",
+                            counter_group="Party Vitals (Strahd)",
+                            counter="Thorn HP",
+                        ),
+                        _widget(
+                            "w2",
+                            "stat",
+                            "task_counts",
+                            x=3,
+                            y=0,
+                            w=3,
+                            h=2,
+                            title="Open threads",
+                        ),
+                        _widget(
+                            "w3",
+                            "chart",
+                            "task_counts",
+                            x=6,
+                            y=0,
+                            w=6,
+                            h=4,
+                            title="Work by status",
+                            options={"mark": "bar"},
+                        ),
+                        _widget(
+                            "w4",
+                            "progress",
+                            "projects",
+                            x=0,
+                            y=2,
+                            w=6,
+                            h=2,
+                            title="Arc completion",
+                        ),
+                        _widget(
+                            "w5",
+                            "gantt",
+                            "tasks",
+                            x=0,
+                            y=4,
+                            w=12,
+                            h=6,
+                            title="Session schedule",
+                            options={"scale": "week"},
+                        ),
+                    ],
+                },
+                {
+                    "initiative_id": g1_strahd.id,
+                    "name": "Barovia Prep (private)",
+                    "description": "The DM's own board — nobody else is on it.",
+                    "created_by": "Dungeon Master",
+                    "widgets": [
+                        _widget(
+                            "w1",
+                            "table",
+                            "tasks",
+                            x=0,
+                            y=0,
+                            w=12,
+                            h=5,
+                            title="Everything still open",
+                            project_id=g1_barovia.id,
+                        ),
+                        _widget(
+                            "w2",
+                            "heatmap",
+                            "task_counts",
+                            x=0,
+                            y=5,
+                            w=8,
+                            h=3,
+                            title="Prep activity",
+                            bucket="day",
+                        ),
+                    ],
+                },
+                {
+                    "initiative_id": g1_lmop.id,
+                    "name": "Quest Board",
+                    "description": "Phandalin at a glance.",
+                    "created_by": "Dungeon Master",
+                    "role_grants": [
+                        {"role_id": g1_lmop_mem.id, "level": ResourceAccessLevel.write}
+                    ],
+                    "widgets": [
+                        _widget(
+                            "w1",
+                            "stat",
+                            "task_counts",
+                            x=0,
+                            y=0,
+                            w=3,
+                            h=2,
+                            title="Quests in flight",
+                        ),
+                        _widget(
+                            "w2",
+                            "funnel",
+                            "task_counts",
+                            x=3,
+                            y=0,
+                            w=6,
+                            h=5,
+                            title="Quest pipeline",
+                        ),
+                        _widget(
+                            "w3",
+                            "table",
+                            "projects",
+                            x=0,
+                            y=5,
+                            w=12,
+                            h=5,
+                            title="Adventure arcs",
+                        ),
+                    ],
+                },
+            ],
+        )
+        await _enable_role_feature(
+            session, [g1_strahd_mem, g1_lmop_mem], "dashboards_enabled"
         )
 
         # -- Calendar events --
@@ -3579,6 +3913,7 @@ async def seed() -> None:
             queues_enabled=True,
             counter_groups_enabled=True,
             calendars_enabled=True,
+            dashboards_enabled=True,
         )
 
         g2_side, g2_side_pm, g2_side_mem = await _create_initiative(
@@ -4205,7 +4540,7 @@ async def seed() -> None:
 
         # -- Counters --
         print("  Creating Guild 2 counter groups...")
-        await _create_counter_groups(
+        g2_groups = await _create_counter_groups(
             session,
             ids,
             g2,
@@ -4329,6 +4664,84 @@ async def seed() -> None:
         await _enable_role_feature(
             session, [g2_main_mem, g2_side_mem], "counter_groups_enabled"
         )
+
+        # -- Dashboards --
+        print("  Creating Guild 2 dashboards...")
+        await _create_dashboards(
+            session,
+            ids,
+            g2,
+            all_users,
+            g2_groups,
+            [
+                {
+                    "initiative_id": g2_main.id,
+                    "name": "Mission Status",
+                    "description": "Ship, crew, and schedule on one screen.",
+                    "created_by": "Elara Moonwhisper",
+                    "general_access": ResourceAccessLevel.read,
+                    "widgets": [
+                        _widget(
+                            "w1",
+                            "progress",
+                            "counter",
+                            x=0,
+                            y=0,
+                            w=4,
+                            h=2,
+                            title="Hull integrity",
+                            counter_group="Fleet Status",
+                            counter="Hull Integrity",
+                        ),
+                        _widget(
+                            "w2",
+                            "stat",
+                            "counter",
+                            x=4,
+                            y=0,
+                            w=3,
+                            h=2,
+                            title="Days to Kepler-442b",
+                            counter_group="Fleet Status",
+                            counter="Days to Kepler-442b",
+                        ),
+                        _widget(
+                            "w3",
+                            "chart",
+                            "counter_group",
+                            x=7,
+                            y=0,
+                            w=5,
+                            h=4,
+                            title="Fleet readings",
+                            counter_group="Fleet Status",
+                        ),
+                        _widget(
+                            "w4",
+                            "chart",
+                            "task_counts",
+                            x=0,
+                            y=2,
+                            w=7,
+                            h=4,
+                            title="Work by status",
+                            options={"mark": "pie"},
+                        ),
+                        _widget(
+                            "w5",
+                            "table",
+                            "tasks",
+                            x=0,
+                            y=6,
+                            w=12,
+                            h=5,
+                            title="Open work",
+                        ),
+                    ],
+                },
+            ],
+        )
+        await _enable_role_feature(session, [g2_main_mem], "dashboards_enabled")
 
         # -- Calendar events --
         print("  Creating Guild 2 calendar events...")
@@ -4705,6 +5118,7 @@ async def seed() -> None:
             queues_enabled=True,
             counter_groups_enabled=True,
             calendars_enabled=True,
+            dashboards_enabled=True,
         )
 
         g3_navy, g3_navy_pm, g3_navy_mem = await _create_initiative(
@@ -5446,7 +5860,7 @@ async def seed() -> None:
 
         # -- Counters --
         print("  Creating Guild 3 counter groups...")
-        await _create_counter_groups(
+        g3_groups = await _create_counter_groups(
             session,
             ids,
             g3,
@@ -5581,6 +5995,85 @@ async def seed() -> None:
         await _enable_role_feature(
             session, [g3_main_mem, g3_navy_mem], "counter_groups_enabled"
         )
+
+        # -- Dashboards --
+        print("  Creating Guild 3 dashboards...")
+        await _create_dashboards(
+            session,
+            ids,
+            g3,
+            all_users,
+            g3_groups,
+            [
+                {
+                    "initiative_id": g3_main.id,
+                    "name": "The Crimson Maiden",
+                    "description": "Ship's condition and the crew's work.",
+                    "created_by": "Vex Shadowstep",
+                    "general_access": ResourceAccessLevel.write,
+                    "widgets": [
+                        _widget(
+                            "w1",
+                            "progress",
+                            "counter",
+                            x=0,
+                            y=0,
+                            w=4,
+                            h=2,
+                            title="Hull",
+                            counter_group="The Crimson Maiden",
+                            counter="Hull HP",
+                        ),
+                        _widget(
+                            "w2",
+                            "progress",
+                            "counter",
+                            x=4,
+                            y=0,
+                            w=4,
+                            h=2,
+                            title="Crew morale",
+                            counter_group="The Crimson Maiden",
+                            counter="Crew Morale",
+                        ),
+                        _widget(
+                            "w3",
+                            "stat",
+                            "counter",
+                            x=8,
+                            y=0,
+                            w=4,
+                            h=2,
+                            title="Rations left",
+                            counter_group="The Crimson Maiden",
+                            counter="Rations (days)",
+                        ),
+                        _widget(
+                            "w4",
+                            "chart",
+                            "task_counts",
+                            x=0,
+                            y=2,
+                            w=6,
+                            h=4,
+                            title="Voyage work",
+                            options={"mark": "line"},
+                        ),
+                        _widget(
+                            "w5",
+                            "progress",
+                            "projects",
+                            x=6,
+                            y=2,
+                            w=6,
+                            h=4,
+                            title="Voyage legs",
+                        ),
+                    ],
+                },
+            ],
+        )
+        await _enable_role_feature(session, [g3_main_mem], "dashboards_enabled")
 
         # -- Calendar events --
         print("  Creating Guild 3 calendar events...")

@@ -139,8 +139,9 @@ class CalendarEventSummary(CalendarEventBase):
     id: int
     calendar_id: int
     # Derived from the parent calendar — kept on the summary so list views can
-    # filter/group by initiative without another fetch.
-    initiative_id: int
+    # filter/group by initiative without another fetch. NULL when the parent is
+    # a guild-level calendar.
+    initiative_id: Optional[int] = None
     guild_id: int
     created_by_id: int
     attendee_count: int = 0

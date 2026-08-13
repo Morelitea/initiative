@@ -102,7 +102,7 @@
     "resource_counter_group_other": "grupos de contadores",
     "resource_calendar_one": "calendario",
     "resource_calendar_other": "calendarios",
-    "resource_advanced_tool_one": "herramienta avanzada",
-    "resource_advanced_tool_other": "herramientas avanzadas"
+    "resource_dashboard_one": "panel",
+    "resource_dashboard_other": "paneles"
   }
 }

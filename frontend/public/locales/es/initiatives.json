@@ -71,8 +71,8 @@
     "projects": "Proyectos",
     "queues": "Colas",
     "calendars": "Calendario",
-    "counterGroups": "Contadores",
-    "advancedTools": "Herramientas avanzadas"
+    "dashboards": "Paneles",
+    "counterGroups": "Contadores"
   },
   "settings": {
     "title": "Configuración de la iniciativa",
@@ -183,8 +183,8 @@
       "projects": "Proyectos",
       "queues": "Colas",
       "calendars": "Eventos",
-      "counterGroups": "Contadores",
-      "advancedTools": "Herramienta avanzada"
+      "dashboards": "Paneles",
+      "counterGroups": "Contadores"
     },
     "permissions": {
       "viewDocuments": "Ver documentos",
@@ -195,8 +195,8 @@
       "createQueues": "Crear colas",
       "viewCalendars": "Ver eventos",
       "createCalendars": "Crear eventos",
-      "viewAdvancedTools": "Abrir la herramienta avanzada",
-      "createAdvancedTools": "Crear en la herramienta avanzada",
+      "viewDashboards": "Ver paneles",
+      "createDashboards": "Crear paneles",
       "viewCounterGroups": "Ver contadores",
       "createCounterGroups": "Crear contadores"
     }
@@ -207,20 +207,8 @@
   "queuesFeatureDescription": "Organiza elementos por prioridad, sigue el orden de turnos y gestiona quién sigue.",
   "calendarsFeature": "Calendario",
   "calendarsFeatureDescription": "Organiza eventos en calendarios compartibles con asistentes y seguimiento de confirmaciones.",
-  "advancedToolsFeatureDescription": "Inserta el panel de {{name}} en esta iniciativa.",
-  "advancedTool": {
-    "connecting": "Conectando…",
-    "handoffFailed": "No se pudo establecer una sesión segura con la herramienta integrada.",
-    "iframeError": "No se pudo cargar la herramienta integrada.",
-    "unavailableTitle": "No configurado",
-    "unavailableDescription": "Esta instalación no tiene una herramienta avanzada configurada.",
-    "disabledTitle": "{{name}} está desactivado para esta iniciativa",
-    "disabledDescription": "Actívalo desde la configuración de la iniciativa para cargar el panel.",
-    "openSettings": "Abrir configuración",
-    "guildAdminOnlyTitle": "Solo administradores",
-    "guildAdminOnlyDescription": "Solo los administradores del grupo pueden gestionar las automatizaciones a nivel de grupo."
-  },
+  "dashboardsFeature": "Paneles",
+  "dashboardsFeatureDescription": "Crea un lienzo de gráficos, indicadores y cronogramas que muestra el trabajo existente: un panel nunca edita los datos que muestra.",
   "counterGroupsFeature": "Contadores",
-  "counterGroupsFeatureDescription": "Lleva el control de valores numéricos como PG, puntuaciones o presupuestos — acotados, con incremento configurable y mostrados como números, barras o indicadores radiales.",
-  "advancedToolsFeature": "Herramientas avanzadas"
+  "counterGroupsFeatureDescription": "Lleva el control de valores numéricos como PG, puntuaciones o presupuestos — acotados, con incremento configurable y mostrados como números, barras o indicadores radiales."
 }

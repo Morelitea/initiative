@@ -19,7 +19,7 @@ Two cooperating layers make direct sessions schema-native:
    routed to that guild's schema; a flush spanning two guilds, or one whose
    tenant rows carry no ``guild_id`` while the session was never routed,
    raises immediately with a pointer here — instead of surfacing later as a
-   cryptic ``UndefinedTableError`` from the missing public copy.
+   cryptic ``UndefinedTableError`` from an unrouted query.
 
 Routing is **transaction-local**, mirroring production: the pin lives in
 ``session.info`` and a ``after_begin`` listener re-applies it at the start of

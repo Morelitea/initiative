@@ -11,6 +11,12 @@ export {
   resetCounter as resetInitiativeCounter,
 } from "./initiative.factory";
 export {
+  buildMarketplaceListing,
+  buildMarketplaceListingDetail,
+  buildMarketplaceVersion,
+  resetCounter as resetMarketplaceCounter,
+} from "./marketplace.factory";
+export {
   buildNotification,
   resetCounter as resetNotificationCounter,
 } from "./notification.factory";
@@ -60,6 +66,7 @@ import { resetCounter as resetCommentCounter } from "./comment.factory";
 import { resetCounter as resetDocumentCounter } from "./document.factory";
 import { resetCounter as resetGuildCounter } from "./guild.factory";
 import { resetCounter as resetInitiativeCounter } from "./initiative.factory";
+import { resetCounter as resetMarketplaceCounter } from "./marketplace.factory";
 import { resetCounter as resetNotificationCounter } from "./notification.factory";
 import { resetCounter as resetProjectCounter } from "./project.factory";
 import { resetCounter as resetPropertyCounter } from "./properties";
@@ -86,4 +93,5 @@ export function resetFactories(): void {
   resetQueueCounter();
   resetPropertyCounter();
   resetRecentCounter();
+  resetMarketplaceCounter();
 }

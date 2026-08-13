@@ -20,6 +20,11 @@ from typing import Awaitable, Callable
 
 from app.core.config import settings
 
+#: The most any app-service request may carry. Sized for the largest route on
+#: that surface — events — plus its envelope, and kept here rather than imported
+#: from the router so this module stays free of app-layer imports.
+APP_SERVICE_MAX_REQUEST_BYTES = 64 * 1024 + 8 * 1024
+
 # (path pattern, limit getter, machine-readable error code). Getters read
 # settings lazily — the limit is a property of request time, not boot time.
 _RULES: tuple[tuple[re.Pattern[str], Callable[[], int], str], ...] = (
@@ -34,6 +39,16 @@ _RULES: tuple[tuple[re.Pattern[str], Callable[[], int], str], ...] = (
         re.compile(r"^/api/v1/g/\d+/imports/backup$"),
         lambda: settings.IMPORT_MAX_BACKUP_UPLOAD_BYTES + 1_048_576,
         "IMPORT_TOO_LARGE",
+    ),
+    (
+        # Every app-service route buffers its body before authenticating —
+        # the signature covers those bytes, so they have to be read to check
+        # it. Without a ceiling here that read is unbounded and happens for a
+        # caller who has not proved anything yet, so the transport refuses an
+        # oversized body first and the handler's exact cap still applies after.
+        re.compile(r"^/api/v1/app-service(/|$)"),
+        lambda: APP_SERVICE_MAX_REQUEST_BYTES,
+        "APP_CHANNEL_EVENT_TOO_LARGE",
     ),
 )
 

@@ -35,6 +35,8 @@ pytestmark = [pytest.mark.integration, pytest.mark.database]
 # Shared tables that carry (FORCEd) row-level security.
 _RLS_SHARED_TABLES = {
     "access_grants",
+    "app_service_nonces",
+    "app_service_registrations",
     "app_settings",
     "auth_provider_secrets",
     "auth_providers",
@@ -46,6 +48,10 @@ _RLS_SHARED_TABLES = {
     "guild_invites",
     "guild_memberships",
     "guilds",
+    "marketplace_listing_versions",
+    "marketplace_listings",
+    "marketplace_media",
+    "marketplace_registry_state",
     "oidc_claim_mappings",
     "platform_ai_connections",
     "storage_backfill_state",
@@ -236,6 +242,50 @@ async def test_users_request_path_insert_is_pinned_to_member(engine):
     assert "role" in (with_check or "") and "member" in (with_check or ""), (
         f"insert-member policy check does not pin role to member: {with_check!r}"
     )
+
+
+async def test_guild_billing_columns_are_not_writable_by_request_roles(engine):
+    """Tier and cap columns on ``guilds`` are not writable by the request-path
+    floors (migration 0138). Drift guard."""
+    request_roles = ["app_guild_base", f"{settings.PLATFORM_ROLE_PREFIX}platform_base"]
+    billing_columns = [
+        "tier_name",
+        "max_storage_bytes",
+        "max_users",
+        "status",
+        "status_changed_at",
+    ]
+    async with engine.connect() as conn:
+        for role in request_roles:
+            writable = {
+                column
+                for column in billing_columns
+                if (
+                    await conn.execute(
+                        text(
+                            "SELECT has_column_privilege("
+                            ":role, 'public.guilds', :column, 'UPDATE')"
+                        ),
+                        {"role": role, "column": column},
+                    )
+                ).scalar()
+            }
+            assert writable == set(), (
+                f"{role} must hold no UPDATE on guilds billing columns — a tier "
+                f"or cap change is operator/billing-only: {sorted(writable)}"
+            )
+        # Positive control, so the assertion above can't pass on a blanket revoke.
+        identity_writable = (
+            await conn.execute(
+                text(
+                    "SELECT has_column_privilege("
+                    "'app_guild_base', 'public.guilds', 'name', 'UPDATE')"
+                )
+            )
+        ).scalar()
+        assert identity_writable, (
+            "app_guild_base must retain UPDATE on guilds.name (guild identity)"
+        )
 
 
 async def test_guild_membership_role_is_writable_only_by_the_system_engine(engine):

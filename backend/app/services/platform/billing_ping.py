@@ -1,16 +1,12 @@
-"""Fire-and-forget membership-change ping to the external billing service.
+"""Fire-and-forget membership ping to the external billing service.
 
-Seats are event-driven (write-boundary plan D5): when a guild's membership
-changes, billing is nudged to re-read the authoritative headcount via its
-signed ``/billing/headcount`` call and push recomputed caps back through
-``/billing/guild-tier``. The ping is a **trigger, not a source of truth**:
+A nudge that a guild's membership changed. What the service does with it is
+its own business; this side only sends it.
 
-* payload is the guild id and a fresh event id only — no member data, no
-  PII, and deliberately **no member count** (a stale or spurious ping only
-  causes billing to recompute the truth);
-* no retry queue and no delivery guarantee — a lost ping is corrected by
-  the next one or by billing's period-close reconciliation;
-* the join/leave transaction must never fail or slow because billing is
+* the payload is the guild id and a fresh event id, and nothing else — no
+  member data, no PII, no count;
+* no retry queue and no delivery guarantee;
+* the join/leave transaction must never fail or slow because the service is
   down: the send runs as a detached task with a tight timeout and swallows
   every error.
 
@@ -103,8 +99,7 @@ def notify_membership_changed(guild_id: int) -> None:
     Call from any code path that inserts or deletes a ``guild_memberships``
     row. Fire-and-forget: returns immediately, and is a complete no-op when
     billing is not configured. Callers may invoke this before their commit —
-    a ping for a rolled-back change is harmless because billing re-reads the
-    committed headcount, never the ping.
+    a ping for a rolled-back change is harmless, because it carries no facts.
     """
     if not billing_ping_enabled():
         return

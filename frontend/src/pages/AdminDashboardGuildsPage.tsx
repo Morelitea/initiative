@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 
 import type { PlatformGuildStorageRead } from "@/api/generated/initiativeAPI.schemas";
 import { GuildStatus } from "@/api/generated/initiativeAPI.schemas";
+import { createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPost } from "@/api/generated/settings/settings";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable } from "@/components/ui/data-table";
@@ -15,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import {
   useInterfaceSettings,
@@ -189,6 +192,52 @@ const GuildUserLimitCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
   );
 };
 
+/** Opens one guild's account in the billing portal, labelled with its plan. */
+const GuildBillingCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
+  const { t, i18n } = useTranslation("settings");
+  const { billing } = useAppConfig();
+  const [opening, setOpening] = useState(false);
+
+  const open = async () => {
+    if (!billing) return;
+    setOpening(true);
+    const tab = window.open("about:blank", "_blank");
+    if (tab) tab.opener = null;
+    try {
+      const { handoff_token } =
+        await createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPost(
+          guild.id
+        );
+      const lang = i18n.resolvedLanguage ?? i18n.language;
+      // The token rides in the fragment, which never leaves the browser. The
+      // console reads the guild off the exchanged session, so the URL does not
+      // name one — only the language carries over.
+      const url = `${billing.url}/support?lang=${encodeURIComponent(
+        lang
+      )}#support_handoff=${encodeURIComponent(handoff_token)}`;
+      if (tab) tab.location.href = url;
+      else window.open(url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      tab?.close();
+      toast.error(getErrorMessage(err, "settings:guilds.billing.openError"));
+    } finally {
+      setOpening(false);
+    }
+  };
+
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      onClick={open}
+      disabled={opening}
+      aria-label={t("guilds.billing.openLabel", { name: guild.name })}
+    >
+      {guild.tier_name ?? t("guilds.billing.noPlan")}
+    </Button>
+  );
+};
+
 // Ordered least → most restrictive for the dropdown.
 const GUILD_STATUS_ORDER: GuildStatus[] = [
   GuildStatus.active,
@@ -310,6 +359,7 @@ export const AdminDashboardGuildsPage = () => {
   // sign-in; under platform posture the toggle would do nothing, so hide it.
   const interfaceSettings = useInterfaceSettings();
   const guildAuthPosture = interfaceSettings.data?.auth_scope === "guild";
+  const { billing } = useAppConfig();
 
   const columns: AppColumnDef<PlatformGuildStorageRead>[] = [
     {
@@ -351,6 +401,18 @@ export const AdminDashboardGuildsPage = () => {
       enableSorting: false,
       cell: ({ row }) => <GuildStatusCell guild={row.original} />,
     },
+    // Only when this deployment links a billing portal AND the operator route
+    // into it is wired — otherwise the button could only ever fail.
+    ...(billing?.operator_handoff
+      ? [
+          {
+            id: "billing",
+            header: t("guilds.columns.billing"),
+            enableSorting: false,
+            cell: ({ row }) => <GuildBillingCell guild={row.original} />,
+          } satisfies AppColumnDef<PlatformGuildStorageRead>,
+        ]
+      : []),
   ];
 
   if (!canManageGuilds) {

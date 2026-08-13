@@ -11,17 +11,16 @@ from app.api.deps import SessionDep, UserSessionDep, get_current_active_user
 from app.core.auth_context import satisfied_provider_ids
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
-from app.core.messages import AdvancedToolMessages, BillingMessages, GuildMessages
+from app.core.messages import BillingMessages, GuildMessages
 from app.core.security import (
     HandoffSigningNotConfiguredError,
-    create_advanced_tool_handoff_token,
     create_billing_portal_handoff_token,
     verify_password,
 )
 from app.db.schema_provisioning import deprovision_guild
 from app.db.session import get_admin_session, set_rls_context
 from app.models.platform.guild import GuildRole, GuildMembership, Guild, GuildStatus
-from app.models.platform.user import User
+from app.models.platform.user import User, UserStatus
 from app.schemas.platform.billing import BillingPortalHandoffResponse
 from app.schemas.platform.guild import (
     GuildAuthPolicyRead,
@@ -40,13 +39,14 @@ from app.schemas.platform.guild import (
     LeaveGuildRequest,
 )
 from app.schemas.platform.user import GuildRemovalProjectInfo, UserPublic
-from app.schemas.tenant.initiative import AdvancedToolHandoffResponse
 from app.core.config import AuthScope
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.services.auth.identity import has_federated_identity
 from app.services.auth.platform_provider import is_login_ready
 from app.services.platform import guilds as guilds_service
+from app.services.tenant import app_connections as app_connections_service
+from app.services.tenant import app_revocation as app_revocation_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services import rls as rls_service
 from app.services.stream_authz import authority as stream_authority
@@ -193,6 +193,34 @@ async def get_invite_status(
     )
 
 
+async def _resolve_guild_owner(
+    session: AsyncSession, guild_in: GuildCreate, current_user: User
+) -> User:
+    """Who the new guild's admin will be — the caller, unless a
+    ``guilds.manage`` holder named someone else.
+
+    Refused rather than ignored without that capability: creating the guild
+    under the caller would answer 201 for a request that named another account.
+    The named account must already exist and be active — this never creates
+    one, and never hands a guild to an account that cannot sign in to run it.
+    """
+    requested = guild_in.owner_user_id
+    if requested is None or requested == current_user.id:
+        return current_user
+    if not user_has_capability(current_user, Capability.GUILDS_MANAGE):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=GuildMessages.GUILD_OWNER_REQUIRES_CAPABILITY,
+        )
+    owner = await session.get(User, requested)
+    if owner is None or owner.status is not UserStatus.active:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=GuildMessages.GUILD_OWNER_NOT_FOUND,
+        )
+    return owner
+
+
 @router.post("/", response_model=GuildRead, status_code=status.HTTP_201_CREATED)
 async def create_guild(
     guild_in: GuildCreate,
@@ -200,7 +228,12 @@ async def create_guild(
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildRead:
     """Create a new guild. Uses admin session because the guild doesn't exist
-    yet — no guild context or membership exists for RLS to match against."""
+    yet — no guild context or membership exists for RLS to match against.
+
+    The caller becomes the guild's admin, unless they hold ``guilds.manage``
+    and name an ``owner_user_id``, which hands the guild to that account
+    instead and leaves the caller holding nothing in it.
+    """
     if settings.DISABLE_GUILD_CREATION and not user_has_capability(
         current_user, Capability.GUILDS_MANAGE
     ):
@@ -215,6 +248,8 @@ async def create_guild(
             detail=GuildMessages.GUILD_NAME_REQUIRED,
         )
 
+    owner = await _resolve_guild_owner(session, guild_in, current_user)
+
     # The guild's shared rows (guild + admin membership) live in public. Commit
     # them first so provisioning + the in-schema seed below run as a distinct,
     # compensatable step (on failure: deprovision + delete these committed rows).
@@ -224,8 +259,18 @@ async def create_guild(
         description=guild_in.description,
         icon_base64=guild_in.icon_base64,
         creator=current_user,
+        owner=owner,
     )
     await session.commit()
+    if owner.id != current_user.id:
+        # Both identities: created_by_user_id holds the first, the admin
+        # membership the second.
+        logger.info(
+            "guild %s created by user %s on behalf of user %s",
+            guild.id,
+            current_user.id,
+            owner.id,
+        )
     try:
         # Provision the schema and create the guild-scoped seed rows (settings +
         # default initiative) *inside* it — so a new guild is schema-native from
@@ -233,7 +278,7 @@ async def create_guild(
         await guilds_service.seed_guild_content(
             session,
             guild_id=guild.id,
-            creator=current_user,
+            owner=owner,
         )
         await session.commit()
     except Exception:
@@ -253,8 +298,11 @@ async def create_guild(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=GuildMessages.GUILD_PROVISION_FAILED,
         )
+    # The owner's membership — the caller's own in the ordinary case. When the
+    # guild was created for another account the caller holds none, so the
+    # response describes the guild through its admin.
     membership = await guilds_service.get_membership(
-        session, guild_id=guild.id, user_id=current_user.id
+        session, guild_id=guild.id, user_id=owner.id
     )
     if not membership:
         raise HTTPException(
@@ -314,72 +362,6 @@ async def update_guild(
         membership,
         retention_days=retention_days,
         member_count=member_count,
-    )
-
-
-# ---------------------------------------------------------------------------
-# Advanced tool handoff (guild scope) — admin-only embed.
-# ---------------------------------------------------------------------------
-
-
-@router.post(
-    "/{guild_id}/advanced-tool/handoff",
-    response_model=AdvancedToolHandoffResponse,
-)
-async def create_guild_advanced_tool_handoff(
-    guild_id: int,
-    session: SessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-) -> AdvancedToolHandoffResponse:
-    """Mint a short-lived JWT for the guild-scoped advanced-tool iframe.
-
-    Authorization gates (all enforced here, not in the receiving embed):
-
-      1. Deployment must have ADVANCED_TOOL_URL configured.
-      2. Caller must be a guild admin of this guild (real membership).
-
-    The returned token has ``scope=guild`` and intentionally omits
-    ``initiative_id``. The receiving service must trust the JWT's scope
-    claim — the URL query param is a hint only, useful for routing on the
-    embed side, not enough to authorize on its own.
-    """
-    if not settings.ADVANCED_TOOL_URL:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=AdvancedToolMessages.NOT_CONFIGURED,
-        )
-
-    await _ensure_guild_admin(
-        session,
-        guild_id=guild_id,
-        user_id=current_user.id,
-    )
-
-    try:
-        token, expires_in_seconds = create_advanced_tool_handoff_token(
-            user_id=current_user.id,
-            guild_id=guild_id,
-            guild_role=GuildRole.admin.value,
-            # Guild admins are managers by definition for this scope.
-            is_manager=True,
-            # Admins always have create permission at the guild level.
-            can_create=True,
-            scope="guild",
-        )
-    except HandoffSigningNotConfiguredError as exc:
-        # ADVANCED_TOOL_URL is on but no RS256 signing key — fail closed
-        # (retryable once the operator configures the key).
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=AdvancedToolMessages.SIGNING_NOT_CONFIGURED,
-        ) from exc
-
-    return AdvancedToolHandoffResponse(
-        handoff_token=token,
-        expires_in_seconds=expires_in_seconds,
-        iframe_url=settings.ADVANCED_TOOL_URL,
-        scope="guild",
-        initiative_id=None,
     )
 
 
@@ -592,6 +574,12 @@ async def delete_guild(
             detail=GuildMessages.CONFIRMATION_MISMATCH,
         )
 
+    # End the guild's app access while the schema is still there to read. The
+    # DROP below would take the rows with it silently, which would leave vendor
+    # grants outliving the guild that authorized them — so each app is told to
+    # let go first, and the intents are delivered once the deletion commits.
+    await app_connections_service.delete_guild_connections(session)
+
     # Delete the guild ROW first — reliable, and the guild is immediately gone from
     # the app's point of view. Its ON DELETE CASCADE FKs clear the shared roster
     # (memberships, invites, OIDC mappings, access grants). The guild-scoped data
@@ -600,6 +588,9 @@ async def delete_guild(
     # public.guilds guild_delete RLS policy (current_guild_id) matches.
     await guilds_service.delete_guild(session, guild)
     await session.commit()
+    await app_revocation_service.dispatch_revocations(
+        app_revocation_service.drain_revocations(session)
+    )
 
     # Drop the schema + role as best-effort cleanup. Reset the assumed guild role
     # first (committed) so DROP ROLE can run. With the cross-schema FKs gone,
@@ -1000,4 +991,10 @@ async def leave_guild(
     await session.commit()
     # Left the guild — drop this user's live content streams immediately.
     await stream_authority.revoke_user(guild_id, current_user.id)
+    # …and tell this guild's apps that the credentials this person connected
+    # under it are finished. After the commit, so an app is never told to let go
+    # of something a rollback would have put back.
+    await app_revocation_service.dispatch_revocations(
+        app_revocation_service.drain_revocations(session)
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)

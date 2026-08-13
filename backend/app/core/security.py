@@ -279,19 +279,6 @@ def verify_upload_token(token: str) -> tuple[int, frozenset[int]]:
     return user_id, satisfied
 
 
-# Audience claim for tokens minted for the embedded advanced-tool iframe.
-# The receiving service MUST verify ``aud`` matches this value before
-# trusting the token. Setting it prevents replay of regular session
-# tokens against the iframe backend, and vice versa.
-ADVANCED_TOOL_AUDIENCE = "initiative:advanced-tool"
-
-# Single source of truth for the handoff token's lifetime. Used both as
-# the default ``expires_in`` and as the value the function reports back
-# to callers, so ``AdvancedToolHandoffResponse.expires_in_seconds`` and
-# the JWT's ``exp`` claim can never disagree.
-ADVANCED_TOOL_HANDOFF_LIFETIME = timedelta(seconds=60)
-
-
 class HandoffSigningNotConfiguredError(RuntimeError):
     """Raised when a handoff token is requested but no RS256 signing key is
     configured. The token is verified by a separate service, so there is no
@@ -319,75 +306,13 @@ def _resolve_handoff_signing_material() -> tuple[str, str, str | None]:
     return private_pem, "RS256", settings.HANDOFF_SIGNING_KEY_ID
 
 
-def create_advanced_tool_handoff_token(
-    *,
-    user_id: int,
-    guild_id: int,
-    guild_role: str,
-    is_manager: bool,
-    can_create: bool,
-    scope: str,
-    initiative_id: int | None = None,
-    expires_in: timedelta = ADVANCED_TOOL_HANDOFF_LIFETIME,
-) -> tuple[str, int]:
-    """Mint a short-lived JWT used by the SPA to bootstrap the embedded
-    advanced-tool iframe.
-
-    The flow:
-      1. SPA calls the handoff endpoint after the user opens the panel.
-      2. Backend validates membership + master switch + URL config.
-      3. Backend returns this token, which the SPA passes to the iframe via
-         postMessage (never a query string).
-      4. The iframe's backend verifies the token with the matching RS256
-         public key, confirms ``aud == ADVANCED_TOOL_AUDIENCE``, and
-         exchanges it for its own session. The ``jti`` claim is used as a
-         one-shot guard — once exchanged, the embed must reject any repeat
-         presentation of the same token within the 60s window.
-
-    ``scope`` is "initiative" or "guild". For guild scope the iframe is
-    used by guild admins only and there is no ``initiative_id``. The
-    receiving service MUST trust this claim (not the URL query param)
-    when deciding which view to render.
-
-    The token is intentionally short-lived so a leak (browser history,
-    accidental log capture) has minimal blast radius. Long-lived auth
-    lives in the iframe's own session, not in this handoff.
-
-    Returns the encoded JWT plus the integer seconds until expiry, so the
-    handoff response can advertise the same lifetime that's encoded in
-    the token's ``exp`` claim.
-    """
-    now = datetime.now(timezone.utc)
-    payload: dict[str, Any] = {
-        # Unique per-token identifier so the embed can blocklist a token
-        # after it's been exchanged once. Without this, the same token
-        # could be redeemed multiple times within its 60s lifetime.
-        "jti": str(uuid.uuid4()),
-        "sub": str(user_id),
-        "aud": ADVANCED_TOOL_AUDIENCE,
-        "iss": "initiative",
-        "iat": int(now.timestamp()),
-        "exp": now + expires_in,
-        # Context the receiver needs to scope the session it issues.
-        "guild_id": guild_id,
-        "guild_role": guild_role,
-        "is_manager": is_manager,
-        "scope": scope,
-        # Forwarded so the proprietary backend can hide create UI for
-        # members whose role doesn't grant create_advanced_tools. View
-        # access is implied by the fact that we issued this token at all.
-        "can_create": can_create,
-    }
-    if initiative_id is not None:
-        payload["initiative_id"] = initiative_id
-
-    key, algorithm, kid = _resolve_handoff_signing_material()
-    headers: dict[str, Any] | None = {"kid": kid} if kid else None
-    token = jwt.encode(payload, key, algorithm=algorithm, headers=headers)
-    return token, int(expires_in.total_seconds())
-
-
 BILLING_PORTAL_AUDIENCE = "initiative:billing-portal"
+
+# This handoff's lifetime, owned here like the support handoff's below. Used
+# both as the default ``expires_in`` and as the value the function reports back,
+# so the response's ``expires_in_seconds`` and the JWT's ``exp`` claim can never
+# disagree.
+BILLING_PORTAL_HANDOFF_LIFETIME = timedelta(seconds=60)
 
 
 def create_billing_portal_handoff_token(
@@ -395,7 +320,7 @@ def create_billing_portal_handoff_token(
     user_id: int,
     guild_id: int,
     guild_role: str,
-    expires_in: timedelta = ADVANCED_TOOL_HANDOFF_LIFETIME,
+    expires_in: timedelta = BILLING_PORTAL_HANDOFF_LIFETIME,
 ) -> tuple[str, int]:
     """Mint the billing-portal handoff token (RS256; raises if unconfigured)."""
     now = datetime.now(timezone.utc)
@@ -413,6 +338,99 @@ def create_billing_portal_handoff_token(
     headers: dict[str, Any] | None = {"kid": kid} if kid else None
     token = jwt.encode(payload, key, algorithm=algorithm, headers=headers)
     return token, int(expires_in.total_seconds())
+
+
+class AppPlatformSigningNotConfiguredError(RuntimeError):
+    """Raised when app-platform signing material is needed but absent.
+
+    The app platform has its own dedicated keypair and deliberately no
+    fallback to any other configured key: an app verifies context JWTs against
+    the published public half, and two boundaries sharing one key would share
+    one rotation. Callers translate this into a fail-closed 503.
+    """
+
+
+def app_platform_signing_enabled() -> bool:
+    """True when this deployment can sign for the app platform."""
+    return bool(settings.APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM)
+
+
+def resolve_app_platform_signing_material() -> tuple[str, str, str | None]:
+    """Return (private_key_pem, "RS256", kid) for app-platform tokens."""
+    private_pem = settings.APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM
+    if not private_pem:
+        raise AppPlatformSigningNotConfiguredError(
+            "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM is required to run the app "
+            "platform; it has no fallback to another service's key"
+        )
+    return private_pem, "RS256", settings.APP_PLATFORM_SIGNING_KEY_ID
+
+
+def app_platform_audience(public_id: str) -> str:
+    """The ``aud`` a token minted for one app service carries."""
+    return f"{settings.APP_PLATFORM_AUDIENCE_PREFIX}{public_id}"
+
+
+# Pinned on both sides of the boundary — not deployment knobs.
+BILLING_SUPPORT_HANDOFF_ISSUER = "initiative"
+BILLING_SUPPORT_HANDOFF_AUDIENCE = "initiative:billing-support"
+
+# Lifetime of a billing-support handoff, and the ceiling the receiver accepts.
+BILLING_SUPPORT_HANDOFF_LIFETIME = timedelta(seconds=60)
+BILLING_SUPPORT_HANDOFF_MAX_LIFETIME = timedelta(seconds=300)
+
+
+class BillingSupportHandoffNotConfiguredError(RuntimeError):
+    """Raised when a billing-support handoff is requested but the shared
+    signing material is absent. Fails closed — the caller returns 503."""
+
+
+def billing_support_handoff_enabled() -> bool:
+    """True when this deployment can mint billing-support handoffs."""
+    return bool(
+        settings.BILLING_SUPPORT_HANDOFF_SECRET and settings.BILLING_SUPPORT_HANDOFF_KID
+    )
+
+
+def create_billing_support_handoff_token(
+    *,
+    user_id: int,
+    guild_id: int,
+    grant_id: int | str,
+    approver_id: int | str | None = None,
+    expires_in: timedelta = BILLING_SUPPORT_HANDOFF_LIFETIME,
+) -> tuple[str, int]:
+    """Mint the billing-support handoff token.
+
+    ``grant_id`` names the ``access_grants`` row that authorises the visit, so
+    both sides log the same grant.
+    """
+    if not billing_support_handoff_enabled():
+        raise BillingSupportHandoffNotConfiguredError(
+            "BILLING_SUPPORT_HANDOFF_SECRET and _KID are required to mint "
+            "billing-support handoffs"
+        )
+    lifetime = min(expires_in, BILLING_SUPPORT_HANDOFF_MAX_LIFETIME)
+    now = datetime.now(timezone.utc)
+    payload: dict[str, Any] = {
+        "jti": str(uuid.uuid4()),
+        "sub": str(user_id),
+        "aud": BILLING_SUPPORT_HANDOFF_AUDIENCE,
+        "iss": BILLING_SUPPORT_HANDOFF_ISSUER,
+        "iat": int(now.timestamp()),
+        "exp": int((now + lifetime).timestamp()),
+        "guild_id": int(guild_id),
+        "grant_id": str(grant_id),
+    }
+    if approver_id is not None:
+        payload["approver"] = str(approver_id)
+    token = jwt.encode(
+        payload,
+        settings.BILLING_SUPPORT_HANDOFF_SECRET,
+        algorithm="HS256",
+        headers={"kid": settings.BILLING_SUPPORT_HANDOFF_KID},
+    )
+    return token, int(lifetime.total_seconds())
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -441,6 +459,17 @@ class AutoDelegationClaims:
 
 class AutoDelegationVerificationError(Exception):
     """Raised when the inbound delegation JWT fails any check."""
+
+
+def auto_delegation_configured() -> bool:
+    """True when this deployment has an automation delegate.
+
+    The delegate is identified by the public half of its signing key, so the
+    presence of that key is what "a delegate exists here" means. Single source
+    of truth for every surface that is delegate-owned: the subscription
+    endpoints refuse without it and the outbound dispatcher stays inert.
+    """
+    return bool(settings.AUTO_DELEGATION_PUBLIC_KEY_PEM)
 
 
 def verify_auto_delegation_token(token: str) -> AutoDelegationClaims:

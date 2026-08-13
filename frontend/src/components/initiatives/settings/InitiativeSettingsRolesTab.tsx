@@ -18,7 +18,6 @@ import { TabsContent } from "@/components/ui/tabs";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import {
   ADVANCED_PERMISSION_GROUPS,
-  ADVANCED_TOOL_PERMISSION_GROUP,
   CORE_PERMISSION_GROUPS,
   PERMISSION_LABEL_KEYS,
   type PermissionGroup,
@@ -86,14 +85,6 @@ export const InitiativeSettingsRolesTab = ({
   const rolesQuery = useInitiativeRoles(initiativeId || null);
   const updateRoleMutation = useUpdateRole(initiativeId);
   const deleteRoleMutation = useDeleteRole(initiativeId);
-
-  // Only surface the advanced-tool permission group when the deployment has
-  // an advanced tool URL configured. OSS deployments without it never see
-  // these permission rows in role settings.
-  const { advancedTool } = useAppConfig();
-  const advancedGroups = advancedTool
-    ? [...ADVANCED_PERMISSION_GROUPS, ADVANCED_TOOL_PERMISSION_GROUP]
-    : ADVANCED_PERMISSION_GROUPS;
 
   const handleTogglePermission = useCallback(
     (role: InitiativeRoleRead, key: PermissionKey, enabled: boolean) => {
@@ -206,14 +197,14 @@ export const InitiativeSettingsRolesTab = ({
                       />
                     ))}
 
-                    {advancedGroups.length > 0 && (
+                    {ADVANCED_PERMISSION_GROUPS.length > 0 && (
                       <Accordion type="single" collapsible>
                         <AccordionItem value="advanced" className="border-b-0">
                           <AccordionTrigger className="py-2 font-medium text-muted-foreground text-sm">
                             {t("advancedTools")}
                           </AccordionTrigger>
                           <AccordionContent className="space-y-4 pt-2">
-                            {advancedGroups.map((group) => (
+                            {ADVANCED_PERMISSION_GROUPS.map((group) => (
                               <PermissionGroupSection
                                 key={group.labelKey}
                                 group={group}

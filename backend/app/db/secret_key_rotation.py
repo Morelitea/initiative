@@ -27,11 +27,8 @@ Runs two ways:
         python -m app.db.secret_key_rotation             # rotate
         # 3. restart, confirm login / SMTP / AI keys work, then UNSET PREVIOUS_SECRET_KEY
 
-Schema-per-guild: ``guild_settings`` is guild-scoped, so its live rows live in every
-``guild_<id>`` schema; the sweep re-keys them there. The frozen ``public`` copies of
-guild tables (a read-nothing/write-nothing integrity backup on legacy deployments)
-are deliberately NOT re-keyed — a stale backup holds old secrets, not live content,
-and writing it would touch guild data on an unrouted public pathway. Runs on the
+Schema-per-guild: ``guild_settings`` is guild-scoped, so its rows live in every
+``guild_<id>`` schema; the sweep re-keys them there. Runs on the
 provisioning (superuser) engine so it reaches every guild schema and bypasses RLS.
 """
 
@@ -39,8 +36,10 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import logging
 from dataclasses import dataclass, field
+from typing import Any
 
 from cryptography.fernet import InvalidToken
 from sqlalchemy import text
@@ -49,9 +48,12 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from app.core.config import settings
 from app.core.encryption import (
     SALT_AI_API_KEY,
+    SALT_APP_SERVICE_SECRET,
+    SALT_APP_CONFIG,
     SALT_EMAIL,
     SALT_OIDC_CLIENT_SECRET,
     SALT_OIDC_REFRESH_TOKEN,
+    SALT_S3_SECRET_KEY,
     SALT_SMTP_PASSWORD,
     decrypt_field,
     encrypt_field,
@@ -66,10 +68,7 @@ logger = logging.getLogger(__name__)
 # because its plaintext also feeds the email_hash HMAC (the two must move together).
 # (table, column, salt). These are the SHARED ``public`` tables only. Guild-scoped
 # columns (e.g. guild_settings) are re-keyed per guild schema via
-# _GUILD_SCHEMA_COLUMNS — never through a public copy: the frozen public copies of
-# guild tables are a read-nothing/write-nothing integrity backup, so re-encrypting
-# them would be a write of guild data on an unrouted public pathway. A legacy backup
-# left under the old key is fine — it holds stale secrets, not live content.
+# _GUILD_SCHEMA_COLUMNS.
 _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
     # Operator AI connection keys (platform config mode).
     ("platform_ai_connections", "api_key_encrypted", SALT_AI_API_KEY),
@@ -80,7 +79,19 @@ _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
     # legacy app_settings.oidc_client_secret_encrypted column is dropped).
     ("auth_provider_secrets", "client_secret_encrypted", SALT_OIDC_CLIENT_SECRET),
     ("app_settings", "smtp_password_encrypted", SALT_SMTP_PASSWORD),
+    # Pre-existing gap, found by the catalog-driven completeness test below: a
+    # rotation left the object-storage credential under the old key.
+    ("app_settings", "s3_secret_access_key_encrypted", SALT_S3_SECRET_KEY),
     ("guild_invites", "invitee_email_encrypted", SALT_EMAIL),
+    # The shared secret an app service signs its requests with. Left out, a
+    # rotation would strand it: the registration would still be there and still
+    # look healthy, and every verification and boot reconciliation that decrypts
+    # it would fail once the previous key was retired.
+    (
+        "app_service_registrations",
+        "secret_encrypted",
+        SALT_APP_SERVICE_SECRET,
+    ),
 ]
 
 # Columns rotated once per ``guild_<id>`` schema (the live copies). The member
@@ -90,6 +101,17 @@ _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
 _GUILD_SCHEMA_COLUMNS: list[tuple[str, str, bytes]] = [
     ("guild_ai_connections", "api_key_encrypted", SALT_AI_API_KEY),
     ("guild_ai_member_keys", "api_key_encrypted", SALT_AI_API_KEY),
+]
+
+# Guild-schema columns holding SEVERAL ciphertexts inside one JSONB map, rather
+# than one per column. An app declares many connection fields, so its values
+# cannot each have a column of their own; they are keyed instead, and every
+# string leaf of the map is a Fernet token. (table, column, salt) — rewritten by
+# primary key, because the value as a whole is not a token and so cannot be its
+# own WHERE clause the way a single-column ciphertext can.
+_GUILD_SCHEMA_JSON_MAPS: list[tuple[str, str, bytes]] = [
+    ("guild_apps", "config_secrets", SALT_APP_CONFIG),
+    ("guild_app_user_connections", "config_secrets", SALT_APP_CONFIG),
 ]
 
 
@@ -215,6 +237,94 @@ async def _rotate_fernet_column(
                 {"new": new_value, "old": value},
             )
             result.rotated += res.rowcount or 0
+    return result
+
+
+def _rotate_map(
+    value: Any, salt: bytes, old_key: str, new_key: str, result: ColumnResult
+) -> tuple[Any, bool]:
+    """Re-key every ciphertext inside one JSONB map, counting as it goes.
+
+    Walks nested maps because the two shapes differ: an install keys its values
+    by connection and then by field, a member's connection keys them by field
+    alone. Every string leaf is a token; anything else is left exactly as it is,
+    so a non-secret value sharing the map is never touched.
+
+    Returns the rewritten value and whether anything in it actually moved.
+    """
+    if isinstance(value, dict):
+        out: dict[str, Any] = {}
+        changed = False
+        for key, inner in value.items():
+            new_inner, inner_changed = _rotate_map(
+                inner, salt, old_key, new_key, result
+            )
+            out[key] = new_inner
+            changed = changed or inner_changed
+        return out, changed
+    if not isinstance(value, str):
+        return value, False
+
+    status, new_value = _rotate_value(value, salt, old_key, new_key)
+    if status == "skipped":
+        result.skipped += 1
+        return value, False
+    if status == "failed":
+        result.failed += 1
+        return value, False
+    result.rotated += 1
+    return new_value, True
+
+
+async def _rotate_fernet_json_map(
+    read_conn: AsyncConnection,
+    write_conn: AsyncConnection,
+    schema: str,
+    table: str,
+    column: str,
+    salt: bytes,
+    old_key: str,
+    new_key: str,
+    dry_run: bool,
+) -> ColumnResult:
+    """Re-encrypt the ciphertexts held inside one JSONB column.
+
+    Rewritten by ``id`` rather than by matching the old value: the column holds
+    a document, not a token, so it has no single ciphertext to key the UPDATE
+    on. Reads stream and writes go to a second connection, for the same reason
+    the single-column sweep does.
+    """
+    result = ColumnResult(schema, table, column)
+    if (
+        await read_conn.scalar(
+            text("SELECT to_regclass(:rel)"), {"rel": f'"{schema}"."{table}"'}
+        )
+        is None
+    ):
+        return result
+    stream = await read_conn.stream(
+        text(
+            f'SELECT id, "{column}" FROM "{schema}"."{table}" '  # noqa: S608
+            f'WHERE "{column}" IS NOT NULL AND "{column}"::text <> \'{{}}\''
+        )
+    )
+    async for row_id, value in stream:
+        # The driver decodes JSONB to a Python object, but a raw text() query is
+        # not guaranteed to have that codec in place, so accept either form.
+        if isinstance(value, str):
+            value = json.loads(value)
+        rewritten, changed = _rotate_map(value, salt, old_key, new_key, result)
+        if not changed or dry_run:
+            continue
+        await write_conn.execute(
+            # Identifiers come from this module's hardcoded registry; values are
+            # bind params.
+            text(
+                f'UPDATE "{schema}"."{table}" SET "{column}" = CAST(:new AS jsonb) '  # noqa: S608
+                f"WHERE id = :id"
+            ),
+            {"new": json.dumps(rewritten), "id": row_id},
+        )
     return result
 
 
@@ -363,6 +473,20 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
                 for table, column, salt in _GUILD_SCHEMA_COLUMNS:
                     summary.columns.append(
                         await _rotate_fernet_column(
+                            read_conn,
+                            write_conn,
+                            schema,
+                            table,
+                            column,
+                            salt,
+                            old_key,
+                            new_key,
+                            dry_run,
+                        )
+                    )
+                for table, column, salt in _GUILD_SCHEMA_JSON_MAPS:
+                    summary.columns.append(
+                        await _rotate_fernet_json_map(
                             read_conn,
                             write_conn,
                             schema,

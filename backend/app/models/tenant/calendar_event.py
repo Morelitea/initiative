@@ -25,6 +25,7 @@ class CalendarEvent(SoftDeleteMixin, table=True):
 
     __tablename__ = "calendar_events"
     _owner_field = "created_by_id"
+    _display_field = "title"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)

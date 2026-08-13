@@ -22,8 +22,6 @@ from app.db.session import get_admin_session, set_billing_context
 from app.schemas.platform.billing import (
     BillingGuildTierApply,
     BillingGuildTierRead,
-    BillingHeadcountRead,
-    BillingHeadcountRequest,
     BillingUsageRead,
     BillingUsageRequest,
 )
@@ -128,26 +126,6 @@ async def apply_guild_tier(
         ) from exc
     await session.commit()
     return result
-
-
-@router.post("/headcount", response_model=BillingHeadcountRead)
-async def guild_headcount(
-    request: Request, session: SessionDep
-) -> BillingHeadcountRead:
-    claims, payload = await _verify_and_parse(request, BillingHeadcountRequest)
-    await set_billing_context(session, guild_id=payload.guild_id)
-    await _burn_jti(session, claims)
-    try:
-        member_count = await billing_service.guild_member_count(
-            session, payload.guild_id
-        )
-    except BillingGuildNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=BillingMessages.GUILD_NOT_FOUND,
-        ) from exc
-    await session.commit()  # persist the one-shot jti redemption
-    return BillingHeadcountRead(guild_id=payload.guild_id, member_count=member_count)
 
 
 @router.post("/usage", response_model=BillingUsageRead)

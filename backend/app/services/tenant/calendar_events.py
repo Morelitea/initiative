@@ -84,16 +84,28 @@ async def set_event_attendees(
 ) -> None:
     """Replace all attendees on a calendar event.
 
-    Validates that all user IDs are members of the calendar's initiative.
+    Who may be named depends on what the calendar belongs to. An initiative
+    calendar draws its attendees from that initiative's members. A guild
+    calendar belongs to no initiative and never reads one — its events are the
+    guild's, so anyone in the guild can be named.
+
     Requires ``event.calendar`` to be eager-loaded.
     """
     if user_ids:
+        from app.models.platform.guild import GuildMembership
         from app.models.tenant.initiative import InitiativeMember
 
-        stmt = select(InitiativeMember.user_id).where(
-            InitiativeMember.initiative_id == event.calendar.initiative_id,
-            InitiativeMember.user_id.in_(user_ids),
-        )
+        initiative_id = event.calendar.initiative_id
+        if initiative_id is None:
+            stmt = select(GuildMembership.user_id).where(
+                GuildMembership.guild_id == guild_id,
+                GuildMembership.user_id.in_(user_ids),
+            )
+        else:
+            stmt = select(InitiativeMember.user_id).where(
+                InitiativeMember.initiative_id == initiative_id,
+                InitiativeMember.user_id.in_(user_ids),
+            )
         result = await session.exec(stmt)
         valid_ids = set(result.all())
         invalid = set(user_ids) - valid_ids
@@ -129,7 +141,17 @@ async def set_event_documents(
     guild_id: int,
     user_id: int,
 ) -> None:
-    """Replace all document links on a calendar event."""
+    """Replace all document links on a calendar event.
+
+    Documents are initiative content, and a guild calendar holds none of that —
+    an event there cannot link one. Clearing links is always fine.
+    Requires ``event.calendar`` to be eager-loaded.
+    """
+    if document_ids and event.calendar.initiative_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=CalendarEventMessages.GUILD_CALENDAR_NO_DOCUMENTS,
+        )
     if document_ids:
         docs_stmt = select(Document.id).where(
             Document.id.in_(document_ids),

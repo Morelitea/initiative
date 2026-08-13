@@ -65,7 +65,7 @@ async def init_owner() -> None:
         user_id = user.id
         try:
             await guilds_service.seed_guild_content(
-                session, guild_id=guild_id, creator=user
+                session, guild_id=guild_id, owner=user
             )
             await session.commit()
         except Exception:
@@ -155,6 +155,10 @@ async def check_pre_baseline_db() -> None:
             f"     and let it boot once — its migrations and startup conversion\n"
             f"     bring the database to the baseline state.\n"
             f"  2. Then deploy this version and restart.\n\n"
+            f"Step 1 is mandatory, not advisory: it is what copies guild content\n"
+            f"into the per-guild schemas. This version DROPS the old copies in\n"
+            f"the public schema (migration 20260811_0163) and cannot be rolled\n"
+            f"back, so anything not converted by then is lost.\n\n"
             f"(Installs older than v0.30.0 are no longer supported for\n"
             f"in-place upgrade — restore into a fresh install instead.)\n"
             f"{'=' * 70}"

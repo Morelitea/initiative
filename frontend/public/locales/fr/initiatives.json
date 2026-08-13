@@ -71,8 +71,8 @@
     "projects": "Projets",
     "queues": "Files",
     "calendars": "Calendrier",
-    "counterGroups": "Compteurs",
-    "advancedTools": "Outils avancés"
+    "dashboards": "Tableaux de bord",
+    "counterGroups": "Compteurs"
   },
   "settings": {
     "title": "Paramètres de l'initiative",
@@ -183,8 +183,8 @@
       "projects": "Projets",
       "queues": "Files",
       "calendars": "Événements",
-      "counterGroups": "Compteurs",
-      "advancedTools": "Outil avancé"
+      "dashboards": "Tableaux de bord",
+      "counterGroups": "Compteurs"
     },
     "permissions": {
       "viewDocuments": "Voir les documents",
@@ -195,8 +195,8 @@
       "createQueues": "Créer des files",
       "viewCalendars": "Voir les événements",
       "createCalendars": "Créer des événements",
-      "viewAdvancedTools": "Ouvrir l’outil avancé",
-      "createAdvancedTools": "Créer dans l’outil avancé",
+      "viewDashboards": "Voir les tableaux de bord",
+      "createDashboards": "Créer des tableaux de bord",
       "viewCounterGroups": "Voir les compteurs",
       "createCounterGroups": "Créer des compteurs"
     }
@@ -207,20 +207,8 @@
   "queuesFeatureDescription": "Organisez les éléments par priorité, suivez l'ordre de passage et gérez qui passe ensuite.",
   "calendarsFeature": "Calendrier",
   "calendarsFeatureDescription": "Organisez les événements dans des calendriers partageables avec participants et suivi des réponses.",
-  "advancedToolsFeatureDescription": "Intégrez le panneau {{name}} à cette initiative.",
-  "advancedTool": {
-    "connecting": "Connexion…",
-    "handoffFailed": "Impossible d’établir une session sécurisée avec l’outil intégré.",
-    "iframeError": "L’outil intégré n’a pas pu se charger.",
-    "unavailableTitle": "Non configuré",
-    "unavailableDescription": "Cette installation n’a pas d’outil avancé configuré.",
-    "disabledTitle": "{{name}} est désactivé pour cette initiative",
-    "disabledDescription": "Activez-le depuis les paramètres de l’initiative pour charger le panneau.",
-    "openSettings": "Ouvrir les paramètres",
-    "guildAdminOnlyTitle": "Réservé aux administrateurs",
-    "guildAdminOnlyDescription": "Seuls les administrateurs du guild peuvent gérer les automatisations à l’échelle du guild."
-  },
+  "dashboardsFeature": "Tableaux de bord",
+  "dashboardsFeatureDescription": "Composez un canevas de graphiques, d’indicateurs et de chronologies qui affiche le travail existant — un tableau de bord ne modifie jamais les données qu’il présente.",
   "counterGroupsFeature": "Compteurs",
-  "counterGroupsFeatureDescription": "Suivez des valeurs numériques comme les PV, scores ou budgets — bornées, incrémentées par pas et affichées en chiffres, barres ou jauges radiales.",
-  "advancedToolsFeature": "Outils avancés"
+  "counterGroupsFeatureDescription": "Suivez des valeurs numériques comme les PV, scores ou budgets — bornées, incrémentées par pas et affichées en chiffres, barres ou jauges radiales."
 }
