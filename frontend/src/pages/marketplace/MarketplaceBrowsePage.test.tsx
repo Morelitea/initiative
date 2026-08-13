@@ -47,6 +47,9 @@ const listing = (overrides: Partial<MarketplaceListingSummary> = {}) =>
     source: "builtin",
     name: "Sprint health",
     publisher: "Initiative",
+    author_name: "Initiative",
+    author_url: null,
+    author_contact: null,
     description: "How the sprint is going.",
     avatar_url: "/marketplace/sprint.svg",
     images: [],
@@ -72,7 +75,9 @@ describe("MarketplaceBrowsePage", () => {
   it("shows a card per listing", async () => {
     renderPage(MarketplaceBrowsePage);
     expect(await screen.findByText("Sprint health")).toBeInTheDocument();
-    expect(screen.getByText("Initiative")).toBeInTheDocument();
+    // Attribution rides along with how the listing got here, so a card never
+    // shows an author's name on its own.
+    expect(screen.getByText("by Initiative")).toBeInTheDocument();
   });
 
   it("asks the catalog only for dashboards", async () => {

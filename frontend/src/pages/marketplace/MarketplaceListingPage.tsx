@@ -22,6 +22,7 @@ import type { ListingKind } from "@/api/generated/initiativeAPI.schemas";
 import { DashboardCanvas } from "@/components/initiativeTools/dashboards/DashboardCanvas";
 import { InstallAppDialog } from "@/components/marketplace/InstallAppDialog";
 import { InstallListingDialog } from "@/components/marketplace/InstallListingDialog";
+import { ListingProvenance } from "@/components/marketplace/ListingProvenance";
 import { StatusMessage } from "@/components/StatusMessage";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -113,9 +114,7 @@ export function MarketplaceListingPage() {
           {listing ? (
             <>
               <h1 className="font-semibold text-3xl tracking-tight">{listing.name}</h1>
-              <p className="text-muted-foreground text-sm">
-                {t("detail.by", { publisher: listing.publisher })}
-              </p>
+              <ListingProvenance listing={listing} className="text-sm" />
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 {listing.latest_version && (
                   <Badge variant="secondary">

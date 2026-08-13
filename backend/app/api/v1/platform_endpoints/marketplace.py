@@ -89,6 +89,12 @@ def _summary(
         source=listing.source,
         name=listing.name,
         publisher=listing.publisher,
+        # Attribution travels with the provenance that bounds it: a card, the
+        # detail page and the install dialog all answer "who wrote this?" from
+        # these two fields together, so neither is served without the other.
+        author_name=listing.author_name,
+        author_url=listing.author_url,
+        author_contact=listing.author_contact,
         description=listing.description,
         avatar_url=listing.avatar_url,
         images=list(listing.images or []),

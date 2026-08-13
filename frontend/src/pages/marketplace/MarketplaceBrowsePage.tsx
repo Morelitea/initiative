@@ -2,7 +2,7 @@
  * The marketplace, as a place you browse.
  *
  * A searchable card grid rather than a menu: listings are products with artwork,
- * a publisher, and a description, and picking one is a decision worth a page.
+ * an author, and a description, and picking one is a decision worth a page.
  *
  * The catalog is platform-level, so this asks it nothing about this guild. What
  * is already installed here comes from the guild's own dashboards list and is

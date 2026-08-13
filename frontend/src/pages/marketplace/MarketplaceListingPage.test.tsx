@@ -32,8 +32,12 @@ const appListing = () =>
     uid: "GLDCAL00000001",
     public_id: "core.guild-calendar",
     kind: "app",
+    source: "builtin",
     name: "Guild calendar",
     publisher: "Initiative",
+    author_name: "Initiative",
+    author_url: null,
+    author_contact: null,
     description: "The guild's own events.",
     avatar_url: "/marketplace/cal.svg",
     images: [],
@@ -79,6 +83,29 @@ describe("MarketplaceListingPage", () => {
     renderPage(MarketplaceListingPage);
     await screen.findByRole("heading", { name: "Guild calendar" });
     expect(backHref()).toContain("kind=app");
+  });
+
+  it("answers who wrote it before the install button", async () => {
+    // The same sentence the card showed, on the page where the decision is
+    // actually made.
+    renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
+    await screen.findByRole("heading", { name: "Guild calendar" });
+    expect(screen.getByText("by Initiative")).toBeInTheDocument();
+  });
+
+  it("offers an operator listing's author link as untrusted", async () => {
+    listing = {
+      ...appListing(),
+      source: "operator",
+      author_name: "Acme Widgets",
+      author_url: "https://acme.example",
+    } as unknown as MarketplaceListingDetail;
+    renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
+    await screen.findByRole("heading", { name: "Guild calendar" });
+    expect(screen.getByText("by Acme Widgets")).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "Author's website" });
+    expect(link).toHaveAttribute("rel", "noopener noreferrer nofollow");
+    expect(link).toHaveAttribute("target", "_blank");
   });
 
   it("offers no canvas preview for an app", async () => {
