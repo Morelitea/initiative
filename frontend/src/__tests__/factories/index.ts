@@ -1,4 +1,8 @@
-export { buildComment, resetCounter as resetCommentCounter } from "./comment.factory";
+export {
+  buildComment,
+  buildRecentActivityEntry,
+  resetCounter as resetCommentCounter,
+} from "./comment.factory";
 export { buildDocumentSummary, resetCounter as resetDocumentCounter } from "./document.factory";
 export {
   buildGuild,

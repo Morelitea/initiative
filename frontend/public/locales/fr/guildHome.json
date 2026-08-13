@@ -38,5 +38,15 @@
       "smart_link": "Lien",
       "spreadsheet": "Feuille de calcul"
     }
+  },
+  "recentComments": {
+    "title": "Commentaires récents",
+    "description": "Les derniers commentaires du groupe",
+    "noComments": "Aucun commentaire pour l'instant",
+    "loadError": "Impossible de charger les commentaires récents. Veuillez réessayer plus tard.",
+    "unknownAuthor": "Inconnu",
+    "onTask": "sur {{taskTitle}}",
+    "onDocument": "sur {{documentTitle}}",
+    "inProject": "dans {{projectName}}"
   }
 }

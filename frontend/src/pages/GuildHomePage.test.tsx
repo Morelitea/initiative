@@ -7,6 +7,7 @@ import {
   buildGuild,
   buildInitiative,
   buildProject,
+  buildRecentActivityEntry,
 } from "@/__tests__/factories";
 import { buildQueueSummary } from "@/__tests__/factories/queue.factory";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
@@ -174,6 +175,61 @@ describe("GuildHomePage", () => {
     renderHome({ tool: "documents" });
 
     expect(await screen.findByText("Nothing here yet")).toBeInTheDocument();
+  });
+
+  it("shows the guild's latest comments under the table", async () => {
+    stubInitiatives();
+    stubTools({ projects: [buildProject({ id: 1, name: "Lunar Lander" })] });
+    server.use(
+      guildHttp.get("/comments/recent", () =>
+        HttpResponse.json([
+          buildRecentActivityEntry({
+            comment_id: 11,
+            content: "Ready for the review",
+            task_id: 4,
+            task_title: "Fuel check",
+            project_id: 1,
+            project_name: "Lunar Lander",
+          }),
+        ])
+      )
+    );
+
+    renderHome();
+
+    expect(await screen.findByText("Ready for the review")).toBeInTheDocument();
+    // The feed names where the comment was left and links to it.
+    expect(screen.getByText("on Fuel check in Lunar Lander")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Ready for the review/ })).toHaveAttribute(
+      "href",
+      "/g/1/tasks/4"
+    );
+  });
+
+  it("keeps the comment feed while the rail switches tools", async () => {
+    stubInitiatives({ queues_enabled: true });
+    stubTools({ queues: [] });
+    server.use(
+      guildHttp.get("/comments/recent", () =>
+        HttpResponse.json([buildRecentActivityEntry({ content: "Still here" })])
+      )
+    );
+
+    // Queues are empty, so the table is replaced by its empty state — the
+    // guild-wide feed is not.
+    renderHome({ tool: "queues" });
+
+    expect(await screen.findByText("Nothing here yet")).toBeInTheDocument();
+    expect(screen.getByText("Still here")).toBeInTheDocument();
+  });
+
+  it("says so when the guild has no comments yet", async () => {
+    stubInitiatives();
+    stubTools({ projects: [buildProject({ id: 1, name: "Lunar Lander" })] });
+
+    renderHome();
+
+    expect(await screen.findByText("No comments yet")).toBeInTheDocument();
   });
 
   it("keeps documents on the same table shape as projects", async () => {
