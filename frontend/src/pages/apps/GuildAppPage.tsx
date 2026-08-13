@@ -42,6 +42,10 @@ export function GuildAppPage({ appId }: { appId: number }) {
   const embeds = useMemo(() => appEmbeds(app?.definition), [app?.definition]);
   const [surfaceId, setSurfaceId] = useState<string | null>(null);
   const active = embeds.find((embed) => embed.id === surfaceId) ?? embeds[0] ?? null;
+  // The surface as a plain id, so a refetch that hands back an equal-but-new
+  // definition does not read as a surface change and mint a token nobody asked
+  // for.
+  const activeId = active?.id ?? null;
 
   const [handoff, setHandoff] = useState<GuildAppHandoff | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -56,15 +60,15 @@ export function GuildAppPage({ appId }: { appId: number }) {
       createGuildAppHandoffApiV1GGuildIdAppsAppIdHandoffSurfaceIdPost(
         guildId,
         appId,
-        active?.id ?? ""
+        activeId ?? ""
       ) as unknown as Promise<GuildAppHandoff>,
-    [guildId, appId, active?.id]
+    [guildId, appId, activeId]
   );
 
   // Mint for the surface being opened. Re-runs when the surface changes, which
   // is also when the iframe is replaced.
   useEffect(() => {
-    if (!active) return;
+    if (!activeId) return;
     let cancelled = false;
     setHandoff(null);
     setError(null);
@@ -79,7 +83,7 @@ export function GuildAppPage({ appId }: { appId: number }) {
     return () => {
       cancelled = true;
     };
-  }, [active, mint, t]);
+  }, [activeId, mint, t]);
 
   const origin = useMemo(() => {
     if (!handoff?.embed_url) return null;
@@ -104,6 +108,13 @@ export function GuildAppPage({ appId }: { appId: number }) {
 
   useEffect(() => {
     if (!origin || !handoff) return;
+
+    // A token names one surface, and switching tabs replaces the iframe. So a
+    // re-mint still in flight when that happens must not deliver: its token is
+    // for the surface that was open when it was asked for, and the frame now
+    // waiting shows a different one. Same app, same origin, so the origin check
+    // cannot tell them apart.
+    let cancelled = false;
 
     const send = (target: Window, token: GuildAppHandoff) => {
       target.postMessage(
@@ -135,8 +146,15 @@ export function GuildAppPage({ appId }: { appId: number }) {
           return;
         }
         void mint()
-          .then((fresh) => send(target, fresh))
-          .catch(() => setError(tRef.current("apps:embed.handoffFailed")));
+          .then((fresh) => {
+            // Dropped if the surface changed while this was in flight, or if
+            // the frame that asked is no longer the mounted one.
+            if (cancelled || iframeRef.current?.contentWindow !== target) return;
+            send(target, fresh);
+          })
+          .catch(() => {
+            if (!cancelled) setError(tRef.current("apps:embed.handoffFailed"));
+          });
       } else if (data.type === ERROR) {
         setError(
           typeof data.message === "string" ? data.message : tRef.current("apps:embed.failed")
@@ -145,7 +163,10 @@ export function GuildAppPage({ appId }: { appId: number }) {
     };
 
     window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("message", onMessage);
+    };
   }, [origin, allowed, handoff, mint]);
 
   // Keep the embed in step with a language change.
