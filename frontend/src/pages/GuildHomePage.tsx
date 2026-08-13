@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { GuildRecentComments } from "@/components/guildHome/GuildRecentComments";
 import { GuildToolRail } from "@/components/guildHome/GuildToolRail";
 import { GuildToolTable } from "@/components/guildHome/GuildToolTable";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -125,6 +126,9 @@ export function GuildHomePage() {
           onPageSizeChange={handlePageSizeChange}
         />
       )}
+
+      {/* Guild-wide, so it stays put as the rail switches the table's tool. */}
+      <GuildRecentComments />
     </div>
   );
 }

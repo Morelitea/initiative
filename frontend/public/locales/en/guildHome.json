@@ -38,5 +38,15 @@
       "smart_link": "Link",
       "spreadsheet": "Spreadsheet"
     }
+  },
+  "recentComments": {
+    "title": "Recent comments",
+    "description": "The latest comments across the guild",
+    "noComments": "No comments yet",
+    "loadError": "Failed to load recent comments. Please try again later.",
+    "unknownAuthor": "Unknown",
+    "onTask": "on {{taskTitle}}",
+    "onDocument": "on {{documentTitle}}",
+    "inProject": "in {{projectName}}"
   }
 }

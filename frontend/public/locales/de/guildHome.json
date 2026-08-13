@@ -38,5 +38,15 @@
       "smart_link": "Link",
       "spreadsheet": "Tabelle"
     }
+  },
+  "recentComments": {
+    "title": "Neueste Kommentare",
+    "description": "Die neuesten Kommentare in der gesamten Gilde",
+    "noComments": "Noch keine Kommentare",
+    "loadError": "Neueste Kommentare konnten nicht geladen werden. Bitte später erneut versuchen.",
+    "unknownAuthor": "Unbekannt",
+    "onTask": "zu {{taskTitle}}",
+    "onDocument": "zu {{documentTitle}}",
+    "inProject": "in {{projectName}}"
   }
 }

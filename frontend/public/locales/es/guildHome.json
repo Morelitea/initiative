@@ -38,5 +38,15 @@
       "smart_link": "Enlace",
       "spreadsheet": "Hoja de cálculo"
     }
+  },
+  "recentComments": {
+    "title": "Comentarios recientes",
+    "description": "Los últimos comentarios en el gremio",
+    "noComments": "Aún no hay comentarios",
+    "loadError": "No se pudieron cargar los comentarios recientes. Inténtalo de nuevo más tarde.",
+    "unknownAuthor": "Desconocido",
+    "onTask": "en {{taskTitle}}",
+    "onDocument": "en {{documentTitle}}",
+    "inProject": "en {{projectName}}"
   }
 }
