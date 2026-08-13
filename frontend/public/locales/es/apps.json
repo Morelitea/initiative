@@ -33,7 +33,8 @@
     "name": "Nombre",
     "action": "Añadir al gremio",
     "done": "{{name}} añadida.",
-    "adminOnly": "Pide a un administrador del gremio que añada esta aplicación."
+    "adminOnly": "Pide a un administrador del gremio que añada esta aplicación.",
+    "unknownState": "No se pudo comprobar si esta aplicación ya está añadida."
   },
   "page": {
     "notFound": "Aplicación no encontrada",

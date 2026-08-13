@@ -23,6 +23,7 @@ let listing: Partial<MarketplaceListingDetail> | undefined;
 let failed = false;
 let guildRole = "admin";
 let installedUids: string[] = [];
+let installsState: "ready" | "loading" | "error" = "ready";
 
 vi.mock("@/hooks/useMarketplace", () => ({
   useMarketplaceListing: () => ({ data: listing, isError: failed }),
@@ -35,8 +36,12 @@ vi.mock("@/hooks/useGuilds", async (importOriginal) => ({
 vi.mock("@/hooks/useGuildApps", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useGuildApps")>()),
   useGuildApps: () => ({
-    data: { items: installedUids.map((uid) => ({ listing_uid: uid })) },
-    isError: false,
+    data:
+      installsState === "ready"
+        ? { items: installedUids.map((uid) => ({ listing_uid: uid })) }
+        : undefined,
+    isLoading: installsState === "loading",
+    isError: installsState === "error",
   }),
 }));
 
@@ -70,6 +75,7 @@ beforeEach(() => {
   failed = false;
   guildRole = "admin";
   installedUids = [];
+  installsState = "ready";
 });
 
 describe("MarketplaceListingPage", () => {
@@ -148,5 +154,40 @@ describe("MarketplaceListingPage", () => {
 
     expect(await screen.findByText("Installed")).toBeInTheDocument();
     expect(screen.queryByText("Ask a guild admin to add this app.")).toBeNull();
+  });
+
+  it("does not guess at installed state while it is still loading", async () => {
+    // Neither answer is known yet, so neither is claimed: no badge saying it is
+    // there, and no offer to add something the guild may already have.
+    installsState = "loading";
+    renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
+
+    await screen.findByRole("heading", { name: "Guild calendar" });
+    expect(screen.queryByText("Installed")).toBeNull();
+    expect(screen.getByRole("button", { name: /Add to guild/ })).toBeDisabled();
+    expect(screen.queryByText("Ask a guild admin to add this app.")).toBeNull();
+  });
+
+  it("says so when it could not check, rather than implying not installed", async () => {
+    installsState = "error";
+    guildRole = "member";
+    renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
+
+    expect(
+      await screen.findByText("Could not check whether this app is already added.")
+    ).toBeInTheDocument();
+    // The "go ask an admin" line asserts the guild does not have it, which is
+    // exactly what failed to load.
+    expect(screen.queryByText("Ask a guild admin to add this app.")).toBeNull();
+  });
+
+  it("does not offer an admin an install it cannot rule out as a duplicate", async () => {
+    // An admin *may* install, so only the unknown state holds the button back
+    // here — the guild may already have this, and the server would refuse.
+    installsState = "error";
+    renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
+
+    await screen.findByRole("heading", { name: "Guild calendar" });
+    expect(screen.getByRole("button", { name: /Add to guild/ })).toBeDisabled();
   });
 });

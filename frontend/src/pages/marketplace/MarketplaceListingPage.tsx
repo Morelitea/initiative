@@ -65,10 +65,16 @@ export function MarketplaceListingPage() {
   const isGuildAdmin = activeGuild?.role === "admin";
   // Whether this guild already has it. Every member may read the installs, so
   // this answers for the person asking as well as the one who could act.
+  //
+  // Three states, not two: undefined while the answer is still loading or the
+  // request failed. "We do not know" and "you do not have it" would otherwise
+  // render identically — as an install button and a note telling a member to go
+  // ask for something they may already have.
   const appInstalls = useGuildApps({ enabled: isApp });
-  const isInstalled = (appInstalls.data?.items ?? []).some(
-    (app) => app.listing_uid === listing?.uid
-  );
+  const isInstalled: boolean | undefined =
+    isApp && !appInstalls.isLoading && !appInstalls.isError
+      ? (appInstalls.data?.items ?? []).some((app) => app.listing_uid === listing?.uid)
+      : undefined;
 
   if (listingQuery.isError) {
     return (
@@ -140,12 +146,17 @@ export function MarketplaceListingPage() {
 
         {listing && (
           <div className="flex flex-col items-end gap-1">
-            {isApp && isInstalled ? (
+            {isInstalled ? (
               <Badge variant="secondary">{t("card.installed")}</Badge>
             ) : (
               <Button
                 onClick={() => setInstalling(true)}
-                disabled={!listing.installable || (isApp && !isGuildAdmin)}
+                // Unknown installed state disables it too: offering to add
+                // something the guild may already have is the one action this
+                // page should not take on a guess.
+                disabled={
+                  !listing.installable || (isApp && (!isGuildAdmin || isInstalled === undefined))
+                }
               >
                 <Download className="mr-1.5 h-4 w-4" />
                 {isApp ? t("apps:install.action") : t("detail.install")}
@@ -155,10 +166,14 @@ export function MarketplaceListingPage() {
               <span className="text-muted-foreground text-xs">
                 {listing.available ? t("detail.needsUpdate") : t("detail.withdrawn")}
               </span>
+            ) : isApp && appInstalls.isError ? (
+              <span className="text-muted-foreground text-xs">
+                {t("apps:install.unknownState")}
+              </span>
             ) : (
               isApp &&
               !isGuildAdmin &&
-              !isInstalled && (
+              isInstalled === false && (
                 <span className="text-muted-foreground text-xs">{t("apps:install.adminOnly")}</span>
               )
             )}

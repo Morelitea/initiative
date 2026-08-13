@@ -33,7 +33,8 @@
     "name": "Name",
     "action": "Add to guild",
     "done": "{{name}} added.",
-    "adminOnly": "Ask a guild admin to add this app."
+    "adminOnly": "Ask a guild admin to add this app.",
+    "unknownState": "Could not check whether this app is already added."
   },
   "page": {
     "notFound": "App not found",

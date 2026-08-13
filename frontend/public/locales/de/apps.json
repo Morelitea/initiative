@@ -33,7 +33,8 @@
     "name": "Name",
     "action": "Zur Gilde hinzufügen",
     "done": "{{name}} hinzugefügt.",
-    "adminOnly": "Bitte eine Guild-Administratorin oder einen Guild-Administrator, diese App hinzuzufügen."
+    "adminOnly": "Bitte eine Guild-Administratorin oder einen Guild-Administrator, diese App hinzuzufügen.",
+    "unknownState": "Es konnte nicht geprüft werden, ob diese App bereits hinzugefügt wurde."
   },
   "page": {
     "notFound": "App nicht gefunden",

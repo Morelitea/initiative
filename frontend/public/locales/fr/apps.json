@@ -33,7 +33,8 @@
     "name": "Nom",
     "action": "Ajouter à la guilde",
     "done": "{{name}} ajoutée.",
-    "adminOnly": "Demandez à un administrateur de guilde d'ajouter cette application."
+    "adminOnly": "Demandez à un administrateur de guilde d'ajouter cette application.",
+    "unknownState": "Impossible de vérifier si cette application est déjà ajoutée."
   },
   "page": {
     "notFound": "Application introuvable",
