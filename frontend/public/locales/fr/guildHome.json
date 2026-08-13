@@ -1,0 +1,43 @@
+{
+  "title": "Guilde",
+  "subtitle": "Tout ce que contient la guilde, un outil à la fois.",
+  "toolRail": "Outils de la guilde",
+  "loading": "Chargement…",
+  "loadError": "Impossible de charger cet outil. Veuillez réessayer plus tard.",
+  "guildWide": "Toute la guilde",
+  "filterPlaceholder": "Filtrer par nom…",
+  "empty": {
+    "title": "Rien pour l'instant",
+    "description": "Rien de ce type n'existe encore dans la guilde, ou rien ne vous a été partagé."
+  },
+  "columns": {
+    "name": "Nom",
+    "initiative": "Initiative",
+    "tags": "Étiquettes",
+    "updated": "Dernière mise à jour",
+    "detail": {
+      "projects": "Progression",
+      "documents": "Type",
+      "queues": "Éléments",
+      "counterGroups": "Compteurs",
+      "calendars": "Description",
+      "dashboards": "Origine"
+    }
+  },
+  "detail": {
+    "tasksDone": "{{completed}} tâches sur {{total}}",
+    "queueItems_one": "{{count}} élément",
+    "queueItems_other": "{{count}} éléments",
+    "counters_one": "{{count}} compteur",
+    "counters_other": "{{count}} compteurs",
+    "fromMarketplace": "Place de marché",
+    "builtHere": "Créé ici",
+    "documentType": {
+      "native": "Document",
+      "file": "Fichier",
+      "whiteboard": "Tableau blanc",
+      "smart_link": "Lien",
+      "spreadsheet": "Feuille de calcul"
+    }
+  }
+}

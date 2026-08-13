@@ -1,0 +1,43 @@
+{
+  "title": "Guild",
+  "subtitle": "Everything in this guild, one tool at a time.",
+  "toolRail": "Guild tools",
+  "loading": "Loading…",
+  "loadError": "Failed to load this tool. Please try again later.",
+  "guildWide": "Guild-wide",
+  "filterPlaceholder": "Filter by name…",
+  "empty": {
+    "title": "Nothing here yet",
+    "description": "Nothing of this kind exists in the guild yet, or none of it is shared with you."
+  },
+  "columns": {
+    "name": "Name",
+    "initiative": "Initiative",
+    "tags": "Tags",
+    "updated": "Last updated",
+    "detail": {
+      "projects": "Progress",
+      "documents": "Type",
+      "queues": "Items",
+      "counterGroups": "Counters",
+      "calendars": "Description",
+      "dashboards": "Source"
+    }
+  },
+  "detail": {
+    "tasksDone": "{{completed}} of {{total}} tasks",
+    "queueItems_one": "{{count}} item",
+    "queueItems_other": "{{count}} items",
+    "counters_one": "{{count}} counter",
+    "counters_other": "{{count}} counters",
+    "fromMarketplace": "Marketplace",
+    "builtHere": "Built here",
+    "documentType": {
+      "native": "Document",
+      "file": "File",
+      "whiteboard": "Whiteboard",
+      "smart_link": "Link",
+      "spreadsheet": "Spreadsheet"
+    }
+  }
+}
