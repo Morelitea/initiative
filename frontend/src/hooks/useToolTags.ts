@@ -2,8 +2,6 @@ import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { setToolTagsApiV1GGuildIdToolsToolToolIdTagsPut } from "@/api/generated/tools/tools";
 import {
-  invalidateAdvancedTool,
-  invalidateAllAdvancedTools,
   invalidateAllCalendars,
   invalidateAllCounterGroups,
   invalidateAllDashboards,
@@ -48,10 +46,6 @@ const TOOL_TAG_INVALIDATORS: Record<Tool, (id: number) => void> = {
   [Tool.dashboard]: (id) => {
     void invalidateDashboard(id);
     void invalidateAllDashboards();
-  },
-  [Tool.advanced_tool]: (id) => {
-    void invalidateAdvancedTool(id);
-    void invalidateAllAdvancedTools();
   },
 };
 

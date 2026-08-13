@@ -16,7 +16,6 @@ import {
   restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost,
 } from "@/api/generated/trash/trash";
 import {
-  invalidateAllAdvancedTools,
   invalidateAllCalendarEvents,
   invalidateAllCalendars,
   invalidateAllComments,
@@ -82,7 +81,6 @@ const ENTITY_INVALIDATORS: Record<EntityType, () => unknown> = {
   counter_group: invalidateAllCounterGroups,
   counter: invalidateAllCounterGroups,
   dashboard: invalidateAllDashboards,
-  advanced_tool: invalidateAllAdvancedTools,
 };
 
 export type RestoreTrashVars = {

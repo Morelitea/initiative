@@ -72,8 +72,7 @@
     "queues": "Queues",
     "calendars": "Calendar",
     "dashboards": "Dashboards",
-    "counterGroups": "Counters",
-    "advancedTools": "Advanced Tools"
+    "counterGroups": "Counters"
   },
   "settings": {
     "title": "Initiative settings",
@@ -185,8 +184,7 @@
       "queues": "Queues",
       "calendars": "Events",
       "dashboards": "Dashboards",
-      "counterGroups": "Counters",
-      "advancedTools": "Advanced Tool"
+      "counterGroups": "Counters"
     },
     "permissions": {
       "viewDocuments": "View Documents",
@@ -199,8 +197,6 @@
       "createCalendars": "Create Events",
       "viewDashboards": "View Dashboards",
       "createDashboards": "Create Dashboards",
-      "viewAdvancedTools": "Open Advanced Tool",
-      "createAdvancedTools": "Create in Advanced Tool",
       "viewCounterGroups": "View Counters",
       "createCounterGroups": "Create Counters"
     }
@@ -214,19 +210,5 @@
   "dashboardsFeature": "Dashboards",
   "dashboardsFeatureDescription": "Build a canvas of charts, KPIs, and timelines that displays existing work — a dashboard never edits the data it shows.",
   "counterGroupsFeature": "Counters",
-  "counterGroupsFeatureDescription": "Track numeric values like HP, scores, or budgets — clamped, stepped, and shown as numbers, bars, or radial gauges.",
-  "advancedToolsFeatureDescription": "Embed the {{name}} panel under this initiative.",
-  "advancedTool": {
-    "connecting": "Connecting…",
-    "handoffFailed": "Couldn’t establish a secure session with the embedded tool.",
-    "iframeError": "The embedded tool failed to load.",
-    "unavailableTitle": "Not configured",
-    "unavailableDescription": "This deployment does not have an advanced tool configured.",
-    "disabledTitle": "{{name}} is disabled for this initiative",
-    "disabledDescription": "Enable it from the initiative’s settings page to load the panel.",
-    "openSettings": "Open settings",
-    "guildAdminOnlyTitle": "Admins only",
-    "guildAdminOnlyDescription": "Only guild admins can manage automations at the guild level."
-  },
-  "advancedToolsFeature": "Advanced Tools"
+  "counterGroupsFeatureDescription": "Track numeric values like HP, scores, or budgets — clamped, stepped, and shown as numbers, bars, or radial gauges."
 }

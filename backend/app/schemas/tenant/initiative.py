@@ -94,27 +94,6 @@ class InitiativeRoleUpdate(SanitizedBaseModel):
     permissions: Optional[Dict[PermissionKey, bool]] = None
 
 
-class AdvancedToolHandoffResponse(SanitizedBaseModel):
-    """Short-lived bootstrap token for the embedded advanced-tool iframe.
-
-    The SPA passes this to the iframe via postMessage. The iframe's backend
-    validates the JWT (same SECRET_KEY, audience claim) and exchanges it
-    for its own session — never used directly as long-lived auth.
-
-    ``scope`` distinguishes "initiative" vs "guild" embeds. The receiving
-    iframe MUST treat the URL query param as a hint only and trust the
-    JWT's own ``scope`` claim — the param isn't enough to authorize.
-    For initiative scope, ``initiative_id`` is set; for guild scope it's
-    None and only ``guild_id`` (in the JWT) identifies the tenant.
-    """
-
-    handoff_token: str
-    expires_in_seconds: int
-    iframe_url: str
-    scope: str
-    initiative_id: Optional[int] = None
-
-
 class MyInitiativePermissions(SanitizedBaseModel):
     """Current user's permissions for an initiative."""
 
@@ -130,10 +109,6 @@ class MyInitiativePermissions(SanitizedBaseModel):
     # client's manage-sharing affordances.
     override_share_restrictions: bool = False
     permissions: Dict[PermissionKey, bool] = Field(default_factory=dict)
-    # Flat initiative-level master switch for the optional embedded
-    # advanced tool. Mirrored here so the proprietary embed backend can
-    # gate access in a single permissions call.
-    advanced_tools_enabled: bool = False
 
 
 class InitiativeGroupedCountsResponse(SanitizedBaseModel):

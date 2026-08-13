@@ -23,13 +23,7 @@ import { useInitiatives } from "@/hooks/useInitiatives";
 import { useProjects } from "@/hooks/useProjects";
 import { useQueuesList } from "@/hooks/useQueues";
 import { getDocumentIcon, getDocumentIconColor } from "@/lib/fileUtils";
-import {
-  TOOL_REGISTRY,
-  toolAvailable,
-  toolCamelPlural,
-  toolDisplayName,
-  toolListRoute,
-} from "@/lib/tools";
+import { TOOL_REGISTRY, toolCamelPlural, toolListRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 export interface PaletteItem {
@@ -158,30 +152,6 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
         icon: null,
         path: `${toolListRoute(Tool.dashboard)}/${dashboard.id}`,
       }));
-    },
-  },
-  [Tool.advanced_tool]: {
-    // Heading is the deployment's own name for the tool; null (no runtime
-    // config) hides the group.
-    useHeading: () => {
-      const { advancedTool } = useAppConfig();
-      const fallback = useGroupHeading(Tool.advanced_tool);
-      if (!toolAvailable(Tool.advanced_tool, advancedTool)) return null;
-      return toolDisplayName(Tool.advanced_tool, fallback, advancedTool);
-    },
-    // One navigation entry per initiative with the tool enabled (a single
-    // embedded page per initiative, not a searchable collection).
-    useItems: ({ enabled }) => {
-      const query = useInitiatives({ enabled, staleTime: 60_000 });
-      return (query.data ?? [])
-        .filter((initiative) => initiative.advanced_tools_enabled)
-        .map((initiative) => ({
-          id: initiative.id,
-          label: initiative.name,
-          keywords: [],
-          icon: null,
-          path: `/initiatives/${initiative.id}/advanced-tool`,
-        }));
     },
   },
 };

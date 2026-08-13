@@ -7,8 +7,8 @@ import type {
   InitiativeRoleUpdate,
   MyInitiativePermissions,
   PermissionKey,
+  Tool,
 } from "@/api/generated/initiativeAPI.schemas";
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   createInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesPost,
   deleteInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdDelete,
@@ -196,18 +196,9 @@ export const CORE_PERMISSION_GROUPS: PermissionGroup[] = TOOLS.filter(
   (tool) => TOOL_REGISTRY[tool].core
 ).map(toolPermissionGroup);
 
-// Opt-in tools' permissions shown in accordion (the advanced tool is broken
-// out separately because its whole group is runtime-config-gated)
-export const ADVANCED_PERMISSION_GROUPS: PermissionGroup[] = TOGGLEABLE_TOOLS.filter(
-  (tool) => tool !== Tool.advanced_tool
-).map(toolPermissionGroup);
-
-// Permission group for the optional embedded advanced tool. Only included
-// in the role-permissions UI when the deployment has an advanced tool URL
-// configured at runtime — see InitiativeSettingsRolesTab for the gating.
-export const ADVANCED_TOOL_PERMISSION_GROUP: PermissionGroup = toolPermissionGroup(
-  Tool.advanced_tool
-);
+// Opt-in tools' permissions, shown in an accordion.
+export const ADVANCED_PERMISSION_GROUPS: PermissionGroup[] =
+  TOGGLEABLE_TOOLS.map(toolPermissionGroup);
 
 // All groups combined (for backward compat)
 export const PERMISSION_GROUPS: PermissionGroup[] = [

@@ -21,14 +21,7 @@ import type { InitiativeToolAccess } from "@/hooks/useInitiativeAccess";
 import { guildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
 import { getItem, setItem } from "@/lib/storage";
-import {
-  SIDEBAR_TOOLS,
-  TOOL_REGISTRY,
-  toolAvailable,
-  toolDisplayName,
-  toolNavLabelKey,
-  toolRowTarget,
-} from "@/lib/tools";
+import { SIDEBAR_TOOLS, TOOL_REGISTRY, toolNavLabelKey, toolRowTarget } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 export interface InitiativeSectionProps {
@@ -60,7 +53,6 @@ export const InitiativeSection = memo(
     collapseKey,
   }: InitiativeSectionProps) => {
     const { t } = useTranslation("nav");
-    const { advancedTool } = useAppConfig();
     // Helper to create guild-scoped paths
     const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
     // Pure DAC: check if user has write access to a specific project
@@ -69,14 +61,11 @@ export const InitiativeSection = memo(
       return hasWriteAccess(project.my_permission_level);
     };
 
-    /** Whether a tool's row renders at all — the member can view it AND (for
-     * config-gated tools) the deployment has the integration configured. */
-    const showTool = (tool: Tool): boolean =>
-      access[tool].view && toolAvailable(tool, advancedTool);
+    /** Whether a tool's row renders at all. */
+    const showTool = (tool: Tool): boolean => access[tool].view;
 
-    /** Whether to surface a create affordance for a tool (same config gate). */
-    const canCreateTool = (tool: Tool): boolean =>
-      access[tool].create && toolAvailable(tool, advancedTool);
+    /** Whether to surface a create affordance for a tool. */
+    const canCreateTool = (tool: Tool): boolean => access[tool].create;
 
     // Load initial state from storage, default to true if not found
     const [isOpen, setIsOpen] = useState(() => {
@@ -207,10 +196,8 @@ export const InitiativeSection = memo(
             forceMount
           >
             <SidebarMenu>
-              {/* One row per tool, in SIDEBAR_TOOLS order (advanced tool
-                  pinned to the top so it's the first thing a user sees when
-                  the integration is on; projects last so the project list
-                  expands directly beneath their row). */}
+              {/* One row per tool, in SIDEBAR_TOOLS order (projects last so
+                  the project list expands directly beneath their row). */}
               {SIDEBAR_TOOLS.filter(showTool).map((tool) => {
                 const def = TOOL_REGISTRY[tool];
                 const Icon = def.icon;
@@ -226,13 +213,9 @@ export const InitiativeSection = memo(
                         >
                           <Icon className="h-4 w-4" />
                           <span className="min-w-0 flex-1 truncate">
-                            {toolDisplayName(tool, t(toolNavLabelKey(tool)), advancedTool)}
+                            {t(toolNavLabelKey(tool))}
                           </span>
-                          {def.inAppCreate && (
-                            <span className="text-muted-foreground text-xs">
-                              {counts[tool] ?? 0}
-                            </span>
-                          )}
+                          <span className="text-muted-foreground text-xs">{counts[tool] ?? 0}</span>
                         </Link>
                       </SidebarMenuButton>
                       {canCreateTool(tool) && (

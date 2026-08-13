@@ -75,8 +75,6 @@
   "counterGroups": "Contadores",
   "allCounterGroups": "Todos los contadores",
   "createCounterGroup": "Nuevo grupo de contadores",
-  "advancedTools": "Herramientas avanzadas",
-  "createAdvancedTool": "Nueva herramienta avanzada",
   "createExternally": "Se crea en {{name}}",
   "adminDashboard": "Panel de administración",
   "marketplace": "Mercado"

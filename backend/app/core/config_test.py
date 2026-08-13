@@ -291,15 +291,6 @@ def test_csp_captcha_origins_only_when_configured():
     assert "https://*.hcaptcha.com" in _directive(on, "script-src")
 
 
-def test_csp_advanced_tool_origin_only_when_configured():
-    assert "tool.example.com" not in _settings().content_security_policy
-
-    on = _settings(ADVANCED_TOOL_URL="https://tool.example.com/embed?x=1")
-    csp = on.content_security_policy
-    assert "https://tool.example.com" in _directive(csp, "frame-src")
-    assert "https://tool.example.com" in _directive(csp, "connect-src")
-
-
 def test_docs_csp_allows_swagger_cdn_but_main_csp_does_not():
     # Swagger's jsDelivr + Cloudflare beacon scripts are permitted ONLY on the
     # docs-scoped policy; the app-wide script-src stays 'self' (pentest MED-001).

@@ -1,31 +1,26 @@
-"""Unit tests for advanced-tool handoff token signing and claims.
+"""Unit tests for token signing and claims.
 
-These exercise ``create_advanced_tool_handoff_token`` directly without
-hitting the API, so they're cheap to run and don't need a database.
-The HTTP-level gating is covered separately in the endpoint tests.
+These exercise the minting functions directly without hitting the API, so
+they're cheap to run and don't need a database. The HTTP-level gating is
+covered separately in the endpoint tests.
 """
 
 from __future__ import annotations
 
 import base64
-import json
-import time
 import uuid
 
 import jwt
 import pytest
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
 
 from datetime import timedelta
 
 from app.core import security
 from app.core.config import settings
 from app.core.security import (
-    ADVANCED_TOOL_AUDIENCE,
-    ADVANCED_TOOL_HANDOFF_LIFETIME,
     AUTH_ACCESS_AUDIENCE,
     AUTH_TOKEN_ISSUER,
+    HANDOFF_LIFETIME,
     HandoffSigningNotConfiguredError,
     JWT_ALGORITHM,
     UPLOAD_TOKEN_AUDIENCE,
@@ -33,7 +28,6 @@ from app.core.security import (
     UPLOAD_TOKEN_SCOPE,
     UploadTokenError,
     create_access_token,
-    create_advanced_tool_handoff_token,
     create_upload_token,
     decode_session_token,
     mint_access_token,
@@ -59,251 +53,16 @@ def _b64url_encode(raw: bytes) -> str:
 
 
 @pytest.mark.unit
-def test_handoff_token_returns_token_and_lifetime_seconds():
-    """The function returns ``(token, seconds)`` where seconds matches
-    ``ADVANCED_TOOL_HANDOFF_LIFETIME`` so callers can populate
-    ``expires_in_seconds`` without hardcoding a magic number."""
-    token, seconds = create_advanced_tool_handoff_token(
-        user_id=1,
-        guild_id=2,
-        guild_role="admin",
-        is_manager=True,
-        can_create=True,
-        scope="guild",
-    )
-
-    assert isinstance(token, str) and token.count(".") == 2
-    assert seconds == int(ADVANCED_TOOL_HANDOFF_LIFETIME.total_seconds())
-
-
-@pytest.mark.unit
-def test_handoff_token_jwt_exp_matches_advertised_seconds():
-    """The JWT's ``exp`` claim must match the seconds returned to the
-    caller — drift between the two would cause the embed's re-handoff
-    schedule to disagree with when the token actually expires."""
-    before = int(time.time())
-    token, seconds = create_advanced_tool_handoff_token(
-        user_id=1,
-        guild_id=2,
-        guild_role="admin",
-        is_manager=True,
-        can_create=True,
-        scope="guild",
-    )
-    after = int(time.time())
-
-    payload = _decode_unverified(token)
-    # Allow ±1s for clock drift between time.time() calls
-    expected_exp_low = before + seconds
-    expected_exp_high = after + seconds
-    assert expected_exp_low - 1 <= payload["exp"] <= expected_exp_high + 1
-
-
-@pytest.mark.unit
-def test_handoff_token_carries_required_claims():
-    """All claims the embed depends on must be present and well-typed."""
-    token, _ = create_advanced_tool_handoff_token(
-        user_id=42,
-        guild_id=7,
-        initiative_id=99,
-        guild_role="admin",
-        is_manager=True,
-        can_create=True,
-        scope="initiative",
-    )
-
-    payload = _decode_unverified(token)
-    assert payload["aud"] == ADVANCED_TOOL_AUDIENCE
-    assert payload["iss"] == "initiative"
-    assert payload["sub"] == "42"
-    assert payload["guild_id"] == 7
-    assert payload["initiative_id"] == 99
-    assert payload["guild_role"] == "admin"
-    assert payload["is_manager"] is True
-    assert payload["can_create"] is True
-    assert payload["scope"] == "initiative"
-    assert payload["jti"] and isinstance(payload["jti"], str)
-
-
-@pytest.mark.unit
-def test_handoff_token_omits_initiative_id_at_guild_scope():
-    """Guild-scoped tokens must not include an ``initiative_id`` claim;
-    its absence is the marker that the embed should render the guild
-    view, not an initiative one."""
-    token, _ = create_advanced_tool_handoff_token(
-        user_id=1,
-        guild_id=2,
-        guild_role="admin",
-        is_manager=True,
-        can_create=True,
-        scope="guild",
-    )
-
-    payload = _decode_unverified(token)
-    assert "initiative_id" not in payload
-    assert payload["scope"] == "guild"
-
-
-@pytest.mark.unit
-def test_handoff_token_jti_is_unique_per_call():
-    """Each mint must produce a fresh ``jti`` so the embed can blocklist
-    a redeemed token without rejecting subsequent legitimate handoffs."""
-    seen: set[str] = set()
-    for _ in range(5):
-        token, _ = create_advanced_tool_handoff_token(
-            user_id=1,
-            guild_id=2,
-            guild_role="admin",
-            is_manager=True,
-            can_create=True,
-            scope="guild",
-        )
-        payload = _decode_unverified(token)
-        seen.add(payload["jti"])
-
-    assert len(seen) == 5
-
-
-@pytest.mark.unit
-def test_handoff_token_signs_with_rs256_when_private_key_configured(monkeypatch):
-    """When ``HANDOFF_SIGNING_PRIVATE_KEY_PEM`` is set, the token is
-    signed with RS256 and carries the configured ``kid`` in its header.
-    The matching public key verifies the signature end-to-end without
-    sharing any secret."""
-    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    private_pem = private_key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption(),
-    ).decode("ascii")
-    public_pem = private_key.public_key().public_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo,
-    )
-
-    monkeypatch.setattr(
-        security.settings, "HANDOFF_SIGNING_PRIVATE_KEY_PEM", private_pem
-    )
-    monkeypatch.setattr(security.settings, "HANDOFF_SIGNING_KEY_ID", "test-rotation-1")
-
-    token, _ = create_advanced_tool_handoff_token(
-        user_id=1,
-        guild_id=2,
-        guild_role="admin",
-        is_manager=True,
-        can_create=True,
-        scope="guild",
-    )
-
-    header = jwt.get_unverified_header(token)
-    assert header["alg"] == "RS256"
-    assert header["kid"] == "test-rotation-1"
-
-    # Public-key verification — proves the embed can verify without ever
-    # seeing FOSS's signing material.
-    payload = jwt.decode(
-        token,
-        public_pem,
-        algorithms=["RS256"],
-        audience=ADVANCED_TOOL_AUDIENCE,
-    )
-    assert payload["scope"] == "guild"
-
-
-@pytest.mark.unit
-def test_handoff_token_refuses_to_mint_without_private_key(monkeypatch):
-    """Handoff tokens are verified across a trust boundary, so there is no
-    symmetric fallback: with no RS256 private key configured the mint fails
-    closed rather than emit a token the embed can't verify by public key."""
-    monkeypatch.setattr(security.settings, "HANDOFF_SIGNING_PRIVATE_KEY_PEM", None)
-    monkeypatch.setattr(security.settings, "HANDOFF_SIGNING_KEY_ID", None)
-
-    with pytest.raises(HandoffSigningNotConfiguredError):
-        create_advanced_tool_handoff_token(
-            user_id=1,
-            guild_id=2,
-            guild_role="admin",
-            is_manager=True,
-            can_create=True,
-            scope="guild",
-        )
-
-
-@pytest.mark.unit
-def test_handoff_token_always_signs_rs256_by_default():
-    """With a key configured (the deployment default once ADVANCED_TOOL_URL is
-    on), the token is RS256 — never a symmetric algorithm."""
-    token, _ = create_advanced_tool_handoff_token(
-        user_id=1,
-        guild_id=2,
-        guild_role="admin",
-        is_manager=True,
-        can_create=True,
-        scope="guild",
-    )
-
-    header = jwt.get_unverified_header(token)
-    assert header["alg"] == "RS256"
-
-
-@pytest.mark.unit
-def test_handoff_token_claim_tamper_fails_public_key_verification():
-    """The embed authorizes off the signed ``guild_role`` claim. Flipping it
-    (a member forging "admin") invalidates the RS256 signature, so public-key
-    verification rejects the token — the claim can't be altered in transit
-    without the private key, which the client never holds."""
-    token, _ = create_advanced_tool_handoff_token(
-        user_id=1,
-        guild_id=2,
-        initiative_id=5,
-        guild_role="member",
-        is_manager=False,
-        can_create=False,
-        scope="initiative",
-    )
-    public_pem = (
-        serialization.load_pem_private_key(
-            security.settings.HANDOFF_SIGNING_PRIVATE_KEY_PEM.encode("ascii"),
-            password=None,
-        )
-        .public_key()
-        .public_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo,
-        )
-    )
-
-    # Sanity: the untampered token verifies with the public key.
-    assert (
-        jwt.decode(
-            token, public_pem, algorithms=["RS256"], audience=ADVANCED_TOOL_AUDIENCE
-        )["guild_role"]
-        == "member"
-    )
-
-    header_b64, payload_b64, sig_b64 = token.split(".")
-    claims = json.loads(_b64url_decode(payload_b64))
-    claims["guild_role"] = "admin"  # privilege-forgery attempt
-    forged = f"{header_b64}.{_b64url_encode(json.dumps(claims).encode())}.{sig_b64}"
-
-    with pytest.raises(jwt.InvalidSignatureError):
-        jwt.decode(
-            forged, public_pem, algorithms=["RS256"], audience=ADVANCED_TOOL_AUDIENCE
-        )
-
-
-@pytest.mark.unit
 def test_billing_portal_handoff_carries_admin_claims_and_distinct_audience():
-    """Claims present; audience distinct from the advanced-tool token."""
+    """Claims present, and the audience is the portal's own."""
     token, seconds = security.create_billing_portal_handoff_token(
         user_id=42, guild_id=7, guild_role="admin"
     )
-    assert seconds == int(ADVANCED_TOOL_HANDOFF_LIFETIME.total_seconds())
+    assert seconds == int(HANDOFF_LIFETIME.total_seconds())
     assert jwt.get_unverified_header(token)["alg"] == "RS256"
 
     payload = _decode_unverified(token)
     assert payload["aud"] == security.BILLING_PORTAL_AUDIENCE
-    assert payload["aud"] != ADVANCED_TOOL_AUDIENCE
     assert payload["iss"] == "initiative"
     assert payload["sub"] == "42"
     assert payload["guild_id"] == 7
@@ -409,15 +168,10 @@ def test_jwt_signing_key_does_not_affect_encryption(monkeypatch):
 
 @pytest.mark.unit
 def test_verify_upload_token_rejects_wrong_audience():
-    """A token signed with our secret but carrying a foreign audience (e.g. the
-    advanced-tool handoff) must not be honored as an upload token."""
-    handoff, _ = create_advanced_tool_handoff_token(
-        user_id=1,
-        guild_id=2,
-        guild_role="admin",
-        is_manager=True,
-        can_create=True,
-        scope="guild",
+    """A token signed with our secret but carrying a foreign audience (e.g. a
+    handoff into another service) must not be honored as an upload token."""
+    handoff, _ = security.create_billing_portal_handoff_token(
+        user_id=1, guild_id=2, guild_role="admin"
     )
     with pytest.raises(UploadTokenError):
         verify_upload_token(handoff)
@@ -534,13 +288,8 @@ def test_decode_session_token_rejects_scoped_upload_token():
 
 @pytest.mark.unit
 def test_decode_session_token_rejects_handoff_token():
-    handoff, _ = create_advanced_tool_handoff_token(
-        user_id=7,
-        guild_id=1,
-        guild_role="admin",
-        is_manager=True,
-        can_create=True,
-        scope="guild",
+    handoff, _ = security.create_billing_portal_handoff_token(
+        user_id=7, guild_id=1, guild_role="admin"
     )
     with pytest.raises(jwt.PyJWTError):
         decode_session_token(handoff)

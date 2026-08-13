@@ -31,7 +31,6 @@ from app.api.deps import (
 )
 from app.core.messages import TrashMessages
 from app.db.soft_delete_filter import select_including_deleted
-from app.models.tenant.advanced_tool import AdvancedTool
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
@@ -52,10 +51,6 @@ from app.schemas.tenant.trash import (
     RestoreResponse,
     TrashItem,
     TrashListResponse,
-)
-from app.services.tenant.advanced_tool_notify import (
-    drain_purged_advanced_tools,
-    notify_purged_advanced_tools,
 )
 from app.services.platform import guilds as guilds_service
 from app.services.tenant.soft_delete import (
@@ -89,7 +84,6 @@ ENTITY_REGISTRY: dict[str, tuple[type[SQLModel], str]] = {
     "dashboard": (Dashboard, "name"),
     "counter_group": (CounterGroup, "name"),
     "counter": (Counter, "name"),
-    "advanced_tool": (AdvancedTool, "name"),
 }
 
 
@@ -146,9 +140,6 @@ _DEDUP_PARENTS: dict[type[SQLModel], list[tuple[type[SQLModel], str]]] = {
     Dashboard: [(Initiative, "initiative_id")],
     CounterGroup: [(Initiative, "initiative_id")],
     Counter: [(CounterGroup, "counter_group_id")],
-    # Guild-wide advanced tools (initiative_id NULL) have no parent to cascade
-    # from; initiative-scoped ones dedup under their initiative like the rest.
-    AdvancedTool: [(Initiative, "initiative_id")],
 }
 
 
@@ -406,7 +397,4 @@ async def purge_trash_entity(
     )
     await hard_purge_entity(session, entity)
     await session.commit()
-    # Post-commit: hard purges must also delete the advanced tool's
-    # scheduling mirror on the external backend (best-effort).
-    await notify_purged_advanced_tools(drain_purged_advanced_tools(session))
     return Response(status_code=status.HTTP_204_NO_CONTENT)

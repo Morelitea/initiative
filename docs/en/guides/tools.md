@@ -75,10 +75,6 @@ Each counter can have:
     Save as `en/images/tools/counters.png`, then use:
     `![A group of counters](../images/tools/counters.png)`
 
-## The advanced tool
-
-Some servers add an extra, specialized **advanced tool** that an administrator configures. If your group has one set up, you can enable it per initiative and it appears alongside the others. If you don't see it, your server simply hasn't set one up — nothing's wrong.
-
 ## Related
 
 - [Initiatives](initiatives.md) — tools live inside an initiative, and roles control who can use them.

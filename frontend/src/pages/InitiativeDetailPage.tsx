@@ -19,10 +19,9 @@ import {
 } from "@/hooks/useInitiativeRoles";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
-import { toolAvailable, toolCamelPlural } from "@/lib/tools";
+import { toolCamelPlural } from "@/lib/tools";
 
 import { DocumentsView } from "./DocumentsPage";
-import { AdvancedToolsView } from "./initiativeTools/advancedTools/AdvancedToolsView";
 import { CounterGroupsView } from "./initiativeTools/counters/CounterGroupsPage";
 import { DashboardsView } from "./initiativeTools/dashboards/DashboardsPage";
 import { CalendarsView } from "./initiativeTools/events/CalendarsPage";
@@ -40,7 +39,6 @@ const TOOL_TABS: Array<[Tool, ComponentType<ToolViewProps>]> = [
   [Tool.dashboard, DashboardsView],
   [Tool.queue, QueuesView],
   [Tool.counter_group, CounterGroupsView],
-  [Tool.advanced_tool, AdvancedToolsView],
 ];
 
 export const TOOL_TAB_VIEWS: ReadonlyMap<Tool, ComponentType<ToolViewProps>> = new Map(TOOL_TABS);
@@ -76,17 +74,12 @@ export const InitiativeDetailPage = () => {
   const isInitiativeManager = membership?.is_manager || membership?.role === "project_manager";
   const canManageInitiative = Boolean(isGuildAdmin || isInitiativeManager);
 
-  const { advancedTool } = useAppConfig();
-
   // A tool's tab renders when its permission allows viewing it (the backend
   // already folds in the initiative's master switches). The advanced tool is
   // additionally gated by the deployment-level runtime config.
   const availableTabs = useMemo<Tool[]>(
-    () =>
-      TOOL_TABS.map(([tool]) => tool).filter(
-        (tool) => isToolVisible(permissions, tool) && toolAvailable(tool, advancedTool)
-      ),
-    [permissions, advancedTool]
+    () => TOOL_TABS.map(([tool]) => tool).filter((tool) => isToolVisible(permissions, tool)),
+    [permissions]
   );
 
   const [activeTab, setActiveTab] = useState<Tool>(availableTabs[0] ?? Tool.document);

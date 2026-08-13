@@ -46,9 +46,6 @@ import { cn } from "@/lib/utils";
  *  the closed set rather than trusting anything a listing supplies. */
 const TOOL_ICONS = { calendar: CalendarDays } as const;
 
-/** Same idea for the apps that open a configured surface instead. */
-const EMBED_ICONS = { advanced_tool: Workflow } as const;
-
 export interface AppsSectionProps {
   isGuildAdmin: boolean;
   /** Persisted open/closed state, keyed like the other sidebar sections. */
@@ -65,7 +62,7 @@ export function AppsSection({ isGuildAdmin, open, onOpenChange }: AppsSectionPro
   // the operator switched it off: there is nothing behind the entry, so it does
   // not appear. Guild settings still lists it, which is where that is said.
   const apps = (appsQuery.data?.items ?? []).filter(
-    (app) => app.enabled && app.available !== false && (isGuildAdmin || !app.admin_only)
+    (app) => app.enabled && app.available !== false
   );
 
   // Nothing installed and nothing this person could do about it: show nothing.
@@ -122,10 +119,7 @@ export function AppsSection({ isGuildAdmin, open, onOpenChange }: AppsSectionPro
 function AppEntry({ app }: { app: GuildAppRead }) {
   const gp = useGuildPath();
   const path = guildAppPath(app);
-  const Icon =
-    TOOL_ICONS[app.tool as keyof typeof TOOL_ICONS] ??
-    EMBED_ICONS[app.embed_target as keyof typeof EMBED_ICONS] ??
-    Blocks;
+  const Icon = TOOL_ICONS[app.tool as keyof typeof TOOL_ICONS] ?? Blocks;
 
   return (
     <SidebarMenuItem>

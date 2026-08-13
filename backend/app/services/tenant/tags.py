@@ -24,7 +24,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import TagMessages
 from app.core.tools import Tool
-from app.models.tenant.advanced_tool import AdvancedTool, AdvancedToolTag
 from app.models.tenant.calendar import Calendar, CalendarTag
 from app.models.tenant.calendar_event import CalendarEvent, CalendarEventTag
 from app.models.tenant.counter import CounterGroup, CounterGroupTag
@@ -86,7 +85,6 @@ TOOL_TAG_LINKS: dict[Tool, TagLinkSpec] = {
     Tool.counter_group: TagLinkSpec(CounterGroup, CounterGroupTag, "counter_group_id"),
     Tool.calendar: TagLinkSpec(Calendar, CalendarTag, "calendar_id"),
     Tool.dashboard: TagLinkSpec(Dashboard, DashboardTag, "dashboard_id"),
-    Tool.advanced_tool: TagLinkSpec(AdvancedTool, AdvancedToolTag, "advanced_tool_id"),
 }
 
 # Content-level extras: sub-resources of a tool that also carry tags. These are

@@ -10,9 +10,9 @@ JWTs minted by initiative-auto:
   path)
 * deactivated users can't be impersonated even with a valid token
 
-These don't repeat the unit tests on token issuance — those live next
-to ``create_advanced_tool_handoff_token``. Here the focus is on the
-verification + blocklist + cross-claim consistency the dep enforces.
+These don't repeat the unit tests on token issuance — those live in
+``app/core/security_test.py``. Here the focus is on the verification +
+blocklist + cross-claim consistency the dep enforces.
 """
 
 from __future__ import annotations

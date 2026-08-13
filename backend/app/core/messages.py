@@ -569,26 +569,6 @@ class TrashMessages:
     UNKNOWN_ENTITY_TYPE = "TRASH_UNKNOWN_ENTITY_TYPE"
 
 
-class AdvancedToolMessages:
-    NOT_CONFIGURED = "ADVANCED_TOOL_NOT_CONFIGURED"
-    NOT_ENABLED = "ADVANCED_TOOL_NOT_ENABLED"
-    NOT_FOUND = "ADVANCED_TOOL_NOT_FOUND"
-    NO_ACCESS = "ADVANCED_TOOL_NO_ACCESS"
-    OWNER_REQUIRED = "ADVANCED_TOOL_OWNER_REQUIRED"
-    WRITE_ACCESS_REQUIRED = "ADVANCED_TOOL_WRITE_ACCESS_REQUIRED"
-    GRANT_CANNOT_MANAGE_MEMBERS = "ADVANCED_TOOL_GRANT_CANNOT_MANAGE_MEMBERS"
-    CREATE_PERMISSION_REQUIRED = "ADVANCED_TOOL_CREATE_PERMISSION_REQUIRED"
-    # Creating a guild-wide advanced tool (no initiative) is guild-admin only.
-    GUILD_WIDE_REQUIRES_ADMIN = "ADVANCED_TOOL_GUILD_WIDE_REQUIRES_ADMIN"
-    # Guild-wide tools are admin-only and hold no per-user/role grants.
-    GUILD_WIDE_NOT_SHAREABLE = "ADVANCED_TOOL_GUILD_WIDE_NOT_SHAREABLE"
-    # The run endpoint only accepts the automation service's delegation tokens.
-    DELEGATED_RUN_ONLY = "ADVANCED_TOOL_DELEGATED_RUN_ONLY"
-    # ADVANCED_TOOL_URL is set but no handoff signing key is configured, so the
-    # handoff cannot be minted (fail closed, retryable once configured).
-    SIGNING_NOT_CONFIGURED = "ADVANCED_TOOL_SIGNING_NOT_CONFIGURED"
-
-
 class GuildAppMessages:
     NOT_FOUND = "GUILD_APP_NOT_FOUND"
     ADMIN_REQUIRED = "GUILD_APP_ADMIN_REQUIRED"

@@ -75,8 +75,6 @@
   "counterGroups": "Compteurs",
   "allCounterGroups": "Tous les compteurs",
   "createCounterGroup": "Nouveau groupe de compteurs",
-  "advancedTools": "Outils avancés",
-  "createAdvancedTool": "Nouvel outil avancé",
   "createExternally": "Créé dans {{name}}",
   "adminDashboard": "Tableau de bord admin",
   "marketplace": "Catalogue"

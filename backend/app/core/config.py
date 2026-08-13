@@ -300,7 +300,7 @@ class Settings(BaseSettings):
         ``'unsafe-inline'`` because the charting component and some UI libraries
         inject inline ``<style>``. Origins the app genuinely loads (Google
         Fonts, document embeds, and — when configured — the captcha provider and
-        advanced-tool iframe) are listed explicitly rather than via a blanket
+        app embeds) are listed explicitly rather than via a blanket
         ``https:``.
 
         ``app_frame_origins`` is how a marketplace app's embedded surface gets
@@ -329,12 +329,6 @@ class Settings(BaseSettings):
             style_src += extra
             frame_src += extra
             connect_src += extra
-
-        if self.ADVANCED_TOOL_URL:
-            tool_origin = _origin_of(self.ADVANCED_TOOL_URL)
-            if tool_origin:
-                frame_src.append(tool_origin)
-                connect_src.append(tool_origin)
 
         # Only the surface being opened. Already canonical origins by the time
         # they are stored on a registration, and re-reduced here so a value that
@@ -562,24 +556,6 @@ class Settings(BaseSettings):
     PAM_BREAK_GLASS_DEFAULT_MINUTES: int = 60  # 1 hour
     PAM_BREAK_GLASS_MAX_MINUTES: int = 240  # 4 hours (ceiling on a self-approved grant)
 
-    # Optional advanced tool plug-in: when ADVANCED_TOOL_URL is set, the SPA
-    # surfaces a per-initiative toggle that, when enabled, embeds the URL as
-    # an iframe sub-page under the initiative. Both unset on the default OSS
-    # image — the toggle and panel are then fully hidden.
-    ADVANCED_TOOL_NAME: str | None = None
-    ADVANCED_TOOL_URL: str | None = None
-
-    # Server-to-server link to the advanced tool's own backend. When a
-    # guild HARD-purges an advanced tool (manual trash purge or the
-    # retention worker), we notify that backend so its scheduling mirror
-    # is deleted too — a purge must not leave a live schedule pointing at
-    # nothing. ``ADVANCED_TOOL_BACKEND_URL`` is the service's API base
-    # (e.g. http://auto:9002/api/v1); ``ADVANCED_TOOL_PURGE_SECRET`` signs
-    # the notification (HMAC-SHA256, same envelope as webhook dispatch).
-    # Either unset -> notifications are skipped silently (default OSS image).
-    ADVANCED_TOOL_BACKEND_URL: str | None = None
-    ADVANCED_TOOL_PURGE_SECRET: str | None = None
-
     # Optional captcha gate on the public registration endpoint to push
     # back on bot signups. ``CAPTCHA_PROVIDER`` selects the vendor —
     # ``"hcaptcha"`` / ``"turnstile"`` / ``"recaptcha"`` — and the SPA
@@ -594,18 +570,11 @@ class Settings(BaseSettings):
     CAPTCHA_PROVIDER: str | None = None
     CAPTCHA_SITE_KEY: str | None = None
     CAPTCHA_SECRET_KEY: str | None = None
-    # Comma-separated origin allowlist for postMessage handoff to the
-    # advanced tool iframe. The frontend only accepts messages from these
-    # origins, and only sends messages to the iframe origin derived from
-    # ADVANCED_TOOL_URL. Defaults to the ADVANCED_TOOL_URL origin if unset.
-    ADVANCED_TOOL_ALLOWED_ORIGINS: list[str] | str | None = None
-
-    # RSA private key (PEM) for signing advanced-tool handoff JWTs. Handoff
-    # tokens cross a trust boundary — the proprietary embed backend verifies
-    # them with the matching public key — so signing is always RS256 and no
-    # secret is shared across that boundary. REQUIRED whenever
-    # ADVANCED_TOOL_URL is set: with the URL on and this unset, the handoff
-    # endpoints fail closed (503) and the app logs a warning at boot.
+    # RSA private key (PEM) for signing handoff JWTs. Handoff tokens cross a
+    # trust boundary — the receiving service verifies them with the matching
+    # public key — so signing is always RS256 and no secret is shared across
+    # that boundary. Required by whichever handoff a deployment uses: unset,
+    # those mint endpoints fail closed (503).
     # Generate a 2048-bit keypair with ``openssl genrsa -out private.pem 2048``
     # and feed the PEM here.
     HANDOFF_SIGNING_PRIVATE_KEY_PEM: str | None = None
@@ -613,7 +582,7 @@ class Settings(BaseSettings):
     # to pick the right verifying key — useful when rotating.
     HANDOFF_SIGNING_KEY_ID: str | None = None
 
-    # Inbound delegation from the advanced-tool service (initiative-auto).
+    # Inbound delegation from the automation service (initiative-auto).
     # When auto needs to call Initiative on behalf of a user — either
     # because the user is in the iframe right now, or because a workflow
     # they own is firing — it presents a JWT signed with RS256 by its
@@ -688,8 +657,8 @@ class Settings(BaseSettings):
     # Public base URL of an external billing portal, surfaced to the SPA via
     # /config. Unset (the default) ⇒ the SPA shows NO tier label, upgrade, or
     # manage-billing UI; the usage panel still shows caps/usage (operator-set
-    # numbers). Set ⇒ the link-out buttons appear. Mirrors the
-    # ADVANCED_TOOL_URL pattern: the OSS core defers to an external service.
+    # numbers). Set ⇒ the link-out buttons appear: the OSS core defers to an
+    # external service.
     BILLING_URL: str | None = None
     # Signing material for the operator handoff into the billing portal's
     # support console, shared with that service. Unset (the default) ⇒ the
@@ -813,19 +782,6 @@ class Settings(BaseSettings):
             for item in items
             if item and item.strip() and item.strip() != "*"
         ]
-
-    @field_validator("ADVANCED_TOOL_ALLOWED_ORIGINS", mode="before")
-    @classmethod
-    def parse_advanced_tool_origins(cls, value: str | list[str] | None) -> list[str]:
-        if value is None:
-            return []
-        if isinstance(value, str):
-            if not value.strip():
-                return []
-            items = value.split(",")
-        else:
-            items = value
-        return [item.strip() for item in items if item and item.strip()]
 
     @field_validator("OIDC_SCOPES", mode="before")
     @classmethod

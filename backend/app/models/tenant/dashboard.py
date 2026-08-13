@@ -28,9 +28,8 @@ class Dashboard(SoftDeleteMixin, table=True):
     ``config`` fills the binding slots a definition leaves open, so one shared
     definition can be pointed at this initiative's actual counters/documents.
 
-    Dashboards are initiative-scoped: unlike ``advanced_tools`` there is no
-    guild-wide (NULL initiative) form — a guild-level surface is an app, which
-    is a separate concept.
+    Dashboards are initiative-scoped: there is no guild-wide (NULL initiative)
+    form — a guild-level surface is an app, which is a separate concept.
     """
 
     __tablename__ = "dashboards"
