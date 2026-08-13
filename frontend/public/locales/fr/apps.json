@@ -94,5 +94,20 @@
     "revokeAllTitle": "Révoquer la connexion de tous les membres ?",
     "revokeAllBody": "L'identifiant enregistré de chaque membre est supprimé et l'application est priée de cesser de s'en servir. L'application reste installée et conserve les réglages de la guilde. Les membres peuvent se reconnecter ensuite.",
     "revokedAll": "Toutes les connexions révoquées."
+  },
+  "showMore": "{{count}} de plus",
+  "showFewer": "Afficher moins",
+  "settings": {
+    "description": "Configurez la connexion de cette application."
+  },
+  "embed": {
+    "connecting": "Connexion…",
+    "handoffFailed": "Impossible d'ouvrir cette application. Réessayez dans un instant.",
+    "failed": "Impossible d'ouvrir cette application",
+    "notFound": "Application introuvable",
+    "disabled": "{{name}} est désactivée",
+    "unavailable": "{{name}} n'est pas configurée sur ce serveur",
+    "unavailableDescription": "Un administrateur doit connecter le service de cette application avant qu'elle puisse être ouverte.",
+    "noSurface": "{{name}} n'a pas de page dédiée"
   }
 }

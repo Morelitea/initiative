@@ -3,10 +3,8 @@ import {
   Check,
   ChevronsDownUp,
   ChevronsUpDown,
-  ListTodo,
   Pencil,
   Plus,
-  ScrollText,
   Settings,
   Star,
   Tag,
@@ -376,48 +374,18 @@ export const AppSidebar = () => {
                           </>
                         )}
 
-                        {/* All Projects & All Documents */}
+                        {/* Apps: guild-wide surfaces, so they sit above the
+                            initiatives rather than inside any of them. */}
                         {activeGuild && (
                           <>
-                            <SidebarGroup>
-                              <SidebarGroupContent>
-                                <SidebarMenu>
-                                  <SidebarMenuItem>
-                                    <SidebarMenuButton asChild>
-                                      <Link
-                                        to={gp("/projects")}
-                                        className="flex items-center gap-2"
-                                      >
-                                        <ListTodo className="h-4 w-4" />
-                                        <span>{t("allProjects")}</span>
-                                      </Link>
-                                    </SidebarMenuButton>
-                                  </SidebarMenuItem>
-                                  <SidebarMenuItem>
-                                    <SidebarMenuButton asChild>
-                                      <Link
-                                        to={gp("/documents")}
-                                        className="flex items-center gap-2"
-                                      >
-                                        <ScrollText className="h-4 w-4" />
-                                        <span>{t("allDocuments")}</span>
-                                      </Link>
-                                    </SidebarMenuButton>
-                                  </SidebarMenuItem>
-                                </SidebarMenu>
-                              </SidebarGroupContent>
-                            </SidebarGroup>
+                            <AppsSection
+                              isGuildAdmin={isGuildAdmin}
+                              open={appsOpen}
+                              onOpenChange={setAppsOpen}
+                            />
                             <SidebarSeparator />
                           </>
                         )}
-
-                        {/* Apps: guild-wide surfaces, so they sit above the
-                            initiatives rather than inside any of them. */}
-                        <AppsSection
-                          isGuildAdmin={isGuildAdmin}
-                          open={appsOpen}
-                          onOpenChange={setAppsOpen}
-                        />
 
                         {/* Initiatives Section */}
                         <SidebarGroup>

@@ -76,8 +76,11 @@ export interface GuildAppDetail {
   config_state: "unverified" | "ok" | "invalid" | string;
   config_state_detail?: string | null;
   tool?: string | null;
-  embed_target?: string | null;
+  /** The listing's artwork, for drawing the app outside the marketplace. */
+  avatar_url?: string | null;
   features: string[];
+  /** The pinned definition, verbatim — what surfaces and connections it has. */
+  definition: Record<string, unknown>;
   admin_only: boolean;
   /** The platform provides this app: no remove, no turning it off. */
   mandatory: boolean;

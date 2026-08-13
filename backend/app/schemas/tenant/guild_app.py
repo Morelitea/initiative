@@ -124,6 +124,10 @@ class GuildAppRead(SanitizedBaseModel):
     #: Which tool this app mounts, when it mounts one. Read off the pinned
     #: definition so the client need not fetch the catalog to render an entry.
     tool: Optional[str] = None
+    #: The listing's artwork, so the sidebar can draw this install. Looked up
+    #: from the catalog rather than pinned: a publisher who changes their
+    #: picture changes it everywhere the app is shown.
+    avatar_url: Optional[str] = None
     #: What a service app contributes, from its pinned definition.
     features: List[str] = []
     #: The pinned definition itself, verbatim.
@@ -253,7 +257,10 @@ class GuildAppMembersResponse(SanitizedBaseModel):
 
 
 def serialize_guild_app(
-    app: Any, *, install_state: Optional[InstallState] = None
+    app: Any,
+    *,
+    install_state: Optional[InstallState] = None,
+    avatar_url: Optional[str] = None,
 ) -> GuildAppRead:
     """One install as the client sees it.
 
@@ -279,6 +286,7 @@ def serialize_guild_app(
         config_state=state.state,
         config_state_detail=state.detail,
         tool=definition.get("tool"),
+        avatar_url=avatar_url,
         features=list(features) if isinstance(features, list) else [],
         definition=definition,
         mandatory=service_state.mandatory,
@@ -339,9 +347,10 @@ def serialize_guild_app_detail(
     *,
     member_rows: Dict[str, Any],
     install_state: Optional[InstallState] = None,
+    avatar_url: Optional[str] = None,
 ) -> GuildAppDetail:
     """The install and its connections, from the viewer's own perspective."""
-    base = serialize_guild_app(app, install_state=install_state)
+    base = serialize_guild_app(app, install_state=install_state, avatar_url=avatar_url)
     connections = [
         serialize_connection(
             app, connection, member_row=member_rows.get(connection.get("id") or "")
