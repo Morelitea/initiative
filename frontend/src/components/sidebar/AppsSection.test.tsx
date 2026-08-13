@@ -1,10 +1,9 @@
 /**
  * Who sees the Apps section, and when.
  *
- * The rules are about not promising anything: a member with no apps installed
- * has nothing to look at and nothing they could do about it, so the section is
- * absent entirely rather than empty. An admin in the same guild does have
- * something to do, so they get it with the `+`.
+ * The section shows for everyone, because everyone can do something with it:
+ * an admin adds an app, and a member browses the same shelf to see what exists
+ * and who to ask for it. What differs is the invitation at the bottom.
  *
  * Disabled apps belong in guild settings, not here — the sidebar shows what is
  * on.
@@ -55,31 +54,25 @@ const render = (isGuildAdmin: boolean) =>
     </TooltipProvider>
   ));
 
-/**
- * Absence, waited for.
- *
- * The page renders through a router, so it renders nothing synchronously —
- * asserting an empty DOM the moment `render` returns passes before the section
- * has had a chance to appear, and would pass just as well if it were broken.
- * This waits for the section instead, and requires that it never arrives.
- */
-const expectNoSection = () =>
-  expect(screen.findByText("Apps", {}, { timeout: 400 })).rejects.toThrow();
-
 beforeEach(() => {
   apps = [];
 });
 
 describe("AppsSection", () => {
-  it("shows nothing to a member when the guild has no apps", async () => {
+  it("points a member at the store when the guild has no apps", async () => {
+    // They cannot add one, but they can look and ask, so the shelf is worth
+    // pointing at rather than hiding.
     render(false);
-    await expectNoSection();
+    expect(await screen.findByText("Apps")).toBeInTheDocument();
+    expect(screen.getByText("Browse the app store")).toBeInTheDocument();
+    expect(screen.queryByText("Add an app")).toBeNull();
   });
 
   it("invites an admin to add one when the guild has no apps", async () => {
     render(true);
     expect(await screen.findByText("Apps")).toBeInTheDocument();
     expect(screen.getByText("Add an app")).toBeInTheDocument();
+    expect(screen.queryByText("Browse the app store")).toBeNull();
   });
 
   it("lists installed apps for a member", async () => {
@@ -88,6 +81,7 @@ describe("AppsSection", () => {
     expect(await screen.findByText("Guild calendar")).toBeInTheDocument();
     // No add affordance: installing is a guild-admin action.
     expect(screen.queryByText("Add an app")).toBeNull();
+    expect(screen.getByText("Browse the app store")).toBeInTheDocument();
   });
 
   it("links an app to what it mounted", async () => {
@@ -106,10 +100,11 @@ describe("AppsSection", () => {
     expect(screen.queryByText("Guild calendar")).toBeNull();
   });
 
-  it("shows a member nothing when every app is disabled", async () => {
+  it("still offers the store to a member when every app is disabled", async () => {
     apps = [app({ enabled: false })];
     render(false);
-    await expectNoSection();
+    expect(await screen.findByText("Browse the app store")).toBeInTheDocument();
+    expect(screen.queryByText("Guild calendar")).toBeNull();
   });
 
   it("opens a service app's own page", async () => {

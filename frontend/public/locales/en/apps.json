@@ -33,7 +33,8 @@
     "name": "Name",
     "action": "Add to guild",
     "done": "{{name}} added.",
-    "adminOnly": "Only a guild admin can add apps."
+    "adminOnly": "Ask a guild admin to add this app.",
+    "unknownState": "Could not check whether this app is already added."
   },
   "page": {
     "notFound": "App not found",
@@ -109,5 +110,6 @@
     "unavailable": "{{name}} is not set up on this server",
     "unavailableDescription": "An administrator needs to connect this app's service before it can be opened.",
     "noSurface": "{{name}} has no page of its own"
-  }
+  },
+  "browse": "Browse the app store"
 }
