@@ -79,6 +79,10 @@ export interface GuildAppDetail {
   embed_target?: string | null;
   features: string[];
   admin_only: boolean;
+  /** The platform provides this app: no remove, no turning it off. */
+  mandatory: boolean;
+  /** False when the app's service is not wired up here, or is switched off. */
+  available: boolean;
   installed_by_id: number;
   created_at: string;
   updated_at: string;
@@ -89,6 +93,13 @@ export interface AppConnectStart {
   connection_id: string;
   connection_ref: string;
   connect_path: string;
+  /**
+   * Where to send the member: the app's own address, assembled server-side from
+   * the deployment's registration plus the manifest's path, carrying the opaque
+   * handle the app stores its result against. Absent when this deployment has
+   * no live registration for the app — there is nowhere to send anyone.
+   */
+  connect_url?: string | null;
   status: string;
 }
 

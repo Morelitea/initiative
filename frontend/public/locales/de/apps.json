@@ -20,6 +20,8 @@
     "saved": "Gespeichert.",
     "needsConfig": "Einrichtung nötig",
     "configInvalid": "Problem bei der Einrichtung",
+    "provided": "Gehört zu Initiative",
+    "unavailable": "Auf diesem Server nicht eingerichtet",
     "configure": "Einstellungen öffnen",
     "version": "Version {{version}}",
     "upgrade": "Aktualisieren",
@@ -60,7 +62,8 @@
     "reconnect": "Neu verbinden",
     "disconnect": "Trennen",
     "disconnected": "Getrennt.",
-    "connectStarted": "Weiter unter {{path}}, um die Verbindung abzuschließen.",
+    "connectOpened": "Schließe die Verbindung im soeben geöffneten Tab ab.",
+    "connectUnavailable": "Diese App ist auf diesem Server noch nicht eingerichtet, es gibt also keine Anmeldung.",
     "connectedAs": "Verbunden als {{account}}",
     "blocked": "Eine Gildenadministration hat dir diese Verbindung untersagt.",
     "status": {

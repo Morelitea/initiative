@@ -1,4 +1,5 @@
 import re
+from collections.abc import Sequence
 from enum import Enum
 from functools import lru_cache
 from urllib.parse import urlsplit
@@ -284,7 +285,13 @@ class Settings(BaseSettings):
 
     @property
     def content_security_policy(self) -> str:
-        """Enforced CSP for the served SPA (pentest MED-001).
+        """Enforced CSP for the served SPA (pentest MED-001)."""
+        return self.content_security_policy_with_frames(())
+
+    def content_security_policy_with_frames(
+        self, app_frame_origins: Sequence[str]
+    ) -> str:
+        """The app-wide CSP, optionally admitting one app's frame origins.
 
         Locks down the high-value vectors (``object-src``/``base-uri``/
         ``frame-ancestors``/``form-action``) and confines scripts to
@@ -295,6 +302,15 @@ class Settings(BaseSettings):
         Fonts, document embeds, and — when configured — the captcha provider and
         advanced-tool iframe) are listed explicitly rather than via a blanket
         ``https:``.
+
+        ``app_frame_origins`` is how a marketplace app's embedded surface gets
+        framed, and it is deliberately **per document**: the response that opens
+        one app's embed names that app's registered origins, and every other
+        response names none. Listing every registered app instead would make
+        this header grow with the size of the catalog, on every response, for a
+        capability almost no page uses — and would advertise each app's origins
+        to pages that have nothing to do with it. ``connect-src`` is untouched:
+        an app's data reaches the browser same-origin through the proxy.
         """
         ws = "wss:" if self.APP_URL.startswith("https") else "ws:"
 
@@ -319,6 +335,14 @@ class Settings(BaseSettings):
             if tool_origin:
                 frame_src.append(tool_origin)
                 connect_src.append(tool_origin)
+
+        # Only the surface being opened. Already canonical origins by the time
+        # they are stored on a registration, and re-reduced here so a value that
+        # somehow carried a path cannot widen the directive.
+        for candidate in app_frame_origins:
+            origin = _origin_of(candidate) if candidate else None
+            if origin:
+                frame_src.append(origin)
 
         directives = {
             "default-src": ["'self'"],
@@ -632,6 +656,12 @@ class Settings(BaseSettings):
     # Unset (the default) ⇒ no reconciliation runs. Reconciliation never
     # re-enables a registration an operator disabled, and never blocks boot.
     APP_SERVICES_CONFIG: str | None = None
+    # How often enabled registrations are re-verified in the background, so an
+    # app that went away (or changed what it claims) is marked rather than
+    # discovered by a member clicking it. 0 turns the sweep off; it also does
+    # not run at all without the signing keypair, since the app platform is
+    # inert without one.
+    APP_SERVICE_VERIFY_INTERVAL_SECONDS: int = Field(default=3600, ge=0)
 
     # --- Billing (hosted deployments only; default OFF) -------------------
     # Billing is an optional EXTERNAL service. Every BILLING_* setting below

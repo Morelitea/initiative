@@ -20,6 +20,8 @@
     "saved": "Enregistré.",
     "needsConfig": "Configuration à faire",
     "configInvalid": "Problème de configuration",
+    "provided": "Fournie avec Initiative",
+    "unavailable": "Non configurée sur ce serveur",
     "configure": "Ouvrir les paramètres",
     "version": "Version {{version}}",
     "upgrade": "Mettre à jour",
@@ -60,7 +62,8 @@
     "reconnect": "Reconnecter",
     "disconnect": "Déconnecter",
     "disconnected": "Déconnecté.",
-    "connectStarted": "Poursuivez sur {{path}} pour terminer la connexion.",
+    "connectOpened": "Terminez la connexion dans l'onglet qui vient de s'ouvrir.",
+    "connectUnavailable": "Cette application n'est pas encore configurée sur ce serveur : il n'y a nulle part où se connecter.",
     "connectedAs": "Connecté en tant que {{account}}",
     "blocked": "L'administration de la guilde vous a interdit cette connexion.",
     "status": {

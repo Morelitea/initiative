@@ -20,6 +20,8 @@
     "saved": "Guardado.",
     "needsConfig": "Falta configurarla",
     "configInvalid": "Problema de configuración",
+    "provided": "Viene con Initiative",
+    "unavailable": "No está configurada en este servidor",
     "configure": "Abrir los ajustes",
     "version": "Versión {{version}}",
     "upgrade": "Actualizar",
@@ -60,7 +62,8 @@
     "reconnect": "Volver a conectar",
     "disconnect": "Desconectar",
     "disconnected": "Desconectada.",
-    "connectStarted": "Continúa en {{path}} para terminar de conectar.",
+    "connectOpened": "Termina de conectar en la pestaña que se acaba de abrir.",
+    "connectUnavailable": "Esta aplicación aún no está configurada en este servidor, así que no hay dónde iniciar sesión.",
     "connectedAs": "Conectada como {{account}}",
     "blocked": "Un administrador del gremio te ha impedido conectar esto.",
     "status": {

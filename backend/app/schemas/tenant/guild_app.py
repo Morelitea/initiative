@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional
 from pydantic import ConfigDict, Field
 
 from app.schemas.base import SanitizedBaseModel
+from app.services.marketplace.registration_lookup import InstallState
 from app.services.tenant import app_config as app_config_service
 from app.services.tenant.guild_apps import app_artifacts, requires_guild_admin
 
@@ -144,6 +145,14 @@ class GuildAppRead(SanitizedBaseModel):
     #: the client reading the kind: an entry a member cannot use should not be
     #: offered to them, and which apps those are is the server's call.
     admin_only: bool = False
+    #: The deployment provides this app to every guild, and a guild admin
+    #: neither removes nor disables it. The affordances are absent rather than
+    #: erroring, so the client is told which installs those are.
+    mandatory: bool = False
+    #: Whether what this app offers can be reached right now. False for a
+    #: service app whose registration is missing or switched off — the install
+    #: stays where it is and says why it is doing nothing.
+    available: bool = True
     installed_by_id: int
     created_at: datetime
     updated_at: datetime
@@ -169,7 +178,15 @@ class GuildAppConnectStart(SanitizedBaseModel):
     """Where to send the member so the app can run the vendor's flow.
 
     ``connection_ref`` is the handle the app will store its result against, and
-    the only name it ever learns for this person.
+    the only name it ever learns for this person. It travels in the URL because
+    it is an identifier rather than a credential — random, per (install,
+    connection, member), and useless without the app's own authenticated
+    write-back channel.
+
+    ``connect_url`` is the address to open: the registration's base URL joined
+    to the path the manifest declared. It is absent when this deployment has no
+    live registration for the app, in which case there is nowhere to send
+    anyone; ``connect_path`` still reports what the manifest asked for.
     """
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
@@ -177,7 +194,26 @@ class GuildAppConnectStart(SanitizedBaseModel):
     connection_id: str
     connection_ref: str
     connect_path: str
+    connect_url: Optional[str] = None
     status: str
+
+
+class GuildAppHandoff(SanitizedBaseModel):
+    """A short-lived credential for one of an app's embedded surfaces.
+
+    The token reaches the iframe by ``postMessage`` and never a query string,
+    and it is worth a minute. ``allowed_origins`` is what the SPA posts to and
+    accepts messages from — the registration's own list, not a client guess.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    handoff_token: str
+    expires_in_seconds: int
+    embed_url: str
+    allowed_origins: List[str] = []
+    audience: str
+    surface_id: str
 
 
 class GuildAppMemberConnection(SanitizedBaseModel):
@@ -223,10 +259,20 @@ class GuildAppMembersResponse(SanitizedBaseModel):
 # --- serialization ----------------------------------------------------------
 
 
-def serialize_guild_app(app: Any) -> GuildAppRead:
+def serialize_guild_app(
+    app: Any, *, install_state: Optional[InstallState] = None
+) -> GuildAppRead:
+    """One install as the client sees it.
+
+    ``install_state`` is what this deployment's registration says about the app
+    (§7.7): whether the platform provides it, and whether it can be reached at
+    all. It is passed in rather than looked up here so a list of installs
+    resolves it once.
+    """
     definition = app.definition or {}
     state = app_config_service.config_state(app)
     features = definition.get("features")
+    service_state = install_state or InstallState()
     return GuildAppRead(
         id=app.id,
         guild_id=app.guild_id,
@@ -244,6 +290,8 @@ def serialize_guild_app(app: Any) -> GuildAppRead:
         features=list(features) if isinstance(features, list) else [],
         definition=definition,
         admin_only=requires_guild_admin(definition),
+        mandatory=service_state.mandatory,
+        available=service_state.available,
         installed_by_id=app.installed_by_id,
         created_at=app.created_at,
         updated_at=app.updated_at,
@@ -296,10 +344,13 @@ def serialize_connection(
 
 
 def serialize_guild_app_detail(
-    app: Any, *, member_rows: Dict[str, Any]
+    app: Any,
+    *,
+    member_rows: Dict[str, Any],
+    install_state: Optional[InstallState] = None,
 ) -> GuildAppDetail:
     """The install and its connections, from the viewer's own perspective."""
-    base = serialize_guild_app(app)
+    base = serialize_guild_app(app, install_state=install_state)
     connections = [
         serialize_connection(
             app, connection, member_row=member_rows.get(connection.get("id") or "")

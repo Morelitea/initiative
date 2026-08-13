@@ -2064,12 +2064,21 @@ export interface GuildAppConfigUpdate {
  * Where to send the member so the app can run the vendor's flow.
  *
  * ``connection_ref`` is the handle the app will store its result against, and
- * the only name it ever learns for this person.
+ * the only name it ever learns for this person. It travels in the URL because
+ * it is an identifier rather than a credential — random, per (install,
+ * connection, member), and useless without the app's own authenticated
+ * write-back channel.
+ *
+ * ``connect_url`` is the address to open: the registration's base URL joined
+ * to the path the manifest declared. It is absent when this deployment has no
+ * live registration for the app, in which case there is nowhere to send
+ * anyone; ``connect_path`` still reports what the manifest asked for.
  */
 export interface GuildAppConnectStart {
   connection_id: string;
   connection_ref: string;
   connect_path: string;
+  connect_url: string | null;
   status: string;
 }
 
@@ -2145,10 +2154,28 @@ export interface GuildAppDetail {
   features: string[];
   definition: GuildAppDetailDefinition;
   admin_only: boolean;
+  mandatory: boolean;
+  available: boolean;
   installed_by_id: number;
   created_at: string;
   updated_at: string;
   connections: GuildAppConnectionRead[];
+}
+
+/**
+ * A short-lived credential for one of an app's embedded surfaces.
+ *
+ * The token reaches the iframe by ``postMessage`` and never a query string,
+ * and it is worth a minute. ``allowed_origins`` is what the SPA posts to and
+ * accepts messages from — the registration's own list, not a client guess.
+ */
+export interface GuildAppHandoff {
+  handoff_token: string;
+  expires_in_seconds: number;
+  embed_url: string;
+  allowed_origins: string[];
+  audience: string;
+  surface_id: string;
 }
 
 /**
@@ -2182,6 +2209,8 @@ export interface GuildAppRead {
   features: string[];
   definition: GuildAppReadDefinition;
   admin_only: boolean;
+  mandatory: boolean;
+  available: boolean;
   installed_by_id: number;
   created_at: string;
   updated_at: string;

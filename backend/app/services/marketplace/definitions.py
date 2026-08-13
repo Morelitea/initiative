@@ -87,14 +87,21 @@ LISTING_SOURCES: frozenset[str] = frozenset({"builtin", "operator", "registry"})
 #: serve.
 APP_KINDS: frozenset[str] = frozenset({"tool_instance", "embed", "service"})
 
-#: The app kinds the guild install path can mount **today**.
+#: The app kinds the guild install path can mount.
 #:
-#: A ``service`` app's definition is publishable and storable — that is what this
-#: module validates — but installing one needs the registration, connection and
-#: proxy machinery that arrives with the app platform. Until then the install
-#: endpoint refuses it by name rather than half-mounting something it cannot
-#: serve.
-GUILD_INSTALLABLE_APP_KINDS: frozenset[str] = frozenset({"tool_instance", "embed"})
+#: All three, now that a ``service`` app has somewhere to land: the deployment's
+#: registration supplies the address, the secret and the powers, and the install
+#: is the pinned definition plus whatever the guild configures against it. A
+#: service app creates no local content, so installing one is the row and
+#: nothing else.
+#:
+#: The set is still separate from :data:`APP_KINDS` because the two answer
+#: different questions — what a listing may *declare* versus what this build can
+#: *mount* — and a kind added to the vocabulary ahead of its machinery is
+#: refused by name rather than half-mounted.
+GUILD_INSTALLABLE_APP_KINDS: frozenset[str] = frozenset(
+    {"tool_instance", "embed", "service"}
+)
 
 #: Where an embed's target comes from.
 #:

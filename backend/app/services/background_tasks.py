@@ -58,6 +58,11 @@ def start_background_tasks() -> list[asyncio.Task]:
         process_registry_refresh,
         registry_configured,
     )
+    from app.services.marketplace.reverification import (
+        process_app_service_reverification,
+        reverification_configured,
+        reverification_interval_seconds,
+    )
 
     tasks = [
         asyncio.create_task(
@@ -122,6 +127,21 @@ def start_background_tasks() -> list[asyncio.Task]:
                     process_registry_refresh,
                     settings.MARKETPLACE_REGISTRY_TTL_SECONDS,
                     "marketplace-registry",
+                )
+            )
+        )
+
+    # Re-verifying app services is the same shape: a deployment with no app
+    # platform configured runs no worker for it. What the sweep changes is the
+    # recorded status of a registration, never whether it is enabled — an
+    # unreachable app is reported, not switched off.
+    if reverification_configured():
+        tasks.append(
+            asyncio.create_task(
+                _loop_worker(
+                    process_app_service_reverification,
+                    reverification_interval_seconds(),
+                    "app-service-verify",
                 )
             )
         )

@@ -36,6 +36,7 @@ from app.models.platform.guild import GuildRole
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.tenant import app_revocation
 from app.testing import (
+    create_app_service_registration,
     create_guild_app,
     create_guild_membership,
     create_marketplace_listing,
@@ -99,6 +100,23 @@ async def _rows(session: AsyncSession, guild_id: int) -> list:
     return list((await session.exec(select(GuildAppUserConnection))).all())
 
 
+@pytest.fixture(autouse=True)
+async def wired_app_services(session: AsyncSession):
+    """The deployment has both test apps wired up.
+
+    Starting a member's vendor flow sends them to the app's own URL, which
+    comes from a registration — so a guild whose app service is not registered
+    here has nowhere to send anyone. Every test in this file assumes the
+    ordinary case: the operator wired the app up, and it is switched on.
+    """
+    return [
+        await create_app_service_registration(
+            session, public_id=public_id, base_url=f"https://{slug}.example.test"
+        )
+        for public_id, slug in (("tests.shop", "shop"), ("tests.gh", "github"))
+    ]
+
+
 @pytest.fixture
 def recorded_revocations(monkeypatch):
     """Capture what each teardown asked the apps to revoke.
@@ -122,12 +140,12 @@ def recorded_revocations(monkeypatch):
 
 
 class TestInstallKind:
-    async def test_a_service_listing_is_refused_by_name(
+    async def test_a_service_listing_installs_with_its_connections(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
-        """Publishable and browsable, but this build does not mount one yet —
-        so it is told so rather than half-installed into something that cannot
-        reach its service."""
+        """Installing through the endpoint is what makes this whole file
+        reachable in production: the row pins the listing's definition, and the
+        form a guild fills in is read straight off it."""
         uid = marketplace_uid("servicelisting")
         await create_marketplace_listing(
             session,
@@ -140,8 +158,11 @@ class TestInstallKind:
         response = await client.post(
             a.g("/apps/"), headers=a.headers, json={"listing_uid": uid}
         )
-        assert response.status_code == 409
-        assert response.json()["detail"] == GuildAppMessages.KIND_NOT_INSTALLABLE
+        assert response.status_code == 201, response.text
+        app_id = response.json()["id"]
+
+        detail = (await client.get(a.g(f"/apps/{app_id}"), headers=a.headers)).json()
+        assert [c["id"] for c in detail["connections"]] == ["admin", "github"]
 
 
 class TestInstallIsNotGatedOnAConnection:
@@ -350,6 +371,12 @@ class TestConnect:
         assert body["connect_path"] == "/connect/github"
         assert body["status"] == "pending"
         assert body["connection_ref"]
+        # Where to actually send them: the operator's address, the manifest's
+        # path, and the handle the app will store its result against.
+        assert body["connect_url"] == (
+            "https://shop.example.test/connect/github"
+            f"?connection_ref={body['connection_ref']}"
+        )
 
     async def test_the_handle_is_opaque_and_carries_nothing_about_the_person(
         self, client: AsyncClient, acting_user, session: AsyncSession

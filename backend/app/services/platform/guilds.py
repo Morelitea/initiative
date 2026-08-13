@@ -397,15 +397,23 @@ async def seed_guild_content(
     creator: User,
 ) -> None:
     """Provision a new guild's schema and create its guild-scoped seed rows
-    (settings + default initiative) *inside* it.
+    (settings + default initiative + the apps this deployment provides) *inside*
+    it.
 
     The shared guild row must already exist; this provisions the schema + role and
     seeds into it (the caller commits around the call). On failure the caller
     should ``deprovision_guild`` and remove the shared rows.
+
+    Mandatory apps (§7.7) land here, beside the default initiative, because that
+    is what "every guild has it" means. They are also the one part allowed to
+    fail quietly: the install is a local row, and an app service whose listing
+    has not arrived yet is no reason a guild cannot be created — the boot sweep
+    installs what is missing.
     """
     from app.db.schema_provisioning import provision_guild
     from app.db.session import set_rls_context
     from app.services.tenant import initiatives as initiatives_service
+    from app.services.tenant import mandatory_apps as mandatory_apps_service
 
     await provision_guild(guild_id)
     await set_rls_context(
@@ -418,6 +426,20 @@ async def seed_guild_content(
     await initiatives_service.ensure_default_initiative(
         session, creator, guild_id=guild_id
     )
+    try:
+        # Inside a savepoint, so a failure here rolls back the app install and
+        # nothing else: the guild being created must survive whatever an app's
+        # listing or registration is doing.
+        async with session.begin_nested():
+            await mandatory_apps_service.install_mandatory_apps(
+                session, guild_id=guild_id, installed_by_id=creator.id
+            )
+    except Exception:
+        logger.exception(
+            "mandatory apps: guild %s was created without them; the boot sweep "
+            "installs what is missing",
+            guild_id,
+        )
 
 
 async def update_guild(

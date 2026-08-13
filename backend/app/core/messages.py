@@ -632,6 +632,26 @@ class GuildAppMessages:
     #: The app is installed but turned off, so nothing flows through it.
     DISABLED = "GUILD_APP_DISABLED"
 
+    # --- apps the deployment provides ---
+    #: The deployment installs this app in every guild and a guild admin does
+    #: not remove or disable it. The affordances are absent rather than
+    #: erroring; this answers a request that arrives anyway.
+    MANDATORY = "GUILD_APP_MANDATORY"
+
+    # --- service apps ---
+    #: This install's app service is not wired up here — never registered, or
+    #: the operator turned the registration off. Nothing this app offers can be
+    #: reached until that changes.
+    SERVICE_NOT_REGISTERED = "GUILD_APP_SERVICE_NOT_REGISTERED"
+    #: The pinned definition declares no surface under that id.
+    SURFACE_NOT_FOUND = "GUILD_APP_SURFACE_NOT_FOUND"
+    #: The surface declares ``visibility: guild_admin`` and the caller is a
+    #: plain member.
+    SURFACE_ADMIN_ONLY = "GUILD_APP_SURFACE_ADMIN_ONLY"
+    #: An interactive connection whose pinned definition carries no
+    #: ``connect_path``, so there is no vendor flow to send the member to.
+    CONNECT_PATH_MISSING = "GUILD_APP_CONNECT_PATH_MISSING"
+
 
 class AppServiceMessages:
     """Codes for the deployment-level app service registry.

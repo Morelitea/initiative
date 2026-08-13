@@ -20,6 +20,8 @@
     "saved": "Saved.",
     "needsConfig": "Needs setup",
     "configInvalid": "Setup problem",
+    "provided": "Comes with Initiative",
+    "unavailable": "Not set up on this server",
     "configure": "Open settings",
     "version": "Version {{version}}",
     "upgrade": "Update",
@@ -60,7 +62,8 @@
     "reconnect": "Reconnect",
     "disconnect": "Disconnect",
     "disconnected": "Disconnected.",
-    "connectStarted": "Continue at {{path}} to finish connecting.",
+    "connectOpened": "Finish connecting in the tab that just opened.",
+    "connectUnavailable": "This app isn't set up on this server yet, so there's nowhere to sign in.",
     "connectedAs": "Connected as {{account}}",
     "blocked": "A guild admin has stopped you connecting this.",
     "status": {
