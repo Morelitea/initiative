@@ -35,6 +35,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.messages import BillingMessages
+from app.core.security import PublicKeyBundleError, load_verification_keys
 from app.models.platform.billing import (
     BillingEventLog,
     BillingJti,
@@ -135,16 +136,34 @@ def verify_billing_envelope(
         raise BillingEnvelopeError(BillingMessages.INVALID_SIGNATURE)
 
     try:
-        payload = jwt.decode(
-            authorization[len("Bearer ") :],
-            settings.BILLING_PUBLIC_KEY_PEM,
-            algorithms=["RS256"],
-            audience=settings.BILLING_AUDIENCE,
-            issuer=settings.BILLING_ISSUER,
-            options={"require": ["exp", "iat", "iss", "aud", "jti"]},
-        )
-    except jwt.PyJWTError as exc:
-        raise BillingEnvelopeError(BillingMessages.INVALID_TOKEN) from exc
+        keys = load_verification_keys(settings.BILLING_PUBLIC_KEY_PEM)
+    except PublicKeyBundleError as exc:
+        # An unreadable key is this deployment's misconfiguration, not the
+        # caller's fault, so it surfaces like "not configured" rather than as
+        # a rejected token.
+        raise BillingEnvelopeError(BillingMessages.KEY_UNREADABLE) from exc
+    if not keys:
+        raise BillingEnvelopeError(BillingMessages.NOT_CONFIGURED)
+
+    token = authorization[len("Bearer ") :]
+    payload = None
+    first_error: jwt.PyJWTError | None = None
+    for key in keys:
+        try:
+            payload = jwt.decode(
+                token,
+                key,
+                algorithms=["RS256"],
+                audience=settings.BILLING_AUDIENCE,
+                issuer=settings.BILLING_ISSUER,
+                options={"require": ["exp", "iat", "iss", "aud", "jti"]},
+            )
+            break
+        except jwt.PyJWTError as exc:
+            if first_error is None:
+                first_error = exc
+    if payload is None:
+        raise BillingEnvelopeError(BillingMessages.INVALID_TOKEN) from first_error
 
     # Bound to the blocklist column (varchar 64) so an oversized jti is a
     # clean 403 instead of a database error at redemption time.

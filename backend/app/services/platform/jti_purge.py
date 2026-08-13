@@ -24,7 +24,7 @@ from typing import Callable
 
 from sqlmodel import SQLModel
 
-from app.core.config import settings
+from app.core.security import auto_delegation_configured
 from app.db.jti_blocklist import purge_expired_jtis
 from app.models.platform.app_service_nonce import AppServiceNonce
 from app.models.platform.auto_delegation_jti import AutoDelegationJti
@@ -45,14 +45,12 @@ class _Blocklist:
     label: str
 
 
-def _auto_delegation_enabled() -> bool:
-    return bool(settings.AUTO_DELEGATION_PUBLIC_KEY_PEM)
-
-
 # One entry per replay guard. Add a table here and it is swept automatically.
+# Each entry asks the peer's own module whether it is configured, so a guard and
+# its janitor can never disagree about whether that peer exists here.
 _BLOCKLISTS: tuple[_Blocklist, ...] = (
     _Blocklist(BillingJti, billing_inbound_enabled, "billing"),
-    _Blocklist(AutoDelegationJti, _auto_delegation_enabled, "auto-delegation"),
+    _Blocklist(AutoDelegationJti, auto_delegation_configured, "auto-delegation"),
     _Blocklist(AppServiceNonce, app_channel_possible, "app-service"),
 )
 
