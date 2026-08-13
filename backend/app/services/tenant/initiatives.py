@@ -13,7 +13,6 @@ from app.core.messages import InitiativeMessages
 from app.models.tenant.initiative import (
     Initiative,
     InitiativeMember,
-    InitiativeRole,
     InitiativeRoleModel,
     InitiativeRolePermission,
     BUILTIN_ROLE_PERMISSIONS,
@@ -197,17 +196,11 @@ async def load_user_initiative_roles(
         user_id: [] for user_id in user_ids
     }
     for user_id, role_name, initiative_id, initiative_name in result.all():
-        # Convert role_name to legacy enum for backward compatibility
-        legacy_role = (
-            InitiativeRole.project_manager
-            if role_name == "project_manager"
-            else InitiativeRole.member
-        )
         assignments.setdefault(user_id, []).append(
             UserInitiativeRole(
                 initiative_id=initiative_id,
                 initiative_name=initiative_name,
-                role=legacy_role,
+                role=role_name,
             )
         )
     for user in users:

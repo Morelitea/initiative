@@ -2245,12 +2245,10 @@ export const useRevokeAllMemberConnectionsApiV1GGuildIdAppsAppIdRevokeAllPost = 
  * but the surface is being opened somewhere narrower, and the token says so.
  *
  * Three gates, outermost first. The initiative must be one this caller can
- * reach at all, which the routed session answers: a member of another
- * initiative simply does not see the row. The manifest must declare the
- * surface for this scope. And the surface's ``visibility`` is then read
- * *here*, where ``member`` means this initiative's members and
- * ``initiative_manager`` means its managers — a guild admin clears both, as
- * they do everywhere in their own guild.
+ * reach. The manifest must declare the surface for this scope. And the
+ * surface's ``visibility`` is then read *here*, where ``member`` means this
+ * initiative's members and ``initiative_manager`` means its managers — a
+ * guild admin clears both, as they do everywhere in their own guild.
  *
  * The initiative in the minted token is this route's, never the caller's to
  * supply, so an app can scope what it shows without asking a second question

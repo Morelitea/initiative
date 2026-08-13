@@ -147,7 +147,7 @@ async def test_create_initiative_makes_creator_manager(
     data = response.json()
     assert len(data["members"]) == 1
     assert data["members"][0]["user"]["id"] == admin.user.id
-    assert data["members"][0]["role"] == "project_manager"
+    assert data["members"][0]["role_name"] == "project_manager"
 
 
 @pytest.mark.integration
@@ -649,8 +649,44 @@ async def test_update_initiative_member_role(
 
     assert response.status_code == 200
     data = response.json()
-    member_roles = {m["user"]["id"]: m["role"] for m in data["members"]}
+    member_roles = {m["user"]["id"]: m["role_name"] for m in data["members"]}
     assert member_roles[member.user.id] == "project_manager"
+
+
+@pytest.mark.integration
+async def test_member_roster_reports_a_custom_role_as_itself(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A member's row carries the role they actually hold — its own name,
+    display name, and manager standing — for custom roles too."""
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=admin.initiative,
+        initiative_role="member",
+    )
+
+    role_response = await client.post(
+        admin.g(f"/initiatives/{admin.initiative.id}/roles"),
+        headers=admin.headers,
+        json={"name": "leads", "display_name": "Leads", "is_manager": True},
+    )
+    assert role_response.status_code == 201, role_response.text
+
+    response = await client.patch(
+        admin.g(f"/initiatives/{admin.initiative.id}/members/{member.user.id}"),
+        headers=admin.headers,
+        json={"role_id": role_response.json()["id"]},
+    )
+
+    assert response.status_code == 200
+    row = next(
+        m for m in response.json()["members"] if m["user"]["id"] == member.user.id
+    )
+    assert row["role_name"] == "leads"
+    assert row["role_display_name"] == "Leads"
+    assert row["is_manager"] is True
 
 
 @pytest.mark.integration
@@ -718,7 +754,7 @@ async def test_guild_admin_can_be_assigned_manager_role(
 
     assert response.status_code == 200
     data = response.json()
-    member_roles = {m["user"]["id"]: m["role"] for m in data["members"]}
+    member_roles = {m["user"]["id"]: m["role_name"] for m in data["members"]}
     assert member_roles[target_admin.user.id] == "project_manager"
 
 

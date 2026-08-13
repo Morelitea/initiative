@@ -23,20 +23,25 @@ interface ProjectLinkProps {
 
 /**
  * Check if the user can pin/unpin a project.
- * Only guild admins and initiative project managers can pin projects.
+ * Only guild admins and initiative managers can pin projects.
  */
-const canPinProject = (project: ProjectRead, userId?: number, guildRole?: GuildRole): boolean => {
+export const canPinProject = (
+  project: ProjectRead,
+  userId?: number,
+  guildRole?: GuildRole
+): boolean => {
   if (!userId) return false;
 
   // Guild admins can always pin
   if (guildRole === "admin") return true;
 
-  // Check if user is initiative PM for this project's initiative
+  // Manager standing in this project's initiative — `is_manager` is the flag
+  // the role carries, so a renamed or additional managing role counts.
   const initiative = project.initiative;
   if (!initiative?.members) return false;
 
   const membership = initiative.members.find((m) => m.user.id === userId);
-  return membership?.role === "project_manager";
+  return Boolean(membership?.is_manager);
 };
 
 export const ProjectCardLink = ({ project, dragHandleProps, userId }: ProjectLinkProps) => {
