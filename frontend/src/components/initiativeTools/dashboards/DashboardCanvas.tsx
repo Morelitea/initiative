@@ -69,6 +69,10 @@ export interface DashboardCanvasProps {
   catalog: WidgetCatalog | undefined;
   /** The dashboard's own initiative. Every widget reads within it. */
   initiativeId: number | undefined;
+  /** The dashboard row. Only `app` widgets need it — their data is guild-level,
+   *  so the proxy is told which initiative-scoped surface is asking. A preview
+   *  has none, which is one of the reasons it fetches nothing. */
+  dashboardId?: number;
   /** DAC write on this dashboard. Arranging is authoring. */
   canEdit: boolean;
   /** Render every widget from the sample library instead of its binding — the
@@ -87,6 +91,7 @@ export function DashboardCanvas({
   config,
   catalog,
   initiativeId,
+  dashboardId,
   canEdit,
   sampleData,
   isLoading,
@@ -215,6 +220,7 @@ export function DashboardCanvas({
                     widget={widget}
                     binding={effectiveBinding(widget, config)}
                     initiativeId={initiativeId}
+                    dashboardId={dashboardId}
                     canEdit={canEdit}
                     sampleData={sampleData}
                     onConfigure={onConfigureWidget}

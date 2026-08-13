@@ -17,6 +17,7 @@ from app.api.v1 import app_service_endpoints
 from app.api.v1.tenant_endpoints import (
     advanced_tool,
     ai_settings,
+    app_data,
     attachments,
     auto_subscriptions,
     calendar_entries,
@@ -50,6 +51,7 @@ from app.api.v1.platform_endpoints import (
     access_grants,
     admin,
     ai_settings as platform_ai_settings,
+    app_platform,
     app_services,
     auth,
     auth_providers,
@@ -97,6 +99,11 @@ api_router.include_router(settings.router, prefix="/settings", tags=["settings"]
 # like the catalog: a registration belongs to the deployment, never to a guild.
 api_router.include_router(
     app_services.router, prefix="/app-services", tags=["app-services"]
+)
+# Public: apps verify the context JWTs we send them against this key set. No
+# credential, because requiring one to fetch a verification key is circular.
+api_router.include_router(
+    app_platform.router, prefix="/app-platform", tags=["app-platform"]
 )
 # The other half of that wiring: what a registered app service may call back on.
 # Authenticated by request signature against its registration's shared secret —
@@ -165,6 +172,11 @@ guild_router.include_router(
 )
 # Apps installed at guild scope. Every member reads them (the sidebar needs to
 # know what is there); installing and removing are guild-admin actions.
+#
+# The data plane is included FIRST so its literal ``/apps/widget-catalog`` wins
+# the match against ``/apps/{app_id}`` below — the same ordering rule the
+# dashboards router uses for its own widget catalog.
+guild_router.include_router(app_data.router, prefix="/apps", tags=["apps"])
 guild_router.include_router(guild_apps.router, prefix="/apps", tags=["apps"])
 guild_router.include_router(
     calendar_events.router, prefix="/calendar-events", tags=["calendar-events"]

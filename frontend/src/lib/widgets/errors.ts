@@ -18,6 +18,10 @@ export const WidgetErrorCode = {
   /** The definition names a widget type this build has no module for — an
    *  install from a listing built against a newer app. */
   TYPE_UNSUPPORTED: "WIDGET_TYPE_UNSUPPORTED",
+  /** The app behind this widget did not answer, or answered with something the
+   *  proxy will not pass on. One tile says so; the rest of the canvas is
+   *  unaffected, and the last good rows keep showing for their stale window. */
+  APP_UNAVAILABLE: "WIDGET_APP_UNAVAILABLE",
 } as const;
 
 export type WidgetErrorCode = (typeof WidgetErrorCode)[keyof typeof WidgetErrorCode];

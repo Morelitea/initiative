@@ -17,10 +17,12 @@
 
 import { useMemo } from "react";
 
+import { resolveAppBinding } from "@/api/appData";
 import type {
   ListTasksApiV1GGuildIdTasksGetParams,
   WidgetCatalog,
 } from "@/api/generated/initiativeAPI.schemas";
+import { useAppData, useAppWidgetCatalog } from "@/hooks/useAppData";
 import { useCalendarEntries } from "@/hooks/useCalendarEntries";
 import { useCalendarsList } from "@/hooks/useCalendars";
 import { useCounterGroup } from "@/hooks/useCounters";
@@ -28,6 +30,7 @@ import { useDocument } from "@/hooks/useDocuments";
 import { useProjects } from "@/hooks/useProjects";
 import { useTasks } from "@/hooks/useTasks";
 import type { WidgetData, WidgetSource } from "@/lib/widgets/dataShapes";
+import { WidgetErrorCode } from "@/lib/widgets/errors";
 import {
   type CountBucket,
   countTasks,
@@ -60,6 +63,13 @@ export interface WidgetBinding {
   bucket?: CountBucket | null;
   /** Days back from today for time-windowed sources. */
   window_days?: number | null;
+  /** `app` source: which installed app, which of its sources, and the arguments
+   *  the source declared. The binding names a listing and a source id — never an
+   *  address. Where the app lives comes from the deployment's registration, and
+   *  only the server ever reads it. */
+  app_uid?: string | null;
+  source_id?: string | null;
+  params?: Record<string, unknown> | null;
 }
 
 export interface WidgetDataResult {
@@ -68,6 +78,10 @@ export interface WidgetDataResult {
   /** A binding whose ids the instance config has not filled in yet — the widget
    *  renders its own empty state rather than an error. */
   isUnbound: boolean;
+  /** Set when the tile should draw an error instead of running the widget. Only
+   *  the `app` source produces one: our own sources fail closed to empty, but an
+   *  external service being down is worth saying out loud. */
+  errorCode?: WidgetErrorCode;
 }
 
 const DAY = 86_400_000;
@@ -90,10 +104,17 @@ const TASK_BACKED: WidgetSource[] = ["tasks", "task_counts", "projects"];
  * - id sources (a counter group, a document) are fetched by id and then held
  *   against the initiative — an id pointing into another one resolves to
  *   absent, the same rendering as a deleted or unshared target.
+ *
+ * `dashboardId` is the row the widget sits on, and only the `app` source needs
+ * it: an app's data is guild-level, so the proxy is told which initiative-scoped
+ * surface is asking and decides the read against *that* row's gates. Without it
+ * — a preview, the picker — nothing is requested, exactly as without an
+ * initiative.
  */
 export function useWidgetData(
   binding: WidgetBinding,
-  initiativeId: number | undefined
+  initiativeId: number | undefined,
+  dashboardId?: number
 ): WidgetDataResult {
   const source = binding.source;
   const scoped = typeof initiativeId === "number" && Number.isFinite(initiativeId);
@@ -167,6 +188,21 @@ export function useWidgetData(
   const documentQuery = useDocument(
     scoped && source === "sheet_range" ? (binding.document_id ?? null) : null
   );
+
+  // The app palette is one request per guild, shared by every app widget on the
+  // canvas. It is what turns a binding's `app_uid` into an install id and tells
+  // us what freshness the source asks for.
+  const isApp = source === "app";
+  const appCatalogQuery = useAppWidgetCatalog(scoped && isApp);
+  const appBinding = resolveAppBinding(appCatalogQuery.data, binding.app_uid, binding.source_id);
+  const appQuery = useAppData({
+    appId: appBinding?.entry.app_id,
+    sourceId: binding.source_id ?? undefined,
+    dashboardId,
+    params: binding.params ?? undefined,
+    cacheTtlSeconds: appBinding?.source.cache_ttl_seconds,
+    enabled: scoped && isApp,
+  });
 
   return useMemo<WidgetDataResult>(() => {
     const unbound = (): WidgetDataResult => ({
@@ -277,6 +313,54 @@ export function useWidgetData(
         return { data: { source, range }, isLoading: false, isUnbound: false };
       }
 
+      case "app": {
+        // A definition that never had the app filled in, or a canvas with no
+        // dashboard behind it (a preview). Neither is an error.
+        if (!binding.app_uid || !binding.source_id || typeof dashboardId !== "number") {
+          return unbound();
+        }
+        if (appCatalogQuery.isLoading) {
+          return { data: emptyDataFor(source), isLoading: true, isUnbound: false };
+        }
+        // A catalog that failed to load says nothing about whether this app is
+        // installed, so it must not be read as "not installed" — that would
+        // render every app widget on the dashboard as unconfigured and invite
+        // someone to repoint bindings that were never wrong.
+        if (appCatalogQuery.isError) {
+          return {
+            data: emptyDataFor(source),
+            isLoading: false,
+            isUnbound: false,
+            errorCode: WidgetErrorCode.APP_UNAVAILABLE,
+          };
+        }
+        // The app is not installed in this guild, or its pinned version stopped
+        // offering this source. Same rendering as a deleted counter: absent, not
+        // broken — nothing here is the app's fault.
+        if (!appBinding) {
+          return { data: emptyDataFor(source), isLoading: false, isUnbound: true };
+        }
+        // An app that stopped answering does not blank a tile that already has
+        // rows: React Query keeps the last good body for this key, and showing
+        // it is more useful than showing nothing. The error tile is for when
+        // there is genuinely nothing to draw.
+        if (appQuery.isError && !appQuery.data) {
+          return {
+            data: emptyDataFor(source),
+            isLoading: false,
+            isUnbound: false,
+            errorCode: WidgetErrorCode.APP_UNAVAILABLE,
+          };
+        }
+        return {
+          // Verbatim. Nothing on this side reads inside an app's rows; the
+          // sandbox is handed them as values.
+          data: { source, rows: appQuery.data?.rows ?? [] },
+          isLoading: appQuery.isLoading,
+          isUnbound: false,
+        };
+      }
+
       default:
         return unbound();
     }
@@ -302,6 +386,15 @@ export function useWidgetData(
     documentQuery.data,
     documentQuery.isLoading,
     scoped,
+    dashboardId,
+    binding.app_uid,
+    binding.source_id,
+    appBinding,
+    appCatalogQuery.isLoading,
+    appCatalogQuery.isError,
+    appQuery.data,
+    appQuery.isLoading,
+    appQuery.isError,
   ]);
 }
 

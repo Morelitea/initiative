@@ -445,5 +445,17 @@
   "APP_CHANNEL_INVALID_PAYLOAD": "Ese servicio de aplicación envió algo que esta versión no puede leer.",
   "APP_CHANNEL_UNKNOWN_EVENT_TYPE": "Ese tipo de evento no es uno de los que declaró esta aplicación.",
   "APP_CHANNEL_EVENT_TOO_LARGE": "Ese evento es más grande de lo que esta versión puede transportar.",
-  "APP_CHANNEL_INVALID_CONFIG_STATE": "Ese servicio de aplicación informó de un estado que esta versión no reconoce."
+  "APP_CHANNEL_INVALID_CONFIG_STATE": "Ese servicio de aplicación informó de un estado que esta versión no reconoce.",
+  "APP_DATA_SOURCE_NOT_FOUND": "Este widget está vinculado a datos que la aplicación ya no ofrece.",
+  "APP_DATA_ADMIN_ONLY": "Solo la administración del gremio puede ver los datos de esta aplicación.",
+  "APP_DATA_APP_DISABLED": "Esta aplicación está desactivada en este gremio, así que sus widgets no tienen nada que mostrar.",
+  "APP_DATA_SERVICE_NOT_REGISTERED": "Esta aplicación no está configurada en esta instalación. Habla con tu administración.",
+  "APP_DATA_SERVICE_DISABLED": "Tu administración ha desactivado este servicio de aplicación.",
+  "APP_DATA_INVALID_PARAMS": "Este widget le pidió a la aplicación algo que no acepta.",
+  "APP_DATA_NEEDS_CONFIGURATION": "Hay que configurar esta aplicación antes de que pueda mostrar datos.",
+  "APP_DATA_CONNECTION_REQUIRED": "Conecta tu propia cuenta a esta aplicación para ver aquí tus datos.",
+  "APP_SERVICE_UNAVAILABLE": "La aplicación no responde en este momento. Inténtalo de nuevo en un rato.",
+  "APP_DATA_RESPONSE_TOO_LARGE": "La aplicación devolvió más datos de los que puede mostrar un widget.",
+  "APP_DATA_BUSY": "Esta aplicación tiene demasiadas peticiones en curso. Inténtalo de nuevo en un rato.",
+  "APP_DATA_RATE_LIMITED": "Se ha consultado esta aplicación demasiadas veces en poco tiempo. Inténtalo de nuevo en un rato."
 }

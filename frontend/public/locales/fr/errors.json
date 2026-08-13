@@ -445,5 +445,17 @@
   "APP_CHANNEL_INVALID_PAYLOAD": "Ce service applicatif a envoyé quelque chose que cette version ne sait pas lire.",
   "APP_CHANNEL_UNKNOWN_EVENT_TYPE": "Ce type d'évènement ne fait pas partie de ceux déclarés par cette application.",
   "APP_CHANNEL_EVENT_TOO_LARGE": "Cet évènement dépasse ce que cette version peut transporter.",
-  "APP_CHANNEL_INVALID_CONFIG_STATE": "Ce service applicatif a signalé un état que cette version ne reconnaît pas."
+  "APP_CHANNEL_INVALID_CONFIG_STATE": "Ce service applicatif a signalé un état que cette version ne reconnaît pas.",
+  "APP_DATA_SOURCE_NOT_FOUND": "Ce widget est lié à des données que l'application ne propose plus.",
+  "APP_DATA_ADMIN_ONLY": "Seule l'administration de la guilde peut voir les données de cette application.",
+  "APP_DATA_APP_DISABLED": "Cette application est désactivée dans cette guilde : ses widgets n'ont rien à afficher.",
+  "APP_DATA_SERVICE_NOT_REGISTERED": "Cette application n'est pas configurée sur cette installation. Contactez votre administration.",
+  "APP_DATA_SERVICE_DISABLED": "Votre administration a désactivé ce service d'application.",
+  "APP_DATA_INVALID_PARAMS": "Ce widget a demandé à l'application quelque chose qu'elle n'accepte pas.",
+  "APP_DATA_NEEDS_CONFIGURATION": "Cette application doit encore être configurée avant de pouvoir afficher des données.",
+  "APP_DATA_CONNECTION_REQUIRED": "Connectez votre propre compte à cette application pour voir vos données ici.",
+  "APP_SERVICE_UNAVAILABLE": "L'application ne répond pas pour le moment. Réessayez dans un instant.",
+  "APP_DATA_RESPONSE_TOO_LARGE": "L'application a renvoyé plus de données qu'un widget ne peut afficher.",
+  "APP_DATA_BUSY": "Cette application a trop de requêtes en cours. Réessayez dans un instant.",
+  "APP_DATA_RATE_LIMITED": "Cette application a été sollicitée trop souvent en peu de temps. Réessayez dans un instant."
 }

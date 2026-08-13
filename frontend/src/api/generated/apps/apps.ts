@@ -21,6 +21,8 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AppDataResponse,
+  AppWidgetCatalogResponse,
   GuildAppConfigUpdate,
   GuildAppConnectStart,
   GuildAppDetail,
@@ -31,6 +33,7 @@ import type {
   GuildAppRead,
   GuildAppUpdate,
   HTTPValidationError,
+  ReadAppDataApiV1GGuildIdAppsAppIdDataSourceIdGetParams,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -52,6 +55,391 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+/**
+ * Which widgets this guild's installed apps contribute.
+ *
+ * Every member may read it: an app's existence is guild-wide knowledge and the
+ * palette carries no guild data — declarations, module source, and sample
+ * rows, all from the pinned definition. A source declared for guild admins is
+ * still listed, and still refused at fetch time to anyone else.
+ *
+ * Disabled installs are left out entirely: their widgets have nothing to draw,
+ * so offering them would be offering a binding that cannot resolve.
+ * @summary Read App Widget Catalog
+ */
+export const readAppWidgetCatalogApiV1GGuildIdAppsWidgetCatalogGet = (
+  guildId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AppWidgetCatalogResponse>(
+    { url: `/api/v1/g/${guildId}/apps/widget-catalog`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadAppWidgetCatalogApiV1GGuildIdAppsWidgetCatalogGetQueryKey = (
+  guildId: number
+) => {
+  return [`/api/v1/g/${guildId}/apps/widget-catalog`] as const;
+};
+
+export const getReadAppWidgetCatalogApiV1GGuildIdAppsWidgetCatalogGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readAppWidgetCatalogApiV1GGuildIdAppsWidgetCatalogGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readAppWidgetCatalogApiV1GGuildIdAppsWidgetCatalogGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getReadAppWidgetCatalogApiV1GGuildIdAppsWidgetCatalogGetQueryKey(guildId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof readAppWidgetCatalogApiV1GGuildIdAppsWidgetCatalogGet>>
+  > = ({ signal }) =>
+    readAppWidgetCatalogApiV1GGuildIdAppsWidgetCatalogGet(guildId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof readAppWidgetCatalogApiV1GGuildIdAppsWidgetCatalogGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadAppWidgetCatalogApiV1GGuildIdAppsWidgetCatalogGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readAppWidgetCatalogApiV1GGuildIdAppsWidgetCatalogGet>>
+>;
+export type ReadAppWidgetCatalogApiV1GGuildIdAppsWidgetCatalogGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useReadAppWidgetCatalogApiV1GGuildIdAppsWidgetCatalogGet<
+  TData = Awaited<ReturnType<typeof readAppWidgetCatalogApiV1GGuildIdAppsWidgetCatalogGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readAppWidgetCatalogApiV1GGuildIdAppsWidgetCatalogGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readAppWidgetCatalogApiV1GGuildIdAppsWidgetCatalogGet>>,
+          TError,
+          Awaited<ReturnType<typeof readAppWidgetCatalogApiV1GGuildIdAppsWidgetCatalogGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadAppWidgetCatalogApiV1GGuildIdAppsWidgetCatalogGet<
+  TData = Awaited<ReturnType<typeof readAppWidgetCatalogApiV1GGuildIdAppsWidgetCatalogGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readAppWidgetCatalogApiV1GGuildIdAppsWidgetCatalogGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readAppWidgetCatalogApiV1GGuildIdAppsWidgetCatalogGet>>,
+          TError,
+          Awaited<ReturnType<typeof readAppWidgetCatalogApiV1GGuildIdAppsWidgetCatalogGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadAppWidgetCatalogApiV1GGuildIdAppsWidgetCatalogGet<
+  TData = Awaited<ReturnType<typeof readAppWidgetCatalogApiV1GGuildIdAppsWidgetCatalogGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readAppWidgetCatalogApiV1GGuildIdAppsWidgetCatalogGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read App Widget Catalog
+ */
+
+export function useReadAppWidgetCatalogApiV1GGuildIdAppsWidgetCatalogGet<
+  TData = Awaited<ReturnType<typeof readAppWidgetCatalogApiV1GGuildIdAppsWidgetCatalogGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readAppWidgetCatalogApiV1GGuildIdAppsWidgetCatalogGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadAppWidgetCatalogApiV1GGuildIdAppsWidgetCatalogGetQueryOptions(
+    guildId,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * One app data source, resolved for this viewer.
+ *
+ * Returns the app's rows verbatim with the time they were obtained. An app
+ * that is unreachable, slow, oversized, or answering in a shape this build
+ * does not accept comes back as a named message code, so the canvas draws one
+ * error tile instead of the request becoming a server fault.
+ * @summary Read App Data
+ */
+export const readAppDataApiV1GGuildIdAppsAppIdDataSourceIdGet = (
+  guildId: number,
+  appId: number,
+  sourceId: string,
+  params: ReadAppDataApiV1GGuildIdAppsAppIdDataSourceIdGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AppDataResponse>(
+    { url: `/api/v1/g/${guildId}/apps/${appId}/data/${sourceId}`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getReadAppDataApiV1GGuildIdAppsAppIdDataSourceIdGetQueryKey = (
+  guildId: number,
+  appId: number,
+  sourceId: string,
+  params?: ReadAppDataApiV1GGuildIdAppsAppIdDataSourceIdGetParams
+) => {
+  return [
+    `/api/v1/g/${guildId}/apps/${appId}/data/${sourceId}`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getReadAppDataApiV1GGuildIdAppsAppIdDataSourceIdGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readAppDataApiV1GGuildIdAppsAppIdDataSourceIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  appId: number,
+  sourceId: string,
+  params: ReadAppDataApiV1GGuildIdAppsAppIdDataSourceIdGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readAppDataApiV1GGuildIdAppsAppIdDataSourceIdGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getReadAppDataApiV1GGuildIdAppsAppIdDataSourceIdGetQueryKey(guildId, appId, sourceId, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof readAppDataApiV1GGuildIdAppsAppIdDataSourceIdGet>>
+  > = ({ signal }) =>
+    readAppDataApiV1GGuildIdAppsAppIdDataSourceIdGet(
+      guildId,
+      appId,
+      sourceId,
+      params,
+      requestOptions,
+      signal
+    );
+
+  return {
+    queryKey,
+    queryFn,
+    enabled:
+      guildId !== null &&
+      guildId !== undefined &&
+      appId !== null &&
+      appId !== undefined &&
+      sourceId !== null &&
+      sourceId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof readAppDataApiV1GGuildIdAppsAppIdDataSourceIdGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadAppDataApiV1GGuildIdAppsAppIdDataSourceIdGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readAppDataApiV1GGuildIdAppsAppIdDataSourceIdGet>>
+>;
+export type ReadAppDataApiV1GGuildIdAppsAppIdDataSourceIdGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useReadAppDataApiV1GGuildIdAppsAppIdDataSourceIdGet<
+  TData = Awaited<ReturnType<typeof readAppDataApiV1GGuildIdAppsAppIdDataSourceIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  appId: number,
+  sourceId: string,
+  params: ReadAppDataApiV1GGuildIdAppsAppIdDataSourceIdGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readAppDataApiV1GGuildIdAppsAppIdDataSourceIdGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readAppDataApiV1GGuildIdAppsAppIdDataSourceIdGet>>,
+          TError,
+          Awaited<ReturnType<typeof readAppDataApiV1GGuildIdAppsAppIdDataSourceIdGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadAppDataApiV1GGuildIdAppsAppIdDataSourceIdGet<
+  TData = Awaited<ReturnType<typeof readAppDataApiV1GGuildIdAppsAppIdDataSourceIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  appId: number,
+  sourceId: string,
+  params: ReadAppDataApiV1GGuildIdAppsAppIdDataSourceIdGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readAppDataApiV1GGuildIdAppsAppIdDataSourceIdGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readAppDataApiV1GGuildIdAppsAppIdDataSourceIdGet>>,
+          TError,
+          Awaited<ReturnType<typeof readAppDataApiV1GGuildIdAppsAppIdDataSourceIdGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadAppDataApiV1GGuildIdAppsAppIdDataSourceIdGet<
+  TData = Awaited<ReturnType<typeof readAppDataApiV1GGuildIdAppsAppIdDataSourceIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  appId: number,
+  sourceId: string,
+  params: ReadAppDataApiV1GGuildIdAppsAppIdDataSourceIdGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readAppDataApiV1GGuildIdAppsAppIdDataSourceIdGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read App Data
+ */
+
+export function useReadAppDataApiV1GGuildIdAppsAppIdDataSourceIdGet<
+  TData = Awaited<ReturnType<typeof readAppDataApiV1GGuildIdAppsAppIdDataSourceIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  appId: number,
+  sourceId: string,
+  params: ReadAppDataApiV1GGuildIdAppsAppIdDataSourceIdGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readAppDataApiV1GGuildIdAppsAppIdDataSourceIdGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadAppDataApiV1GGuildIdAppsAppIdDataSourceIdGetQueryOptions(
+    guildId,
+    appId,
+    sourceId,
+    params,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
 
 /**
  * Every app installed in this guild, enabled or not.

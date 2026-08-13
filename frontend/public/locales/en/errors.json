@@ -445,5 +445,17 @@
   "APP_CHANNEL_INVALID_PAYLOAD": "That app service sent something this version can't read.",
   "APP_CHANNEL_UNKNOWN_EVENT_TYPE": "That event type isn't one this app declared.",
   "APP_CHANNEL_EVENT_TOO_LARGE": "That event is larger than this version will carry.",
-  "APP_CHANNEL_INVALID_CONFIG_STATE": "That app service reported a status this version doesn't recognize."
+  "APP_CHANNEL_INVALID_CONFIG_STATE": "That app service reported a status this version doesn't recognize.",
+  "APP_DATA_SOURCE_NOT_FOUND": "This widget is bound to data the app no longer offers.",
+  "APP_DATA_ADMIN_ONLY": "Only guild admins can see this app's data.",
+  "APP_DATA_APP_DISABLED": "This app is turned off in this guild, so its widgets have nothing to show.",
+  "APP_DATA_SERVICE_NOT_REGISTERED": "This app isn't set up on this deployment. Contact your administrator.",
+  "APP_DATA_SERVICE_DISABLED": "Your administrator has turned this app service off.",
+  "APP_DATA_INVALID_PARAMS": "This widget asked the app for something it doesn't accept.",
+  "APP_DATA_NEEDS_CONFIGURATION": "This app still needs to be configured before it can show data.",
+  "APP_DATA_CONNECTION_REQUIRED": "Connect your own account to this app to see your data here.",
+  "APP_SERVICE_UNAVAILABLE": "The app isn't responding right now. Try again shortly.",
+  "APP_DATA_RESPONSE_TOO_LARGE": "The app sent back more data than a widget can show.",
+  "APP_DATA_BUSY": "This app has too many requests in flight. Try again shortly.",
+  "APP_DATA_RATE_LIMITED": "This app has been asked for too much too quickly. Try again shortly."
 }

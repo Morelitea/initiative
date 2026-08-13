@@ -78,6 +78,23 @@ export interface SheetRange {
   rows: (string | number | boolean | null)[][];
 }
 
+/**
+ * Rows from an installed app's data source.
+ *
+ * The one source whose row shape this build does not describe, and deliberately
+ * so. An app's rows are the app's — the proxy passes them through without
+ * reading inside them, and the widget that draws them ships in the same
+ * manifest, so the two agree without anything here mediating.
+ *
+ * They are still *data*. The sandbox receives values, and the SceneSpec it has
+ * to return has no `html` mark, no raw-string passthrough and no way to name a
+ * URL, so an app cannot turn its own rows into rendering.
+ */
+export interface AppRows {
+  source: "app";
+  rows: unknown[];
+}
+
 export type WidgetData =
   | { source: "tasks"; rows: TaskRow[] }
   | { source: "projects"; rows: ProjectRow[] }
@@ -85,7 +102,8 @@ export type WidgetData =
   | { source: "task_counts"; rows: CountRow[] }
   | { source: "counter"; counter: CounterValue }
   | { source: "counter_group"; name: string; counters: CounterValue[] }
-  | { source: "sheet_range"; range: SheetRange };
+  | { source: "sheet_range"; range: SheetRange }
+  | AppRows;
 
 export type WidgetSource = WidgetData["source"];
 
