@@ -64,6 +64,7 @@ from app.models.platform.app_service_registration import (
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.marketplace.context_jwt import mint_context_token
+from app.services.marketplace.service_apps import clears_visibility
 from app.services.safe_http import build_validated_request
 from app.services.tenant import app_config as app_config_service
 from app.services.webhook_target_url import (
@@ -665,7 +666,9 @@ async def fetch_app_source(
     if source is None or public_id is None:
         raise AppDataError(AppDataMessages.SOURCE_NOT_FOUND, 404)
 
-    if source.get("visibility") == "guild_admin" and not is_guild_admin:
+    # Measured against the same ladder a manifest declares on, so the two
+    # cannot come to mean different things.
+    if not clears_visibility(source.get("visibility"), is_guild_admin=is_guild_admin):
         raise AppDataError(AppDataMessages.ADMIN_ONLY, 403)
     if not app.enabled:
         raise AppDataError(AppDataMessages.APP_DISABLED, 409)

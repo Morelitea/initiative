@@ -58,9 +58,13 @@ __all__ = [
     "FEATURES",
     "FEATURE_BLOCKS",
     "FIELD_TYPES",
+    "GUILD_WIDE_VISIBILITIES",
     "PARAM_TYPES",
+    "SURFACE_SCOPES",
     "VISIBILITIES",
+    "VISIBILITY_LADDER",
     "app_widget_type",
+    "clears_visibility",
     "normalize_service_app_definition",
 ]
 
@@ -101,9 +105,38 @@ FIELD_TYPES: frozenset[str] = frozenset(
 #: custody, and never restated per call.
 PARAM_TYPES: frozenset[str] = FIELD_TYPES - {"secret"}
 
-#: Who may open a surface. ``member`` is any member of the installing guild;
-#: ``guild_admin`` narrows it to the guild's admins.
-VISIBILITIES: frozenset[str] = frozenset({"member", "guild_admin"})
+#: Where a surface renders. Not a choice between the two: a surface may declare
+#: either, or both, and one that declares both gets a guild-wide entry *and* an
+#: entry inside each initiative — the same page, told which initiative it was
+#: opened in. Closed, and defaulting to ``["guild"]``, so an app that says
+#: nothing keeps the placement it already had.
+SURFACE_SCOPES: frozenset[str] = frozenset({"guild", "initiative"})
+
+#: Who may open a surface, in order. A ladder rather than a set: a value names
+#: the floor an audience has to clear, and each rung clears the ones below it.
+#: ``guild_admin`` is the guild's admins, who clear every rung — an admin's
+#: reach over their own guild is the same rule here as it is everywhere else.
+#:
+#: A rung is read against *where* the surface was opened, which is what lets one
+#: value serve a surface in both scopes:
+#:
+#: * ``member`` guild-wide is every member of the installing guild; inside an
+#:   initiative it is that initiative's members, and no one else's — the
+#:   initiative gate is what answers that, not a claim in a manifest.
+#: * ``initiative_manager`` inside an initiative is that initiative's managers;
+#:   guild-wide, where there is no initiative to manage, only the guild's
+#:   admins reach it.
+#:
+#: Deliberately coarser than a tool's permissions. A surface has no grants and
+#: no permission key to hang a per-role dial on, so it names one of three
+#: audiences rather than an arbitrary initiative role.
+VISIBILITY_LADDER: tuple[str, ...] = ("member", "initiative_manager", "guild_admin")
+VISIBILITIES: frozenset[str] = frozenset(VISIBILITY_LADDER)
+
+#: The rungs something opened without an initiative may ask for.
+#: ``initiative_manager`` is absent: outside an initiative there is nothing to
+#: manage, so the value would be stored as a claim nothing could ever evaluate.
+GUILD_WIDE_VISIBILITIES: frozenset[str] = VISIBILITIES - {"initiative_manager"}
 
 #: Protocol versions this build speaks to an app service. A manifest naming a
 #: newer one is refused by name — the version floor (`min_app_version`) is how a
@@ -200,12 +233,45 @@ def _requires(
     return {key: cleaned}
 
 
-def _visibility(raw: Any, *, what: str) -> str:
+def _visibility(raw: Any, *, what: str, allowed: frozenset[str] = VISIBILITIES) -> str:
+    """One rung of the ladder, or the default.
+
+    ``allowed`` narrows it for something with no initiative to name, so a value
+    is refused where it could not be evaluated rather than stored and quietly
+    read as something else later.
+    """
     if raw is None:
         return "member"
     if raw not in VISIBILITIES:
         fail(f"{what}: unknown visibility {raw!r}")
+    if raw not in allowed:
+        fail(
+            f"{what}: visibility {raw!r} names an initiative audience, and this "
+            "surface is not opened in an initiative"
+        )
     return raw
+
+
+def clears_visibility(
+    required: Any,
+    *,
+    is_guild_admin: bool,
+    is_initiative_manager: bool = False,
+) -> bool:
+    """Whether a caller reaches something declaring ``required``.
+
+    The ladder's ordering is written once, here, so what a manifest may declare
+    and what a request is measured against cannot drift apart. A caller with no
+    initiative in hand leaves ``is_initiative_manager`` false and is measured on
+    the rungs that remain. Anything unrecognized is refused.
+    """
+    if is_guild_admin:
+        return True
+    if required is None or required == "member":
+        return True
+    if required == "initiative_manager":
+        return is_initiative_manager
+    return False
 
 
 def _field(
@@ -353,7 +419,11 @@ def _data_source(raw: Any, *, connection_ids: set[str]) -> dict[str, Any]:
     cleaned: dict[str, Any] = {
         "id": source_id,
         "path": check_path(source.get("path"), what=f"{what} path"),
-        "visibility": _visibility(source.get("visibility"), what=what),
+        # A source is fetched for a guild, not for an initiative, so the rungs
+        # that need one are not on offer here.
+        "visibility": _visibility(
+            source.get("visibility"), what=what, allowed=GUILD_WIDE_VISIBILITIES
+        ),
         "cache_ttl_seconds": _cache_ttl(source.get("cache_ttl_seconds"), what=what),
     }
     if params:
@@ -442,15 +512,45 @@ def _sample_data(raw: Any, *, sources: list[str], what: str) -> dict[str, Any]:
     return sample
 
 
+def _scopes(raw: Any, *, what: str) -> list[str]:
+    """Where a surface asked to render, canonically.
+
+    Absent means ``["guild"]`` — the placement every embed had before there was
+    anywhere else to put one. Sorted and de-duplicated, so re-publishing the
+    same manifest produces the same document.
+    """
+    if raw is None:
+        return ["guild"]
+    declared = require_list(raw, f"{what} scopes", len(SURFACE_SCOPES))
+    scopes: set[str] = set()
+    for entry in declared:
+        if entry not in SURFACE_SCOPES:
+            fail(f"{what}: unknown scope {entry!r}")
+        scopes.add(entry)
+    if not scopes:
+        fail(f"{what}: scopes names nowhere to render")
+    return sorted(scopes)
+
+
 def _embed(raw: Any, *, connection_ids: set[str]) -> dict[str, Any]:
     embed = require_mapping(raw, "embed")
     embed_id = check_identifier(embed.get("id"), what="embed id")
     what = f"embed {embed_id!r}"
 
+    scopes = _scopes(embed.get("scopes"), what=what)
     cleaned: dict[str, Any] = {
         "id": embed_id,
         "path": check_path(embed.get("path"), what=f"{what} path"),
-        "visibility": _visibility(embed.get("visibility"), what=what),
+        "scopes": scopes,
+        "visibility": _visibility(
+            embed.get("visibility"),
+            what=what,
+            # An initiative audience is only namable by a surface that renders
+            # in one.
+            allowed=(
+                VISIBILITIES if "initiative" in scopes else GUILD_WIDE_VISIBILITIES
+            ),
+        ),
         "name": _label(embed.get("name"), what=what),
     }
     requires = _requires(

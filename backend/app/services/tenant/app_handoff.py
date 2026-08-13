@@ -41,6 +41,7 @@ from app.core.security import (
 )
 from app.models.tenant.guild_app import GuildApp
 from app.services.marketplace import registration_lookup
+from app.services.marketplace.service_apps import clears_visibility
 
 __all__ = [
     "APP_EMBED_HANDOFF_LIFETIME",
@@ -72,27 +73,48 @@ class EmbedHandoff:
 
 
 def embed_by_id(
-    definition: dict[str, Any] | None, surface_id: str
+    definition: dict[str, Any] | None, surface_id: str, *, scope: str
 ) -> Optional[dict[str, Any]]:
-    """One declared embed surface from a pinned definition."""
+    """One declared embed surface from a pinned definition, if it renders here.
+
+    ``scope`` is where the surface is being opened from — the route's to state,
+    never the caller's. A surface that never asked to render there is not a
+    surface of that route, so it is simply not found. Definitions pinned before
+    a surface could say where it belongs carry no ``scopes``, and every one of
+    those is guild-wide.
+    """
     if not isinstance(definition, dict):
         return None
     embeds = definition.get("embeds")
     if not isinstance(embeds, list):
         return None
     for embed in embeds:
-        if isinstance(embed, dict) and embed.get("id") == surface_id:
-            return embed
+        if not isinstance(embed, dict) or embed.get("id") != surface_id:
+            continue
+        scopes = embed.get("scopes")
+        renders = scope in scopes if isinstance(scopes, list) else scope == "guild"
+        return embed if renders else None
     return None
 
 
-def _require_visibility(embed: dict[str, Any], *, is_guild_admin: bool) -> None:
-    """A surface an app declared for admins is opened by admins.
+def _require_visibility(
+    embed: dict[str, Any],
+    *,
+    is_guild_admin: bool,
+    is_initiative_manager: bool = False,
+) -> None:
+    """A surface is opened by the audience the app declared for it.
 
     ``member`` is the default the manifest validator applies, so an embed that
-    says nothing is open to every member of the installing guild.
+    says nothing is open to every member of the installing guild. The ordering
+    lives with the vocabulary that defines it, so this cannot drift from what a
+    manifest is allowed to say.
     """
-    if embed.get("visibility") == "guild_admin" and not is_guild_admin:
+    if not clears_visibility(
+        embed.get("visibility"),
+        is_guild_admin=is_guild_admin,
+        is_initiative_manager=is_initiative_manager,
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=GuildAppMessages.SURFACE_ADMIN_ONLY,
@@ -121,16 +143,22 @@ async def mint_embed_handoff(
     app: GuildApp,
     *,
     surface_id: str,
+    scope: str,
     user_id: int,
     is_guild_admin: bool,
 ) -> EmbedHandoff:
-    """Authorize the caller for one surface, then mint its handoff."""
+    """Authorize the caller for one surface, then mint its handoff.
+
+    Resolving the surface is scoped to the route it was asked for, so the
+    visibility rung — which is read against where a surface was opened — is only
+    ever measured somewhere the surface agreed to appear.
+    """
     if not app.enabled:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=GuildAppMessages.DISABLED
         )
 
-    embed = embed_by_id(app.definition, surface_id)
+    embed = embed_by_id(app.definition, surface_id, scope=scope)
     if embed is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

@@ -597,7 +597,8 @@ async def create_guild_app_handoff(
     Whether the surface may be opened is decided here, under the caller's real
     session, so the app never makes that call and never sees a request from
     somebody who failed it. What the manifest declared as ``visibility``
-    governs: a surface marked ``guild_admin`` is admin-only, and everything
+    governs, read guild-wide: a surface naming any audience narrower than
+    ``member`` is reachable here only by the guild's admins, and everything
     else is open to every member of the installing guild.
 
     The token goes to the iframe by ``postMessage`` — never a query string —
@@ -607,6 +608,9 @@ async def create_guild_app_handoff(
     handoff = await handoff_service.mint_embed_handoff(
         app,
         surface_id=surface_id,
+        # This route reaches a guild, and names no initiative. A surface that
+        # renders only inside one is not offered here.
+        scope="guild",
         user_id=current_user.id,
         is_guild_admin=rls_service.is_guild_admin(guild_context.role),
     )
