@@ -279,13 +279,6 @@ def verify_upload_token(token: str) -> tuple[int, frozenset[int]]:
     return user_id, satisfied
 
 
-# Single source of truth for a handoff token's lifetime. Used both as the
-# default ``expires_in`` and as the value the function reports back to callers,
-# so the response's ``expires_in_seconds`` and the JWT's ``exp`` claim can never
-# disagree.
-HANDOFF_LIFETIME = timedelta(seconds=60)
-
-
 class HandoffSigningNotConfiguredError(RuntimeError):
     """Raised when a handoff token is requested but no RS256 signing key is
     configured. The token is verified by a separate service, so there is no
@@ -315,13 +308,19 @@ def _resolve_handoff_signing_material() -> tuple[str, str, str | None]:
 
 BILLING_PORTAL_AUDIENCE = "initiative:billing-portal"
 
+# This handoff's lifetime, owned here like the support handoff's below. Used
+# both as the default ``expires_in`` and as the value the function reports back,
+# so the response's ``expires_in_seconds`` and the JWT's ``exp`` claim can never
+# disagree.
+BILLING_PORTAL_HANDOFF_LIFETIME = timedelta(seconds=60)
+
 
 def create_billing_portal_handoff_token(
     *,
     user_id: int,
     guild_id: int,
     guild_role: str,
-    expires_in: timedelta = HANDOFF_LIFETIME,
+    expires_in: timedelta = BILLING_PORTAL_HANDOFF_LIFETIME,
 ) -> tuple[str, int]:
     """Mint the billing-portal handoff token (RS256; raises if unconfigured)."""
     now = datetime.now(timezone.utc)

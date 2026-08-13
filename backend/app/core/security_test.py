@@ -20,7 +20,7 @@ from app.core.config import settings
 from app.core.security import (
     AUTH_ACCESS_AUDIENCE,
     AUTH_TOKEN_ISSUER,
-    HANDOFF_LIFETIME,
+    BILLING_PORTAL_HANDOFF_LIFETIME,
     HandoffSigningNotConfiguredError,
     JWT_ALGORITHM,
     UPLOAD_TOKEN_AUDIENCE,
@@ -58,7 +58,7 @@ def test_billing_portal_handoff_carries_admin_claims_and_distinct_audience():
     token, seconds = security.create_billing_portal_handoff_token(
         user_id=42, guild_id=7, guild_role="admin"
     )
-    assert seconds == int(HANDOFF_LIFETIME.total_seconds())
+    assert seconds == int(BILLING_PORTAL_HANDOFF_LIFETIME.total_seconds())
     assert jwt.get_unverified_header(token)["alg"] == "RS256"
 
     payload = _decode_unverified(token)
