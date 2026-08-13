@@ -161,7 +161,8 @@ async def dispatch_event(
             _inert_logged = True
             logger.info(
                 "webhook dispatch inert: no automation delegate configured "
-                "(set AUTO_DELEGATION_PUBLIC_KEY_PEM to enable event delivery)"
+                "(set AUTO_DELEGATION_PUBLIC_KEY_PEM or "
+                "AUTO_DELEGATION_PUBLIC_KEYS to enable event delivery)"
             )
         return
 

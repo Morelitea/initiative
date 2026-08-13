@@ -590,6 +590,18 @@ class Settings(BaseSettings):
     # delegation auth is disabled and Initiative only accepts its own
     # session tokens / API keys.
     AUTO_DELEGATION_PUBLIC_KEY_PEM: str | None = None
+    # The same trust, expressed as a key set so the delegate can rotate
+    # without downtime: a JWKS document of the RSA public keys this
+    # deployment accepts a delegation JWT from — ``{"keys": [{"kty": "RSA",
+    # "alg": "RS256", "kid": "...", "n": "<base64url>", "e": "<base64url>"}]}``,
+    # the shape ``/api/v1/app-platform/jwks.json`` publishes. Add the new key
+    # in one release, let auto start stamping its ``kid``, drop the old one
+    # later.
+    #
+    # Either setting alone is enough, and both may be set at once (during a
+    # rotation away from the single-key form). The PEM carries no id, so it is
+    # tried whatever ``kid`` a token arrives with.
+    AUTO_DELEGATION_PUBLIC_KEYS: str | None = None
     AUTO_DELEGATION_AUDIENCE: str = "initiative:auto-delegation"
     AUTO_DELEGATION_ISSUER: str = "initiative-auto"
 

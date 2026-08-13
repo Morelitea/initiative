@@ -437,12 +437,13 @@ def create_billing_support_handoff_token(
 # Inbound delegation from initiative-auto
 #
 # When auto calls our API on behalf of a user, it presents a JWT signed
-# with its private key (RS256). We verify here using the public half
-# configured at AUTO_DELEGATION_PUBLIC_KEY_PEM and resolve the JWT to a
-# user_id that the auth dependency then loads as a User. From that
-# point on the request runs through our normal RLS + role-permission
-# stack — the delegation just answers "who is acting", not "what can
-# they do".
+# with its private key (RS256). We verify here using the public half —
+# AUTO_DELEGATION_PUBLIC_KEY_PEM for a single key, or
+# AUTO_DELEGATION_PUBLIC_KEYS for a set it can rotate through — and
+# resolve the JWT to a user_id that the auth dependency then loads as a
+# User. From that point on the request runs through our normal RLS +
+# role-permission stack — the delegation just answers "who is acting",
+# not "what can they do".
 # ──────────────────────────────────────────────────────────────────────────
 
 
@@ -461,38 +462,126 @@ class AutoDelegationVerificationError(Exception):
     """Raised when the inbound delegation JWT fails any check."""
 
 
+@dataclass(frozen=True)
+class _DelegationKey:
+    """One public key delegation JWTs are verified against.
+
+    ``kid`` is ``None`` for the single configured PEM, which predates the key
+    set and names no id.
+    """
+
+    kid: str | None
+    #: A ``PyJWK`` from the key set, or the PEM string. ``jwt.decode`` takes
+    #: either, so the two configuration forms need no separate code path.
+    key: Any
+
+
 def auto_delegation_configured() -> bool:
     """True when this deployment has an automation delegate.
 
     The delegate is identified by the public half of its signing key, so the
-    presence of that key is what "a delegate exists here" means. Single source
-    of truth for every surface that is delegate-owned: the subscription
-    endpoints refuse without it and the outbound dispatcher stays inert.
+    presence of a key is what "a delegate exists here" means — either form
+    counts. Deliberately does not parse the key set: this answers a
+    configuration question for surfaces that are delegate-owned (the
+    subscription endpoints refuse without it, the outbound dispatcher stays
+    inert), and a malformed document is a verification-time failure, not a
+    reason for those surfaces to disappear.
     """
-    return bool(settings.AUTO_DELEGATION_PUBLIC_KEY_PEM)
+    return bool(
+        settings.AUTO_DELEGATION_PUBLIC_KEY_PEM or settings.AUTO_DELEGATION_PUBLIC_KEYS
+    )
+
+
+#: Parsed verification keys, rebuilt only when the configured values change.
+#: Parsing a JWKS per request would be waste on the hot auth path.
+_delegation_keys_cache: tuple[tuple[str, str], tuple[_DelegationKey, ...]] | None = None
+
+
+def _delegation_verification_keys() -> tuple[_DelegationKey, ...]:
+    """Every key a delegation JWT may be verified against, best candidate first.
+
+    The single PEM carries no id of its own, so it stays usable whatever
+    ``kid`` a token arrives stamped with — which is what keeps a deployment
+    that never configured a key set working once auto starts stamping one.
+    """
+    global _delegation_keys_cache
+
+    raw_pem = settings.AUTO_DELEGATION_PUBLIC_KEY_PEM or ""
+    raw_set = settings.AUTO_DELEGATION_PUBLIC_KEYS or ""
+    cache_key = (raw_pem, raw_set)
+    if _delegation_keys_cache is not None and _delegation_keys_cache[0] == cache_key:
+        return _delegation_keys_cache[1]
+
+    keys: list[_DelegationKey] = []
+    if raw_set.strip():
+        # PyJWT owns the parsing, as it does for the OIDC provider key sets
+        # (services/auth/oidc/jwks.py) — one JWKS reader, not a second one
+        # written here.
+        try:
+            key_set = jwt.PyJWKSet.from_json(raw_set)
+        except (jwt.PyJWTError, ValueError, AttributeError, TypeError) as exc:
+            raise AutoDelegationVerificationError(
+                f"AUTO_DELEGATION_PUBLIC_KEYS is not a usable key set: {exc}"
+            ) from exc
+        keys.extend(_DelegationKey(kid=key.key_id, key=key) for key in key_set.keys)
+    if raw_pem:
+        keys.append(_DelegationKey(kid=None, key=raw_pem))
+
+    # Only a clean parse is cached — a malformed document has to keep raising
+    # rather than being remembered as "this deployment has no keys".
+    resolved = tuple(keys)
+    _delegation_keys_cache = (cache_key, resolved)
+    return resolved
 
 
 def verify_auto_delegation_token(token: str) -> AutoDelegationClaims:
     """Verify a delegation JWT minted by initiative-auto.
 
-    Disabled when ``AUTO_DELEGATION_PUBLIC_KEY_PEM`` is unset — that
-    config gap surfaces as a verification error so the auth dep can
-    fall through to its other token paths instead of 500'ing.
+    Disabled when no verification key is configured — that config gap
+    surfaces as a verification error so the auth dep can fall through to its
+    other token paths instead of 500'ing.
+
+    A token's ``kid`` orders the configured keys so the one it names is tried
+    first. Every configured key is still tried, which is what lets a
+    deployment rotate without coordinating the exact moment the delegate
+    starts stamping a new id.
     """
-    if not settings.AUTO_DELEGATION_PUBLIC_KEY_PEM:
+    candidates = _delegation_verification_keys()
+    if not candidates:
         raise AutoDelegationVerificationError("delegation auth not configured")
 
     try:
-        payload = jwt.decode(
-            token,
-            settings.AUTO_DELEGATION_PUBLIC_KEY_PEM,
-            algorithms=["RS256"],
-            audience=settings.AUTO_DELEGATION_AUDIENCE,
-            issuer=settings.AUTO_DELEGATION_ISSUER,
-            options={"require": ["exp", "iat", "iss", "aud", "sub", "jti"]},
-        )
+        kid = jwt.get_unverified_header(token).get("kid")
     except jwt.PyJWTError as e:
-        raise AutoDelegationVerificationError(f"jwt verification failed: {e}") from e
+        raise AutoDelegationVerificationError(f"unreadable token header: {e}") from e
+    if isinstance(kid, str) and len(candidates) > 1:
+        candidates = tuple(
+            sorted(candidates, key=lambda candidate: candidate.kid != kid)
+        )
+
+    payload = None
+    first_error: jwt.PyJWTError | None = None
+    for candidate in candidates:
+        try:
+            payload = jwt.decode(
+                token,
+                candidate.key,
+                algorithms=["RS256"],
+                audience=settings.AUTO_DELEGATION_AUDIENCE,
+                issuer=settings.AUTO_DELEGATION_ISSUER,
+                options={"require": ["exp", "iat", "iss", "aud", "sub", "jti"]},
+            )
+            break
+        except jwt.PyJWTError as e:
+            # Keep the first failure. Candidates are ordered best-match first,
+            # so it is the one worth reporting — a later key's message would
+            # describe a key the token was never meant for.
+            if first_error is None:
+                first_error = e
+    if payload is None:
+        raise AutoDelegationVerificationError(
+            f"jwt verification failed: {first_error}"
+        ) from first_error
 
     try:
         user_id = int(payload["sub"])
