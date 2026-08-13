@@ -183,6 +183,30 @@ class TestBackfill:
         # one they are responsible for.
         assert apps[0].installed_by_id == creator.id
 
+    async def test_several_guilds_each_get_their_own(
+        self, session: AsyncSession, mandatory_registration
+    ):
+        """The sweep walks guild schemas with one session, and ids restart at 1
+        in each of them — so the second guild must not be answered with the
+        first guild's install still sitting in the identity map."""
+        guilds = []
+        for index in range(3):
+            creator = await create_user(session, email=f"many{index}@example.com")
+            guild = await create_guild(session, creator=creator, name=f"Guild {index}")
+            await create_guild_membership(
+                session, user=creator, guild=guild, role=GuildRole.admin
+            )
+            guilds.append(guild)
+
+        result = await backfill_mandatory_apps()
+
+        assert (result.installed, result.failed) == (3, 0)
+        for guild in guilds:
+            apps = await _installed_apps(session, guild.id)
+            assert [app.listing_uid for app in apps] == [PROVIDED_UID], (
+                f"guild {guild.id} did not get its own install"
+            )
+
     async def test_running_it_twice_installs_once(
         self, session: AsyncSession, mandatory_registration
     ):

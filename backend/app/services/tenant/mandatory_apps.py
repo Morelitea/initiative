@@ -196,6 +196,12 @@ async def backfill_mandatory_apps() -> BackfillResult:
         )
         for guild_id in guild_ids:
             try:
+                # One session walks every guild schema, and ids restart at 1 in
+                # each of them — so a GuildApp(1) loaded from the last guild is
+                # still in the identity map when the next one queries for its
+                # own. Detach everything between guilds; nothing is carried
+                # across a boundary on purpose.
+                session.expunge_all()
                 await db_session.set_rls_context(
                     session, guild_id=guild_id, guild_role="admin"
                 )
