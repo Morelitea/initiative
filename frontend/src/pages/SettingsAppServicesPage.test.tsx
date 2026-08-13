@@ -1,9 +1,9 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildUser } from "@/__tests__/factories";
-import { renderWithProviders } from "@/__tests__/helpers/render";
+import { renderPage, renderWithProviders } from "@/__tests__/helpers/render";
 import type { AppServiceRegistrationRead } from "@/api/generated/initiativeAPI.schemas";
 
 const buildRegistration = (
@@ -284,5 +284,20 @@ describe("SettingsAppServicesPage", () => {
 
       expect(deleteMutate).toHaveBeenCalledWith(1, expect.anything());
     });
+  });
+});
+
+describe("SettingsPlatformIndexPage", () => {
+  it("does not land an apps-only operator on settings they cannot manage", async () => {
+    const { SettingsPlatformIndexPage } = await import("@/pages/SettingsPlatformIndexPage");
+    renderPage(SettingsPlatformIndexPage, {
+      auth: { user: buildUser({ role: "owner", capabilities: ["apps.manage"] }) },
+      initialRoute: "/settings/platform",
+    });
+    // Authentication settings belong to config.manage. Rendering them here
+    // would contradict the tab this operator's own capability selects.
+    await waitFor(() =>
+      expect(screen.queryByRole("heading", { name: /authentication/i })).toBeNull()
+    );
   });
 });
