@@ -83,6 +83,10 @@ ALLOWED_DYNAMIC_SQL: dict[str, str] = {
         "admin rotation job; table/column names validated against an "
         "allow-list before interpolation"
     ),
+    "app/db/secret_key_rotation.py::_rotate_fernet_json_map": (
+        "same rotation job for JSONB-held ciphertexts; schema is int-derived "
+        "via guild_schema_name, table/column come from a module constant"
+    ),
     "app/services/storage_backfill.py::_persist": (
         "SET clause joined from literal 'col = :bind' fragments; all values bound"
     ),
