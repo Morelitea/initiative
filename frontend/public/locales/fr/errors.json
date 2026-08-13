@@ -29,6 +29,8 @@
   "GUILD_ADMIN_REQUIRED": "Rôle d'administrateur du groupe requis",
   "GUILD_CREATION_DISABLED": "La création de groupe est désactivée",
   "GUILD_NAME_REQUIRED": "Le nom du groupe est requis",
+  "GUILD_OWNER_REQUIRES_CAPABILITY": "Seul le personnel de la plateforme peut créer un groupe pour quelqu'un d'autre",
+  "GUILD_OWNER_NOT_FOUND": "Ce compte n'existe pas ou ne peut pas recevoir de groupe",
   "GUILD_NOT_FOUND": "Groupe introuvable",
   "GUILD_MEMBERSHIP_CREATE_FAILED": "Échec de la création de l'appartenance au groupe",
   "GUILD_PROVISION_FAILED": "Échec de l'approvisionnement du stockage du groupe",

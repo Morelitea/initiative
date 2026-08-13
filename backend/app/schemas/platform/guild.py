@@ -18,7 +18,13 @@ class GuildBase(SanitizedBaseModel):
 
 
 class GuildCreate(GuildBase):
-    pass
+    #: Make another account the guild's admin instead of the caller.
+    #:
+    #: Honoured only for a caller holding ``guilds.manage``; anyone else
+    #: sending it is refused rather than quietly ignored, so a request that
+    #: names an owner never succeeds under a different one. The account must
+    #: already exist — this never creates one.
+    owner_user_id: Optional[int] = Field(default=None, ge=1)
 
 
 class GuildRead(GuildBase):

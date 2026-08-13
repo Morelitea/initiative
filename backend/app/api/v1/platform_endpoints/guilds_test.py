@@ -16,8 +16,12 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
-from app.models.platform.user import UserRole
+from sqlmodel import select
+
+from app.testing.schema_harness import route_session_to_guild
+from app.models.platform.guild import Guild, GuildMembership, GuildRole
+from app.models.platform.user import UserRole, UserStatus
+from app.models.tenant.initiative import InitiativeMember
 from app.testing.factories import (
     create_federated_identity,
     create_guild,
@@ -175,6 +179,153 @@ async def test_create_guild_sets_as_active(client: AsyncClient, session: AsyncSe
     response = await client.post("/api/v1/guilds/", headers=headers, json=payload)
 
     assert response.status_code == 201
+
+
+# --- creating a guild for another account ----------------------------------
+
+
+@pytest.mark.integration
+async def test_staff_can_create_a_guild_owned_by_someone_else(
+    client: AsyncClient, session: AsyncSession
+):
+    staff = await create_user(session, email="staff@example.com", role=UserRole.owner)
+    customer = await create_user(session, email="customer@example.com")
+
+    response = await client.post(
+        "/api/v1/guilds/",
+        headers=get_auth_headers(staff),
+        json={"name": "Acme", "owner_user_id": customer.id},
+    )
+
+    assert response.status_code == 201, response.text
+    guild_id = response.json()["id"]
+
+    # The named account is its admin...
+    memberships = (
+        await session.exec(
+            select(GuildMembership).where(GuildMembership.guild_id == guild_id)
+        )
+    ).all()
+    assert [(m.user_id, m.role) for m in memberships] == [
+        (customer.id, GuildRole.admin)
+    ]
+    # ...and the creator holds nothing in it.
+    assert staff.id not in {m.user_id for m in memberships}
+
+
+@pytest.mark.integration
+async def test_creating_for_someone_else_records_both_identities(
+    client: AsyncClient, session: AsyncSession
+):
+    """Who did it and who it was for, in the row rather than only a log line."""
+    staff = await create_user(session, email="staff@example.com", role=UserRole.owner)
+    customer = await create_user(session, email="customer@example.com")
+
+    response = await client.post(
+        "/api/v1/guilds/",
+        headers=get_auth_headers(staff),
+        json={"name": "Acme", "owner_user_id": customer.id},
+    )
+
+    guild = await session.get(Guild, response.json()["id"])
+    assert guild.created_by_user_id == staff.id
+    membership = (
+        await session.exec(
+            select(GuildMembership).where(GuildMembership.guild_id == guild.id)
+        )
+    ).one()
+    assert membership.user_id == customer.id
+
+
+@pytest.mark.integration
+async def test_the_owner_gets_the_default_initiative_not_the_staff_creator(
+    client: AsyncClient, session: AsyncSession
+):
+    """A guild made for another account must not leave its creator inside the
+    content either — the default initiative belongs to the owner."""
+    staff = await create_user(session, email="staff@example.com", role=UserRole.owner)
+    customer = await create_user(session, email="customer@example.com")
+
+    response = await client.post(
+        "/api/v1/guilds/",
+        headers=get_auth_headers(staff),
+        json={"name": "Acme", "owner_user_id": customer.id},
+    )
+    guild_id = response.json()["id"]
+
+    await route_session_to_guild(session, guild_id)
+    members = (await session.exec(select(InitiativeMember))).all()
+    assert {m.user_id for m in members} == {customer.id}
+
+
+@pytest.mark.integration
+async def test_an_ordinary_user_cannot_name_another_owner(
+    client: AsyncClient, session: AsyncSession
+):
+    """Refused, not silently ignored: creating the guild under the caller would
+    answer 201 for a request that named someone else."""
+    user = await create_user(session, email="member@example.com")
+    other = await create_user(session, email="other@example.com")
+
+    response = await client.post(
+        "/api/v1/guilds/",
+        headers=get_auth_headers(user),
+        json={"name": "Not yours", "owner_user_id": other.id},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "GUILD_OWNER_REQUIRES_CAPABILITY"
+    assert (
+        await session.exec(select(Guild).where(Guild.name == "Not yours"))
+    ).all() == []
+
+
+@pytest.mark.integration
+async def test_naming_yourself_needs_no_capability(
+    client: AsyncClient, session: AsyncSession
+):
+    """The field is about handing a guild to someone else; spelling out your
+    own id is the ordinary path."""
+    user = await create_user(session, email="member@example.com")
+
+    response = await client.post(
+        "/api/v1/guilds/",
+        headers=get_auth_headers(user),
+        json={"name": "Mine", "owner_user_id": user.id},
+    )
+
+    assert response.status_code == 201, response.text
+    assert response.json()["role"] == "admin"
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    "owner_id_of",
+    ["missing", "deactivated"],
+    ids=["unknown user", "deactivated user"],
+)
+async def test_an_unusable_owner_is_refused(
+    client: AsyncClient, session: AsyncSession, owner_id_of: str
+):
+    """This never creates an account, and never hands a guild to one that
+    cannot sign in to run it."""
+    staff = await create_user(session, email="staff@example.com", role=UserRole.owner)
+    if owner_id_of == "missing":
+        owner_id = 999_999_999
+    else:
+        deactivated = await create_user(
+            session, email="gone@example.com", status=UserStatus.deactivated
+        )
+        owner_id = deactivated.id
+
+    response = await client.post(
+        "/api/v1/guilds/",
+        headers=get_auth_headers(staff),
+        json={"name": "Acme", "owner_user_id": owner_id},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "GUILD_OWNER_NOT_FOUND"
 
 
 @pytest.mark.integration

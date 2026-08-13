@@ -142,9 +142,8 @@ async def ensure_membership(
     )
     session.add(membership)
     await session.flush()
-    # Event-driven seats (billing plan D5): nudge billing to recompute this
-    # guild's caps from the authoritative headcount. No-op unless a hosted
-    # deployment configured the outbound billing settings.
+    # Nudge billing that this guild's membership changed. No-op unless a
+    # hosted deployment configured the outbound billing settings.
     billing_ping.notify_membership_changed(guild_id)
     return membership
 
@@ -361,11 +360,16 @@ async def create_guild(
     description: str | None = None,
     icon_base64: str | None = None,
     creator: User | None = None,
+    owner: User | None = None,
 ) -> Guild:
-    """Create a guild's *shared* rows only — the guild row (public) and the
-    creator's admin membership (public). The guild-scoped seed rows (settings +
-    default initiative) live in the guild's schema, which doesn't exist yet, so
-    the caller commits this, then calls :func:`seed_guild_content`.
+    """Create a guild's *shared* rows only — the guild row (public) and its
+    admin membership (public). The guild-scoped seed rows (settings + default
+    initiative) live in the guild's schema, which doesn't exist yet, so the
+    caller commits this, then calls :func:`seed_guild_content`.
+
+    ``creator`` is who performed the creation and is recorded as such;
+    ``owner`` is who gets the admin membership, defaulting to the creator. The
+    row therefore says both who made the guild and who it is for.
     """
     now = datetime.now(timezone.utc)
     guild = Guild(
@@ -380,11 +384,12 @@ async def create_guild(
     )
     session.add(guild)
     await session.flush()
-    if creator:
+    admin = owner or creator
+    if admin:
         await ensure_membership(
             session,
             guild_id=guild.id,
-            user_id=creator.id,
+            user_id=admin.id,
             role=GuildRole.admin,
         )
     return guild
@@ -394,11 +399,15 @@ async def seed_guild_content(
     session: AsyncSession,
     *,
     guild_id: int,
-    creator: User,
+    owner: User,
 ) -> None:
     """Provision a new guild's schema and create its guild-scoped seed rows
     (settings + default initiative + the apps this deployment provides) *inside*
     it.
+
+    ``owner`` is the user the guild is **for** — its admin, and the default
+    initiative's manager. When someone creates a guild for another account,
+    that account is the owner and the creator is left holding nothing in it.
 
     The shared guild row must already exist; this provisions the schema + role and
     seeds into it (the caller commits around the call). On failure the caller
@@ -418,13 +427,13 @@ async def seed_guild_content(
     await provision_guild(guild_id)
     await set_rls_context(
         session,
-        user_id=creator.id,
+        user_id=owner.id,
         guild_id=guild_id,
         guild_role=GuildRole.admin.value,
     )
     await create_guild_settings(session, guild_id)
     await initiatives_service.ensure_default_initiative(
-        session, creator, guild_id=guild_id
+        session, owner, guild_id=guild_id
     )
     try:
         # Inside a savepoint, so a failure here rolls back the app install and
@@ -432,7 +441,7 @@ async def seed_guild_content(
         # listing or registration is doing.
         async with session.begin_nested():
             await mandatory_apps_service.install_mandatory_apps(
-                session, guild_id=guild_id, installed_by_id=creator.id
+                session, guild_id=guild_id, installed_by_id=owner.id
             )
     except Exception:
         logger.exception(
@@ -757,7 +766,6 @@ async def remove_user_from_guild(
     result = await session.exec(stmt)
     # Only a real removal is a membership change — mirror the insert side,
     # which pings only on a genuine insert (a no-op remove of a non-member
-    # must not nudge billing). Billing decides what to do with shrinkage; the
-    # ping only triggers a recompute from the committed headcount (plan D5).
+    # must not nudge billing).
     if result.rowcount:
         billing_ping.notify_membership_changed(guild_id)

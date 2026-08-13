@@ -76,22 +76,11 @@ class BillingGuildTierRead(SanitizedBaseModel):
     applied: bool
 
 
-class BillingHeadcountRequest(SanitizedBaseModel):
-    """Body of ``POST /billing/headcount`` — the per-user-billing read."""
-
-    guild_id: int = Field(ge=1)
-
-
-class BillingHeadcountRead(SanitizedBaseModel):
-    guild_id: int
-    member_count: int
-
-
 class BillingUsageRequest(SanitizedBaseModel):
     """Body of ``POST /billing/usage`` — the storage read.
 
     The guild rides the signed body (not a query string) so the envelope's
-    HMAC covers it, exactly like the headcount read.
+    HMAC covers it, like every other verb on this boundary.
     """
 
     guild_id: int = Field(ge=1)

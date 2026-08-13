@@ -1,4 +1,4 @@
-"""The membership-change ping to billing (write-boundary plan D5).
+"""The membership ping to billing.
 
 Pinned properties:
 
@@ -6,8 +6,7 @@ Pinned properties:
   path is a strict no-op: no task, no outbound call;
 * one ping per membership change, dispatched by the membership services;
 * the payload carries the guild id and a fresh event id ONLY — no member
-  data, no PII, and deliberately no member count (billing re-reads the
-  authoritative headcount via its signed endpoint);
+  data, no PII, no member count;
 * the signature binds method/path/timestamp/body exactly like the inbound
   envelope, keyed by the shared HMAC secret;
 * a failing billing service never surfaces into the join/leave path.

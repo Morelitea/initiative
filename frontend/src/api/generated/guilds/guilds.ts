@@ -182,6 +182,11 @@ export function useListGuildsApiV1GuildsGet<
 /**
  * Create a new guild. Uses admin session because the guild doesn't exist
  * yet — no guild context or membership exists for RLS to match against.
+ *
+ * The caller becomes the guild's admin, unless they hold ``guilds.manage``
+ * and name an ``owner_user_id`` — the enterprise/demo case, where staff stand
+ * a guild up for a customer and hold nothing in it afterwards. Reaching into
+ * that guild later is what the audited, time-bound PAM grant is for.
  * @summary Create Guild
  */
 export const createGuildApiV1GuildsPost = (
