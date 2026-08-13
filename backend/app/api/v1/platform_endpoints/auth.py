@@ -273,7 +273,7 @@ async def register_user(
             user_id = user.id
             try:
                 await guilds_service.seed_guild_content(
-                    session, guild_id=guild_id, creator=user
+                    session, guild_id=guild_id, owner=user
                 )
                 await session.commit()
             except Exception:

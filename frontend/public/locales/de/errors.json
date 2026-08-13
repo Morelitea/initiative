@@ -29,6 +29,8 @@
   "GUILD_ADMIN_REQUIRED": "Administratorrolle der Gilde erforderlich",
   "GUILD_CREATION_DISABLED": "Das Erstellen von Gilden ist deaktiviert",
   "GUILD_NAME_REQUIRED": "Gildenname ist erforderlich",
+  "GUILD_OWNER_REQUIRES_CAPABILITY": "Nur Plattform-Personal kann eine Gilde für jemand anderen erstellen",
+  "GUILD_OWNER_NOT_FOUND": "Dieses Konto existiert nicht oder kann keine Gilde erhalten",
   "GUILD_NOT_FOUND": "Gilde nicht gefunden",
   "GUILD_INVALID_PASSWORD": "Falsches Passwort",
   "GUILD_CONFIRMATION_MISMATCH": "Bestätigungstext stimmt nicht überein",

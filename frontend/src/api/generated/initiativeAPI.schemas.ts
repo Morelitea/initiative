@@ -2168,6 +2168,7 @@ export interface GuildCreate {
   name: string;
   description?: string | null;
   icon_base64?: string | null;
+  owner_user_id?: number | null;
 }
 
 /**

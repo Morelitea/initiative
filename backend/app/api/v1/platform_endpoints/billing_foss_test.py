@@ -53,11 +53,11 @@ def test_billing_settings_default_off():
     assert settings.BILLING_SERVICE_URL is None
 
 
-@pytest.mark.parametrize("endpoint", ["guild-tier", "headcount", "usage"])
+@pytest.mark.parametrize("endpoint", ["guild-tier", "usage"])
 async def test_unconfigured_endpoints_fail_closed_503(
     client: AsyncClient, session: AsyncSession, endpoint: str
 ):
-    """Both billing endpoints answer 503 (fail closed, retryable) on a
+    """Every billing endpoint answers 503 (fail closed, retryable) on a
     self-host — including for a completely unsigned request."""
     guild = await create_guild(session)
     response = await client.post(
@@ -78,7 +78,7 @@ async def test_partial_configuration_still_fails_closed(
     monkeypatch.setattr(config_module.settings, "BILLING_HMAC_SECRET", "half")
     guild = await create_guild(session)
     response = await client.post(
-        "/api/v1/billing/headcount",
+        "/api/v1/billing/usage",
         content=json.dumps({"guild_id": guild.id}).encode(),
         headers={"Content-Type": "application/json"},
     )

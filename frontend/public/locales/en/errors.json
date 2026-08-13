@@ -23,6 +23,8 @@
   "GUILD_ADMIN_REQUIRED": "Guild admin role required",
   "GUILD_CREATION_DISABLED": "Guild creation is disabled",
   "GUILD_NAME_REQUIRED": "Guild name is required",
+  "GUILD_OWNER_REQUIRES_CAPABILITY": "Only platform staff can create a guild owned by someone else",
+  "GUILD_OWNER_NOT_FOUND": "That account doesn't exist or can't be given a guild",
   "GUILD_NOT_FOUND": "Guild not found",
   "GUILD_INVALID_PASSWORD": "Incorrect password",
   "GUILD_CONFIRMATION_MISMATCH": "Confirmation text does not match",

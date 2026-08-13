@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A platform administrator can create a guild for another account.** The named account becomes the guild's admin and owns its first initiative, and the administrator who created it is left holding nothing in it. Everyone else creates guilds for themselves as before.
 - **Dashboards.** A new tool inside an initiative: a canvas of widgets you drag and resize, reading that initiative's own projects and tasks. Seven kinds of widget — a headline number, charts (line, bar, stacked, area, pie), a progress bar, a funnel, a heatmap, a table, and a timeline — each with its own options, and a live preview while you pick one. Dashboards are read-only by design: they show work, they never change it. Sharing works like every other tool, so a dashboard can be yours alone, shared with named people or roles, or open to the whole initiative.
 - **Counter board dashboard in the marketplace.** A scoreboard for whatever the initiative is tallying: one counter as the headline, its progress toward the goal, and the rest of its group charted alongside. Install it, then point each widget at the counters you want.
 - **Event planner dashboard in the marketplace.** The initiative's events laid out the way an organizer thinks: everything on a weekly timeline, with the full event list underneath. Installs in one step and needs no setup.

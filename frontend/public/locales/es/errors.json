@@ -29,6 +29,8 @@
   "GUILD_ADMIN_REQUIRED": "Se requiere rol de administrador del gremio",
   "GUILD_CREATION_DISABLED": "La creación de gremios está deshabilitada",
   "GUILD_NAME_REQUIRED": "El nombre del gremio es obligatorio",
+  "GUILD_OWNER_REQUIRES_CAPABILITY": "Solo el personal de la plataforma puede crear un gremio para otra persona",
+  "GUILD_OWNER_NOT_FOUND": "Esa cuenta no existe o no puede recibir un gremio",
   "GUILD_NOT_FOUND": "Gremio no encontrado",
   "GUILD_MEMBERSHIP_CREATE_FAILED": "No se pudo crear la membresía del gremio",
   "GUILD_PROVISION_FAILED": "No se pudo aprovisionar el almacenamiento del gremio",

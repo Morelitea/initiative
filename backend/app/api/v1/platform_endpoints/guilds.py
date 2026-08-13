@@ -20,7 +20,7 @@ from app.core.security import (
 from app.db.schema_provisioning import deprovision_guild
 from app.db.session import get_admin_session, set_rls_context
 from app.models.platform.guild import GuildRole, GuildMembership, Guild, GuildStatus
-from app.models.platform.user import User
+from app.models.platform.user import User, UserStatus
 from app.schemas.platform.billing import BillingPortalHandoffResponse
 from app.schemas.platform.guild import (
     GuildAuthPolicyRead,
@@ -193,6 +193,34 @@ async def get_invite_status(
     )
 
 
+async def _resolve_guild_owner(
+    session: AsyncSession, guild_in: GuildCreate, current_user: User
+) -> User:
+    """Who the new guild's admin will be — the caller, unless a
+    ``guilds.manage`` holder named someone else.
+
+    Refused rather than ignored without that capability: creating the guild
+    under the caller would answer 201 for a request that named another account.
+    The named account must already exist and be active — this never creates
+    one, and never hands a guild to an account that cannot sign in to run it.
+    """
+    requested = guild_in.owner_user_id
+    if requested is None or requested == current_user.id:
+        return current_user
+    if not user_has_capability(current_user, Capability.GUILDS_MANAGE):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=GuildMessages.GUILD_OWNER_REQUIRES_CAPABILITY,
+        )
+    owner = await session.get(User, requested)
+    if owner is None or owner.status is not UserStatus.active:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=GuildMessages.GUILD_OWNER_NOT_FOUND,
+        )
+    return owner
+
+
 @router.post("/", response_model=GuildRead, status_code=status.HTTP_201_CREATED)
 async def create_guild(
     guild_in: GuildCreate,
@@ -200,7 +228,12 @@ async def create_guild(
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildRead:
     """Create a new guild. Uses admin session because the guild doesn't exist
-    yet — no guild context or membership exists for RLS to match against."""
+    yet — no guild context or membership exists for RLS to match against.
+
+    The caller becomes the guild's admin, unless they hold ``guilds.manage``
+    and name an ``owner_user_id``, which hands the guild to that account
+    instead and leaves the caller holding nothing in it.
+    """
     if settings.DISABLE_GUILD_CREATION and not user_has_capability(
         current_user, Capability.GUILDS_MANAGE
     ):
@@ -215,6 +248,8 @@ async def create_guild(
             detail=GuildMessages.GUILD_NAME_REQUIRED,
         )
 
+    owner = await _resolve_guild_owner(session, guild_in, current_user)
+
     # The guild's shared rows (guild + admin membership) live in public. Commit
     # them first so provisioning + the in-schema seed below run as a distinct,
     # compensatable step (on failure: deprovision + delete these committed rows).
@@ -224,8 +259,18 @@ async def create_guild(
         description=guild_in.description,
         icon_base64=guild_in.icon_base64,
         creator=current_user,
+        owner=owner,
     )
     await session.commit()
+    if owner.id != current_user.id:
+        # Both identities: created_by_user_id holds the first, the admin
+        # membership the second.
+        logger.info(
+            "guild %s created by user %s on behalf of user %s",
+            guild.id,
+            current_user.id,
+            owner.id,
+        )
     try:
         # Provision the schema and create the guild-scoped seed rows (settings +
         # default initiative) *inside* it — so a new guild is schema-native from
@@ -233,7 +278,7 @@ async def create_guild(
         await guilds_service.seed_guild_content(
             session,
             guild_id=guild.id,
-            creator=current_user,
+            owner=owner,
         )
         await session.commit()
     except Exception:
@@ -253,8 +298,11 @@ async def create_guild(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=GuildMessages.GUILD_PROVISION_FAILED,
         )
+    # The owner's membership — the caller's own in the ordinary case. When the
+    # guild was created for another account the caller holds none, so the
+    # response describes the guild through its admin.
     membership = await guilds_service.get_membership(
-        session, guild_id=guild.id, user_id=current_user.id
+        session, guild_id=guild.id, user_id=owner.id
     )
     if not membership:
         raise HTTPException(
