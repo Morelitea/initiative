@@ -110,7 +110,7 @@ export const DashboardsView = ({ fixedInitiativeId, canCreate }: DashboardsViewP
               )}
               {canCreateDashboards && (
                 <Button size="sm" variant="ghost" asChild>
-                  <Link to={gp("/marketplace")}>
+                  <Link to={gp("/marketplace")} search={{ kind: "dashboard" }}>
                     <Store className="h-4 w-4" />
                     {t("browseMarketplace")}
                   </Link>
@@ -129,7 +129,7 @@ export const DashboardsView = ({ fixedInitiativeId, canCreate }: DashboardsViewP
             {t("createDashboard")}
           </Button>
           <Button variant="ghost" asChild>
-            <Link to={gp("/marketplace")}>
+            <Link to={gp("/marketplace")} search={{ kind: "dashboard" }}>
               <Store className="h-4 w-4" />
               {t("browseMarketplace")}
             </Link>
