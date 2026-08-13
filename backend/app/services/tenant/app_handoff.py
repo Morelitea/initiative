@@ -73,17 +73,27 @@ class EmbedHandoff:
 
 
 def embed_by_id(
-    definition: dict[str, Any] | None, surface_id: str
+    definition: dict[str, Any] | None, surface_id: str, *, scope: str
 ) -> Optional[dict[str, Any]]:
-    """One declared embed surface from a pinned definition."""
+    """One declared embed surface from a pinned definition, if it renders here.
+
+    ``scope`` is where the surface is being opened from — the route's to state,
+    never the caller's. A surface that never asked to render there is not a
+    surface of that route, so it is simply not found. Definitions pinned before
+    a surface could say where it belongs carry no ``scopes``, and every one of
+    those is guild-wide.
+    """
     if not isinstance(definition, dict):
         return None
     embeds = definition.get("embeds")
     if not isinstance(embeds, list):
         return None
     for embed in embeds:
-        if isinstance(embed, dict) and embed.get("id") == surface_id:
-            return embed
+        if not isinstance(embed, dict) or embed.get("id") != surface_id:
+            continue
+        scopes = embed.get("scopes")
+        renders = scope in scopes if isinstance(scopes, list) else scope == "guild"
+        return embed if renders else None
     return None
 
 
@@ -133,16 +143,22 @@ async def mint_embed_handoff(
     app: GuildApp,
     *,
     surface_id: str,
+    scope: str,
     user_id: int,
     is_guild_admin: bool,
 ) -> EmbedHandoff:
-    """Authorize the caller for one surface, then mint its handoff."""
+    """Authorize the caller for one surface, then mint its handoff.
+
+    Resolving the surface is scoped to the route it was asked for, so the
+    visibility rung — which is read against where a surface was opened — is only
+    ever measured somewhere the surface agreed to appear.
+    """
     if not app.enabled:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=GuildAppMessages.DISABLED
         )
 
-    embed = embed_by_id(app.definition, surface_id)
+    embed = embed_by_id(app.definition, surface_id, scope=scope)
     if embed is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

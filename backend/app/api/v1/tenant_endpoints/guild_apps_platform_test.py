@@ -85,6 +85,13 @@ def _service_definition(**overrides) -> dict:
                 "visibility": "initiative_manager",
                 "name": {"en": "Runs"},
             },
+            {
+                "id": "inside",
+                "path": "/embed/inside",
+                "scopes": ["initiative"],
+                "visibility": "member",
+                "name": {"en": "Inside"},
+            },
         ],
         "default_name": "WidgetCo",
     }
@@ -326,6 +333,28 @@ class TestHandoff:
             a.g(f"/apps/{app.id}/handoff/console"), headers=a.headers
         )
         assert response.status_code == 200, response.text
+
+    async def test_a_surface_that_renders_only_inside_an_initiative_is_not_here(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        """``member`` means something different in each place, so the route has
+        to agree with the surface before the rung is read at all.
+
+        This route names no initiative, so a surface declared only for one has
+        no audience it could be measured against here — and a guild member who
+        belongs to no initiative would otherwise clear ``member`` and be handed
+        a token for it. Not offered here means not found here, for everyone.
+        """
+        a = await acting_user(guild_role=GuildRole.admin)
+        app = await _installed(session, a)
+        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+
+        for actor in (member, a):
+            response = await client.post(
+                actor.g(f"/apps/{app.id}/handoff/inside"), headers=actor.headers
+            )
+            assert response.status_code == 404, response.text
+            assert response.json()["detail"] == GuildAppMessages.SURFACE_NOT_FOUND
 
     async def test_managing_an_initiative_does_not_open_the_guild_wide_entry(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration

@@ -608,6 +608,9 @@ async def create_guild_app_handoff(
     handoff = await handoff_service.mint_embed_handoff(
         app,
         surface_id=surface_id,
+        # This route reaches a guild, and names no initiative. A surface that
+        # renders only inside one is not offered here.
+        scope="guild",
         user_id=current_user.id,
         is_guild_admin=rls_service.is_guild_admin(guild_context.role),
     )
