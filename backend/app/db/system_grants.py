@@ -89,6 +89,11 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # The row holds the shared-secret ciphertext, so it stays off the bare
     # login role entirely (below).
     "app_service_registrations": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # Replay guard for the app-service channel: the verifier reads and inserts,
+    # and the shared jti janitor prunes rows whose freshness window has passed
+    # (a request that old is refused before the guard is consulted, so pruning
+    # constrains nothing). Never updated — a spent nonce has one state.
+    "app_service_nonces": frozenset({"SELECT", "INSERT", "DELETE"}),
     # Registry client state: read and written by the refresh job alone. One row
     # per registry URL, recycled in place, so nothing is ever deleted.
     "marketplace_registry_state": frozenset({"SELECT", "INSERT", "UPDATE"}),
@@ -177,6 +182,9 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # the system engine and readable by the platform owner under RLS. The bare
     # pre-routing login role has no reason to see it, so it holds nothing.
     "app_service_registrations": None,
+    # The app-service replay guard is spent entirely on the system engine, like
+    # the billing blocklist; no request-path role reads or writes it.
+    "app_service_nonces": None,
     # Refresh bookkeeping — system engine only, surfaced to an operator through
     # a capability-gated endpoint rather than read on the request path.
     "marketplace_registry_state": None,

@@ -437,5 +437,20 @@
   "APP_SERVICE_UNAVAILABLE": "The app isn't responding right now. Try again shortly.",
   "APP_DATA_RESPONSE_TOO_LARGE": "The app sent back more data than a widget can show.",
   "APP_DATA_BUSY": "This app has too many requests in flight. Try again shortly.",
-  "APP_DATA_RATE_LIMITED": "This app has been asked for too much too quickly. Try again shortly."
+  "APP_DATA_RATE_LIMITED": "This app has been asked for too much too quickly. Try again shortly.",
+  "APP_CHANNEL_MISSING_SIGNATURE": "That request from an app service wasn't signed properly.",
+  "APP_CHANNEL_STALE_TIMESTAMP": "That request from an app service was signed too long ago. Check the clock on both sides.",
+  "APP_CHANNEL_UNKNOWN_APP": "No app service is registered under that name.",
+  "APP_CHANNEL_INVALID_SIGNATURE": "That request's signature doesn't match this app service's shared secret.",
+  "APP_CHANNEL_REPLAYED_REQUEST": "That request has already been used once and can't be repeated.",
+  "APP_CHANNEL_APP_DISABLED": "This app service has been switched off, so nothing flows through it.",
+  "APP_CHANNEL_INSTALL_NOT_FOUND": "That app isn't installed in that guild.",
+  "APP_CHANNEL_INSTALL_DISABLED": "That guild has turned this app off.",
+  "APP_CHANNEL_GUILD_READ_ONLY": "That guild is frozen, so nothing can be written to it right now.",
+  "APP_CHANNEL_CONNECTION_NOT_FOUND": "No connection on that install matches that reference.",
+  "APP_CHANNEL_CONNECTION_BLOCKED": "A guild admin has blocked that member's connection.",
+  "APP_CHANNEL_INVALID_PAYLOAD": "That app service sent something this version can't read.",
+  "APP_CHANNEL_UNKNOWN_EVENT_TYPE": "That event type isn't one this app declared.",
+  "APP_CHANNEL_EVENT_TOO_LARGE": "That event is larger than this version will carry.",
+  "APP_CHANNEL_INVALID_CONFIG_STATE": "That app service reported a status this version doesn't recognize."
 }

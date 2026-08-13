@@ -1,18 +1,19 @@
-"""One periodic worker that prunes every one-shot ``jti`` replay-guard table.
+"""One periodic worker that prunes every one-shot replay-guard table.
 
-Both jti blocklists — the billing service JWT blocklist and the
-initiative-auto delegation blocklist — are the same maintenance concern:
-shared ``public`` tables of spent one-shot tokens that grow forever unless
-swept. They run on one hourly cadence, so one worker sweeps them all rather
-than a near-identical janitor per table (the per-table DELETE lives in
-:func:`app.db.jti_blocklist.purge_expired_jtis`).
+The guards — the billing service JWT blocklist, the initiative-auto delegation
+blocklist, and the nonces spent on the app-service channel — are the same
+maintenance concern: shared ``public`` tables of spent one-shot values that grow
+forever unless swept. They run on one hourly cadence, so one worker sweeps them
+all rather than a near-identical janitor per table (the per-table DELETE lives
+in :func:`app.db.jti_blocklist.purge_expired_jtis`).
 
 Each entry is gated by whether its integration is configured: on a self-host
-with neither wired, the worker is a strict no-op (no session opened). The
-sweep runs on the system engine (``app_admin`` holds DELETE on both tables);
-the request path never deletes. Pruning is always safe — an expired token is
-refused by its own ``exp`` at verification before its blocklist is consulted,
-so removing the spent row never re-opens a replay window.
+with none of them wired, the worker is a strict no-op (no session opened). The
+sweep runs on the system engine (``app_admin`` holds DELETE on each table); the
+request path never deletes. Pruning is always safe — a value that old is already
+refused at verification, by its own ``exp`` or by the signing freshness window,
+before its guard table is consulted, so removing the spent row never re-opens a
+replay window.
 """
 
 from __future__ import annotations
@@ -25,8 +26,10 @@ from sqlmodel import SQLModel
 
 from app.core.config import settings
 from app.db.jti_blocklist import purge_expired_jtis
+from app.models.platform.app_service_nonce import AppServiceNonce
 from app.models.platform.auto_delegation_jti import AutoDelegationJti
 from app.models.platform.billing import BillingJti
+from app.services.marketplace.app_channel_auth import app_channel_possible
 from app.services.platform.billing import billing_inbound_enabled
 
 logger = logging.getLogger(__name__)
@@ -46,10 +49,11 @@ def _auto_delegation_enabled() -> bool:
     return bool(settings.AUTO_DELEGATION_PUBLIC_KEY_PEM)
 
 
-# One entry per jti blocklist. Add a table here and it is swept automatically.
+# One entry per replay guard. Add a table here and it is swept automatically.
 _BLOCKLISTS: tuple[_Blocklist, ...] = (
     _Blocklist(BillingJti, billing_inbound_enabled, "billing"),
     _Blocklist(AutoDelegationJti, _auto_delegation_enabled, "auto-delegation"),
+    _Blocklist(AppServiceNonce, app_channel_possible, "app-service"),
 )
 
 

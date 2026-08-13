@@ -708,6 +708,53 @@ class AppDataMessages:
     RATE_LIMITED = "APP_DATA_RATE_LIMITED"
 
 
+class AppChannelMessages:
+    """Codes for the channels an app service calls back into Initiative on.
+
+    Read by an app author rather than by a person in the UI, so each names the
+    step that refused: an envelope this build will not accept, an install this
+    caller does not own, or a payload outside what the pinned manifest declared.
+    """
+
+    # --- the signed envelope ---
+    #: A required signing header is absent or unusably shaped.
+    MISSING_SIGNATURE = "APP_CHANNEL_MISSING_SIGNATURE"
+    #: The signed timestamp sits outside the freshness window.
+    STALE_TIMESTAMP = "APP_CHANNEL_STALE_TIMESTAMP"
+    #: No registration answers to the app id the request named.
+    UNKNOWN_APP = "APP_CHANNEL_UNKNOWN_APP"
+    #: The signature does not match what this registration's secret produces.
+    INVALID_SIGNATURE = "APP_CHANNEL_INVALID_SIGNATURE"
+    #: This nonce was already spent, so the request has been seen before.
+    REPLAYED_REQUEST = "APP_CHANNEL_REPLAYED_REQUEST"
+    #: The operator turned this registration off; every channel it backs stops.
+    APP_DISABLED = "APP_CHANNEL_APP_DISABLED"
+
+    # --- the install being addressed ---
+    #: No install of this app in that guild — never installed, uninstalled, or
+    #: the guild is not one this caller may see.
+    INSTALL_NOT_FOUND = "APP_CHANNEL_INSTALL_NOT_FOUND"
+    #: The install exists but the guild turned it off.
+    INSTALL_DISABLED = "APP_CHANNEL_INSTALL_DISABLED"
+    #: The guild is frozen, so this channel accepts no writes into it.
+    GUILD_READ_ONLY = "APP_CHANNEL_GUILD_READ_ONLY"
+    #: No connection on this install answers to that reference.
+    CONNECTION_NOT_FOUND = "APP_CHANNEL_CONNECTION_NOT_FOUND"
+    #: A guild admin stopped this member's connection; the app may not revive it.
+    CONNECTION_BLOCKED = "APP_CHANNEL_CONNECTION_BLOCKED"
+
+    # --- what the app sent ---
+    #: The body is not the JSON object this channel expects.
+    INVALID_PAYLOAD = "APP_CHANNEL_INVALID_PAYLOAD"
+    #: An event type the pinned definition does not declare, or one namespaced
+    #: under an app other than the caller.
+    UNKNOWN_EVENT_TYPE = "APP_CHANNEL_UNKNOWN_EVENT_TYPE"
+    #: The event body is larger than this build will carry.
+    EVENT_TOO_LARGE = "APP_CHANNEL_EVENT_TOO_LARGE"
+    #: A config state outside what an app may report.
+    INVALID_CONFIG_STATE = "APP_CHANNEL_INVALID_CONFIG_STATE"
+
+
 class WebhookSubscriptionMessages:
     INVALID_TARGET_URL = "WEBHOOK_INVALID_TARGET_URL"
     PRIVATE_TARGET_URL = "WEBHOOK_PRIVATE_TARGET_URL"

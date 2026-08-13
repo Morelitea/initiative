@@ -8,6 +8,12 @@ from fastapi import APIRouter
 #                          …), including the cross-guild "my" aggregates that read
 #                          them — the one place tenant data is read without a
 #                          single guild context (see /me routes below).
+#   app_service_endpoints/ — the channels an external app service calls back on.
+#                          Split by CALLER rather than by data: no user is
+#                          resolved, the caller is established from a request
+#                          signature, and which guild it may reach follows from
+#                          that.
+from app.api.v1 import app_service_endpoints
 from app.api.v1.tenant_endpoints import (
     advanced_tool,
     ai_settings,
@@ -98,6 +104,13 @@ api_router.include_router(
 # credential, because requiring one to fetch a verification key is circular.
 api_router.include_router(
     app_platform.router, prefix="/app-platform", tags=["app-platform"]
+)
+# The other half of that wiring: what a registered app service may call back on.
+# Authenticated by request signature against its registration's shared secret —
+# no user, no session, no guild in a header. The guild each call operates in is
+# named in the path and re-checked against the caller's own installs.
+api_router.include_router(
+    app_service_endpoints.router, prefix="/app-service", tags=["app-service"]
 )
 api_router.include_router(
     auth_providers.router, prefix="/settings/auth/providers", tags=["auth-providers"]

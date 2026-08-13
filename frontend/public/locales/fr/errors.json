@@ -437,5 +437,20 @@
   "APP_SERVICE_UNAVAILABLE": "L'application ne répond pas pour le moment. Réessayez dans un instant.",
   "APP_DATA_RESPONSE_TOO_LARGE": "L'application a renvoyé plus de données qu'un widget ne peut afficher.",
   "APP_DATA_BUSY": "Cette application a trop de requêtes en cours. Réessayez dans un instant.",
-  "APP_DATA_RATE_LIMITED": "Cette application a été sollicitée trop souvent en peu de temps. Réessayez dans un instant."
+  "APP_DATA_RATE_LIMITED": "Cette application a été sollicitée trop souvent en peu de temps. Réessayez dans un instant.",
+  "APP_CHANNEL_MISSING_SIGNATURE": "Cette requête d'un service applicatif n'était pas correctement signée.",
+  "APP_CHANNEL_STALE_TIMESTAMP": "Cette requête d'un service applicatif a été signée il y a trop longtemps. Vérifiez l'horloge des deux côtés.",
+  "APP_CHANNEL_UNKNOWN_APP": "Aucun service applicatif n'est enregistré sous ce nom.",
+  "APP_CHANNEL_INVALID_SIGNATURE": "La signature de la requête ne correspond pas au secret partagé de ce service applicatif.",
+  "APP_CHANNEL_REPLAYED_REQUEST": "Cette requête a déjà été utilisée une fois et ne peut pas être rejouée.",
+  "APP_CHANNEL_APP_DISABLED": "Ce service applicatif a été désactivé : rien ne passe par lui.",
+  "APP_CHANNEL_INSTALL_NOT_FOUND": "Cette application n'est pas installée dans cette guilde.",
+  "APP_CHANNEL_INSTALL_DISABLED": "Cette guilde a désactivé cette application.",
+  "APP_CHANNEL_GUILD_READ_ONLY": "Cette guilde est gelée : rien ne peut y être écrit pour le moment.",
+  "APP_CHANNEL_CONNECTION_NOT_FOUND": "Aucune connexion de cette installation ne correspond à cette référence.",
+  "APP_CHANNEL_CONNECTION_BLOCKED": "L'administration de la guilde a bloqué la connexion de ce membre.",
+  "APP_CHANNEL_INVALID_PAYLOAD": "Ce service applicatif a envoyé quelque chose que cette version ne sait pas lire.",
+  "APP_CHANNEL_UNKNOWN_EVENT_TYPE": "Ce type d'évènement ne fait pas partie de ceux déclarés par cette application.",
+  "APP_CHANNEL_EVENT_TOO_LARGE": "Cet évènement dépasse ce que cette version peut transporter.",
+  "APP_CHANNEL_INVALID_CONFIG_STATE": "Ce service applicatif a signalé un état que cette version ne reconnaît pas."
 }

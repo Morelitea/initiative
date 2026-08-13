@@ -437,5 +437,20 @@
   "APP_SERVICE_UNAVAILABLE": "Die App antwortet gerade nicht. Versuch es gleich noch einmal.",
   "APP_DATA_RESPONSE_TOO_LARGE": "Die App hat mehr Daten geschickt, als ein Widget anzeigen kann.",
   "APP_DATA_BUSY": "Diese App hat zu viele laufende Anfragen. Versuch es gleich noch einmal.",
-  "APP_DATA_RATE_LIMITED": "Diese App wurde zu oft in kurzer Zeit abgefragt. Versuch es gleich noch einmal."
+  "APP_DATA_RATE_LIMITED": "Diese App wurde zu oft in kurzer Zeit abgefragt. Versuch es gleich noch einmal.",
+  "APP_CHANNEL_MISSING_SIGNATURE": "Diese Anfrage eines App-Dienstes war nicht korrekt signiert.",
+  "APP_CHANNEL_STALE_TIMESTAMP": "Diese Anfrage eines App-Dienstes wurde vor zu langer Zeit signiert. Prüfe die Uhren auf beiden Seiten.",
+  "APP_CHANNEL_UNKNOWN_APP": "Unter diesem Namen ist kein App-Dienst registriert.",
+  "APP_CHANNEL_INVALID_SIGNATURE": "Die Signatur der Anfrage passt nicht zum gemeinsamen Geheimnis dieses App-Dienstes.",
+  "APP_CHANNEL_REPLAYED_REQUEST": "Diese Anfrage wurde bereits verwendet und lässt sich nicht wiederholen.",
+  "APP_CHANNEL_APP_DISABLED": "Dieser App-Dienst wurde abgeschaltet, es läuft nichts über ihn.",
+  "APP_CHANNEL_INSTALL_NOT_FOUND": "Diese App ist in dieser Gilde nicht installiert.",
+  "APP_CHANNEL_INSTALL_DISABLED": "Diese Gilde hat die App ausgeschaltet.",
+  "APP_CHANNEL_GUILD_READ_ONLY": "Diese Gilde ist eingefroren, derzeit kann nichts hineingeschrieben werden.",
+  "APP_CHANNEL_CONNECTION_NOT_FOUND": "Zu dieser Referenz gibt es in dieser Installation keine Verbindung.",
+  "APP_CHANNEL_CONNECTION_BLOCKED": "Eine Gildenadministration hat die Verbindung dieses Mitglieds gesperrt.",
+  "APP_CHANNEL_INVALID_PAYLOAD": "Dieser App-Dienst hat etwas gesendet, das diese Version nicht lesen kann.",
+  "APP_CHANNEL_UNKNOWN_EVENT_TYPE": "Diesen Ereignistyp hat die App nicht angegeben.",
+  "APP_CHANNEL_EVENT_TOO_LARGE": "Dieses Ereignis ist größer, als diese Version übertragen kann.",
+  "APP_CHANNEL_INVALID_CONFIG_STATE": "Dieser App-Dienst hat einen Status gemeldet, den diese Version nicht kennt."
 }
