@@ -542,6 +542,38 @@ export interface AppConfig {
   max_upload_bytes: number;
 }
 
+export type AppDataParamLabel = { [key: string]: string };
+
+/**
+ * One parameter a source accepts, from its ``params_schema``.
+ */
+export interface AppDataParam {
+  key: string;
+  type: string;
+  label?: AppDataParamLabel;
+  required?: boolean;
+  options?: string[] | null;
+}
+
+/**
+ * One data source's rows, as the app returned them.
+ */
+export interface AppDataResponse {
+  rows?: unknown[];
+  fetched_at: string;
+  cached?: boolean;
+}
+
+/**
+ * A source a widget may bind to.
+ */
+export interface AppDataSourceRead {
+  id: string;
+  visibility?: string;
+  cache_ttl_seconds?: number;
+  params_schema?: AppDataParam[];
+}
+
 /**
  * Wire an app service up.
  *
@@ -603,6 +635,39 @@ export interface AppServiceRegistrationUpdate {
  */
 export interface AppServiceVerifyRequest {
   accept_manifest_change?: boolean;
+}
+
+export type AppWidgetReadMeta = { [key: string]: unknown };
+
+export type AppWidgetReadSampleData = { [key: string]: unknown };
+
+/**
+ * One widget an installed app contributes.
+ */
+export interface AppWidgetRead {
+  type: string;
+  id: string;
+  meta?: AppWidgetReadMeta;
+  module_source: string;
+  sources?: string[];
+  sample_data?: AppWidgetReadSampleData;
+}
+
+/**
+ * One installed app's contribution to the widget palette.
+ */
+export interface AppWidgetCatalogEntry {
+  app_id: number;
+  /** @maxLength 14 */
+  app_uid: string;
+  name: string;
+  enabled?: boolean;
+  widgets?: AppWidgetRead[];
+  data_sources?: AppDataSourceRead[];
+}
+
+export interface AppWidgetCatalogResponse {
+  items?: AppWidgetCatalogEntry[];
 }
 
 export interface ArchiveDoneResponse {
@@ -4829,6 +4894,8 @@ export type ListAccessGrantsApiV1AccessGrantsGetParams = {
   offset?: number;
 };
 
+export type ReadAppPlatformJwksApiV1AppPlatformJwksJsonGet200 = { [key: string]: unknown };
+
 export type ListNotificationsApiV1NotificationsGetParams = {
   /**
    * @minimum 1
@@ -5347,6 +5414,17 @@ export type ListDashboardsApiV1GGuildIdDashboardsGetParams = {
    * @maximum 200
    */
   page_size?: number;
+};
+
+export type ReadAppDataApiV1GGuildIdAppsAppIdDataSourceIdGetParams = {
+  /**
+   * The dashboard the widget sits on. Its own gates decide whether this caller may see anything here at all.
+   */
+  dashboard_id: number;
+  /**
+   * The binding's parameters, as a JSON object.
+   */
+  params?: string | null;
 };
 
 export type ListCalendarEventsApiV1GGuildIdCalendarEventsGetParams = {

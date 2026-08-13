@@ -316,3 +316,190 @@ def test_config_for_a_removed_widget_is_dropped():
     assert normalize_dashboard_config(
         {"widgets": {"w1": {"counter_id": 1}}}, definition
     ) == {"widgets": {}}
+
+
+# ---------------------------------------------------------------------------
+# App widgets and the `app` binding source
+# ---------------------------------------------------------------------------
+#
+# A service app's widget is a *separate* vocabulary from the built-ins, and the
+# separation is what these pin. An app widget is namespaced, binds only `app`,
+# and binds only its own app's sources — so a definition can never point one
+# vendor's module at another vendor's data, and never resolve an app's widget to
+# a built-in renderer.
+#
+# What a source *is* — its parameters, its visibility, its freshness — lives in
+# the installed app's pinned definition and is enforced when the data is
+# fetched. The validator's job here is shape, not authority.
+
+APP_UID = "SHPAPP00000001"
+OTHER_UID = "OTHERAPP000001"
+
+
+def _app_widget(**overrides) -> dict:
+    return {
+        "id": "w1",
+        "type": f"app:{APP_UID}:summary",
+        "binding": {
+            "source": "app",
+            "app_uid": APP_UID,
+            "source_id": "orders_summary",
+        },
+        **overrides,
+    }
+
+
+@pytest.mark.unit
+def test_an_app_widget_keeps_its_namespaced_type():
+    result = normalize_dashboard_definition(_definition(_app_widget()))
+    widget = result["widgets"][0]
+    assert widget["type"] == f"app:{APP_UID}:summary"
+    assert widget["binding"] == {
+        "source": "app",
+        "app_uid": APP_UID,
+        "source_id": "orders_summary",
+    }
+    # It still gets a grid, from the app-widget floor rather than a primitive's.
+    assert widget["grid"]["w"] >= 2 and widget["grid"]["h"] >= 2
+
+
+@pytest.mark.unit
+def test_declared_parameters_are_kept_as_the_scalars_they_are():
+    """Not coerced: the source's own params_schema declares the type, and
+    turning a bool into an int here would satisfy a check the fetch path is
+    meant to refuse."""
+    result = normalize_dashboard_definition(
+        _definition(
+            _app_widget(
+                binding={
+                    "source": "app",
+                    "app_uid": APP_UID,
+                    "source_id": "orders",
+                    "params": {"range": "30d", "limit": 5, "detailed": True},
+                }
+            )
+        )
+    )
+    assert result["widgets"][0]["binding"]["params"] == {
+        "range": "30d",
+        "limit": 5,
+        "detailed": True,
+    }
+
+
+@pytest.mark.unit
+def test_an_app_widget_cannot_bind_another_apps_data():
+    with pytest.raises(DashboardDefinitionError):
+        normalize_dashboard_definition(
+            _definition(
+                _app_widget(
+                    binding={
+                        "source": "app",
+                        "app_uid": OTHER_UID,
+                        "source_id": "orders",
+                    }
+                )
+            )
+        )
+
+
+@pytest.mark.unit
+def test_an_app_widget_binds_only_the_app_source():
+    for source in sorted(ALL_SOURCES):
+        with pytest.raises(DashboardDefinitionError):
+            normalize_dashboard_definition(
+                _definition(_app_widget(binding={"source": source}))
+            )
+
+
+@pytest.mark.unit
+def test_a_builtin_widget_cannot_bind_the_app_source():
+    """An app's rows are opaque here, so no built-in could draw them."""
+    with pytest.raises(DashboardDefinitionError):
+        normalize_dashboard_definition(
+            _definition(
+                {
+                    "id": "w1",
+                    "type": "stat",
+                    "binding": {
+                        "source": "app",
+                        "app_uid": APP_UID,
+                        "source_id": "orders",
+                    },
+                }
+            )
+        )
+
+
+@pytest.mark.unit
+def test_the_app_source_is_not_in_the_builtin_vocabulary():
+    """`ALL_SOURCES` and `WIDGET_TYPES` stay the built-ins' own, so the served
+    widget catalog and every drift test keep describing this build's renderers
+    rather than whatever some guild happens to have installed."""
+    assert "app" not in ALL_SOURCES
+    assert not any(name.startswith("app:") for name in WIDGET_TYPES)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "widget_type",
+    [
+        "app:",
+        "app:SHPAPP00000001",  # no widget id
+        "app:SHPAPP00000001:",  # empty widget id
+        "app:short:summary",  # uid is the wrong length
+        "app:SHOPAPP000000!:summary",  # outside the uid alphabet
+        "app:SHPAPP00000001:Summary!",  # outside the identifier set
+    ],
+)
+def test_a_malformed_app_widget_type_is_refused(widget_type):
+    with pytest.raises(DashboardDefinitionError):
+        normalize_dashboard_definition(_definition(_app_widget(type=widget_type)))
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "binding",
+    [
+        {"source": "app", "source_id": "orders"},  # no app named
+        {"source": "app", "app_uid": APP_UID},  # no source named
+        {"source": "app", "app_uid": APP_UID, "source_id": "Orders!"},
+        {"source": "app", "app_uid": APP_UID, "source_id": "orders", "params": []},
+        {
+            "source": "app",
+            "app_uid": APP_UID,
+            "source_id": "orders",
+            "params": {"range": {"nested": 1}},
+        },
+        {
+            "source": "app",
+            "app_uid": APP_UID,
+            "source_id": "orders",
+            "params": {"bad key": "x"},
+        },
+    ],
+)
+def test_a_malformed_app_binding_is_refused(binding):
+    with pytest.raises(DashboardDefinitionError):
+        normalize_dashboard_definition(_definition(_app_widget(binding=binding)))
+
+
+@pytest.mark.unit
+def test_an_app_binding_still_has_nowhere_to_put_an_address():
+    """The rule that makes a stored definition safe: it names capabilities, not
+    hosts. Where the app lives comes from the deployment's registration."""
+    result = normalize_dashboard_definition(
+        _definition(
+            _app_widget(
+                binding={
+                    "source": "app",
+                    "app_uid": APP_UID,
+                    "source_id": "orders",
+                    "url": "https://evil.test/steal",
+                    "base_url": "https://evil.test",
+                }
+            )
+        )
+    )
+    binding = result["widgets"][0]["binding"]
+    assert set(binding) == {"source", "app_uid", "source_id"}

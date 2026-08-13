@@ -11,6 +11,7 @@
 import { GripVertical, MoreVertical, Settings2, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { appWidgetSample, appWidgetSource } from "@/api/appData";
 import { WidgetTile } from "@/components/initiativeTools/dashboards/WidgetTile";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,10 +20,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useAppWidgetCatalog } from "@/hooks/useAppData";
 import { useWidgetData, type WidgetBinding } from "@/hooks/useWidgetData";
 import { useWidgetMeta } from "@/hooks/useWidgetMeta";
 import { cn } from "@/lib/utils";
-import { type DefinitionWidget, unboundSlots } from "@/lib/widgets/definition";
+import { type DefinitionWidget, isAppWidgetType, unboundSlots } from "@/lib/widgets/definition";
 import { SAMPLE_NOW, sampleFor } from "@/lib/widgets/sampleData";
 
 export interface DashboardWidgetProps {
@@ -30,6 +32,10 @@ export interface DashboardWidgetProps {
   binding: WidgetBinding;
   /** The dashboard's own initiative — the only one its widgets read from. */
   initiativeId: number | undefined;
+  /** The dashboard row itself. Only the `app` source needs it: its data is
+   *  guild-level, so the proxy is told which initiative-scoped surface is
+   *  asking and decides against that row's gates. */
+  dashboardId?: number;
   canEdit: boolean;
   /** Draw the sample library instead of resolving the binding — nothing is
    *  fetched at all. This is the marketplace preview's mode: a listing that
@@ -44,20 +50,50 @@ export function DashboardWidget({
   widget,
   binding,
   initiativeId,
+  dashboardId,
   canEdit,
   sampleData,
   onConfigure,
   onRemove,
 }: DashboardWidgetProps) {
   const { t } = useTranslation("dashboards");
-  const { name } = useWidgetMeta(widget.type);
+  const isAppWidget = isAppWidgetType(widget.type);
+
+  // An app widget's module lives in the install's pinned definition rather than
+  // in this build's registry — the seam `WidgetTile.source` exists for. The
+  // catalog is one shared query per guild, so a canvas full of app widgets
+  // resolves them all from one request.
+  //
+  // In sample mode it is fetched too, and only then: a preview draws the app's
+  // *own* sample rows through the app's own module, so what it shows is the
+  // listing rather than a stand-in. It still issues no data request — no
+  // initiative, no dashboard, nothing to fetch.
+  const appCatalogQuery = useAppWidgetCatalog(isAppWidget);
+  const moduleSource = isAppWidget ? appWidgetSource(appCatalogQuery.data, widget.type) : undefined;
+
+  // Named from its own module, like every widget: an app names its widgets in
+  // the manifest, so a marketplace tile has a real title without a locale edit
+  // here. Falls back to the type id until the sandbox read resolves.
+  const { name } = useWidgetMeta(widget.type, moduleSource);
+
   // In sample mode the hook still runs (hooks are unconditional) but is handed
   // no initiative, which fail-closes every query — a preview issues no
   // requests, exactly like the widget picker's.
-  const live = useWidgetData(binding, sampleData ? undefined : initiativeId);
-  const data = sampleData ? sampleFor(binding.source, widget.type) : live.data;
+  const live = useWidgetData(
+    binding,
+    sampleData ? undefined : initiativeId,
+    sampleData ? undefined : dashboardId
+  );
+
+  const appSampleRows = appWidgetSample(appCatalogQuery.data, widget.type, binding.source_id);
+  const data = sampleData
+    ? isAppWidget
+      ? { source: "app" as const, rows: appSampleRows }
+      : sampleFor(binding.source, widget.type)
+    : live.data;
   const isLoading = sampleData ? false : live.isLoading;
   const isUnbound = sampleData ? false : live.isUnbound;
+  const errorCode = sampleData ? undefined : live.errorCode;
 
   const title = widget.title || name;
   const missing = unboundSlots(binding);
@@ -116,7 +152,9 @@ export function DashboardWidget({
             type={widget.type}
             data={data}
             config={widget.options}
-            isLoading={isLoading}
+            source={moduleSource}
+            errorCode={errorCode}
+            isLoading={isLoading || (isAppWidget && appCatalogQuery.isLoading)}
             now={sampleData ? SAMPLE_NOW : undefined}
             chromeless
           />

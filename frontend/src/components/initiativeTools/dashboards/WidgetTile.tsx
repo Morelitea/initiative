@@ -30,6 +30,11 @@ export interface WidgetTileProps {
   /** Overrides the registry lookup. This is the seam a marketplace listing's
    *  own widget module arrives through; it runs the same way ours does. */
   source?: string;
+  /** Draw this failure instead of running the widget — for the one case the
+   *  module cannot speak to, its data never arriving. Running it over empty rows
+   *  would show "nothing to display", which is a different and misleading claim
+   *  from "the app behind this is not answering". */
+  errorCode?: WidgetErrorCode;
   /** The binding's own fetch is still in flight. Shown as the same skeleton the
    *  sandbox call uses, so a widget does not flash empty then populate. */
   isLoading?: boolean;
@@ -51,6 +56,7 @@ export function WidgetTile({
   config,
   className,
   source,
+  errorCode,
   isLoading,
   chromeless,
   now,
@@ -59,6 +65,18 @@ export function WidgetTile({
 
   useEffect(() => {
     let cancelled = false;
+    // A widget whose data could not be fetched is not run at all: there is
+    // nothing for it to draw, and the reason belongs to the host.
+    if (errorCode) {
+      setState({ status: "done", outcome: { ok: false, code: errorCode } });
+      return;
+    }
+    // Nor is it run while its data is still on the way. The tile is already
+    // showing a skeleton, so an early run draws nothing anyone sees — it just
+    // spends a sandbox call per widget per mount, and if the fetch then fails
+    // it has already claimed "no data" for a widget whose app is down.
+    if (isLoading) return;
+
     const moduleSource = source ?? builtinWidgetSource(type);
 
     if (!moduleSource) {
@@ -80,7 +98,7 @@ export function WidgetTile({
     return () => {
       cancelled = true;
     };
-  }, [type, data, config, source, now]);
+  }, [type, data, config, source, now, errorCode, isLoading]);
 
   const body =
     isLoading || state.status === "loading" ? (

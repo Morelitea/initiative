@@ -34,6 +34,7 @@ const render = (sampleData: boolean) => {
       widget={widget}
       binding={binding}
       initiativeId={7}
+      dashboardId={11}
       canEdit={false}
       sampleData={sampleData}
     />
@@ -43,15 +44,17 @@ const render = (sampleData: boolean) => {
 describe("DashboardWidget", () => {
   it("resolves the binding against the dashboard's initiative", () => {
     render(false);
-    expect(useWidgetData).toHaveBeenCalledWith(binding, 7);
+    expect(useWidgetData).toHaveBeenCalledWith(binding, 7, 11);
   });
 
-  it("reads no initiative at all in sample mode", () => {
+  it("reads no initiative and no dashboard at all in sample mode", () => {
     // The hook still runs — hooks are unconditional — but without an
-    // initiative it fail-closes and issues no request. This is what keeps an
-    // uninstalled listing's preview from touching the guild's data.
+    // initiative it fail-closes and issues no request. The dashboard goes the
+    // same way: an app source has nothing to address itself to, so a preview
+    // cannot reach one either. This is what keeps an uninstalled listing's
+    // preview from touching the guild's data.
     render(true);
-    expect(useWidgetData).toHaveBeenCalledWith(binding, undefined);
+    expect(useWidgetData).toHaveBeenCalledWith(binding, undefined, undefined);
   });
 
   it("draws the sample library rather than the resolved binding", async () => {
