@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.62.2] - 2026-08-13
+
 ### Fixed
 
 - **The marketplace no longer offers an app that was removed.** A listing that ships with Initiative is taken off the shelf when a release stops carrying it, instead of lingering in the catalog of every instance that ever saw it — which is why the automation app could appear twice. A guild that already installed one keeps it; it simply stops being offered.
