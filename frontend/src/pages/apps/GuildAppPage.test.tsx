@@ -79,6 +79,26 @@ const ready = () =>
     })
   );
 
+/**
+ * Announce until the page answers.
+ *
+ * `ready` is a one-shot with no retry: the page only listens once it holds a
+ * token for the mounted frame, and an announcement that lands before then is
+ * gone for good. A real embed cannot arrive early — it loads from the src the
+ * token produced — but a test dispatching by hand can, since the mounted frame
+ * and the listener that serves it settle in that order and a loaded machine can
+ * leave a gap between them. Delivery is synchronous inside the listener, so the
+ * announcement that lands is the only one that delivers.
+ */
+const announceReady = () =>
+  waitFor(
+    () => {
+      if (delivered().length === 0) ready();
+      expect(delivered()).toEqual(["token-for-one"]);
+    },
+    { timeout: 5000 }
+  );
+
 describe("GuildAppPage", () => {
   it("hands the first surface's token to the frame that asked", async () => {
     mint.mockImplementation((surfaceId: string) => Promise.resolve(handoff(surfaceId)));
@@ -86,8 +106,7 @@ describe("GuildAppPage", () => {
     renderPage(() => <GuildAppPage appId={1} />);
 
     await screen.findByTitle("Automations");
-    ready();
-    await waitFor(() => expect(delivered()).toEqual(["token-for-one"]));
+    await announceReady();
   });
 
   it("drops a re-mint that resolves after the surface changed", async () => {
@@ -103,8 +122,7 @@ describe("GuildAppPage", () => {
     renderPage(() => <GuildAppPage appId={1} />);
 
     await screen.findByTitle("Automations");
-    ready(); // spends the first token
-    await waitFor(() => expect(delivered()).toEqual(["token-for-one"]));
+    await announceReady(); // spends the first token
 
     ready(); // the embed reloaded: starts the re-mint that will go stale
     (await screen.findByText("Two")).click();
