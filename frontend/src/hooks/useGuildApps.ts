@@ -99,7 +99,6 @@ export const useUninstallGuildApp = (options?: MutationOpts<void, number>) => {
 export interface AppSurface {
   id: number;
   tool?: string | null;
-  embed_target?: string | null;
   artifacts?: { type: string; id: number }[];
 }
 
@@ -108,6 +107,5 @@ export const guildAppPath = (app: AppSurface): string | null => {
     const calendar = (app.artifacts ?? []).find((artifact) => artifact.type === "calendar");
     return calendar ? `/calendars/${calendar.id}` : null;
   }
-  if (app.embed_target) return `/apps/${app.id}`;
   return null;
 };

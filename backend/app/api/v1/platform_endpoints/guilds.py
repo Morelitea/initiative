@@ -11,10 +11,9 @@ from app.api.deps import SessionDep, UserSessionDep, get_current_active_user
 from app.core.auth_context import satisfied_provider_ids
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
-from app.core.messages import AdvancedToolMessages, BillingMessages, GuildMessages
+from app.core.messages import BillingMessages, GuildMessages
 from app.core.security import (
     HandoffSigningNotConfiguredError,
-    create_advanced_tool_handoff_token,
     create_billing_portal_handoff_token,
     verify_password,
 )
@@ -40,7 +39,6 @@ from app.schemas.platform.guild import (
     LeaveGuildRequest,
 )
 from app.schemas.platform.user import GuildRemovalProjectInfo, UserPublic
-from app.schemas.tenant.initiative import AdvancedToolHandoffResponse
 from app.core.config import AuthScope
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
@@ -316,72 +314,6 @@ async def update_guild(
         membership,
         retention_days=retention_days,
         member_count=member_count,
-    )
-
-
-# ---------------------------------------------------------------------------
-# Advanced tool handoff (guild scope) — admin-only embed.
-# ---------------------------------------------------------------------------
-
-
-@router.post(
-    "/{guild_id}/advanced-tool/handoff",
-    response_model=AdvancedToolHandoffResponse,
-)
-async def create_guild_advanced_tool_handoff(
-    guild_id: int,
-    session: SessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-) -> AdvancedToolHandoffResponse:
-    """Mint a short-lived JWT for the guild-scoped advanced-tool iframe.
-
-    Authorization gates (all enforced here, not in the receiving embed):
-
-      1. Deployment must have ADVANCED_TOOL_URL configured.
-      2. Caller must be a guild admin of this guild (real membership).
-
-    The returned token has ``scope=guild`` and intentionally omits
-    ``initiative_id``. The receiving service must trust the JWT's scope
-    claim — the URL query param is a hint only, useful for routing on the
-    embed side, not enough to authorize on its own.
-    """
-    if not settings.ADVANCED_TOOL_URL:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=AdvancedToolMessages.NOT_CONFIGURED,
-        )
-
-    await _ensure_guild_admin(
-        session,
-        guild_id=guild_id,
-        user_id=current_user.id,
-    )
-
-    try:
-        token, expires_in_seconds = create_advanced_tool_handoff_token(
-            user_id=current_user.id,
-            guild_id=guild_id,
-            guild_role=GuildRole.admin.value,
-            # Guild admins are managers by definition for this scope.
-            is_manager=True,
-            # Admins always have create permission at the guild level.
-            can_create=True,
-            scope="guild",
-        )
-    except HandoffSigningNotConfiguredError as exc:
-        # ADVANCED_TOOL_URL is on but no RS256 signing key — fail closed
-        # (retryable once the operator configures the key).
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=AdvancedToolMessages.SIGNING_NOT_CONFIGURED,
-        ) from exc
-
-    return AdvancedToolHandoffResponse(
-        handoff_token=token,
-        expires_in_seconds=expires_in_seconds,
-        iframe_url=settings.ADVANCED_TOOL_URL,
-        scope="guild",
-        initiative_id=None,
     )
 
 

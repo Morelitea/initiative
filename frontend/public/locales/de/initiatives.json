@@ -72,8 +72,7 @@
     "queues": "Abläufe (Queues)",
     "calendars": "Kalender",
     "dashboards": "Dashboards",
-    "counterGroups": "Zähler",
-    "advancedTools": "Erweiterte Tools"
+    "counterGroups": "Zähler"
   },
   "settings": {
     "title": "Initiative-Einstellungen",
@@ -185,8 +184,7 @@
       "queues": "Abläufe (Queues)",
       "calendars": "Termine",
       "dashboards": "Dashboards",
-      "counterGroups": "Zähler",
-      "advancedTools": "Erweitertes Tool"
+      "counterGroups": "Zähler"
     },
     "permissions": {
       "viewDocuments": "Dokumente anzeigen",
@@ -199,8 +197,6 @@
       "createCalendars": "Termine erstellen",
       "viewDashboards": "Dashboards anzeigen",
       "createDashboards": "Dashboards erstellen",
-      "viewAdvancedTools": "Erweitertes Tool öffnen",
-      "createAdvancedTools": "Im erweiterten Tool erstellen",
       "viewCounterGroups": "Zähler anzeigen",
       "createCounterGroups": "Zähler erstellen"
     }
@@ -214,19 +210,5 @@
   "dashboardsFeature": "Dashboards",
   "dashboardsFeatureDescription": "Baue eine Arbeitsfläche aus Diagrammen, Kennzahlen und Zeitleisten, die bestehende Arbeit anzeigt – ein Dashboard bearbeitet die dargestellten Daten nie.",
   "counterGroupsFeature": "Zähler",
-  "counterGroupsFeatureDescription": "Zählergruppen bündeln zusammengehörige Werte (wie HP, Scores oder Budgets), die du flexibel begrenzen oder stufenweise anpassen kannst – visuell dargestellt als Zahlen, Balken oder Kreis (Uhr)",
-  "advancedToolsFeatureDescription": "Bette das {{name}}-Panel unter dieser Initiative ein.",
-  "advancedTool": {
-    "connecting": "Wird verbunden…",
-    "handoffFailed": "Es konnte keine sichere Sitzung mit dem eingebetteten Tool hergestellt werden.",
-    "iframeError": "Das eingebettete Tool konnte nicht geladen werden.",
-    "unavailableTitle": "Nicht konfiguriert",
-    "unavailableDescription": "Für diese Bereitstellung ist kein erweitertes Tool konfiguriert.",
-    "disabledTitle": "{{name}} ist für diese Initiative deaktiviert",
-    "disabledDescription": "Aktiviere es auf der Einstellungsseite der Initiative, um das Panel zu laden.",
-    "openSettings": "Einstellungen öffnen",
-    "guildAdminOnlyTitle": "Nur Administratoren",
-    "guildAdminOnlyDescription": "Nur Gilden-Administratoren können Automatisierungen auf Gildenebene verwalten."
-  },
-  "advancedToolsFeature": "Erweiterte Tools"
+  "counterGroupsFeatureDescription": "Zählergruppen bündeln zusammengehörige Werte (wie HP, Scores oder Budgets), die du flexibel begrenzen oder stufenweise anpassen kannst – visuell dargestellt als Zahlen, Balken oder Kreis (Uhr)"
 }

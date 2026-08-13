@@ -12,14 +12,8 @@ import { TOOL_REGISTRY, toolCreateLabelKey, toolCreateTarget } from "@/lib/tools
 
 /**
  * The single source of "how do I create this tool" — derived entirely from the
- * registry, so adding a tool gives it a create affordance automatically.
- *
- * In-app tools (`inAppCreate: true`) navigate to their list route's create
- * dialog. Hand-off tools (`inAppCreate: false`, e.g. the advanced tool) navigate
- * to their embedded page with a FRESH `create` token per click: re-clicking
- * while already on that page still re-fires the embed's "open create" signal
- * (the page turns the token into a postMessage; a static value would be a no-op
- * navigation). The Link's href stays intact for middle-/right-click.
+ * registry, so adding a tool gives it a create affordance automatically: every
+ * tool navigates to its list route's create dialog.
  */
 export function useToolCreate(tool: Tool, initiativeId: number) {
   const gp = useGuildPath();
@@ -30,14 +24,7 @@ export function useToolCreate(tool: Tool, initiativeId: number) {
   const to = gp(target.to);
   const label = t(toolCreateLabelKey(tool));
 
-  const onClick = TOOL_REGISTRY[tool].inAppCreate
-    ? undefined
-    : (e: MouseEvent<HTMLAnchorElement>) => {
-        e.preventDefault();
-        navigate({ to, search: { create: String(Date.now()) } });
-      };
-
-  return { to, search: target.search, label, onClick };
+  return { to, search: target.search, label };
 }
 
 type ToolCreateButtonProps = {
@@ -52,16 +39,16 @@ type ToolCreateButtonProps = {
 
 /**
  * The one create affordance reused across every surface. All per-tool behavior
- * (destination, label, hand-off vs dialog) comes from `useToolCreate`; this only
- * chooses the presentation.
+ * (destination, label) comes from `useToolCreate`; this only chooses the
+ * presentation.
  */
 export function ToolCreateButton({ tool, initiativeId, variant }: ToolCreateButtonProps) {
-  const { to, search, label, onClick } = useToolCreate(tool, initiativeId);
+  const { to, search, label } = useToolCreate(tool, initiativeId);
 
   if (variant === "menu-item") {
     return (
       <DropdownMenuItem asChild>
-        <Link to={to} search={search} onClick={onClick}>
+        <Link to={to} search={search}>
           <Plus className="mr-2 h-4 w-4" />
           {label}
         </Link>
@@ -72,7 +59,7 @@ export function ToolCreateButton({ tool, initiativeId, variant }: ToolCreateButt
   if (variant === "button") {
     return (
       <Button asChild size="sm">
-        <Link to={to} search={search} onClick={onClick}>
+        <Link to={to} search={search}>
           <Plus className="h-4 w-4" />
           {label}
         </Link>
@@ -89,7 +76,7 @@ export function ToolCreateButton({ tool, initiativeId, variant }: ToolCreateButt
           className="hidden h-6 w-0 shrink-0 overflow-hidden p-0 opacity-0 transition-all group-hover/tool:w-6 group-hover/tool:opacity-100 motion-reduce:transition-none lg:flex"
           asChild
         >
-          <Link to={to} search={search} onClick={onClick} aria-label={label}>
+          <Link to={to} search={search} aria-label={label}>
             <Plus className="h-3 w-3" />
           </Link>
         </Button>

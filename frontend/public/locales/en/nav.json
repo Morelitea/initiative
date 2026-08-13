@@ -51,8 +51,6 @@
   "counterGroups": "Counters",
   "allCounterGroups": "All Counters",
   "createCounterGroup": "New Counter Group",
-  "advancedTools": "Advanced Tools",
-  "createAdvancedTool": "New Advanced Tool",
   "createExternally": "Created in {{name}}",
   "calendars": "Calendar",
   "allCalendarEvents": "All Events",

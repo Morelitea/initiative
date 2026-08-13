@@ -53,26 +53,8 @@ __all__ = [
     "install_app",
     "legacy_artifacts",
     "remove_app_artifacts",
-    "requires_guild_admin",
     "touch",
 ]
-
-#: Embed targets only a guild admin may open.
-#:
-#: The deployment's advanced-tool surface is one: the endpoint that mints its
-#: handoff has always been admin-only, and an app entry that refuses everyone who
-#: clicks it is worse than no entry. Anything with content of its own is absent
-#: from here — a tool instance is governed by its grants, which can say things a
-#: single flag cannot.
-_ADMIN_ONLY_EMBED_TARGETS = frozenset({"advanced_tool"})
-
-
-def requires_guild_admin(definition: dict) -> bool:
-    """Whether only a guild admin can open what this app installed."""
-    if definition.get("app_kind") != "embed":
-        return False
-    return definition.get("embed_target") in _ADMIN_ONLY_EMBED_TARGETS
-
 
 # --- artifacts --------------------------------------------------------------
 

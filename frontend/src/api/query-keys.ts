@@ -346,13 +346,6 @@ export const invalidateAllDashboards = () => invalidateGuildPrefix("/api/v1/dash
 export const invalidateDashboard = (dashboardId: number) =>
   invalidateGuildExact([`/api/v1/dashboards/${dashboardId}`]);
 
-// ── Advanced Tools (guild) ────────────────────────────────────────────────────────
-
-export const invalidateAllAdvancedTools = () => invalidateGuildPrefix("/api/v1/advanced-tools");
-
-export const invalidateAdvancedTool = (advancedToolId: number) =>
-  invalidateGuildExact([`/api/v1/advanced-tools/${advancedToolId}`]);
-
 // ── Subtasks (guild) ──────────────────────────────────────────────────────────────
 
 export const invalidateSubtask = (subtaskId: number) =>

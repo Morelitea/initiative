@@ -24,7 +24,6 @@ from app.services.tenant.guild_apps import (
     app_artifacts,
     get_app_content_id,
     legacy_artifacts,
-    requires_guild_admin,
 )
 
 pytestmark = pytest.mark.unit
@@ -110,17 +109,3 @@ class TestArtifactReading:
             ],
         )
         assert app_artifacts(app) == [{"type": "calendar", "id": 5}]
-
-
-class TestAdminOnly:
-    def test_the_advanced_tool_embed_is_admin_only(self):
-        assert (
-            requires_guild_admin({"app_kind": "embed", "embed_target": "advanced_tool"})
-            is True
-        )
-
-    def test_a_mounted_tool_is_governed_by_its_grants(self):
-        assert requires_guild_admin(CALENDAR_APP) is False
-
-    def test_a_service_app_is_not_admin_only(self):
-        assert requires_guild_admin({"app_kind": "service"}) is False

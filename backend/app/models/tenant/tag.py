@@ -17,7 +17,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.calendar_event import CalendarEventTag
     from app.models.tenant.dashboard import DashboardTag
     from app.models.tenant.counter import CounterGroupTag
-    from app.models.tenant.advanced_tool import AdvancedToolTag
 
 
 class Tag(SoftDeleteMixin, table=True):
@@ -83,10 +82,6 @@ class Tag(SoftDeleteMixin, table=True):
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
     counter_group_links: List["CounterGroupTag"] = Relationship(
-        back_populates="tag",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    advanced_tool_links: List["AdvancedToolTag"] = Relationship(
         back_populates="tag",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )

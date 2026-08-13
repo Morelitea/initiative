@@ -190,45 +190,6 @@ class TestDefinitions:
                 source="builtin",
             )
 
-    async def test_an_embed_must_name_a_target_this_build_serves(self, session):
-        """An embed opens a surface the operator configured, named by its slot.
-        Targets a listing supplies itself arrive with the signed registry, so
-        one naming its own is refused for now."""
-        with pytest.raises(CatalogError, match="unknown embed target"):
-            await service.upsert_listing(
-                session,
-                _manifest(
-                    kind="app",
-                    definition={
-                        "app_kind": "embed",
-                        "embed_target": "listing",
-                        "url": "https://x.test",
-                    },
-                ),
-                source="builtin",
-            )
-
-    async def test_an_embed_stores_only_its_target(self, session):
-        listing = await service.upsert_listing(
-            session,
-            _manifest(
-                kind="app",
-                definition={
-                    "app_kind": "embed",
-                    "embed_target": "advanced_tool",
-                    "url": "https://somewhere.test",
-                },
-            ),
-            source="builtin",
-        )
-        version = await service.get_listing_version(session, listing.latest_version_id)
-        # Only the target is kept. The address belongs to the deployment's
-        # configuration, so a URL in the manifest has nothing to say.
-        assert version.definition == {
-            "app_kind": "embed",
-            "embed_target": "advanced_tool",
-        }
-
     async def test_a_valid_app_listing_is_stored_canonically(self, session):
         listing = await service.upsert_listing(
             session,

@@ -43,7 +43,6 @@ from app.models.tenant.document import (
 from app.models.tenant.initiative import InitiativeMember, InitiativeRoleModel
 from app.models.platform.user import User
 from app.core.messages import (
-    AdvancedToolMessages,
     ProjectMessages,
     DocumentMessages,
     QueueMessages,
@@ -339,13 +338,6 @@ DAC_RESOURCES: dict[Tool, DacResource] = {
         DashboardMessages.PERMISSION_REQUIRED,
         DashboardMessages.OWNER_REQUIRED,
         DashboardMessages.WRITE_ACCESS_REQUIRED,
-    ),
-    Tool.advanced_tool: DacResource(
-        Tool.advanced_tool,
-        False,
-        AdvancedToolMessages.NO_ACCESS,
-        AdvancedToolMessages.OWNER_REQUIRED,
-        AdvancedToolMessages.WRITE_ACCESS_REQUIRED,
     ),
 }
 

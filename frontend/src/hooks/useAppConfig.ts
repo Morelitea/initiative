@@ -9,8 +9,8 @@ import type { AppConfig } from "@/api/generated/initiativeAPI.schemas";
 /**
  * Runtime config fetched once at boot.
  *
- * The backend serves deployment-specific values (like the optional
- * advanced-tool URL) here because Vite vars are baked into the static
+ * The backend serves deployment-specific values (like the optional captcha
+ * or billing portal) here because Vite vars are baked into the static
  * bundle at build time and can't change between deployments. One image,
  * many envs.
  *
@@ -30,8 +30,6 @@ export const useAppConfig = () => {
   return {
     config: query.data,
     isLoading: query.isLoading,
-    /** Convenience: when this is null, the toggle and panel must be fully hidden. */
-    advancedTool: query.data?.advanced_tool ?? null,
     /** When this is null the deployment has no captcha configured —
      *  the SPA must skip the widget on registration. */
     captcha: query.data?.captcha ?? null,

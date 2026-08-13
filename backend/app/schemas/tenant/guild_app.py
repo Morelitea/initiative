@@ -18,7 +18,7 @@ from pydantic import ConfigDict, Field
 from app.schemas.base import SanitizedBaseModel
 from app.services.marketplace.registration_lookup import InstallState
 from app.services.tenant import app_config as app_config_service
-from app.services.tenant.guild_apps import app_artifacts, requires_guild_admin
+from app.services.tenant.guild_apps import app_artifacts
 
 
 class GuildAppInstall(SanitizedBaseModel):
@@ -124,9 +124,6 @@ class GuildAppRead(SanitizedBaseModel):
     #: Which tool this app mounts, when it mounts one. Read off the pinned
     #: definition so the client need not fetch the catalog to render an entry.
     tool: Optional[str] = None
-    #: Which configured surface this app opens, when it is an embed. Same
-    #: reasoning as ``tool``, for the kind that has no content of its own.
-    embed_target: Optional[str] = None
     #: What a service app contributes, from its pinned definition.
     features: List[str] = []
     #: The pinned definition itself, verbatim.
@@ -141,10 +138,6 @@ class GuildAppRead(SanitizedBaseModel):
     #: definition describes the form, and what was typed into it lives in
     #: columns nothing here reads.
     definition: Dict[str, Any] = {}
-    #: Whether opening this app is a guild-admin action. Decided here, not by
-    #: the client reading the kind: an entry a member cannot use should not be
-    #: offered to them, and which apps those are is the server's call.
-    admin_only: bool = False
     #: The deployment provides this app to every guild, and a guild admin
     #: neither removes nor disables it. The affordances are absent rather than
     #: erroring, so the client is told which installs those are.
@@ -286,10 +279,8 @@ def serialize_guild_app(
         config_state=state.state,
         config_state_detail=state.detail,
         tool=definition.get("tool"),
-        embed_target=definition.get("embed_target"),
         features=list(features) if isinstance(features, list) else [],
         definition=definition,
-        admin_only=requires_guild_admin(definition),
         mandatory=service_state.mandatory,
         available=service_state.available,
         installed_by_id=app.installed_by_id,

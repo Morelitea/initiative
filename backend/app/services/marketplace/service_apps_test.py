@@ -44,11 +44,12 @@ _FORBIDDEN_CALLS = frozenset(
     }
 )
 
-#: The one receiver allowed to own a method sharing a banned name: SQLModel
-#: spells its query call ``session.exec()``, which has nothing to do with the
-#: builtin. Kept as an explicit pairing rather than skipping every attribute
-#: call, so ``builtins.exec(...)`` still trips the guard.
-_ALLOWED_METHOD_CALLS = frozenset({("session", "exec")})
+#: The receivers allowed to own a method sharing a banned name: SQLModel spells
+#: its query call ``<session>.exec()``, which has nothing to do with the
+#: builtin. Named per variable rather than skipping every attribute call, so
+#: ``builtins.exec(...)`` and ``obj.attr.exec(...)`` still trip the guard — a
+#: new session variable adds its own line here.
+_ALLOWED_METHOD_CALLS = frozenset({("session", "exec"), ("admin", "exec")})
 
 #: Modules whose whole purpose is running something. None of them has any
 #: business on a path that handles catalog content.
@@ -132,10 +133,11 @@ class TestNothingExecutesListingContent:
         attribute calls — so no spelling of these slips by."""
         assert _forbidden_calls_in(source)
 
-    def test_the_allowed_pair_is_only_that_pair(self):
+    def test_the_allowed_pairs_are_only_those_pairs(self):
         """SQLModel's query call is what the exemption is for, and nothing
         inherits it: the same method on anything else still trips."""
         assert not _forbidden_calls_in("session.exec(statement)")
+        assert not _forbidden_calls_in("admin.exec(statement)")
         assert _forbidden_calls_in("shell.exec(statement)")
 
     @pytest.mark.parametrize("path", _sources(), ids=lambda path: path.name)

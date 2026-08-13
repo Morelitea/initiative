@@ -51,7 +51,6 @@ __all__ = [
     "LISTING_SOURCES",
     "APP_KINDS",
     "GUILD_INSTALLABLE_APP_KINDS",
-    "EMBED_TARGETS",
     "MOUNTABLE_TOOLS",
     "RESERVED_PUBLIC_ID_PREFIX",
     "app_widget_type",
@@ -85,7 +84,7 @@ LISTING_SOURCES: frozenset[str] = frozenset({"builtin", "operator", "registry"})
 #: ``embed`` hosts an external surface in an iframe, driven by the signed handoff
 #: machinery. ``service`` declares features a container the operator runs will
 #: serve.
-APP_KINDS: frozenset[str] = frozenset({"tool_instance", "embed", "service"})
+APP_KINDS: frozenset[str] = frozenset({"tool_instance", "service"})
 
 #: The app kinds the guild install path can mount.
 #:
@@ -99,21 +98,7 @@ APP_KINDS: frozenset[str] = frozenset({"tool_instance", "embed", "service"})
 #: different questions — what a listing may *declare* versus what this build can
 #: *mount* — and a kind added to the vocabulary ahead of its machinery is
 #: refused by name rather than half-mounted.
-GUILD_INSTALLABLE_APP_KINDS: frozenset[str] = frozenset(
-    {"tool_instance", "embed", "service"}
-)
-
-#: Where an embed's target comes from.
-#:
-#: ``advanced_tool`` means the deployment's own configuration supplies it — the
-#: URL, the origin allowlist, the audience and the display name all come from
-#: the operator's ``ADVANCED_TOOL_*`` settings, and the listing carries none of
-#: them. An install without that configuration has nothing to open, which is why
-#: the listing is served only where it is set.
-#:
-#: Targets supplied by a listing itself arrive with the signed remote registry.
-#: Until then a definition naming one is refused by name.
-EMBED_TARGETS: frozenset[str] = frozenset({"advanced_tool"})
+GUILD_INSTALLABLE_APP_KINDS: frozenset[str] = frozenset({"tool_instance", "service"})
 
 #: Tools an app may mount at guild scope. A tool qualifies when its content is
 #: meaningful without an initiative — a calendar of the guild's own events is;
@@ -193,19 +178,10 @@ def _normalize_app_definition(definition: Any) -> dict[str, Any]:
         return normalize_service_app_definition(definition)
 
     cleaned: dict[str, Any] = {"app_kind": app_kind}
-    if app_kind == "embed":
-        target = definition.get("embed_target")
-        if target not in EMBED_TARGETS:
-            raise ListingDefinitionError(
-                f"unknown embed target {target!r}; this build serves only "
-                f"{sorted(EMBED_TARGETS)}"
-            )
-        cleaned["embed_target"] = target
-    else:
-        tool = definition.get("tool")
-        if tool not in MOUNTABLE_TOOLS:
-            raise ListingDefinitionError(f"{tool!r} cannot be mounted at guild scope")
-        cleaned["tool"] = tool
+    tool = definition.get("tool")
+    if tool not in MOUNTABLE_TOOLS:
+        raise ListingDefinitionError(f"{tool!r} cannot be mounted at guild scope")
+    cleaned["tool"] = tool
 
     # A starting name for what the install produces; the guild renames it
     # afterwards like anything else.

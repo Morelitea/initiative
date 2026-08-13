@@ -22,15 +22,13 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any, Iterator, Mapping
+from typing import Any, Iterator
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import settings
 from app.services.marketplace.catalog import (
     CatalogError,
     upsert_listing,
-    withdraw_listing,
 )
 
 logger = logging.getLogger(__name__)
@@ -40,54 +38,9 @@ CATALOG_DIR = Path(__file__).resolve().parent.parent.parent / "marketplace_catal
 
 __all__ = [
     "CATALOG_DIR",
-    "deployment_serves",
     "load_builtin_manifests",
     "seed_builtin_listings",
 ]
-
-
-def deployment_serves(definition: Mapping[str, Any]) -> bool:
-    """Whether this deployment can actually serve a listing with this body.
-
-    Unconditional for everything except an embed on the deployment's own
-    advanced-tool slot, which needs somewhere to point the iframe.
-
-    That one setting, and not the signing key alongside it: the same URL is what
-    reveals the initiative-level surface, so gating this one differently would
-    show an operator one half of the same tool and hide the other. A URL without
-    its key is a misconfiguration the boot log already names, and the app says so
-    when opened rather than going missing from the catalog.
-    """
-    if definition.get("app_kind") != "embed":
-        return True
-    if definition.get("embed_target") == "advanced_tool":
-        return bool(settings.ADVANCED_TOOL_URL)
-    return False
-
-
-def _deployment_naming(manifest: dict[str, Any]) -> dict[str, Any]:
-    """The manifest as this deployment presents it.
-
-    An advanced-tool embed is whatever the operator calls it — the same name the
-    initiative-level surface already uses — so the catalog shows that name, and
-    the blurbs speak it too: the shipped copy carries a ``{name}`` token that is
-    filled in here, so a listing never says "the service" when the operator has
-    called the thing Automations. Everything else is published as written.
-    """
-    definition = manifest.get("definition")
-    if not isinstance(definition, Mapping):
-        return manifest
-    if definition.get("embed_target") != "advanced_tool":
-        return manifest
-    # Fall back to the manifest's own name so the token never reaches the
-    # catalog unfilled on a deployment that set the URL but skipped the name.
-    name = settings.ADVANCED_TOOL_NAME or str(manifest.get("name", ""))
-    named = {**manifest, "name": name}
-    for field in ("description", "long_description"):
-        value = named.get(field)
-        if isinstance(value, str):
-            named[field] = value.replace("{name}", name)
-    return named
 
 
 def load_builtin_manifests(directory: Path | None = None) -> Iterator[dict[str, Any]]:
@@ -126,19 +79,8 @@ async def seed_builtin_listings(
     """
     seeded = 0
     for manifest in load_builtin_manifests(directory):
-        definition = manifest.get("definition")
-        if isinstance(definition, Mapping) and not deployment_serves(definition):
-            uid = str(manifest.get("uid", ""))
-            if uid and await withdraw_listing(session, uid):
-                logger.info(
-                    "marketplace: withdrew %s — this deployment no longer serves it",
-                    manifest.get("public_id", uid),
-                )
-            continue
         try:
-            await upsert_listing(
-                session, _deployment_naming(manifest), source="builtin"
-            )
+            await upsert_listing(session, manifest, source="builtin")
             seeded += 1
         except CatalogError as exc:
             logger.warning("marketplace: skipping built-in listing: %s", exc)

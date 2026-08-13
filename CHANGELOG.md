@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **The advanced tool is gone.** The optional embedded panel an administrator could point at a companion service — configured with `ADVANCED_TOOL_NAME` / `ADVANCED_TOOL_URL`, switched on per initiative, and listed as a tool inside one — has been removed, along with its list, sharing, tags, trash entries and role permissions. What Initiative stored for it was a name and a sharing record around content the connected service already owned, and those rows are deleted on upgrade; the service keeps everything it holds. A deployment that wants a companion surface connects it through the app platform instead, which is the general form of what those settings were a single-purpose version of. The `ADVANCED_TOOL_*` settings are now ignored and can be dropped from your configuration.
 - **The pre-0.53.5 copies of guild data in the shared database schema are gone.** Installs that predate 0.53.5 kept a frozen second copy of every project, task, document and so on from before guilds moved into their own database schemas. Nothing has read or written it since; upgrading now drops it. Guild data lives solely in that guild's own schema. Installs created on 0.53.5 or later never had these copies and are unaffected. **This upgrade cannot be rolled back** — take a backup first if you would rather keep the old rows around, and if you are upgrading from before 0.53.2, boot a 0.53.x release once on the way through as its startup notice instructs.
 
 ### Fixed

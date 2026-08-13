@@ -30,20 +30,6 @@ vi.mock("@/hooks/useGuildApps", async (importOriginal) => ({
   useGuildApps: () => ({ data: { items: apps }, isLoading: false }),
 }));
 
-/** An app that opens the deployment's configured surface: no content of its
- *  own, and admin-only because the endpoint behind it is. */
-const embedApp = (overrides: Partial<GuildAppRead> = {}) =>
-  ({
-    id: 7,
-    name: "Automations",
-    tool: null,
-    embed_target: "advanced_tool",
-    admin_only: true,
-    enabled: true,
-    artifacts: [],
-    ...overrides,
-  }) as GuildAppRead;
-
 const app = (overrides: Partial<GuildAppRead> = {}) =>
   ({
     id: 1,
@@ -127,28 +113,5 @@ describe("AppsSection", () => {
     render(false);
     const entry = await screen.findByText("Guild calendar");
     expect(entry.closest("a")).toBeNull();
-  });
-
-  it("hides an admin-only app from a member", async () => {
-    // Nothing it could offer them: its surface is minted admin-only, and there
-    // are no grants to widen.
-    apps = [embedApp()];
-    render(false);
-    await expectNoSection();
-  });
-
-  it("shows an admin-only app to an admin, at its own page", async () => {
-    apps = [embedApp()];
-    render(true);
-    const link = (await screen.findByText("Automations")).closest("a");
-    expect(link?.getAttribute("href")).toContain("/apps/7");
-  });
-
-  it("keeps listing shareable apps for a member alongside a hidden one", async () => {
-    // The filter is per app, not a switch on the whole section.
-    apps = [embedApp(), app()];
-    render(false);
-    expect(await screen.findByText("Guild calendar")).toBeInTheDocument();
-    expect(screen.queryByText("Automations")).toBeNull();
   });
 });

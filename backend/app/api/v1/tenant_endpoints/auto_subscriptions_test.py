@@ -11,7 +11,7 @@ Three properties, layered:
 * **Where a target may point** — the SSRF checks on ``target_url``.
 
 The delegation JWTs here are minted the same way as in
-``auto_delegation_test.py`` / ``advanced_tool_run_test.py``: a per-module
+``auto_delegation_test.py``: a per-module
 RSA keypair whose public half is monkeypatched into settings, and one fresh
 ``jti`` per request (delegation tokens are one-shot).
 """

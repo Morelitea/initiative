@@ -11,8 +11,7 @@
     "queues": "Abläufe (Queues)",
     "counterGroups": "Zähler",
     "calendars": "Kalender",
-    "dashboards": "Dashboards",
-    "advancedTools": "Erweiterte Tools"
+    "dashboards": "Dashboards"
   },
   "actions": {
     "addTask": "Aufgabe hinzufügen",

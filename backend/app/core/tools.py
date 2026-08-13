@@ -19,7 +19,6 @@ class Tool(str, Enum):
     counter_group = "counter_group"
     calendar = "calendar"
     dashboard = "dashboard"
-    advanced_tool = "advanced_tool"
 
     @property
     def plural(self) -> str:
@@ -55,9 +54,9 @@ class Tool(str, Enum):
 CORE_TOOLS = frozenset({Tool.project, Tool.document})
 TOGGLEABLE_TOOLS = tuple(t for t in Tool if t not in CORE_TOOLS)
 
-# Tools that appear in the recent-items bar. The advanced tool is deliberately
-# absent: it has no per-entity detail route to return to.
-RECENTABLE_TOOLS = tuple(t for t in Tool if t is not Tool.advanced_tool)
+# Tools that appear in the recent-items bar — every tool has a per-entity
+# detail route to return to.
+RECENTABLE_TOOLS = tuple(Tool)
 
 # Tools WITHOUT an export-engine source, and why. Stated as an exclusion so the
 # default is "a new tool is exportable": the adapter-coverage test then fails
@@ -65,8 +64,6 @@ RECENTABLE_TOOLS = tuple(t for t in Tool if t is not Tool.advanced_tool)
 # inclusion list would instead let a new tool silently ship with no export.
 NON_EXPORTABLE_TOOLS = frozenset(
     {
-        # Content lives in the external service, not in our tables.
-        Tool.advanced_tool,
         # Export/import ships with the marketplace, which owns the definition
         # envelope format.
         Tool.dashboard,

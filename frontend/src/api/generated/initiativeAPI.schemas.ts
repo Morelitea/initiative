@@ -328,150 +328,6 @@ export interface AdminUserDeleteRequest {
   project_transfers?: AdminUserDeleteRequestProjectTransfers;
 }
 
-/**
- * Plug-in slot for an externally-deployed companion app.
- *
- * When ``ADVANCED_TOOL_URL`` is unset on the backend, this whole field is
- * ``None`` and the SPA hides the per-initiative toggle and panel entirely.
- *
- * ``allowed_origins`` is the SPA's inbound postMessage allowlist.
- * Defaults to the single origin derived from ``url`` so deployments
- * work without extra config. Operators can override via
- * ``ADVANCED_TOOL_ALLOWED_ORIGINS`` when the embed sits behind a CDN
- * that surfaces multiple origins (e.g. region-sharded subdomains).
- * Outbound postMessage is always scoped to the iframe's actual origin
- * (derived from ``url``), never to anything in this list.
- */
-export interface AdvancedToolConfig {
-  name: string;
-  url: string;
-  allowed_origins: string[];
-}
-
-export type AdvancedToolCreateData = { [key: string]: unknown };
-
-export type ResourceGrantSchemaLevel =
-  (typeof ResourceGrantSchemaLevel)[keyof typeof ResourceGrantSchemaLevel];
-
-export const ResourceGrantSchemaLevel = {
-  read: "read",
-  write: "write",
-  owner: "owner",
-} as const;
-
-/**
- * One ``resource_grants`` row — exactly the columns that define a grant: a
- * ``level`` for a user (``user_id``), an initiative role (``role_id``), or all
- * initiative members (``all_initiative_members``). Exactly one grantee is set.
- *
- * The identical shape both reports a resource's grants (``grants`` is a list of
- * these) and replaces them (the ``PUT /{id}/grants`` body) — no field is
- * read-only or write-only. The server always preserves the resource's owner
- * grant. Role display names are resolved client-side from the initiative's roles
- * by ``role_id``.
- */
-export interface ResourceGrantSchema {
-  level: ResourceGrantSchemaLevel;
-  user_id?: number | null;
-  role_id?: number | null;
-  all_initiative_members?: boolean;
-}
-
-export interface AdvancedToolCreate {
-  /**
-   * @minLength 1
-   * @maxLength 255
-   */
-  name: string;
-  data?: AdvancedToolCreateData;
-  initiative_id?: number | null;
-  grants?: ResourceGrantSchema[];
-}
-
-/**
- * Short-lived bootstrap token for the embedded advanced-tool iframe.
- *
- * The SPA passes this to the iframe via postMessage. The iframe's backend
- * validates the JWT (same SECRET_KEY, audience claim) and exchanges it
- * for its own session — never used directly as long-lived auth.
- *
- * ``scope`` distinguishes "initiative" vs "guild" embeds. The receiving
- * iframe MUST treat the URL query param as a hint only and trust the
- * JWT's own ``scope`` claim — the param isn't enough to authorize.
- * For initiative scope, ``initiative_id`` is set; for guild scope it's
- * None and only ``guild_id`` (in the JWT) identifies the tenant.
- */
-export interface AdvancedToolHandoffResponse {
-  handoff_token: string;
-  expires_in_seconds: number;
-  iframe_url: string;
-  scope: string;
-  initiative_id?: number | null;
-}
-
-/**
- * Lightweight tag representation for embedding in other schemas.
- */
-export interface TagSummary {
-  id: number;
-  name: string;
-  color: string;
-}
-
-export type AdvancedToolReadData = { [key: string]: unknown };
-
-export interface AdvancedToolRead {
-  /**
-   * @minLength 1
-   * @maxLength 255
-   */
-  name: string;
-  data: AdvancedToolReadData;
-  id: number;
-  initiative_id: number | null;
-  guild_id: number;
-  created_by_id: number;
-  my_permission_level: string | null;
-  created_at: string;
-  updated_at: string;
-  tags: TagSummary[];
-  grants: ResourceGrantSchema[];
-}
-
-export interface AdvancedToolListResponse {
-  items: AdvancedToolRead[];
-  total_count: number;
-  page: number;
-  page_size: number;
-  has_next: boolean;
-}
-
-export interface AdvancedToolRunRequest {
-  node_key?: string | null;
-  cause?: string | null;
-  source_event_id?: string | null;
-}
-
-export type AdvancedToolRunResultData = { [key: string]: unknown };
-
-export interface AdvancedToolRunResult {
-  advanced_tool_id: number;
-  guild_id: number;
-  initiative_id: number | null;
-  node_key: string | null;
-  cause: string | null;
-  source_event_id: string | null;
-  data: AdvancedToolRunResultData;
-  ran_at: string;
-}
-
-export type AdvancedToolUpdateData = { [key: string]: unknown } | null;
-
-export interface AdvancedToolUpdate {
-  name?: string | null;
-  data?: AdvancedToolUpdateData;
-}
-
 export interface ApiKeyCreateRequest {
   /**
    * @minLength 1
@@ -536,7 +392,6 @@ export interface BillingConfig {
  * Public, runtime-injected configuration consumed by the SPA at boot.
  */
 export interface AppConfig {
-  advanced_tool?: AdvancedToolConfig | null;
   captcha?: CaptchaConfig | null;
   billing?: BillingConfig | null;
   max_upload_bytes: number;
@@ -857,6 +712,33 @@ export interface BreakGlassCreate {
   reason: string;
 }
 
+export type ResourceGrantSchemaLevel =
+  (typeof ResourceGrantSchemaLevel)[keyof typeof ResourceGrantSchemaLevel];
+
+export const ResourceGrantSchemaLevel = {
+  read: "read",
+  write: "write",
+  owner: "owner",
+} as const;
+
+/**
+ * One ``resource_grants`` row — exactly the columns that define a grant: a
+ * ``level`` for a user (``user_id``), an initiative role (``role_id``), or all
+ * initiative members (``all_initiative_members``). Exactly one grantee is set.
+ *
+ * The identical shape both reports a resource's grants (``grants`` is a list of
+ * these) and replaces them (the ``PUT /{id}/grants`` body) — no field is
+ * read-only or write-only. The server always preserves the resource's owner
+ * grant. Role display names are resolved client-side from the initiative's roles
+ * by ``role_id``.
+ */
+export interface ResourceGrantSchema {
+  level: ResourceGrantSchemaLevel;
+  user_id?: number | null;
+  role_id?: number | null;
+  all_initiative_members?: boolean;
+}
+
 export interface CalendarCreate {
   /**
    * @minLength 1
@@ -954,6 +836,15 @@ export interface PropertySummary {
   type: PropertyType;
   options: PropertyOption[] | null;
   value: unknown;
+}
+
+/**
+ * Lightweight tag representation for embedding in other schemas.
+ */
+export interface TagSummary {
+  id: number;
+  name: string;
+  color: string;
 }
 
 export interface CalendarEventSummary {
@@ -1762,14 +1653,12 @@ export interface InitiativeMemberRead {
   can_view_counter_groups: boolean;
   can_view_calendars: boolean;
   can_view_dashboards: boolean;
-  can_view_advanced_tools: boolean;
   can_create_projects: boolean;
   can_create_documents: boolean;
   can_create_queues: boolean;
   can_create_counter_groups: boolean;
   can_create_calendars: boolean;
   can_create_dashboards: boolean;
-  can_create_advanced_tools: boolean;
   user: UserPublic;
   role_id: number | null;
   role_name: string | null;
@@ -1785,7 +1674,6 @@ export interface InitiativeRead {
   counter_groups_enabled: boolean;
   calendars_enabled: boolean;
   dashboards_enabled: boolean;
-  advanced_tools_enabled: boolean;
   name: string;
   description: string | null;
   color: string | null;
@@ -1949,7 +1837,6 @@ export const EntityType = {
   counter_group: "counter_group",
   calendar: "calendar",
   dashboard: "dashboard",
-  advanced_tool: "advanced_tool",
   task: "task",
   queue_item: "queue_item",
   calendar_event: "calendar_event",
@@ -2150,10 +2037,8 @@ export interface GuildAppDetail {
   config_state: string;
   config_state_detail: string | null;
   tool: string | null;
-  embed_target: string | null;
   features: string[];
   definition: GuildAppDetailDefinition;
-  admin_only: boolean;
   mandatory: boolean;
   available: boolean;
   installed_by_id: number;
@@ -2205,10 +2090,8 @@ export interface GuildAppRead {
   config_state: string;
   config_state_detail: string | null;
   tool: string | null;
-  embed_target: string | null;
   features: string[];
   definition: GuildAppReadDefinition;
-  admin_only: boolean;
   mandatory: boolean;
   available: boolean;
   installed_by_id: number;
@@ -2558,7 +2441,6 @@ export interface InitiativeCreate {
   counter_groups_enabled?: boolean;
   calendars_enabled?: boolean;
   dashboards_enabled?: boolean;
-  advanced_tools_enabled?: boolean;
   name: string;
   description?: string | null;
   color?: string | null;
@@ -2606,8 +2488,6 @@ export const PermissionKey = {
   create_calendars: "create_calendars",
   dashboards_enabled: "dashboards_enabled",
   create_dashboards: "create_dashboards",
-  advanced_tools_enabled: "advanced_tools_enabled",
-  create_advanced_tools: "create_advanced_tools",
 } as const;
 
 /**
@@ -2658,7 +2538,6 @@ export interface InitiativeUpdate {
   counter_groups_enabled?: boolean | null;
   calendars_enabled?: boolean | null;
   dashboards_enabled?: boolean | null;
-  advanced_tools_enabled?: boolean | null;
   name?: string | null;
   description?: string | null;
   color?: string | null;
@@ -2916,7 +2795,6 @@ export interface MyInitiativePermissions {
   is_manager: boolean;
   override_share_restrictions: boolean;
   permissions: Partial<Record<PermissionKey, boolean>>;
-  advanced_tools_enabled: boolean;
 }
 
 export interface NotificationCountResponse {
@@ -3656,7 +3534,6 @@ export const Tool = {
   counter_group: "counter_group",
   calendar: "calendar",
   dashboard: "dashboard",
-  advanced_tool: "advanced_tool",
 } as const;
 
 /**
@@ -3867,7 +3744,6 @@ export const TagTarget = {
   counter_group: "counter_group",
   calendar: "calendar",
   dashboard: "dashboard",
-  advanced_tool: "advanced_tool",
   task: "task",
   queue_item: "queue_item",
   calendar_event: "calendar_event",
@@ -5492,19 +5368,6 @@ export type ListCalendarEntriesApiV1GGuildIdCalendarEntriesGetParams = {
   tz?: string | null;
   include_events?: boolean;
   include_tasks?: boolean;
-};
-
-export type ListAdvancedToolsApiV1GGuildIdAdvancedToolsGetParams = {
-  initiative_id?: number | null;
-  /**
-   * @minimum 1
-   */
-  page?: number;
-  /**
-   * @minimum 1
-   * @maximum 100
-   */
-  page_size?: number;
 };
 
 export type ListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGetParams = {

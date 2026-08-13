@@ -51,8 +51,6 @@
   "counterGroups": "Zähler",
   "allCounterGroups": "Alle Zählergruppen",
   "createCounterGroup": "Neue Zählergruppe",
-  "advancedTools": "Erweiterte Tools",
-  "createAdvancedTool": "Neues erweitertes Tool",
   "createExternally": "Wird in {{name}} erstellt",
   "calendars": "Kalender",
   "allCalendarEvents": "Alle Termine",

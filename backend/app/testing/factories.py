@@ -33,7 +33,6 @@ from app.core.security import (
     mint_access_token,
 )
 from app.models.platform.app_service_registration import AppServiceRegistration
-from app.models.tenant.advanced_tool import AdvancedTool
 from app.models.tenant.calendar import Calendar
 from app.models.platform.marketplace import (
     MarketplaceListing,
@@ -1555,35 +1554,6 @@ async def create_federated_identity(
     return identity
 
 
-async def create_advanced_tool(
-    session: AsyncSession,
-    initiative: Initiative,
-    creator: User,
-    *,
-    name: str | None = None,
-    commit: bool = True,
-    **overrides: Any,
-) -> AdvancedTool:
-    """Create a test advanced tool. The content lives in the external service,
-    so the row is just the handle to it."""
-    await route_session_to_guild(session, initiative.guild_id)
-
-    defaults = {
-        "guild_id": initiative.guild_id,
-        "initiative_id": initiative.id,
-        "created_by_id": creator.id,
-        "name": name or f"Advanced tool {datetime.now(timezone.utc).timestamp()}",
-    }
-    advanced = AdvancedTool(**{**defaults, **overrides})
-    session.add(advanced)
-
-    if commit:
-        await session.commit()
-        await session.refresh(advanced)
-
-    return advanced
-
-
 # --- generic tool construction ---------------------------------------------
 #
 # One arm per Tool, so a test that needs "an instance of every tool" derives it
@@ -1598,7 +1568,6 @@ TOOL_FACTORIES: dict[Tool, Any] = {
     Tool.counter_group: create_counter_group,
     Tool.calendar: create_calendar,
     Tool.dashboard: create_dashboard,
-    Tool.advanced_tool: create_advanced_tool,
 }
 
 if set(TOOL_FACTORIES) != set(Tool):
