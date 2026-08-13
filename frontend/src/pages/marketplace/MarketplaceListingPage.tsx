@@ -36,6 +36,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWidgetCatalog } from "@/hooks/useDashboards";
+import { useGuildApps } from "@/hooks/useGuildApps";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useMarketplaceListing } from "@/hooks/useMarketplace";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -62,6 +63,12 @@ export function MarketplaceListingPage() {
   // Installing an app is a guild-admin action; the server enforces it, and the
   // button says so rather than failing after the click.
   const isGuildAdmin = activeGuild?.role === "admin";
+  // Whether this guild already has it. Every member may read the installs, so
+  // this answers for the person asking as well as the one who could act.
+  const appInstalls = useGuildApps({ enabled: isApp });
+  const isInstalled = (appInstalls.data?.items ?? []).some(
+    (app) => app.listing_uid === listing?.uid
+  );
 
   if (listingQuery.isError) {
     return (
@@ -133,20 +140,25 @@ export function MarketplaceListingPage() {
 
         {listing && (
           <div className="flex flex-col items-end gap-1">
-            <Button
-              onClick={() => setInstalling(true)}
-              disabled={!listing.installable || (isApp && !isGuildAdmin)}
-            >
-              <Download className="mr-1.5 h-4 w-4" />
-              {isApp ? t("apps:install.action") : t("detail.install")}
-            </Button>
+            {isApp && isInstalled ? (
+              <Badge variant="secondary">{t("card.installed")}</Badge>
+            ) : (
+              <Button
+                onClick={() => setInstalling(true)}
+                disabled={!listing.installable || (isApp && !isGuildAdmin)}
+              >
+                <Download className="mr-1.5 h-4 w-4" />
+                {isApp ? t("apps:install.action") : t("detail.install")}
+              </Button>
+            )}
             {!listing.installable ? (
               <span className="text-muted-foreground text-xs">
                 {listing.available ? t("detail.needsUpdate") : t("detail.withdrawn")}
               </span>
             ) : (
               isApp &&
-              !isGuildAdmin && (
+              !isGuildAdmin &&
+              !isInstalled && (
                 <span className="text-muted-foreground text-xs">{t("apps:install.adminOnly")}</span>
               )
             )}

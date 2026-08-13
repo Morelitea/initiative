@@ -6,6 +6,10 @@
  * otherwise an admin browsing apps clicks a listing, comes back, and is looking
  * at dashboards. The error route is the one that got missed first, which is why
  * it is pinned here alongside the ordinary one.
+ *
+ * A member reads the same page as an admin. What changes is the ending: they
+ * cannot install, so the page names who can instead of offering a button that
+ * would be refused.
  */
 import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -17,6 +21,8 @@ import { MarketplaceListingPage } from "./MarketplaceListingPage";
 
 let listing: Partial<MarketplaceListingDetail> | undefined;
 let failed = false;
+let guildRole = "admin";
+let installedUids: string[] = [];
 
 vi.mock("@/hooks/useMarketplace", () => ({
   useMarketplaceListing: () => ({ data: listing, isError: failed }),
@@ -24,7 +30,14 @@ vi.mock("@/hooks/useMarketplace", () => ({
 vi.mock("@/hooks/useDashboards", () => ({ useWidgetCatalog: () => ({ data: undefined }) }));
 vi.mock("@/hooks/useGuilds", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useGuilds")>()),
-  useGuilds: () => ({ activeGuild: { role: "admin" } }),
+  useGuilds: () => ({ activeGuild: { role: guildRole } }),
+}));
+vi.mock("@/hooks/useGuildApps", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useGuildApps")>()),
+  useGuildApps: () => ({
+    data: { items: installedUids.map((uid) => ({ listing_uid: uid })) },
+    isError: false,
+  }),
 }));
 
 const appListing = () =>
@@ -55,6 +68,8 @@ const backHref = () =>
 beforeEach(() => {
   listing = appListing();
   failed = false;
+  guildRole = "admin";
+  installedUids = [];
 });
 
 describe("MarketplaceListingPage", () => {
@@ -106,5 +121,32 @@ describe("MarketplaceListingPage", () => {
     await screen.findByRole("heading", { name: "Guild calendar" });
     // An app mounts a tool; there is no definition to draw.
     expect(screen.queryByText("Preview")).toBeNull();
+  });
+
+  it("tells a member who can add an app they cannot", async () => {
+    guildRole = "member";
+    renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
+
+    expect(await screen.findByText("Ask a guild admin to add this app.")).toBeInTheDocument();
+    // The button is present but refuses, rather than being hidden: seeing what
+    // the app offers is the point of letting them in here.
+    expect(screen.getByRole("button", { name: /Add to guild/ })).toBeDisabled();
+  });
+
+  it("says an app is already installed instead of offering it again", async () => {
+    installedUids = ["GLDCAL00000001"];
+    renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
+
+    expect(await screen.findByText("Installed")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Add to guild/ })).toBeNull();
+  });
+
+  it("does not tell a member to ask for an app the guild already has", async () => {
+    guildRole = "member";
+    installedUids = ["GLDCAL00000001"];
+    renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
+
+    expect(await screen.findByText("Installed")).toBeInTheDocument();
+    expect(screen.queryByText("Ask a guild admin to add this app.")).toBeNull();
   });
 });

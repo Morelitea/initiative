@@ -4,13 +4,12 @@
  * Apps are guild-wide surfaces, so they sit above the initiatives rather than
  * inside any of them. What shows depends on who is looking:
  *
- * - **No apps, ordinary member** — nothing at all. An empty section would be a
- *   promise of something they cannot act on.
- * - **No apps, guild admin** — the section with a `+`, the same invitation the
- *   initiatives list makes when a guild has none.
  * - **Apps installed** — one entry each, for everyone. Whether a member may do
  *   anything *inside* one is that instance's own sharing, enforced where the
  *   content lives.
+ * - **No apps** — the section still shows, for everyone. A member cannot add
+ *   one, but they can look at what exists and ask for it, so the shelf is worth
+ *   pointing at; what differs is the invitation at the bottom.
  *
  * The exception is an app the server marks admin-only, which members do not see
  * at all: it has no sharing to widen, so an entry would refuse everyone who
@@ -31,7 +30,7 @@
  */
 
 import { Link } from "@tanstack/react-router";
-import { Blocks, ChevronDown, ChevronsDownUp, ChevronsUpDown, Plus } from "lucide-react";
+import { Blocks, ChevronDown, ChevronsDownUp, ChevronsUpDown, Plus, Store } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -80,10 +79,6 @@ export function AppsSection({ isGuildAdmin, open, onOpenChange }: AppsSectionPro
     (app) => guildAppPath(app) !== null || appHasConnections(app.definition)
   );
   const inert = apps.filter((app) => !actionable.includes(app));
-
-  // Nothing installed and nothing this person could do about it: show nothing.
-  // A member should see initiatives, not an empty shelf.
-  if (!apps.length && !isGuildAdmin) return null;
 
   return (
     <Collapsible open={open} onOpenChange={onOpenChange}>
@@ -153,20 +148,20 @@ export function AppsSection({ isGuildAdmin, open, onOpenChange }: AppsSectionPro
               <p className="px-4 py-2 text-muted-foreground text-sm">{t("apps:none")}</p>
             )}
 
-            {/* Last, below "show more" as well, so adding one is always in the
-                same place — the same shape the initiatives list uses. */}
-            {isGuildAdmin && (
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild size="sm">
-                    <Link to={gp("/marketplace")} search={{ kind: "app" }}>
-                      <Plus className="h-4 w-4" />
-                      <span>{t("apps:add")}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            )}
+            {/* Last, below "show more" as well, so it is always in the same
+                place — the same shape the initiatives list uses. An admin adds
+                one; everyone else browses the same shelf, where a listing says
+                who to ask. */}
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild size="sm">
+                  <Link to={gp("/marketplace")} search={{ kind: "app" }}>
+                    {isGuildAdmin ? <Plus className="h-4 w-4" /> : <Store className="h-4 w-4" />}
+                    <span>{isGuildAdmin ? t("apps:add") : t("apps:browse")}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
           </SidebarGroupContent>
         </CollapsibleContent>
       </SidebarGroup>

@@ -1,7 +1,7 @@
 {
   "title": "Aplicaciones",
   "add": "Añadir una aplicación",
-  "none": "Todavía no hay aplicaciones.",
+  "none": "Aún no hay aplicaciones.",
   "error": "Algo ha fallado con esa aplicación.",
   "manage": {
     "title": "Aplicaciones",
@@ -33,7 +33,7 @@
     "name": "Nombre",
     "action": "Añadir al gremio",
     "done": "{{name}} añadida.",
-    "adminOnly": "Solo un administrador del gremio puede añadir aplicaciones."
+    "adminOnly": "Pide a un administrador del gremio que añada esta aplicación."
   },
   "page": {
     "notFound": "Aplicación no encontrada",
@@ -109,5 +109,6 @@
     "unavailable": "{{name}} no está configurada en este servidor",
     "unavailableDescription": "Un administrador debe conectar el servicio de esta aplicación antes de poder abrirla.",
     "noSurface": "{{name}} no tiene una página propia"
-  }
+  },
+  "browse": "Explorar la tienda de aplicaciones"
 }
