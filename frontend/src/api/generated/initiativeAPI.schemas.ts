@@ -2668,7 +2668,6 @@ export interface MarketplaceListingDetail {
   updated_at: string;
   long_description: string | null;
   definition: MarketplaceListingDetailDefinition;
-  versions: MarketplaceVersionRead[];
 }
 
 /**

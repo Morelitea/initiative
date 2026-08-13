@@ -117,7 +117,11 @@ class TestDetail:
         body = response.json()
         assert body["long_description"] == "A longer page for the detail view."
         assert body["definition"]["kind"] == "dashboard"
-        assert [v["version"] for v in body["versions"]] == ["1.0.0"]
+        # One app, one current version. The shelf offers the latest and
+        # nothing else; which version an install is running, and upgrading
+        # it, belong to guild settings.
+        assert body["latest_version"]["version"] == "1.0.0"
+        assert "versions" not in body
         assert body["installable"] is True
 
     async def test_a_uid_resolves_to_its_listing(self, client, acting_user, listing):

@@ -83,7 +83,6 @@ class MarketplaceListingDetail(MarketplaceListingSummary):
     #: page renders. Installing does not send this back; the server re-reads the
     #: catalog, so nothing a client holds decides what gets stored.
     definition: Optional[Dict[str, Any]] = None
-    versions: List[MarketplaceVersionRead] = []
 
 
 class MarketplaceListingPage(SanitizedBaseModel):
