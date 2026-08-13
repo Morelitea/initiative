@@ -125,13 +125,14 @@
     "pin": "Pin to Focus",
     "unpin": "Remove from Focus",
     "settings": "Focus settings",
-    "dueWithinLabel": "Show work due or starting",
-    "dueWithin": {
-      "0": "Today",
-      "2": "Next 2 days",
-      "7": "This week"
+    "horizonsLabel": "How far ahead to look",
+    "horizonsHint": "Set a window per priority. Overdue work always shows.",
+    "horizon": {
+      "today": "Today",
+      "days_one": "{{count}} day",
+      "days_other": "{{count}} days",
+      "any": "Any date"
     },
-    "includeHighPriority": "Always include urgent and high priority",
     "loadError": "Focus list unavailable right now.",
     "truncated": "Showing the first {{shown}}. Narrow the date window for a shorter list.",
     "settingsHint": "Pinned tasks always appear, whatever these settings say."

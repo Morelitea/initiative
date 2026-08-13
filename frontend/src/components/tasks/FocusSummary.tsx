@@ -13,9 +13,9 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { FOCUS_DUE_WITHIN_CHOICES, type useFocusSummary } from "@/hooks/useFocusSummary";
+import { FOCUS_HORIZON_ANY, FOCUS_PRIORITIES, type useFocusSummary } from "@/hooks/useFocusSummary";
 import { guildPath } from "@/lib/guildUrl";
 import { cn } from "@/lib/utils";
 
@@ -101,7 +101,14 @@ const FocusRow = ({
 
 const FocusSettings = ({ focus }: { focus: FocusSummaryData }) => {
   const { t } = useTranslation(["tasks", "common"]);
-  const { prefs, setPreference } = focus;
+  const { prefs, setHorizon } = focus;
+
+  /** What a slider stop means, in words: the same value the leg is built from. */
+  const horizonLabel = (days: number) => {
+    if (days >= FOCUS_HORIZON_ANY) return t("focus.horizon.any");
+    if (days === 0) return t("focus.horizon.today");
+    return t("focus.horizon.days", { count: days });
+  };
 
   return (
     <Popover>
@@ -110,33 +117,38 @@ const FocusSettings = ({ focus }: { focus: FocusSummaryData }) => {
           <Settings2 className="h-4 w-4" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-72 space-y-4">
-        <div className="space-y-2">
-          <Label className="text-xs">{t("focus.dueWithinLabel")}</Label>
-          <div className="flex gap-1">
-            {FOCUS_DUE_WITHIN_CHOICES.map((days) => (
-              <Button
-                key={days}
-                variant={prefs.dueWithinDays === days ? "default" : "outline"}
-                size="sm"
-                className="flex-1"
-                onClick={() => setPreference("dueWithinDays", days)}
-              >
-                {t(`focus.dueWithin.${days}`)}
-              </Button>
-            ))}
-          </div>
+      <PopoverContent align="end" className="w-72 space-y-4 sm:w-80">
+        <div className="space-y-1">
+          <Label className="text-xs">{t("focus.horizonsLabel")}</Label>
+          <p className="text-muted-foreground text-xs">{t("focus.horizonsHint")}</p>
         </div>
 
-        <div className="flex items-center justify-between gap-3">
-          <Label htmlFor="focus-priority" className="text-xs leading-snug">
-            {t("focus.includeHighPriority")}
-          </Label>
-          <Switch
-            id="focus-priority"
-            checked={prefs.includeHighPriority}
-            onCheckedChange={(checked) => setPreference("includeHighPriority", checked)}
-          />
+        <div className="space-y-4">
+          {FOCUS_PRIORITIES.map((priority) => {
+            const days = prefs.horizons[priority];
+            const label = t(`priority.${priority}`);
+            return (
+              <div key={priority} className="space-y-2">
+                <div className="flex items-baseline justify-between gap-3">
+                  <Label className="text-xs capitalize">{label}</Label>
+                  <span className="text-muted-foreground text-xs tabular-nums">
+                    {horizonLabel(days)}
+                  </span>
+                </div>
+                <Slider
+                  value={[days]}
+                  min={0}
+                  max={FOCUS_HORIZON_ANY}
+                  step={1}
+                  thumbLabel={label}
+                  onValueChange={([next]) => setHorizon(priority, next)}
+                  // The whole track is draggable, so the padding is what makes
+                  // it a finger-sized target rather than a 4px line.
+                  className="py-1.5"
+                />
+              </div>
+            );
+          })}
         </div>
 
         <p className="text-muted-foreground text-xs">{t("focus.settingsHint")}</p>

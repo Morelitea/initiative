@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **The sidebar drops “All Projects” and “All Documents”.** Both are a keystroke away in the command palette, and the space now belongs to your guild's apps. The apps list also matches the initiatives list above it — the same expand control, and “Add an app” sits at the bottom where “Add initiative” does.
+- **Focus settings on My Tasks are now a window per priority.** Instead of one date range for everything plus an "always include urgent and high" switch, each priority gets its own slider: how many days ahead the Focus list looks for that priority, from today-and-overdue only up to a month out, or "any date" to keep that priority on the list whatever its deadline. Existing settings carry over.
 
 ## [0.62.1] - 2026-08-13
 

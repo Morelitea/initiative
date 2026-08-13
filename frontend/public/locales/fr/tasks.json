@@ -125,13 +125,14 @@
     "pin": "Épingler au Focus",
     "unpin": "Retirer du Focus",
     "settings": "Paramètres du Focus",
-    "dueWithinLabel": "Afficher le travail à échéance ou qui commence",
-    "dueWithin": {
-      "0": "Aujourd'hui",
-      "2": "2 prochains jours",
-      "7": "Cette semaine"
+    "horizonsLabel": "Jusqu'où regarder à l'avance",
+    "horizonsHint": "Définissez une période par priorité. Le travail en retard apparaît toujours.",
+    "horizon": {
+      "today": "Aujourd'hui",
+      "days_one": "{{count}} jour",
+      "days_other": "{{count}} jours",
+      "any": "N'importe quelle date"
     },
-    "includeHighPriority": "Toujours inclure les priorités urgente et haute",
     "loadError": "Liste Focus indisponible pour le moment.",
     "truncated": "Affichage des {{shown}} premières. Réduisez la période pour une liste plus courte.",
     "settingsHint": "Les tâches épinglées apparaissent toujours, quels que soient ces paramètres."
