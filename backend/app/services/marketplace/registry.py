@@ -887,11 +887,23 @@ async def _run_refresh(
     skipped: list[SkippedListing] = []
     present: set[str] = set()
     for entry in index.listings:
-        public_id = str(entry.get("public_id") or "?")
+        raw_public_id = entry.get("public_id")
+        public_id = str(raw_public_id or "?")
         uid = entry.get("uid")
-        if isinstance(uid, str) and uid:
-            # Recorded whatever happens next: a listing the index still carries
-            # is not withdrawn just because this deployment could not take it.
+        if (
+            isinstance(raw_public_id, str)
+            and raw_public_id
+            and key.may_publish(_publisher_prefix(raw_public_id))
+            and isinstance(uid, str)
+            and uid
+        ):
+            # Recorded whatever happens next, so a listing the index still
+            # carries is not withdrawn merely because this deployment could not
+            # take it — but only for entries the key may publish at all.
+            # Retention is the same authority as withdrawal read backwards: an
+            # entry outside the key's namespaces naming another publisher's uid
+            # would otherwise keep alive a listing the key was entitled to
+            # retire.
             present.add(uid)
         try:
             # Each listing lands inside a savepoint, so one that is refused

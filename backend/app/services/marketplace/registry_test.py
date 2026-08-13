@@ -724,6 +724,32 @@ class TestWithdrawal:
         assert result.withdrawn == 0
         assert (await _listing(session, "acme.widgets")).available is True
 
+    async def test_an_unauthorized_entry_cannot_shield_a_listing_from_withdrawal(
+        self, session, host, publisher_key
+    ):
+        """Retention is withdrawal read backwards, so it needs the same
+        authority.
+
+        The key may publish for ``acme``. Its index drops ``acme.widgets`` — a
+        real retirement — but carries an entry in a namespace it may not
+        publish under, reusing the dropped listing's uid. If an unauthorized
+        entry could put a uid in the retained set, that forged line would keep
+        the listing alive.
+        """
+        host.add("acme.widgets", "AAAAAAAAAAAAAA")
+        host.publish(publisher_key, serial=1)
+        assert (await registry.refresh_registry(session)).ok
+        assert (await _listing(session, "acme.widgets")).available is True
+
+        host.entries = []
+        # Not publishable by this key, and wearing the dropped listing's uid.
+        host.add("globex.decoy", "AAAAAAAAAAAAAA")
+        host.publish(publisher_key, serial=2)
+        result = await registry.refresh_registry(session)
+
+        assert result.withdrawn == 1
+        assert (await _listing(session, "acme.widgets")).available is False
+
     async def test_a_listing_the_index_still_carries_is_not_withdrawn_when_skipped(
         self, session, host, publisher_key
     ):
