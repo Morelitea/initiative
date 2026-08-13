@@ -179,14 +179,14 @@ class TestDetail:
 
 
 class TestAttribution:
-    """Who wrote a listing, served with what bounds the claim.
+    """Who publishes a listing, served with what bounds the claim.
 
     The name is what a manifest asserts and ``source`` is how the listing
-    actually reached this deployment. The UI shows one only ever with the other,
-    so the API never serves a card carrying just the name.
+    actually reached this deployment — which is what lets the client credit a
+    shipped listing to this build rather than to whatever its manifest says.
     """
 
-    async def test_a_card_carries_the_author_and_its_provenance(
+    async def test_a_card_carries_the_publisher_and_its_source(
         self, client, acting_user, session
     ):
         await create_marketplace_listing(
@@ -195,11 +195,7 @@ class TestAttribution:
             uid="ATTRBT00000001",
             public_id="tests.attributed",
             name="Attributed",
-            author={
-                "name": "Acme Widgets",
-                "url": "https://acme.example",
-                "contact": "hello@acme.example",
-            },
+            publisher="Acme Widgets",
         )
         actor = await acting_user("member")
         response = await client.get(
@@ -208,9 +204,7 @@ class TestAttribution:
             headers=actor.headers,
         )
         card = response.json()["items"][0]
-        assert card["author_name"] == "Acme Widgets"
-        assert card["author_url"] == "https://acme.example"
-        assert card["author_contact"] == "hello@acme.example"
+        assert card["publisher"] == "Acme Widgets"
         assert card["source"] == "builtin"
 
     async def test_the_detail_page_carries_them_too(self, client, acting_user, listing):
@@ -221,9 +215,18 @@ class TestAttribution:
             "/api/v1/marketplace/listings/tests.browse", headers=actor.headers
         )
         body = response.json()
-        assert body["author_name"] == "Tests"
-        assert body["author_url"] is None
+        assert body["publisher"] == "Tests"
         assert body["source"] == "builtin"
+
+    async def test_no_author_fields_are_served(self, client, acting_user, listing):
+        """One required name, not a person and a distributor kept apart."""
+        actor = await acting_user("member")
+        body = (
+            await client.get(
+                "/api/v1/marketplace/listings/tests.browse", headers=actor.headers
+            )
+        ).json()
+        assert not [key for key in body if key.startswith("author")]
 
 
 class TestNoWrites:
@@ -247,7 +250,7 @@ def _manifest(**overrides) -> dict:
         "public_id": "acme.standup",
         "kind": "dashboard",
         "name": "Standup board",
-        "author": {"name": "Acme"},
+        "publisher": "Acme",
         "description": "What everyone is on today.",
         "avatar_url": "/marketplace/acme-standup.svg",
         "version": "1.0.0",

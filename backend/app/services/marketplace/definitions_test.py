@@ -24,7 +24,7 @@ from app.services.marketplace.definitions import (
     LISTING_SOURCES,
     ListingDefinitionError,
     app_widget_type,
-    normalize_author,
+    normalize_publisher,
     normalize_listing_definition,
     reserved_prefix_problem,
 )
@@ -58,46 +58,28 @@ def _normalize(**overrides) -> dict:
 
 
 class TestAttribution:
-    """Every listing states who wrote it."""
+    """Every listing states who publishes it, in one required name."""
 
-    def test_a_listing_without_an_author_is_refused(self):
-        with pytest.raises(ListingDefinitionError, match="author is required"):
-            normalize_author(None)
-
-    def test_an_author_without_a_name_is_refused(self):
-        with pytest.raises(ListingDefinitionError, match="author.name"):
-            normalize_author({"url": "https://example.test"})
+    def test_a_listing_without_a_publisher_is_refused(self):
+        with pytest.raises(ListingDefinitionError, match="publisher is required"):
+            normalize_publisher(None)
 
     def test_a_blank_name_is_not_a_name(self):
-        with pytest.raises(ListingDefinitionError, match="author.name"):
-            normalize_author({"name": "   "})
+        with pytest.raises(ListingDefinitionError, match="publisher"):
+            normalize_publisher("   ")
 
     def test_a_name_may_not_span_lines(self):
         # It is rendered on one line beside the listing; a value carrying its
         # own line breaks is refused rather than displayed however it lands.
         with pytest.raises(ListingDefinitionError, match="single line"):
-            normalize_author({"name": "Widget Co\nby someone else"})
+            normalize_publisher("Widget Co\nby someone else")
 
-    def test_contact_and_url_are_optional(self):
-        author = normalize_author({"name": "Widget Co"})
-        assert (author.name, author.url, author.contact) == ("Widget Co", None, None)
+    def test_a_name_is_kept_as_written(self):
+        assert normalize_publisher("  Widget Co  ") == "Widget Co"
 
-    def test_a_url_must_be_a_link(self):
-        for value in ("example.test", "javascript:alert(1)", "/relative"):
-            with pytest.raises(ListingDefinitionError, match="author.url"):
-                normalize_author({"name": "Widget Co", "url": value})
-
-    def test_a_link_is_kept_as_written(self):
-        author = normalize_author(
-            {
-                "name": "  Widget Co  ",
-                "url": "https://widget.test/about",
-                "contact": "hello@widget.test",
-            }
-        )
-        assert author.name == "Widget Co"
-        assert author.url == "https://widget.test/about"
-        assert author.contact == "hello@widget.test"
+    def test_an_overlong_name_is_refused(self):
+        with pytest.raises(ListingDefinitionError, match="publisher"):
+            normalize_publisher("W" * 500)
 
 
 class TestReservedNamespace:

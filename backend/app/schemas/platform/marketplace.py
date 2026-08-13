@@ -55,19 +55,12 @@ class MarketplaceListingSummary(SanitizedBaseModel):
     uid: str
     public_id: str
     kind: ListingKind  # type: ignore[valid-type]
-    #: How the listing reached this deployment. Served on every card, because
-    #: the author below is a claim and this is what bounds it — the two are
-    #: shown together, never one without the other.
+    #: How the listing reached this deployment. The client credits listings
+    #: shipped in this build to us rather than to whatever a manifest claims.
     source: ListingSource  # type: ignore[valid-type]
     name: str
+    #: Who publishes it. Required in the catalog, so this is always present.
     publisher: str
-    #: Who the listing says wrote it. Required in the catalog, so this is
-    #: always present.
-    author_name: str
-    #: Where they say they can be found. A claim like the name: displayed,
-    #: never requested by the server, and never taken as identity.
-    author_url: Optional[str] = None
-    author_contact: Optional[str] = None
     description: str
     avatar_url: str
     images: List[str] = []

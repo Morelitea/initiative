@@ -3,9 +3,7 @@
   "public_id": "core.guild-calendar",
   "kind": "app",
   "name": "Guild calendar",
-  "author": {
-    "name": "Initiative"
-  },
+  "publisher": "Initiative",
   "description": "One shared calendar for the events your whole guild shows up to.",
   "long_description": "Give your guild a calendar of its own — for game nights, meetups, and anything else that belongs to everyone rather than to one initiative.\n\nEvery member sees it the moment it's added. Want only officers posting events? Adjust its sharing, same as any calendar.\n\nRemoving the app sends the calendar to the trash, so nothing is lost by accident.",
   "avatar_url": "/marketplace/core-guild-calendar.svg",

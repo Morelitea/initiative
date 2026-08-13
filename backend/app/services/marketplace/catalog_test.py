@@ -26,7 +26,6 @@ def _manifest(**overrides):
         "kind": "dashboard",
         "name": "Example",
         "publisher": "Tests",
-        "author": {"name": "Tests"},
         "description": "An example listing.",
         "avatar_url": "/marketplace/example.svg",
         "version": "1.0.0",
@@ -81,47 +80,26 @@ class TestIdentity:
 
 
 class TestAttribution:
-    """Who wrote it is part of what a listing *is*, so it is settled here rather
-    than left to whatever surface happens to display the listing."""
+    """Who publishes it is part of what a listing *is*, so it is settled here
+    rather than left to whatever surface happens to display the listing."""
 
-    async def test_a_listing_without_an_author_is_not_published(self, session):
+    async def test_a_listing_without_a_publisher_is_not_published(self, session):
         manifest = _manifest()
-        del manifest["author"]
-        with pytest.raises(CatalogError, match="author is required"):
+        del manifest["publisher"]
+        with pytest.raises(CatalogError, match="publisher is required"):
             await service.upsert_listing(session, manifest, source="builtin")
 
-    async def test_the_author_lands_on_the_row(self, session):
+    async def test_the_publisher_lands_on_the_row(self, session):
         listing = await service.upsert_listing(
-            session,
-            _manifest(
-                author={
-                    "name": "Widget Co",
-                    "url": "https://widget.test",
-                    "contact": "hello@widget.test",
-                }
-            ),
-            source="builtin",
+            session, _manifest(publisher="Widget Co"), source="builtin"
         )
-        assert listing.author_name == "Widget Co"
-        assert listing.author_url == "https://widget.test"
-        assert listing.author_contact == "hello@widget.test"
-
-    async def test_the_publisher_defaults_to_the_author(self, session):
-        """A manifest that states one name states it once."""
-        manifest = _manifest(author={"name": "Widget Co"})
-        del manifest["publisher"]
-        listing = await service.upsert_listing(session, manifest, source="builtin")
         assert listing.publisher == "Widget Co"
 
-    async def test_a_manifest_may_still_name_its_own_publisher(self, session):
-        # They differ when someone publishes on someone else's behalf, which is
-        # also the prefix a signed registry binds to a key.
-        listing = await service.upsert_listing(
-            session,
-            _manifest(publisher="Widget Co", author={"name": "A. Developer"}),
-            source="builtin",
-        )
-        assert (listing.publisher, listing.author_name) == ("Widget Co", "A. Developer")
+    async def test_a_blank_publisher_is_not_a_publisher(self, session):
+        with pytest.raises(CatalogError, match="publisher"):
+            await service.upsert_listing(
+                session, _manifest(publisher="   "), source="builtin"
+            )
 
 
 class TestReservedNamespace:

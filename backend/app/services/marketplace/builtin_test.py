@@ -28,7 +28,7 @@ from app.services.marketplace.builtin import (
 )
 from app.services.marketplace.definitions import (
     RESERVED_PUBLIC_ID_PREFIX,
-    normalize_author,
+    normalize_publisher,
     normalize_listing_definition,
 )
 
@@ -74,8 +74,8 @@ class TestShippedManifests:
 
         for manifest in manifests:
             public_id = manifest.get("public_id", "?")
-            author = normalize_author(manifest.get("author"))
-            assert author.name, f"{public_id} ships without an author"
+            publisher = normalize_publisher(manifest.get("publisher"))
+            assert publisher, f"{public_id} ships without a publisher"
             normalize_listing_definition(
                 manifest.get("kind", ""), manifest.get("definition")
             )

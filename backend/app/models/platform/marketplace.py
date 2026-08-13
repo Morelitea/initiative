@@ -57,23 +57,11 @@ class MarketplaceListing(SQLModel, table=True):
     source: str = Field(sa_column=Column(String(16), nullable=False))
 
     name: str = Field(sa_column=Column(String(200), nullable=False))
-    # The namespace a listing publishes under. Defaults to the author's name;
-    # a registry binds this prefix to the key that signed the index.
+    # Who publishes it, and the namespace it publishes under. Required, so the
+    # question "who is this from?" is answered before install rather than after;
+    # NOT NULL, so the requirement holds at the database as well as in the
+    # validator. A registry binds this prefix to the key that signed its index.
     publisher: str = Field(sa_column=Column(String(200), nullable=False))
-    # Who wrote it. Required, so the question "who is this from?" is answered
-    # before install rather than after; NOT NULL, so the requirement holds at
-    # the database as well as in the validator. Always read together with
-    # `source` — the name is what a publisher claims, and `source` is how the
-    # listing actually reached this deployment.
-    author_name: str = Field(sa_column=Column(Text, nullable=False))
-    # Optional ways to reach them. Shown beside the name; never requested by
-    # the server.
-    author_url: Optional[str] = Field(
-        default=None, sa_column=Column(Text, nullable=True)
-    )
-    author_contact: Optional[str] = Field(
-        default=None, sa_column=Column(Text, nullable=True)
-    )
     description: str = Field(sa_column=Column(String(500), nullable=False))
     long_description: Optional[str] = Field(
         default=None, sa_column=Column(Text, nullable=True)

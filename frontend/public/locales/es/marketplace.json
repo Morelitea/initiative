@@ -10,8 +10,7 @@
   },
   "provenance": {
     "builtin": "de Initiative",
-    "plain": "de {{author}}",
-    "website": "Sitio web del autor"
+    "plain": "de {{publisher}}"
   },
   "empty": {
     "title": "Aquí no hay nada todavía",
