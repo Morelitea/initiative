@@ -54,7 +54,8 @@ export function InstallAppDialog({ listing, open, onOpenChange }: InstallAppDial
           toast.success(t("apps:install.done", { name: app.name }));
           onOpenChange(false);
           // Straight to what it created, when it created something reachable.
-          const path = guildAppPath(app);
+          // Only a guild admin installs, so every surface is open to them.
+          const path = guildAppPath(app, { isGuildAdmin: true });
           if (path) navigate({ to: gp(path) });
         },
         onError: (error) => {

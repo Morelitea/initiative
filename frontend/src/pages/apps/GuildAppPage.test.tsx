@@ -20,7 +20,13 @@ vi.mock("@/api/generated/apps/apps", () => ({
     _guildId: number,
     _appId: number,
     surfaceId: string
-  ) => mint(surfaceId),
+  ) => mint(surfaceId, { scope: "guild" }),
+  createInitiativeAppHandoffApiV1GGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPost: (
+    _guildId: number,
+    initiativeId: number,
+    _appId: number,
+    surfaceId: string
+  ) => mint(surfaceId, { scope: "initiative", initiativeId }),
 }));
 
 const detail = {
@@ -32,9 +38,19 @@ const detail = {
     embeds: [
       { id: "one", path: "/embed/one", name: { en: "One" } },
       { id: "two", path: "/embed/two", name: { en: "Two" } },
+      {
+        id: "inside",
+        path: "/embed/inside",
+        name: { en: "Inside" },
+        scopes: ["initiative"],
+        visibility: "initiative_manager",
+      },
     ],
   },
 };
+
+/** A guild admin, who clears every rung wherever they are looking. */
+const ADMIN = { isGuildAdmin: true };
 
 vi.mock("@/hooks/useGuildAppDetail", () => ({
   useGuildAppDetail: () => ({ data: detail, isLoading: false }),
@@ -103,7 +119,7 @@ describe("GuildAppPage", () => {
   it("hands the first surface's token to the frame that asked", async () => {
     mint.mockImplementation((surfaceId: string) => Promise.resolve(handoff(surfaceId)));
     const { GuildAppPage } = await import("./GuildAppPage");
-    renderPage(() => <GuildAppPage appId={1} />);
+    renderPage(() => <GuildAppPage appId={1} viewer={ADMIN} />);
 
     await screen.findByTitle("Automations");
     await announceReady();
@@ -119,14 +135,14 @@ describe("GuildAppPage", () => {
       .mockImplementation((surfaceId: string) => Promise.resolve(handoff(surfaceId)));
 
     const { GuildAppPage } = await import("./GuildAppPage");
-    renderPage(() => <GuildAppPage appId={1} />);
+    renderPage(() => <GuildAppPage appId={1} viewer={ADMIN} />);
 
     await screen.findByTitle("Automations");
     await announceReady(); // spends the first token
 
     ready(); // the embed reloaded: starts the re-mint that will go stale
     (await screen.findByText("Two")).click();
-    await waitFor(() => expect(mint).toHaveBeenCalledWith("two"));
+    await waitFor(() => expect(mint).toHaveBeenCalledWith("two", expect.anything()));
 
     // The held re-mint now answers, for a surface nobody is looking at.
     releaseStale(handoff("one"));
@@ -136,5 +152,43 @@ describe("GuildAppPage", () => {
     // now showing the other surface. Surface two has minted but not been asked,
     // so nothing has been delivered for it either.
     expect(delivered()).toEqual(["token-for-one"]);
+  });
+});
+
+describe("GuildAppPage, read inside an initiative", () => {
+  beforeEach(() => {
+    mint.mockImplementation((surfaceId: string) => Promise.resolve(handoff(surfaceId)));
+  });
+
+  it("offers the surfaces that asked to render here, and no others", async () => {
+    const { GuildAppPage } = await import("./GuildAppPage");
+    renderPage(() => <GuildAppPage appId={1} initiativeId={4} viewer={ADMIN} />);
+
+    await screen.findByTitle("Automations");
+    // The two guild-wide tabs belong to the other page. One surface left means
+    // no tab strip at all, so the name appears nowhere.
+    expect(screen.queryByText("One")).toBeNull();
+    expect(screen.queryByText("Two")).toBeNull();
+    await waitFor(() => expect(mint).toHaveBeenCalledWith("inside", expect.anything()));
+  });
+
+  it("mints through the route that names the initiative", async () => {
+    const { GuildAppPage } = await import("./GuildAppPage");
+    renderPage(() => <GuildAppPage appId={1} initiativeId={4} viewer={ADMIN} />);
+
+    await screen.findByTitle("Automations");
+    await waitFor(() =>
+      expect(mint).toHaveBeenCalledWith("inside", { scope: "initiative", initiativeId: 4 })
+    );
+  });
+
+  it("says so plainly when nothing here is for this reader", async () => {
+    // A plain member of the initiative: the only surface here names its
+    // managers, so there is nothing to open and nothing to mint.
+    const { GuildAppPage } = await import("./GuildAppPage");
+    renderPage(() => <GuildAppPage appId={1} initiativeId={4} viewer={{ isGuildAdmin: false }} />);
+
+    await screen.findByText(/nothing to show|no page of its own|has no page/i);
+    expect(mint).not.toHaveBeenCalled();
   });
 });

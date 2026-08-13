@@ -11,10 +11,10 @@
  *   one, but they can look at what exists and ask for it, so the shelf is worth
  *   pointing at; what differs is the invitation at the bottom.
  *
- * The exception is an app the server marks admin-only, which members do not see
- * at all: it has no sharing to widen, so an entry would refuse everyone who
- * clicked it. Which apps those are is the server's answer, not a kind the
- * sidebar interprets.
+ * A surface names the audience it is for, and an entry is only offered to a
+ * reader who is in it — an app whose only guild-wide surface is for admins does
+ * not take a row for a member. The mint settles the same question again under
+ * the caller's own session; this is about not pointing at a closed door.
  *
  * Disabled apps are hidden here and stay visible in guild settings, which is
  * where an admin turns them back on. So are apps whose service is not set up on
@@ -74,9 +74,10 @@ export function AppsSection({ isGuildAdmin, open, onOpenChange }: AppsSectionPro
 
   // An app with somewhere to go leads; one with nothing to open waits under
   // "show more" so a guild that installs many widget providers still has a
-  // readable sidebar.
+  // readable sidebar. A surface declared for the guild's admins is not
+  // somewhere a member can go, so for them it does not count as one.
   const actionable = apps.filter(
-    (app) => guildAppPath(app) !== null || appHasConnections(app.definition)
+    (app) => guildAppPath(app, { isGuildAdmin }) !== null || appHasConnections(app.definition)
   );
   const inert = apps.filter((app) => !actionable.includes(app));
 
@@ -172,7 +173,7 @@ export function AppsSection({ isGuildAdmin, open, onOpenChange }: AppsSectionPro
 function AppEntry({ app, isGuildAdmin }: { app: GuildAppRead; isGuildAdmin: boolean }) {
   const gp = useGuildPath();
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const path = guildAppPath(app);
+  const path = guildAppPath(app, { isGuildAdmin });
   // The listing's own artwork, small. Every listing has one — a listing that
   // ships none is published with the app's own mark — so there is nothing to
   // fall back to.

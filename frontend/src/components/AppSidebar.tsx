@@ -46,6 +46,7 @@ import { useCounterGroupCountsByInitiative } from "@/hooks/useCounters";
 import { useDashboardCountsByInitiative } from "@/hooks/useDashboards";
 import { compareVersions, useDockerHubVersion } from "@/hooks/useDockerHubVersion";
 import { useDocumentCountsByInitiative } from "@/hooks/useDocuments";
+import { useGuildApps } from "@/hooks/useGuildApps";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
@@ -189,6 +190,16 @@ export const AppSidebar = () => {
   const visibleInitiatives = useMemo(
     () => filterVisible(Array.isArray(initiativesQuery.data) ? initiativesQuery.data : []),
     [initiativesQuery.data, filterVisible]
+  );
+
+  // The same install list the Apps section reads, handed to each initiative so
+  // an app declaring a surface in one gets a row there too. Filtered to what is
+  // actually reachable, on the same terms the Apps section uses.
+  const guildAppsQuery = useGuildApps({ enabled: guildTreeEnabled });
+  const initiativeApps = useMemo(
+    () =>
+      (guildAppsQuery.data?.items ?? []).filter((app) => app.enabled && app.available !== false),
+    [guildAppsQuery.data]
   );
 
   // Initiative visibility + per-section permissions (membership, PAM grants,
@@ -447,6 +458,8 @@ export const AppSidebar = () => {
                                       activeProjectId={activeProjectId}
                                       userId={user?.id}
                                       access={getUserPermissions(initiative)}
+                                      apps={initiativeApps}
+                                      isGuildAdmin={isGuildAdmin}
                                       counts={{
                                         [Tool.project]: projects.length,
                                         [Tool.document]:

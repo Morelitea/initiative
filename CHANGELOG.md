@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Apps can now appear inside an initiative as well as guild-wide. An app that offers an initiative surface gets a row in each initiative's sidebar section, opening a page scoped to that initiative — the same install, told which initiative it is being read in.
+- App surfaces name who they are for: everyone in the guild, an initiative's managers, or guild admins. An entry only appears for a reader it is meant for.
+
 ## [0.62.2] - 2026-08-13
 
 ### Fixed
