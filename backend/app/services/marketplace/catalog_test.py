@@ -190,6 +190,40 @@ class TestDefinitions:
                 source="builtin",
             )
 
+    async def test_a_listing_without_artwork_gets_the_app_mark(self, session):
+        """Artwork is optional. A listing that ships none is published with
+        Initiative's own mark rather than refused over a picture — and the
+        default is same-origin like everything else the catalog stores."""
+        manifest = _manifest(
+            kind="app",
+            definition={
+                "app_kind": "tool_instance",
+                "tool": "calendar",
+                "default_name": "Guild calendar",
+            },
+        )
+        manifest.pop("avatar_url", None)
+
+        listing = await service.upsert_listing(session, manifest, source="builtin")
+
+        assert listing.avatar_url == service.DEFAULT_AVATAR_URL
+        assert listing.avatar_url.startswith("/")
+
+    async def test_supplied_artwork_still_has_to_be_same_origin(self, session):
+        """The default is not a way in for a remote URL."""
+        manifest = _manifest(
+            kind="app",
+            definition={
+                "app_kind": "tool_instance",
+                "tool": "calendar",
+                "default_name": "Guild calendar",
+            },
+        )
+        manifest["avatar_url"] = "https://cdn.example.test/icon.svg"
+
+        with pytest.raises(CatalogError, match="same-origin"):
+            await service.upsert_listing(session, manifest, source="builtin")
+
     async def test_a_valid_app_listing_is_stored_canonically(self, session):
         listing = await service.upsert_listing(
             session,

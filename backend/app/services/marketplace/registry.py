@@ -73,6 +73,7 @@ from app.models.platform.marketplace_registry import (
     MarketplaceRegistryState,
 )
 from app.services.marketplace.catalog import (
+    DEFAULT_AVATAR_URL,
     CatalogError,
     upsert_listing,
     withdraw_listing,
@@ -730,13 +731,18 @@ async def _ingest_listing(
     # manifest says its images are is discarded and replaced with the mirrored
     # copies, so a stored listing always points at this deployment.
     avatar_spec = entry.get("avatar")
-    if not isinstance(avatar_spec, Mapping):
+    if avatar_spec is None:
+        # No artwork published: the catalog gives it the app's own mark. Only a
+        # *malformed* spec is an error — a missing one is a choice.
+        manifest["avatar_url"] = DEFAULT_AVATAR_URL
+    elif not isinstance(avatar_spec, Mapping):
         raise RegistryError(
-            Codes.ARTIFACT_INVALID, f"{public_id}: the index names no avatar image"
+            Codes.ARTIFACT_INVALID, f"{public_id}: avatar must be an object"
         )
-    manifest["avatar_url"] = await _mirror_image(
-        session, index_url=index_url, spec=avatar_spec, now=now
-    )
+    else:
+        manifest["avatar_url"] = await _mirror_image(
+            session, index_url=index_url, spec=avatar_spec, now=now
+        )
 
     image_specs = entry.get("images") or []
     if not isinstance(image_specs, list):

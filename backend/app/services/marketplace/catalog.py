@@ -95,6 +95,12 @@ _ARTWORK_CHARS = frozenset(
 )
 
 
+#: Shown for a listing that ships no artwork of its own. The app's own mark,
+#: which is the honest thing for it to say: nobody drew an icon for this one.
+#: Same-origin like every other artwork path, so it obeys the rule below.
+DEFAULT_AVATAR_URL = "/icons/logo.svg"
+
+
 def _check_artwork_path(value: str, *, field: str) -> str:
     """A listing's artwork must be a same-origin path — the shipped files live
     under ``/marketplace/``. A registry wanting third-party artwork mirrors it
@@ -270,11 +276,15 @@ async def upsert_listing(
     except ListingDefinitionError as exc:
         raise CatalogError(f"{public_id}: {exc}") from exc
 
-    for required in ("name", "description", "avatar_url"):
+    for required in ("name", "description"):
         if not manifest.get(required):
             raise CatalogError(f"{public_id}: {required} is required")
 
-    _check_artwork_path(str(manifest["avatar_url"]), field=f"{public_id}: avatar_url")
+    # Artwork is optional: a listing without one gets the app's own mark rather
+    # than being refused over a picture. A supplied one is still held to the
+    # same-origin rule — the default is not a way in for a remote URL.
+    avatar_url = str(manifest.get("avatar_url") or DEFAULT_AVATAR_URL)
+    _check_artwork_path(avatar_url, field=f"{public_id}: avatar_url")
 
     images = manifest.get("images") or []
     if not isinstance(images, list) or any(not isinstance(i, str) for i in images):
@@ -308,7 +318,7 @@ async def upsert_listing(
         "publisher": publisher,
         "description": str(manifest["description"]),
         "long_description": manifest.get("long_description"),
-        "avatar_url": str(manifest["avatar_url"]),
+        "avatar_url": avatar_url,
         "images": list(images),
         "available": True,
         "updated_at": now,

@@ -76,6 +76,5 @@
   "allCounterGroups": "Tous les compteurs",
   "createCounterGroup": "Nouveau groupe de compteurs",
   "createExternally": "Créé dans {{name}}",
-  "adminDashboard": "Tableau de bord admin",
-  "marketplace": "Catalogue"
+  "adminDashboard": "Tableau de bord admin"
 }
