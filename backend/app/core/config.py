@@ -589,6 +589,11 @@ class Settings(BaseSettings):
     # own private key. This is the matching public key. When unset,
     # delegation auth is disabled and Initiative only accepts its own
     # session tokens / API keys.
+    #
+    # Accepts more than one key, as concatenated PEM blocks, which is how the
+    # delegate rotates without downtime: append the new key, let auto start
+    # signing with it, then drop the old block. A token is accepted if any
+    # block verifies it.
     AUTO_DELEGATION_PUBLIC_KEY_PEM: str | None = None
     AUTO_DELEGATION_AUDIENCE: str = "initiative:auto-delegation"
     AUTO_DELEGATION_ISSUER: str = "initiative-auto"
@@ -644,6 +649,12 @@ class Settings(BaseSettings):
     # HMAC-SHA256 over METHOD\nPATH\nTIMESTAMP\nsha256(body) keyed by the
     # shared secret. Both must be configured or the /billing endpoints
     # refuse every request.
+    #
+    # The public key accepts more than one key, as concatenated PEM blocks, so
+    # billing can rotate its signing key without downtime: append the new key,
+    # let billing start signing with it, then drop the old block. A token is
+    # accepted if any block verifies it. (The shared secret takes one value —
+    # rotating it is a separate change on both sides.)
     BILLING_PUBLIC_KEY_PEM: str | None = None
     BILLING_HMAC_SECRET: str | None = None
     BILLING_AUDIENCE: str = "initiative:billing"

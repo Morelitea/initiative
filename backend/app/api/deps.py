@@ -10,7 +10,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.capabilities import Capability, user_has_capability
-from app.core.config import API_V1_STR, settings
+from app.core.config import API_V1_STR
 from app.core import auth_context
 from app.core.auth_context import set_satisfied_providers
 from app.core.pam_context import set_active_grant
@@ -94,7 +94,7 @@ async def _authenticate_auto_delegation(
     the user's memberships and must agree with the ``/g/{guild_id}`` path, so an
     auto workflow always acts in the guild its token was issued for.
     """
-    if not settings.AUTO_DELEGATION_PUBLIC_KEY_PEM:
+    if not auto_delegation_configured():
         return None  # delegation disabled — let other auth paths run
 
     try:

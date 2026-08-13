@@ -66,12 +66,14 @@ async def _verify_and_parse(request: Request, model):
             body=body,
         )
     except BillingEnvelopeError as exc:
-        # Billing absent is the self-host default, not a caller fault: 503
-        # (fail closed, retryable) rather than 403.
+        # Billing absent is the self-host default, not a caller fault, and an
+        # unreadable key is this deployment's own misconfiguration: both answer
+        # 503 (fail closed, retryable) rather than 403.
         raise HTTPException(
             status_code=(
                 status.HTTP_503_SERVICE_UNAVAILABLE
-                if exc.code == BillingMessages.NOT_CONFIGURED
+                if exc.code
+                in (BillingMessages.NOT_CONFIGURED, BillingMessages.KEY_UNREADABLE)
                 else status.HTTP_403_FORBIDDEN
             ),
             detail=exc.code,

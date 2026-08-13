@@ -66,6 +66,14 @@ _OTHER_PRIVATE_PEM = _OTHER_KEYPAIR.private_bytes(
     serialization.PrivateFormat.PKCS8,
     serialization.NoEncryption(),
 ).decode()
+_OTHER_PUBLIC_PEM = (
+    _OTHER_KEYPAIR.public_key()
+    .public_bytes(
+        serialization.Encoding.PEM,
+        serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    .decode()
+)
 
 _HMAC_SECRET = "test-billing-hmac-secret"
 
@@ -599,3 +607,67 @@ async def test_usage_burns_jti(client: AsyncClient, session: AsyncSession):
     second = await _post(client, "usage", {"guild_id": guild.id}, token=token)
     assert second.status_code == 403
     assert second.json()["detail"] == "BILLING_REPLAYED_TOKEN"
+
+
+# --- rotating billing's signing key -----------------------------------------
+
+
+async def test_both_keys_verify_while_billing_rotates(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """BILLING_PUBLIC_KEY_PEM holds both blocks during a rotation, so calls
+    signed with either key are accepted and billing can switch on its own
+    schedule rather than in lockstep with a deploy here."""
+    monkeypatch.setattr(
+        config_module.settings,
+        "BILLING_PUBLIC_KEY_PEM",
+        _PUBLIC_PEM + _OTHER_PUBLIC_PEM,
+    )
+    guild = await create_guild(session)
+
+    for private_pem in (_PRIVATE_PEM, _OTHER_PRIVATE_PEM):
+        response = await _post(
+            client,
+            "guild-tier",
+            _tier_payload(guild.id),
+            token=_mint_token(private_pem=private_pem),
+        )
+        assert response.status_code == 200, response.text
+
+
+async def test_dropping_the_old_block_ends_its_access(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """Rotation finishes by removing the retired key, which must then stop
+    working — otherwise the bundle only ever grows."""
+    monkeypatch.setattr(
+        config_module.settings, "BILLING_PUBLIC_KEY_PEM", _OTHER_PUBLIC_PEM
+    )
+    guild = await create_guild(session)
+
+    response = await _post(
+        client,
+        "guild-tier",
+        _tier_payload(guild.id),
+        token=_mint_token(private_pem=_PRIVATE_PEM),
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "BILLING_INVALID_TOKEN"
+
+
+async def test_unreadable_key_answers_503_not_403(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """A key this deployment cannot read is its own misconfiguration, so it
+    fails closed the way an unconfigured billing does — blaming the caller
+    with a 403 would send billing hunting for a fault on its side."""
+    monkeypatch.setattr(
+        config_module.settings,
+        "BILLING_PUBLIC_KEY_PEM",
+        _PUBLIC_PEM + "-----BEGIN PUBLIC KEY-----\nnope\n",
+    )
+    guild = await create_guild(session)
+
+    response = await _post(client, "guild-tier", _tier_payload(guild.id))
+    assert response.status_code == 503
+    assert response.json()["detail"] == "BILLING_KEY_UNREADABLE"
