@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.62.2] - 2026-08-13
+
+### Fixed
+
+- **The marketplace no longer offers an app that was removed.** A listing that ships with Initiative is taken off the shelf when a release stops carrying it, instead of lingering in the catalog of every instance that ever saw it — which is why the automation app could appear twice. A guild that already installed one keeps it; it simply stops being offered.
+- **A listing shows the version you would get, not a history.** One app, one current version. Which version an install is running, and updating it, stay in guild settings where the app lives.
+- **Installed apps open again.** Clicking an app in the sidebar did nothing. An app with a page of its own now opens it — with a tab for each view where an app offers several — and an app that only needs an account connected opens that form where you clicked, rather than sending you to look for it in guild settings. Apps that just feed widgets into dashboards have no page to open, so they tuck under a “show more” instead of taking up a row. Each app is now shown with its own artwork.
+
+### Changed
+
+- **Everyone can see the app store now.** The Apps section shows for every member, not only guild admins. A member gets “Browse the app store” where an admin gets “Add an app” — the same shelf, where each listing is tagged if your guild already has it, and one it does not says to ask a guild admin for it. Adding an app is still an admin's to do.
+- **The sidebar drops “All Projects” and “All Documents”.** Both are a keystroke away in the command palette, and the space now belongs to your guild's apps. The apps list also matches the initiatives list above it — the same expand control, and “Add an app” sits at the bottom where “Add initiative” does.
+- **A guild's front page is now a browser for its tools.** It was a fixed dashboard of personal statistics and activity cards — the same figures My Stats already gives you, mixed with a few shortcuts. In their place is a row of the guild's tools across the top: pick one and everything of that kind in the guild is listed underneath, whichever initiative it lives in, alongside that initiative, its tags, and when it last changed. Only the tools your initiatives actually use get a circle, and the tool you're looking at is part of the address, so the view can be bookmarked and shared. Underneath the list, the guild's latest comments carry on as before — they stay put whichever tool you're browsing, and each one links to the task or document it was left on.
+- **Focus settings on My Tasks are now a window per priority.** Instead of one date range for everything plus an "always include urgent and high" switch, each priority gets its own slider: how many days ahead the Focus list looks for that priority, from today-and-overdue only up to a month out, or "any date" to keep that priority on the list whatever its deadline. Existing settings carry over.
+
 ## [0.62.1] - 2026-08-13
 
 ### Fixed

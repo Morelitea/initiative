@@ -1,14 +1,55 @@
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 from typing import Any, Sequence
 
 import bcrypt
 import jwt
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
+from cryptography.hazmat.primitives.serialization import load_pem_public_key
 
 from app.core.config import settings
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Verifying keys for the services that call us
+#
+# A peer's signing key has to be replaceable without arranging for both
+# sides to change in the same instant, so the settings that hold one take
+# concatenated PEM blocks and every block is trusted: append the new key,
+# let the peer start signing with it, drop the old block a release later.
+# ──────────────────────────────────────────────────────────────────────────
+
+#: Marks the start of each block in a concatenated PEM bundle.
+_PEM_HEADER = "-----BEGIN "
+
+
+class PublicKeyBundleError(Exception):
+    """A configured PEM bundle could not be read."""
+
+
+@lru_cache(maxsize=8)
+def load_verification_keys(pem_bundle: str) -> tuple[Any, ...]:
+    """Load the public keys in a configured PEM bundle, in order.
+
+    Keyed on the configured text and cached, so a bundle is parsed once rather
+    than on every call that verifies against it. A block that will not load
+    raises instead of being skipped — a silently dropped block leaves a
+    rotation looking configured while the key it added does nothing.
+    """
+    blocks = [_PEM_HEADER + rest for rest in pem_bundle.split(_PEM_HEADER)[1:]]
+    keys: list[Any] = []
+    for index, block in enumerate(blocks):
+        try:
+            keys.append(load_pem_public_key(block.encode("utf-8")))
+        except (ValueError, TypeError) as exc:
+            raise PublicKeyBundleError(
+                f"PEM block {index + 1} is not a readable public key: {exc}"
+            ) from exc
+    return tuple(keys)
+
 
 # Deliberately a constant, not a setting: every encode/verify in this module
 # assumes HS256, and a configurable JWT algorithm invites algorithm-confusion.
@@ -478,21 +519,43 @@ def verify_auto_delegation_token(token: str) -> AutoDelegationClaims:
     Disabled when ``AUTO_DELEGATION_PUBLIC_KEY_PEM`` is unset — that
     config gap surfaces as a verification error so the auth dep can
     fall through to its other token paths instead of 500'ing.
+
+    The setting holds one key normally and two while the delegate is rotating,
+    so the token is accepted if any configured key verifies it.
     """
-    if not settings.AUTO_DELEGATION_PUBLIC_KEY_PEM:
+    try:
+        keys = load_verification_keys(settings.AUTO_DELEGATION_PUBLIC_KEY_PEM or "")
+    except PublicKeyBundleError as e:
+        raise AutoDelegationVerificationError(
+            f"AUTO_DELEGATION_PUBLIC_KEY_PEM is unusable: {e}"
+        ) from e
+    # Covers both an unset setting and one holding no PEM block at all.
+    if not keys:
         raise AutoDelegationVerificationError("delegation auth not configured")
 
-    try:
-        payload = jwt.decode(
-            token,
-            settings.AUTO_DELEGATION_PUBLIC_KEY_PEM,
-            algorithms=["RS256"],
-            audience=settings.AUTO_DELEGATION_AUDIENCE,
-            issuer=settings.AUTO_DELEGATION_ISSUER,
-            options={"require": ["exp", "iat", "iss", "aud", "sub", "jti"]},
-        )
-    except jwt.PyJWTError as e:
-        raise AutoDelegationVerificationError(f"jwt verification failed: {e}") from e
+    payload = None
+    first_error: jwt.PyJWTError | None = None
+    for key in keys:
+        try:
+            payload = jwt.decode(
+                token,
+                key,
+                algorithms=["RS256"],
+                audience=settings.AUTO_DELEGATION_AUDIENCE,
+                issuer=settings.AUTO_DELEGATION_ISSUER,
+                options={"require": ["exp", "iat", "iss", "aud", "sub", "jti"]},
+            )
+            break
+        except jwt.PyJWTError as e:
+            # Keep the first failure. A later key's message would describe a key
+            # the token was never signed with, which reads as a signature
+            # problem even when the real fault is expiry or a wrong audience.
+            if first_error is None:
+                first_error = e
+    if payload is None:
+        raise AutoDelegationVerificationError(
+            f"jwt verification failed: {first_error}"
+        ) from first_error
 
     try:
         user_id = int(payload["sub"])

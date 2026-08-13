@@ -794,6 +794,9 @@ class BillingMessages:
     """
 
     NOT_CONFIGURED = "BILLING_NOT_CONFIGURED"
+    #: The configured verifying key could not be read. A deployment fault
+    #: rather than a caller fault, so it answers alongside NOT_CONFIGURED.
+    KEY_UNREADABLE = "BILLING_KEY_UNREADABLE"
     MISSING_SIGNATURE = "BILLING_MISSING_SIGNATURE"
     STALE_TIMESTAMP = "BILLING_STALE_TIMESTAMP"
     INVALID_SIGNATURE = "BILLING_INVALID_SIGNATURE"

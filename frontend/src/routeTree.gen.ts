@@ -67,6 +67,7 @@ import { Route as ServerRequiredAuthenticatedSettingsPlatformAuthRouteImport } f
 import { Route as ServerRequiredAuthenticatedSettingsPlatformBrandingRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/branding'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformEmailRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/email'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformStorageRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/storage'
+import { Route as ServerRequiredAuthenticatedGGuildIdAppsAppIdRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/apps_.$appId'
 import { Route as ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/calendar-events_.$eventId'
 import { Route as ServerRequiredAuthenticatedGGuildIdCalendarsCalendarIdRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/calendars_.$calendarId'
 import { Route as ServerRequiredAuthenticatedGGuildIdCounterGroupsGroupIdRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/counter-groups_.$groupId'
@@ -439,6 +440,12 @@ const ServerRequiredAuthenticatedSettingsPlatformStorageRoute =
     path: '/storage',
     getParentRoute: () => ServerRequiredAuthenticatedSettingsPlatformRoute,
   } as any)
+const ServerRequiredAuthenticatedGGuildIdAppsAppIdRoute =
+  ServerRequiredAuthenticatedGGuildIdAppsAppIdRouteImport.update({
+    id: '/apps_/$appId',
+    path: '/apps/$appId',
+    getParentRoute: () => ServerRequiredAuthenticatedGGuildIdRoute,
+  } as any)
 const ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdRoute =
   ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdRouteImport.update({
     id: '/calendar-events_/$eventId',
@@ -691,6 +698,7 @@ export interface FileRoutesByFullPath {
   '/g/$guildId/': typeof ServerRequiredAuthenticatedGGuildIdIndexRoute
   '/settings/admin/': typeof ServerRequiredAuthenticatedSettingsAdminIndexRoute
   '/settings/platform/': typeof ServerRequiredAuthenticatedSettingsPlatformIndexRoute
+  '/g/$guildId/apps/$appId': typeof ServerRequiredAuthenticatedGGuildIdAppsAppIdRoute
   '/g/$guildId/calendar-events/$eventId': typeof ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdRoute
   '/g/$guildId/calendars/$calendarId': typeof ServerRequiredAuthenticatedGGuildIdCalendarsCalendarIdRoute
   '/g/$guildId/counter-groups/$groupId': typeof ServerRequiredAuthenticatedGGuildIdCounterGroupsGroupIdRoute
@@ -774,6 +782,7 @@ export interface FileRoutesByTo {
   '/g/$guildId': typeof ServerRequiredAuthenticatedGGuildIdIndexRoute
   '/settings/admin': typeof ServerRequiredAuthenticatedSettingsAdminIndexRoute
   '/settings/platform': typeof ServerRequiredAuthenticatedSettingsPlatformIndexRoute
+  '/g/$guildId/apps/$appId': typeof ServerRequiredAuthenticatedGGuildIdAppsAppIdRoute
   '/g/$guildId/calendar-events/$eventId': typeof ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdRoute
   '/g/$guildId/calendars/$calendarId': typeof ServerRequiredAuthenticatedGGuildIdCalendarsCalendarIdRoute
   '/g/$guildId/counter-groups/$groupId': typeof ServerRequiredAuthenticatedGGuildIdCounterGroupsGroupIdRoute
@@ -865,6 +874,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/g/$guildId/': typeof ServerRequiredAuthenticatedGGuildIdIndexRoute
   '/_serverRequired/_authenticated/settings/admin/': typeof ServerRequiredAuthenticatedSettingsAdminIndexRoute
   '/_serverRequired/_authenticated/settings/platform/': typeof ServerRequiredAuthenticatedSettingsPlatformIndexRoute
+  '/_serverRequired/_authenticated/g/$guildId/apps_/$appId': typeof ServerRequiredAuthenticatedGGuildIdAppsAppIdRoute
   '/_serverRequired/_authenticated/g/$guildId/calendar-events_/$eventId': typeof ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdRoute
   '/_serverRequired/_authenticated/g/$guildId/calendars_/$calendarId': typeof ServerRequiredAuthenticatedGGuildIdCalendarsCalendarIdRoute
   '/_serverRequired/_authenticated/g/$guildId/counter-groups_/$groupId': typeof ServerRequiredAuthenticatedGGuildIdCounterGroupsGroupIdRoute
@@ -955,6 +965,7 @@ export interface FileRouteTypes {
     | '/g/$guildId/'
     | '/settings/admin/'
     | '/settings/platform/'
+    | '/g/$guildId/apps/$appId'
     | '/g/$guildId/calendar-events/$eventId'
     | '/g/$guildId/calendars/$calendarId'
     | '/g/$guildId/counter-groups/$groupId'
@@ -1038,6 +1049,7 @@ export interface FileRouteTypes {
     | '/g/$guildId'
     | '/settings/admin'
     | '/settings/platform'
+    | '/g/$guildId/apps/$appId'
     | '/g/$guildId/calendar-events/$eventId'
     | '/g/$guildId/calendars/$calendarId'
     | '/g/$guildId/counter-groups/$groupId'
@@ -1128,6 +1140,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/g/$guildId/'
     | '/_serverRequired/_authenticated/settings/admin/'
     | '/_serverRequired/_authenticated/settings/platform/'
+    | '/_serverRequired/_authenticated/g/$guildId/apps_/$appId'
     | '/_serverRequired/_authenticated/g/$guildId/calendar-events_/$eventId'
     | '/_serverRequired/_authenticated/g/$guildId/calendars_/$calendarId'
     | '/_serverRequired/_authenticated/g/$guildId/counter-groups_/$groupId'
@@ -1573,6 +1586,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsPlatformStorageRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedSettingsPlatformRoute
     }
+    '/_serverRequired/_authenticated/g/$guildId/apps_/$appId': {
+      id: '/_serverRequired/_authenticated/g/$guildId/apps_/$appId'
+      path: '/apps/$appId'
+      fullPath: '/g/$guildId/apps/$appId'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdAppsAppIdRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedGGuildIdRoute
+    }
     '/_serverRequired/_authenticated/g/$guildId/calendar-events_/$eventId': {
       id: '/_serverRequired/_authenticated/g/$guildId/calendar-events_/$eventId'
       path: '/calendar-events/$eventId'
@@ -1953,6 +1973,7 @@ interface ServerRequiredAuthenticatedGGuildIdRouteChildren {
   ServerRequiredAuthenticatedGGuildIdQueuesRoute: typeof ServerRequiredAuthenticatedGGuildIdQueuesRoute
   ServerRequiredAuthenticatedGGuildIdSettingsRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsRouteWithChildren
   ServerRequiredAuthenticatedGGuildIdIndexRoute: typeof ServerRequiredAuthenticatedGGuildIdIndexRoute
+  ServerRequiredAuthenticatedGGuildIdAppsAppIdRoute: typeof ServerRequiredAuthenticatedGGuildIdAppsAppIdRoute
   ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdRoute: typeof ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdRoute
   ServerRequiredAuthenticatedGGuildIdCalendarsCalendarIdRoute: typeof ServerRequiredAuthenticatedGGuildIdCalendarsCalendarIdRoute
   ServerRequiredAuthenticatedGGuildIdCounterGroupsGroupIdRoute: typeof ServerRequiredAuthenticatedGGuildIdCounterGroupsGroupIdRoute
@@ -1997,6 +2018,8 @@ const ServerRequiredAuthenticatedGGuildIdRouteChildren: ServerRequiredAuthentica
       ServerRequiredAuthenticatedGGuildIdSettingsRouteWithChildren,
     ServerRequiredAuthenticatedGGuildIdIndexRoute:
       ServerRequiredAuthenticatedGGuildIdIndexRoute,
+    ServerRequiredAuthenticatedGGuildIdAppsAppIdRoute:
+      ServerRequiredAuthenticatedGGuildIdAppsAppIdRoute,
     ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdRoute:
       ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdRoute,
     ServerRequiredAuthenticatedGGuildIdCalendarsCalendarIdRoute:

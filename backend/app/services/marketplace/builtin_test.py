@@ -9,10 +9,12 @@ a listing shipped with a uid outside the alphabet and never appeared in the
 catalog at all, and nothing failed. So the manifests are seeded here for real
 and the result is counted.
 
-The second is the conditional listing. An app that opens the deployment's own
-embed surface is offered only where an operator configured one — absent, not
-broken, on an install without it — and taken back out of the catalog if that
-configuration goes away.
+The second is that the files are the whole truth. A listing dropped from the
+build has to leave the shelf everywhere, or it lingers in the catalog of every
+database that ever saw it — which is exactly what happened when the advanced
+tool was removed and its listing stayed, offered, alongside its replacement.
+Withdrawing has to be careful in the other direction too: a file this build
+ships but cannot read or validate must never take its own listing down.
 """
 
 import pytest
@@ -88,3 +90,86 @@ class TestShippedManifests:
                 session, listing
             )
             assert version is not None, f"{listing.public_id} is not installable"
+
+
+class TestWithdrawingWhatIsNoLongerShipped:
+    """The catalog follows the files, in both directions."""
+
+    async def _seed_dir(self, tmp_path, manifests: list[dict]) -> None:
+        import json
+
+        for manifest in manifests:
+            (tmp_path / f"{manifest['public_id']}.json").write_text(
+                json.dumps(manifest), encoding="utf-8"
+            )
+
+    def _manifest(self, *, uid: str, public_id: str) -> dict:
+        return {
+            "uid": uid,
+            "public_id": public_id,
+            "kind": "app",
+            "name": public_id,
+            "publisher": "Tests",
+            "description": "A shipped listing.",
+            "version": "1.0.0",
+            "definition": {"app_kind": "tool_instance", "tool": "calendar"},
+        }
+
+    async def test_a_listing_dropped_from_the_build_leaves_the_shelf(
+        self, session, tmp_path
+    ):
+        keep = self._manifest(uid="KEEP0000000001", public_id="core.keep")
+        drop = self._manifest(uid="DRPX0000000001", public_id="core.drop")
+        await self._seed_dir(tmp_path, [keep, drop])
+        await seed_builtin_listings(session, tmp_path)
+        assert (await _seeded(session))["core.drop"].available is True
+
+        # The next build ships only one of them.
+        (tmp_path / "core.drop.json").unlink()
+        await seed_builtin_listings(session, tmp_path)
+
+        listings = await _seeded(session)
+        assert listings["core.keep"].available is True
+        # Withdrawn, not deleted: an install that pinned it still resolves.
+        assert listings["core.drop"].available is False
+
+    async def test_a_listing_that_fails_to_validate_is_not_withdrawn(
+        self, session, tmp_path
+    ):
+        """A packaging bug must not become data loss. The file still ships, so
+        the listing it replaces stays on the shelf while someone fixes it."""
+        good = self._manifest(uid="KEEP0000000002", public_id="core.keep2")
+        await self._seed_dir(tmp_path, [good])
+        await seed_builtin_listings(session, tmp_path)
+
+        broken = {**good, "definition": {"app_kind": "nonsense"}}
+        await self._seed_dir(tmp_path, [broken])
+        await seed_builtin_listings(session, tmp_path)
+
+        assert (await _seeded(session))["core.keep2"].available is True
+
+    async def test_an_unreadable_file_withdraws_nothing_at_all(self, session, tmp_path):
+        """One corrupt file leaves no uid behind, so sweeping on what was read
+        would withdraw listings this build does ship. The pass is skipped."""
+        first = self._manifest(uid="KEEP0000000003", public_id="core.keep3")
+        second = self._manifest(uid="KEEP0000000004", public_id="core.keep4")
+        await self._seed_dir(tmp_path, [first, second])
+        await seed_builtin_listings(session, tmp_path)
+
+        (tmp_path / "core.keep4.json").write_text("{ not json", encoding="utf-8")
+        await seed_builtin_listings(session, tmp_path)
+
+        listings = await _seeded(session)
+        assert listings["core.keep3"].available is True
+        assert listings["core.keep4"].available is True
+
+    async def test_an_operator_listing_is_not_this_build_to_withdraw(
+        self, session, tmp_path
+    ):
+        """Only shipped listings follow the files. What an operator added is
+        theirs, and a build that ships nothing must not clear their catalog."""
+        theirs = self._manifest(uid="ACME0000000001", public_id="acme.theirs")
+        await catalog_service.upsert_listing(session, theirs, source="operator")
+        await seed_builtin_listings(session, tmp_path)
+
+        assert (await _seeded(session))["acme.theirs"].available is True

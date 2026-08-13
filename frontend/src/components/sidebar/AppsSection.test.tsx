@@ -1,10 +1,9 @@
 /**
  * Who sees the Apps section, and when.
  *
- * The rules are about not promising anything: a member with no apps installed
- * has nothing to look at and nothing they could do about it, so the section is
- * absent entirely rather than empty. An admin in the same guild does have
- * something to do, so they get it with the `+`.
+ * The section shows for everyone, because everyone can do something with it:
+ * an admin adds an app, and a member browses the same shelf to see what exists
+ * and who to ask for it. What differs is the invitation at the bottom.
  *
  * Disabled apps belong in guild settings, not here — the sidebar shows what is
  * on.
@@ -12,6 +11,10 @@
  * An admin-only app is hidden from members for the same reason an empty section
  * is: it has no sharing to widen, so the entry would refuse everyone who clicked
  * it. The server says which apps those are; this only honors the answer.
+ *
+ * And every visible entry leads somewhere: an app with a surface opens it, an
+ * app with a credential to supply opens that form, and an app with neither
+ * waits under "show more" rather than spending a row on a dead click.
  */
 import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -51,31 +54,25 @@ const render = (isGuildAdmin: boolean) =>
     </TooltipProvider>
   ));
 
-/**
- * Absence, waited for.
- *
- * The page renders through a router, so it renders nothing synchronously —
- * asserting an empty DOM the moment `render` returns passes before the section
- * has had a chance to appear, and would pass just as well if it were broken.
- * This waits for the section instead, and requires that it never arrives.
- */
-const expectNoSection = () =>
-  expect(screen.findByText("Apps", {}, { timeout: 400 })).rejects.toThrow();
-
 beforeEach(() => {
   apps = [];
 });
 
 describe("AppsSection", () => {
-  it("shows nothing to a member when the guild has no apps", async () => {
+  it("points a member at the store when the guild has no apps", async () => {
+    // They cannot add one, but they can look and ask, so the shelf is worth
+    // pointing at rather than hiding.
     render(false);
-    await expectNoSection();
+    expect(await screen.findByText("Apps")).toBeInTheDocument();
+    expect(screen.getByText("Browse the app store")).toBeInTheDocument();
+    expect(screen.queryByText("Add an app")).toBeNull();
   });
 
   it("invites an admin to add one when the guild has no apps", async () => {
     render(true);
     expect(await screen.findByText("Apps")).toBeInTheDocument();
-    expect(screen.getByLabelText("Add an app")).toBeInTheDocument();
+    expect(screen.getByText("Add an app")).toBeInTheDocument();
+    expect(screen.queryByText("Browse the app store")).toBeNull();
   });
 
   it("lists installed apps for a member", async () => {
@@ -83,7 +80,8 @@ describe("AppsSection", () => {
     render(false);
     expect(await screen.findByText("Guild calendar")).toBeInTheDocument();
     // No add affordance: installing is a guild-admin action.
-    expect(screen.queryByLabelText("Add an app")).toBeNull();
+    expect(screen.queryByText("Add an app")).toBeNull();
+    expect(screen.getByText("Browse the app store")).toBeInTheDocument();
   });
 
   it("links an app to what it mounted", async () => {
@@ -102,16 +100,73 @@ describe("AppsSection", () => {
     expect(screen.queryByText("Guild calendar")).toBeNull();
   });
 
-  it("shows a member nothing when every app is disabled", async () => {
+  it("still offers the store to a member when every app is disabled", async () => {
     apps = [app({ enabled: false })];
     render(false);
-    await expectNoSection();
+    expect(await screen.findByText("Browse the app store")).toBeInTheDocument();
+    expect(screen.queryByText("Guild calendar")).toBeNull();
   });
 
-  it("renders an app with nothing to link to without a link", async () => {
-    apps = [app({ artifacts: [] })];
+  it("opens a service app's own page", async () => {
+    apps = [
+      app({
+        id: 7,
+        name: "Automations",
+        tool: null,
+        artifacts: [],
+        definition: { embeds: [{ id: "automations", path: "/embed" }] },
+      }),
+    ];
+    render(false);
+    const link = (await screen.findByText("Automations")).closest("a");
+    expect(link?.getAttribute("href")).toContain("/apps/7");
+  });
+
+  it("draws the listing's artwork rather than a generic icon", async () => {
+    apps = [app({ avatar_url: "/marketplace/calendar.svg" })];
     render(false);
     const entry = await screen.findByText("Guild calendar");
+    const artwork = entry.closest("a")?.querySelector("img");
+    expect(artwork?.getAttribute("src")).toBe("/marketplace/calendar.svg");
+  });
+
+  it("folds an app with nothing to open under 'show more'", async () => {
+    // A calendar app whose row cannot be resolved has no surface and no
+    // credential, so it is not worth a row until asked for.
+    apps = [app({ artifacts: [] })];
+    render(false);
+    await screen.findByText("Apps");
+    expect(screen.queryByText("Guild calendar")).toBeNull();
+
+    (await screen.findByText("1 more")).click();
+    const entry = await screen.findByText("Guild calendar");
     expect(entry.closest("a")).toBeNull();
+  });
+
+  it("keeps the add affordance below the apps, 'show more' included", async () => {
+    // Same shape as the initiatives list: adding one is always in the same
+    // place, whether or not the collapsed apps are expanded.
+    apps = [app(), app({ id: 2, name: "Widgets only", tool: null, artifacts: [] })];
+    render(true);
+    const add = await screen.findByText("Add an app");
+    const more = await screen.findByText("1 more");
+    // eslint-disable-next-line no-bitwise -- DOCUMENT_POSITION_FOLLOWING
+    expect(more.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("keeps an app that only has a credential to supply in the list", async () => {
+    apps = [
+      app({
+        id: 9,
+        name: "GitHub",
+        tool: null,
+        artifacts: [],
+        definition: { connections: [{ id: "token", scope: "interactive" }] },
+      }),
+    ];
+    render(false);
+    // Listed, and not behind "show more" — there is something to open.
+    expect(await screen.findByText("GitHub")).toBeInTheDocument();
+    expect(screen.queryByText("1 more")).toBeNull();
   });
 });

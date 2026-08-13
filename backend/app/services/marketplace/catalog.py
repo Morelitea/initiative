@@ -49,11 +49,13 @@ __all__ = [
     "list_listings",
     "get_listing",
     "get_listing_by_uid",
+    "listing_avatars",
     "get_listing_version",
     "resolve_installable_version",
     "listing_versions",
     "upsert_listing",
     "withdraw_listing",
+    "withdraw_builtins_except",
     "bump_installs_count",
     "version_is_compatible",
 ]
@@ -202,6 +204,24 @@ async def get_listing(
     ).first()
 
 
+async def listing_avatars(session: AsyncSession, uids: Sequence[str]) -> dict[str, str]:
+    """Artwork for the given listings, by uid.
+
+    Read rather than pinned into an install: a listing that changes its picture
+    should change everywhere it is drawn, and unlike a definition there is
+    nothing here an install needs held still.
+    """
+    unique = {uid for uid in uids if uid}
+    if not unique:
+        return {}
+    rows = await session.exec(
+        select(MarketplaceListing.uid, MarketplaceListing.avatar_url).where(
+            MarketplaceListing.uid.in_(unique)
+        )
+    )
+    return {uid: avatar for uid, avatar in rows if avatar}
+
+
 async def get_listing_by_uid(
     session: AsyncSession, uid: str
 ) -> Optional[MarketplaceListing]:
@@ -270,6 +290,7 @@ async def upsert_listing(
 
     try:
         definition = normalize_listing_definition(kind, manifest.get("definition"))
+
         # Required on every ingestion path: seeding, an operator upload, a
         # registry refresh. There is no path that publishes without one.
         publisher = normalize_publisher(manifest.get("publisher"))
@@ -412,6 +433,37 @@ async def listing_versions(
             .order_by(MarketplaceListingVersion.published_at.desc())
         )
     ).all()
+
+
+async def withdraw_builtins_except(
+    session: AsyncSession, keep_uids: Sequence[str]
+) -> int:
+    """Withdraw every shipped listing this build no longer carries.
+
+    Seeding upserts what it finds; without this, a listing whose file was
+    removed from the build stays in the catalog of every database that ever saw
+    it, still offered and still installable. The row is kept, so a guild that
+    already installed it is untouched — it simply stops being on the shelf.
+
+    Scoped to ``builtin``: an operator's own listings and anything from a
+    registry are not this build's to withdraw.
+    """
+    keep = {uid for uid in keep_uids if uid}
+    statement = select(MarketplaceListing).where(
+        MarketplaceListing.source == "builtin",
+        MarketplaceListing.available.is_(True),
+    )
+    withdrawn = 0
+    for listing in (await session.exec(statement)).all():
+        if listing.uid in keep:
+            continue
+        listing.available = False
+        listing.updated_at = datetime.now(timezone.utc)
+        session.add(listing)
+        withdrawn += 1
+    if withdrawn:
+        await session.flush()
+    return withdrawn
 
 
 async def bump_installs_count(session: AsyncSession, listing_id: int) -> None:

@@ -1,0 +1,52 @@
+{
+  "title": "Gilde",
+  "subtitle": "Alles in dieser Gilde, ein Werkzeug nach dem anderen.",
+  "toolRail": "Gildenwerkzeuge",
+  "loading": "Wird geladen…",
+  "loadError": "Dieses Werkzeug konnte nicht geladen werden. Bitte versuche es später erneut.",
+  "guildWide": "Gildenweit",
+  "empty": {
+    "title": "Noch nichts vorhanden",
+    "description": "In der Gilde gibt es noch nichts dieser Art, oder nichts davon ist für dich freigegeben."
+  },
+  "columns": {
+    "name": "Name",
+    "initiative": "Initiative",
+    "tags": "Tags",
+    "updated": "Zuletzt aktualisiert",
+    "detail": {
+      "projects": "Fortschritt",
+      "documents": "Typ",
+      "queues": "Einträge",
+      "counterGroups": "Zähler",
+      "calendars": "Beschreibung",
+      "dashboards": "Herkunft"
+    }
+  },
+  "detail": {
+    "tasksDone": "{{completed}} von {{total}} Aufgaben",
+    "queueItems_one": "{{count}} Eintrag",
+    "queueItems_other": "{{count}} Einträge",
+    "counters_one": "{{count}} Zähler",
+    "counters_other": "{{count}} Zähler",
+    "fromMarketplace": "Marktplatz",
+    "builtHere": "Selbst erstellt",
+    "documentType": {
+      "native": "Dokument",
+      "file": "Datei",
+      "whiteboard": "Whiteboard",
+      "smart_link": "Link",
+      "spreadsheet": "Tabelle"
+    }
+  },
+  "recentComments": {
+    "title": "Neueste Kommentare",
+    "description": "Die neuesten Kommentare in der gesamten Gilde",
+    "noComments": "Noch keine Kommentare",
+    "loadError": "Neueste Kommentare konnten nicht geladen werden. Bitte später erneut versuchen.",
+    "unknownAuthor": "Unbekannt",
+    "onTask": "zu {{taskTitle}}",
+    "onDocument": "zu {{documentTitle}}",
+    "inProject": "in {{projectName}}"
+  }
+}

@@ -125,13 +125,14 @@
     "pin": "An Fokus anheften",
     "unpin": "Aus Fokus entfernen",
     "settings": "Fokus-Einstellungen",
-    "dueWithinLabel": "Fällige oder beginnende Arbeit anzeigen",
-    "dueWithin": {
-      "0": "Heute",
-      "2": "Nächste 2 Tage",
-      "7": "Diese Woche"
+    "horizonsLabel": "Wie weit im Voraus geschaut wird",
+    "horizonsHint": "Lege pro Priorität einen Zeitraum fest. Überfällige Arbeit wird immer angezeigt.",
+    "horizon": {
+      "today": "Heute",
+      "days_one": "{{count}} Tag",
+      "days_other": "{{count}} Tage",
+      "any": "Beliebiges Datum"
     },
-    "includeHighPriority": "Dringende und hohe Priorität immer einbeziehen",
     "loadError": "Fokusliste derzeit nicht verfügbar.",
     "truncated": "Die ersten {{shown}} werden angezeigt. Verkleinere den Zeitraum für eine kürzere Liste.",
     "settingsHint": "Angeheftete Aufgaben erscheinen immer, unabhängig von diesen Einstellungen."

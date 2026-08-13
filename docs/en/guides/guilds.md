@@ -13,16 +13,18 @@ If you haven't joined or created a guild yet, start with [Your first guild](../g
 You can belong to many guilds at once. The **guild rail** runs down the far-left edge of the screen — a vertical strip of icons, one per guild. The highlighted icon is the guild you're in now, and the **Initiative logo** above the guilds takes you to [your personal space](your-space.md).
 
 - Click any guild's icon to switch to it.
-- Switching changes everything else — the sidebar, initiatives, projects, and the dashboard — over to that guild.
+- Switching changes everything else — the sidebar, initiatives, and projects — over to that guild.
 - Each guild is independent. Work, people, and settings never cross between them.
 
-Opening a guild lands you on its **dashboard** — an at-a-glance overview of that guild: upcoming tasks, how projects are progressing, and recent activity.
+Opening a guild lands you on its **front page**: a row of the guild's tools across the top, one circle each. Pick a tool and everything of that kind in the guild is listed underneath it — every project, document, calendar, queue, counter group or dashboard you have access to, wherever it lives — with the initiative it belongs to, its tags, and when it last changed. Click a name to open it, or an initiative to go there instead.
 
-!!! screenshot "A guild dashboard"
-    **Show:** the dashboard you see right after opening a guild — upcoming tasks, project health, and the summary numbers.
+Only the tools your initiatives actually use appear, so a guild that doesn't run queues never shows a Queues circle. The tool you're looking at is part of the address, so you can bookmark or share the view you're on.
 
-    Save as `en/images/guilds/guild-dashboard.png`, then use:
-    `![A guild's dashboard](../images/guilds/guild-dashboard.png)`
+!!! screenshot "A guild's front page"
+    **Show:** the front page you see right after opening a guild — the row of tool circles with one selected, and the table of that tool's items beneath it.
+
+    Save as `en/images/guilds/guild-front-page.png`, then use:
+    `![A guild's front page](../images/guilds/guild-front-page.png)`
 
 !!! tip "Two guilds at once"
     Open Initiative in two browser tabs and you can have each tab in a different guild — handy if you're juggling, say, a work team and a side project.

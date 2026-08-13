@@ -135,7 +135,6 @@ async def _detail(session, listing: MarketplaceListing) -> MarketplaceListingDet
     latest = await catalog_service.get_listing_version(
         session, listing.latest_version_id
     )
-    versions = await catalog_service.listing_versions(session, listing.id)
     summary = _summary(listing, latest)
     return MarketplaceListingDetail(
         **summary.model_dump(),
@@ -143,7 +142,6 @@ async def _detail(session, listing: MarketplaceListing) -> MarketplaceListingDet
         # A preview of what installing would produce. The install path re-reads
         # the catalog itself, so this is display data, not an input.
         definition=dict(latest.definition) if latest else None,
-        versions=[read for v in versions if (read := _version_read(v))],
     )
 
 

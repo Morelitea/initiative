@@ -114,6 +114,20 @@ class TestInstall:
         assert calendar.initiative_id is None
         assert calendar.guild_id == a.guild.id
 
+    async def test_the_list_carries_the_listing_artwork(
+        self, client: AsyncClient, acting_user, calendar_app
+    ):
+        """The sidebar draws an install from its listing's picture, so the LIST
+        payload has to carry it — a field added only to the detail read would
+        leave every sidebar entry blank."""
+        a = await acting_user(guild_role=GuildRole.admin)
+        await _install(client, a)
+
+        response = await client.get(a.g("/apps/"), headers=a.headers)
+        assert response.status_code == 200, response.text
+        (item,) = response.json()["items"]
+        assert item["avatar_url"] == "/marketplace/test.svg"
+
     async def test_the_name_can_be_chosen_at_install(
         self, client: AsyncClient, acting_user, session: AsyncSession, calendar_app
     ):

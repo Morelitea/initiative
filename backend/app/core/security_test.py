@@ -13,7 +13,9 @@ import uuid
 import jwt
 import pytest
 
-from datetime import timedelta
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from datetime import datetime, timedelta, timezone
 
 from app.core import security
 from app.core.config import settings
@@ -327,3 +329,182 @@ def test_decode_session_token_rejects_expired_legacy_token():
 def test_decode_session_token_rejects_garbage():
     with pytest.raises(jwt.PyJWTError):
         decode_session_token("not.a.jwt")
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Rotatable verifying keys
+#
+# The settings holding a peer's public key take concatenated PEM blocks, so
+# both the old and the new key are trusted while that peer rotates. These
+# cover the loader; the per-peer wiring is exercised beside each verifier.
+# ──────────────────────────────────────────────────────────────────────────
+
+
+_KEYPAIRS = [
+    rsa.generate_private_key(public_exponent=65537, key_size=2048) for _ in range(3)
+]
+
+
+def private_pem(index: int) -> str:
+    return (
+        _KEYPAIRS[index]
+        .private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        )
+        .decode()
+    )
+
+
+def public_bundle(*indexes: int) -> str:
+    """A configured value trusting the given keypairs, in order."""
+    return "".join(
+        _KEYPAIRS[index]
+        .public_key()
+        .public_bytes(
+            serialization.Encoding.PEM,
+            serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        .decode()
+        for index in indexes
+    )
+
+
+@pytest.mark.unit
+def test_loader_reads_every_block_in_order():
+    keys = security.load_verification_keys(public_bundle(0, 1, 2))
+    assert len(keys) == 3
+    assert [k.public_numbers().n for k in keys] == [
+        _KEYPAIRS[i].public_key().public_numbers().n for i in (0, 1, 2)
+    ]
+
+
+@pytest.mark.unit
+def test_loader_reads_a_single_block():
+    """The ordinary one-key case is the same code path."""
+    assert len(security.load_verification_keys(public_bundle(0))) == 1
+
+
+@pytest.mark.unit
+def test_loader_treats_empty_as_no_keys():
+    """An unset setting is "no peer", not an error — callers decide what that
+    means for them."""
+    assert security.load_verification_keys("") == ()
+
+
+@pytest.mark.unit
+def test_loader_refuses_an_unreadable_block_rather_than_skipping_it():
+    """A silently dropped block would leave a rotation looking configured
+    while the key it added does nothing."""
+    bundle = public_bundle(0) + "-----BEGIN PUBLIC KEY-----\nnope\n"
+    with pytest.raises(security.PublicKeyBundleError) as excinfo:
+        security.load_verification_keys(bundle)
+    assert "block 2" in str(excinfo.value)
+
+
+@pytest.mark.unit
+def test_loader_refuses_a_private_key():
+    """Only the public half belongs in a verifying setting."""
+    with pytest.raises(security.PublicKeyBundleError):
+        security.load_verification_keys(private_pem(0))
+
+
+# --- delegation: which key a token is accepted under ------------------------
+
+
+def _mint_delegation(
+    *, signed_by: int, expires_in: int = 900, kid: str | None = None
+) -> str:
+    now = datetime.now(timezone.utc)
+    return jwt.encode(
+        {
+            "jti": uuid.uuid4().hex,
+            "sub": "5",
+            "aud": settings.AUTO_DELEGATION_AUDIENCE,
+            "iss": settings.AUTO_DELEGATION_ISSUER,
+            "iat": int(now.timestamp()),
+            "exp": now + timedelta(seconds=expires_in),
+            "guild_id": 9,
+        },
+        private_pem(signed_by),
+        algorithm="RS256",
+        headers={"kid": kid} if kid else None,
+    )
+
+
+@pytest.fixture
+def delegation_pem(monkeypatch):
+    def configure(bundle: str | None):
+        monkeypatch.setattr(security.settings, "AUTO_DELEGATION_PUBLIC_KEY_PEM", bundle)
+
+    return configure
+
+
+@pytest.mark.unit
+def test_delegation_accepts_its_one_configured_key(delegation_pem):
+    delegation_pem(public_bundle(0))
+    claims = security.verify_auto_delegation_token(_mint_delegation(signed_by=0))
+    assert (claims.user_id, claims.guild_id) == (5, 9)
+
+
+@pytest.mark.unit
+def test_delegation_accepts_either_key_while_the_delegate_rotates(delegation_pem):
+    """The point of the bundle: both keys work, so the two sides can switch at
+    their own pace instead of in the same instant."""
+    delegation_pem(public_bundle(0, 1))
+    for index in (0, 1):
+        assert (
+            security.verify_auto_delegation_token(
+                _mint_delegation(signed_by=index)
+            ).user_id
+            == 5
+        )
+
+
+@pytest.mark.unit
+def test_delegation_refuses_a_key_that_is_not_configured(delegation_pem):
+    """Trusting two keys is not trusting any RS256 signer."""
+    delegation_pem(public_bundle(0, 1))
+    with pytest.raises(security.AutoDelegationVerificationError):
+        security.verify_auto_delegation_token(_mint_delegation(signed_by=2))
+
+
+@pytest.mark.unit
+def test_delegation_stops_accepting_a_dropped_key(delegation_pem):
+    """Rotation ends by removing a block, so that key must stop working."""
+    delegation_pem(public_bundle(1))
+    with pytest.raises(security.AutoDelegationVerificationError):
+        security.verify_auto_delegation_token(_mint_delegation(signed_by=0))
+
+
+@pytest.mark.unit
+def test_delegation_ignores_a_token_key_id(delegation_pem):
+    """The delegate stamps a ``kid``; nothing reads it. Pinned because that
+    header is unsigned, so it must not steer which key is used."""
+    delegation_pem(public_bundle(0, 1))
+    assert (
+        security.verify_auto_delegation_token(
+            _mint_delegation(signed_by=1, kid="names-the-other-key")
+        ).user_id
+        == 5
+    )
+
+
+@pytest.mark.unit
+def test_delegation_reports_expiry_rather_than_the_next_key(delegation_pem):
+    """With several keys tried, the reported failure is the real one."""
+    delegation_pem(public_bundle(0, 1))
+    with pytest.raises(security.AutoDelegationVerificationError) as excinfo:
+        security.verify_auto_delegation_token(
+            _mint_delegation(signed_by=0, expires_in=-30)
+        )
+    assert "expired" in str(excinfo.value).lower()
+
+
+@pytest.mark.unit
+def test_delegation_is_off_with_no_key(delegation_pem):
+    delegation_pem(None)
+    assert security.auto_delegation_configured() is False
+    with pytest.raises(security.AutoDelegationVerificationError):
+        security.verify_auto_delegation_token(_mint_delegation(signed_by=0))

@@ -81,31 +81,3 @@ export const useUninstallGuildApp = (options?: MutationOpts<void, number>) => {
     options
   );
 };
-
-/**
- * Where an app's own surface lives.
- *
- * A tool-instance app mounts an existing tool, so its entry links at the tool's
- * own route with the id the install recorded — the calendar an app created is
- * just a calendar. An app with no content of its own has nothing to link at, so
- * it gets a page of its own instead. An app whose content cannot be resolved
- * gets no link at all — better a plain row than one that 404s.
- *
- * What an install produced is a *list*, since one install may produce several
- * things; the sidebar links at the first artifact of the tool the app mounts.
- * Typed structurally rather than against the generated read so this keeps
- * working for both the list and detail payloads.
- */
-export interface AppSurface {
-  id: number;
-  tool?: string | null;
-  artifacts?: { type: string; id: number }[];
-}
-
-export const guildAppPath = (app: AppSurface): string | null => {
-  if (app.tool === "calendar") {
-    const calendar = (app.artifacts ?? []).find((artifact) => artifact.type === "calendar");
-    return calendar ? `/calendars/${calendar.id}` : null;
-  }
-  return null;
-};

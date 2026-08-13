@@ -33,6 +33,7 @@ import {
 
 import access from "../../public/locales/en/access.json";
 import command from "../../public/locales/en/command.json";
+import guildHome from "../../public/locales/en/guildHome.json";
 import initiatives from "../../public/locales/en/initiatives.json";
 import nav from "../../public/locales/en/nav.json";
 import trash from "../../public/locales/en/trash.json";
@@ -97,6 +98,16 @@ describe("tool i18n", () => {
         const file = `../../public/locales/${locale}/${toolCamelPlural(tool)}.json`;
         expect(localeFiles, `missing ${file}`).toContain(file);
       }
+    }
+  });
+
+  it("guild home names every tool's own table column", () => {
+    const detail = guildHome.columns.detail as Record<string, string>;
+    for (const tool of TOOLS) {
+      expect(
+        detail[toolCamelPlural(tool)],
+        `missing guildHome.json columns.detail.${toolCamelPlural(tool)}`
+      ).toBeTruthy();
     }
   });
 

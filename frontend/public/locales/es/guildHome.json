@@ -1,0 +1,52 @@
+{
+  "title": "Gremio",
+  "subtitle": "Todo lo del gremio, una herramienta a la vez.",
+  "toolRail": "Herramientas del gremio",
+  "loading": "Cargando…",
+  "loadError": "No se pudo cargar esta herramienta. Inténtalo de nuevo más tarde.",
+  "guildWide": "Todo el gremio",
+  "empty": {
+    "title": "Aún no hay nada",
+    "description": "Todavía no existe nada de este tipo en el gremio, o nada se ha compartido contigo."
+  },
+  "columns": {
+    "name": "Nombre",
+    "initiative": "Iniciativa",
+    "tags": "Etiquetas",
+    "updated": "Última actualización",
+    "detail": {
+      "projects": "Progreso",
+      "documents": "Tipo",
+      "queues": "Elementos",
+      "counterGroups": "Contadores",
+      "calendars": "Descripción",
+      "dashboards": "Origen"
+    }
+  },
+  "detail": {
+    "tasksDone": "{{completed}} de {{total}} tareas",
+    "queueItems_one": "{{count}} elemento",
+    "queueItems_other": "{{count}} elementos",
+    "counters_one": "{{count}} contador",
+    "counters_other": "{{count}} contadores",
+    "fromMarketplace": "Mercado",
+    "builtHere": "Creado aquí",
+    "documentType": {
+      "native": "Documento",
+      "file": "Archivo",
+      "whiteboard": "Pizarra",
+      "smart_link": "Enlace",
+      "spreadsheet": "Hoja de cálculo"
+    }
+  },
+  "recentComments": {
+    "title": "Comentarios recientes",
+    "description": "Los últimos comentarios en el gremio",
+    "noComments": "Aún no hay comentarios",
+    "loadError": "No se pudieron cargar los comentarios recientes. Inténtalo de nuevo más tarde.",
+    "unknownAuthor": "Desconocido",
+    "onTask": "en {{taskTitle}}",
+    "onDocument": "en {{documentTitle}}",
+    "inProject": "en {{projectName}}"
+  }
+}

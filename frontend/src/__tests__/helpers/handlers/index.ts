@@ -1,4 +1,5 @@
 import { authHandlers } from "./auth.handlers";
+import { commentHandlers } from "./comment.handlers";
 import { documentHandlers } from "./document.handlers";
 import { guildHandlers } from "./guild.handlers";
 import { initiativeHandlers } from "./initiative.handlers";
@@ -18,6 +19,7 @@ export const handlers = [
   ...tagHandlers,
   ...settingsHandlers,
   ...documentHandlers,
+  ...commentHandlers,
   ...userHandlers,
   ...propertyHandlers,
 ];

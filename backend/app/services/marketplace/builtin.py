@@ -9,12 +9,11 @@ Seeding is idempotent and runs on the system engine. A file that fails validatio
 is logged and skipped — one malformed listing must not take the rest of the
 catalog, or the boot, with it.
 
-Most of what ships applies everywhere. One listing does not: an app that opens
-the deployment's own embed surface exists only where an operator configured one,
-so seeding asks that question per manifest and withdraws anything the deployment
-can no longer serve. That is the mechanism behind "a self-hosted install without
-the configuration never sees the app" — it is absent from the catalog rather than
-present and broken.
+Seeding is also what *removes* a shipped listing. The files are the whole truth
+about what this build offers, so anything in the catalog under ``builtin`` that
+no longer has a file is withdrawn on the next boot. Without that a listing
+dropped from the build stays on the shelf of every database that ever saw it.
+Withdrawn is not deleted: a guild that already installed it keeps its app.
 """
 
 from __future__ import annotations
@@ -29,6 +28,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.services.marketplace.catalog import (
     CatalogError,
     upsert_listing,
+    withdraw_builtins_except,
 )
 
 logger = logging.getLogger(__name__)
@@ -64,6 +64,12 @@ def load_builtin_manifests(directory: Path | None = None) -> Iterator[dict[str, 
         yield manifest
 
 
+def _manifest_file_count(directory: Path | None = None) -> int:
+    """How many listing files are on disk, readable or not."""
+    root = directory or CATALOG_DIR
+    return len(list(root.glob("*.json"))) if root.is_dir() else 0
+
+
 async def seed_builtin_listings(
     session: AsyncSession, directory: Path | None = None
 ) -> int:
@@ -72,16 +78,45 @@ async def seed_builtin_listings(
     Called from startup seeding on the system-engine session. Never raises: a bad
     manifest is a packaging bug to fix, not a reason to refuse to boot.
 
-    A listing this deployment cannot serve is withdrawn rather than skipped — an
-    operator who removes the configuration an app depends on has taken it away,
-    and the catalog has to stop offering it on the next boot rather than keep a
-    row nobody can use. Guilds that already installed it keep their app.
+    A shipped listing that is no longer shipped is withdrawn, so removing a file
+    from the build removes it from the shelf everywhere on the next boot rather
+    than leaving a row nobody can install. Guilds that already have it keep it.
     """
     seeded = 0
+    shipped: list[str] = []
+    read = 0
     for manifest in load_builtin_manifests(directory):
+        read += 1
+        # Recorded before the upsert, not after: a manifest this build ships but
+        # cannot validate is a packaging bug to fix, and withdrawing the working
+        # listing it replaces would turn that bug into data loss.
+        uid = manifest.get("uid")
+        if isinstance(uid, str) and uid:
+            shipped.append(uid)
         try:
             await upsert_listing(session, manifest, source="builtin")
             seeded += 1
         except CatalogError as exc:
             logger.warning("marketplace: skipping built-in listing: %s", exc)
+
+    # Whatever this build no longer ships stops being offered — but only when
+    # the whole shelf was readable. A file that could not be parsed leaves no
+    # uid behind, and sweeping on a partial list would withdraw a listing this
+    # build does ship.
+    on_disk = _manifest_file_count(directory)
+    if read < on_disk:
+        logger.warning(
+            "marketplace: %d of %d built-in listing files unreadable; "
+            "not withdrawing anything this pass",
+            on_disk - read,
+            on_disk,
+        )
+        return seeded
+
+    withdrawn = await withdraw_builtins_except(session, shipped)
+    if withdrawn:
+        logger.info(
+            "marketplace: withdrew %d built-in listing(s) this build no longer ships",
+            withdrawn,
+        )
     return seeded

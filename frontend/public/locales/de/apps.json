@@ -33,7 +33,8 @@
     "name": "Name",
     "action": "Zur Gilde hinzufügen",
     "done": "{{name}} hinzugefügt.",
-    "adminOnly": "Nur Gildenadmins können Apps hinzufügen."
+    "adminOnly": "Bitte eine Guild-Administratorin oder einen Guild-Administrator, diese App hinzuzufügen.",
+    "unknownState": "Es konnte nicht geprüft werden, ob diese App bereits hinzugefügt wurde."
   },
   "page": {
     "notFound": "App nicht gefunden",
@@ -94,5 +95,21 @@
     "revokeAllTitle": "Verbindungen aller Mitglieder entziehen?",
     "revokeAllBody": "Die hinterlegten Zugangsdaten jedes Mitglieds werden gelöscht und die App wird aufgefordert, sie nicht mehr zu nutzen. Die App bleibt installiert und behält ihre Gildeneinstellungen. Mitglieder können sich danach neu verbinden.",
     "revokedAll": "Alle Verbindungen entzogen."
-  }
+  },
+  "showMore": "{{count}} weitere",
+  "showFewer": "Weniger anzeigen",
+  "settings": {
+    "description": "Lege fest, wie sich diese App verbindet."
+  },
+  "embed": {
+    "connecting": "Verbinden…",
+    "handoffFailed": "Diese App konnte nicht geöffnet werden. Versuche es gleich noch einmal.",
+    "failed": "Diese App konnte nicht geöffnet werden",
+    "notFound": "App nicht gefunden",
+    "disabled": "{{name}} ist deaktiviert",
+    "unavailable": "{{name}} ist auf diesem Server nicht eingerichtet",
+    "unavailableDescription": "Eine Administratorin oder ein Administrator muss den Dienst dieser App verbinden, bevor sie geöffnet werden kann.",
+    "noSurface": "{{name}} hat keine eigene Seite"
+  },
+  "browse": "App-Store durchsuchen"
 }
