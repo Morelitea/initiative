@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The sidebar drops “All Projects” and “All Documents”.** Both are a keystroke away in the command palette, and the space now belongs to your guild's apps. The apps list also matches the initiatives list above it — the same expand control, and “Add an app” sits at the bottom where “Add initiative” does.
 - **A guild's front page is now a browser for its tools.** It was a fixed dashboard of personal statistics and activity cards — the same figures My Stats already gives you, mixed with a few shortcuts. In their place is a row of the guild's tools across the top: pick one and everything of that kind in the guild is listed underneath, whichever initiative it lives in, alongside that initiative, its tags, and when it last changed. Only the tools your initiatives actually use get a circle, and the tool you're looking at is part of the address, so the view can be bookmarked and shared.
+- **Focus settings on My Tasks are now a window per priority.** Instead of one date range for everything plus an "always include urgent and high" switch, each priority gets its own slider: how many days ahead the Focus list looks for that priority, from today-and-overdue only up to a month out, or "any date" to keep that priority on the list whatever its deadline. Existing settings carry over.
 
 ## [0.62.1] - 2026-08-13
 

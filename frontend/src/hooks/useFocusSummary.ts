@@ -8,6 +8,7 @@ import type {
   ListMyTasksApiV1MeTasksGetParams,
   TaskListRead,
   TaskListResponse,
+  TaskPriority,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
   getListMyTasksApiV1MeTasksGetQueryKey,
@@ -22,26 +23,107 @@ export type FocusPin = {
   task_id: number;
 };
 
+/** How far ahead the section looks, per priority. */
+export type FocusHorizons = Record<TaskPriority, number>;
+
 export type FocusPreferences = {
   /** Section expanded or collapsed. */
   open: boolean;
-  /** Include tasks due within this many days (0 = due today or overdue). */
-  dueWithinDays: number;
-  /** Also include urgent/high priority tasks regardless of their due date. */
-  includeHighPriority: boolean;
+  /**
+   * Days ahead to look, one window per priority: 0 keeps a priority to work
+   * that is due today or overdue, and `FOCUS_HORIZON_ANY` drops the date test
+   * altogether so the priority always appears.
+   */
+  horizons: FocusHorizons;
   pins: FocusPin[];
 };
+
+/** Highest first: the order the settings list them in. */
+export const FOCUS_PRIORITIES = [
+  "urgent",
+  "high",
+  "medium",
+  "low",
+] as const satisfies readonly TaskPriority[];
+
+/** Top of the dated range — a month out is as far as "soon" stretches. */
+export const FOCUS_HORIZON_MAX_DAYS = 30;
+
+/**
+ * One stop past the top of the range: match the priority whatever its dates
+ * say. This is what keeps urgent work on the list when its deadline is months
+ * away — the case a pure day window cannot express.
+ */
+export const FOCUS_HORIZON_ANY = FOCUS_HORIZON_MAX_DAYS + 1;
 
 export const FOCUS_PREFERENCES_KEY = "my-tasks:focus";
 
 export const FOCUS_DEFAULTS: FocusPreferences = {
   open: true,
-  dueWithinDays: 2,
-  includeHighPriority: true,
+  horizons: {
+    urgent: FOCUS_HORIZON_ANY,
+    high: FOCUS_HORIZON_ANY,
+    medium: 2,
+    low: 2,
+  },
   pins: [],
 };
 
-export const FOCUS_DUE_WITHIN_CHOICES = [0, 2, 7] as const;
+/** The shape stored before the windows became per-priority. */
+type LegacyFocusPreferences = {
+  dueWithinDays?: unknown;
+  includeHighPriority?: unknown;
+};
+
+const clampHorizon = (value: unknown, fallback: number) =>
+  typeof value === "number" && Number.isFinite(value)
+    ? Math.min(FOCUS_HORIZON_ANY, Math.max(0, Math.round(value)))
+    : fallback;
+
+/**
+ * Read the per-priority windows out of a stored blob, which may predate them
+ * and is user-writable via the preferences API.
+ *
+ * A blob written by the old single-window settings still says what the user
+ * asked for, so it is carried across rather than reset: its day count becomes
+ * every priority's window, and its "always include urgent and high" switch
+ * becomes `FOCUS_HORIZON_ANY` on those two.
+ */
+export function resolveHorizons(raw: unknown): FocusHorizons {
+  const blob = (raw ?? {}) as { horizons?: unknown } & LegacyFocusPreferences;
+  const stored = (blob.horizons ?? null) as Partial<Record<string, unknown>> | null;
+  const legacyDays =
+    stored === null && typeof blob.dueWithinDays === "number"
+      ? clampHorizon(blob.dueWithinDays, FOCUS_DEFAULTS.horizons.medium)
+      : null;
+  const legacyAlwaysUrgent = blob.includeHighPriority !== false;
+
+  return Object.fromEntries(
+    FOCUS_PRIORITIES.map((priority) => {
+      const fallback =
+        legacyDays === null
+          ? FOCUS_DEFAULTS.horizons[priority]
+          : legacyAlwaysUrgent && (priority === "urgent" || priority === "high")
+            ? FOCUS_HORIZON_ANY
+            : legacyDays;
+      return [priority, clampHorizon(stored?.[priority], fallback)];
+    })
+  ) as FocusHorizons;
+}
+
+/**
+ * A stored blob read back as the current shape. Fields are picked out rather
+ * than spread, so a legacy key is translated once and then dropped instead of
+ * riding along in every later write.
+ */
+const normalizePreferences = (raw: unknown): FocusPreferences => {
+  const blob = (raw ?? {}) as Partial<FocusPreferences>;
+  return {
+    open: typeof blob.open === "boolean" ? blob.open : FOCUS_DEFAULTS.open,
+    horizons: resolveHorizons(raw),
+    pins: Array.isArray(blob.pins) ? blob.pins : [],
+  };
+};
 
 /**
  * Everything that is not finished. `backlog` belongs here as much as the other
@@ -49,7 +131,6 @@ export const FOCUS_DUE_WITHIN_CHOICES = [0, 2, 7] as const;
  * hides the bulk of most people's work — including tasks that are overdue.
  */
 const OPEN_CATEGORIES = ["backlog", "todo", "in_progress"];
-const URGENT_PRIORITIES = ["urgent", "high"];
 /**
  * The API's per-page maximum. There is deliberately no display cap on top of
  * it: a task either meets the rules and belongs on the list, or it does not.
@@ -62,24 +143,28 @@ const pinKey = (guildId: number | null | undefined, taskId: number) =>
 
 /**
  * Conditions for the rule-driven half of the section: open work that has come
- * due (or already started) within the window, or is explicitly urgent, plus
- * anything finished today so completions stay visible instead of vanishing the
- * moment they're checked off.
+ * due (or already started) within its priority's window, plus anything
+ * finished today so completions stay visible instead of vanishing the moment
+ * they're checked off.
  *
- * The window applies to `start_date` as well as `due_date`, matching how the
+ * Each window applies to `start_date` as well as `due_date`, matching how the
  * task table below groups by date (`getTaskDateStatus`): a task whose start
  * date has passed is work in hand even if nobody put a deadline on it.
+ *
+ * Priorities sharing a window share a leg, so the common case of two or three
+ * distinct settings stays a short payload rather than one pair of legs per
+ * priority.
  *
  * Exported for testing — the OR nesting is the part worth pinning down.
  */
 export function buildFocusConditions({
-  horizon,
-  includeHighPriority,
+  today,
+  horizons,
   completedSince,
 }: {
-  /** Far edge of the date window; both start and due dates are measured to it. */
-  horizon: Date;
-  includeHighPriority: boolean;
+  /** Local midnight; each priority's window is measured forward from here. */
+  today: Date;
+  horizons: FocusHorizons;
   completedSince: Date;
 }): FilterGroup[] {
   const stillOpen: FilterCondition = {
@@ -88,25 +173,33 @@ export function buildFocusConditions({
     value: OPEN_CATEGORIES,
   };
 
-  // "Open AND (due soon OR started OR urgent)" is written out as sibling AND
-  // legs rather than nesting an OR inside the AND: the API caps condition
-  // nesting at two group levels and rejects a third outright. Distributing the
-  // shared leg costs one duplicated leaf per branch and keeps the same meaning.
-  const legs: FilterGroup[] = [
-    {
-      logic: "and",
-      conditions: [stillOpen, { field: "due_date", op: "lte", value: horizon.toISOString() }],
-    },
-    {
-      logic: "and",
-      conditions: [stillOpen, { field: "start_date", op: "lte", value: horizon.toISOString() }],
-    },
-  ];
+  const byWindow = new Map<number, TaskPriority[]>();
+  for (const priority of FOCUS_PRIORITIES) {
+    const days = horizons[priority];
+    byWindow.set(days, [...(byWindow.get(days) ?? []), priority]);
+  }
 
-  if (includeHighPriority) {
+  // "Open AND priority AND (due soon OR started)" is written out as sibling
+  // AND legs rather than nesting an OR inside the AND: the API caps condition
+  // nesting at two group levels and rejects a third outright. Distributing the
+  // shared leaves costs a little duplication and keeps the same meaning.
+  const legs: FilterGroup[] = [];
+  for (const [days, priorities] of [...byWindow].sort(([a], [b]) => a - b)) {
+    const atPriority: FilterCondition = { field: "priority", op: "in_", value: priorities };
+
+    if (days >= FOCUS_HORIZON_ANY) {
+      legs.push({ logic: "and", conditions: [stillOpen, atPriority] });
+      continue;
+    }
+
+    const horizon = endOfDay(addDays(today, days)).toISOString();
     legs.push({
       logic: "and",
-      conditions: [stillOpen, { field: "priority", op: "in_", value: URGENT_PRIORITIES }],
+      conditions: [stillOpen, atPriority, { field: "due_date", op: "lte", value: horizon }],
+    });
+    legs.push({
+      logic: "and",
+      conditions: [stillOpen, atPriority, { field: "start_date", op: "lte", value: horizon }],
     });
   }
 
@@ -165,14 +258,7 @@ export function useFocusSummary({ enabled = true }: { enabled?: boolean } = {}) 
   );
 
   // A stored blob predates any later field, and is user-writable via the API.
-  const prefs = useMemo<FocusPreferences>(
-    () => ({
-      ...FOCUS_DEFAULTS,
-      ...prefsRaw,
-      pins: Array.isArray(prefsRaw?.pins) ? prefsRaw.pins : [],
-    }),
-    [prefsRaw]
-  );
+  const prefs = useMemo<FocusPreferences>(() => normalizePreferences(prefsRaw), [prefsRaw]);
 
   const timezone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
 
@@ -186,8 +272,8 @@ export function useFocusSummary({ enabled = true }: { enabled?: boolean } = {}) 
   const ruleParams = useMemo<ListMyTasksApiV1MeTasksGetParams>(
     () => ({
       conditions: buildFocusConditions({
-        horizon: endOfDay(addDays(new Date(today), prefs.dueWithinDays)),
-        includeHighPriority: prefs.includeHighPriority,
+        today: new Date(today),
+        horizons: prefs.horizons,
         completedSince: new Date(today),
       }),
       page: 1,
@@ -195,7 +281,7 @@ export function useFocusSummary({ enabled = true }: { enabled?: boolean } = {}) 
       sorting: [{ field: "due_date", dir: "asc" }],
       tz: timezone,
     }),
-    [today, prefs.dueWithinDays, prefs.includeHighPriority, timezone]
+    [today, prefs.horizons, timezone]
   );
 
   const ruleQuery = useQuery<TaskListResponse>({
@@ -239,14 +325,13 @@ export function useFocusSummary({ enabled = true }: { enabled?: boolean } = {}) 
     (task: Pick<TaskListRead, "id" | "guild_id">) => {
       const key = pinKey(task.guild_id, task.id);
       setPrefs((prev) => {
-        const current = Array.isArray(prev?.pins) ? prev.pins : [];
-        const without = current.filter((pin) => pinKey(pin.guild_id, pin.task_id) !== key);
+        const current = normalizePreferences(prev);
+        const without = current.pins.filter((pin) => pinKey(pin.guild_id, pin.task_id) !== key);
         return {
-          ...FOCUS_DEFAULTS,
-          ...prev,
+          ...current,
           pins:
-            without.length === current.length
-              ? [...current, { guild_id: task.guild_id ?? null, task_id: task.id }]
+            without.length === current.pins.length
+              ? [...current.pins, { guild_id: task.guild_id ?? null, task_id: task.id }]
               : without,
         };
       });
@@ -256,7 +341,28 @@ export function useFocusSummary({ enabled = true }: { enabled?: boolean } = {}) 
 
   const setPreference = useCallback(
     <K extends keyof FocusPreferences>(key: K, value: FocusPreferences[K]) => {
-      setPrefs((prev) => ({ ...FOCUS_DEFAULTS, ...prev, [key]: value }));
+      setPrefs((prev) => ({ ...normalizePreferences(prev), [key]: value }));
+    },
+    [setPrefs]
+  );
+
+  /**
+   * Widen or narrow one priority's window. Written off `prev` rather than the
+   * rendered value so dragging one slider never writes back a neighbour's
+   * pre-drag setting.
+   */
+  const setHorizon = useCallback(
+    (priority: TaskPriority, days: number) => {
+      setPrefs((prev) => {
+        const current = normalizePreferences(prev);
+        return {
+          ...current,
+          horizons: {
+            ...current.horizons,
+            [priority]: clampHorizon(days, current.horizons[priority]),
+          },
+        };
+      });
     },
     [setPrefs]
   );
@@ -322,13 +428,13 @@ export function useFocusSummary({ enabled = true }: { enabled?: boolean } = {}) 
   useEffect(() => {
     if (!staleIds) return;
     const stale = new Set(staleIds.split("|"));
-    setPrefs((prev) => ({
-      ...FOCUS_DEFAULTS,
-      ...prev,
-      pins: (Array.isArray(prev?.pins) ? prev.pins : []).filter(
-        (pin) => !stale.has(pinKey(pin.guild_id, pin.task_id))
-      ),
-    }));
+    setPrefs((prev) => {
+      const current = normalizePreferences(prev);
+      return {
+        ...current,
+        pins: current.pins.filter((pin) => !stale.has(pinKey(pin.guild_id, pin.task_id))),
+      };
+    });
   }, [staleIds, setPrefs]);
 
   const remainingCount = derived.pinned.length + derived.upcoming.length;
@@ -341,6 +447,7 @@ export function useFocusSummary({ enabled = true }: { enabled?: boolean } = {}) 
     ...visible,
     prefs,
     setPreference,
+    setHorizon,
     isPinned,
     togglePin,
     /** Everything on today's list, done or not — the progress denominator. */

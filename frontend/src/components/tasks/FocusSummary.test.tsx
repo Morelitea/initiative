@@ -9,6 +9,7 @@ import { createTestQueryClient, renderPage } from "@/__tests__/helpers/render";
 import { FocusSummary } from "@/components/tasks/FocusSummary";
 import {
   FOCUS_DEFAULTS,
+  FOCUS_HORIZON_ANY,
   FOCUS_PREFERENCES_KEY,
   type FocusPreferences,
   useFocusSummary,
@@ -45,10 +46,14 @@ function mockMyTasks({ rules, pins }: Payloads) {
   );
 }
 
-function renderFocus(prefs: Partial<FocusPreferences> = {}) {
+/**
+ * `stored` is the blob exactly as the preferences API would hand it back —
+ * used to seed shapes the current defaults would otherwise paper over.
+ */
+function renderFocus(prefs: Partial<FocusPreferences> = {}, stored?: unknown) {
   const queryClient = createTestQueryClient();
   queryClient.setQueryData(VIEW_PREFERENCES_QUERY_KEY, {
-    items: { [FOCUS_PREFERENCES_KEY]: { ...FOCUS_DEFAULTS, ...prefs } },
+    items: { [FOCUS_PREFERENCES_KEY]: stored ?? { ...FOCUS_DEFAULTS, ...prefs } },
   });
 
   const changeTaskStatus = vi.fn().mockResolvedValue(undefined);
@@ -107,9 +112,11 @@ describe("FocusSummary", () => {
     expect(screen.getByText("1 of 3 done")).toBeInTheDocument();
   });
 
-  it("asks for due-soon work, started work, urgent work, and today's completions in one query", async () => {
+  it("asks each priority for its own window, plus today's completions, in one query", async () => {
     mockMyTasks({});
-    renderFocus({ dueWithinDays: 2, includeHighPriority: true });
+    renderFocus({
+      horizons: { urgent: FOCUS_HORIZON_ANY, high: FOCUS_HORIZON_ANY, medium: 2, low: 0 },
+    });
 
     await waitFor(() => expect(captured.length).toBeGreaterThan(0));
     const conditions = JSON.parse(captured[0].get("conditions") ?? "[]");
@@ -122,32 +129,48 @@ describe("FocusSummary", () => {
       op: "in_",
       value: ["backlog", "todo", "in_progress"],
     };
-    const [dueLeg, startLeg, urgentLeg, doneLeg] = conditions[0].conditions;
+    const [lowDue, lowStart, mediumDue, mediumStart, alwaysLeg, doneLeg] = conditions[0].conditions;
 
-    // Due-soon OR started OR urgent, as sibling AND legs. Two things ride on
-    // this shape: an AND between date and priority would empty the list on
-    // exactly the days it matters most, and a third level of nesting is
-    // rejected outright by the API's group-depth cap.
-    expect(dueLeg.conditions).toEqual([
+    // Per priority: due-soon OR started, as sibling AND legs. Two things ride
+    // on this shape: an AND between the two dates would drop work carrying
+    // only one of them, and a third level of nesting is rejected outright by
+    // the API's group-depth cap.
+    expect(lowDue.conditions).toEqual([
       stillOpen,
+      { field: "priority", op: "in_", value: ["low"] },
       { field: "due_date", op: "lte", value: expect.any(String) },
     ]);
-    expect(startLeg.conditions).toEqual([
+    expect(lowStart.conditions).toEqual([
       stillOpen,
+      { field: "priority", op: "in_", value: ["low"] },
       { field: "start_date", op: "lte", value: expect.any(String) },
     ]);
-    expect(urgentLeg.conditions).toEqual([
+    expect(mediumDue.conditions[1]).toEqual({
+      field: "priority",
+      op: "in_",
+      value: ["medium"],
+    });
+    expect(mediumStart.conditions[2].field).toBe("start_date");
+
+    // Priorities set to "any date" share one leg and carry no date test at
+    // all — that is what keeps urgent work with a distant deadline on the list.
+    expect(alwaysLeg.conditions).toEqual([
       stillOpen,
       { field: "priority", op: "in_", value: ["urgent", "high"] },
     ]);
+
     expect(doneLeg.conditions).toEqual([
       { field: "status_category", op: "in_", value: ["done"] },
       { field: "completed_at", op: "gte", value: expect.any(String) },
     ]);
 
-    // Both dates are measured to the same edge of the window, so the setting
+    // Both dates are measured to the same edge of the window, so one slider
     // means one thing rather than two.
-    expect(startLeg.conditions[1].value).toBe(dueLeg.conditions[1].value);
+    expect(lowStart.conditions[2].value).toBe(lowDue.conditions[2].value);
+    // A wider window reaches further out than a narrower one.
+    expect(new Date(mediumDue.conditions[2].value).getTime()).toBeGreaterThan(
+      new Date(lowDue.conditions[2].value).getTime()
+    );
 
     // The list spans every guild the user belongs to and answers only to its
     // own settings — it is not scoped by the guild you happen to be viewing,
@@ -223,17 +246,77 @@ describe("FocusSummary", () => {
     expect(groupDepth(conditions)).toBeLessThanOrEqual(2);
   });
 
-  it("drops the priority leg when the user turns urgent work off", async () => {
+  it("holds a priority to overdue and today's work at the bottom of its range", async () => {
     mockMyTasks({});
-    renderFocus({ includeHighPriority: false });
+    renderFocus({ horizons: { urgent: 0, high: 0, medium: 0, low: 0 } });
 
     await waitFor(() => expect(captured.length).toBeGreaterThan(0));
     const conditions = JSON.parse(captured[0].get("conditions") ?? "[]");
 
-    const fields = conditions[0].conditions.flatMap((leg: { conditions: { field: string }[] }) =>
-      leg.conditions.map((c) => c.field)
+    // One shared window means one pair of legs, not one pair per priority.
+    const [dueLeg, startLeg, doneLeg] = conditions[0].conditions;
+    expect(conditions[0].conditions).toHaveLength(3);
+    expect(dueLeg.conditions[1].value).toEqual(["urgent", "high", "medium", "low"]);
+    expect(startLeg.conditions[2].field).toBe("start_date");
+    expect(doneLeg.conditions[0].value).toEqual(["done"]);
+
+    // The window still ends at tonight, so anything already overdue matches.
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
+    expect(new Date(dueLeg.conditions[2].value).getTime()).toBe(endOfToday.getTime());
+  });
+
+  it("carries the old single-window settings over to the per-priority ones", async () => {
+    // A blob written before the sliders still says what the user asked for:
+    // "everything due within a week, plus urgent and high whenever they land".
+    mockMyTasks({});
+    renderFocus({}, { open: true, dueWithinDays: 7, includeHighPriority: true, pins: [] });
+
+    await waitFor(() => expect(captured.length).toBeGreaterThan(0));
+    const conditions = JSON.parse(captured[0].get("conditions") ?? "[]");
+    const [dueLeg, startLeg, alwaysLeg] = conditions[0].conditions;
+
+    expect(dueLeg.conditions[1].value).toEqual(["medium", "low"]);
+    expect(startLeg.conditions[1].value).toEqual(["medium", "low"]);
+    expect(alwaysLeg.conditions).toEqual([
+      { field: "status_category", op: "in_", value: ["backlog", "todo", "in_progress"] },
+      { field: "priority", op: "in_", value: ["urgent", "high"] },
+    ]);
+
+    const weekOut = new Date();
+    weekOut.setDate(weekOut.getDate() + 7);
+    weekOut.setHours(23, 59, 59, 999);
+    expect(new Date(dueLeg.conditions[2].value).getTime()).toBe(weekOut.getTime());
+  });
+
+  it("narrows one priority's window from the settings without touching the others", async () => {
+    mockMyTasks({});
+    renderFocus({ horizons: { urgent: FOCUS_HORIZON_ANY, high: 7, medium: 2, low: 2 } });
+
+    await userEvent.click(await screen.findByLabelText("Focus settings"));
+
+    const high = await screen.findByRole("slider", { name: "High" });
+    expect(high).toHaveAttribute("aria-valuenow", "7");
+
+    high.focus();
+    await userEvent.keyboard("{ArrowLeft}");
+
+    await waitFor(() => expect(high).toHaveAttribute("aria-valuenow", "6"));
+    // Its neighbours keep their own windows.
+    expect(screen.getByRole("slider", { name: "Medium" })).toHaveAttribute("aria-valuenow", "2");
+    expect(screen.getByRole("slider", { name: "Urgent" })).toHaveAttribute(
+      "aria-valuenow",
+      String(FOCUS_HORIZON_ANY)
     );
-    expect(fields).not.toContain("priority");
+
+    await waitFor(() => {
+      const latest = JSON.parse(captured.at(-1)?.get("conditions") ?? "[]");
+      const priorities = latest[0].conditions.flatMap(
+        (leg: { conditions: { field: string; value: unknown }[] }) =>
+          leg.conditions.filter((c) => c.field === "priority").map((c) => c.value)
+      );
+      expect(priorities).toContainEqual(["high"]);
+    });
   });
 
   it("shows every task that matches, with no cutoff", async () => {
