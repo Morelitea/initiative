@@ -177,6 +177,9 @@ guild_router.include_router(
 # dashboards router uses for its own widget catalog.
 guild_router.include_router(app_data.router, prefix="/apps", tags=["apps"])
 guild_router.include_router(guild_apps.router, prefix="/apps", tags=["apps"])
+# The same installs reached from inside one initiative. Its own router because
+# the initiative leads the path: it is what the request is scoped to.
+guild_router.include_router(guild_apps.initiative_router, tags=["apps"])
 guild_router.include_router(
     calendar_events.router, prefix="/calendar-events", tags=["calendar-events"]
 )

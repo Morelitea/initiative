@@ -32,7 +32,11 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
-from app.core.messages import AppServiceMessages, GuildAppMessages
+from app.core.messages import (
+    AppServiceMessages,
+    GuildAppMessages,
+    InitiativeMessages,
+)
 from app.models.platform.guild import GuildRole
 from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.testing import (
@@ -410,6 +414,185 @@ class TestHandoff:
         )
         assert response.status_code == 409
         assert response.json()["detail"] == GuildAppMessages.SERVICE_NOT_REGISTERED
+
+
+class TestInitiativeHandoff:
+    """The same install, opened from inside one initiative.
+
+    Three gates stack here, and each is asserted on its own: the initiative has
+    to be one the caller can reach, the surface has to have asked to render in
+    an initiative, and the rung is then read *here* — where ``member`` means
+    this initiative's members rather than the guild's.
+    """
+
+    @pytest.fixture(autouse=True)
+    def signing_key(self, monkeypatch):
+        monkeypatch.setattr(
+            settings, "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM", _SIGNING_KEY_PEM
+        )
+        monkeypatch.setattr(settings, "APP_PLATFORM_SIGNING_KEY_ID", "test-key")
+
+    @staticmethod
+    def _claims(body: dict) -> dict:
+        return jwt.decode(
+            body["handoff_token"],
+            options={"verify_signature": False},
+            audience=body["audience"],
+        )
+
+    @staticmethod
+    def _path(actor, initiative_id: int, app_id: int, surface: str) -> str:
+        return actor.g(f"/initiatives/{initiative_id}/apps/{app_id}/handoff/{surface}")
+
+    async def test_a_manager_opens_the_surface_named_for_them(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        app = await _installed(session, a)
+        pm = await acting_user(
+            guild_role=GuildRole.member,
+            guild=a.guild,
+            initiative=a.initiative,
+            initiative_role="project_manager",
+        )
+
+        response = await client.post(
+            self._path(pm, a.initiative.id, app.id, "runs"), headers=pm.headers
+        )
+        assert response.status_code == 200, response.text
+
+    async def test_the_token_names_the_initiative_it_was_opened_in(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        """The route's answer, not the caller's — so an app can scope what it
+        shows without trusting a parameter or asking a second question."""
+        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        app = await _installed(session, a)
+
+        body = (
+            await client.post(
+                self._path(a, a.initiative.id, app.id, "runs"), headers=a.headers
+            )
+        ).json()
+        claims = self._claims(body)
+        assert claims["initiative_id"] == a.initiative.id
+        assert claims["guild_id"] == a.guild.id
+        assert claims["app_install_id"] == app.id
+        assert claims["surface_id"] == "runs"
+
+    async def test_the_guild_wide_route_names_no_initiative(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        """Absent rather than null: "which initiative is this?" has one answer
+        guild-wide, not two shapes that both mean none."""
+        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        app = await _installed(session, a)
+
+        body = (
+            await client.post(a.g(f"/apps/{app.id}/handoff/runs"), headers=a.headers)
+        ).json()
+        assert "initiative_id" not in self._claims(body)
+
+    async def test_a_member_of_the_initiative_is_not_a_manager_of_it(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        app = await _installed(session, a)
+        member = await acting_user(
+            guild_role=GuildRole.member,
+            guild=a.guild,
+            initiative=a.initiative,
+            initiative_role="member",
+        )
+
+        response = await client.post(
+            self._path(member, a.initiative.id, app.id, "runs"), headers=member.headers
+        )
+        assert response.status_code == 403
+        assert response.json()["detail"] == GuildAppMessages.SURFACE_ADMIN_ONLY
+
+    async def test_a_member_of_the_initiative_opens_a_member_surface(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        """The rung that is guild-wide on the other route is this initiative's
+        members here — the same word, read where it was opened."""
+        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        app = await _installed(session, a)
+        member = await acting_user(
+            guild_role=GuildRole.member,
+            guild=a.guild,
+            initiative=a.initiative,
+            initiative_role="member",
+        )
+
+        response = await client.post(
+            self._path(member, a.initiative.id, app.id, "inside"),
+            headers=member.headers,
+        )
+        assert response.status_code == 200, response.text
+        assert self._claims(response.json())["initiative_id"] == a.initiative.id
+
+    async def test_a_guild_member_in_no_initiative_reaches_none_of_it(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        """Opening a surface in an initiative means reaching the initiative,
+        under the same scope rule that governs its content."""
+        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        app = await _installed(session, a)
+        outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+
+        response = await client.post(
+            self._path(outsider, a.initiative.id, app.id, "inside"),
+            headers=outsider.headers,
+        )
+        assert response.status_code == 404
+        assert response.json()["detail"] == InitiativeMessages.NOT_FOUND
+
+    async def test_managing_one_initiative_says_nothing_about_another(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        app = await _installed(session, a)
+        elsewhere = await acting_user(
+            guild_role=GuildRole.member, guild=a.guild, initiative=True
+        )
+
+        response = await client.post(
+            self._path(elsewhere, a.initiative.id, app.id, "runs"),
+            headers=elsewhere.headers,
+        )
+        assert response.status_code == 404
+        assert response.json()["detail"] == InitiativeMessages.NOT_FOUND
+
+    async def test_a_guild_admin_reaches_an_initiative_they_are_not_in(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        """Nothing blocks a guild admin inside their own guild — not initiative
+        membership, and not a rung named for someone else."""
+        owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+        admin = await acting_user(guild_role=GuildRole.admin, guild=owner.guild)
+        app = await _installed(session, admin)
+
+        response = await client.post(
+            self._path(admin, owner.initiative.id, app.id, "runs"),
+            headers=admin.headers,
+        )
+        assert response.status_code == 200, response.text
+
+    async def test_a_guild_wide_surface_is_not_offered_in_here(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        """The mirror of the guild route's refusal. A surface that never asked
+        to render in an initiative must not pick one up as a claim."""
+        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        app = await _installed(session, a)
+
+        for surface in ("board", "console"):
+            response = await client.post(
+                self._path(a, a.initiative.id, app.id, surface), headers=a.headers
+            )
+            assert response.status_code == 404, response.text
+            assert response.json()["detail"] == GuildAppMessages.SURFACE_NOT_FOUND
 
 
 class TestHandoffWithoutASigningKey:
