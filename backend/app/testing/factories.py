@@ -35,6 +35,7 @@ from app.models.platform.marketplace import (
     UID_LENGTH,
 )
 from app.models.tenant.dashboard import Dashboard
+from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
@@ -858,7 +859,7 @@ async def create_guild_calendar(
 
     Belongs to no initiative, which is the whole of what makes it different: it
     holds its own events and reaches into nothing. Mirrors what
-    ``guild_apps.create_app_content`` builds, so a test exercises the same row
+    ``guild_apps.create_app_artifacts`` builds, so a test exercises the same row
     an install produces rather than an approximation of one.
     """
     await route_session_to_guild(session, guild.id)
@@ -900,6 +901,46 @@ async def create_guild_calendar(
         )
     await session.commit()
     return calendar
+
+
+async def create_guild_app(
+    session: AsyncSession,
+    guild: Guild,
+    creator: User,
+    *,
+    definition: dict[str, Any],
+    listing_uid: str = "TESTAPP0000001",
+    listing_version: str = "1.0.0",
+    name: str = "Test app",
+    **overrides: Any,
+) -> GuildApp:
+    """An installed app, written straight into the guild's schema.
+
+    Deliberately not routed through the install endpoint. A ``service`` app's
+    definition is publishable and storable today but the install path does not
+    mount one yet (``GUILD_INSTALLABLE_APP_KINDS``), and the configuration and
+    connection machinery it carries needs an install to exist to be exercised
+    at all. This is that install: the same row the endpoint will write once the
+    kind is admitted, so the tests hold the real endpoints rather than a mock.
+    """
+    await route_session_to_guild(session, guild.id)
+
+    app = GuildApp(
+        **{
+            "guild_id": guild.id,
+            "listing_uid": listing_uid,
+            "listing_version": listing_version,
+            "app_kind": definition.get("app_kind", "service"),
+            "name": name,
+            "definition": definition,
+            "installed_by_id": creator.id,
+            **overrides,
+        }
+    )
+    session.add(app)
+    await session.commit()
+    await session.refresh(app)
+    return app
 
 
 def marketplace_uid(label: str) -> str:

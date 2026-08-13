@@ -414,5 +414,16 @@
   "MARKETPLACE_REGISTRY_RESERVED_NAMESPACE": "Ese elemento usa un nombre de editor reservado para los elementos incluidos de serie, así que se ha omitido.",
   "MARKETPLACE_REGISTRY_ARTIFACT_UNREACHABLE": "No se ha podido descargar un archivo al que hace referencia el índice del registro.",
   "MARKETPLACE_REGISTRY_ARTIFACT_INVALID": "Un archivo al que hace referencia el índice del registro no coincide con lo que el índice indica.",
-  "MARKETPLACE_REGISTRY_LISTING_REJECTED": "Ese elemento se ha rechazado porque su contenido no es válido."
+  "MARKETPLACE_REGISTRY_LISTING_REJECTED": "Ese elemento se ha rechazado porque su contenido no es válido.",
+  "GUILD_APP_CONFIG_UNKNOWN_CONNECTION": "Esta aplicación no tiene ninguna conexión con ese nombre.",
+  "GUILD_APP_CONFIG_UNKNOWN_FIELD": "La conexión de esta aplicación no tiene ningún ajuste con ese nombre.",
+  "GUILD_APP_CONFIG_INVALID_VALUE": "Ese valor no es lo que espera este ajuste.",
+  "GUILD_APP_CONFIG_VALUE_TOO_LONG": "Ese valor es demasiado largo para este ajuste.",
+  "GUILD_APP_CONFIG_REQUIRED_FIELD": "Rellena todos los campos obligatorios antes de guardar.",
+  "GUILD_APP_CONFIG_MANAGED_FIELD": "La aplicación lo rellena sola al conectarte: aquí no puedes escribirlo.",
+  "GUILD_APP_CONNECTION_NOT_FOUND": "Esa conexión no forma parte de esta aplicación.",
+  "GUILD_APP_CONNECTION_NOT_INTERACTIVE": "Esta conexión usa una sola credencial para todo el gremio, así que no hay ninguna cuenta que conectar.",
+  "GUILD_APP_CONNECTION_NOT_STATIC": "Esta conexión es la de cada miembro, así que se conecta en lugar de rellenarse.",
+  "GUILD_APP_CONNECTION_BLOCKED": "Un administrador del gremio te ha impedido conectar esto.",
+  "GUILD_APP_DISABLED": "Esta aplicación está desactivada, así que no pasa nada por ella."
 }

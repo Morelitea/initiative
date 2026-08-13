@@ -521,6 +521,8 @@ async def _drop_user_memberships(session: AsyncSession, user_id: int) -> User:
     # commit here: we ``flush`` so the SQL lands in the shared transaction the
     # caller will commit once, preserving the atomicity guarantee. ``expunge_all``
     # between guilds avoids ORM identity-map collisions (ids repeat per schema).
+    from app.services.tenant import app_connections as app_connections_service
+
     for gid in guild_ids:
         session.expunge_all()
         await set_rls_context(session, guild_id=gid, guild_role="admin")
@@ -528,6 +530,14 @@ async def _drop_user_memberships(session: AsyncSession, user_id: int) -> User:
             session,
             guild_id=gid,
             user_id=user_id,
+        )
+        # Every app credential this person connected, in every guild they
+        # belong to — one sweep rather than a per-guild chore, because losing
+        # the account has to end the vendor access it opened. Routed as guild
+        # admin, which is what lets the own-row policy admit rows the acting
+        # session does not own (an admin removing somebody else's account).
+        await app_connections_service.delete_member_connections(
+            session, user_id=user_id, reason="account_closed"
         )
         await session.flush()
 
@@ -563,6 +573,7 @@ async def deactivate_user(session: AsyncSession, user_id: int) -> None:
     user.updated_at = datetime.now(timezone.utc)
     session.add(user)
     await session.commit()
+    await _dispatch_queued_revocations(session)
 
 
 async def _scrub_invites_addressed_to(
@@ -722,6 +733,22 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     # Single commit: membership removal + PII wipe + auth-artifact
     # revocation either all succeed or all roll back together.
     await session.commit()
+    await _dispatch_queued_revocations(session)
+
+
+async def _dispatch_queued_revocations(session: AsyncSession) -> None:
+    """Tell each app that this person's credentials are finished.
+
+    After the commit, always: an app told to let go of a credential the database
+    then kept would be the one disagreement worth avoiding. Delivery is
+    best-effort — the account is closed either way, and our own delete is the
+    authoritative half.
+    """
+    from app.services.tenant import app_revocation as app_revocation_service
+
+    await app_revocation_service.dispatch_revocations(
+        app_revocation_service.drain_revocations(session)
+    )
 
 
 class InvalidTransferRecipient(Exception):

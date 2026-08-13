@@ -603,6 +603,35 @@ class GuildAppMessages:
     #: here, and told so by name rather than half-mounted.
     KIND_NOT_INSTALLABLE = "GUILD_APP_KIND_NOT_INSTALLABLE"
 
+    # --- configuration ---
+    #: The request named a connection the pinned definition does not declare.
+    CONFIG_UNKNOWN_CONNECTION = "GUILD_APP_CONFIG_UNKNOWN_CONNECTION"
+    #: The request named a field that connection does not declare.
+    CONFIG_UNKNOWN_FIELD = "GUILD_APP_CONFIG_UNKNOWN_FIELD"
+    #: A value that does not match its declared type, or an empty one.
+    CONFIG_INVALID_VALUE = "GUILD_APP_CONFIG_INVALID_VALUE"
+    #: A value longer than this build stores for that field.
+    CONFIG_VALUE_TOO_LONG = "GUILD_APP_CONFIG_VALUE_TOO_LONG"
+    #: A required field left without a value.
+    CONFIG_REQUIRED_FIELD = "GUILD_APP_CONFIG_REQUIRED_FIELD"
+    #: A field the app writes back itself when it completes a vendor flow; the
+    #: settings form is not where it is set.
+    CONFIG_MANAGED_FIELD = "GUILD_APP_CONFIG_MANAGED_FIELD"
+
+    # --- connections ---
+    #: No such connection on this install, or no such member connection.
+    CONNECTION_NOT_FOUND = "GUILD_APP_CONNECTION_NOT_FOUND"
+    #: Connecting an account is for the connections a vendor authorizes per
+    #: person; a guild-wide credential is configured instead.
+    CONNECTION_NOT_INTERACTIVE = "GUILD_APP_CONNECTION_NOT_INTERACTIVE"
+    #: Guild-wide values are configured through the config endpoint; a
+    #: per-member connection is not.
+    CONNECTION_NOT_STATIC = "GUILD_APP_CONNECTION_NOT_STATIC"
+    #: A guild admin has stopped this member connecting this one.
+    CONNECTION_BLOCKED = "GUILD_APP_CONNECTION_BLOCKED"
+    #: The app is installed but turned off, so nothing flows through it.
+    DISABLED = "GUILD_APP_DISABLED"
+
 
 class AppServiceMessages:
     """Codes for the deployment-level app service registry.

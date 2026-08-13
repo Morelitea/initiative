@@ -21,8 +21,12 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  GuildAppConfigUpdate,
+  GuildAppConnectStart,
+  GuildAppDetail,
   GuildAppInstall,
   GuildAppListResponse,
+  GuildAppMembersResponse,
   GuildAppRead,
   GuildAppUpdate,
   HTTPValidationError,
@@ -195,6 +199,10 @@ export function useListGuildAppsApiV1GGuildIdAppsGet<
  * and from what the install creates here. One install per listing: an app
  * mounts a single guild-wide surface, so a second copy would have nothing to
  * be — rename or re-share the one that exists instead.
+ *
+ * Nothing about connections gates this. An app whose credentials are all
+ * supplied per member installs with none present, and members connect their
+ * own accounts afterwards if they want what those unlock.
  * @summary Install Guild App
  */
 export const installGuildAppApiV1GGuildIdAppsPost = (
@@ -282,6 +290,174 @@ export const useInstallGuildAppApiV1GGuildIdAppsPost = <
 > => {
   return useMutation(getInstallGuildAppApiV1GGuildIdAppsPostMutationOptions(options), queryClient);
 };
+/**
+ * One install with its connections, from the caller's own perspective.
+ *
+ * Any member may read this: the per-member connection blocks report the
+ * caller's own state, and a guild-scoped one reports presence rather than
+ * values, so there is nothing here that belongs to somebody else.
+ * @summary Get Guild App
+ */
+export const getGuildAppApiV1GGuildIdAppsAppIdGet = (
+  guildId: number,
+  appId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildAppDetail>(
+    { url: `/api/v1/g/${guildId}/apps/${appId}`, method: "GET", signal },
+    options
+  );
+};
+
+export const getGetGuildAppApiV1GGuildIdAppsAppIdGetQueryKey = (guildId: number, appId: number) => {
+  return [`/api/v1/g/${guildId}/apps/${appId}`] as const;
+};
+
+export const getGetGuildAppApiV1GGuildIdAppsAppIdGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getGuildAppApiV1GGuildIdAppsAppIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  appId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getGuildAppApiV1GGuildIdAppsAppIdGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetGuildAppApiV1GGuildIdAppsAppIdGetQueryKey(guildId, appId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getGuildAppApiV1GGuildIdAppsAppIdGet>>
+  > = ({ signal }) => getGuildAppApiV1GGuildIdAppsAppIdGet(guildId, appId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined && appId !== null && appId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getGuildAppApiV1GGuildIdAppsAppIdGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetGuildAppApiV1GGuildIdAppsAppIdGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getGuildAppApiV1GGuildIdAppsAppIdGet>>
+>;
+export type GetGuildAppApiV1GGuildIdAppsAppIdGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useGetGuildAppApiV1GGuildIdAppsAppIdGet<
+  TData = Awaited<ReturnType<typeof getGuildAppApiV1GGuildIdAppsAppIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  appId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getGuildAppApiV1GGuildIdAppsAppIdGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getGuildAppApiV1GGuildIdAppsAppIdGet>>,
+          TError,
+          Awaited<ReturnType<typeof getGuildAppApiV1GGuildIdAppsAppIdGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetGuildAppApiV1GGuildIdAppsAppIdGet<
+  TData = Awaited<ReturnType<typeof getGuildAppApiV1GGuildIdAppsAppIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  appId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getGuildAppApiV1GGuildIdAppsAppIdGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getGuildAppApiV1GGuildIdAppsAppIdGet>>,
+          TError,
+          Awaited<ReturnType<typeof getGuildAppApiV1GGuildIdAppsAppIdGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetGuildAppApiV1GGuildIdAppsAppIdGet<
+  TData = Awaited<ReturnType<typeof getGuildAppApiV1GGuildIdAppsAppIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  appId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getGuildAppApiV1GGuildIdAppsAppIdGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Guild App
+ */
+
+export function useGetGuildAppApiV1GGuildIdAppsAppIdGet<
+  TData = Awaited<ReturnType<typeof getGuildAppApiV1GGuildIdAppsAppIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  appId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getGuildAppApiV1GGuildIdAppsAppIdGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetGuildAppApiV1GGuildIdAppsAppIdGetQueryOptions(guildId, appId, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
 /**
  * Rename an app, or turn it off without removing what it created.
  * @summary Update Guild App
@@ -376,11 +552,14 @@ export const useUpdateGuildAppApiV1GGuildIdAppsAppIdPatch = <
   );
 };
 /**
- * Remove an app, moving what it created to the trash.
+ * Remove an app, ending its access and trashing what it created.
  *
- * Trashed rather than deleted: the events someone put in a guild calendar
- * should survive an admin removing the app, for as long as the guild's
- * retention window allows.
+ * The two halves are deliberately different. **Credentials are deleted**, both
+ * the guild's and every member's, and each app is told to let go at the vendor
+ * — an uninstalled app still receiving a guild's data is the thing this
+ * prevents. **Content is trashed**, because the events someone put in a guild
+ * calendar are the guild's, and should survive an admin removing the app for
+ * as long as the retention window allows.
  * @summary Uninstall Guild App
  */
 export const uninstallGuildAppApiV1GGuildIdAppsAppIdDelete = (
@@ -463,6 +642,1090 @@ export const useUninstallGuildAppApiV1GGuildIdAppsAppIdDelete = <
 > => {
   return useMutation(
     getUninstallGuildAppApiV1GGuildIdAppsAppIdDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Re-pin an installed app to its listing's current version.
+ *
+ * Nothing is ever pushed into a guild: a new version sits in the catalog until
+ * an admin here asks for it. Applying one replaces this install's definition
+ * and leaves everything else alone.
+ *
+ * Stored configuration survives, minus anything the new version stopped
+ * declaring — a value cannot outlive the field it was typed into. Per-member
+ * connections the new version dropped go the same way, and are revoked rather
+ * than orphaned.
+ * @summary Upgrade Guild App
+ */
+export const upgradeGuildAppApiV1GGuildIdAppsAppIdUpgradePost = (
+  guildId: number,
+  appId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildAppDetail>(
+    { url: `/api/v1/g/${guildId}/apps/${appId}/upgrade`, method: "POST", signal },
+    options
+  );
+};
+
+export const getUpgradeGuildAppApiV1GGuildIdAppsAppIdUpgradePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upgradeGuildAppApiV1GGuildIdAppsAppIdUpgradePost>>,
+    TError,
+    { guildId: number; appId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof upgradeGuildAppApiV1GGuildIdAppsAppIdUpgradePost>>,
+  TError,
+  { guildId: number; appId: number },
+  TContext
+> => {
+  const mutationKey = ["upgradeGuildAppApiV1GGuildIdAppsAppIdUpgradePost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof upgradeGuildAppApiV1GGuildIdAppsAppIdUpgradePost>>,
+    { guildId: number; appId: number }
+  > = (props) => {
+    const { guildId, appId } = props ?? {};
+
+    return upgradeGuildAppApiV1GGuildIdAppsAppIdUpgradePost(guildId, appId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpgradeGuildAppApiV1GGuildIdAppsAppIdUpgradePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof upgradeGuildAppApiV1GGuildIdAppsAppIdUpgradePost>>
+>;
+
+export type UpgradeGuildAppApiV1GGuildIdAppsAppIdUpgradePostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Upgrade Guild App
+ */
+export const useUpgradeGuildAppApiV1GGuildIdAppsAppIdUpgradePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof upgradeGuildAppApiV1GGuildIdAppsAppIdUpgradePost>>,
+      TError,
+      { guildId: number; appId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof upgradeGuildAppApiV1GGuildIdAppsAppIdUpgradePost>>,
+  TError,
+  { guildId: number; appId: number },
+  TContext
+> => {
+  return useMutation(
+    getUpgradeGuildAppApiV1GGuildIdAppsAppIdUpgradePostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Set the guild-wide values an app's connections ask for.
+ *
+ * Validated against the *pinned* definition, so what an install accepts is the
+ * form it was configured against rather than whatever the catalog says today.
+ * Secret fields are encrypted on the way in and never come back out; the
+ * response reports which fields hold a value.
+ *
+ * Only guild-scoped connections are settable here. A per-member one is that
+ * member's to make, and the fields an app marks ``managed`` arrive on the
+ * app's own write-back path rather than through a form.
+ * @summary Update Guild App Config
+ */
+export const updateGuildAppConfigApiV1GGuildIdAppsAppIdConfigPut = (
+  guildId: number,
+  appId: number,
+  guildAppConfigUpdate: BodyType<GuildAppConfigUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildAppDetail>(
+    {
+      url: `/api/v1/g/${guildId}/apps/${appId}/config`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: guildAppConfigUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUpdateGuildAppConfigApiV1GGuildIdAppsAppIdConfigPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateGuildAppConfigApiV1GGuildIdAppsAppIdConfigPut>>,
+    TError,
+    { guildId: number; appId: number; data: BodyType<GuildAppConfigUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateGuildAppConfigApiV1GGuildIdAppsAppIdConfigPut>>,
+  TError,
+  { guildId: number; appId: number; data: BodyType<GuildAppConfigUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateGuildAppConfigApiV1GGuildIdAppsAppIdConfigPut"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateGuildAppConfigApiV1GGuildIdAppsAppIdConfigPut>>,
+    { guildId: number; appId: number; data: BodyType<GuildAppConfigUpdate> }
+  > = (props) => {
+    const { guildId, appId, data } = props ?? {};
+
+    return updateGuildAppConfigApiV1GGuildIdAppsAppIdConfigPut(
+      guildId,
+      appId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateGuildAppConfigApiV1GGuildIdAppsAppIdConfigPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateGuildAppConfigApiV1GGuildIdAppsAppIdConfigPut>>
+>;
+export type UpdateGuildAppConfigApiV1GGuildIdAppsAppIdConfigPutMutationBody =
+  BodyType<GuildAppConfigUpdate>;
+export type UpdateGuildAppConfigApiV1GGuildIdAppsAppIdConfigPutMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Update Guild App Config
+ */
+export const useUpdateGuildAppConfigApiV1GGuildIdAppsAppIdConfigPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateGuildAppConfigApiV1GGuildIdAppsAppIdConfigPut>>,
+      TError,
+      { guildId: number; appId: number; data: BodyType<GuildAppConfigUpdate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateGuildAppConfigApiV1GGuildIdAppsAppIdConfigPut>>,
+  TError,
+  { guildId: number; appId: number; data: BodyType<GuildAppConfigUpdate> },
+  TContext
+> => {
+  return useMutation(
+    getUpdateGuildAppConfigApiV1GGuildIdAppsAppIdConfigPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Start this member's own connection to an app's vendor.
+ *
+ * Any member may: the vendor is going to authorize *them*, and what the
+ * resulting credential reaches is what they already reach. The row and its
+ * opaque handle are minted here so the app has something to write its result
+ * against; the vendor flow itself runs at the app's own URL.
+ * @summary Connect Guild App
+ */
+export const connectGuildAppApiV1GGuildIdAppsAppIdConnectionsConnectionIdConnectPost = (
+  guildId: number,
+  appId: number,
+  connectionId: string,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildAppConnectStart>(
+    {
+      url: `/api/v1/g/${guildId}/apps/${appId}/connections/${connectionId}/connect`,
+      method: "POST",
+      signal,
+    },
+    options
+  );
+};
+
+export const getConnectGuildAppApiV1GGuildIdAppsAppIdConnectionsConnectionIdConnectPostMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof connectGuildAppApiV1GGuildIdAppsAppIdConnectionsConnectionIdConnectPost>
+      >,
+      TError,
+      { guildId: number; appId: number; connectionId: string },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof connectGuildAppApiV1GGuildIdAppsAppIdConnectionsConnectionIdConnectPost>
+    >,
+    TError,
+    { guildId: number; appId: number; connectionId: string },
+    TContext
+  > => {
+    const mutationKey = ["connectGuildAppApiV1GGuildIdAppsAppIdConnectionsConnectionIdConnectPost"];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof connectGuildAppApiV1GGuildIdAppsAppIdConnectionsConnectionIdConnectPost>
+      >,
+      { guildId: number; appId: number; connectionId: string }
+    > = (props) => {
+      const { guildId, appId, connectionId } = props ?? {};
+
+      return connectGuildAppApiV1GGuildIdAppsAppIdConnectionsConnectionIdConnectPost(
+        guildId,
+        appId,
+        connectionId,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type ConnectGuildAppApiV1GGuildIdAppsAppIdConnectionsConnectionIdConnectPostMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof connectGuildAppApiV1GGuildIdAppsAppIdConnectionsConnectionIdConnectPost>
+    >
+  >;
+
+export type ConnectGuildAppApiV1GGuildIdAppsAppIdConnectionsConnectionIdConnectPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Connect Guild App
+ */
+export const useConnectGuildAppApiV1GGuildIdAppsAppIdConnectionsConnectionIdConnectPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof connectGuildAppApiV1GGuildIdAppsAppIdConnectionsConnectionIdConnectPost>
+      >,
+      TError,
+      { guildId: number; appId: number; connectionId: string },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof connectGuildAppApiV1GGuildIdAppsAppIdConnectionsConnectionIdConnectPost>
+  >,
+  TError,
+  { guildId: number; appId: number; connectionId: string },
+  TContext
+> => {
+  return useMutation(
+    getConnectGuildAppApiV1GGuildIdAppsAppIdConnectionsConnectionIdConnectPostMutationOptions(
+      options
+    ),
+    queryClient
+  );
+};
+/**
+ * Disconnect: a member's own account, or a guild-wide credential.
+ *
+ * Which one depends on the connection's scope, not on who is asking. A
+ * per-member connection is always the caller's own — an admin ending somebody
+ * else's uses the Members endpoints, which record who acted. Clearing a
+ * guild-wide credential is an admin action, since it is the guild's.
+ * @summary Disconnect Guild App
+ */
+export const disconnectGuildAppApiV1GGuildIdAppsAppIdConnectionsConnectionIdDelete = (
+  guildId: number,
+  appId: number,
+  connectionId: string,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    {
+      url: `/api/v1/g/${guildId}/apps/${appId}/connections/${connectionId}`,
+      method: "DELETE",
+      signal,
+    },
+    options
+  );
+};
+
+export const getDisconnectGuildAppApiV1GGuildIdAppsAppIdConnectionsConnectionIdDeleteMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof disconnectGuildAppApiV1GGuildIdAppsAppIdConnectionsConnectionIdDelete>
+      >,
+      TError,
+      { guildId: number; appId: number; connectionId: string },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof disconnectGuildAppApiV1GGuildIdAppsAppIdConnectionsConnectionIdDelete>
+    >,
+    TError,
+    { guildId: number; appId: number; connectionId: string },
+    TContext
+  > => {
+    const mutationKey = ["disconnectGuildAppApiV1GGuildIdAppsAppIdConnectionsConnectionIdDelete"];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof disconnectGuildAppApiV1GGuildIdAppsAppIdConnectionsConnectionIdDelete>
+      >,
+      { guildId: number; appId: number; connectionId: string }
+    > = (props) => {
+      const { guildId, appId, connectionId } = props ?? {};
+
+      return disconnectGuildAppApiV1GGuildIdAppsAppIdConnectionsConnectionIdDelete(
+        guildId,
+        appId,
+        connectionId,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type DisconnectGuildAppApiV1GGuildIdAppsAppIdConnectionsConnectionIdDeleteMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof disconnectGuildAppApiV1GGuildIdAppsAppIdConnectionsConnectionIdDelete>
+    >
+  >;
+
+export type DisconnectGuildAppApiV1GGuildIdAppsAppIdConnectionsConnectionIdDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Disconnect Guild App
+ */
+export const useDisconnectGuildAppApiV1GGuildIdAppsAppIdConnectionsConnectionIdDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof disconnectGuildAppApiV1GGuildIdAppsAppIdConnectionsConnectionIdDelete>
+      >,
+      TError,
+      { guildId: number; appId: number; connectionId: string },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof disconnectGuildAppApiV1GGuildIdAppsAppIdConnectionsConnectionIdDelete>>,
+  TError,
+  { guildId: number; appId: number; connectionId: string },
+  TContext
+> => {
+  return useMutation(
+    getDisconnectGuildAppApiV1GGuildIdAppsAppIdConnectionsConnectionIdDeleteMutationOptions(
+      options
+    ),
+    queryClient
+  );
+};
+/**
+ * Who has connected which of this app's per-member connections.
+ *
+ * Guild admins only, and never secret values: what this supports is governance
+ * — seeing which vendor account somebody connected as, and ending it — rather
+ * than looking at credentials.
+ * @summary List Guild App Members
+ */
+export const listGuildAppMembersApiV1GGuildIdAppsAppIdMembersGet = (
+  guildId: number,
+  appId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildAppMembersResponse>(
+    { url: `/api/v1/g/${guildId}/apps/${appId}/members`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListGuildAppMembersApiV1GGuildIdAppsAppIdMembersGetQueryKey = (
+  guildId: number,
+  appId: number
+) => {
+  return [`/api/v1/g/${guildId}/apps/${appId}/members`] as const;
+};
+
+export const getListGuildAppMembersApiV1GGuildIdAppsAppIdMembersGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listGuildAppMembersApiV1GGuildIdAppsAppIdMembersGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  appId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listGuildAppMembersApiV1GGuildIdAppsAppIdMembersGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getListGuildAppMembersApiV1GGuildIdAppsAppIdMembersGetQueryKey(guildId, appId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listGuildAppMembersApiV1GGuildIdAppsAppIdMembersGet>>
+  > = ({ signal }) =>
+    listGuildAppMembersApiV1GGuildIdAppsAppIdMembersGet(guildId, appId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined && appId !== null && appId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listGuildAppMembersApiV1GGuildIdAppsAppIdMembersGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListGuildAppMembersApiV1GGuildIdAppsAppIdMembersGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listGuildAppMembersApiV1GGuildIdAppsAppIdMembersGet>>
+>;
+export type ListGuildAppMembersApiV1GGuildIdAppsAppIdMembersGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useListGuildAppMembersApiV1GGuildIdAppsAppIdMembersGet<
+  TData = Awaited<ReturnType<typeof listGuildAppMembersApiV1GGuildIdAppsAppIdMembersGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  appId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listGuildAppMembersApiV1GGuildIdAppsAppIdMembersGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listGuildAppMembersApiV1GGuildIdAppsAppIdMembersGet>>,
+          TError,
+          Awaited<ReturnType<typeof listGuildAppMembersApiV1GGuildIdAppsAppIdMembersGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListGuildAppMembersApiV1GGuildIdAppsAppIdMembersGet<
+  TData = Awaited<ReturnType<typeof listGuildAppMembersApiV1GGuildIdAppsAppIdMembersGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  appId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listGuildAppMembersApiV1GGuildIdAppsAppIdMembersGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listGuildAppMembersApiV1GGuildIdAppsAppIdMembersGet>>,
+          TError,
+          Awaited<ReturnType<typeof listGuildAppMembersApiV1GGuildIdAppsAppIdMembersGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListGuildAppMembersApiV1GGuildIdAppsAppIdMembersGet<
+  TData = Awaited<ReturnType<typeof listGuildAppMembersApiV1GGuildIdAppsAppIdMembersGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  appId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listGuildAppMembersApiV1GGuildIdAppsAppIdMembersGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Guild App Members
+ */
+
+export function useListGuildAppMembersApiV1GGuildIdAppsAppIdMembersGet<
+  TData = Awaited<ReturnType<typeof listGuildAppMembersApiV1GGuildIdAppsAppIdMembersGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  appId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listGuildAppMembersApiV1GGuildIdAppsAppIdMembersGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListGuildAppMembersApiV1GGuildIdAppsAppIdMembersGetQueryOptions(
+    guildId,
+    appId,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * End one member's connection. They may connect again unless blocked.
+ * @summary Revoke Member Connection
+ */
+export const revokeMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDelete =
+  (
+    guildId: number,
+    appId: number,
+    userId: number,
+    connectionId: string,
+    options?: SecondParameter<typeof apiMutator>,
+    signal?: AbortSignal
+  ) => {
+    return apiMutator<void>(
+      {
+        url: `/api/v1/g/${guildId}/apps/${appId}/members/${userId}/connections/${connectionId}`,
+        method: "DELETE",
+        signal,
+      },
+      options
+    );
+  };
+
+export const getRevokeMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDeleteMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof revokeMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDelete
+        >
+      >,
+      TError,
+      { guildId: number; appId: number; userId: number; connectionId: string },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<
+        typeof revokeMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDelete
+      >
+    >,
+    TError,
+    { guildId: number; appId: number; userId: number; connectionId: string },
+    TContext
+  > => {
+    const mutationKey = [
+      "revokeMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDelete",
+    ];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof revokeMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDelete
+        >
+      >,
+      { guildId: number; appId: number; userId: number; connectionId: string }
+    > = (props) => {
+      const { guildId, appId, userId, connectionId } = props ?? {};
+
+      return revokeMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDelete(
+        guildId,
+        appId,
+        userId,
+        connectionId,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type RevokeMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDeleteMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof revokeMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDelete
+      >
+    >
+  >;
+
+export type RevokeMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Revoke Member Connection
+ */
+export const useRevokeMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDelete =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+    options?: {
+      mutation?: UseMutationOptions<
+        Awaited<
+          ReturnType<
+            typeof revokeMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDelete
+          >
+        >,
+        TError,
+        { guildId: number; appId: number; userId: number; connectionId: string },
+        TContext
+      >;
+      request?: SecondParameter<typeof apiMutator>;
+    },
+    queryClient?: QueryClient
+  ): UseMutationResult<
+    Awaited<
+      ReturnType<
+        typeof revokeMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDelete
+      >
+    >,
+    TError,
+    { guildId: number; appId: number; userId: number; connectionId: string },
+    TContext
+  > => {
+    return useMutation(
+      getRevokeMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDeleteMutationOptions(
+        options
+      ),
+      queryClient
+    );
+  };
+/**
+ * Revoke a member's connection and refuse the next one.
+ *
+ * The lever for "this person should no longer reach that system through us"
+ * that does not mean uninstalling the app for everyone.
+ * @summary Block Member Connection
+ */
+export const blockMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPost =
+  (
+    guildId: number,
+    appId: number,
+    userId: number,
+    connectionId: string,
+    options?: SecondParameter<typeof apiMutator>,
+    signal?: AbortSignal
+  ) => {
+    return apiMutator<void>(
+      {
+        url: `/api/v1/g/${guildId}/apps/${appId}/members/${userId}/connections/${connectionId}/block`,
+        method: "POST",
+        signal,
+      },
+      options
+    );
+  };
+
+export const getBlockMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPostMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof blockMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPost
+        >
+      >,
+      TError,
+      { guildId: number; appId: number; userId: number; connectionId: string },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<
+        typeof blockMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPost
+      >
+    >,
+    TError,
+    { guildId: number; appId: number; userId: number; connectionId: string },
+    TContext
+  > => {
+    const mutationKey = [
+      "blockMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPost",
+    ];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof blockMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPost
+        >
+      >,
+      { guildId: number; appId: number; userId: number; connectionId: string }
+    > = (props) => {
+      const { guildId, appId, userId, connectionId } = props ?? {};
+
+      return blockMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPost(
+        guildId,
+        appId,
+        userId,
+        connectionId,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type BlockMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPostMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof blockMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPost
+      >
+    >
+  >;
+
+export type BlockMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Block Member Connection
+ */
+export const useBlockMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPost =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+    options?: {
+      mutation?: UseMutationOptions<
+        Awaited<
+          ReturnType<
+            typeof blockMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPost
+          >
+        >,
+        TError,
+        { guildId: number; appId: number; userId: number; connectionId: string },
+        TContext
+      >;
+      request?: SecondParameter<typeof apiMutator>;
+    },
+    queryClient?: QueryClient
+  ): UseMutationResult<
+    Awaited<
+      ReturnType<
+        typeof blockMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPost
+      >
+    >,
+    TError,
+    { guildId: number; appId: number; userId: number; connectionId: string },
+    TContext
+  > => {
+    return useMutation(
+      getBlockMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPostMutationOptions(
+        options
+      ),
+      queryClient
+    );
+  };
+/**
+ * Lift a block, so the member may connect their own account again.
+ * @summary Unblock Member Connection
+ */
+export const unblockMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDelete =
+  (
+    guildId: number,
+    appId: number,
+    userId: number,
+    connectionId: string,
+    options?: SecondParameter<typeof apiMutator>,
+    signal?: AbortSignal
+  ) => {
+    return apiMutator<void>(
+      {
+        url: `/api/v1/g/${guildId}/apps/${appId}/members/${userId}/connections/${connectionId}/block`,
+        method: "DELETE",
+        signal,
+      },
+      options
+    );
+  };
+
+export const getUnblockMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDeleteMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof unblockMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDelete
+        >
+      >,
+      TError,
+      { guildId: number; appId: number; userId: number; connectionId: string },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<
+        typeof unblockMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDelete
+      >
+    >,
+    TError,
+    { guildId: number; appId: number; userId: number; connectionId: string },
+    TContext
+  > => {
+    const mutationKey = [
+      "unblockMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDelete",
+    ];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof unblockMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDelete
+        >
+      >,
+      { guildId: number; appId: number; userId: number; connectionId: string }
+    > = (props) => {
+      const { guildId, appId, userId, connectionId } = props ?? {};
+
+      return unblockMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDelete(
+        guildId,
+        appId,
+        userId,
+        connectionId,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type UnblockMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDeleteMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof unblockMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDelete
+      >
+    >
+  >;
+
+export type UnblockMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Unblock Member Connection
+ */
+export const useUnblockMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDelete =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+    options?: {
+      mutation?: UseMutationOptions<
+        Awaited<
+          ReturnType<
+            typeof unblockMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDelete
+          >
+        >,
+        TError,
+        { guildId: number; appId: number; userId: number; connectionId: string },
+        TContext
+      >;
+      request?: SecondParameter<typeof apiMutator>;
+    },
+    queryClient?: QueryClient
+  ): UseMutationResult<
+    Awaited<
+      ReturnType<
+        typeof unblockMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDelete
+      >
+    >,
+    TError,
+    { guildId: number; appId: number; userId: number; connectionId: string },
+    TContext
+  > => {
+    return useMutation(
+      getUnblockMemberConnectionApiV1GGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDeleteMutationOptions(
+        options
+      ),
+      queryClient
+    );
+  };
+/**
+ * End every member's connection at once, leaving the install standing.
+ *
+ * For a suspected app or vendor compromise: reacting fast should not cost the
+ * guild its configuration.
+ * @summary Revoke All Member Connections
+ */
+export const revokeAllMemberConnectionsApiV1GGuildIdAppsAppIdRevokeAllPost = (
+  guildId: number,
+  appId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/g/${guildId}/apps/${appId}/revoke-all`, method: "POST", signal },
+    options
+  );
+};
+
+export const getRevokeAllMemberConnectionsApiV1GGuildIdAppsAppIdRevokeAllPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof revokeAllMemberConnectionsApiV1GGuildIdAppsAppIdRevokeAllPost>>,
+    TError,
+    { guildId: number; appId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof revokeAllMemberConnectionsApiV1GGuildIdAppsAppIdRevokeAllPost>>,
+  TError,
+  { guildId: number; appId: number },
+  TContext
+> => {
+  const mutationKey = ["revokeAllMemberConnectionsApiV1GGuildIdAppsAppIdRevokeAllPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof revokeAllMemberConnectionsApiV1GGuildIdAppsAppIdRevokeAllPost>>,
+    { guildId: number; appId: number }
+  > = (props) => {
+    const { guildId, appId } = props ?? {};
+
+    return revokeAllMemberConnectionsApiV1GGuildIdAppsAppIdRevokeAllPost(
+      guildId,
+      appId,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RevokeAllMemberConnectionsApiV1GGuildIdAppsAppIdRevokeAllPostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof revokeAllMemberConnectionsApiV1GGuildIdAppsAppIdRevokeAllPost>>
+  >;
+
+export type RevokeAllMemberConnectionsApiV1GGuildIdAppsAppIdRevokeAllPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Revoke All Member Connections
+ */
+export const useRevokeAllMemberConnectionsApiV1GGuildIdAppsAppIdRevokeAllPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof revokeAllMemberConnectionsApiV1GGuildIdAppsAppIdRevokeAllPost>>,
+      TError,
+      { guildId: number; appId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof revokeAllMemberConnectionsApiV1GGuildIdAppsAppIdRevokeAllPost>>,
+  TError,
+  { guildId: number; appId: number },
+  TContext
+> => {
+  return useMutation(
+    getRevokeAllMemberConnectionsApiV1GGuildIdAppsAppIdRevokeAllPostMutationOptions(options),
     queryClient
   );
 };

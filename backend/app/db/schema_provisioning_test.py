@@ -665,6 +665,23 @@ async def test_backfill_continues_past_a_failing_guild(engine, monkeypatch):
             )
 
 
+async def test_rendering_the_bundle_twice_gives_the_same_stamp(engine):
+    """Reflection reads the template afresh each time, and the catalog does not
+    promise to return a table's constraints in the same order twice. The stamp
+    decides whether a guild's schema is stale, so an order that wobbles would
+    re-provision every guild on every boot — and, across replicas, have them
+    undo one another. Several renders, one stamp."""
+    from app.db import schema_provisioning as sp
+
+    stamps = []
+    for _ in range(3):
+        sp.reset_provisioning_bundle()
+        stamps.append((await sp.get_provisioning_bundle()).stamp)
+    sp.reset_provisioning_bundle()
+
+    assert len(set(stamps)) == 1, f"the rendered bundle is not stable: {stamps}"
+
+
 async def test_provisioning_stamp_tracks_grant_behavior_not_cosmetics(engine):
     """The back-fill skip stamp is derived from the RENDERED provisioning bundle
     (live schema DDL + registry RLS + rendered grant statements) — no manual

@@ -85,6 +85,17 @@ async def _install(client: AsyncClient, actor, **body) -> dict:
     return response.json()
 
 
+def _artifact_id(app: dict, artifact_type: str = "calendar") -> int:
+    """The id of what the install produced.
+
+    An install may produce several things, so what it produced is a list rather
+    than a well-known key on ``config``; a caller says which type it wants.
+    """
+    matching = [a["id"] for a in app["artifacts"] if a["type"] == artifact_type]
+    assert matching, f"no {artifact_type} artifact on {app['artifacts']}"
+    return matching[0]
+
+
 class TestInstall:
     async def test_installing_mounts_a_guild_level_calendar(
         self, client: AsyncClient, acting_user, session: AsyncSession, calendar_app
@@ -97,9 +108,7 @@ class TestInstall:
         assert app["listing_version"] == "1.0.0"
         assert app["enabled"] is True
 
-        calendar = await _read_calendar(
-            session, a.guild.id, app["config"]["calendar_id"]
-        )
+        calendar = await _read_calendar(session, a.guild.id, _artifact_id(app))
         assert calendar is not None
         # Belongs to the guild, not to any initiative — which is what an app is.
         assert calendar.initiative_id is None
@@ -111,9 +120,7 @@ class TestInstall:
         a = await acting_user(guild_role=GuildRole.admin)
         app = await _install(client, a, name="Club nights")
         assert app["name"] == "Club nights"
-        calendar = await _read_calendar(
-            session, a.guild.id, app["config"]["calendar_id"]
-        )
+        calendar = await _read_calendar(session, a.guild.id, _artifact_id(app))
         assert calendar.name == "Club nights"
 
     async def test_only_a_guild_admin_may_install(
@@ -173,9 +180,7 @@ class TestInstall:
         second = await _install(client, b)
 
         for actor, app in ((a, first), (b, second)):
-            calendar = await _read_calendar(
-                session, actor.guild.id, app["config"]["calendar_id"]
-            )
+            calendar = await _read_calendar(session, actor.guild.id, _artifact_id(app))
             assert calendar is not None
             assert calendar.guild_id == actor.guild.id
 
@@ -192,7 +197,7 @@ class TestVisibility:
         member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
 
         response = await client.get(
-            member.g(f"/calendars/{app['config']['calendar_id']}"),
+            member.g(f"/calendars/{_artifact_id(app)}"),
             headers=member.headers,
         )
         assert response.status_code == 200, response.text
@@ -247,7 +252,7 @@ class TestManage:
         )
         # Turning an app off hides it; it does not throw anything away.
         response = await client.get(
-            a.g(f"/calendars/{app['config']['calendar_id']}"), headers=a.headers
+            a.g(f"/calendars/{_artifact_id(app)}"), headers=a.headers
         )
         assert response.status_code == 200
 
@@ -276,7 +281,7 @@ class TestUninstall:
         survive an admin removing the app."""
         a = await acting_user(guild_role=GuildRole.admin)
         app = await _install(client, a)
-        calendar_id = app["config"]["calendar_id"]
+        calendar_id = _artifact_id(app)
 
         response = await client.delete(a.g(f"/apps/{app['id']}"), headers=a.headers)
         assert response.status_code == 204
@@ -301,7 +306,7 @@ class TestUninstall:
         # The one-install rule is about what is currently mounted, not a
         # permanent claim on the listing.
         again = await _install(client, a)
-        assert again["config"]["calendar_id"] != app["config"]["calendar_id"]
+        assert _artifact_id(again) != _artifact_id(app)
 
 
 EMBED_APP_UID = marketplace_uid("advancedtool")
@@ -335,7 +340,7 @@ class TestEmbedApp:
         assert app["app_kind"] == "embed"
         assert app["embed_target"] == "advanced_tool"
         assert app["tool"] is None
-        assert app["config"] == {}
+        assert app["artifacts"] == []
         assert app["name"] == "Automations"
 
         await route_session_to_guild(session, a.guild.id)

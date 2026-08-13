@@ -40,7 +40,7 @@ const embedApp = (overrides: Partial<GuildAppRead> = {}) =>
     embed_target: "advanced_tool",
     admin_only: true,
     enabled: true,
-    config: {},
+    artifacts: [],
     ...overrides,
   }) as GuildAppRead;
 
@@ -50,7 +50,7 @@ const app = (overrides: Partial<GuildAppRead> = {}) =>
     name: "Guild calendar",
     tool: "calendar",
     enabled: true,
-    config: { calendar_id: 12 },
+    artifacts: [{ type: "calendar", id: 12 }],
     ...overrides,
   }) as GuildAppRead;
 
@@ -123,7 +123,7 @@ describe("AppsSection", () => {
   });
 
   it("renders an app with nothing to link to without a link", async () => {
-    apps = [app({ config: {} })];
+    apps = [app({ artifacts: [] })];
     render(false);
     const entry = await screen.findByText("Guild calendar");
     expect(entry.closest("a")).toBeNull();

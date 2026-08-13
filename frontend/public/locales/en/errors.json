@@ -414,5 +414,16 @@
   "MARKETPLACE_REGISTRY_RESERVED_NAMESPACE": "That listing uses a publisher name reserved for built-in listings, so it was skipped.",
   "MARKETPLACE_REGISTRY_ARTIFACT_UNREACHABLE": "A file the registry index refers to could not be downloaded.",
   "MARKETPLACE_REGISTRY_ARTIFACT_INVALID": "A file the registry index refers to does not match what the index says it is.",
-  "MARKETPLACE_REGISTRY_LISTING_REJECTED": "That listing was refused because its contents are not valid."
+  "MARKETPLACE_REGISTRY_LISTING_REJECTED": "That listing was refused because its contents are not valid.",
+  "GUILD_APP_CONFIG_UNKNOWN_CONNECTION": "This app doesn't have a connection by that name.",
+  "GUILD_APP_CONFIG_UNKNOWN_FIELD": "This app's connection doesn't have a setting by that name.",
+  "GUILD_APP_CONFIG_INVALID_VALUE": "That value isn't what this setting expects.",
+  "GUILD_APP_CONFIG_VALUE_TOO_LONG": "That value is too long for this setting.",
+  "GUILD_APP_CONFIG_REQUIRED_FIELD": "Fill in every required field before saving.",
+  "GUILD_APP_CONFIG_MANAGED_FIELD": "The app fills this in itself when you connect — you can't type it here.",
+  "GUILD_APP_CONNECTION_NOT_FOUND": "That connection isn't part of this app.",
+  "GUILD_APP_CONNECTION_NOT_INTERACTIVE": "This connection uses one credential for the whole guild, so there's no account to connect.",
+  "GUILD_APP_CONNECTION_NOT_STATIC": "This connection is each member's own, so it's connected rather than filled in.",
+  "GUILD_APP_CONNECTION_BLOCKED": "A guild admin has stopped you connecting this.",
+  "GUILD_APP_DISABLED": "This app is turned off, so nothing flows through it."
 }
