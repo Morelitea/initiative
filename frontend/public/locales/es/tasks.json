@@ -125,13 +125,14 @@
     "pin": "Fijar en Enfoque",
     "unpin": "Quitar de Enfoque",
     "settings": "Ajustes de Enfoque",
-    "dueWithinLabel": "Mostrar trabajo que vence o comienza",
-    "dueWithin": {
-      "0": "Hoy",
-      "2": "Próximos 2 días",
-      "7": "Esta semana"
+    "horizonsLabel": "Con cuánta antelación mirar",
+    "horizonsHint": "Define un intervalo por prioridad. El trabajo vencido siempre aparece.",
+    "horizon": {
+      "today": "Hoy",
+      "days_one": "{{count}} día",
+      "days_other": "{{count}} días",
+      "any": "Cualquier fecha"
     },
-    "includeHighPriority": "Incluir siempre prioridad urgente y alta",
     "loadError": "La lista de Enfoque no está disponible ahora.",
     "truncated": "Mostrando las primeras {{shown}}. Reduce el intervalo de fechas para una lista más corta.",
     "settingsHint": "Las tareas fijadas siempre aparecen, sea cual sea esta configuración."
