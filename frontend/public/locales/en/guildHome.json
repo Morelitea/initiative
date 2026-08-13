@@ -5,7 +5,6 @@
   "loading": "Loading…",
   "loadError": "Failed to load this tool. Please try again later.",
   "guildWide": "Guild-wide",
-  "filterPlaceholder": "Filter by name…",
   "empty": {
     "title": "Nothing here yet",
     "description": "Nothing of this kind exists in the guild yet, or none of it is shared with you."

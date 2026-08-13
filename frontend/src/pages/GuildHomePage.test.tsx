@@ -17,10 +17,10 @@ import { GuildHomePage } from "./GuildHomePage";
 
 const INITIATIVE_ID = 7;
 
-const page = (items: unknown[]) =>
+const page = (items: unknown[], totalCount = items.length) =>
   HttpResponse.json({
     items,
-    total_count: items.length,
+    total_count: totalCount,
     page: 1,
     page_size: 20,
     has_next: false,
@@ -126,6 +126,45 @@ describe("GuildHomePage", () => {
     renderHome({ tool: "not-a-tool" });
 
     expect(await screen.findByRole("link", { name: "Lunar Lander" })).toBeInTheDocument();
+  });
+
+  it("recovers a page number the tool no longer has", async () => {
+    stubInitiatives();
+    const asked: string[] = [];
+    server.use(
+      guildHttp.get("/projects/", ({ request }) => {
+        const askedPage = new URL(request.url).searchParams.get("page") ?? "1";
+        asked.push(askedPage);
+        // 40 projects across two pages of 20 — page 99 exists nowhere.
+        return askedPage === "99"
+          ? page([], 40)
+          : page([buildProject({ id: 1, name: "Lunar Lander" })], 40);
+      })
+    );
+
+    renderHome({ tool: "projects", page: 99 });
+
+    // The guild still holds projects, so it lands back on a page that has them
+    // instead of leaving an empty table over 40 rows.
+    expect(await screen.findByRole("link", { name: "Lunar Lander" })).toBeInTheDocument();
+    expect(asked).toContain("99");
+  });
+
+  it("leaves a page number that is in range alone", async () => {
+    stubInitiatives();
+    const asked: string[] = [];
+    server.use(
+      guildHttp.get("/projects/", ({ request }) => {
+        asked.push(new URL(request.url).searchParams.get("page") ?? "1");
+        return page([buildProject({ id: 21, name: "Second Page Project" })], 40);
+      })
+    );
+
+    renderHome({ tool: "projects", page: 2 });
+
+    expect(await screen.findByRole("link", { name: "Second Page Project" })).toBeInTheDocument();
+    // No spurious reset to page 1 while the first response is still in flight.
+    await waitFor(() => expect(asked).toEqual(["2"]));
   });
 
   it("says so when the selected tool has nothing in the guild", async () => {

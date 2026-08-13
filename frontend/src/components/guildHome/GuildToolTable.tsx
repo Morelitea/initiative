@@ -2,6 +2,14 @@
  * The guild home's one table. Every tool renders through it — the columns are
  * fixed and the tool only supplies the rows (see `useGuildToolRows`), so
  * switching tools swaps the data, not the layout.
+ *
+ * Rows are read a server page at a time, in the order that tool's endpoint
+ * returns them (recently-updated or by name, depending on the tool). There is
+ * deliberately no client-side sort or filter here: either would only reach the
+ * page already in hand, and a table that answers "no matches" while the guild
+ * holds matches on page 4 is worse than no filter at all. Both come back the
+ * moment the remaining list endpoints accept `search`/`sort_by` — the page's
+ * pagination is already server-driven.
  */
 
 import { Link } from "@tanstack/react-router";
@@ -11,15 +19,12 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { InitiativeRead, Tool } from "@/api/generated/initiativeAPI.schemas";
-import { SortIcon } from "@/components/SortIcon";
 import { TagBadge } from "@/components/tags/TagBadge";
-import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { RelativeTime } from "@/components/ui/relative-time";
 import type { GuildToolRow } from "@/hooks/useGuildToolRows";
 import { useGuildPath } from "@/lib/guildUrl";
-import { dateSortingFn } from "@/lib/sorting";
-import type { AppColumn, AppColumnDef } from "@/lib/table";
+import type { AppColumnDef } from "@/lib/table";
 import { toolCamelPlural } from "@/lib/tools";
 
 /** The leaf keys under `guildHome.columns.detail` — one per tool. */
@@ -89,6 +94,8 @@ interface GuildToolTableProps {
   initiatives: InitiativeRead[];
   totalCount: number;
   page: number;
+  /** Computed by the page, which also uses it to recover an out-of-range page. */
+  pageCount: number;
   pageSize: number;
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
@@ -100,6 +107,7 @@ export const GuildToolTable = ({
   initiatives,
   totalCount,
   page,
+  pageCount,
   pageSize,
   onPageChange,
   onPageSizeChange,
@@ -111,42 +119,25 @@ export const GuildToolTable = ({
     [initiatives]
   );
 
-  const columns = useMemo<AppColumnDef<GuildToolRow>[]>(() => {
-    const sortableHeader =
-      (label: string) =>
-      ({ column }: { column: AppColumn<GuildToolRow> }) => {
-        const isSorted = column.getIsSorted();
-        return (
-          <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-            {label}
-            <SortIcon isSorted={isSorted} />
-          </Button>
-        );
-      };
-
-    return [
+  const columns = useMemo<AppColumnDef<GuildToolRow>[]>(
+    () => [
       {
         accessorKey: "name",
-        header: sortableHeader(t("columns.name")),
+        header: t("columns.name"),
         cell: ({ row }) => <NameCell row={row.original} />,
-        sortFn: "alphanumeric",
         enableHiding: false,
       },
       {
         id: "initiative",
-        accessorFn: (row: GuildToolRow) =>
-          row.initiativeId === null ? "" : (initiativesById.get(row.initiativeId)?.name ?? ""),
-        header: sortableHeader(t("columns.initiative")),
+        header: t("columns.initiative"),
         cell: ({ row }) => (
           <InitiativeCell initiativeId={row.original.initiativeId} initiatives={initiativesById} />
         ),
-        sortFn: "alphanumeric",
       },
       {
         id: "detail",
-        accessorKey: "detailSort",
         // Each tool names this column in its own terms ("Progress", "Items", …).
-        header: sortableHeader(t(detailColumnKey(tool))),
+        header: t(detailColumnKey(tool)),
         cell: ({ row }) => (
           <span className="text-sm">
             {row.original.detail || <span className="text-muted-foreground">—</span>}
@@ -161,26 +152,20 @@ export const GuildToolTable = ({
       },
       {
         id: "updated",
-        accessorKey: "updatedAt",
-        header: sortableHeader(t("columns.updated")),
+        header: t("columns.updated"),
         cell: ({ row }) => (
           <RelativeTime date={row.original.updatedAt} className="text-muted-foreground text-sm" />
         ),
-        sortFn: dateSortingFn,
       },
-    ];
-  }, [t, tool, initiativesById]);
-
-  const pageCount = pageSize > 0 ? Math.max(1, Math.ceil(totalCount / pageSize)) : 1;
+    ],
+    [t, tool, initiativesById]
+  );
 
   return (
     <DataTable
       columns={columns}
       data={rows}
       getRowId={(row: GuildToolRow) => String(row.id)}
-      enableFilterInput
-      filterInputColumnKey="name"
-      filterInputPlaceholder={t("filterPlaceholder")}
       enableColumnVisibilityDropdown
       enablePagination
       manualPagination

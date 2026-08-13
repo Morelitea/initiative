@@ -10,7 +10,7 @@
 
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -77,6 +77,16 @@ export function GuildHomePage() {
 
   const { rows, totalCount, isLoading, isError } = useGuildToolRows(selected, page, pageSize);
 
+  const pageCount = pageSize > 0 ? Math.max(1, Math.ceil(totalCount / pageSize)) : 1;
+  // A bookmarked page outlives the rows it pointed at, and a hand-typed one
+  // may never have had any. Either way the guild still holds items, so land
+  // back on the first page instead of showing an empty table over them.
+  useEffect(() => {
+    if (!isLoading && totalCount > 0 && page > pageCount) {
+      setSearch({ page: undefined });
+    }
+  }, [isLoading, totalCount, page, pageCount, setSearch]);
+
   return (
     <div className="space-y-6">
       <div>
@@ -109,6 +119,7 @@ export function GuildHomePage() {
           initiatives={initiativesQuery.data ?? []}
           totalCount={totalCount}
           page={page}
+          pageCount={pageCount}
           pageSize={pageSize}
           onPageChange={(next) => setSearch({ page: next <= 1 ? undefined : next })}
           onPageSizeChange={handlePageSizeChange}
