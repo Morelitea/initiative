@@ -184,9 +184,8 @@ export function useListGuildsApiV1GuildsGet<
  * yet — no guild context or membership exists for RLS to match against.
  *
  * The caller becomes the guild's admin, unless they hold ``guilds.manage``
- * and name an ``owner_user_id`` — the enterprise/demo case, where staff stand
- * a guild up for a customer and hold nothing in it afterwards. Reaching into
- * that guild later is what the audited, time-bound PAM grant is for.
+ * and name an ``owner_user_id``, which hands the guild to that account
+ * instead and leaves the caller holding nothing in it.
  * @summary Create Guild
  */
 export const createGuildApiV1GuildsPost = (
