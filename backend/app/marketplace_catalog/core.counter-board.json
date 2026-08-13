@@ -3,9 +3,7 @@
   "public_id": "core.counter-board",
   "kind": "dashboard",
   "name": "Counter board",
-  "author": {
-    "name": "Initiative"
-  },
+  "publisher": "Initiative",
   "description": "Your counters, front and center.",
   "long_description": "Counters put where people look. One number as the headline, its progress toward the goal, and the rest of its group charted alongside — the scoreboard for whatever the initiative is tallying.\n\nAfter installing, point each widget at the counters you want: open the dashboard's configure step and it lists what this initiative has.",
   "avatar_url": "/marketplace/core-counter-board.svg",

@@ -2676,9 +2676,6 @@ export interface MarketplaceListingDetail {
   source: ListingSource;
   name: string;
   publisher: string;
-  author_name: string;
-  author_url: string | null;
-  author_contact: string | null;
   description: string;
   avatar_url: string;
   images: string[];
@@ -2702,9 +2699,6 @@ export interface MarketplaceListingSummary {
   source: ListingSource;
   name: string;
   publisher: string;
-  author_name: string;
-  author_url: string | null;
-  author_contact: string | null;
   description: string;
   avatar_url: string;
   images: string[];

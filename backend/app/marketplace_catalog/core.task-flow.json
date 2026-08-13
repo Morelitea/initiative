@@ -3,9 +3,7 @@
   "public_id": "core.task-flow",
   "kind": "dashboard",
   "name": "Task flow",
-  "author": {
-    "name": "Initiative"
-  },
+  "publisher": "Initiative",
   "description": "How work moves through its stages, and when it gets done.",
   "long_description": "A flow view of the initiative's work: the funnel from the widest stage to the narrowest, the same counts as a chart, and a calendar grid of day-by-day activity.\n\nUseful for spotting where work piles up rather than for tracking any one task.",
   "avatar_url": "/marketplace/core-task-flow.svg",

@@ -10,8 +10,7 @@
   },
   "provenance": {
     "builtin": "by Initiative",
-    "plain": "by {{author}}",
-    "website": "Author's website"
+    "plain": "by {{publisher}}"
   },
   "empty": {
     "title": "Nothing here yet",

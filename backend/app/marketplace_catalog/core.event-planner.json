@@ -3,9 +3,7 @@
   "public_id": "core.event-planner",
   "kind": "dashboard",
   "name": "Event planner",
-  "author": {
-    "name": "Initiative"
-  },
+  "publisher": "Initiative",
   "description": "Everything on the calendar, read as a plan.",
   "long_description": "The initiative's events laid out the way an organizer thinks: every scheduled event on a weekly timeline, with the full list underneath for the details a bar can't carry.\n\nNothing here needs setting up — every widget reads the calendars of the initiative the dashboard lives on.",
   "avatar_url": "/marketplace/core-event-planner.svg",

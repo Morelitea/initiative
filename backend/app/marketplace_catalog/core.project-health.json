@@ -3,9 +3,7 @@
   "public_id": "core.project-health",
   "kind": "dashboard",
   "name": "Project health",
-  "author": {
-    "name": "Initiative"
-  },
+  "publisher": "Initiative",
   "description": "Where every project in this initiative stands, and what is still open.",
   "long_description": "A read-only overview of the initiative's projects. Shows how much of each project is done, how the open work splits across statuses, and the full project list underneath.\n\nNothing here needs setting up — every widget reads the initiative the dashboard lives on.",
   "avatar_url": "/marketplace/core-project-health.svg",

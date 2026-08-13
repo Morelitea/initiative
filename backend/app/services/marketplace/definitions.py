@@ -26,19 +26,15 @@ an id in that namespace is only ever claimed by a listing shipped in this build.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any, Optional
 
 from app.services.marketplace.manifest_values import (
-    MAX_AUTHOR_NAME_LENGTH,
-    MAX_CONTACT_LENGTH,
+    MAX_PUBLISHER_NAME_LENGTH,
     MAX_NAME_LENGTH,
     ListingDefinitionError,
     check_single_line,
-    check_url,
     clean_text,
     fail,
-    require_mapping,
 )
 from app.services.marketplace.service_apps import (
     app_widget_type,
@@ -50,7 +46,6 @@ from app.services.tenant.dashboard_definition import (
 )
 
 __all__ = [
-    "ListingAuthor",
     "ListingDefinitionError",
     "LISTING_KINDS",
     "LISTING_SOURCES",
@@ -60,7 +55,7 @@ __all__ = [
     "MOUNTABLE_TOOLS",
     "RESERVED_PUBLIC_ID_PREFIX",
     "app_widget_type",
-    "normalize_author",
+    "normalize_publisher",
     "normalize_listing_definition",
     "reserved_prefix_problem",
 ]
@@ -74,8 +69,10 @@ __all__ = [
 #: resolve.
 LISTING_KINDS: frozenset[str] = frozenset({"dashboard", "app", "auto"})
 
-#: How a listing reached this deployment. This is the provenance shown beside an
-#: author's name, and the reason a name alone never has to be taken on faith.
+#: How a listing reached this deployment. Not a trust ranking shown to a reader
+#: — every listing is here because an administrator put it here — but the reason
+#: a listing shipped in this build is credited to us rather than to whatever its
+#: manifest claims.
 #:
 #: ``builtin`` shipped in this build. ``operator`` was added by whoever runs the
 #: deployment. ``registry`` arrived from a remote index this deployment trusts.
@@ -127,48 +124,22 @@ RESERVED_PREFIX_SOURCES: frozenset[str] = frozenset({"builtin"})
 # --- attribution ------------------------------------------------------------
 
 
-@dataclass(frozen=True)
-class ListingAuthor:
-    """Who wrote a listing, as the catalog records it."""
+def normalize_publisher(raw: Any) -> str:
+    """The name a listing publishes under, required on every ingestion path.
 
-    name: str
-    url: Optional[str] = None
-    contact: Optional[str] = None
+    One name, not a person and a distributor kept apart: whoever publishes is
+    who a reader is trusting, whether that is the individual who wrote it or an
+    organisation shipping someone else's work. A listing that states none is
+    refused rather than published as anonymous.
 
-
-def normalize_author(raw: Any) -> ListingAuthor:
-    """The author block, required on every ingestion path.
-
-    Attribution is a trust signal people act on before installing, so a listing
-    that states none is refused rather than published as anonymous. What the
-    author *claims* is bounded here; the catalog separately records how the
-    listing arrived, and the two are shown together — a name never stands in for
-    provenance.
+    What the publisher *claims* is bounded here; the catalog separately records
+    how the listing arrived.
     """
     if raw is None:
-        fail("author is required: a listing states who wrote it")
-    author = require_mapping(raw, "author")
-
-    name = clean_text(
-        author.get("name"), what="author.name", limit=MAX_AUTHOR_NAME_LENGTH
-    )
-    check_single_line(name or "", what="author.name")
-
-    url = author.get("url")
-    contact = clean_text(
-        author.get("contact"),
-        what="author.contact",
-        limit=MAX_CONTACT_LENGTH,
-        required=False,
-    )
-    if contact is not None:
-        check_single_line(contact, what="author.contact")
-
-    return ListingAuthor(
-        name=name or "",
-        url=check_url(url, what="author.url") if url is not None else None,
-        contact=contact,
-    )
+        fail("publisher is required: a listing states who publishes it")
+    name = clean_text(raw, what="publisher", limit=MAX_PUBLISHER_NAME_LENGTH)
+    check_single_line(name or "", what="publisher")
+    return name or ""
 
 
 def reserved_prefix_problem(public_id: str, *, source: str) -> Optional[str]:

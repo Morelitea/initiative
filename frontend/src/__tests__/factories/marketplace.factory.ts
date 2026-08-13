@@ -26,9 +26,9 @@ export function buildMarketplaceVersion(
 /**
  * A browse card's listing.
  *
- * Defaults to the shape a shipped listing has — `builtin`, authored by
+ * Defaults to the shape a shipped listing has — `builtin`, published by
  * Initiative — because that is the one every deployment always has. Pass
- * `source` and `author_name` together to build the other two provenance cases:
+ * `source` and `publisher` together to build the non-first-party case:
  * a listing a registry signed, or one an operator added.
  */
 export function buildMarketplaceListing(
@@ -42,9 +42,6 @@ export function buildMarketplaceListing(
     source: "builtin",
     name: `Listing ${counter}`,
     publisher: "Initiative",
-    author_name: "Initiative",
-    author_url: null,
-    author_contact: null,
     description: "What this listing is for.",
     avatar_url: "/marketplace/test.svg",
     images: [],

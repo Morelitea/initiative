@@ -55,7 +55,7 @@ export function MarketplaceCard({ listing, installedCount = 0 }: MarketplaceCard
             {/* The card answers "who wrote this?" before the click, and the
                 author's own address is left off: the whole card is already a
                 link, and a link inside a link is neither valid nor clickable. */}
-            <ListingProvenance listing={listing} showAuthorUrl={false} className="truncate" />
+            <ListingProvenance listing={listing} className="truncate" />
             <p className="mt-1.5 line-clamp-2 text-muted-foreground text-sm">
               {listing.description}
             </p>

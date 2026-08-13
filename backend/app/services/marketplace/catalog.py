@@ -38,7 +38,7 @@ from app.services.marketplace.definitions import (
     LISTING_KINDS,
     LISTING_SOURCES,
     ListingDefinitionError,
-    normalize_author,
+    normalize_publisher,
     normalize_listing_definition,
     reserved_prefix_problem,
 )
@@ -266,18 +266,13 @@ async def upsert_listing(
         definition = normalize_listing_definition(kind, manifest.get("definition"))
         # Required on every ingestion path: seeding, an operator upload, a
         # registry refresh. There is no path that publishes without one.
-        author = normalize_author(manifest.get("author"))
+        publisher = normalize_publisher(manifest.get("publisher"))
     except ListingDefinitionError as exc:
         raise CatalogError(f"{public_id}: {exc}") from exc
 
     for required in ("name", "description", "avatar_url"):
         if not manifest.get(required):
             raise CatalogError(f"{public_id}: {required} is required")
-
-    # The namespace the listing publishes under, which is the author unless the
-    # manifest says otherwise — a publisher and an author differ only when
-    # someone publishes on someone else's behalf.
-    publisher = str(manifest.get("publisher") or author.name)
 
     _check_artwork_path(str(manifest["avatar_url"]), field=f"{public_id}: avatar_url")
 
@@ -311,9 +306,6 @@ async def upsert_listing(
         "source": source,
         "name": str(manifest["name"]),
         "publisher": publisher,
-        "author_name": author.name,
-        "author_url": author.url,
-        "author_contact": author.contact,
         "description": str(manifest["description"]),
         "long_description": manifest.get("long_description"),
         "avatar_url": str(manifest["avatar_url"]),

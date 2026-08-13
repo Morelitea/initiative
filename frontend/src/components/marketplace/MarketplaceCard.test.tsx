@@ -21,7 +21,7 @@ describe("MarketplaceCard", () => {
   it("names the author before anyone clicks through", async () => {
     const listing = buildMarketplaceListing({
       source: "operator",
-      author_name: "Acme Widgets",
+      publisher: "Acme Widgets",
     });
     renderPage(() => <MarketplaceCard listing={listing} />);
     expect(await screen.findByText("by Acme Widgets")).toBeInTheDocument();
@@ -30,8 +30,7 @@ describe("MarketplaceCard", () => {
   it("puts no second link inside the card's own link", async () => {
     const listing = buildMarketplaceListing({
       source: "registry",
-      author_name: "Acme Widgets",
-      author_url: "https://acme.example",
+      publisher: "Acme Widgets",
     });
     renderPage(() => <MarketplaceCard listing={listing} />);
     expect(await screen.findByText("by Acme Widgets")).toBeInTheDocument();

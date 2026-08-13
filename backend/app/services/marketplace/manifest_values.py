@@ -28,8 +28,7 @@ __all__ = [
     "IDENTIFIER_CHARS",
     "PATH_CHARS",
     "PUBLIC_ID_CHARS",
-    "MAX_AUTHOR_NAME_LENGTH",
-    "MAX_CONTACT_LENGTH",
+    "MAX_PUBLISHER_NAME_LENGTH",
     "MAX_HINT_LENGTH",
     "MAX_IDENTIFIER_LENGTH",
     "MAX_LABEL_LENGTH",
@@ -72,9 +71,8 @@ MAX_PATH_LENGTH = 200
 #: A display name for what an install produces; the guild renames it after.
 MAX_NAME_LENGTH = 255
 MAX_LABEL_LENGTH = 120
-MAX_AUTHOR_NAME_LENGTH = 120
+MAX_PUBLISHER_NAME_LENGTH = 120
 MAX_URL_LENGTH = 300
-MAX_CONTACT_LENGTH = 200
 #: An `access_hint` string — the API and permission names a connection asks for.
 MAX_HINT_LENGTH = 120
 

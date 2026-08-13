@@ -35,9 +35,6 @@ const appListing = () =>
     source: "builtin",
     name: "Guild calendar",
     publisher: "Initiative",
-    author_name: "Initiative",
-    author_url: null,
-    author_contact: null,
     description: "The guild's own events.",
     avatar_url: "/marketplace/cal.svg",
     images: [],
@@ -93,19 +90,15 @@ describe("MarketplaceListingPage", () => {
     expect(screen.getByText("by Initiative")).toBeInTheDocument();
   });
 
-  it("offers an operator listing's author link as untrusted", async () => {
+  it("names the publisher of a listing that did not ship with this build", async () => {
     listing = {
       ...appListing(),
       source: "operator",
-      author_name: "Acme Widgets",
-      author_url: "https://acme.example",
+      publisher: "Acme Widgets",
     } as unknown as MarketplaceListingDetail;
     renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
     await screen.findByRole("heading", { name: "Guild calendar" });
     expect(screen.getByText("by Acme Widgets")).toBeInTheDocument();
-    const link = screen.getByRole("link", { name: "Author's website" });
-    expect(link).toHaveAttribute("rel", "noopener noreferrer nofollow");
-    expect(link).toHaveAttribute("target", "_blank");
   });
 
   it("offers no canvas preview for an app", async () => {

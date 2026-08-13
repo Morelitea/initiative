@@ -39,7 +39,7 @@ def _manifest(**overrides) -> dict:
         "public_id": "acme.standup",
         "kind": "dashboard",
         "name": "Standup board",
-        "author": {"name": "Acme"},
+        "publisher": "Acme",
         "description": "What everyone is on today.",
         "avatar_url": "/marketplace/acme-standup.svg",
         "version": "1.0.0",
@@ -124,8 +124,8 @@ class TestPublishing:
         assert listing.source == "operator"
         assert listing.available is True
         # Attribution is required on every ingestion path and shown beside the
-        # provenance, so the catalog carries the author the file claimed.
-        assert listing.author_name == "Acme"
+        # provenance, so the catalog carries the publisher the file claimed.
+        assert listing.publisher == "Acme"
 
     async def test_a_rescan_is_idempotent(self, session, catalog_dir):
         _write(catalog_dir, "standup.json", _manifest())
@@ -176,7 +176,7 @@ class TestBadFiles:
         """Attribution is required, so a manifest without an author is refused
         — by the catalog's own validator, reported here rather than thrown."""
         manifest = _manifest()
-        del manifest["author"]
+        del manifest["publisher"]
         _write(catalog_dir, "anonymous.json", manifest)
 
         result = await service.scan_operator_catalog(session)
@@ -184,7 +184,7 @@ class TestBadFiles:
 
         assert result.published == 0
         assert result.skipped == 1
-        assert "author" in result.problems[0].reason
+        assert "publisher" in result.problems[0].reason
         assert await _listings(session) == {}
 
     async def test_a_file_that_is_not_an_object_is_skipped(self, session, catalog_dir):
@@ -321,7 +321,7 @@ class TestWithdrawal:
         await session.commit()
 
         broken = _manifest()
-        del broken["author"]
+        del broken["publisher"]
         _write(catalog_dir, "standup.json", broken)
         result = await service.scan_operator_catalog(session)
         await session.commit()
