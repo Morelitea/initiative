@@ -87,6 +87,10 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # operator-conferred grants). Platform-wide by definition — one row per
         # app, never per guild — and owner-managed.
         "app_service_registrations",
+        # Spent one-shot nonces from the app-service request-signing channel.
+        # Hangs off a registration, which is platform-wide, and a single signed
+        # request may address any guild — so the guard cannot live in a schema.
+        "app_service_nonces",
         # Registry client state: what this deployment last accepted from a
         # signed index, and the artwork that index named, mirrored locally so
         # listing media is served from here. Operator/system state, no guild.

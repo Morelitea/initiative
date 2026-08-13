@@ -425,5 +425,20 @@
   "GUILD_APP_CONNECTION_NOT_INTERACTIVE": "Esta conexión usa una sola credencial para todo el gremio, así que no hay ninguna cuenta que conectar.",
   "GUILD_APP_CONNECTION_NOT_STATIC": "Esta conexión es la de cada miembro, así que se conecta en lugar de rellenarse.",
   "GUILD_APP_CONNECTION_BLOCKED": "Un administrador del gremio te ha impedido conectar esto.",
-  "GUILD_APP_DISABLED": "Esta aplicación está desactivada, así que no pasa nada por ella."
+  "GUILD_APP_DISABLED": "Esta aplicación está desactivada, así que no pasa nada por ella.",
+  "APP_CHANNEL_MISSING_SIGNATURE": "Esa petición de un servicio de aplicación no venía bien firmada.",
+  "APP_CHANNEL_STALE_TIMESTAMP": "Esa petición de un servicio de aplicación se firmó hace demasiado tiempo. Comprueba el reloj de ambos lados.",
+  "APP_CHANNEL_UNKNOWN_APP": "No hay ningún servicio de aplicación registrado con ese nombre.",
+  "APP_CHANNEL_INVALID_SIGNATURE": "La firma de la petición no coincide con el secreto compartido de este servicio de aplicación.",
+  "APP_CHANNEL_REPLAYED_REQUEST": "Esa petición ya se usó una vez y no puede repetirse.",
+  "APP_CHANNEL_APP_DISABLED": "Este servicio de aplicación está apagado, así que no pasa nada por él.",
+  "APP_CHANNEL_INSTALL_NOT_FOUND": "Esa aplicación no está instalada en ese gremio.",
+  "APP_CHANNEL_INSTALL_DISABLED": "Ese gremio ha desactivado esta aplicación.",
+  "APP_CHANNEL_GUILD_READ_ONLY": "Ese gremio está congelado, así que ahora mismo no se puede escribir nada en él.",
+  "APP_CHANNEL_CONNECTION_NOT_FOUND": "Ninguna conexión de esa instalación corresponde a esa referencia.",
+  "APP_CHANNEL_CONNECTION_BLOCKED": "Un administrador del gremio ha bloqueado la conexión de ese miembro.",
+  "APP_CHANNEL_INVALID_PAYLOAD": "Ese servicio de aplicación envió algo que esta versión no puede leer.",
+  "APP_CHANNEL_UNKNOWN_EVENT_TYPE": "Ese tipo de evento no es uno de los que declaró esta aplicación.",
+  "APP_CHANNEL_EVENT_TOO_LARGE": "Ese evento es más grande de lo que esta versión puede transportar.",
+  "APP_CHANNEL_INVALID_CONFIG_STATE": "Ese servicio de aplicación informó de un estado que esta versión no reconoce."
 }
