@@ -82,6 +82,13 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # available=false rather than removed, so installs keep their provenance.
     "marketplace_listings": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     "marketplace_listing_versions": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # App service registrations: full DML on the system engine, which is the
+    # only writer — the owner-gated CRUD endpoints run on AdminSessionDep (as
+    # access_grants and auth_providers do), boot reconciliation upserts from
+    # APP_SERVICES_CONFIG, and the verify path stamps status/manifest_hash.
+    # The row holds the shared-secret ciphertext, so it stays off the bare
+    # login role entirely (below).
+    "app_service_registrations": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # operator AI connections: the request path never queries this directly —
     # the resolve step reads it via an in-process cache loaded on the system
     # engine (SELECT), and the secret-key rotation re-encrypts its key column on
@@ -160,6 +167,10 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # bare pre-routing login role — browsing the marketplace requires a session.
     "marketplace_listings": None,
     "marketplace_listing_versions": None,
+    # Deployment wiring, holding the app's shared-secret ciphertext: managed on
+    # the system engine and readable by the platform owner under RLS. The bare
+    # pre-routing login role has no reason to see it, so it holds nothing.
+    "app_service_registrations": None,
     # operator AI connections are owner-managed + system-engine-read only; the
     # bare pre-routing login role never touches them
     "platform_ai_connections": None,

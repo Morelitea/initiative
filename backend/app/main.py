@@ -24,7 +24,10 @@ from app.core.body_limit import BodySizeLimitMiddleware
 from app.api.v1.api import api_router
 from app.core.messages import GuildMessages
 from app.core.rate_limit import limiter
-from app.core.security import billing_support_handoff_enabled
+from app.core.security import (
+    app_platform_signing_enabled,
+    billing_support_handoff_enabled,
+)
 from app.core.config import API_V1_STR, PROJECT_NAME, settings
 from app.core.version import __version__
 from app.db.errors import INSUFFICIENT_PRIVILEGE_SQLSTATE, dbapi_sqlstate
@@ -214,6 +217,37 @@ async def lifespan(app: FastAPI):
             )
         except Exception:
             logger.exception("marketplace: operator catalog scan failed")
+    # App services the deployment declares in a mounted file (APP_SERVICES_CONFIG).
+    # Database-only: an app's container may boot after this one, so the handshake
+    # is a separate step and a declared registration lands unverified rather than
+    # holding up startup. No-op when the setting is unset.
+    if settings.APP_SERVICES_CONFIG:
+        if not app_platform_signing_enabled():
+            # Registrations reconcile fine, but verifying one (and later minting
+            # its context tokens) needs the platform's own keypair.
+            logger.warning(
+                "APP_SERVICES_CONFIG is set but APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM "
+                "is not; app service verification will fail closed until a signing "
+                "key is configured."
+            )
+        try:
+            from app.services.marketplace import registrations as app_registrations
+
+            async with AdminSessionLocal() as app_service_session:
+                reconciled = await app_registrations.reconcile_from_config(
+                    app_service_session
+                )
+            logger.info(
+                "app services: %d created, %d updated, %d unchanged, %d skipped",
+                reconciled.created,
+                reconciled.updated,
+                reconciled.unchanged,
+                reconciled.skipped,
+            )
+        except Exception:
+            # A registration that failed to reconcile costs that app, not the
+            # boot; already-stored registrations keep working unchanged.
+            logger.exception("app services: reconciliation from config failed")
 
     app.state.notification_tasks = background_tasks_service.start_background_tasks()
 

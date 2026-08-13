@@ -542,6 +542,69 @@ export interface AppConfig {
   max_upload_bytes: number;
 }
 
+/**
+ * Wire an app service up.
+ *
+ * ``public_id`` is optional: a reachable service names itself in its manifest.
+ * Supplying it lets a registration be created before the service answers (the
+ * declarative case), and is checked against the manifest when one arrives.
+ */
+export interface AppServiceRegistrationCreate {
+  /** @maxLength 1000 */
+  base_url: string;
+  secret: string;
+  public_id?: string | null;
+  allowed_origins?: string[] | null;
+  grants?: string[] | null;
+  mandatory?: boolean;
+  enabled?: boolean;
+}
+
+/**
+ * A registration as the admin surface sees it.
+ */
+export interface AppServiceRegistrationRead {
+  id: number;
+  public_id: string;
+  listing_uid: string | null;
+  base_url: string;
+  allowed_origins: string[];
+  has_secret: boolean;
+  manifest_hash: string | null;
+  protocol_version: number | null;
+  grants: string[];
+  mandatory: boolean;
+  enabled: boolean;
+  status: string;
+  last_verified_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Partial edit. Rotating ``secret`` or repointing ``base_url`` clears the
+ * recorded verification — the stored manifest hash described the old target.
+ */
+export interface AppServiceRegistrationUpdate {
+  base_url?: string | null;
+  secret?: string | null;
+  allowed_origins?: string[] | null;
+  grants?: string[] | null;
+  mandatory?: boolean | null;
+  enabled?: boolean | null;
+}
+
+/**
+ * Re-run the handshake.
+ *
+ * ``accept_manifest_change`` adopts a manifest that no longer hashes to the
+ * recorded one. It defaults to false so an app changing what it declares is
+ * surfaced to the operator rather than absorbed.
+ */
+export interface AppServiceVerifyRequest {
+  accept_manifest_change?: boolean;
+}
+
 export interface ArchiveDoneResponse {
   archived_count: number;
 }

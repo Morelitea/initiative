@@ -385,5 +385,18 @@
   "GUILD_APP_ADMIN_REQUIRED": "Seules les administratrices et administrateurs de la guilde peuvent gérer les applications.",
   "GUILD_APP_LISTING_NOT_AN_APP": "Cette fiche ne peut pas être installée en tant qu'application.",
   "GUILD_APP_ALREADY_INSTALLED": "Cette guilde a déjà installé cette application.",
-  "GUILD_APP_KIND_NOT_INSTALLABLE": "Ce type d'application ne peut pas encore être installé sur cette version d'Initiative."
+  "GUILD_APP_KIND_NOT_INSTALLABLE": "Ce type d'application ne peut pas encore être installé sur cette version d'Initiative.",
+  "APP_SERVICE_NOT_FOUND": "Ce service applicatif n'est plus enregistré.",
+  "APP_SERVICE_DUPLICATE_PUBLIC_ID": "Un service applicatif portant cet identifiant est déjà enregistré.",
+  "APP_SERVICE_INVALID_PUBLIC_ID": "Cet identifiant d'application n'est pas valide. Utilisez la forme editeur.nom, en minuscules.",
+  "APP_SERVICE_INVALID_BASE_URL": "Cette adresse n'est pas valide. Indiquez l'URL de base de l'application, sans paramètres de requête.",
+  "APP_SERVICE_INVALID_ORIGIN": "Une origine autorisée n'est pas valide. Utilisez schéma://hôte avec un port facultatif et sans chemin.",
+  "APP_SERVICE_UNKNOWN_GRANT": "Cette autorisation ne peut pas être accordée à un service applicatif.",
+  "APP_SERVICE_SECRET_REQUIRED": "Ce service applicatif a besoin d'un secret partagé avant de pouvoir être vérifié.",
+  "APP_SERVICE_SIGNING_NOT_CONFIGURED": "Les services applicatifs nécessitent une clé de signature qui n'est pas encore configurée. Contactez votre administration.",
+  "APP_SERVICE_UNREACHABLE": "Le service applicatif n'a pas pu être joint. Vérifiez qu'il fonctionne et que l'adresse est correcte.",
+  "APP_SERVICE_INVALID_MANIFEST": "Le service applicatif s'est décrit d'une manière que cette version ne peut pas accepter.",
+  "APP_SERVICE_MANIFEST_CHANGED": "Ce service applicatif se décrit désormais différemment. Examinez le changement, puis vérifiez-le à nouveau pour l'accepter.",
+  "APP_SERVICE_PUBLIC_ID_MISMATCH": "Cette adresse répond pour une application différente de celle de cet enregistrement.",
+  "APP_SERVICE_SIGNATURE_MISMATCH": "Le service applicatif a répondu avec un secret différent. Vérifiez que les deux côtés partagent le même."
 }

@@ -62,6 +62,12 @@ class Capability(str, Enum):
     # App-wide configuration (OIDC, SMTP, branding, role labels). owner only.
     CONFIG_MANAGE = "config.manage"
 
+    # Wiring external app services into this deployment: their URL, the shared
+    # secret, and the powers the operator confers on them. owner only — this is
+    # deployment configuration, the same class ``config.manage`` occupies, kept
+    # as its own capability so the app catalog can be delegated separately later.
+    APPS_MANAGE = "apps.manage"
+
 
 # Capability presets per platform role, least → most privileged. Each higher
 # tier is a strict superset of the tier below it, but the model itself does
@@ -93,6 +99,7 @@ _OWNER: FrozenSet[Capability] = (
     _OPERATOR
     | {
         Capability.CONFIG_MANAGE,
+        Capability.APPS_MANAGE,
     }
 ) - {
     # Owners approve access requests; they don't go through the request→approve

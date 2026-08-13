@@ -46,9 +46,11 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from app.core.config import settings
 from app.core.encryption import (
     SALT_AI_API_KEY,
+    SALT_APP_SERVICE_SECRET,
     SALT_EMAIL,
     SALT_OIDC_CLIENT_SECRET,
     SALT_OIDC_REFRESH_TOKEN,
+    SALT_S3_SECRET_KEY,
     SALT_SMTP_PASSWORD,
     decrypt_field,
     encrypt_field,
@@ -74,7 +76,19 @@ _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
     # legacy app_settings.oidc_client_secret_encrypted column is dropped).
     ("auth_provider_secrets", "client_secret_encrypted", SALT_OIDC_CLIENT_SECRET),
     ("app_settings", "smtp_password_encrypted", SALT_SMTP_PASSWORD),
+    # Pre-existing gap, found by the catalog-driven completeness test below: a
+    # rotation left the object-storage credential under the old key.
+    ("app_settings", "s3_secret_access_key_encrypted", SALT_S3_SECRET_KEY),
     ("guild_invites", "invitee_email_encrypted", SALT_EMAIL),
+    # The shared secret an app service signs its requests with. Left out, a
+    # rotation would strand it: the registration would still be there and still
+    # look healthy, and every verification and boot reconciliation that decrypts
+    # it would fail once the previous key was retired.
+    (
+        "app_service_registrations",
+        "secret_encrypted",
+        SALT_APP_SERVICE_SECRET,
+    ),
 ]
 
 # Columns rotated once per ``guild_<id>`` schema (the live copies). The member

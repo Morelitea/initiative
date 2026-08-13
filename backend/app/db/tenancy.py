@@ -83,6 +83,10 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # guild_id by design — the catalog never records who installed what.
         "marketplace_listings",
         "marketplace_listing_versions",
+        # Deployment-level wiring for external app services (URL, shared secret,
+        # operator-conferred grants). Platform-wide by definition — one row per
+        # app, never per guild — and owner-managed.
+        "app_service_registrations",
         "platform_ai_connections",  # operator AI connections (platform config mode)
         "access_grants",  # PAM — inherently cross-guild (request -> approve -> scoped)
         "notifications",  # per-user inbox spanning guilds (carries guild_id after split)

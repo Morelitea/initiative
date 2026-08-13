@@ -554,6 +554,41 @@ class GuildAppMessages:
     KIND_NOT_INSTALLABLE = "GUILD_APP_KIND_NOT_INSTALLABLE"
 
 
+class AppServiceMessages:
+    """Codes for the deployment-level app service registry.
+
+    Read by an operator wiring an app up, so each code names the step that
+    refused rather than a generic failure.
+    """
+
+    NOT_FOUND = "APP_SERVICE_NOT_FOUND"
+    #: Another registration already carries this public_id.
+    DUPLICATE_PUBLIC_ID = "APP_SERVICE_DUPLICATE_PUBLIC_ID"
+    #: public_id, base_url, an origin, or a version string this build refuses.
+    INVALID_PUBLIC_ID = "APP_SERVICE_INVALID_PUBLIC_ID"
+    INVALID_BASE_URL = "APP_SERVICE_INVALID_BASE_URL"
+    INVALID_ORIGIN = "APP_SERVICE_INVALID_ORIGIN"
+    #: A grant outside the closed operator-conferred vocabulary.
+    UNKNOWN_GRANT = "APP_SERVICE_UNKNOWN_GRANT"
+    #: A registration with no stored secret cannot complete a handshake.
+    SECRET_REQUIRED = "APP_SERVICE_SECRET_REQUIRED"
+    #: The APP_PLATFORM_* signing keypair is not configured. It is required and
+    #: has no fallback, so registration and verification fail closed until an
+    #: operator supplies one.
+    SIGNING_NOT_CONFIGURED = "APP_SERVICE_SIGNING_NOT_CONFIGURED"
+    #: The service could not be reached, or did not answer with a manifest.
+    UNREACHABLE = "APP_SERVICE_UNREACHABLE"
+    #: The manifest was served but this build will not accept it (unknown
+    #: protocol version, missing fields, or a definition the validator refuses).
+    INVALID_MANIFEST = "APP_SERVICE_INVALID_MANIFEST"
+    #: The served manifest no longer hashes to the one recorded at registration.
+    MANIFEST_CHANGED = "APP_SERVICE_MANIFEST_CHANGED"
+    #: The manifest names a different app than the registration does.
+    PUBLIC_ID_MISMATCH = "APP_SERVICE_PUBLIC_ID_MISMATCH"
+    #: The challenge came back signed with a different secret.
+    SIGNATURE_MISMATCH = "APP_SERVICE_SIGNATURE_MISMATCH"
+
+
 class WebhookSubscriptionMessages:
     INVALID_TARGET_URL = "WEBHOOK_INVALID_TARGET_URL"
     PRIVATE_TARGET_URL = "WEBHOOK_PRIVATE_TARGET_URL"
