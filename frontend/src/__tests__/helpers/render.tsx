@@ -203,7 +203,11 @@ export function renderPage(
     getParentRoute: () => rootRoute,
     path: initialRoute,
     component: PageComponent as () => ReactElement,
-    validateSearch: () => routerSearch ?? {},
+    // `routerSearch` seeds the first render only. Once the page navigates, its
+    // own params win — otherwise a page that reads and rewrites the URL (say,
+    // correcting an out-of-range `page`) could never be observed changing it.
+    validateSearch: (search: Record<string, unknown>) =>
+      Object.keys(search).length > 0 ? search : (routerSearch ?? {}),
   });
 
   const routeTree = rootRoute.addChildren([childRoute]);

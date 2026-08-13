@@ -47,6 +47,8 @@ export function buildQueueSummary(overrides: Partial<QueueSummary> = {}): QueueS
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",
     my_permission_level: "owner",
+    tags: [],
+    grants: [],
     ...overrides,
   };
 }

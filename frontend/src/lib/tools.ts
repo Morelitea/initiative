@@ -179,6 +179,11 @@ export const toolPlural = (tool: Tool): string => `${tool}s`;
 /** "counter_group" → "counter-groups" — route segment AND API path segment. */
 export const toolRouteSegment = (tool: Tool): string => toolPlural(tool).replaceAll("_", "-");
 
+/** Inverse of {@link toolRouteSegment}: which tool a route segment names, or
+ *  null for anything unrecognized. Lets a URL carry a readable tool selector. */
+export const toolForRouteSegment = (segment: string): Tool | null =>
+  TOOLS.find((tool) => toolRouteSegment(tool) === segment) ?? null;
+
 /** "counter_group" → "counterGroups" — i18n namespace, palette group key. */
 export const toolCamelPlural = (tool: Tool): string =>
   toolPlural(tool).replace(/_(\w)/g, (_, c: string) => c.toUpperCase());

@@ -49,7 +49,7 @@ We cover all of this in detail in [Using Initiative](../guides/index.md).
 
 ## Switching between guilds
 
-You can belong to as many guilds as you like — your gaming group, your volunteer committee, your workplace — and each stays completely separate. Use the **guild rail** on the far-left edge of the screen to move between them — click a guild's icon to switch. Switching changes everything else (the sidebar, initiatives, and projects) to that guild and opens its dashboard.
+You can belong to as many guilds as you like — your gaming group, your volunteer committee, your workplace — and each stays completely separate. Use the **guild rail** on the far-left edge of the screen to move between them — click a guild's icon to switch. Switching changes everything else (the sidebar, initiatives, and projects) to that guild and opens its front page.
 
 ??? techspec "For the technically minded — guilds are a hard boundary"
     A guild isn't just a label. Each guild's content lives in its own isolated area of the database, and the system enforces that you can only ever read or write guilds you belong to — at the database level, not just in the interface. Two browser tabs can even sit in two different guilds at once without leaking between them. This is the foundation of how Initiative keeps groups' data apart; see [How your data is kept separate](../security/how-your-data-is-kept-separate.md).

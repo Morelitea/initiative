@@ -194,7 +194,9 @@ All user-facing strings must be externalized for localization. **Never hardcode 
 
 Translation files live in `frontend/public/locales/en/<namespace>.json`. The app uses `i18next-http-backend` to lazy-load namespaces on first use.
 
-**Namespaces**: `common`, `auth`, `nav`, `projects`, `tasks`, `documents`, `initiatives`, `settings`, `tags`, `guilds`, `import`, `notifications`, `stats`, `landing`, `errors`, `dates`, `access`, `command`, `counterGroups`, `dashboard`, `calendars`, `properties`, `queues`, `trash`
+**Namespaces**: `common`, `auth`, `nav`, `projects`, `tasks`, `documents`, `initiatives`, `settings`, `tags`, `guilds`, `import`, `notifications`, `stats`, `landing`, `errors`, `dates`, `access`, `command`, `counterGroups`, `dashboards`, `guildHome`, `calendars`, `properties`, `queues`, `trash`
+
+Each tool owns the namespace named after its camel plural (`projects`, `documents`, `queues`, `counterGroups`, `calendars`, `dashboards`) — `lib/tools.test.ts` fails if one is missing. `guildHome` is the guild front page, which is not a tool.
 
 **Rules:**
 
