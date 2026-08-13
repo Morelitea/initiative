@@ -34,6 +34,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import (
     GuildContext,
@@ -98,6 +99,12 @@ def _require_guild_admin(guild_context: GuildContext) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail=GuildAppMessages.ADMIN_REQUIRED,
         )
+
+
+async def _app_avatar(session: AsyncSession, app: GuildApp) -> Optional[str]:
+    """The artwork for one install's listing."""
+    avatars = await catalog_service.listing_avatars(session, [app.listing_uid])
+    return avatars.get(app.listing_uid)
 
 
 async def _load(session: RLSSessionDep, app_id: int) -> GuildApp:
@@ -217,11 +224,15 @@ async def list_guild_apps(
     apps = (
         await session.exec(select(GuildApp).order_by(GuildApp.name, GuildApp.id))
     ).all()
+    avatars = await catalog_service.listing_avatars(
+        session, [app.listing_uid for app in apps]
+    )
     return GuildAppListResponse(
         items=[
             serialize_guild_app(
                 app,
                 install_state=await registration_lookup.install_state(app.definition),
+                avatar_url=avatars.get(app.listing_uid),
             )
             for app in apps
         ]
@@ -244,6 +255,7 @@ async def get_guild_app(
     app = await _load(session, app_id)
     return serialize_guild_app_detail(
         app,
+        avatar_url=await _app_avatar(session, app),
         member_rows=await _member_rows(session, app_id=app.id, user_id=current_user.id),
         install_state=await registration_lookup.install_state(app.definition),
     )
@@ -309,7 +321,9 @@ async def install_guild_app(
     await session.refresh(app)
 
     installed = serialize_guild_app(
-        app, install_state=await registration_lookup.install_state(app.definition)
+        app,
+        install_state=await registration_lookup.install_state(app.definition),
+        avatar_url=await _app_avatar(session, app),
     )
     await _count_install(listing.id)
     return installed
@@ -394,6 +408,7 @@ async def upgrade_guild_app(
     await session.refresh(app)
     return serialize_guild_app_detail(
         app,
+        avatar_url=await _app_avatar(session, app),
         member_rows=await _member_rows(session, app_id=app.id, user_id=current_user.id),
         install_state=await registration_lookup.install_state(app.definition),
     )
@@ -428,7 +443,9 @@ async def update_guild_app(
     await session.commit()
     await session.refresh(app)
     return serialize_guild_app(
-        app, install_state=await registration_lookup.install_state(app.definition)
+        app,
+        install_state=await registration_lookup.install_state(app.definition),
+        avatar_url=await _app_avatar(session, app),
     )
 
 
@@ -556,6 +573,7 @@ async def update_guild_app_config(
     await session.refresh(app)
     return serialize_guild_app_detail(
         app,
+        avatar_url=await _app_avatar(session, app),
         member_rows=await _member_rows(session, app_id=app.id, user_id=current_user.id),
         install_state=await registration_lookup.install_state(app.definition),
     )

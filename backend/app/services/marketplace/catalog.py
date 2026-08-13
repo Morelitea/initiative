@@ -49,6 +49,7 @@ __all__ = [
     "list_listings",
     "get_listing",
     "get_listing_by_uid",
+    "listing_avatars",
     "get_listing_version",
     "resolve_installable_version",
     "listing_versions",
@@ -202,6 +203,24 @@ async def get_listing(
     ).first()
 
 
+async def listing_avatars(session: AsyncSession, uids: Sequence[str]) -> dict[str, str]:
+    """Artwork for the given listings, by uid.
+
+    Read rather than pinned into an install: a listing that changes its picture
+    should change everywhere it is drawn, and unlike a definition there is
+    nothing here an install needs held still.
+    """
+    unique = {uid for uid in uids if uid}
+    if not unique:
+        return {}
+    rows = await session.exec(
+        select(MarketplaceListing.uid, MarketplaceListing.avatar_url).where(
+            MarketplaceListing.uid.in_(unique)
+        )
+    )
+    return {uid: avatar for uid, avatar in rows if avatar}
+
+
 async def get_listing_by_uid(
     session: AsyncSession, uid: str
 ) -> Optional[MarketplaceListing]:
@@ -270,6 +289,7 @@ async def upsert_listing(
 
     try:
         definition = normalize_listing_definition(kind, manifest.get("definition"))
+
         # Required on every ingestion path: seeding, an operator upload, a
         # registry refresh. There is no path that publishes without one.
         publisher = normalize_publisher(manifest.get("publisher"))
