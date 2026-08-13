@@ -1,0 +1,155 @@
+import { screen, waitFor, within } from "@testing-library/react";
+import { HttpResponse } from "msw";
+import { describe, expect, it } from "vitest";
+
+import {
+  buildDocumentSummary,
+  buildGuild,
+  buildInitiative,
+  buildProject,
+} from "@/__tests__/factories";
+import { buildQueueSummary } from "@/__tests__/factories/queue.factory";
+import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { server } from "@/__tests__/helpers/msw-server";
+import { renderPage } from "@/__tests__/helpers/render";
+
+import { GuildHomePage } from "./GuildHomePage";
+
+const INITIATIVE_ID = 7;
+
+const page = (items: unknown[]) =>
+  HttpResponse.json({
+    items,
+    total_count: items.length,
+    page: 1,
+    page_size: 20,
+    has_next: false,
+  });
+
+/**
+ * The guild home reads every tool through the same paginated envelope, so one
+ * stub shape covers all six. Only the selected tool is actually requested.
+ */
+function stubTools({
+  projects = [],
+  documents = [],
+  queues = [],
+}: {
+  projects?: unknown[];
+  documents?: unknown[];
+  queues?: unknown[];
+} = {}) {
+  server.use(
+    guildHttp.get("/projects/", () => page(projects)),
+    guildHttp.get("/documents/", () => page(documents)),
+    guildHttp.get("/queues/", () => page(queues)),
+    guildHttp.get("/counter-groups/", () => page([])),
+    guildHttp.get("/calendars/", () => page([])),
+    guildHttp.get("/dashboards/", () => page([]))
+  );
+}
+
+/** A guild admin sees every initiative, so the rail reflects the initiative's
+ *  own tool switches rather than one membership row. */
+function stubInitiatives(overrides: Record<string, boolean> = {}) {
+  server.use(
+    guildHttp.get("/initiatives/", () =>
+      HttpResponse.json([buildInitiative({ id: INITIATIVE_ID, name: "Apollo", ...overrides })])
+    )
+  );
+}
+
+const renderHome = (search?: Record<string, unknown>) =>
+  renderPage(GuildHomePage, {
+    guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role: "admin" }) },
+    routerSearch: search,
+  });
+
+describe("GuildHomePage", () => {
+  it("lists the whole guild's projects under the projects circle", async () => {
+    stubInitiatives();
+    stubTools({
+      projects: [
+        buildProject({ id: 1, name: "Lunar Lander", initiative_id: INITIATIVE_ID }),
+        buildProject({ id: 2, name: "Rover Telemetry", initiative_id: INITIATIVE_ID }),
+      ],
+    });
+
+    renderHome();
+
+    expect(await screen.findByRole("link", { name: "Lunar Lander" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Rover Telemetry" })).toBeInTheDocument();
+    // Each row names the initiative it came from, since the table spans them all.
+    expect(screen.getAllByRole("link", { name: "Apollo" }).length).toBeGreaterThan(0);
+  });
+
+  it("shows a circle only for tools an initiative actually enables", async () => {
+    stubInitiatives({ queues_enabled: true });
+    stubTools({ projects: [buildProject({ id: 1, name: "Lunar Lander" })] });
+
+    renderHome();
+
+    const rail = await screen.findByRole("navigation", { name: "Guild tools" });
+    // The rail waits on the initiative list — until it lands only the core
+    // tools show, so assert on the settled state.
+    expect(await within(rail).findByRole("link", { name: "Queues" })).toBeInTheDocument();
+    expect(within(rail).getByRole("link", { name: "Projects" })).toBeInTheDocument();
+    // Calendars are off in the only initiative, so the guild has none to browse.
+    expect(within(rail).queryByRole("link", { name: "Calendar" })).not.toBeInTheDocument();
+  });
+
+  it("switches the table to the tool named in the address", async () => {
+    stubInitiatives({ queues_enabled: true });
+    stubTools({
+      queues: [
+        buildQueueSummary({
+          id: 3,
+          name: "Launch Window",
+          initiative_id: INITIATIVE_ID,
+          item_count: 4,
+        }),
+      ],
+    });
+
+    renderHome({ tool: "queues" });
+
+    expect(await screen.findByRole("link", { name: "Launch Window" })).toBeInTheDocument();
+    // The third column is the tool's own — queues count their items.
+    expect(screen.getByRole("columnheader", { name: /items/i })).toBeInTheDocument();
+    expect(screen.getByText("4 items")).toBeInTheDocument();
+  });
+
+  it("falls back to a reachable tool when the address names an unknown one", async () => {
+    stubInitiatives();
+    stubTools({ projects: [buildProject({ id: 1, name: "Lunar Lander" })] });
+
+    renderHome({ tool: "not-a-tool" });
+
+    expect(await screen.findByRole("link", { name: "Lunar Lander" })).toBeInTheDocument();
+  });
+
+  it("says so when the selected tool has nothing in the guild", async () => {
+    stubInitiatives();
+    stubTools({ documents: [] });
+
+    renderHome({ tool: "documents" });
+
+    expect(await screen.findByText("Nothing here yet")).toBeInTheDocument();
+  });
+
+  it("keeps documents on the same table shape as projects", async () => {
+    stubInitiatives();
+    stubTools({
+      documents: [
+        buildDocumentSummary({ id: 5, title: "Flight Rules", initiative_id: INITIATIVE_ID }),
+      ],
+    });
+
+    renderHome({ tool: "documents" });
+
+    expect(await screen.findByRole("link", { name: "Flight Rules" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole("columnheader", { name: /type/i })).toBeInTheDocument()
+    );
+  });
+});
