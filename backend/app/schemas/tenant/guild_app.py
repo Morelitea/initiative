@@ -128,6 +128,18 @@ class GuildAppRead(SanitizedBaseModel):
     embed_target: Optional[str] = None
     #: What a service app contributes, from its pinned definition.
     features: List[str] = []
+    #: The pinned definition itself, verbatim.
+    #:
+    #: A passthrough rather than a read: this build gives meaning to parts of it
+    #: (``connections``, ``app_kind``) and none at all to others — the
+    #: ``automation`` block belongs to the automation service, which parses it
+    #: against its own schema off this same payload rather than through an
+    #: endpoint that would have to understand it. Serving the snapshot the guild
+    #: pinned, not whatever the catalog holds today, is what lets a reader say
+    #: what *this* install actually is. It never carries a stored value: the
+    #: definition describes the form, and what was typed into it lives in
+    #: columns nothing here reads.
+    definition: Dict[str, Any] = {}
     #: Whether opening this app is a guild-admin action. Decided here, not by
     #: the client reading the kind: an entry a member cannot use should not be
     #: offered to them, and which apps those are is the server's call.
@@ -230,6 +242,7 @@ def serialize_guild_app(app: Any) -> GuildAppRead:
         tool=definition.get("tool"),
         embed_target=definition.get("embed_target"),
         features=list(features) if isinstance(features, list) else [],
+        definition=definition,
         admin_only=requires_guild_admin(definition),
         installed_by_id=app.installed_by_id,
         created_at=app.created_at,
