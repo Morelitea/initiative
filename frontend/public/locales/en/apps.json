@@ -94,5 +94,20 @@
     "revokeAllTitle": "Revoke every member's connection?",
     "revokeAllBody": "Every member's stored credential is deleted and the app is told to stop using it. The app stays installed and keeps its guild settings. Members can connect again afterwards.",
     "revokedAll": "Every connection revoked."
+  },
+  "showMore": "{{count}} more",
+  "showFewer": "Show fewer",
+  "settings": {
+    "description": "Set up how this app connects."
+  },
+  "embed": {
+    "connecting": "Connecting…",
+    "handoffFailed": "Could not open this app. Try again in a moment.",
+    "failed": "This app could not be opened",
+    "notFound": "App not found",
+    "disabled": "{{name}} is turned off",
+    "unavailable": "{{name}} is not set up on this server",
+    "unavailableDescription": "An administrator needs to connect this app's service before it can be opened.",
+    "noSurface": "{{name}} has no page of its own"
   }
 }

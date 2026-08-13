@@ -21,13 +21,23 @@
  * where an admin turns them back on. So are apps whose service is not set up on
  * this server — an entry that opens nothing is worse than no entry, and guild
  * settings is where that state is explained.
+ *
+ * **Every entry does something.** An app with a surface opens it; an app with
+ * only a credential to supply opens that form where it stands, because "set up
+ * my GitHub account" is the app, not a detour through settings. An app that is
+ * neither — one contributing widgets or data to somewhere else — has nothing to
+ * open, so it sits under a "show more" rather than spending a row on a click
+ * that would go nowhere.
  */
 
 import { Link } from "@tanstack/react-router";
-import { Blocks, CalendarDays, ChevronDown, Plus, Workflow } from "lucide-react";
+import { Blocks, ChevronDown, ChevronsDownUp, ChevronsUpDown, Plus } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { GuildAppRead } from "@/api/generated/initiativeAPI.schemas";
+import { AppSettingsDialog } from "@/components/apps/AppSettingsDialog";
+import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   SidebarGroup,
@@ -38,13 +48,10 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { guildAppPath, useGuildApps } from "@/hooks/useGuildApps";
+import { useGuildApps } from "@/hooks/useGuildApps";
+import { appHasConnections, guildAppPath } from "@/lib/appSurfaces";
 import { useGuildPath } from "@/lib/guildUrl";
 import { cn } from "@/lib/utils";
-
-/** One icon per mountable tool. Apps mount this build's own tools, so this maps
- *  the closed set rather than trusting anything a listing supplies. */
-const TOOL_ICONS = { calendar: CalendarDays } as const;
 
 export interface AppsSectionProps {
   isGuildAdmin: boolean;
@@ -57,6 +64,7 @@ export function AppsSection({ isGuildAdmin, open, onOpenChange }: AppsSectionPro
   const { t } = useTranslation(["apps", "nav"]);
   const gp = useGuildPath();
   const appsQuery = useGuildApps();
+  const [showInert, setShowInert] = useState(false);
 
   // `available` is false when an app's service is not set up on this server, or
   // the operator switched it off: there is nothing behind the entry, so it does
@@ -64,6 +72,14 @@ export function AppsSection({ isGuildAdmin, open, onOpenChange }: AppsSectionPro
   const apps = (appsQuery.data?.items ?? []).filter(
     (app) => app.enabled && app.available !== false
   );
+
+  // An app with somewhere to go leads; one with nothing to open waits under
+  // "show more" so a guild that installs many widget providers still has a
+  // readable sidebar.
+  const actionable = apps.filter(
+    (app) => guildAppPath(app) !== null || appHasConnections(app.definition)
+  );
+  const inert = apps.filter((app) => !actionable.includes(app));
 
   // Nothing installed and nothing this person could do about it: show nothing.
   // A member should see initiatives, not an empty shelf.
@@ -74,26 +90,30 @@ export function AppsSection({ isGuildAdmin, open, onOpenChange }: AppsSectionPro
       <SidebarGroup>
         <SidebarGroupLabel className="flex items-center gap-2 py-2">
           <Blocks className="h-4 w-4" />
-          <CollapsibleTrigger className="flex flex-1 items-center gap-2 text-left">
+          <CollapsibleTrigger className="flex flex-1 items-center text-left">
             <span className="flex-1">{t("apps:title")}</span>
-            <ChevronDown
-              className={cn("h-4 w-4 shrink-0 transition-transform", !open && "-rotate-90")}
-              aria-hidden
-            />
           </CollapsibleTrigger>
-          {isGuildAdmin && (
+          {apps.length > 0 && (
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
-                <Link
-                  to={gp("/marketplace")}
-                  search={{ kind: "app" }}
-                  aria-label={t("apps:add")}
-                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm hover:bg-accent"
-                >
-                  <Plus className="h-4 w-4" />
-                </Link>
+                <CollapsibleTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 shrink-0"
+                    aria-label={open ? t("nav:collapseAll") : t("nav:expandAll")}
+                  >
+                    {open ? (
+                      <ChevronsDownUp className="h-3.5 w-3.5" />
+                    ) : (
+                      <ChevronsUpDown className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                </CollapsibleTrigger>
               </TooltipTrigger>
-              <TooltipContent>{t("apps:add")}</TooltipContent>
+              <TooltipContent side="bottom">
+                <p>{open ? t("nav:collapseAll") : t("nav:expandAll")}</p>
+              </TooltipContent>
             </Tooltip>
           )}
         </SidebarGroupLabel>
@@ -102,12 +122,50 @@ export function AppsSection({ isGuildAdmin, open, onOpenChange }: AppsSectionPro
           <SidebarGroupContent>
             {apps.length ? (
               <SidebarMenu>
-                {apps.map((app) => (
-                  <AppEntry key={app.id} app={app} />
+                {actionable.map((app) => (
+                  <AppEntry key={app.id} app={app} isGuildAdmin={isGuildAdmin} />
                 ))}
+                {showInert &&
+                  inert.map((app) => (
+                    <AppEntry key={app.id} app={app} isGuildAdmin={isGuildAdmin} />
+                  ))}
+                {inert.length > 0 && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      size="sm"
+                      onClick={() => setShowInert((shown) => !shown)}
+                      className="text-muted-foreground"
+                    >
+                      <ChevronDown
+                        className={cn("h-4 w-4 transition-transform", !showInert && "-rotate-90")}
+                        aria-hidden
+                      />
+                      <span className="truncate">
+                        {showInert
+                          ? t("apps:showFewer")
+                          : t("apps:showMore", { count: inert.length })}
+                      </span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
               </SidebarMenu>
             ) : (
               <p className="px-4 py-2 text-muted-foreground text-sm">{t("apps:none")}</p>
+            )}
+
+            {/* Last, below "show more" as well, so adding one is always in the
+                same place — the same shape the initiatives list uses. */}
+            {isGuildAdmin && (
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild size="sm">
+                    <Link to={gp("/marketplace")} search={{ kind: "app" }}>
+                      <Plus className="h-4 w-4" />
+                      <span>{t("apps:add")}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
             )}
           </SidebarGroupContent>
         </CollapsibleContent>
@@ -116,25 +174,62 @@ export function AppsSection({ isGuildAdmin, open, onOpenChange }: AppsSectionPro
   );
 }
 
-function AppEntry({ app }: { app: GuildAppRead }) {
+function AppEntry({ app, isGuildAdmin }: { app: GuildAppRead; isGuildAdmin: boolean }) {
   const gp = useGuildPath();
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const path = guildAppPath(app);
-  const Icon = TOOL_ICONS[app.tool as keyof typeof TOOL_ICONS] ?? Blocks;
+  // The listing's own artwork, small. Every listing has one — a listing that
+  // ships none is published with the app's own mark — so there is nothing to
+  // fall back to.
+  const icon = app.avatar_url ? (
+    <img
+      src={app.avatar_url}
+      alt=""
+      aria-hidden
+      className="h-4 w-4 shrink-0 rounded-sm object-cover"
+      loading="lazy"
+    />
+  ) : (
+    <Blocks className="h-4 w-4" />
+  );
+
+  if (path) {
+    return (
+      <SidebarMenuItem>
+        <SidebarMenuButton asChild size="sm">
+          <Link to={gp(path)}>
+            {icon}
+            <span className="truncate">{app.name}</span>
+          </Link>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    );
+  }
+
+  // No surface, but something to connect: the form opens here rather than
+  // sending the member to a settings page to find it.
+  if (appHasConnections(app.definition)) {
+    return (
+      <SidebarMenuItem>
+        <SidebarMenuButton size="sm" onClick={() => setSettingsOpen(true)}>
+          {icon}
+          <span className="truncate">{app.name}</span>
+        </SidebarMenuButton>
+        <AppSettingsDialog
+          appId={app.id}
+          isGuildAdmin={isGuildAdmin}
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+        />
+      </SidebarMenuItem>
+    );
+  }
 
   return (
     <SidebarMenuItem>
-      <SidebarMenuButton asChild={Boolean(path)} size="sm">
-        {path ? (
-          <Link to={gp(path)}>
-            <Icon className="h-4 w-4" />
-            <span className="truncate">{app.name}</span>
-          </Link>
-        ) : (
-          <span className="flex items-center gap-2">
-            <Icon className="h-4 w-4" />
-            <span className="truncate">{app.name}</span>
-          </span>
-        )}
+      <SidebarMenuButton size="sm" className="cursor-default hover:bg-transparent">
+        {icon}
+        <span className="truncate">{app.name}</span>
       </SidebarMenuButton>
     </SidebarMenuItem>
   );

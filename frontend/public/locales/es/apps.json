@@ -94,5 +94,20 @@
     "revokeAllTitle": "¿Revocar la conexión de todos los miembros?",
     "revokeAllBody": "Se borra la credencial guardada de cada miembro y se le pide a la aplicación que deje de usarla. La aplicación sigue instalada y conserva los ajustes del gremio. Después los miembros pueden volver a conectarse.",
     "revokedAll": "Todas las conexiones revocadas."
+  },
+  "showMore": "{{count}} más",
+  "showFewer": "Mostrar menos",
+  "settings": {
+    "description": "Configura cómo se conecta esta aplicación."
+  },
+  "embed": {
+    "connecting": "Conectando…",
+    "handoffFailed": "No se pudo abrir esta aplicación. Inténtalo de nuevo en un momento.",
+    "failed": "No se pudo abrir esta aplicación",
+    "notFound": "Aplicación no encontrada",
+    "disabled": "{{name}} está desactivada",
+    "unavailable": "{{name}} no está configurada en este servidor",
+    "unavailableDescription": "Un administrador debe conectar el servicio de esta aplicación antes de poder abrirla.",
+    "noSurface": "{{name}} no tiene una página propia"
   }
 }

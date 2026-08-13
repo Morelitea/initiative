@@ -7,8 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Installed apps open again.** Clicking an app in the sidebar did nothing. An app with a page of its own now opens it — with a tab for each view where an app offers several — and an app that only needs an account connected opens that form where you clicked, rather than sending you to look for it in guild settings. Apps that just feed widgets into dashboards have no page to open, so they tuck under a “show more” instead of taking up a row. Each app is now shown with its own artwork.
+
 ### Changed
 
+- **The sidebar drops “All Projects” and “All Documents”.** Both are a keystroke away in the command palette, and the space now belongs to your guild's apps. The apps list also matches the initiatives list above it — the same expand control, and “Add an app” sits at the bottom where “Add initiative” does.
 - **Focus settings on My Tasks are now a window per priority.** Instead of one date range for everything plus an "always include urgent and high" switch, each priority gets its own slider: how many days ahead the Focus list looks for that priority, from today-and-overdue only up to a month out, or "any date" to keep that priority on the list whatever its deadline. Existing settings carry over.
 
 ## [0.62.1] - 2026-08-13

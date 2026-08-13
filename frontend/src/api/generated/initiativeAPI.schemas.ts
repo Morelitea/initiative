@@ -2037,6 +2037,7 @@ export interface GuildAppDetail {
   config_state: string;
   config_state_detail: string | null;
   tool: string | null;
+  avatar_url: string | null;
   features: string[];
   definition: GuildAppDetailDefinition;
   mandatory: boolean;
@@ -2090,6 +2091,7 @@ export interface GuildAppRead {
   config_state: string;
   config_state_detail: string | null;
   tool: string | null;
+  avatar_url: string | null;
   features: string[];
   definition: GuildAppReadDefinition;
   mandatory: boolean;

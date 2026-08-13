@@ -27,7 +27,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { guildAppPath, useInstallGuildApp } from "@/hooks/useGuildApps";
+import { useInstallGuildApp } from "@/hooks/useGuildApps";
+import { guildAppPath } from "@/lib/appSurfaces";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
