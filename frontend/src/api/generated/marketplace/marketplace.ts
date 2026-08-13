@@ -26,6 +26,8 @@ import type {
   MarketplaceListingDetail,
   MarketplaceListingPage,
   OperatorCatalogScanResult,
+  RegistryRefreshRead,
+  RegistryStatusRead,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -630,6 +632,244 @@ export const useRescanOperatorCatalogApiV1MarketplaceOperatorCatalogRescanPost =
 > => {
   return useMutation(
     getRescanOperatorCatalogApiV1MarketplaceOperatorCatalogRescanPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Where this deployment stands with its configured registry.
+ *
+ * Answers "is anything coming from a registry, and did the last refresh
+ * work". With no registry configured every field is empty — the feature is
+ * absent rather than idle.
+ * @summary Read Registry Status
+ */
+export const readRegistryStatusApiV1MarketplaceRegistryStatusGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<RegistryStatusRead>(
+    { url: `/api/v1/marketplace/registry/status`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadRegistryStatusApiV1MarketplaceRegistryStatusGetQueryKey = () => {
+  return [`/api/v1/marketplace/registry/status`] as const;
+};
+
+export const getReadRegistryStatusApiV1MarketplaceRegistryStatusGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readRegistryStatusApiV1MarketplaceRegistryStatusGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof readRegistryStatusApiV1MarketplaceRegistryStatusGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getReadRegistryStatusApiV1MarketplaceRegistryStatusGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof readRegistryStatusApiV1MarketplaceRegistryStatusGet>>
+  > = ({ signal }) => readRegistryStatusApiV1MarketplaceRegistryStatusGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof readRegistryStatusApiV1MarketplaceRegistryStatusGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadRegistryStatusApiV1MarketplaceRegistryStatusGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readRegistryStatusApiV1MarketplaceRegistryStatusGet>>
+>;
+export type ReadRegistryStatusApiV1MarketplaceRegistryStatusGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useReadRegistryStatusApiV1MarketplaceRegistryStatusGet<
+  TData = Awaited<ReturnType<typeof readRegistryStatusApiV1MarketplaceRegistryStatusGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readRegistryStatusApiV1MarketplaceRegistryStatusGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readRegistryStatusApiV1MarketplaceRegistryStatusGet>>,
+          TError,
+          Awaited<ReturnType<typeof readRegistryStatusApiV1MarketplaceRegistryStatusGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadRegistryStatusApiV1MarketplaceRegistryStatusGet<
+  TData = Awaited<ReturnType<typeof readRegistryStatusApiV1MarketplaceRegistryStatusGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readRegistryStatusApiV1MarketplaceRegistryStatusGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readRegistryStatusApiV1MarketplaceRegistryStatusGet>>,
+          TError,
+          Awaited<ReturnType<typeof readRegistryStatusApiV1MarketplaceRegistryStatusGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadRegistryStatusApiV1MarketplaceRegistryStatusGet<
+  TData = Awaited<ReturnType<typeof readRegistryStatusApiV1MarketplaceRegistryStatusGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readRegistryStatusApiV1MarketplaceRegistryStatusGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read Registry Status
+ */
+
+export function useReadRegistryStatusApiV1MarketplaceRegistryStatusGet<
+  TData = Awaited<ReturnType<typeof readRegistryStatusApiV1MarketplaceRegistryStatusGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readRegistryStatusApiV1MarketplaceRegistryStatusGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadRegistryStatusApiV1MarketplaceRegistryStatusGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Fetch and apply the registry index now.
+ *
+ * The same code path the background refresh runs, so there is one set of
+ * checks rather than a shortcut for the button. A refresh already in flight
+ * is reported rather than queued, and a refusal answers with the code naming
+ * it so the reason is legible instead of "it didn't work".
+ * @summary Refresh Registry Now
+ */
+export const refreshRegistryNowApiV1MarketplaceRegistryRefreshPost = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<RegistryRefreshRead>(
+    { url: `/api/v1/marketplace/registry/refresh`, method: "POST", signal },
+    options
+  );
+};
+
+export const getRefreshRegistryNowApiV1MarketplaceRegistryRefreshPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refreshRegistryNowApiV1MarketplaceRegistryRefreshPost>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof refreshRegistryNowApiV1MarketplaceRegistryRefreshPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["refreshRegistryNowApiV1MarketplaceRegistryRefreshPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof refreshRegistryNowApiV1MarketplaceRegistryRefreshPost>>,
+    void
+  > = () => {
+    return refreshRegistryNowApiV1MarketplaceRegistryRefreshPost(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RefreshRegistryNowApiV1MarketplaceRegistryRefreshPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof refreshRegistryNowApiV1MarketplaceRegistryRefreshPost>>
+>;
+
+export type RefreshRegistryNowApiV1MarketplaceRegistryRefreshPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Refresh Registry Now
+ */
+export const useRefreshRegistryNowApiV1MarketplaceRegistryRefreshPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof refreshRegistryNowApiV1MarketplaceRegistryRefreshPost>>,
+      TError,
+      void,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof refreshRegistryNowApiV1MarketplaceRegistryRefreshPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(
+    getRefreshRegistryNowApiV1MarketplaceRegistryRefreshPostMutationOptions(options),
     queryClient
   );
 };

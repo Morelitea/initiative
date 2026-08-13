@@ -65,6 +65,10 @@ from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.advanced_tool import AdvancedTool
 from app.models.tenant.export_job import ExportJob
 from app.models.tenant.import_job import ImportJob
+from app.models.platform.marketplace_registry import (
+    MarketplaceMedia,
+    MarketplaceRegistryState,
+)
 from app.models.platform.ai_connection import PlatformAIConnection
 from app.models.platform.app_service_registration import AppServiceRegistration
 from app.models.tenant.ai_connection import GuildAIConnection
@@ -139,6 +143,8 @@ __all__ = [
     "TaskAssignmentDigestItem",
     "WebhookSubscription",
     "AppServiceRegistration",
+    "MarketplaceMedia",
+    "MarketplaceRegistryState",
     "PlatformAIConnection",
     "GuildAIConnection",
     "GuildAIMemberKey",

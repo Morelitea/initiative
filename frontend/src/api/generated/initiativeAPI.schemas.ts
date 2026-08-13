@@ -3349,6 +3349,41 @@ export interface RecentViewWrite {
 }
 
 /**
+ * One listing a verified index carried that this deployment did not take.
+ */
+export interface RegistrySkippedListing {
+  public_id: string;
+  code: string;
+}
+
+/**
+ * The outcome of one refresh.
+ */
+export interface RegistryRefreshRead {
+  serial: number | null;
+  key_id: string | null;
+  upserted: number;
+  withdrawn: number;
+  unchanged: boolean;
+  skipped: RegistrySkippedListing[];
+}
+
+/**
+ * Where this deployment stands with its registry.
+ */
+export interface RegistryStatusRead {
+  configured: boolean;
+  registry_url: string | null;
+  key_id: string | null;
+  last_serial: number | null;
+  last_generated_at: string | null;
+  last_fetched_at: string | null;
+  last_success_at: string | null;
+  last_error: string | null;
+  listing_count: number;
+}
+
+/**
  * Resolved settings for the frontend — never exposes the API key.
  */
 export interface ResolvedAISettingsResponse {
