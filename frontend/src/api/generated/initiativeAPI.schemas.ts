@@ -2064,6 +2064,8 @@ export interface GuildAppConnectionSummary {
   member_count: number;
 }
 
+export type GuildAppDetailDefinition = { [key: string]: unknown };
+
 /**
  * An install plus its connections, for the settings page.
  *
@@ -2085,6 +2087,7 @@ export interface GuildAppDetail {
   tool: string | null;
   embed_target: string | null;
   features: string[];
+  definition: GuildAppDetailDefinition;
   admin_only: boolean;
   mandatory: boolean;
   available: boolean;
@@ -2122,6 +2125,8 @@ export interface GuildAppInstall {
   name?: string | null;
 }
 
+export type GuildAppReadDefinition = { [key: string]: unknown };
+
 export interface GuildAppRead {
   id: number;
   guild_id: number;
@@ -2137,6 +2142,7 @@ export interface GuildAppRead {
   tool: string | null;
   embed_target: string | null;
   features: string[];
+  definition: GuildAppReadDefinition;
   admin_only: boolean;
   mandatory: boolean;
   available: boolean;

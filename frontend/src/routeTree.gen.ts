@@ -62,6 +62,7 @@ import { Route as ServerRequiredAuthenticatedSettingsAdminUsersRouteImport } fro
 import { Route as ServerRequiredAuthenticatedSettingsGuildSplatRouteImport } from './routes/_serverRequired/_authenticated/settings/guild.$'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformIndexRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/index'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformAiRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/ai'
+import { Route as ServerRequiredAuthenticatedSettingsPlatformAppServicesRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/app-services'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformAuthRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/auth'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformBrandingRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/branding'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformEmailRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/email'
@@ -410,6 +411,12 @@ const ServerRequiredAuthenticatedSettingsPlatformAiRoute =
     path: '/ai',
     getParentRoute: () => ServerRequiredAuthenticatedSettingsPlatformRoute,
   } as any)
+const ServerRequiredAuthenticatedSettingsPlatformAppServicesRoute =
+  ServerRequiredAuthenticatedSettingsPlatformAppServicesRouteImport.update({
+    id: '/app-services',
+    path: '/app-services',
+    getParentRoute: () => ServerRequiredAuthenticatedSettingsPlatformRoute,
+  } as any)
 const ServerRequiredAuthenticatedSettingsPlatformAuthRoute =
   ServerRequiredAuthenticatedSettingsPlatformAuthRouteImport.update({
     id: '/auth',
@@ -692,6 +699,7 @@ export interface FileRoutesByFullPath {
   '/settings/admin/users': typeof ServerRequiredAuthenticatedSettingsAdminUsersRoute
   '/settings/guild/$': typeof ServerRequiredAuthenticatedSettingsGuildSplatRoute
   '/settings/platform/ai': typeof ServerRequiredAuthenticatedSettingsPlatformAiRoute
+  '/settings/platform/app-services': typeof ServerRequiredAuthenticatedSettingsPlatformAppServicesRoute
   '/settings/platform/auth': typeof ServerRequiredAuthenticatedSettingsPlatformAuthRoute
   '/settings/platform/branding': typeof ServerRequiredAuthenticatedSettingsPlatformBrandingRoute
   '/settings/platform/email': typeof ServerRequiredAuthenticatedSettingsPlatformEmailRoute
@@ -776,6 +784,7 @@ export interface FileRoutesByTo {
   '/settings/admin/users': typeof ServerRequiredAuthenticatedSettingsAdminUsersRoute
   '/settings/guild/$': typeof ServerRequiredAuthenticatedSettingsGuildSplatRoute
   '/settings/platform/ai': typeof ServerRequiredAuthenticatedSettingsPlatformAiRoute
+  '/settings/platform/app-services': typeof ServerRequiredAuthenticatedSettingsPlatformAppServicesRoute
   '/settings/platform/auth': typeof ServerRequiredAuthenticatedSettingsPlatformAuthRoute
   '/settings/platform/branding': typeof ServerRequiredAuthenticatedSettingsPlatformBrandingRoute
   '/settings/platform/email': typeof ServerRequiredAuthenticatedSettingsPlatformEmailRoute
@@ -868,6 +877,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/settings/admin/users': typeof ServerRequiredAuthenticatedSettingsAdminUsersRoute
   '/_serverRequired/_authenticated/settings/guild/$': typeof ServerRequiredAuthenticatedSettingsGuildSplatRoute
   '/_serverRequired/_authenticated/settings/platform/ai': typeof ServerRequiredAuthenticatedSettingsPlatformAiRoute
+  '/_serverRequired/_authenticated/settings/platform/app-services': typeof ServerRequiredAuthenticatedSettingsPlatformAppServicesRoute
   '/_serverRequired/_authenticated/settings/platform/auth': typeof ServerRequiredAuthenticatedSettingsPlatformAuthRoute
   '/_serverRequired/_authenticated/settings/platform/branding': typeof ServerRequiredAuthenticatedSettingsPlatformBrandingRoute
   '/_serverRequired/_authenticated/settings/platform/email': typeof ServerRequiredAuthenticatedSettingsPlatformEmailRoute
@@ -959,6 +969,7 @@ export interface FileRouteTypes {
     | '/settings/admin/users'
     | '/settings/guild/$'
     | '/settings/platform/ai'
+    | '/settings/platform/app-services'
     | '/settings/platform/auth'
     | '/settings/platform/branding'
     | '/settings/platform/email'
@@ -1043,6 +1054,7 @@ export interface FileRouteTypes {
     | '/settings/admin/users'
     | '/settings/guild/$'
     | '/settings/platform/ai'
+    | '/settings/platform/app-services'
     | '/settings/platform/auth'
     | '/settings/platform/branding'
     | '/settings/platform/email'
@@ -1134,6 +1146,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/settings/admin/users'
     | '/_serverRequired/_authenticated/settings/guild/$'
     | '/_serverRequired/_authenticated/settings/platform/ai'
+    | '/_serverRequired/_authenticated/settings/platform/app-services'
     | '/_serverRequired/_authenticated/settings/platform/auth'
     | '/_serverRequired/_authenticated/settings/platform/branding'
     | '/_serverRequired/_authenticated/settings/platform/email'
@@ -1553,6 +1566,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsPlatformAiRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedSettingsPlatformRoute
     }
+    '/_serverRequired/_authenticated/settings/platform/app-services': {
+      id: '/_serverRequired/_authenticated/settings/platform/app-services'
+      path: '/app-services'
+      fullPath: '/settings/platform/app-services'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsPlatformAppServicesRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedSettingsPlatformRoute
+    }
     '/_serverRequired/_authenticated/settings/platform/auth': {
       id: '/_serverRequired/_authenticated/settings/platform/auth'
       path: '/auth'
@@ -1870,6 +1890,7 @@ const ServerRequiredAuthenticatedSettingsAdminRouteWithChildren =
 
 interface ServerRequiredAuthenticatedSettingsPlatformRouteChildren {
   ServerRequiredAuthenticatedSettingsPlatformAiRoute: typeof ServerRequiredAuthenticatedSettingsPlatformAiRoute
+  ServerRequiredAuthenticatedSettingsPlatformAppServicesRoute: typeof ServerRequiredAuthenticatedSettingsPlatformAppServicesRoute
   ServerRequiredAuthenticatedSettingsPlatformAuthRoute: typeof ServerRequiredAuthenticatedSettingsPlatformAuthRoute
   ServerRequiredAuthenticatedSettingsPlatformBrandingRoute: typeof ServerRequiredAuthenticatedSettingsPlatformBrandingRoute
   ServerRequiredAuthenticatedSettingsPlatformEmailRoute: typeof ServerRequiredAuthenticatedSettingsPlatformEmailRoute
@@ -1881,6 +1902,8 @@ const ServerRequiredAuthenticatedSettingsPlatformRouteChildren: ServerRequiredAu
   {
     ServerRequiredAuthenticatedSettingsPlatformAiRoute:
       ServerRequiredAuthenticatedSettingsPlatformAiRoute,
+    ServerRequiredAuthenticatedSettingsPlatformAppServicesRoute:
+      ServerRequiredAuthenticatedSettingsPlatformAppServicesRoute,
     ServerRequiredAuthenticatedSettingsPlatformAuthRoute:
       ServerRequiredAuthenticatedSettingsPlatformAuthRoute,
     ServerRequiredAuthenticatedSettingsPlatformBrandingRoute:

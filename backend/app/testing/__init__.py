@@ -11,6 +11,12 @@ guild's ``guild_<id>`` schema before touching the database (see
 """
 
 from app.testing.actor import Actor, make_actor
+from app.testing.app_channel import (
+    APP_CHANNEL_SECRET,
+    channel_headers,
+    encode_body,
+    register_app_service,
+)
 from app.testing.factories import (
     TOOL_FACTORIES,
     enable_all_tools,
@@ -55,6 +61,10 @@ from app.testing.factories import (
 from app.testing.schema_harness import route_session_to_guild
 
 __all__ = [
+    "APP_CHANNEL_SECRET",
+    "channel_headers",
+    "encode_body",
+    "register_app_service",
     "TOOL_FACTORIES",
     "enable_all_tools",
     "create_tool_entity",
