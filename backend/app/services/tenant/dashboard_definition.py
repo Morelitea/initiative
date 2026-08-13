@@ -35,6 +35,12 @@ from dataclasses import dataclass, field
 from typing import Any, Mapping
 
 from app.core.messages import DashboardMessages
+from app.models.platform.marketplace import UID_ALPHABET, UID_LENGTH
+from app.services.marketplace.manifest_values import (
+    IDENTIFIER_CHARS,
+    MAX_IDENTIFIER_LENGTH,
+)
+from app.services.marketplace.service_apps import APP_WIDGET_TYPE_PREFIX
 
 SCHEMA_VERSION = 1
 
@@ -152,6 +158,129 @@ ALL_SOURCES: frozenset[str] = frozenset().union(
 )
 
 
+# --- app widgets ------------------------------------------------------------
+#
+# A service app contributes its own widgets and its own data sources (§7, §9.1).
+# They are deliberately a *separate* vocabulary from the built-ins above rather
+# than an addition to it:
+#
+# * an app widget's type is namespaced ``app:<listing_uid>:<widget_id>``, so it
+#   can never resolve to a built-in renderer, and a built-in can never resolve
+#   to an app's module;
+# * ``app`` is the only source an app widget binds, and no built-in binds it —
+#   an app's rows are opaque here, so nothing in this build could draw them.
+#
+# The binding names a listing and a source; it never names an address, and there
+# is still nowhere in a definition to put one. What that source *is* — its
+# parameters, its visibility, its freshness — lives in the installed app's
+# pinned definition and is enforced when the data is fetched, under the caller's
+# own session.
+
+#: The one binding source an app widget may name.
+APP_BINDING_SOURCE = "app"
+
+#: Size floors for an app widget. Uniform, because this build cannot know what
+#: a vendor's module draws; the floor is simply "big enough to read".
+APP_WIDGET_SPEC = WidgetSpec(
+    min_w=2,
+    min_h=2,
+    default_w=6,
+    default_h=4,
+    sources=frozenset({APP_BINDING_SOURCE}),
+)
+
+#: What one app binding may carry, mirroring the manifest's per-source cap.
+MAX_APP_BINDING_PARAMS = 12
+#: A parameter value is a scalar the source declared a type for. Checked again
+#: against that type at fetch time; bounded here so a definition stays small.
+MAX_APP_PARAM_LENGTH = 2_000
+
+
+def _check_identifier(value: Any) -> str:
+    if not isinstance(value, str) or not value or len(value) > MAX_IDENTIFIER_LENGTH:
+        _fail(DashboardMessages.BINDING_INVALID)
+    for character in value:
+        if character not in IDENTIFIER_CHARS:
+            _fail(DashboardMessages.BINDING_INVALID)
+    return value
+
+
+def _check_uid(value: Any, code: str) -> str:
+    if not isinstance(value, str) or len(value) != UID_LENGTH:
+        _fail(code)
+    for character in value:
+        if character not in UID_ALPHABET:
+            _fail(code)
+    return value
+
+
+def app_widget_parts(declared: str) -> tuple[str, str] | None:
+    """Split ``app:<listing_uid>:<widget_id>``, or None if it is not one.
+
+    ``:`` is outside the identifier character set on both halves, so the three
+    parts stay unambiguous however an app names its widget.
+    """
+    if not declared.startswith(APP_WIDGET_TYPE_PREFIX):
+        return None
+    remainder = declared[len(APP_WIDGET_TYPE_PREFIX) :]
+    listing_uid, separator, widget_id = remainder.partition(":")
+    if not separator:
+        _fail(DashboardMessages.WIDGET_TYPE_UNKNOWN)
+    _check_uid(listing_uid, DashboardMessages.WIDGET_TYPE_UNKNOWN)
+    if (
+        not widget_id
+        or len(widget_id) > MAX_IDENTIFIER_LENGTH
+        or any(character not in IDENTIFIER_CHARS for character in widget_id)
+    ):
+        _fail(DashboardMessages.WIDGET_TYPE_UNKNOWN)
+    return listing_uid, widget_id
+
+
+def _normalize_app_binding(binding: dict[str, Any], listing_uid: str) -> dict[str, Any]:
+    """An ``app`` binding: which installed app, which source, which parameters.
+
+    ``app_uid`` has to be the app the widget came from. A widget is one app's
+    module and its sources are that app's, so letting a definition point one
+    app's widget at another app's data would be a definition choosing what
+    crosses between two vendors.
+    """
+    declared_uid = _check_uid(binding.get("app_uid"), DashboardMessages.BINDING_INVALID)
+    if declared_uid != listing_uid:
+        _fail(DashboardMessages.BINDING_INVALID)
+    source_id = _check_identifier(binding.get("source_id"))
+
+    raw_params = binding.get("params")
+    params: dict[str, Any] = {}
+    if raw_params is not None:
+        if not isinstance(raw_params, dict) or len(raw_params) > MAX_APP_BINDING_PARAMS:
+            _fail(DashboardMessages.BINDING_INVALID)
+        for key, value in raw_params.items():
+            params[_check_identifier(key)] = _check_app_param(value)
+
+    cleaned: dict[str, Any] = {
+        "source": APP_BINDING_SOURCE,
+        "app_uid": listing_uid,
+        "source_id": source_id,
+    }
+    if params:
+        cleaned["params"] = params
+    return cleaned
+
+
+def _check_app_param(value: Any) -> Any:
+    """One parameter value, kept as the scalar it is.
+
+    Deliberately not coerced: the source's own ``params_schema`` declares the
+    type, and turning a ``true`` into a ``1`` here would quietly satisfy a check
+    the fetch path is supposed to refuse.
+    """
+    if isinstance(value, bool) or isinstance(value, int):
+        return value
+    if isinstance(value, str) and len(value) <= MAX_APP_PARAM_LENGTH:
+        return value
+    _fail(DashboardMessages.BINDING_INVALID)
+
+
 # --- presets ---------------------------------------------------------------
 #
 # A preset is a *named widget* built from a primitive plus fixed options. It
@@ -248,11 +377,21 @@ def _normalize_grid(raw: Any, spec: WidgetSpec) -> dict[str, int]:
 _CONTEXT_ONLY_PARAMS = frozenset({"initiative_id", "guild_id"})
 
 
-def _normalize_binding(raw: Any, spec: WidgetSpec) -> dict[str, Any]:
+def _normalize_binding(
+    raw: Any, spec: WidgetSpec, *, app_listing_uid: str | None = None
+) -> dict[str, Any]:
     """Check the source is one we can fetch and this widget can draw, then keep
     its parameters as given for the fetcher to interpret."""
     binding = _require_mapping(raw, DashboardMessages.BINDING_INVALID)
     source = binding.get("source")
+
+    if app_listing_uid is not None:
+        # An app widget draws its own app's data and nothing else, so this is a
+        # total branch rather than an extra allowed value.
+        if source != APP_BINDING_SOURCE:
+            _fail(DashboardMessages.BINDING_SOURCE_NOT_ALLOWED)
+        return _normalize_app_binding(binding, app_listing_uid)
+
     if not isinstance(source, str) or source not in ALL_SOURCES:
         _fail(DashboardMessages.BINDING_SOURCE_UNKNOWN)
     if source not in spec.sources:
@@ -291,14 +430,25 @@ def _normalize_options(raw: Any, spec: WidgetSpec, preset: WidgetPreset | None) 
 def _normalize_widget(raw: Any, index: int, seen_ids: set[str]) -> dict[str, Any]:
     widget = _require_mapping(raw, DashboardMessages.WIDGET_INVALID)
     declared = widget.get("type")
-    if not isinstance(declared, str) or declared not in WIDGET_TYPES:
+    if not isinstance(declared, str):
         _fail(DashboardMessages.WIDGET_TYPE_UNKNOWN)
 
-    # Resolve a preset to its primitive, so what gets stored (and what the
-    # renderer sees) is always a first-party widget kind.
-    preset = WIDGET_PRESETS.get(declared)
-    primitive = preset.primitive if preset else declared
-    spec = WIDGET_SPECS[primitive]
+    # An app's widget keeps its namespaced type verbatim: the module that draws
+    # it lives in the installed app's pinned definition, and this build resolves
+    # it there rather than in the built-in registry.
+    app_parts = app_widget_parts(declared)
+    if app_parts is not None:
+        preset = None
+        primitive = declared
+        spec = APP_WIDGET_SPEC
+    else:
+        if declared not in WIDGET_TYPES:
+            _fail(DashboardMessages.WIDGET_TYPE_UNKNOWN)
+        # Resolve a preset to its primitive, so what gets stored (and what the
+        # renderer sees) is always a first-party widget kind.
+        preset = WIDGET_PRESETS.get(declared)
+        primitive = preset.primitive if preset else declared
+        spec = WIDGET_SPECS[primitive]
 
     widget_id = _clean_text(widget.get("id")) or f"w{index + 1}"
     if widget_id in seen_ids:
@@ -309,7 +459,11 @@ def _normalize_widget(raw: Any, index: int, seen_ids: set[str]) -> dict[str, Any
         "id": widget_id,
         "type": primitive,
         "grid": _normalize_grid(widget.get("grid"), spec),
-        "binding": _normalize_binding(widget.get("binding"), spec),
+        "binding": _normalize_binding(
+            widget.get("binding"),
+            spec,
+            app_listing_uid=app_parts[0] if app_parts else None,
+        ),
     }
     if preset is not None:
         # Kept for round-tripping and for labelling the widget in the palette.

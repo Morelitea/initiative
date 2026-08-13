@@ -163,6 +163,7 @@ export function DashboardDetailPage() {
         config={editor.config}
         catalog={catalogQuery.data}
         initiativeId={dashboard?.initiative_id}
+        dashboardId={dashboard?.id}
         canEdit={canEdit}
         isLoading={!dashboard}
         onLayoutChange={editor.replaceDefinition}

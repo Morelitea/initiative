@@ -668,6 +668,46 @@ class AppServiceMessages:
     SIGNATURE_MISMATCH = "APP_SERVICE_SIGNATURE_MISMATCH"
 
 
+class AppDataMessages:
+    """Codes for the widget data proxy.
+
+    Read by a member looking at a dashboard, so each one distinguishes a state
+    they can act on (connect an account, ask an admin to configure the app) from
+    one they can only wait out (the app is unreachable).
+    """
+
+    #: The install names no such data source, or the pinned definition is not a
+    #: service app's at all.
+    SOURCE_NOT_FOUND = "APP_DATA_SOURCE_NOT_FOUND"
+    #: The source is declared for guild admins and the caller is a member.
+    ADMIN_ONLY = "APP_DATA_ADMIN_ONLY"
+    #: The install is turned off in this guild.
+    APP_DISABLED = "APP_DATA_APP_DISABLED"
+    #: No registration wires this app up on this deployment.
+    SERVICE_NOT_REGISTERED = "APP_DATA_SERVICE_NOT_REGISTERED"
+    #: The operator's kill switch is off, or the registration has not verified.
+    SERVICE_DISABLED = "APP_DATA_SERVICE_DISABLED"
+    #: A parameter the source does not declare, or a value that does not match
+    #: its declared type.
+    INVALID_PARAMS = "APP_DATA_INVALID_PARAMS"
+    #: A guild-scoped credential this source needs has not been supplied.
+    NEEDS_CONFIGURATION = "APP_DATA_NEEDS_CONFIGURATION"
+    #: The source reads the member's own vendor account and they have not
+    #: connected it yet.
+    CONNECTION_REQUIRED = "APP_DATA_CONNECTION_REQUIRED"
+    #: The app could not be reached, timed out, or answered with something that
+    #: is not a data response.
+    SERVICE_UNAVAILABLE = "APP_SERVICE_UNAVAILABLE"
+    #: The app answered past the response ceiling.
+    RESPONSE_TOO_LARGE = "APP_DATA_RESPONSE_TOO_LARGE"
+    #: This worker already has as many calls in flight to this app as it will
+    #: hold open, so one slow app cannot consume the pool.
+    BUSY = "APP_DATA_BUSY"
+    #: Reserved for the platform-wide limiter, which spans containers and
+    #: arrives with the rate-limiting workstream.
+    RATE_LIMITED = "APP_DATA_RATE_LIMITED"
+
+
 class AppChannelMessages:
     """Codes for the channels an app service calls back into Initiative on.
 
