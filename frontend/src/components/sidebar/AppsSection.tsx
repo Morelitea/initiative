@@ -18,7 +18,9 @@
  * sidebar interprets.
  *
  * Disabled apps are hidden here and stay visible in guild settings, which is
- * where an admin turns them back on.
+ * where an admin turns them back on. So are apps whose service is not set up on
+ * this server — an entry that opens nothing is worse than no entry, and guild
+ * settings is where that state is explained.
  */
 
 import { Link } from "@tanstack/react-router";
@@ -59,8 +61,11 @@ export function AppsSection({ isGuildAdmin, open, onOpenChange }: AppsSectionPro
   const gp = useGuildPath();
   const appsQuery = useGuildApps();
 
+  // `available` is false when an app's service is not set up on this server, or
+  // the operator switched it off: there is nothing behind the entry, so it does
+  // not appear. Guild settings still lists it, which is where that is said.
   const apps = (appsQuery.data?.items ?? []).filter(
-    (app) => app.enabled && (isGuildAdmin || !app.admin_only)
+    (app) => app.enabled && app.available !== false && (isGuildAdmin || !app.admin_only)
   );
 
   // Nothing installed and nothing this person could do about it: show nothing.

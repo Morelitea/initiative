@@ -425,5 +425,10 @@
   "GUILD_APP_CONNECTION_NOT_INTERACTIVE": "This connection uses one credential for the whole guild, so there's no account to connect.",
   "GUILD_APP_CONNECTION_NOT_STATIC": "This connection is each member's own, so it's connected rather than filled in.",
   "GUILD_APP_CONNECTION_BLOCKED": "A guild admin has stopped you connecting this.",
-  "GUILD_APP_DISABLED": "This app is turned off, so nothing flows through it."
+  "GUILD_APP_DISABLED": "This app is turned off, so nothing flows through it.",
+  "GUILD_APP_MANDATORY": "This app comes with the platform, so it can't be removed or turned off here.",
+  "GUILD_APP_SERVICE_NOT_REGISTERED": "This app isn't set up on this server, so there's nothing to open yet.",
+  "GUILD_APP_SURFACE_NOT_FOUND": "This app doesn't have a screen by that name.",
+  "GUILD_APP_SURFACE_ADMIN_ONLY": "Only guild admins can open this part of the app.",
+  "GUILD_APP_CONNECT_PATH_MISSING": "This connection doesn't say where to sign in. Ask a guild admin to update the app."
 }

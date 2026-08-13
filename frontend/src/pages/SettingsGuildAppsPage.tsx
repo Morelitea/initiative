@@ -10,6 +10,11 @@
  * says both: the events a guild put in a calendar should not feel like
  * collateral, and nobody should be surprised that access at the vendor stopped.
  *
+ * Some apps come with the platform rather than being chosen here. They appear
+ * like any other — visible, configurable, renameable — with no switch and no
+ * remove button, because whether they exist is the operator's decision rather
+ * than the guild's. The affordances are absent instead of present-and-refusing.
+ *
  * Expanding a row opens what that app actually needs — its connections, grouped
  * — and, for an admin, who has connected to it. Both live behind the expander
  * rather than on the row, because most visits here are to rename or turn
@@ -17,7 +22,7 @@
  */
 
 import { Link } from "@tanstack/react-router";
-import { Blocks, ChevronDown, Loader2, Store, TriangleAlert } from "lucide-react";
+import { Blocks, ChevronDown, Loader2, ShieldCheck, Store, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -91,6 +96,10 @@ export interface AppListItem {
   needs_config?: boolean;
   config_state?: string;
   config_state_detail?: string | null;
+  /** Provided by the platform: named as such, and not removable here. */
+  mandatory?: boolean;
+  /** False when the app's service is not set up on this server. */
+  available?: boolean;
 }
 
 function AppRow({ app, canManage }: { app: AppListItem; canManage: boolean }) {
@@ -152,10 +161,20 @@ function AppRow({ app, canManage }: { app: AppListItem; canManage: boolean }) {
             {app.config_state_detail ?? t("apps:manage.configInvalid")}
           </Badge>
         )}
+        {/* Visible, so nobody wonders what it is — just not removable. */}
+        {app.mandatory && (
+          <Badge variant="secondary" className="gap-1">
+            <ShieldCheck className="h-3 w-3" aria-hidden />
+            {t("apps:manage.provided")}
+          </Badge>
+        )}
+        {app.available === false && <Badge variant="outline">{t("apps:manage.unavailable")}</Badge>}
         {!app.enabled && <Badge variant="outline">{t("apps:manage.disabled")}</Badge>}
 
         <div className="flex shrink-0 items-center gap-2">
-          {canManage && (
+          {/* An app the platform provides has no switch and no remove button:
+              the affordances are absent rather than present-and-refusing. */}
+          {canManage && !app.mandatory && (
             <>
               <Button
                 size="sm"

@@ -425,5 +425,10 @@
   "GUILD_APP_CONNECTION_NOT_INTERACTIVE": "Cette connexion utilise un seul identifiant pour toute la guilde : il n'y a donc aucun compte à connecter.",
   "GUILD_APP_CONNECTION_NOT_STATIC": "Cette connexion appartient à chaque membre : elle se connecte au lieu de se remplir.",
   "GUILD_APP_CONNECTION_BLOCKED": "L'administration de la guilde vous a interdit cette connexion.",
-  "GUILD_APP_DISABLED": "Cette application est désactivée : rien ne passe par elle."
+  "GUILD_APP_DISABLED": "Cette application est désactivée : rien ne passe par elle.",
+  "GUILD_APP_MANDATORY": "Cette application fait partie de la plateforme : elle ne peut être ni retirée ni désactivée ici.",
+  "GUILD_APP_SERVICE_NOT_REGISTERED": "Cette application n'est pas configurée sur ce serveur : il n'y a encore rien à ouvrir.",
+  "GUILD_APP_SURFACE_NOT_FOUND": "Cette application n'a pas d'écran portant ce nom.",
+  "GUILD_APP_SURFACE_ADMIN_ONLY": "Seule l'administration de la guilde peut ouvrir cette partie de l'application.",
+  "GUILD_APP_CONNECT_PATH_MISSING": "Cette connexion n'indique pas où se connecter. Demandez à l'administration de la guilde de mettre l'application à jour."
 }

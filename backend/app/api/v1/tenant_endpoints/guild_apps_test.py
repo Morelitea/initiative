@@ -388,15 +388,16 @@ class TestEmbedApp:
 
 
 class TestKindsThisBuildCanMount:
-    """A listing can be a valid app without being something a guild can mount.
+    """Every kind the catalog may hold is one a guild can install.
 
-    ``service`` apps are the case: the catalog validates, stores and describes
-    them, but mounting one needs the app platform's own machinery. The install
-    endpoint has to say so by name — reaching the installer with a kind it has
-    no handler for would answer a clear refusal with a 500.
+    A ``service`` app is the one whose install produces nothing locally: it
+    brings connections rather than content, and what it offers is served by the
+    container the operator registered. So the assertion that matters is that
+    installing one records the row and creates no artifact — quietly mounting
+    something would be the bug.
     """
 
-    async def test_a_service_app_is_refused_by_name(
+    async def test_a_service_app_installs_and_creates_no_artifact(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         await create_marketplace_listing(
@@ -419,5 +420,11 @@ class TestKindsThisBuildCanMount:
             json={"listing_uid": marketplace_uid("servicekind")},
         )
 
-        assert response.status_code == 409
-        assert response.json()["detail"] == GuildAppMessages.KIND_NOT_INSTALLABLE
+        assert response.status_code == 201, response.text
+        body = response.json()
+        assert body["app_kind"] == "service"
+        assert body["artifacts"] == []
+        # Nothing registered for it on this deployment, so there is nothing to
+        # reach yet — the install is valid and says so rather than pretending.
+        assert body["available"] is False
+        assert body["mandatory"] is False

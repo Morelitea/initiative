@@ -298,6 +298,22 @@ def _reset_auth_scope(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _reset_app_registration_cache():
+    """Start and end every test with no cached app service registrations.
+
+    The request path reads registrations through a short-lived in-process
+    snapshot (see ``registration_lookup``). Test databases are rebuilt per test
+    while that snapshot is module state, so without this a registration created
+    in one test would still be answering reads in the next.
+    """
+    from app.services.marketplace.registration_lookup import invalidate_registrations
+
+    invalidate_registrations()
+    yield
+    invalidate_registrations()
+
+
+@pytest.fixture(autouse=True)
 def _disable_hibp_check(monkeypatch):
     """Disable the HaveIBeenPwned breach lookup for all tests by default.
 

@@ -14,12 +14,22 @@ values.
 
 What a member may *do* inside an app is not decided here. The content an app
 creates carries its own grants, and the tool that owns it enforces them exactly
-as it does for initiative content.
+as it does for initiative content. An app's *embedded* surfaces are the
+exception, because they have no local content to carry grants: the handoff mint
+is where who-may-open-this is settled, against the visibility the manifest
+declared.
+
+Two things a guild admin does not govern. An app the deployment marks mandatory
+is installed everywhere and is neither removable nor disableable here — the
+operator's registration decides whether it exists. And the operator's kill
+switch outranks everything: a service whose registration is switched off reaches
+nothing, whether or not the guild wanted it.
 """
 
 import logging
 from datetime import datetime, timezone
 from typing import Annotated, Optional
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
@@ -41,6 +51,7 @@ from app.schemas.tenant.guild_app import (
     GuildAppConnectionSummary,
     GuildAppConnectStart,
     GuildAppDetail,
+    GuildAppHandoff,
     GuildAppInstall,
     GuildAppListResponse,
     GuildAppMembersResponse,
@@ -52,6 +63,7 @@ from app.schemas.tenant.guild_app import (
 )
 from app.services import rls as rls_service
 from app.services.marketplace import catalog as catalog_service
+from app.services.marketplace import registration_lookup
 from app.services.marketplace.definitions import (
     APP_KINDS,
     GUILD_INSTALLABLE_APP_KINDS,
@@ -63,6 +75,7 @@ from app.services.marketplace.installs import (
 from app.services.platform import guilds as guilds_service
 from app.services.tenant import app_config as app_config_service
 from app.services.tenant import app_connections as connections_service
+from app.services.tenant import app_handoff as handoff_service
 from app.services.tenant import app_revocation as revocation_service
 from app.services.tenant import guild_apps as guild_apps_service
 
@@ -117,10 +130,11 @@ async def _resolve_app_listing(session: RLSSessionDep, listing_uid: str):
 def _require_installable_kind(definition: dict) -> None:
     """Two separate refusals, because they are two different mistakes.
 
-    A listing that is not an app at all is one answer; an app of a kind this
-    build cannot mount is another. A service app is the second case — a valid
-    listing the catalog holds and describes, whose mounting needs machinery the
-    app platform brings.
+    A listing that is not an app at all is one answer; an app of a *kind* this
+    build cannot mount is another. Every kind the vocabulary declares is
+    mountable today, so the second refusal is the guard for a kind added ahead
+    of the machinery that serves it — reaching the installer with one would
+    answer a clear refusal with a 500.
     """
     app_kind = definition.get("app_kind")
     if app_kind not in APP_KINDS:
@@ -132,6 +146,24 @@ def _require_installable_kind(definition: dict) -> None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=GuildAppMessages.KIND_NOT_INSTALLABLE,
+        )
+
+
+async def _require_removable(app: GuildApp) -> None:
+    """Refuse to remove or turn off an app the deployment provides.
+
+    Mandatory constrains guild admins, not the operator: an app marked so on
+    its registration stays in every guild until the operator says otherwise.
+    The UI omits the affordances entirely, so this answers a request that
+    arrived some other way — and it is read from the registration each time, so
+    the moment an operator clears the flag the same app becomes removable with
+    nothing migrated.
+    """
+    state = await registration_lookup.install_state(app.definition)
+    if state.mandatory:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=GuildAppMessages.MANDATORY,
         )
 
 
@@ -177,12 +209,23 @@ async def list_guild_apps(
     """Every app installed in this guild, enabled or not.
 
     Disabled ones are included so an admin can find and re-enable them; the
-    sidebar filters to enabled.
+    sidebar filters to enabled. A service app whose registration is gone or
+    switched off comes back too, marked unavailable — an install that quietly
+    vanished would leave an admin with nothing to look at and nothing to
+    remove.
     """
     apps = (
         await session.exec(select(GuildApp).order_by(GuildApp.name, GuildApp.id))
     ).all()
-    return GuildAppListResponse(items=[serialize_guild_app(app) for app in apps])
+    return GuildAppListResponse(
+        items=[
+            serialize_guild_app(
+                app,
+                install_state=await registration_lookup.install_state(app.definition),
+            )
+            for app in apps
+        ]
+    )
 
 
 @router.get("/{app_id}", response_model=GuildAppDetail)
@@ -202,6 +245,7 @@ async def get_guild_app(
     return serialize_guild_app_detail(
         app,
         member_rows=await _member_rows(session, app_id=app.id, user_id=current_user.id),
+        install_state=await registration_lookup.install_state(app.definition),
     )
 
 
@@ -240,34 +284,23 @@ async def install_guild_app(
     _require_installable_kind(definition)
 
     name = (payload.name or definition.get("default_name") or listing.name).strip()
-    artifacts = await guild_apps_service.create_app_artifacts(
-        session,
-        definition=definition,
-        guild_id=guild_context.guild_id,
-        created_by_id=current_user.id,
-        name=name,
-    )
-
-    app = GuildApp(
-        guild_id=guild_context.guild_id,
-        listing_uid=listing.uid,
-        listing_version=version.version,
-        app_kind=definition["app_kind"],
-        name=name,
-        definition=definition,
-        config={},
-        config_secrets={},
-        artifacts=artifacts,
-        installed_by_id=current_user.id,
-    )
-    session.add(app)
     try:
+        app = await guild_apps_service.install_app(
+            session,
+            listing_uid=listing.uid,
+            listing_version=version.version,
+            definition=definition,
+            guild_id=guild_context.guild_id,
+            installed_by_id=current_user.id,
+            name=name,
+        )
         await session.commit()
     except IntegrityError as exc:
         # The look-up above and this insert are not one atomic step, so two
         # installs arriving together both get past it. The unique constraint is
-        # what actually holds; this turns losing that race into the same answer
-        # the look-up gives.
+        # what actually holds — at the flush inside the install or at the commit
+        # — and this turns losing that race into the same answer the look-up
+        # gives.
         await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -275,7 +308,9 @@ async def install_guild_app(
         ) from exc
     await session.refresh(app)
 
-    installed = serialize_guild_app(app)
+    installed = serialize_guild_app(
+        app, install_state=await registration_lookup.install_state(app.definition)
+    )
     await _count_install(listing.id)
     return installed
 
@@ -360,6 +395,7 @@ async def upgrade_guild_app(
     return serialize_guild_app_detail(
         app,
         member_rows=await _member_rows(session, app_id=app.id, user_id=current_user.id),
+        install_state=await registration_lookup.install_state(app.definition),
     )
 
 
@@ -371,7 +407,12 @@ async def update_guild_app(
     current_user: CurrentUser,
     guild_context: GuildContextDep,
 ) -> GuildAppRead:
-    """Rename an app, or turn it off without removing what it created."""
+    """Rename an app, or turn it off without removing what it created.
+
+    Renaming is always allowed — a guild may call an app whatever it likes.
+    Turning one off is a different matter for an app the deployment provides:
+    that switch belongs to the operator, so it is refused by name here.
+    """
     _require_guild_admin(guild_context)
     app = await _load(session, app_id)
 
@@ -379,12 +420,16 @@ async def update_guild_app(
     if data.get("name"):
         app.name = data["name"].strip()
     if "enabled" in data and data["enabled"] is not None:
+        if not data["enabled"]:
+            await _require_removable(app)
         app.enabled = data["enabled"]
     app.updated_at = datetime.now(timezone.utc)
     session.add(app)
     await session.commit()
     await session.refresh(app)
-    return serialize_guild_app(app)
+    return serialize_guild_app(
+        app, install_state=await registration_lookup.install_state(app.definition)
+    )
 
 
 @router.delete("/{app_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -402,9 +447,13 @@ async def uninstall_guild_app(
     prevents. **Content is trashed**, because the events someone put in a guild
     calendar are the guild's, and should survive an admin removing the app for
     as long as the retention window allows.
+
+    An app the deployment provides to every guild is not removable here (§7.7):
+    the operator's registration decides whether it exists at all.
     """
     _require_guild_admin(guild_context)
     app = await _load(session, app_id)
+    await _require_removable(app)
 
     retention_days = await guilds_service.get_guild_retention_days(
         session, guild_context.guild_id
@@ -508,6 +557,48 @@ async def update_guild_app_config(
     return serialize_guild_app_detail(
         app,
         member_rows=await _member_rows(session, app_id=app.id, user_id=current_user.id),
+        install_state=await registration_lookup.install_state(app.definition),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Embedded surfaces
+# ---------------------------------------------------------------------------
+
+
+@router.post("/{app_id}/handoff/{surface_id}", response_model=GuildAppHandoff)
+async def create_guild_app_handoff(
+    app_id: int,
+    surface_id: str,
+    session: RLSSessionDep,
+    current_user: CurrentUser,
+    guild_context: GuildContextDep,
+) -> GuildAppHandoff:
+    """Mint the short-lived credential for one of this app's embedded surfaces.
+
+    Whether the surface may be opened is decided here, under the caller's real
+    session, so the app never makes that call and never sees a request from
+    somebody who failed it. What the manifest declared as ``visibility``
+    governs: a surface marked ``guild_admin`` is admin-only, and everything
+    else is open to every member of the installing guild.
+
+    The token goes to the iframe by ``postMessage`` — never a query string —
+    and expires in a minute.
+    """
+    app = await _load(session, app_id)
+    handoff = await handoff_service.mint_embed_handoff(
+        app,
+        surface_id=surface_id,
+        user_id=current_user.id,
+        is_guild_admin=rls_service.is_guild_admin(guild_context.role),
+    )
+    return GuildAppHandoff(
+        handoff_token=handoff.token,
+        expires_in_seconds=handoff.expires_in_seconds,
+        embed_url=handoff.embed_url,
+        allowed_origins=list(handoff.allowed_origins),
+        audience=handoff.audience,
+        surface_id=handoff.surface_id,
     )
 
 
@@ -533,6 +624,12 @@ async def connect_guild_app(
     resulting credential reaches is what they already reach. The row and its
     opaque handle are minted here so the app has something to write its result
     against; the vendor flow itself runs at the app's own URL.
+
+    That URL is assembled server-side — the registration supplies the address,
+    the manifest supplies the path — and carries the ``connection_ref`` so the
+    app knows which credential it is about to hold. The ref is an identifier,
+    not a credential: it authorizes nothing on its own, and the app writes its
+    result back over its own authenticated channel.
     """
     app = await _load(session, app_id)
     if not app.enabled:
@@ -546,6 +643,18 @@ async def connect_guild_app(
             status_code=status.HTTP_409_CONFLICT,
             detail=GuildAppMessages.CONNECTION_NOT_INTERACTIVE,
         )
+    connect_path = connection.get("connect_path")
+    if not connect_path:
+        # The validator requires one on an interactive connection, so this is a
+        # definition pinned before that rule — there is nowhere to send anyone.
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=GuildAppMessages.CONNECT_PATH_MISSING,
+        )
+
+    # The vendor flow runs at the app's own URL, so it has to be wired up and
+    # switched on before a member is sent anywhere.
+    registration = await handoff_service.require_live_registration(app)
 
     existing = await connections_service.get_connection(
         session, app_id=app.id, connection_id=connection_id, user_id=current_user.id
@@ -564,7 +673,11 @@ async def connect_guild_app(
     return GuildAppConnectStart(
         connection_id=row.connection_id,
         connection_ref=row.connection_ref,
-        connect_path=connection.get("connect_path") or "",
+        connect_path=connect_path,
+        connect_url=(
+            f"{registration.base_url}{connect_path}"
+            f"?connection_ref={quote(row.connection_ref, safe='')}"
+        ),
         status=row.status,
     )
 

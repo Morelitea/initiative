@@ -49,6 +49,7 @@ from app.models.platform.app_service_registration import (
     AppServiceStatus,
 )
 from app.services.marketplace.handshake import HandshakeError, perform_handshake
+from app.services.marketplace.registration_lookup import invalidate_registrations
 
 logger = logging.getLogger(__name__)
 
@@ -364,6 +365,7 @@ async def create_registration(
     session.add(row)
     await session.commit()
     await session.refresh(row)
+    invalidate_registrations()
     return row
 
 
@@ -410,6 +412,10 @@ async def update_registration(
     session.add(row)
     await session.commit()
     await session.refresh(row)
+    # The kill switch, the mandatory flag and the origin list are all read
+    # through a cached snapshot on the request path, so an operator's edit drops
+    # it rather than waiting out its TTL.
+    invalidate_registrations()
     return row
 
 
@@ -417,6 +423,7 @@ async def delete_registration(session: AsyncSession, registration_id: int) -> No
     row = await get_registration(session, registration_id)
     await session.delete(row)
     await session.commit()
+    invalidate_registrations()
 
 
 async def verify_registration(
@@ -443,6 +450,7 @@ async def verify_registration(
         session.add(row)
         await session.commit()
         await session.refresh(row)
+        invalidate_registrations()
 
     try:
         result = await perform_handshake(
@@ -619,6 +627,7 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
         updated += 1
 
     await session.commit()
+    invalidate_registrations()
     return ReconcileResult(
         created=created, updated=updated, unchanged=unchanged, skipped=skipped
     )

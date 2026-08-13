@@ -425,5 +425,10 @@
   "GUILD_APP_CONNECTION_NOT_INTERACTIVE": "Diese Verbindung nutzt eine Zugangsberechtigung für die ganze Gilde, es gibt also kein Konto zu verbinden.",
   "GUILD_APP_CONNECTION_NOT_STATIC": "Diese Verbindung gehört jedem Mitglied selbst und wird verbunden statt ausgefüllt.",
   "GUILD_APP_CONNECTION_BLOCKED": "Eine Gildenadministration hat dir diese Verbindung untersagt.",
-  "GUILD_APP_DISABLED": "Diese App ist ausgeschaltet, es läuft nichts über sie."
+  "GUILD_APP_DISABLED": "Diese App ist ausgeschaltet, es läuft nichts über sie.",
+  "GUILD_APP_MANDATORY": "Diese App gehört zur Plattform und kann hier weder entfernt noch ausgeschaltet werden.",
+  "GUILD_APP_SERVICE_NOT_REGISTERED": "Diese App ist auf diesem Server nicht eingerichtet, es gibt also noch nichts zu öffnen.",
+  "GUILD_APP_SURFACE_NOT_FOUND": "Diese App hat keinen Bereich mit diesem Namen.",
+  "GUILD_APP_SURFACE_ADMIN_ONLY": "Nur die Gildenadministration kann diesen Teil der App öffnen.",
+  "GUILD_APP_CONNECT_PATH_MISSING": "Diese Verbindung gibt nicht an, wo die Anmeldung stattfindet. Bitte die Gildenadministration, die App zu aktualisieren."
 }

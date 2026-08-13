@@ -24,6 +24,7 @@ import type {
   GuildAppConfigUpdate,
   GuildAppConnectStart,
   GuildAppDetail,
+  GuildAppHandoff,
   GuildAppInstall,
   GuildAppListResponse,
   GuildAppMembersResponse,
@@ -56,7 +57,10 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * Every app installed in this guild, enabled or not.
  *
  * Disabled ones are included so an admin can find and re-enable them; the
- * sidebar filters to enabled.
+ * sidebar filters to enabled. A service app whose registration is gone or
+ * switched off comes back too, marked unavailable — an install that quietly
+ * vanished would leave an admin with nothing to look at and nothing to
+ * remove.
  * @summary List Guild Apps
  */
 export const listGuildAppsApiV1GGuildIdAppsGet = (
@@ -460,6 +464,10 @@ export function useGetGuildAppApiV1GGuildIdAppsAppIdGet<
 
 /**
  * Rename an app, or turn it off without removing what it created.
+ *
+ * Renaming is always allowed — a guild may call an app whatever it likes.
+ * Turning one off is a different matter for an app the deployment provides:
+ * that switch belongs to the operator, so it is refused by name here.
  * @summary Update Guild App
  */
 export const updateGuildAppApiV1GGuildIdAppsAppIdPatch = (
@@ -560,6 +568,9 @@ export const useUpdateGuildAppApiV1GGuildIdAppsAppIdPatch = <
  * prevents. **Content is trashed**, because the events someone put in a guild
  * calendar are the guild's, and should survive an admin removing the app for
  * as long as the retention window allows.
+ *
+ * An app the deployment provides to every guild is not removable here (§7.7):
+ * the operator's registration decides whether it exists at all.
  * @summary Uninstall Guild App
  */
 export const uninstallGuildAppApiV1GGuildIdAppsAppIdDelete = (
@@ -851,12 +862,121 @@ export const useUpdateGuildAppConfigApiV1GGuildIdAppsAppIdConfigPut = <
   );
 };
 /**
+ * Mint the short-lived credential for one of this app's embedded surfaces.
+ *
+ * Whether the surface may be opened is decided here, under the caller's real
+ * session, so the app never makes that call and never sees a request from
+ * somebody who failed it. What the manifest declared as ``visibility``
+ * governs: a surface marked ``guild_admin`` is admin-only, and everything
+ * else is open to every member of the installing guild.
+ *
+ * The token goes to the iframe by ``postMessage`` — never a query string —
+ * and expires in a minute.
+ * @summary Create Guild App Handoff
+ */
+export const createGuildAppHandoffApiV1GGuildIdAppsAppIdHandoffSurfaceIdPost = (
+  guildId: number,
+  appId: number,
+  surfaceId: string,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildAppHandoff>(
+    { url: `/api/v1/g/${guildId}/apps/${appId}/handoff/${surfaceId}`, method: "POST", signal },
+    options
+  );
+};
+
+export const getCreateGuildAppHandoffApiV1GGuildIdAppsAppIdHandoffSurfaceIdPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createGuildAppHandoffApiV1GGuildIdAppsAppIdHandoffSurfaceIdPost>>,
+    TError,
+    { guildId: number; appId: number; surfaceId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createGuildAppHandoffApiV1GGuildIdAppsAppIdHandoffSurfaceIdPost>>,
+  TError,
+  { guildId: number; appId: number; surfaceId: string },
+  TContext
+> => {
+  const mutationKey = ["createGuildAppHandoffApiV1GGuildIdAppsAppIdHandoffSurfaceIdPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createGuildAppHandoffApiV1GGuildIdAppsAppIdHandoffSurfaceIdPost>>,
+    { guildId: number; appId: number; surfaceId: string }
+  > = (props) => {
+    const { guildId, appId, surfaceId } = props ?? {};
+
+    return createGuildAppHandoffApiV1GGuildIdAppsAppIdHandoffSurfaceIdPost(
+      guildId,
+      appId,
+      surfaceId,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateGuildAppHandoffApiV1GGuildIdAppsAppIdHandoffSurfaceIdPostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof createGuildAppHandoffApiV1GGuildIdAppsAppIdHandoffSurfaceIdPost>>
+  >;
+
+export type CreateGuildAppHandoffApiV1GGuildIdAppsAppIdHandoffSurfaceIdPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Create Guild App Handoff
+ */
+export const useCreateGuildAppHandoffApiV1GGuildIdAppsAppIdHandoffSurfaceIdPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof createGuildAppHandoffApiV1GGuildIdAppsAppIdHandoffSurfaceIdPost>>,
+      TError,
+      { guildId: number; appId: number; surfaceId: string },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof createGuildAppHandoffApiV1GGuildIdAppsAppIdHandoffSurfaceIdPost>>,
+  TError,
+  { guildId: number; appId: number; surfaceId: string },
+  TContext
+> => {
+  return useMutation(
+    getCreateGuildAppHandoffApiV1GGuildIdAppsAppIdHandoffSurfaceIdPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
  * Start this member's own connection to an app's vendor.
  *
  * Any member may: the vendor is going to authorize *them*, and what the
  * resulting credential reaches is what they already reach. The row and its
  * opaque handle are minted here so the app has something to write its result
  * against; the vendor flow itself runs at the app's own URL.
+ *
+ * That URL is assembled server-side — the registration supplies the address,
+ * the manifest supplies the path — and carries the ``connection_ref`` so the
+ * app knows which credential it is about to hold. The ref is an identifier,
+ * not a credential: it authorizes nothing on its own, and the app writes its
+ * result back over its own authenticated channel.
  * @summary Connect Guild App
  */
 export const connectGuildAppApiV1GGuildIdAppsAppIdConnectionsConnectionIdConnectPost = (

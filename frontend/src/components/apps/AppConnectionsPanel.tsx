@@ -312,10 +312,20 @@ function PersonalConnection({ appId, connection }: { appId: number; connection: 
   const start = () =>
     connect.mutate(connection.id, {
       onSuccess: (started) => {
-        // The vendor's flow runs at the app's own URL. Until the app platform
-        // supplies that address, the path is shown rather than opened, so the
-        // state the connect produced is visible either way.
-        toast.success(t("apps:connections.connectStarted", { path: started.connect_path }));
+        // The vendor's flow runs at the app's own URL, which the server
+        // assembles from the deployment's registration — the client never
+        // builds that address and never needs to know it. A new tab rather
+        // than a redirect, so the member comes back to where they were, and
+        // `noopener` keeps the app's page from reaching into this one.
+        if (started.connect_url) {
+          window.open(started.connect_url, "_blank", "noopener,noreferrer");
+          toast.success(t("apps:connections.connectOpened"));
+          return;
+        }
+        // Nowhere to send them: this deployment has no live registration for
+        // the app. The connection row and its handle still exist, which is why
+        // this is a message rather than a failure.
+        toast.error(t("apps:connections.connectUnavailable"));
       },
       onError: (error) => toast.error(getErrorMessage(error, "apps:error")),
     });

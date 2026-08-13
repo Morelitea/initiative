@@ -20,6 +20,7 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_upload_user
+from app.api.embed_csp import embed_document_csp
 from app.core.body_limit import BodySizeLimitMiddleware
 from app.api.v1.api import api_router
 from app.core.messages import GuildMessages
@@ -248,6 +249,27 @@ async def lifespan(app: FastAPI):
             # A registration that failed to reconcile costs that app, not the
             # boot; already-stored registrations keep working unchanged.
             logger.exception("app services: reconciliation from config failed")
+
+    # Apps the deployment provides to every guild (§7.7). New guilds get theirs
+    # at creation; this is how the flag reaches guilds that predate it, on the
+    # same sweep pattern that reprovisions stale schemas. Returns immediately
+    # when nothing is marked mandatory, which is every install that has not
+    # asked for this.
+    try:
+        from app.services.tenant import mandatory_apps as mandatory_apps_service
+
+        backfilled = await mandatory_apps_service.backfill_mandatory_apps()
+        if backfilled.installed or backfilled.failed:
+            logger.info(
+                "mandatory apps: %d installed across %d guild(s), %d failed",
+                backfilled.installed,
+                backfilled.guilds,
+                backfilled.failed,
+            )
+    except Exception:
+        # A guild missing a mandatory app is a gap the next boot closes; it is
+        # not a reason to refuse to start.
+        logger.exception("mandatory apps: backfill failed")
 
     app.state.notification_tasks = background_tasks_service.start_background_tasks()
 
@@ -657,7 +679,7 @@ def _resolve_static_file(path: str) -> Path | None:
 
 
 @app.get("/{full_path:path}", include_in_schema=False)
-async def serve_spa(full_path: str) -> FileResponse:
+async def serve_spa(request: Request, full_path: str) -> FileResponse:
     if _is_reserved_path(full_path):
         raise HTTPException(status_code=404)
     static_file = _resolve_static_file(full_path) if full_path else None
@@ -672,8 +694,13 @@ async def serve_spa(full_path: str) -> FileResponse:
             headers={"Cache-Control": "public, max-age=3600"},
         )
     if static_index_path.is_file():
-        return FileResponse(
-            static_index_path,
-            headers={"Cache-Control": "no-cache"},
-        )
+        headers = {"Cache-Control": "no-cache"}
+        # The document that opens one app's embed carries the frame permission
+        # for that app's registered origins; every other document carries none
+        # (see app.api.embed_csp). The middleware sets the app-wide policy with
+        # setdefault, so this scoped one wins where it applies.
+        scoped_csp = await embed_document_csp(request, full_path)
+        if scoped_csp is not None:
+            headers["Content-Security-Policy"] = scoped_csp
+        return FileResponse(static_index_path, headers=headers)
     raise HTTPException(status_code=404, detail="SPA bundle not found")

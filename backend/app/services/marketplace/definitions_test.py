@@ -107,11 +107,17 @@ class TestAppKinds:
     def test_service_is_publishable(self):
         assert "service" in APP_KINDS
 
-    def test_service_is_not_installable_into_a_guild_yet(self):
-        """Publishable and storable, but nothing mounts one here yet — the
-        install path refuses it by name rather than half-mounting it."""
-        assert "service" not in GUILD_INSTALLABLE_APP_KINDS
-        assert GUILD_INSTALLABLE_APP_KINDS < APP_KINDS
+    def test_service_is_installable_into_a_guild(self):
+        """A service app has somewhere to land now: the registration supplies
+        the address and the powers, and the install is the pinned definition
+        plus whatever the guild configures against it."""
+        assert "service" in GUILD_INSTALLABLE_APP_KINDS
+
+    def test_installable_kinds_are_declared_kinds(self):
+        """The two sets answer different questions — what a listing may declare
+        versus what this build can mount — so a kind added to the vocabulary
+        ahead of its machinery is refused rather than half-mounted."""
+        assert GUILD_INSTALLABLE_APP_KINDS <= APP_KINDS
 
     def test_an_unknown_kind_is_refused(self):
         with pytest.raises(ListingDefinitionError, match="unknown app kind"):

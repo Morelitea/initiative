@@ -50,6 +50,7 @@ __all__ = [
     "app_artifacts",
     "create_app_artifacts",
     "get_app_content_id",
+    "install_app",
     "legacy_artifacts",
     "remove_app_artifacts",
     "requires_guild_admin",
@@ -222,10 +223,16 @@ async def create_app_artifacts(
     created_by_id: int,
     name: str,
 ) -> list[dict[str, Any]]:
-    """Create what the app mounts, and return what it produced."""
+    """Create what the app mounts, and return what it produced.
+
+    Only a tool instance produces anything. An embed opens a surface that
+    already exists, and a **service** app brings connections rather than
+    content — its install is the row plus the definition it pinned, and what it
+    offers is served from the container the operator registered. Both answer
+    with an empty list rather than being a case the installer has to know
+    about.
+    """
     if definition.get("app_kind") != "tool_instance":
-        # An embed opens a surface that already exists; a service app brings
-        # configuration rather than content. Neither has anything to create.
         return []
 
     tool = definition.get("tool")
@@ -240,6 +247,48 @@ async def create_app_artifacts(
         session, guild_id=guild_id, created_by_id=created_by_id, name=name
     )
     return [{"type": tool, "id": artifact_id}]
+
+
+async def install_app(
+    session: AsyncSession,
+    *,
+    listing_uid: str,
+    listing_version: str,
+    definition: dict,
+    guild_id: int,
+    installed_by_id: int,
+    name: str,
+) -> GuildApp:
+    """Create the install row, and whatever the app mounts alongside it.
+
+    One place knows what an install *is*, because there are two callers now: a
+    guild admin choosing an app, and the deployment placing a mandatory one into
+    every guild (§7.7). The row is flushed rather than committed — the caller
+    owns the transaction, since a guild creation commits the install together
+    with the rest of the guild's seed.
+    """
+    artifacts = await create_app_artifacts(
+        session,
+        definition=definition,
+        guild_id=guild_id,
+        created_by_id=installed_by_id,
+        name=name,
+    )
+    app = GuildApp(
+        guild_id=guild_id,
+        listing_uid=listing_uid,
+        listing_version=listing_version,
+        app_kind=definition["app_kind"],
+        name=name,
+        definition=definition,
+        config={},
+        config_secrets={},
+        artifacts=artifacts,
+        installed_by_id=installed_by_id,
+    )
+    session.add(app)
+    await session.flush()
+    return app
 
 
 async def remove_app_artifacts(

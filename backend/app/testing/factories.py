@@ -20,13 +20,19 @@ from typing import Any
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
+from app.core.encryption import (
+    encrypt_field,
+    hash_email,
+    SALT_APP_SERVICE_SECRET,
+    SALT_EMAIL,
+)
 from app.core.tools import TOGGLEABLE_TOOLS, Tool
 from app.core.security import (
     create_access_token,
     get_password_hash,
     mint_access_token,
 )
+from app.models.platform.app_service_registration import AppServiceRegistration
 from app.models.tenant.advanced_tool import AdvancedTool
 from app.models.tenant.calendar import Calendar
 from app.models.platform.marketplace import (
@@ -42,6 +48,7 @@ from app.models.tenant.counter import Counter, CounterGroup
 from app.models.tenant.document import Document, DocumentType
 from app.models.platform.guild import Guild, GuildMembership, GuildRole
 from app.services.marketplace import catalog as marketplace_catalog
+from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.services.tenant.dashboard_definition import (
     normalize_dashboard_definition,
 )
@@ -941,6 +948,52 @@ async def create_guild_app(
     await session.commit()
     await session.refresh(app)
     return app
+
+
+async def create_app_service_registration(
+    session: AsyncSession,
+    *,
+    public_id: str = "tests.app-service",
+    base_url: str = "https://app.example.test",
+    listing_uid: str | None = None,
+    allowed_origins: list[str] | None = None,
+    grants: list[str] | None = None,
+    mandatory: bool = False,
+    enabled: bool = True,
+    status: str = "ok",
+    **overrides: Any,
+) -> AppServiceRegistration:
+    """A deployment-level registration, written straight into ``public``.
+
+    Deliberately not routed through :mod:`app.services.marketplace.registrations`:
+    creating one there runs the handshake against a live container, which a test
+    has no business standing up. The row is what everything downstream reads, so
+    this is the wiring an operator would have done.
+
+    The in-process snapshot is dropped afterwards, so the very next read sees
+    this registration rather than whatever a previous test left cached.
+    """
+    row = AppServiceRegistration(
+        **{
+            "public_id": public_id,
+            "listing_uid": listing_uid,
+            "base_url": base_url,
+            "allowed_origins": allowed_origins
+            if allowed_origins is not None
+            else [base_url],
+            "secret_encrypted": encrypt_field("test-secret", SALT_APP_SERVICE_SECRET),
+            "grants": grants or [],
+            "mandatory": mandatory,
+            "enabled": enabled,
+            "status": status,
+            **overrides,
+        }
+    )
+    session.add(row)
+    await session.commit()
+    await session.refresh(row)
+    invalidate_registrations()
+    return row
 
 
 def marketplace_uid(label: str) -> str:
