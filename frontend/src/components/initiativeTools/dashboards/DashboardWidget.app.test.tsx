@@ -175,4 +175,16 @@ describe("DashboardWidget with an app source", () => {
   it("has a localized message for the failure it can produce", () => {
     expect(WidgetErrorCode.APP_UNAVAILABLE).toBe("WIDGET_APP_UNAVAILABLE");
   });
+
+  it("says the app is unavailable when its catalog will not load", async () => {
+    // A catalog that failed says nothing about whether the app is installed.
+    // Reading it as "not installed" would mark every app widget on the board
+    // unconfigured and invite someone to repoint bindings that were never wrong.
+    apiGet.mockImplementation(() => Promise.reject(new Error("503")));
+
+    mount({ dashboardId: 11 });
+
+    expect(await screen.findByText(/not responding/i)).toBeInTheDocument();
+    expect(screen.queryByText(/not configured/i)).toBeNull();
+  });
 });

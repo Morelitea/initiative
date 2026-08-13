@@ -322,6 +322,18 @@ export function useWidgetData(
         if (appCatalogQuery.isLoading) {
           return { data: emptyDataFor(source), isLoading: true, isUnbound: false };
         }
+        // A catalog that failed to load says nothing about whether this app is
+        // installed, so it must not be read as "not installed" — that would
+        // render every app widget on the dashboard as unconfigured and invite
+        // someone to repoint bindings that were never wrong.
+        if (appCatalogQuery.isError) {
+          return {
+            data: emptyDataFor(source),
+            isLoading: false,
+            isUnbound: false,
+            errorCode: WidgetErrorCode.APP_UNAVAILABLE,
+          };
+        }
         // The app is not installed in this guild, or its pinned version stopped
         // offering this source. Same rendering as a deleted counter: absent, not
         // broken — nothing here is the app's fault.
@@ -379,6 +391,7 @@ export function useWidgetData(
     binding.source_id,
     appBinding,
     appCatalogQuery.isLoading,
+    appCatalogQuery.isError,
     appQuery.data,
     appQuery.isLoading,
     appQuery.isError,
