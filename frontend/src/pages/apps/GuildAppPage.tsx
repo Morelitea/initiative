@@ -18,12 +18,15 @@ import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { createGuildAppHandoffApiV1GGuildIdAppsAppIdHandoffSurfaceIdPost } from "@/api/generated/apps/apps";
+import {
+  createGuildAppHandoffApiV1GGuildIdAppsAppIdHandoffSurfaceIdPost,
+  createInitiativeAppHandoffApiV1GGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPost,
+} from "@/api/generated/apps/apps";
 import type { GuildAppHandoff } from "@/api/generated/initiativeAPI.schemas";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildAppDetail } from "@/hooks/useGuildAppDetail";
-import { appEmbeds } from "@/lib/appSurfaces";
+import { appEmbeds, type SurfaceViewer } from "@/lib/appSurfaces";
 import { cn } from "@/lib/utils";
 import { localized } from "@/lib/widgets/widgetMeta";
 
@@ -33,13 +36,30 @@ const HANDOFF = "initiative-app:handoff";
 const ERROR = "initiative-app:error";
 const LOCALE = "initiative-app:locale";
 
-export function GuildAppPage({ appId }: { appId: number }) {
+export interface GuildAppPageProps {
+  appId: number;
+  /**
+   * The initiative this page is being read inside, if any. It selects the
+   * surfaces on offer, and it travels to the app in the minted token — so the
+   * app can scope what it shows without asking a second question.
+   */
+  initiativeId?: number;
+  /** Who is reading, so a surface they could not open is not offered. */
+  viewer: SurfaceViewer;
+}
+
+export function GuildAppPage({ appId, initiativeId, viewer }: GuildAppPageProps) {
   const { t, i18n } = useTranslation(["apps", "common"]);
   const guildId = useActiveGuildId();
   const detail = useGuildAppDetail(appId);
   const app = detail.data;
 
-  const embeds = useMemo(() => appEmbeds(app?.definition), [app?.definition]);
+  const scope = initiativeId === undefined ? "guild" : "initiative";
+  const { isGuildAdmin, isInitiativeManager } = viewer;
+  const embeds = useMemo(
+    () => appEmbeds(app?.definition, scope, { isGuildAdmin, isInitiativeManager }),
+    [app?.definition, scope, isGuildAdmin, isInitiativeManager]
+  );
   const [surfaceId, setSurfaceId] = useState<string | null>(null);
   const active = embeds.find((embed) => embed.id === surfaceId) ?? embeds[0] ?? null;
   // The surface as a plain id, so a refetch that hands back an equal-but-new
@@ -55,14 +75,24 @@ export function GuildAppPage({ appId }: { appId: number }) {
   // one is minted fresh.
   const spentRef = useRef(false);
 
+  // Two routes, because where a surface was opened is the route's to say: the
+  // initiative in the token is the one whose gate this request passed, not a
+  // value the page hands over.
   const mint = useCallback(
     () =>
-      createGuildAppHandoffApiV1GGuildIdAppsAppIdHandoffSurfaceIdPost(
-        guildId,
-        appId,
-        activeId ?? ""
-      ) as unknown as Promise<GuildAppHandoff>,
-    [guildId, appId, activeId]
+      (initiativeId === undefined
+        ? createGuildAppHandoffApiV1GGuildIdAppsAppIdHandoffSurfaceIdPost(
+            guildId,
+            appId,
+            activeId ?? ""
+          )
+        : createInitiativeAppHandoffApiV1GGuildIdInitiativesInitiativeIdAppsAppIdHandoffSurfaceIdPost(
+            guildId,
+            initiativeId,
+            appId,
+            activeId ?? ""
+          )) as unknown as Promise<GuildAppHandoff>,
+    [guildId, initiativeId, appId, activeId]
   );
 
   // Mint for the surface being opened. Re-runs when the surface changes, which
