@@ -13,12 +13,16 @@ import sqlalchemy as sa
 from alembic import op
 
 from app.db.guild_migrations import run_for_each_guild_schema
-from app.models.tenant.calendar import DEFAULT_CALENDAR_COLOR
 
 revision = "20260806_0159"
 down_revision = "20260806_0158"
 branch_labels = None
 depends_on = None
+
+#: The default as of THIS revision. Spelled out rather than read from
+#: ``DEFAULT_CALENDAR_COLOR``: the colour a past upgrade actually wrote must not
+#: change retroactively when the app picks a new default.
+_DEFAULT_COLOR = "#6366f1"
 
 
 def upgrade() -> None:
@@ -31,7 +35,7 @@ def _apply_upgrade() -> None:
         op.execute(
             sa.text(
                 "UPDATE calendars SET color = :color WHERE color IS NULL"
-            ).bindparams(color=DEFAULT_CALENDAR_COLOR)
+            ).bindparams(color=_DEFAULT_COLOR)
         )
         remaining = (
             op.get_bind()
@@ -43,7 +47,7 @@ def _apply_upgrade() -> None:
     finally:
         op.execute("ALTER TABLE calendars FORCE ROW LEVEL SECURITY")
     op.execute(
-        f"ALTER TABLE calendars ALTER COLUMN color SET DEFAULT '{DEFAULT_CALENDAR_COLOR}'"
+        f"ALTER TABLE calendars ALTER COLUMN color SET DEFAULT '{_DEFAULT_COLOR}'"
     )
     op.execute("ALTER TABLE calendars ALTER COLUMN color SET NOT NULL")
 
