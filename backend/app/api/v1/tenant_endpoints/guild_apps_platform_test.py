@@ -60,7 +60,7 @@ _SIGNING_KEY_PEM = (
 
 
 def _service_definition(**overrides) -> dict:
-    """A service app declaring one member surface and one admin surface."""
+    """A service app declaring one surface per rung of the visibility ladder."""
     definition = {
         "app_kind": "service",
         "service": {"public_id": SERVICE_ID, "protocol": 1},
@@ -77,6 +77,13 @@ def _service_definition(**overrides) -> dict:
                 "path": "/embed/console",
                 "visibility": "guild_admin",
                 "name": {"en": "Console"},
+            },
+            {
+                "id": "runs",
+                "path": "/embed/runs",
+                "scopes": ["guild", "initiative"],
+                "visibility": "initiative_manager",
+                "name": {"en": "Runs"},
             },
         ],
         "default_name": "WidgetCo",
@@ -317,6 +324,39 @@ class TestHandoff:
 
         response = await client.post(
             a.g(f"/apps/{app.id}/handoff/console"), headers=a.headers
+        )
+        assert response.status_code == 200, response.text
+
+    async def test_managing_an_initiative_does_not_open_the_guild_wide_entry(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        """This route names no initiative, so it cannot admit a manager of one.
+
+        The surface renders in both scopes, and its rung is read against where
+        it was opened: guild-wide there is nothing to manage, so the same
+        declaration that admits a manager inside their initiative admits only
+        admins out here.
+        """
+        a = await acting_user(guild_role=GuildRole.admin)
+        app = await _installed(session, a)
+        pm = await acting_user(
+            guild_role=GuildRole.member, guild=a.guild, initiative=True
+        )
+
+        response = await client.post(
+            pm.g(f"/apps/{app.id}/handoff/runs"), headers=pm.headers
+        )
+        assert response.status_code == 403
+        assert response.json()["detail"] == GuildAppMessages.SURFACE_ADMIN_ONLY
+
+    async def test_a_guild_admin_opens_it_guild_wide(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        a = await acting_user(guild_role=GuildRole.admin)
+        app = await _installed(session, a)
+
+        response = await client.post(
+            a.g(f"/apps/{app.id}/handoff/runs"), headers=a.headers
         )
         assert response.status_code == 200, response.text
 

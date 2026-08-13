@@ -629,8 +629,9 @@ class GuildAppMessages:
     SERVICE_NOT_REGISTERED = "GUILD_APP_SERVICE_NOT_REGISTERED"
     #: The pinned definition declares no surface under that id.
     SURFACE_NOT_FOUND = "GUILD_APP_SURFACE_NOT_FOUND"
-    #: The surface declares ``visibility: guild_admin`` and the caller is a
-    #: plain member.
+    #: The surface names an audience the caller is not in — declared for the
+    #: guild's admins, or for an initiative's managers where the caller manages
+    #: nothing.
     SURFACE_ADMIN_ONLY = "GUILD_APP_SURFACE_ADMIN_ONLY"
     #: An interactive connection whose pinned definition carries no
     #: ``connect_path``, so there is no vendor flow to send the member to.

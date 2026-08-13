@@ -15,9 +15,14 @@ import type { LocalizedText } from "@/api/appConnections";
 export interface AppEmbed {
   id: string;
   path: string;
+  /** Where it renders. Absent means guild-wide, the only placement there was. */
+  scopes?: string[];
   visibility?: string;
   name?: LocalizedText;
 }
+
+/** The places a surface can be reached from. */
+export type SurfaceScope = "guild" | "initiative";
 
 /** Loose shape so this reads both the list and detail payloads. */
 export interface AppSurfaceSource {
@@ -26,17 +31,29 @@ export interface AppSurfaceSource {
   definition?: Record<string, unknown> | null;
 }
 
-/** The embedded surfaces an app declared, if any. */
-export const appEmbeds = (definition?: Record<string, unknown> | null): AppEmbed[] => {
+/**
+ * The embedded surfaces an app declared for one place.
+ *
+ * A surface may declare either scope or both, so this is a filter rather than a
+ * partition — an app's guild-wide page and its per-initiative one are often the
+ * same surface reached from two places. Only the server decides who may open
+ * one; this decides what is worth offering.
+ */
+export const appEmbeds = (
+  definition?: Record<string, unknown> | null,
+  scope: SurfaceScope = "guild"
+): AppEmbed[] => {
   const embeds = definition?.embeds;
   if (!Array.isArray(embeds)) return [];
-  return embeds.filter(
-    (embed): embed is AppEmbed =>
-      typeof embed === "object" &&
-      embed !== null &&
-      typeof (embed as AppEmbed).id === "string" &&
-      typeof (embed as AppEmbed).path === "string"
-  );
+  return embeds.filter((embed): embed is AppEmbed => {
+    if (typeof embed !== "object" || embed === null) return false;
+    const candidate = embed as AppEmbed;
+    if (typeof candidate.id !== "string" || typeof candidate.path !== "string") return false;
+    // Definitions pinned before surfaces could say where they belong carry no
+    // scopes at all, and every one of them is guild-wide.
+    const scopes = Array.isArray(candidate.scopes) ? candidate.scopes : ["guild"];
+    return scopes.includes(scope);
+  });
 };
 
 /** Whether the app declares any credential to fill in or connect. */

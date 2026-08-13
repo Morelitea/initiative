@@ -597,7 +597,8 @@ async def create_guild_app_handoff(
     Whether the surface may be opened is decided here, under the caller's real
     session, so the app never makes that call and never sees a request from
     somebody who failed it. What the manifest declared as ``visibility``
-    governs: a surface marked ``guild_admin`` is admin-only, and everything
+    governs, read guild-wide: a surface naming any audience narrower than
+    ``member`` is reachable here only by the guild's admins, and everything
     else is open to every member of the installing guild.
 
     The token goes to the iframe by ``postMessage`` — never a query string —

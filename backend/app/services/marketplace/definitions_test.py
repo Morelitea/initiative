@@ -537,10 +537,129 @@ class TestEmbeds:
             {
                 "id": "orders",
                 "path": "/embed/orders",
+                "scopes": ["guild"],
                 "visibility": "guild_admin",
                 "name": {"en": "Orders"},
             }
         ]
+
+
+class TestWhereASurfaceRenders:
+    """``scopes`` is not a choice between the two — it is a list.
+
+    A surface may ask for the guild-wide entry, an entry in each initiative, or
+    both; both is the interesting case, because it is one page reached from two
+    places rather than two surfaces to keep in step.
+    """
+
+    def _embed(self, **overrides) -> dict:
+        embed = {"id": "board", "path": "/embed", "name": _label("Board")}
+        embed.update(overrides)
+        return _normalize(features=["embeds"], embeds=[embed])["embeds"][0]
+
+    def test_saying_nothing_keeps_the_placement_embeds_already_had(self):
+        assert self._embed()["scopes"] == ["guild"]
+
+    def test_a_surface_may_render_in_both(self):
+        assert self._embed(scopes=["initiative", "guild"])["scopes"] == [
+            "guild",
+            "initiative",
+        ]
+
+    def test_a_surface_may_render_only_inside_initiatives(self):
+        assert self._embed(scopes=["initiative"])["scopes"] == ["initiative"]
+
+    def test_an_unknown_scope_is_refused(self):
+        with pytest.raises(ListingDefinitionError, match="unknown scope"):
+            self._embed(scopes=["project"])
+
+    def test_nowhere_to_render_is_refused(self):
+        with pytest.raises(ListingDefinitionError, match="nowhere to render"):
+            self._embed(scopes=[])
+
+    def test_a_repeated_scope_is_stored_once(self):
+        assert self._embed(scopes=["guild", "guild"])["scopes"] == ["guild"]
+
+
+class TestVisibilityIsALadder:
+    """A rung names the floor an audience clears, read against where it opens.
+
+    The ordering is declared once so a manifest and a request cannot come to
+    mean different things by the same word, and every rung is exercised here so
+    adding one forces a decision rather than defaulting to "refused".
+    """
+
+    def _embed(self, **overrides) -> dict:
+        embed = {
+            "id": "board",
+            "path": "/embed",
+            "name": _label("Board"),
+            "scopes": ["initiative"],
+        }
+        embed.update(overrides)
+        return _normalize(features=["embeds"], embeds=[embed])["embeds"][0]
+
+    def test_the_ladder_and_the_vocabulary_are_the_same_values(self):
+        assert set(service_apps.VISIBILITY_LADDER) == service_apps.VISIBILITIES
+        assert len(service_apps.VISIBILITY_LADDER) == len(service_apps.VISIBILITIES)
+
+    @pytest.mark.parametrize("rung", service_apps.VISIBILITY_LADDER)
+    def test_a_guild_admin_clears_every_rung(self, rung):
+        assert service_apps.clears_visibility(rung, is_guild_admin=True)
+
+    def test_a_member_clears_only_the_bottom_rung(self):
+        assert service_apps.clears_visibility("member", is_guild_admin=False)
+        assert not service_apps.clears_visibility(
+            "initiative_manager", is_guild_admin=False
+        )
+        assert not service_apps.clears_visibility("guild_admin", is_guild_admin=False)
+
+    def test_a_manager_clears_the_rung_named_for_them(self):
+        assert service_apps.clears_visibility(
+            "initiative_manager", is_guild_admin=False, is_initiative_manager=True
+        )
+
+    def test_managing_one_initiative_does_not_open_the_admin_rung(self):
+        assert not service_apps.clears_visibility(
+            "guild_admin", is_guild_admin=False, is_initiative_manager=True
+        )
+
+    def test_a_caller_with_no_initiative_in_hand_is_measured_without_it(self):
+        # The guild-wide route: nobody is a manager of nothing, so the rung
+        # falls through to the admins.
+        assert not service_apps.clears_visibility(
+            "initiative_manager", is_guild_admin=False
+        )
+        assert service_apps.clears_visibility("initiative_manager", is_guild_admin=True)
+
+    @pytest.mark.parametrize("required", [None, "member"])
+    def test_saying_nothing_admits_everyone_who_got_this_far(self, required):
+        assert service_apps.clears_visibility(required, is_guild_admin=False)
+
+    def test_a_value_this_build_does_not_know_is_refused(self):
+        # Nothing stores one today; the predicate fails closed anyway, so a
+        # rung added to the vocabulary and forgotten here denies rather than
+        # admits.
+        assert not service_apps.clears_visibility("everyone", is_guild_admin=False)
+
+    def test_an_unknown_visibility_is_refused(self):
+        with pytest.raises(ListingDefinitionError, match="unknown visibility"):
+            self._embed(visibility="everyone")
+
+    def test_an_initiative_surface_may_name_an_initiative_audience(self):
+        assert self._embed(visibility="initiative_manager")["visibility"] == (
+            "initiative_manager"
+        )
+
+    def test_a_guild_wide_surface_may_not(self):
+        # There is nothing to manage out here, so the value would be stored as
+        # a claim nothing could evaluate.
+        with pytest.raises(ListingDefinitionError, match="initiative audience"):
+            self._embed(scopes=["guild"], visibility="initiative_manager")
+
+    def test_a_data_source_may_not_either(self):
+        with pytest.raises(ListingDefinitionError, match="initiative audience"):
+            _with_source(visibility="initiative_manager")
 
 
 class TestEvents:

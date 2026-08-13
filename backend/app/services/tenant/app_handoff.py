@@ -41,6 +41,7 @@ from app.core.security import (
 )
 from app.models.tenant.guild_app import GuildApp
 from app.services.marketplace import registration_lookup
+from app.services.marketplace.service_apps import clears_visibility
 
 __all__ = [
     "APP_EMBED_HANDOFF_LIFETIME",
@@ -86,13 +87,24 @@ def embed_by_id(
     return None
 
 
-def _require_visibility(embed: dict[str, Any], *, is_guild_admin: bool) -> None:
-    """A surface an app declared for admins is opened by admins.
+def _require_visibility(
+    embed: dict[str, Any],
+    *,
+    is_guild_admin: bool,
+    is_initiative_manager: bool = False,
+) -> None:
+    """A surface is opened by the audience the app declared for it.
 
     ``member`` is the default the manifest validator applies, so an embed that
-    says nothing is open to every member of the installing guild.
+    says nothing is open to every member of the installing guild. The ordering
+    lives with the vocabulary that defines it, so this cannot drift from what a
+    manifest is allowed to say.
     """
-    if embed.get("visibility") == "guild_admin" and not is_guild_admin:
+    if not clears_visibility(
+        embed.get("visibility"),
+        is_guild_admin=is_guild_admin,
+        is_initiative_manager=is_initiative_manager,
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=GuildAppMessages.SURFACE_ADMIN_ONLY,
