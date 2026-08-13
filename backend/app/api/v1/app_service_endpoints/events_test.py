@@ -17,6 +17,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.api.v1.app_service_endpoints.events import MAX_EVENT_REQUEST_BYTES
 from app.core.messages import AppChannelMessages
 from app.services.tenant import app_channels as channels_service
 from app.testing import (
@@ -291,3 +292,26 @@ async def test_an_unparseable_body_is_refused(
     assert response.status_code == 422
     assert response.json()["detail"] == AppChannelMessages.INVALID_PAYLOAD
     assert dispatched == []
+
+
+class TestTheTransportRefusesFirst:
+    """An oversized body is refused before it is buffered.
+
+    Every route on this surface has to read its body to check the signature
+    that covers it, which means an unauthenticated caller can make the worker
+    hold whatever they send. The ceiling therefore lives at the transport seam,
+    and the handler's exact cap stays as the check for a chunked request that
+    carries no Content-Length.
+    """
+
+    def test_the_transport_ceiling_matches_the_handler_cap(self):
+        from app.core.body_limit import APP_SERVICE_MAX_REQUEST_BYTES
+
+        assert APP_SERVICE_MAX_REQUEST_BYTES == MAX_EVENT_REQUEST_BYTES
+
+    def test_the_app_service_surface_has_a_transport_rule(self):
+        from app.core.body_limit import _RULES
+
+        assert any(
+            pattern.match("/api/v1/app-service/events") for pattern, _, _ in _RULES
+        ), "app-service routes buffer before authenticating and need a body ceiling"

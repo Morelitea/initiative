@@ -41,6 +41,11 @@ router = APIRouter()
 #: The whole request, with room for the envelope around a payload already capped
 #: at :data:`MAX_EVENT_PAYLOAD_BYTES`. Checked against the bytes the signature
 #: covered, before they are parsed.
+#:
+#: The transport refuses anything past this first (``body_limit``), so a body
+#: is never buffered unbounded for a caller who has not authenticated. This
+#: check stays because the middleware reads Content-Length and a chunked
+#: request carries none — and the two are asserted equal, so neither can drift.
 MAX_EVENT_REQUEST_BYTES = MAX_EVENT_PAYLOAD_BYTES + 8 * 1024
 
 
