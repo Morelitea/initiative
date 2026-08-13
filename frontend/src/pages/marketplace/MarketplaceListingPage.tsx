@@ -230,22 +230,6 @@ export function MarketplaceListingPage() {
         </div>
       )}
 
-      {listing && listing.versions.length > 1 && (
-        <div className="space-y-2">
-          <h2 className="font-medium text-sm">{t("detail.versions")}</h2>
-          <ul className="space-y-2 text-sm">
-            {listing.versions.map((version) => (
-              <li key={version.version} className="flex flex-wrap items-baseline gap-2">
-                <span className="font-medium">{version.version}</span>
-                {version.release_notes && (
-                  <span className="text-muted-foreground">{version.release_notes}</span>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       {listing &&
         (isApp ? (
           <InstallAppDialog listing={listing} open={installing} onOpenChange={setInstalling} />

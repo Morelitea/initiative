@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The marketplace no longer offers an app that was removed.** A listing that ships with Initiative is taken off the shelf when a release stops carrying it, instead of lingering in the catalog of every instance that ever saw it — which is why the automation app could appear twice. A guild that already installed one keeps it; it simply stops being offered.
+- **A listing shows the version you would get, not a history.** One app, one current version. Which version an install is running, and updating it, stay in guild settings where the app lives.
 - **Installed apps open again.** Clicking an app in the sidebar did nothing. An app with a page of its own now opens it — with a tab for each view where an app offers several — and an app that only needs an account connected opens that form where you clicked, rather than sending you to look for it in guild settings. Apps that just feed widgets into dashboards have no page to open, so they tuck under a “show more” instead of taking up a row. Each app is now shown with its own artwork.
 
 ### Changed
