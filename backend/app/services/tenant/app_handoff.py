@@ -12,10 +12,18 @@ that surface, and the surface's own ``visibility`` must admit the caller. An app
 never has to make that decision, and never sees a request from somebody who
 failed it.
 
-**The token carries the minimum.** Guild, install, surface, and who is opening
-it — nothing about their role, their name, or their address. What an app may do
-with a person is a function of what the manifest declared and the guild
-accepted, not of anything it can read out of a claim set.
+**The token carries the minimum.** Guild, install, surface, who is opening it,
+and — where the surface was opened inside an initiative — which one. Nothing
+about their role, their name, or their address. What an app may do with a person
+is a function of what the manifest declared and the guild accepted, not of
+anything it can read out of a claim set.
+
+**Where a surface was opened is the route's to say.** A surface declares the
+scopes it renders in, and the caller names none of them: the initiative in the
+token is the one whose route was taken and whose gate the caller passed, never a
+value they supplied. That is also what makes ``visibility`` readable in two
+places at once — the same rung means an initiative's members inside it and the
+whole guild outside it.
 
 This generalizes the advanced tool's mint: same shape, but target, origins and
 audience come from the registration row rather than from deployment settings, so
@@ -143,28 +151,40 @@ async def mint_embed_handoff(
     app: GuildApp,
     *,
     surface_id: str,
-    scope: str,
     user_id: int,
     is_guild_admin: bool,
+    initiative_id: int | None,
+    is_initiative_manager: bool,
 ) -> EmbedHandoff:
     """Authorize the caller for one surface, then mint its handoff.
 
-    Resolving the surface is scoped to the route it was asked for, so the
-    visibility rung — which is read against where a surface was opened — is only
-    ever measured somewhere the surface agreed to appear.
+    ``initiative_id`` is where the surface was opened, and it is the only thing
+    that says so — the scope is derived from it rather than passed alongside,
+    because two arguments could disagree and there is nothing sensible for a
+    mint to do when they do. It comes from a route whose gate the caller already
+    passed, so by the time it is a claim it is a fact.
+
+    Resolving the surface is scoped to that, so the visibility rung — read
+    against where a surface was opened — is only ever measured somewhere the
+    surface agreed to appear.
     """
     if not app.enabled:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=GuildAppMessages.DISABLED
         )
 
+    scope = "guild" if initiative_id is None else "initiative"
     embed = embed_by_id(app.definition, surface_id, scope=scope)
     if embed is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=GuildAppMessages.SURFACE_NOT_FOUND,
         )
-    _require_visibility(embed, is_guild_admin=is_guild_admin)
+    _require_visibility(
+        embed,
+        is_guild_admin=is_guild_admin,
+        is_initiative_manager=is_initiative_manager,
+    )
 
     registration = await require_live_registration(app)
 
@@ -194,6 +214,10 @@ async def mint_embed_handoff(
         "app_install_id": app.id,
         "surface_id": surface_id,
     }
+    # Absent guild-wide rather than null, so "which initiative is this?" has one
+    # answer instead of two shapes that both mean none.
+    if initiative_id is not None:
+        payload["initiative_id"] = initiative_id
     headers: dict[str, Any] | None = {"kid": kid} if kid else None
     token = jwt.encode(payload, key, algorithm=algorithm, headers=headers)
 
