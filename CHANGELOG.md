@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.62.0] - 2026-08-13
+
 ### Added
 
 - **A platform administrator can create a guild for another account.** The named account becomes the guild's admin and owns its first initiative, and the administrator who created it is left holding nothing in it. Everyone else creates guilds for themselves as before.
