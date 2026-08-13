@@ -196,12 +196,18 @@ export function useInitiativeAccess() {
   );
 
   /** Whether the user can manage (PM/admin) a specific initiative. A grant
-   * never confers management — those operations are owner/PM-gated. */
+   * never confers management — those operations are owner/PM-gated.
+   *
+   * Read off `is_manager`, the flag an initiative role actually carries, rather
+   * than the legacy `role` field — which reports `project_manager` only for the
+   * built-in role of that name. An initiative that renamed its managers, or
+   * added a second managing role, has members the server treats as managers and
+   * this would not. */
   const canManage = useCallback(
     (initiative: InitiativeRead): boolean => {
       if (isGuildAdmin) return true;
       if (!user) return false;
-      return initiative.members.some((m) => m.user.id === user.id && m.role === "project_manager");
+      return initiative.members.some((m) => m.user.id === user.id && m.is_manager);
     },
     [user, isGuildAdmin]
   );
