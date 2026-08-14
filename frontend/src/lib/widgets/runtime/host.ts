@@ -154,12 +154,14 @@ export async function renderWidget(request: RenderRequest): Promise<WidgetRender
 const metaCache = new Map<string, WidgetMeta | null>();
 
 /** Outcomes that describe the runtime rather than the module: a worker that
- *  never booted, or one that stopped answering and was rebuilt. Reading again
- *  can give a different answer, so these are the two the cache does not keep —
- *  every other failure is a property of the source and would only repeat. */
+ *  never booted, one that stopped answering and was rebuilt, and a tripped
+ *  memory cap — which disposes the runtime, so the read after it starts on a
+ *  fresh one. Each can answer differently next time, so the cache does not keep
+ *  them; what remains is a property of the source and would only repeat. */
 const RUNTIME_META_FAILURES: ReadonlySet<SandboxErrorCode> = new Set([
   SandboxErrorCode.UNAVAILABLE,
   SandboxErrorCode.TIMEOUT,
+  SandboxErrorCode.OUT_OF_MEMORY,
 ]);
 
 /**

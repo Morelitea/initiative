@@ -25,18 +25,21 @@ describe("readWidgetMeta", () => {
     readMetaInSandbox.mockReset();
   });
 
-  it("reads again after the runtime failed, and keeps what it then gets", async () => {
-    readMetaInSandbox
-      .mockResolvedValueOnce({ ok: false, code: SandboxErrorCode.UNAVAILABLE })
-      .mockResolvedValueOnce(META);
-    const source = "// runtime failure\nconst meta = { name: { en: 'Summary' } };";
+  // Each of these leaves the runtime in a different state than it read in:
+  // never booted, rebuilt after going quiet, or disposed by the memory cap.
+  it.each([SandboxErrorCode.UNAVAILABLE, SandboxErrorCode.TIMEOUT, SandboxErrorCode.OUT_OF_MEMORY])(
+    "reads again after %s, and keeps what it then gets",
+    async (code) => {
+      readMetaInSandbox.mockResolvedValueOnce({ ok: false, code }).mockResolvedValueOnce(META);
+      const source = `// ${code}\nconst meta = { name: { en: 'Summary' } };`;
 
-    expect(await readWidgetMeta(source)).toBeNull();
-    expect(await readWidgetMeta(source)).not.toBeNull();
-    expect(await readWidgetMeta(source)).not.toBeNull();
-    // Two reads, not three: the failure was retried, the answer was kept.
-    expect(readMetaInSandbox).toHaveBeenCalledTimes(2);
-  });
+      expect(await readWidgetMeta(source)).toBeNull();
+      expect(await readWidgetMeta(source)).not.toBeNull();
+      expect(await readWidgetMeta(source)).not.toBeNull();
+      // Two reads, not three: the failure was retried, the answer was kept.
+      expect(readMetaInSandbox).toHaveBeenCalledTimes(2);
+    }
+  );
 
   it("keeps a failure the module itself causes", async () => {
     readMetaInSandbox.mockResolvedValue({ ok: false, code: SandboxErrorCode.THREW });
