@@ -30,6 +30,7 @@ from app.core.security import (
     AutoDelegationVerificationError,
     UploadTokenError,
     auto_delegation_configured,
+    delegation_token_kid,
     decode_session_token,
     verify_auto_delegation_token,
     verify_upload_token,
@@ -43,6 +44,7 @@ from app.models.platform.user import User, UserRole, UserStatus
 from app.schemas.platform.token import TokenPayload
 from app.services.platform import access_grants as access_grants_service
 from app.services.platform import api_keys as api_keys_service
+from app.services.marketplace import registration_lookup
 from app.services.platform import auto_delegation_blocklist
 from app.services.platform import guilds as guilds_service
 from app.services.platform import user_tokens
@@ -97,12 +99,26 @@ async def _authenticate_auto_delegation(
     if not auto_delegation_configured():
         return None  # delegation disabled — let other auth paths run
 
+    # Which app signed this decides which keys may verify it. The token names a
+    # `kid`; the registration that published it must be enabled and hold the
+    # `delegation` grant, so an operator turning either off ends the app's
+    # ability to act with an edit rather than a key rotation.
+    resolved = await registration_lookup.delegation_key_for(
+        delegation_token_kid(token) or ""
+    )
+    # No resolution falls through to the deployment-wide key for one release,
+    # while deployments move their delegate onto its own registration.
+    keys = [resolved.key] if resolved else None
+
     try:
-        claims = verify_auto_delegation_token(token)
+        claims = verify_auto_delegation_token(token, keys=keys)
     except AutoDelegationVerificationError:
         # Could be a session JWT or API key arriving on the same header.
         # Returning None lets the caller try those instead of failing.
         return None
+
+    if resolved is not None:
+        request.state.delegating_app = resolved.registration.public_id
 
     # Replay guard: a delegation JWT is one-shot. Even though the JWT is
     # technically valid for 15 minutes, a captured token must not be

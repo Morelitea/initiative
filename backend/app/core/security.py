@@ -503,33 +503,63 @@ class AutoDelegationVerificationError(Exception):
 
 
 def auto_delegation_configured() -> bool:
-    """True when this deployment has an automation delegate.
+    """True when this deployment could have a delegate at all.
 
-    The delegate is identified by the public half of its signing key, so the
-    presence of that key is what "a delegate exists here" means. Single source
-    of truth for every surface that is delegate-owned: the subscription
-    endpoints refuse without it and the outbound dispatcher stays inert.
+    A delegate is identified two ways now: by a key on its own registration —
+    the one an app is granted individually — or by the deployment-wide
+    ``AUTO_DELEGATION_PUBLIC_KEY_PEM``, which predates per-app keys and is read
+    for one release while deployments move across.
+
+    This is the cheap settings-only answer, for the callers that only need to
+    know whether the machinery is present: a registration is reachable exactly
+    when the app platform has its signing key. Whether some app *actually*
+    holds the grant is
+    :func:`app.services.marketplace.registration_lookup.any_delegate_registered`,
+    which reads the registrations.
     """
-    return bool(settings.AUTO_DELEGATION_PUBLIC_KEY_PEM)
+    return bool(settings.AUTO_DELEGATION_PUBLIC_KEY_PEM) or bool(
+        settings.APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM
+    )
 
 
-def verify_auto_delegation_token(token: str) -> AutoDelegationClaims:
-    """Verify a delegation JWT minted by initiative-auto.
+def delegation_token_kid(token: str) -> str | None:
+    """The ``kid`` a delegation token names, read before any verification.
 
-    Disabled when ``AUTO_DELEGATION_PUBLIC_KEY_PEM`` is unset — that
-    config gap surfaces as a verification error so the auth dep can
-    fall through to its other token paths instead of 500'ing.
-
-    The setting holds one key normally and two while the delegate is rotating,
-    so the token is accepted if any configured key verifies it.
+    Selecting a key is what a header is for, and nothing is trusted on the
+    strength of it: the key it resolves to is what decides the token.
     """
     try:
-        keys = load_verification_keys(settings.AUTO_DELEGATION_PUBLIC_KEY_PEM or "")
-    except PublicKeyBundleError as e:
-        raise AutoDelegationVerificationError(
-            f"AUTO_DELEGATION_PUBLIC_KEY_PEM is unusable: {e}"
-        ) from e
-    # Covers both an unset setting and one holding no PEM block at all.
+        return jwt.get_unverified_header(token).get("kid")
+    except jwt.PyJWTError:
+        return None
+
+
+def verify_auto_delegation_token(
+    token: str, *, keys: Sequence[Any] | None = None
+) -> AutoDelegationClaims:
+    """Verify a delegation JWT and resolve it to the user it names.
+
+    ``keys`` is the verification material the caller resolved — in the ordinary
+    path, the key set on the registration of the app that signed it. Omitted,
+    this falls back to the deployment-wide
+    ``AUTO_DELEGATION_PUBLIC_KEY_PEM``, which is read for one release while
+    deployments provision per-app keys; an unset setting surfaces as a
+    verification error so the auth dep falls through to its other token paths
+    instead of 500'ing.
+
+    More than one key is accepted either way, because that is what a rotation
+    looks like from this side: the replacement is published alongside the
+    current one while tokens signed by the first drain out.
+    """
+    if keys is None:
+        try:
+            keys = load_verification_keys(settings.AUTO_DELEGATION_PUBLIC_KEY_PEM or "")
+        except PublicKeyBundleError as e:
+            raise AutoDelegationVerificationError(
+                f"AUTO_DELEGATION_PUBLIC_KEY_PEM is unusable: {e}"
+            ) from e
+    # Covers an unset setting, one holding no PEM block, and a resolved
+    # registration whose key set turned out to be empty.
     if not keys:
         raise AutoDelegationVerificationError("delegation auth not configured")
 

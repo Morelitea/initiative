@@ -37,6 +37,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.security import auto_delegation_configured
+from app.services.marketplace.registration_lookup import delegate_available
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.services.safe_http import request_public_target
 from app.services.webhook_target_url import (
@@ -155,13 +156,14 @@ async def dispatch_event(
     deliver to. Returning before the query keeps the cost of the feature at
     zero on the write path rather than one query per event.
     """
-    if not auto_delegation_configured():
+    if not auto_delegation_configured() or not await delegate_available():
         global _inert_logged
         if not _inert_logged:
             _inert_logged = True
             logger.info(
                 "webhook dispatch inert: no automation delegate configured "
-                "(set AUTO_DELEGATION_PUBLIC_KEY_PEM to enable event delivery)"
+                "(grant an app service the delegation power and provision its "
+                "keys, or set AUTO_DELEGATION_PUBLIC_KEY_PEM)"
             )
         return
 
