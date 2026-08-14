@@ -106,6 +106,32 @@ describe("AppPlacementPanel", () => {
     await waitFor(() => expect(sent).toEqual([{ placement: { initiatives: [1, 2] } }]));
   });
 
+  it("leaves the next edit building on what the server kept", async () => {
+    // The first save fails while a second is already queued behind it. The
+    // second succeeds, so the server holds that selection — and the panel has
+    // to agree, or the following edit is computed from a state nobody stored.
+    let rejectFirst: (reason: unknown) => void = () => {};
+    mutateAsync.mockImplementationOnce((body: unknown) => {
+      sent.push(body);
+      return new Promise<object>((_resolve, reject) => {
+        rejectFirst = reject;
+      });
+    });
+    renderPage(() => <AppPlacementPanel app={app({ initiatives: [] })} />);
+
+    await tick("Platform");
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
+    await tick("Marketing");
+
+    rejectFirst(new Error("refused"));
+    await waitFor(() => expect(sent[1]).toEqual({ placement: { initiatives: [1, 2] } }));
+
+    // Untick the first one. Built on [1, 2] — what the server took — rather
+    // than on the empty selection the failed save would have rolled back to.
+    await tick("Platform");
+    await waitFor(() => expect(sent[2]).toEqual({ placement: { initiatives: [2] } }));
+  });
+
   it("places the app everywhere again in one choice", async () => {
     renderPage(() => <AppPlacementPanel app={app({ initiatives: [1] })} />);
 

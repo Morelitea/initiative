@@ -47,9 +47,14 @@ export function AppPlacementPanel({ app }: AppPlacementPanelProps) {
   // either order and leave the older one stored. Chained rather than
   // concurrent: the server sees the ticks in the order they were made.
   const queue = useRef<Promise<unknown>>(Promise.resolve());
+  // How many are still to settle. The panel is reconciled when the last one
+  // does, rather than by each in turn — a save that failed behind a save that
+  // worked would otherwise roll the panel back past a choice the server kept.
+  const outstanding = useRef(0);
 
   const save = (next: number[] | null) => {
     setChosen(next);
+    outstanding.current += 1;
     queue.current = queue.current
       .catch(() => undefined)
       .then(async () => {
@@ -67,8 +72,15 @@ export function AppPlacementPanel({ app }: AppPlacementPanelProps) {
         settled.current = live;
       })
       .catch((error) => {
-        setChosen(settled.current);
         toast.error(getErrorMessage(error, "apps:error"));
+      })
+      .finally(() => {
+        outstanding.current -= 1;
+        // Nothing else is coming, so the panel now shows what the server took:
+        // the newest choice when every save landed, and the last one it
+        // accepted when any did not. Either way the next edit builds on what
+        // is actually stored.
+        if (outstanding.current === 0) setChosen(settled.current);
       });
   };
 
