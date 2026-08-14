@@ -17,15 +17,17 @@ import {
 } from "@/api/generated/initiativeAPI.schemas";
 import { PALETTE_TOOLS, TOOL_PALETTE } from "@/lib/toolPalette";
 import {
-  RECENTABLE_TOOLS,
+  NON_EXPORTABLE_TOOLS,
   SIDEBAR_TOOLS,
   TOGGLEABLE_TOOLS,
-  TOOL_REGISTRY,
+  TOOL_ICONS,
   TOOLS,
   toolCamelPlural,
+  toolCamelSingular,
   toolCreateLabelKey,
   toolCreatePermission,
   toolNavLabelKey,
+  toolParamName,
   toolPascalSingular,
   toolRouteSegment,
   toolViewPermission,
@@ -39,12 +41,9 @@ import nav from "../../public/locales/en/nav.json";
 import trash from "../../public/locales/en/trash.json";
 
 // Route files (keys only — nothing is loaded). The guild tree holds each
-// tool's list route; the top-level tree holds the personal pages.
+// tool's list, detail, and settings routes.
 const guildRouteFiles = Object.keys(
   import.meta.glob("../routes/_serverRequired/_authenticated/g/$guildId/*.tsx")
-);
-const personalRouteFiles = Object.keys(
-  import.meta.glob("../routes/_serverRequired/_authenticated/*.tsx")
 );
 // Locale namespace files across every shipped language.
 const localeFiles = Object.keys(import.meta.glob("../../public/locales/*/*.json"));
@@ -52,7 +51,7 @@ const locales = [...new Set(localeFiles.map((f) => f.split("/").at(-2)))];
 
 describe("tool registry", () => {
   it("covers exactly the canonical Tool enum", () => {
-    expect(Object.keys(TOOL_REGISTRY).sort()).toEqual(Object.values(Tool).sort());
+    expect(Object.keys(TOOL_ICONS).sort()).toEqual(Object.values(Tool).sort());
   });
 
   it("sidebar order is a permutation of the tools", () => {
@@ -64,8 +63,8 @@ describe("tool registry", () => {
     expect(derived.sort()).toEqual(Object.values(PermissionKey).sort());
   });
 
-  it("recents capability mirrors the backend's recentable set", () => {
-    expect(RECENTABLE_TOOLS.map(String).sort()).toEqual(Object.values(RecentEntityType).sort());
+  it("every tool is recentable, matching the backend's RecentEntityType", () => {
+    expect(TOOLS.map(String).sort()).toEqual(Object.values(RecentEntityType).sort());
   });
 
   it("every tool is a trash entity type with a label", () => {
@@ -179,20 +178,17 @@ describe("tool routes", () => {
     }
   });
 
-  it("declared personal routes exist", () => {
-    for (const tool of TOOLS) {
-      const personalRoute = TOOL_REGISTRY[tool].personalRoute;
-      if (!personalRoute) continue;
-      const file = `../routes/_serverRequired/_authenticated/${personalRoute.slice(1)}.tsx`;
-      expect(personalRouteFiles, `missing personal route file ${file}`).toContain(file);
-    }
+  it("derives the route param name from the enum", () => {
+    expect(toolCamelSingular(Tool.counter_group)).toBe("counterGroup");
+    expect(toolParamName(Tool.counter_group)).toBe("counterGroupId");
+    expect(toolParamName(Tool.project)).toBe("projectId");
   });
 });
 
 describe("tool surfaces", () => {
   it("every tool has a command-palette source", () => {
     expect(Object.keys(TOOL_PALETTE).sort()).toEqual(Object.values(Tool).sort());
-    expect(PALETTE_TOOLS).toEqual(TOOLS.filter((tool) => TOOL_REGISTRY[tool].commandPalette));
+    expect(PALETTE_TOOLS).toEqual(TOOLS);
   });
 
   // Generous timeout: importing the page pulls in the whole tab-view graph,
@@ -234,10 +230,10 @@ describe("tool exports", () => {
     }
     // Exact coverage: a formats entry for a non-export tool is drift too.
     for (const tool of TOOLS) {
-      if (!TOOL_REGISTRY[tool].bulkExport && tool !== Tool.document) {
+      if (NON_EXPORTABLE_TOOLS.has(tool) && tool !== Tool.document) {
         expect(
           TOOL_EXPORT_FORMATS[tool],
-          `${tool} declares formats but bulkExport is false`
+          `${tool} declares formats but is in NON_EXPORTABLE_TOOLS`
         ).toBeUndefined();
       }
     }
@@ -255,14 +251,14 @@ describe("tool exports", () => {
 });
 
 describe("tool imports", () => {
-  it("importable tools are exactly the bulk-export tools", async () => {
-    const { IMPORTABLE_TOOLS, BULK_EXPORT_TOOLS } = await import("@/lib/tools");
-    expect([...IMPORTABLE_TOOLS].sort()).toEqual([...BULK_EXPORT_TOOLS].sort());
-  });
-
-  it("round-trips the envelope type discriminator for every importable tool", async () => {
-    const { IMPORTABLE_TOOLS, toolEnvelopeType, toolForEnvelopeType } = await import("@/lib/tools");
-    for (const tool of IMPORTABLE_TOOLS) {
+  // Export and import are one capability — a tool's JSON envelope round-trips
+  // through both — so they share BULK_EXPORT_TOOLS rather than two sets that
+  // could drift apart.
+  it("round-trips the envelope type discriminator for every portable tool", async () => {
+    const { BULK_EXPORT_TOOLS, toolEnvelopeType, toolForEnvelopeType } = await import(
+      "@/lib/tools"
+    );
+    for (const tool of BULK_EXPORT_TOOLS) {
       expect(toolForEnvelopeType(toolEnvelopeType(tool))).toBe(tool);
     }
     // Every type is the kebab-singular now; a backup type maps to no tool.

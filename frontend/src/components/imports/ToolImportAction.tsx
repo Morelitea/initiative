@@ -11,7 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { TOOL_REGISTRY } from "@/lib/tools";
+import { NON_EXPORTABLE_TOOLS } from "@/lib/tools";
 
 export interface ToolImportActionProps {
   tool: Tool;
@@ -40,7 +40,7 @@ export function ToolImportAction({
   const { t } = useTranslation("imports");
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  if (!TOOL_REGISTRY[tool].importable || !canImport) {
+  if (NON_EXPORTABLE_TOOLS.has(tool) || !canImport) {
     return null;
   }
 

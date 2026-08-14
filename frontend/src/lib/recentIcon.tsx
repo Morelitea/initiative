@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import type { RecentItemRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { getDocumentIcon, getDocumentIconColor } from "@/lib/fileUtils";
-import { TOOL_REGISTRY } from "@/lib/tools";
+import { TOOL_ICONS } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 /**
@@ -29,7 +29,7 @@ export function renderRecentIcon(item: RecentItemRead): ReactNode {
       return <Icon className={cn("h-4 w-4", color)} />;
     }
     default: {
-      const Icon = TOOL_REGISTRY[item.entity_type as Tool]?.icon;
+      const Icon = TOOL_ICONS[item.entity_type as Tool];
       return Icon ? <Icon className="h-4 w-4 text-muted-foreground" /> : null;
     }
   }
