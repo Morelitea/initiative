@@ -247,16 +247,10 @@
   "settings": {
     "loading": "Projekteinstellungen werden geladen...",
     "loadError": "Projekt konnte nicht geladen werden.",
-    "backToProjects": "Zurück zu den Projekten",
-    "backToProject": "Zurück zum Projekt",
     "title": "Projekteinstellungen",
     "description": "Konfiguriere Zugriff, Eigentümerschaft und Archivierungsstatus für {{name}}.",
-    "noPermission": "Du hast keine Berechtigung, dieses Projekt zu verwalten.",
     "breadcrumbSettings": "Einstellungen",
-    "tabDetails": "Details",
-    "tabAccess": "Zugriff",
     "tabTaskStatuses": "Aufgabenstatus",
-    "tabAdvanced": "Erweitert",
     "details": {
       "title": "Projektdetails",
       "description": "Aktualisiere das Symbol, den Namen und die Beschreibung, die im gesamten Arbeitsbereich angezeigt werden.",
@@ -275,10 +269,7 @@
       "descriptionDescription": "Teile Kontext, um Mitarbeitenden zu helfen, die Arbeit zu verstehen.",
       "descriptionPlaceholder": "Was wollen wir erreichen?",
       "scheduleHeading": "Zeitraum",
-      "scheduleDescription": "Lege fest, wann das Projekt beginnt und endet. Beide Angaben sind optional.",
-      "tagsHeading": "Tags",
-      "tagsDescription": "Füge Tags hinzu, um Projekte zu organisieren und zu filtern.",
-      "noWriteAccessTags": "Du benötigst Schreibzugriff, um Tags zu verwalten."
+      "scheduleDescription": "Lege fest, wann das Projekt beginnt und endet. Beide Angaben sind optional."
     },
     "access": {
       "updated": "Zugriff aktualisiert",
@@ -315,11 +306,7 @@
     },
     "danger": {
       "title": "Gefahrenzone",
-      "description": "Beim Löschen eines Projekts werden es und seine Aufgaben in den Papierkorb verschoben. Sie können vor Ablauf der Aufbewahrungsfrist wiederhergestellt werden.",
-      "deleteButton": "Projekt löschen",
-      "deleteTitle": "Projekt löschen?",
-      "deleteDescription": "Das Projekt und seine Aufgaben werden in den Papierkorb verschoben. Du kannst sie unter Einstellungen → Papierkorb vor Ablauf der Aufbewahrungsfrist wiederherstellen.",
-      "deleteConfirm": "Löschen"
+      "description": "Beim Löschen eines Projekts werden es und seine Aufgaben in den Papierkorb verschoben. Sie können vor Ablauf der Aufbewahrungsfrist wiederhergestellt werden."
     }
   },
   "documents": {

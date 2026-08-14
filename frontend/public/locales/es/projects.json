@@ -247,16 +247,10 @@
   "settings": {
     "loading": "Cargando configuración del proyecto...",
     "loadError": "No se pudo cargar el proyecto.",
-    "backToProjects": "Volver a proyectos",
-    "backToProject": "Volver al proyecto",
     "title": "Configuración del proyecto",
     "description": "Configura el acceso, propiedad y estado de archivo de {{name}}.",
-    "noPermission": "No tienes permiso para administrar este proyecto.",
     "breadcrumbSettings": "Configuración",
-    "tabDetails": "Detalles",
-    "tabAccess": "Acceso",
     "tabTaskStatuses": "Estados de tarea",
-    "tabAdvanced": "Avanzado",
     "details": {
       "title": "Detalles del proyecto",
       "description": "Actualiza el ícono, nombre y descripción que se muestran en el espacio de trabajo.",
@@ -275,10 +269,7 @@
       "descriptionDescription": "Comparte contexto para ayudar a los colaboradores a entender el trabajo.",
       "descriptionPlaceholder": "¿Qué estamos tratando de lograr?",
       "scheduleHeading": "Fechas",
-      "scheduleDescription": "Define cuándo comienza y termina el proyecto. Ambas son opcionales.",
-      "tagsHeading": "Etiquetas",
-      "tagsDescription": "Agrega etiquetas para organizar y filtrar proyectos.",
-      "noWriteAccessTags": "Necesitas acceso de escritura para administrar etiquetas."
+      "scheduleDescription": "Define cuándo comienza y termina el proyecto. Ambas son opcionales."
     },
     "access": {
       "updated": "Acceso actualizado",
@@ -315,11 +306,7 @@
     },
     "danger": {
       "title": "Zona de peligro",
-      "description": "Eliminar un proyecto lo envía a la papelera junto con sus tareas. Pueden restaurarse antes de que finalice el período de retención.",
-      "deleteButton": "Eliminar proyecto",
-      "deleteTitle": "¿Eliminar proyecto?",
-      "deleteDescription": "El proyecto y sus tareas se enviarán a la papelera. Puedes restaurarlos desde Configuración → Papelera antes de que finalice el período de retención.",
-      "deleteConfirm": "Eliminar"
+      "description": "Eliminar un proyecto lo envía a la papelera junto con sus tareas. Pueden restaurarse antes de que finalice el período de retención."
     }
   },
   "documents": {

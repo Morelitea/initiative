@@ -6,11 +6,8 @@
   "noQueuesDescription": "Mit Abläufen (Queues) kannst du Elemente nach Priorität organisieren, die Reihenfolge verfolgen und festlegen, wer als Nächstes an der Reihe ist.",
   "createQueue": "Ablauf (Queue) erstellen",
   "editQueue": "Ablauf (Queue) bearbeiten",
-  "deleteQueue": "Ablauf (Queue) löschen",
-  "deleteQueueConfirm": "Der Ablauf (Queue) und seine Elemente werden in den Papierkorb verschoben. Du kannst sie unter Einstellungen → Papierkorb wiederherstellen, bevor der Aufbewahrungszeitraum endet.",
   "queueCreated": "Ablauf (Queue) erstellt",
   "queueUpdated": "Ablauf (Queue) aktualisiert",
-  "queueDeleted": "Ablauf (Queue) gelöscht",
   "name": "Name",
   "namePlaceholder": "Namen des Ablaufs (Queue) eingeben",
   "description": "Beschreibung",
@@ -97,13 +94,11 @@
   "noTasks": "Keine Aufgaben verknüpft",
   "removeLink": "Entfernen",
   "settings": "Einstellungen",
-  "settingsDescription": "Verwalte Details, Zugriff und erweiterte Optionen dieses Ablaufs (Queue).",
   "details": "Details",
   "access": "Zugriff",
   "advanced": "Erweitert",
   "dangerZone": "Gefahrenzone",
   "dangerZoneDescription": "Destruktive Aktionen. Gelöschte Abläufe (Queues) landen im Papierkorb und können wiederhergestellt werden, bevor der Aufbewahrungszeitraum endet.",
-  "permissionsUpdated": "Berechtigungen aktualisiert",
   "detailsUpdated": "Details zum Ablauf (Queue) aktualisiert",
   "viewLabel": "Ansicht",
   "viewList": "Listenansicht",
@@ -121,7 +116,5 @@
     "activeOnly": "Aktiv",
     "inactiveOnly": "Inaktiv",
     "noMatchingQueues": "Keine Abläufe (Queues) entsprechen deinen Filtern."
-  },
-  "tagsDescription": "Füge Tags hinzu, um Abläufe (Queues) zu organisieren und zu filtern.",
-  "noWriteAccessTags": "Du benötigst Schreibzugriff, um Tags zu verwalten."
+  }
 }

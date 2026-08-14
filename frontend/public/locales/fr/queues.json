@@ -6,11 +6,8 @@
   "noQueuesDescription": "Les files vous permettent d'organiser les éléments par priorité, de suivre l'ordre de passage et de gérer qui passe ensuite.",
   "createQueue": "Créer une file",
   "editQueue": "Modifier la file",
-  "deleteQueue": "Supprimer la file",
-  "deleteQueueConfirm": "La file et ses éléments seront envoyés à la corbeille. Vous pouvez la restaurer depuis Paramètres → Corbeille avant la fin de la période de rétention.",
   "queueCreated": "File créée",
   "queueUpdated": "File mise à jour",
-  "queueDeleted": "File supprimée",
   "name": "Nom",
   "namePlaceholder": "Entrez le nom de la file",
   "description": "Description",
@@ -97,13 +94,11 @@
   "noTasks": "Aucune tâche liée",
   "removeLink": "Retirer",
   "settings": "Paramètres",
-  "settingsDescription": "Gérez les détails, l'accès et les options avancées de la file.",
   "details": "Détails",
   "access": "Accès",
   "advanced": "Avancé",
   "dangerZone": "Zone de danger",
   "dangerZoneDescription": "Actions destructrices. Les files supprimées vont à la corbeille et peuvent être restaurées avant la fin de la période de rétention.",
-  "permissionsUpdated": "Permissions mises à jour",
   "detailsUpdated": "Détails de la file mis à jour",
   "viewLabel": "Vue",
   "viewList": "Vue en liste",
@@ -121,7 +116,5 @@
     "activeOnly": "Actif",
     "inactiveOnly": "Inactif",
     "noMatchingQueues": "Aucune file ne correspond à vos filtres."
-  },
-  "tagsDescription": "Ajoutez des étiquettes pour organiser et filtrer les files.",
-  "noWriteAccessTags": "Vous avez besoin d'un accès en écriture pour gérer les étiquettes."
+  }
 }

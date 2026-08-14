@@ -247,16 +247,10 @@
   "settings": {
     "loading": "Chargement des paramètres du projet...",
     "loadError": "Impossible de charger le projet.",
-    "backToProjects": "Retour aux projets",
-    "backToProject": "Retour au projet",
     "title": "Paramètres du projet",
     "description": "Configurez l'accès, la propriété et le statut d'archivage pour {{name}}.",
-    "noPermission": "Vous n'avez pas la permission de gérer ce projet.",
     "breadcrumbSettings": "Paramètres",
-    "tabDetails": "Détails",
-    "tabAccess": "Accès",
     "tabTaskStatuses": "Statuts des tâches",
-    "tabAdvanced": "Avancé",
     "details": {
       "title": "Détails du projet",
       "description": "Mettez à jour l'icône, le nom et la description affichés dans l'espace de travail.",
@@ -275,10 +269,7 @@
       "descriptionDescription": "Partagez du contexte pour aider les collaborateurs à comprendre le travail.",
       "descriptionPlaceholder": "Qu'essayons-nous d'accomplir ?",
       "scheduleHeading": "Dates",
-      "scheduleDescription": "Définissez quand le projet commence et se termine. Les deux sont facultatives.",
-      "tagsHeading": "Étiquettes",
-      "tagsDescription": "Ajoutez des étiquettes pour organiser et filtrer les projets.",
-      "noWriteAccessTags": "Vous avez besoin d'un accès en écriture pour gérer les étiquettes."
+      "scheduleDescription": "Définissez quand le projet commence et se termine. Les deux sont facultatives."
     },
     "access": {
       "updated": "Accès mis à jour",
@@ -315,11 +306,7 @@
     },
     "danger": {
       "title": "Zone de danger",
-      "description": "Supprimer un projet l'envoie à la corbeille avec ses tâches. Ils peuvent être restaurés avant la fin de la période de rétention.",
-      "deleteButton": "Supprimer le projet",
-      "deleteTitle": "Supprimer le projet ?",
-      "deleteDescription": "Le projet et ses tâches seront envoyés à la corbeille. Vous pouvez les restaurer depuis Paramètres → Corbeille avant la fin de la période de rétention.",
-      "deleteConfirm": "Supprimer"
+      "description": "Supprimer un projet l'envoie à la corbeille avec ses tâches. Ils peuvent être restaurés avant la fin de la période de rétention."
     }
   },
   "documents": {

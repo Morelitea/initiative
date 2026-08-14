@@ -247,16 +247,10 @@
   "settings": {
     "loading": "Loading project settings...",
     "loadError": "Unable to load project.",
-    "backToProjects": "Back to projects",
-    "backToProject": "Back to project",
     "title": "Project settings",
     "description": "Configure access, ownership, and archival status for {{name}}.",
-    "noPermission": "You do not have permission to manage this project.",
     "breadcrumbSettings": "Settings",
-    "tabDetails": "Details",
-    "tabAccess": "Access",
     "tabTaskStatuses": "Task statuses",
-    "tabAdvanced": "Advanced",
     "details": {
       "title": "Project details",
       "description": "Update the icon, name, and description shown across the workspace.",
@@ -275,10 +269,7 @@
       "descriptionDescription": "Share context to help collaborators understand the work.",
       "descriptionPlaceholder": "What are we trying to accomplish?",
       "scheduleHeading": "Dates",
-      "scheduleDescription": "Set when the project starts and ends. Both are optional.",
-      "tagsHeading": "Tags",
-      "tagsDescription": "Add tags to organize and filter projects.",
-      "noWriteAccessTags": "You need write access to manage tags."
+      "scheduleDescription": "Set when the project starts and ends. Both are optional."
     },
     "access": {
       "updated": "Access updated",
@@ -315,11 +306,7 @@
     },
     "danger": {
       "title": "Danger zone",
-      "description": "Deleting a project sends it and its tasks to the trash. They can be restored before the retention period ends.",
-      "deleteButton": "Delete project",
-      "deleteTitle": "Delete project?",
-      "deleteDescription": "The project and its tasks will be sent to the trash. You can restore them from Settings → Trash before the retention period ends.",
-      "deleteConfirm": "Delete"
+      "description": "Deleting a project sends it and its tasks to the trash. They can be restored before the retention period ends."
     }
   },
   "documents": {
