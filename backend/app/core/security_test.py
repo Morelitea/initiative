@@ -419,6 +419,11 @@ def test_loader_refuses_a_private_key():
 
 # --- delegation: which key a token is accepted under ------------------------
 
+#: The shape a real ``sub`` has here: the pairwise subject the platform minted
+#: for one member at one install, opaque to the app that holds it. These tests
+#: are about key selection and carry it only so it can be read back out.
+_SUBJECT = "mBqR7xK2wPL0vN4tZ8yC6sD1fG3hJ5nA"
+
 
 def _mint_delegation(
     *, signed_by: int, expires_in: int = 900, kid: str | None = None
@@ -427,7 +432,7 @@ def _mint_delegation(
     return jwt.encode(
         {
             "jti": uuid.uuid4().hex,
-            "sub": "5",
+            "sub": _SUBJECT,
             "aud": settings.AUTO_DELEGATION_AUDIENCE,
             "iss": settings.AUTO_DELEGATION_ISSUER,
             "iat": int(now.timestamp()),
@@ -445,7 +450,7 @@ def test_delegation_accepts_the_key_it_was_given():
     claims = security.verify_auto_delegation_token(
         _mint_delegation(signed_by=0), keys=[public_key(0)]
     )
-    assert (claims.user_id, claims.guild_id) == (5, 9)
+    assert (claims.subject, claims.guild_id) == (_SUBJECT, 9)
 
 
 @pytest.mark.unit
@@ -456,8 +461,8 @@ def test_delegation_accepts_either_key_while_the_delegate_rotates():
         assert (
             security.verify_auto_delegation_token(
                 _mint_delegation(signed_by=index), keys=[public_key(0), public_key(1)]
-            ).user_id
-            == 5
+            ).subject
+            == _SUBJECT
         )
 
 
@@ -496,8 +501,8 @@ def test_a_token_key_id_does_not_steer_verification():
         security.verify_auto_delegation_token(
             _mint_delegation(signed_by=1, kid="names-the-other-key"),
             keys=[public_key(0), public_key(1)],
-        ).user_id
-        == 5
+        ).subject
+        == _SUBJECT
     )
     with pytest.raises(security.AutoDelegationVerificationError):
         security.verify_auto_delegation_token(
