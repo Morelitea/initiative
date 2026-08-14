@@ -637,17 +637,20 @@ class TestPlacement:
         assert response.status_code == 200, response.text
         assert response.json()["placement"] == {"initiatives": [a.initiative.id]}
 
-    async def test_it_may_not_name_another_guild_s_initiative(
+    async def test_it_may_only_name_an_initiative_this_guild_has(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        a = await acting_user(guild_role=GuildRole.admin)
+        """Stated as an id this guild has no initiative for, rather than as one
+        borrowed from another guild: initiative ids are per-guild, so the two
+        guilds' numbering can coincide and a borrowed id would only be refused
+        when the numbers happened to differ."""
+        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
         app = await _installed(session, a)
-        elsewhere = await acting_user(guild_role=GuildRole.admin, initiative=True)
 
         response = await client.patch(
             a.g(f"/apps/{app.id}"),
             headers=a.headers,
-            json={"placement": {"initiatives": [elsewhere.initiative.id]}},
+            json={"placement": {"initiatives": [a.initiative.id + 10_000]}},
         )
         assert response.status_code == 422
         assert response.json()["detail"] == GuildAppMessages.PLACEMENT_INVALID

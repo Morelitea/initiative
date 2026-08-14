@@ -11,7 +11,7 @@
  */
 
 import { Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { GuildAppDetail } from "@/api/appConnections";
@@ -40,18 +40,36 @@ export function AppPlacementPanel({ app }: AppPlacementPanelProps) {
   // What the admin is choosing right now. Seeded from the app and kept locally
   // so ticking several initiatives is one decision, saved per change.
   const [chosen, setChosen] = useState<number[] | null>(() => chosenIds(app.placement));
+  // The last selection the server took, so a failed save falls back to
+  // something true rather than to whatever the cache happens to hold.
+  const settled = useRef(chosen);
+  // Each save replaces the whole selection, so two in flight could land in
+  // either order and leave the older one stored. Chained rather than
+  // concurrent: the server sees the ticks in the order they were made.
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
 
   const save = (next: number[] | null) => {
     setChosen(next);
-    update.mutate(
-      { placement: next === null ? {} : { initiatives: next } },
-      {
-        onError: (error) => {
-          setChosen(chosenIds(app.placement));
-          toast.error(getErrorMessage(error, "apps:error"));
-        },
-      }
-    );
+    queue.current = queue.current
+      .catch(() => undefined)
+      .then(async () => {
+        // Only initiatives still on the roster are sent. An initiative deleted
+        // after it was chosen leaves an id nothing on screen shows, and
+        // resubmitting it would fail every later edit for a reason the admin
+        // cannot see.
+        const live =
+          next === null || !initiatives.data
+            ? next
+            : next.filter((id) => initiatives.data?.some((one) => one.id === id));
+        await update.mutateAsync({
+          placement: live === null ? {} : { initiatives: live },
+        });
+        settled.current = live;
+      })
+      .catch((error) => {
+        setChosen(settled.current);
+        toast.error(getErrorMessage(error, "apps:error"));
+      });
   };
 
   const toggle = (id: number, on: boolean) => {
