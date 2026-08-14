@@ -4,7 +4,9 @@ icon: lucide/wrench
 
 # Tools
 
-Beyond projects and documents, each initiative can use a few extra **tools**. They're optional — there if your group needs them, out of the way if it doesn't. You'll find them in the sidebar under the initiative, once your [role](../sharing/initiative-roles.md) allows it.
+Beyond projects and documents, each initiative can use a few extra **tools**: a **calendar**, **queues**, **counters**, and **dashboards**. They're optional — there if your group needs them, out of the way if it doesn't. You'll find them in the sidebar under the initiative, once your [role](../sharing/initiative-roles.md) allows it.
+
+Most groups don't turn any of these on for a while. Add one when a real need shows up: a shared calendar when scheduling starts to sprawl, a dashboard when someone asks how the work is going.
 
 !!! tip "Bulk-edit who can access them"
     You can select several **events, queues, or counters** in a list view and update **who can see or edit them** all at once — the same bulk access editing available for projects and documents. See [Sharing & access](../sharing/index.md).
@@ -38,7 +40,7 @@ The calendar shows your events by **day, week, month, year, or as a list**, and 
 
 ## Queues
 
-A **queue** keeps track of whose turn it is. It's ideal for anything that takes turns or rotates — initiative order in a game, a speaking rotation, a chore wheel, a support roster.
+A **queue** keeps track of whose turn it is. It's ideal for anything that takes turns or rotates — an on-call roster, a speaking order, a chore wheel, who's opening the shop this week, turn order in a game.
 
 A queue holds **items** (often people), and each item can have:
 
@@ -58,7 +60,7 @@ You can **Start** the queue, step through **Next turn** / **Previous turn**, **H
 
 ## Counters
 
-A **counter** tracks a number that goes up and down — a score, health points, a tally, a budget. **Counter groups** bundle related counters together (for example, the health of every character in a game).
+A **counter** tracks a number that goes up and down — a ticket tally, seats left, a budget, a score. **Counter groups** bundle related counters together (for example, one counter per table at a fundraiser).
 
 Each counter can have:
 
@@ -75,8 +77,25 @@ Each counter can have:
     Save as `en/images/tools/counters.png`, then use:
     `![A group of counters](../images/tools/counters.png)`
 
+## Dashboards
+
+A **dashboard** puts the answer to "how are we doing?" on one screen. It's a canvas of tiles — charts, single numbers, timelines — each reading from your own data: task counts, project progress, upcoming calendar entries, a counter's value.
+
+Dashboards **only display**. Nothing on one can be edited from it, so a dashboard is safe to leave open on a shared screen or hand to someone who only needs the overview.
+
+Each tile shows *you* only what you're already allowed to see, so two people can open the same dashboard and correctly see different numbers.
+
+You can build one from scratch, or add a ready-made one from the marketplace and adjust it — see [Apps & the marketplace](apps-and-marketplace.md).
+
+!!! screenshot "A dashboard"
+    **Show:** an initiative dashboard with a few tiles — a chart, a couple of single-number tiles, and a timeline.
+
+    Save as `en/images/tools/dashboard.png`, then use:
+    `![An initiative dashboard](../images/tools/dashboard.png)`
+
 ## Related
 
 - [Initiatives](initiatives.md) — tools live inside an initiative, and roles control who can use them.
+- [Apps & the marketplace](apps-and-marketplace.md) — ready-made dashboards and apps from other groups.
 - [Notifications](notifications.md) — event invites and reminders.
 - [Your space](your-space.md) — your combined calendar.

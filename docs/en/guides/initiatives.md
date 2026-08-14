@@ -45,7 +45,7 @@ People who aren't members of an initiative simply don't see it — it's not hidd
 
 Within an initiative, each member has a **role**. A role decides which *kinds of tools* that person can use here — for example, whether they can create projects, or only view them.
 
-Initiative comes with a **Manager** role (think project lead) whose permissions are fixed, and you can create your own roles on top — like "Director," "Cast," "Player," or "Guest" — each with its own mix of permissions.
+Initiative comes with a **Manager** role (think project lead) whose permissions are fixed, and you can create your own roles on top — like "Coordinator," "Volunteer," "Client," or "Guest" — each with its own mix of permissions. Name them after how your group actually talks about itself, not after anything Initiative expects.
 
 Permissions are grouped by tool:
 
@@ -56,8 +56,9 @@ Permissions are grouped by tool:
 | **Queues** | View, Create |
 | **Counters** | View, Create |
 | **Events** (calendar) | View, Create |
+| **Dashboards** | View, Create |
 
-So you might give "Cast" members permission to *view* projects and documents but not create them, while "Director" can create everything.
+So you might give "Volunteer" members permission to *view* projects and documents but not create them, while "Coordinator" can create everything.
 
 There's a full walkthrough of roles and how they combine with sharing in [Initiative roles](../sharing/initiative-roles.md).
 

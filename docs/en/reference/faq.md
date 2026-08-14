@@ -6,6 +6,20 @@ icon: lucide/circle-help
 
 Short answers to the things people ask most. Each links to the fuller explanation.
 
+## Starting out
+
+### Do I need to know project management to use Initiative?
+
+No. A project is a board, a task is a to-do on it, and that's enough to run real work. Everything else — roles, tools, dashboards, apps — is there when a need for it turns up, and stays out of the way until then. See [Getting started](../getting-started/index.md).
+
+### There's a lot here. Where do I actually begin?
+
+Make a guild, open the **Default Initiative** it comes with, and create one project. Add tasks. That's a working setup. Come back for the rest when something feels missing. See [Your first guild](../getting-started/your-first-guild.md).
+
+### Can I add tools that aren't built in?
+
+Yes — the **marketplace** has ready-made dashboards and apps. Adding one takes a couple of clicks, and no code. What's on offer is what ships with Initiative plus what your platform owner has approved, so if something you want isn't there, they're who to ask. See [Apps & the marketplace](../guides/apps-and-marketplace.md).
+
 ## Getting in
 
 ### I didn't get my verification or password-reset email.
@@ -67,6 +81,14 @@ On the **guild rail**, open the guild's menu and choose **Leave guild**. If you'
 **Deactivating** is reversible — you're switched off but your data is kept. **Deleting** is permanent, and you choose whether your past contributions are anonymized or fully removed. See [Profile & preferences](../account/profile-and-preferences.md#closing-your-account).
 
 ## Privacy and data
+
+### Can everyone in my guild see everything in it?
+
+No. Being in a guild doesn't give you its contents — an **initiative** is only visible to the people added to it, and individual projects and documents can be narrowed further still. The one exception is a **guild admin**, who can see everything in their own guild. See [Sharing & access](../sharing/index.md).
+
+### How do I keep something visible to just two or three people?
+
+Put it in an initiative with only those people in it. That's the strongest everyday boundary and it needs no configuration — everyone else simply doesn't have it. To narrow within an initiative, share the specific project or document. See [Sharing projects & documents](../sharing/sharing-projects-and-documents.md).
 
 ### Can other groups on the same server see our stuff?
 

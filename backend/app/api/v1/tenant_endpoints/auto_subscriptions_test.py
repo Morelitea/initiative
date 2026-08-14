@@ -31,7 +31,11 @@ from app.models.platform.app_service_registration import AppServiceRegistration
 from app.models.platform.guild import GuildRole
 from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.testing import Actor
-from app.testing.delegation import mint_delegation_token, register_delegate
+from app.testing.delegation import (
+    install_delegate,
+    mint_delegation_token,
+    register_delegate,
+)
 
 _WEBHOOK_HOST = "hooks.example.com"
 # A public unicast IPv4 (example.com) with a real stream socket type/proto, so
@@ -72,6 +76,22 @@ def _delegation_headers(*, user_id: int, guild_id: int) -> dict[str, str]:
     """Mint a fresh (one-shot) delegation JWT for the user + guild."""
     token = mint_delegation_token(user_id=user_id, guild_id=guild_id)
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def acting_user(acting_user, session):
+    """Every actor's guild has the delegate installed.
+
+    An app acts only where it was installed, and these tests are about what the
+    subscription routes do for a delegate that has already got that far.
+    """
+
+    async def _with_the_app_installed(*args, **kwargs):
+        actor = await acting_user(*args, **kwargs)
+        await install_delegate(session, actor.guild)
+        return actor
+
+    return _with_the_app_installed
 
 
 def _as_delegate(actor: Actor) -> dict[str, str]:

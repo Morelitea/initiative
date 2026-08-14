@@ -4,7 +4,9 @@ icon: lucide/shield-check
 
 # Security & privacy
 
-"Is my stuff safe and private?" is a fair question to ask of any tool you trust with your group's information. Here's how Initiative protects your group's data, and where to find the details.
+"Is my stuff safe and private?" is a fair question to ask of any tool you trust with your group's information.
+
+The short answer: Initiative is built so that the only people who see something are the people you deliberately gave it to. That's not a setting you have to find and switch on — it's how the layers work by default, all the way down to the database. Here's what that means in practice, and where to find the details.
 
 - **This page** explains what security means for *you*, as someone using Initiative day to day.
 - **[How your data is kept separate](how-your-data-is-kept-separate.md)** is the technical explanation of multi-tenancy and how the boundaries are enforced — written for project managers, administrators, and anyone evaluating Initiative.
@@ -17,11 +19,13 @@ In everyday terms, Initiative is built so that:
 
 ### Your group's data is separate from every other group's
 
-Each guild is a sealed space. Another group using the same Initiative server cannot see your projects, documents, or tasks — and you can't see theirs. This separation isn't just a setting that could be toggled off by accident; it's built into the foundations (more in the technical pages).
+Each guild is a sealed space. Another group using the same Initiative server cannot see your projects, documents, or tasks — and you can't see theirs. This separation isn't a setting that could be toggled off by accident: every guild's content lives in its own dedicated area of the database (a separate *schema*), created with the guild and removed with it. The finer layers — which effort, which role, which item — are enforced inside that space by the database as well (more in the technical pages).
 
 ### Sensitive work stays with the people involved
 
-Inside a guild, an **initiative** is only visible to its members. So a small group can work on something private without the rest of the guild seeing it. And individual projects and documents can be narrowed further still — see [Sharing & access](../sharing/index.md).
+Inside a guild, an **initiative** is only visible to its members. So a small group can work on something private without the rest of the guild seeing it — a business's finances away from its seasonal staff, a hiring committee's notes away from the rest of the team. And individual projects and documents can be narrowed further still — see [Sharing & access](../sharing/index.md).
+
+This is the layer most groups rely on day to day, and it needs no configuration: someone who isn't in an initiative simply doesn't have it.
 
 ### Your sign-in is protected
 

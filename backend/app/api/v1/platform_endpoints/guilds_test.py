@@ -90,6 +90,97 @@ async def test_list_guilds_includes_role(client: AsyncClient, session: AsyncSess
     assert guild_roles["Member Guild"] == "member"
 
 
+#: The administration half of ``GuildRead`` — caps, plan label, retention
+#: window, lifecycle status, sign-in entitlement. Each backs an admin-only
+#: surface, so a plain member's entry carries ``None`` for all of them.
+ADMIN_ONLY_GUILD_FIELDS = (
+    "retention_days",
+    "max_storage_bytes",
+    "max_users",
+    "tier_name",
+    "status",
+    "guild_auth_enabled",
+)
+
+
+@pytest.mark.integration
+async def test_list_guilds_administration_fields_are_admin_only(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The guild list serves two audiences from one schema: every member gets
+    the guild's identity, their own membership and the roster size; only guild
+    admins get the administration fields."""
+    admin = await acting_user(guild_role=GuildRole.admin)
+    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+
+    guild = await session.get(Guild, admin.guild.id)
+    assert guild is not None
+    guild.max_storage_bytes = 5_000_000
+    guild.max_users = 25
+    guild.tier_name = "Bespoke Plan"
+    guild.guild_auth_enabled = True
+    session.add(guild)
+    await session.commit()
+
+    async def entry(headers: dict[str, str]) -> dict:
+        resp = await client.get("/api/v1/guilds/", headers=headers)
+        assert resp.status_code == 200, resp.text
+        return next(g for g in resp.json() if g["id"] == admin.guild.id)
+
+    member_row = await entry(member.headers)
+    for field in ADMIN_ONLY_GUILD_FIELDS:
+        assert member_row[field] is None, f"{field} must not reach a plain member"
+    # What a member does get: the guild itself, their membership, the roster
+    # size, and whether content is frozen.
+    assert member_row["name"] == guild.name
+    assert member_row["role"] == "member"
+    assert member_row["member_count"] == 2
+    assert member_row["content_read_only"] is False
+
+    admin_row = await entry(admin.headers)
+    for field in ADMIN_ONLY_GUILD_FIELDS:
+        assert admin_row[field] is not None, f"{field} must reach the guild admin"
+    assert admin_row["max_storage_bytes"] == 5_000_000
+    assert admin_row["max_users"] == 25
+    assert admin_row["tier_name"] == "Bespoke Plan"
+    assert admin_row["retention_days"] == 90
+    assert admin_row["guild_auth_enabled"] is True
+
+
+@pytest.mark.integration
+async def test_accepted_invite_withholds_administration_fields(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Joining by invite answers with the same member-tier payload — the new
+    member is not an admin, so the administration fields come back ``None``."""
+    admin = await acting_user(guild_role=GuildRole.admin)
+    guild = await session.get(Guild, admin.guild.id)
+    assert guild is not None
+    guild.max_users = 25
+    guild.tier_name = "Bespoke Plan"
+    session.add(guild)
+    await session.commit()
+
+    invite = await client.post(
+        f"/api/v1/guilds/{guild.id}/invites",
+        headers=admin.headers,
+        json={},
+    )
+    assert invite.status_code == 201, invite.text
+
+    joiner = await create_user(session, email="joiner@example.com")
+    resp = await client.post(
+        "/api/v1/guilds/invite/accept",
+        headers=get_auth_headers(joiner),
+        json={"code": invite.json()["code"]},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["role"] == "member"
+    for field in ADMIN_ONLY_GUILD_FIELDS:
+        assert body[field] is None, f"{field} must not reach a plain member"
+
+
 @pytest.mark.integration
 async def test_list_guilds_shows_active_guild(
     client: AsyncClient, session: AsyncSession

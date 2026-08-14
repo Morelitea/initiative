@@ -27,6 +27,7 @@ from types import MappingProxyType
 from typing import Any, Mapping, Optional
 
 from jwt import PyJWK
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
 
 from app.db import session as db_session
@@ -44,6 +45,7 @@ __all__ = [
     "InstallState",
     "RegistrationSnapshot",
     "any_delegate_registered",
+    "app_is_installed",
     "delegation_keys_for",
     "install_state",
     "invalidate_registrations",
@@ -305,3 +307,51 @@ async def any_delegate_registered() -> bool:
         and snapshot.delegation_keys
         for snapshot in (await load_registrations()).values()
     )
+
+
+async def app_is_installed(guild_id: int, public_id: str) -> bool:
+    """Whether the guild has this app installed and switched on.
+
+    The install is what makes an app present in a guild, so it is also what
+    bounds a delegate to the guilds that chose it — uninstalling ends that
+    reach, which is the property §10.3 of the platform design claims.
+
+    Matched on the pinned definition's service id, the same identity
+    :func:`registration_for_definition` resolves an install by. A row's
+    ``listing_uid`` is re-recorded from the manifest on every handshake, so it
+    names the listing an app currently claims rather than the app itself.
+
+    Read per call rather than cached: the registration snapshot can afford a
+    TTL because an operator's kill switch is deployment-wide and rare, while an
+    uninstall is a guild's own decision and is expected to bite at once.
+    """
+    if not public_id:
+        return False
+
+    from app.models.tenant.guild_app import GuildApp
+
+    async with db_session.AdminSessionLocal() as session:
+        try:
+            # Guild content lives in the guild's own schema, so the read is
+            # routed there. `admin` because this asks what the guild has, not
+            # what any particular member may see.
+            await db_session.set_rls_context(
+                session, guild_id=guild_id, guild_role="admin"
+            )
+            found = (
+                await session.exec(
+                    select(GuildApp.id).where(
+                        GuildApp.enabled.is_(True),
+                        GuildApp.definition["app_kind"].astext == "service",
+                        GuildApp.definition["service"]["public_id"].astext == public_id,
+                    )
+                )
+            ).first()
+        except SQLAlchemyError:
+            # A guild id naming no guild has no schema to route into, and
+            # nothing is installed in a guild that is not there.
+            logger.warning(
+                "app services: install check could not read guild %s", guild_id
+            )
+            return False
+    return found is not None

@@ -6,6 +6,8 @@ icon: lucide/rocket
 
 Welcome! This section gets you from "I've never used Initiative" to "I'm comfortable finding my way around." Take it in order, or jump to whatever you need.
 
+No prior experience with project management software is assumed, and none is needed. If you can write a to-do list, you can use Initiative.
+
 ## What you'll need
 
 - **A web browser** on a computer, tablet, or phone. Initiative runs in the browser — there's nothing to install to get started.

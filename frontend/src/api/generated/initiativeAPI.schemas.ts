@@ -2264,6 +2264,20 @@ export interface GuildOrderUpdate {
   guildIds: number[];
 }
 
+/**
+ * A guild as its own members see it (``GET /guilds/`` and friends).
+ *
+ * The payload has two tiers, decided in one place — ``_serialize_guild`` in
+ * the guilds router:
+ *
+ * - The fields below with no note are for **every member**: guild identity,
+ *   the caller's own membership, the roster size, ``content_read_only``.
+ * - The ones marked ADMIN-ONLY are guild administration — caps, plan label,
+ *   retention window, lifecycle status, sign-in entitlement. They back
+ *   admin-gated surfaces, so a regular member's payload leaves them ``None``.
+ *   (Operators read the same underlying columns through
+ *   :class:`PlatformGuildStorageRead` instead, which is capability-gated.)
+ */
 export interface GuildRead {
   name: string;
   description: string | null;

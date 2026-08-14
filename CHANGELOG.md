@@ -9,12 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **An app acts only in the guilds that installed it.** A delegating app reaching a guild now needs that guild's install to be present and switched on, alongside the power its registration grants — so uninstalling an app, or turning the install off, ends what it can do there without touching any other guild.
 - **An app is granted the power to act as your members individually.** Delegation follows the app's own registration — its keys, its grant, its switch — rather than one setting shared by the whole deployment. Turning an app's delegation off, or turning the app off, ends what it can do straight away.
 - An app service registration can hold the public keys its app signs delegation tokens with, as a JWKS — pasted into the registration form or declared in the app services file alongside the app's other settings. Two entries in one key set is how an app rotates its signing key without downtime, and clearing the field removes it.
 
 ### Changed
 
 - An app's embedded page is granted only the browser features its manifest asks for, from a fixed list — camera, microphone, location, screen capture, clipboard, and fullscreen. A surface that asks for nothing runs with all of them denied. What an app requests is part of what it declares, so it can be read before installing.
+- **A guild tells its members about the guild, and its admins about running it.** Everyone in a guild still sees its name, description, icon, member count, and whether content is currently read-only. The administration details — the storage and member limits set for the guild and its trash retention window — now reach guild admins only, matching the settings pages that are already theirs alone.
 
 ### Fixed
 

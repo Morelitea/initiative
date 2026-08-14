@@ -11,7 +11,7 @@
 [project]
 
 site_name = "Initiative Help"
-site_description = "Guides and reference for Initiative — projects, documents, and task boards for your whole group."
+site_description = "Guides and reference for Initiative — collaborative project management for small businesses, clubs, event teams, and families."
 site_author = "Morelitea"
 
 # The canonical URL for the published site (powers search, the sitemap, and
@@ -57,6 +57,7 @@ nav = [
     "en/guides/task-views.md",
     "en/guides/documents.md",
     "en/guides/tools.md",
+    "en/guides/apps-and-marketplace.md",
     "en/guides/tags.md",
     "en/guides/your-space.md",
     "en/guides/search-and-shortcuts.md",
