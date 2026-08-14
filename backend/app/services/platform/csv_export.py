@@ -53,7 +53,6 @@ def format_initiative_roles(user: User) -> str:
     parts = []
     for entry in roles:
         name = getattr(entry, "initiative_name", None) or ""
-        role = getattr(entry, "role", "")
-        role_value = role.value if hasattr(role, "value") else role
-        parts.append(f"{name}: {role_value}")
+        role = getattr(entry, "role", None) or ""
+        parts.append(f"{name}: {role}" if role else name)
     return "; ".join(parts)

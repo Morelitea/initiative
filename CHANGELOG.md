@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - An initiative that renamed its managing role, or gave a second role manager standing, now sees the manager affordances it should: the sidebar reads the role's manager flag rather than looking for the built-in role by name.
+- Pinning follows the same rule: a manager of an initiative can pin and unpin its projects whatever their role is called.
 
 ## [0.62.2] - 2026-08-13
 

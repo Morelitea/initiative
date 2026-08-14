@@ -295,18 +295,18 @@ export interface AdminGuildRoleUpdate {
   role: GuildRole;
 }
 
-export type InitiativeRole = (typeof InitiativeRole)[keyof typeof InitiativeRole];
-
-export const InitiativeRole = {
-  project_manager: "project_manager",
-  member: "member",
-} as const;
-
 /**
  * Schema for updating a user's initiative role via admin endpoint.
+ *
+ * ``role`` is the name of a role defined in that initiative — built-in
+ * (``project_manager``, ``member``) or custom.
  */
 export interface AdminInitiativeRoleUpdate {
-  role: InitiativeRole;
+  /**
+   * @minLength 1
+   * @maxLength 100
+   */
+  role: string;
 }
 
 export type AdminUserDeleteRequestAction =
@@ -1665,7 +1665,6 @@ export interface InitiativeMemberRead {
   role_display_name: string | null;
   is_manager: boolean;
   joined_at: string;
-  role: InitiativeRole;
   oidc_managed: boolean;
 }
 
@@ -4224,7 +4223,7 @@ export interface UserCreate {
 export interface UserInitiativeRole {
   initiative_id: number;
   initiative_name: string;
-  role: InitiativeRole;
+  role?: string | null;
 }
 
 /**

@@ -59,7 +59,7 @@ type DisplayMember = {
   user: { id: number; full_name: string | null; email: string };
   role_id: number | null;
   role_display_name: string | null;
-  role: string;
+  role_name: string | null;
   oidc_managed: boolean;
   isGuildAdmin: boolean;
   // Whether this row holds a manager (project manager) initiative role.
@@ -122,7 +122,7 @@ export const InitiativeSettingsMembersTab = ({
       },
       role_id: member.role_id ?? null,
       role_display_name: member.role_display_name ?? null,
-      role: member.role,
+      role_name: member.role_name ?? null,
       oidc_managed: member.oidc_managed,
       isGuildAdmin: adminUserIds.has(member.user.id),
       isManager: member.is_manager ?? false,
@@ -142,7 +142,7 @@ export const InitiativeSettingsMembersTab = ({
         },
         role_id: null,
         role_display_name: null,
-        role: "member",
+        role_name: null,
         oidc_managed: false,
         isGuildAdmin: true,
         isManager: false,
@@ -245,8 +245,8 @@ export const InitiativeSettingsMembersTab = ({
       if (member.role_display_name) {
         return member.role_display_name;
       }
-      const roleFromList = roles?.find((role) => role.name === member.role)?.display_name;
-      return roleFromList ?? member.role;
+      const roleFromList = roles?.find((role) => role.name === member.role_name)?.display_name;
+      return roleFromList ?? member.role_name ?? "";
     };
 
     const adminMutationPending = addMember.isPending || removeMember.isPending;
@@ -286,7 +286,7 @@ export const InitiativeSettingsMembersTab = ({
         },
       },
       {
-        accessorKey: "role",
+        accessorKey: "role_name",
         header: t("settings.roleColumn"),
         cell: ({ row }) => {
           const member = row.original;

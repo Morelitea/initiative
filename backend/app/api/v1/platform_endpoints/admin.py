@@ -853,7 +853,7 @@ async def admin_update_initiative_member_role(
     new_role = await initiatives_service.get_role_by_name(
         session,
         initiative_id=initiative_id,
-        role_name=payload.role.value,
+        role_name=payload.role,
     )
     if not new_role:
         raise HTTPException(

@@ -14,7 +14,6 @@ export function buildInitiativeMember(
   counter++;
   return {
     user: buildUserPublic(),
-    role: "member",
     role_id: null,
     role_name: null,
     role_display_name: null,

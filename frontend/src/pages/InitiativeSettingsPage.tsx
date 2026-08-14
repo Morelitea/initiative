@@ -64,8 +64,7 @@ export const InitiativeSettingsPage = () => {
 
   const isGuildAdmin = activeGuild?.role === "admin";
   const initiativeMembership = initiative?.members.find((member) => member.user.id === user?.id);
-  const isInitiativeManager =
-    initiativeMembership?.is_manager || initiativeMembership?.role === "project_manager";
+  const isInitiativeManager = Boolean(initiativeMembership?.is_manager);
   const canManageMembers = Boolean(isGuildAdmin || isInitiativeManager);
   const canDeleteInitiative = Boolean(isGuildAdmin);
 
