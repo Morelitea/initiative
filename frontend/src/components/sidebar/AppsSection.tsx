@@ -30,7 +30,15 @@
  */
 
 import { Link } from "@tanstack/react-router";
-import { Blocks, ChevronDown, ChevronsDownUp, ChevronsUpDown, Plus, Store } from "lucide-react";
+import {
+  Blocks,
+  ChevronDown,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  Plus,
+  Settings2,
+  Store,
+} from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -43,6 +51,7 @@ import {
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
@@ -171,6 +180,7 @@ export function AppsSection({ isGuildAdmin, open, onOpenChange }: AppsSectionPro
 }
 
 function AppEntry({ app, isGuildAdmin }: { app: GuildAppRead; isGuildAdmin: boolean }) {
+  const { t } = useTranslation(["apps"]);
   const gp = useGuildPath();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const path = guildAppPath(app, { isGuildAdmin });
@@ -189,6 +199,34 @@ function AppEntry({ app, isGuildAdmin }: { app: GuildAppRead; isGuildAdmin: bool
     <Blocks className="h-4 w-4" />
   );
 
+  // Every app has settings, so every entry carries the gear. It waits for a
+  // hover (or a keyboard focus) so a row reads as the app's name rather than a
+  // pair of controls.
+  const settings = (
+    <>
+      <Tooltip delayDuration={300}>
+        <TooltipTrigger asChild>
+          <SidebarMenuAction
+            showOnHover
+            onClick={() => setSettingsOpen(true)}
+            aria-label={t("apps:settings.open", { name: app.name })}
+          >
+            <Settings2 className="h-4 w-4" aria-hidden />
+          </SidebarMenuAction>
+        </TooltipTrigger>
+        <TooltipContent side="right">
+          <p>{t("apps:settings.open", { name: app.name })}</p>
+        </TooltipContent>
+      </Tooltip>
+      <AppSettingsDialog
+        appId={app.id}
+        isGuildAdmin={isGuildAdmin}
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+      />
+    </>
+  );
+
   if (path) {
     return (
       <SidebarMenuItem>
@@ -198,12 +236,13 @@ function AppEntry({ app, isGuildAdmin }: { app: GuildAppRead; isGuildAdmin: bool
             <span className="truncate">{app.name}</span>
           </Link>
         </SidebarMenuButton>
+        {settings}
       </SidebarMenuItem>
     );
   }
 
-  // No surface, but something to connect: the form opens here rather than
-  // sending the member to a settings page to find it.
+  // No surface, but something to connect: clicking the name opens the settings
+  // where the member stands rather than sending them to find the same form.
   if (appHasConnections(app.definition)) {
     return (
       <SidebarMenuItem>
@@ -211,12 +250,7 @@ function AppEntry({ app, isGuildAdmin }: { app: GuildAppRead; isGuildAdmin: bool
           {icon}
           <span className="truncate">{app.name}</span>
         </SidebarMenuButton>
-        <AppSettingsDialog
-          appId={app.id}
-          isGuildAdmin={isGuildAdmin}
-          open={settingsOpen}
-          onOpenChange={setSettingsOpen}
-        />
+        {settings}
       </SidebarMenuItem>
     );
   }
@@ -227,6 +261,7 @@ function AppEntry({ app, isGuildAdmin }: { app: GuildAppRead; isGuildAdmin: bool
         {icon}
         <span className="truncate">{app.name}</span>
       </SidebarMenuButton>
+      {settings}
     </SidebarMenuItem>
   );
 }

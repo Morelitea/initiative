@@ -27,6 +27,7 @@ from types import MappingProxyType
 from typing import Any, Mapping, Optional
 
 from jwt import PyJWK
+from sqlalchemy import true as sa_true
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
 
@@ -45,7 +46,7 @@ __all__ = [
     "InstallState",
     "RegistrationSnapshot",
     "any_delegate_registered",
-    "app_is_installed",
+    "delegation_allowed",
     "delegation_keys_for",
     "install_state",
     "invalidate_registrations",
@@ -220,6 +221,10 @@ class InstallState:
 
     mandatory: bool = False
     available: bool = True
+    #: Whether this app is one that acts as members, and so has something for
+    #: each of them to authorize. An operator clearing the grant takes the
+    #: question away everywhere the app is installed.
+    delegates: bool = False
 
 
 async def install_state(definition: dict[str, Any] | None) -> InstallState:
@@ -236,7 +241,11 @@ async def install_state(definition: dict[str, Any] | None) -> InstallState:
         # Installed here, but this deployment has not wired the service up (or
         # no longer does). Nothing it offers can be reached.
         return InstallState(mandatory=False, available=False)
-    return InstallState(mandatory=snapshot.mandatory, available=snapshot.live)
+    return InstallState(
+        mandatory=snapshot.mandatory,
+        available=snapshot.live,
+        delegates="delegation" in snapshot.grants,
+    )
 
 
 async def mandatory_registrations() -> list[RegistrationSnapshot]:
@@ -309,41 +318,63 @@ async def any_delegate_registered() -> bool:
     )
 
 
-async def app_is_installed(guild_id: int, public_id: str) -> bool:
-    """Whether the guild has this app installed and switched on.
+async def delegation_allowed(
+    guild_id: int, public_id: str, user_id: int, *, need_write: bool
+) -> bool:
+    """Whether this app may act as this member, here, right now.
 
-    The install is what makes an app present in a guild, so it is also what
-    bounds a delegate to the guilds that chose it — uninstalling ends that
-    reach, which is the property §10.3 of the platform design claims.
+    Two separate parties have to have said yes, and this asks both in one read
+    of the guild's own schema:
 
-    Matched on the pinned definition's service id, the same identity
-    :func:`registration_for_definition` resolves an install by. A row's
+    * **The guild installed the app.** The install is what makes an app present
+      in a guild, so it is also what bounds a delegate to the guilds that chose
+      it — uninstalling ends that reach, which is the property §10.3 of the
+      platform design claims.
+    * **The member authorized it to act as them**, to at least the depth this
+      call needs. Installing is the guild's decision; carrying one person's name
+      is that person's.
+
+    The install is matched on the pinned definition's service id, the same
+    identity :func:`registration_for_definition` resolves an install by. A row's
     ``listing_uid`` is re-recorded from the manifest on every handshake, so it
     names the listing an app currently claims rather than the app itself.
 
     Read per call rather than cached: the registration snapshot can afford a
     TTL because an operator's kill switch is deployment-wide and rare, while an
-    uninstall is a guild's own decision and is expected to bite at once.
+    uninstall and a withdrawal are each a decision made here and expected to
+    bite at once.
     """
     if not public_id:
         return False
 
     from app.models.tenant.guild_app import GuildApp
+    from app.models.tenant.guild_app_user_delegation import GuildAppUserDelegation
+
+    write_leg = GuildAppUserDelegation.can_write.is_(True) if need_write else sa_true()
 
     async with db_session.AdminSessionLocal() as session:
         try:
             # Guild content lives in the guild's own schema, so the read is
-            # routed there. `admin` because this asks what the guild has, not
-            # what any particular member may see.
+            # routed there. `admin` because this asks what the guild has and
+            # what one member said, not what any particular caller may see.
             await db_session.set_rls_context(
                 session, guild_id=guild_id, guild_role="admin"
             )
             found = (
                 await session.exec(
-                    select(GuildApp.id).where(
+                    select(GuildApp.id)
+                    .join(
+                        GuildAppUserDelegation,
+                        GuildAppUserDelegation.app_id == GuildApp.id,
+                    )
+                    .where(
                         GuildApp.enabled.is_(True),
                         GuildApp.definition["app_kind"].astext == "service",
                         GuildApp.definition["service"]["public_id"].astext == public_id,
+                        GuildAppUserDelegation.user_id == user_id,
+                        GuildAppUserDelegation.revoked_at.is_(None),
+                        GuildAppUserDelegation.can_read.is_(True),
+                        write_leg,
                     )
                 )
             ).first()
@@ -351,7 +382,7 @@ async def app_is_installed(guild_id: int, public_id: str) -> bool:
             # A guild id naming no guild has no schema to route into, and
             # nothing is installed in a guild that is not there.
             logger.warning(
-                "app services: install check could not read guild %s", guild_id
+                "app services: delegation check could not read guild %s", guild_id
             )
             return False
     return found is not None

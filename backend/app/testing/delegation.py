@@ -29,6 +29,7 @@ from app.services.marketplace.registration_lookup import invalidate_registration
 __all__ = [
     "DELEGATE_KID",
     "DELEGATE_PUBLIC_ID",
+    "authorize_delegate",
     "delegation_jwks",
     "DELEGATE_LISTING_UID",
     "delegation_verification_keys",
@@ -184,3 +185,19 @@ async def install_delegate(session: AsyncSession, guild, creator=None) -> Any:
         listing_uid=DELEGATE_LISTING_UID,
         name="Delegate",
     )
+
+
+async def authorize_delegate(
+    session: AsyncSession, guild, user, *, can_write: bool = True
+) -> Any:
+    """Let the delegate act as one member of a guild.
+
+    A delegated call needs three yeses — the operator granted the app, the guild
+    installed it, and the member authorized it to carry their name. This is the
+    third, and it installs the app first if the guild has not already, so a
+    suite whose subject is something else states the precondition in one line.
+    """
+    from app.testing.factories import create_app_delegation
+
+    app = await install_delegate(session, guild)
+    return await create_app_delegation(session, app, user, can_write=can_write)

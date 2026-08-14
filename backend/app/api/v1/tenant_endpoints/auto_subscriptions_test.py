@@ -30,9 +30,9 @@ from app.core import config as config_module
 from app.models.platform.app_service_registration import AppServiceRegistration
 from app.models.platform.guild import GuildRole
 from app.services.marketplace.registration_lookup import invalidate_registrations
-from app.testing import Actor
+from app.testing import Actor, create_guild_membership
 from app.testing.delegation import (
-    install_delegate,
+    authorize_delegate,
     mint_delegation_token,
     register_delegate,
 )
@@ -80,15 +80,17 @@ def _delegation_headers(*, user_id: int, guild_id: int) -> dict[str, str]:
 
 @pytest.fixture
 def acting_user(acting_user, session):
-    """Every actor's guild has the delegate installed.
+    """Every actor's guild has the delegate installed, and every actor has
+    authorized it to act as them.
 
-    An app acts only where it was installed, and these tests are about what the
-    subscription routes do for a delegate that has already got that far.
+    An app acts only where it was installed and only as the members who said
+    it may; these tests are about what the subscription routes do for a
+    delegate that has already got that far.
     """
 
     async def _with_the_app_installed(*args, **kwargs):
         actor = await acting_user(*args, **kwargs)
-        await install_delegate(session, actor.guild)
+        await authorize_delegate(session, actor.guild, actor.user)
         return actor
 
     return _with_the_app_installed
@@ -196,12 +198,16 @@ async def test_no_delegate_configured_refuses_with_503(
 
 @pytest.mark.integration
 async def test_delegation_token_for_another_guild_is_refused(
-    client: AsyncClient, acting_user
+    client: AsyncClient, session, acting_user
 ):
     """A delegation token is minted for exactly one guild, so a token naming
     one guild can't manage another guild's delivery targets."""
     a = await acting_user(guild_role=GuildRole.admin)
     b = await acting_user(guild_role=GuildRole.admin)
+    # The user is in both guilds and has authorized the app in both, so what
+    # refuses this is the pin itself rather than a missing authorization.
+    await create_guild_membership(session, user=a.user, guild=b.guild)
+    await authorize_delegate(session, b.guild, a.user)
     # The token names b's guild; the path names a's, where the user is admin.
     other_guild_token = _delegation_headers(user_id=a.user.id, guild_id=b.guild.id)
 

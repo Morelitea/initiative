@@ -41,6 +41,7 @@ from app.api.deps import (
     RLSSessionDep,
     get_current_active_user,
     get_guild_membership,
+    require_first_party_session,
 )
 from app.core.messages import (
     GuildAppMessages,
@@ -56,6 +57,8 @@ from app.schemas.tenant.guild_app import (
     GuildAppConfigUpdate,
     GuildAppConnectionSummary,
     GuildAppConnectStart,
+    GuildAppDelegationGrant,
+    GuildAppDelegationRead,
     GuildAppDetail,
     GuildAppHandoff,
     GuildAppInstall,
@@ -63,9 +66,11 @@ from app.schemas.tenant.guild_app import (
     GuildAppMembersResponse,
     GuildAppRead,
     GuildAppUpdate,
+    serialize_delegation,
     serialize_guild_app,
     serialize_guild_app_detail,
     serialize_member_connection,
+    serialize_member_delegation,
 )
 from app.services import rls as rls_service
 from app.services.marketplace import catalog as catalog_service
@@ -82,6 +87,7 @@ from app.services.membership import initiative_scope_clause
 from app.services.platform import guilds as guilds_service
 from app.services.tenant import app_config as app_config_service
 from app.services.tenant import app_connections as connections_service
+from app.services.tenant import app_delegations as delegations_service
 from app.services.tenant import app_handoff as handoff_service
 from app.services.tenant import app_revocation as revocation_service
 from app.services.tenant import guild_apps as guild_apps_service
@@ -312,6 +318,9 @@ async def get_guild_app(
         avatar_url=await _app_avatar(session, app),
         member_rows=await _member_rows(session, app_id=app.id, user_id=current_user.id),
         install_state=await registration_lookup.install_state(app.definition),
+        delegation_row=await delegations_service.get_delegation(
+            session, app_id=app.id, user_id=current_user.id
+        ),
     )
 
 
@@ -537,6 +546,7 @@ async def uninstall_guild_app(
         session, guild_context.guild_id
     )
     await connections_service.delete_app_connections(session, app=app)
+    await delegations_service.delete_app_delegations(session, app_id=app.id)
     if app.config_secrets or app.config:
         revocation_service.queue_revocation(
             session,
@@ -882,6 +892,98 @@ async def disconnect_guild_app(
 
 
 # ---------------------------------------------------------------------------
+# Acting as a member
+# ---------------------------------------------------------------------------
+
+
+async def _require_delegating_app(app: GuildApp) -> None:
+    """Refuse an app that never acts as anybody.
+
+    Read from the registration rather than the pinned definition: whether an app
+    may carry a person's name is the operator's grant, and it can be taken away
+    after the install pinned its manifest. An app that lost the grant stops
+    being able to ask, and the authorizations it already holds stop counting —
+    the resolver checks the same grant on every call.
+    """
+    state = await registration_lookup.install_state(app.definition)
+    if not state.delegates:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=GuildAppMessages.DELEGATION_NOT_OFFERED,
+        )
+
+
+@router.get("/{app_id}/delegation", response_model=GuildAppDelegationRead)
+async def get_my_delegation(
+    app_id: int,
+    session: RLSSessionDep,
+    current_user: CurrentUser,
+    guild_context: GuildContextDep,
+) -> GuildAppDelegationRead:
+    """What the caller has authorized this app to do as them."""
+    app = await _load(session, app_id)
+    return serialize_delegation(
+        await delegations_service.get_delegation(
+            session, app_id=app.id, user_id=current_user.id
+        )
+    )
+
+
+@router.put("/{app_id}/delegation", response_model=GuildAppDelegationRead)
+async def grant_my_delegation(
+    app_id: int,
+    payload: GuildAppDelegationGrant,
+    session: RLSSessionDep,
+    current_user: CurrentUser,
+    guild_context: GuildContextDep,
+    credential: Annotated[str, Depends(require_first_party_session)],
+) -> GuildAppDelegationRead:
+    """Authorize this app to act as you, and say whether it may write.
+
+    Nobody grants this for anybody else — not a guild admin, and not the app.
+    The install is what a guild decides; whose name the app may carry is each
+    member's own answer, so this endpoint acts on the caller and takes no user
+    id at all.
+
+    Signed-in only (``require_first_party_session``), because the act hands out
+    authority rather than exercising it.
+    """
+    app = await _load(session, app_id)
+    await _require_delegating_app(app)
+
+    row = await delegations_service.grant(
+        session,
+        app=app,
+        user_id=current_user.id,
+        can_write=payload.can_write,
+        confirmed_factor=credential,
+    )
+    await session.commit()
+    await session.refresh(row)
+    return serialize_delegation(row)
+
+
+@router.delete("/{app_id}/delegation", status_code=status.HTTP_204_NO_CONTENT)
+async def revoke_my_delegation(
+    app_id: int,
+    session: RLSSessionDep,
+    current_user: CurrentUser,
+    guild_context: GuildContextDep,
+) -> None:
+    """Withdraw your own authorization. The app stops acting as you at once.
+
+    Deliberately not gated on the app still holding the grant: an app whose
+    grant an operator cleared can no longer act, but a member who wants their
+    record of it withdrawn should not be told to come back later.
+    """
+    app = await _load(session, app_id)
+    await delegations_service.revoke(
+        session, app_id=app.id, user_id=current_user.id, revoked_by_id=current_user.id
+    )
+    await session.commit()
+
+
+# ---------------------------------------------------------------------------
 # Admin governance of members' connections
 # ---------------------------------------------------------------------------
 
@@ -932,6 +1034,12 @@ async def list_guild_app_members(
     return GuildAppMembersResponse(
         summary=summary,
         items=[serialize_member_connection(row) for row in rows],
+        delegations=[
+            serialize_member_delegation(row)
+            for row in await delegations_service.list_app_delegations(
+                session, app_id=app.id
+            )
+        ],
     )
 
 
@@ -1014,6 +1122,54 @@ async def unblock_member_connection(
 
     await connections_service.unblock_member_connection(
         session, app=app, connection_id=connection_id, user_id=user_id
+    )
+    await session.commit()
+
+
+@router.delete(
+    "/{app_id}/members/{user_id}/delegation",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def revoke_member_delegation(
+    app_id: int,
+    user_id: int,
+    session: RLSSessionDep,
+    current_user: CurrentUser,
+    guild_context: GuildContextDep,
+) -> None:
+    """Withdraw one member's authorization for this app.
+
+    An admin ends it and cannot give it back: the member authorizes again
+    themselves, or nobody does. Governance runs one way here, which is what
+    keeps "the app acts as me" something its subject actually decided.
+    """
+    _require_guild_admin(guild_context)
+    app = await _load(session, app_id)
+
+    await delegations_service.revoke(
+        session, app_id=app.id, user_id=user_id, revoked_by_id=current_user.id
+    )
+    await session.commit()
+
+
+@router.post("/{app_id}/delegations/revoke-all", status_code=status.HTTP_204_NO_CONTENT)
+async def revoke_all_member_delegations(
+    app_id: int,
+    session: RLSSessionDep,
+    current_user: CurrentUser,
+    guild_context: GuildContextDep,
+) -> None:
+    """Stop this app acting as anybody, without uninstalling it.
+
+    The companion to ``revoke-all`` for connections: for a suspected app
+    compromise, reacting fast should not cost the guild its configuration.
+    Members may authorize again once the guild is satisfied.
+    """
+    _require_guild_admin(guild_context)
+    app = await _load(session, app_id)
+
+    await delegations_service.revoke_all(
+        session, app_id=app.id, revoked_by_id=current_user.id
     )
     await session.commit()
 

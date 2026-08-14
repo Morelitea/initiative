@@ -4,6 +4,7 @@ from app.models.platform.app_setting import AppSetting
 from app.models.platform.guild import Guild, GuildMembership, GuildInvite
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
+from app.models.tenant.guild_app_user_delegation import GuildAppUserDelegation
 from app.models.tenant.guild_setting import GuildSetting
 from app.models.tenant.project import Project
 from app.models.tenant.task import Task, TaskAssignee, TaskStatus, Subtask
@@ -152,4 +153,5 @@ __all__ = [
     "GuildAIMemberPref",
     "GuildApp",
     "GuildAppUserConnection",
+    "GuildAppUserDelegation",
 ]

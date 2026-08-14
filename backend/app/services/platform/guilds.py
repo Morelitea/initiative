@@ -750,6 +750,7 @@ async def remove_user_from_guild(
     it and delivered by the caller after the commit.
     """
     from app.services.tenant import app_connections as app_connections_service
+    from app.services.tenant import app_delegations as app_delegations_service
     from app.services.tenant import initiatives as initiatives_service
 
     # Remove from all initiatives in this guild
@@ -762,6 +763,9 @@ async def remove_user_from_guild(
     await app_connections_service.delete_member_connections(
         session, user_id=user_id, reason="left_guild"
     )
+    # Leaving ends what this guild's apps may do as this person, the same way it
+    # ends what they reach at a vendor.
+    await app_delegations_service.delete_member_delegations(session, user_id=user_id)
 
     # Remove guild membership
     stmt = delete(GuildMembership).where(

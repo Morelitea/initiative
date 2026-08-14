@@ -33,6 +33,7 @@ from app.testing import (
     create_user,
 )
 from app.testing.delegation import (
+    authorize_delegate,
     install_delegate,
     mint_delegation_token,
     register_delegate,
@@ -84,6 +85,7 @@ async def test_delegation_token_is_one_shot(
     regardless of the JWT's remaining lifetime. Without this, a 15-minute
     token captured in transit can be replayed indefinitely."""
     user = await create_user(session, email="user@example.com")
+    await authorize_delegate(session, delegate_guild, user)
     token = _mint_delegation(
         user_id=user.id, guild_id=delegate_guild.id, jti="replay-target-001"
     )
@@ -117,6 +119,7 @@ async def test_delegation_token_guild_claim_pins_context(
     user = await create_user(session, email="cross-guild@example.com")
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild)
+    await authorize_delegate(session, delegate_guild, user)
     # The human is legitimately in their own guild, and the app is installed in
     # the guild its token names — so what refuses this is the pin itself, not a
     # missing install or an unknown guild.
@@ -140,7 +143,7 @@ async def test_delegation_token_guild_claim_provides_context(
     user = await create_user(session, email="happy-path@example.com")
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild)
-    await install_delegate(session, guild)
+    await authorize_delegate(session, guild, user)
     token = _mint_delegation(user_id=user.id, guild_id=guild.id)
 
     response = await client.get(
@@ -159,6 +162,7 @@ async def test_delegation_works_on_cross_guild_endpoints(
     that installed the app — that is what lets the app act at all, and it is
     checked wherever the call lands."""
     user = await create_user(session, email="cross-guild-allowed@example.com")
+    await authorize_delegate(session, delegate_guild, user)
     token = _mint_delegation(user_id=user.id, guild_id=delegate_guild.id)
 
     response = await client.get(

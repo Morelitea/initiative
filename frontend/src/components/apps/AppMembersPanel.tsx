@@ -22,7 +22,11 @@ import { Loader2, ShieldOff, UserX } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { AppConnectionSummary, AppMemberConnection } from "@/api/appConnections";
+import type {
+  AppConnectionSummary,
+  AppMemberConnection,
+  AppMemberDelegation,
+} from "@/api/appConnections";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -39,7 +43,9 @@ import {
   useBlockMemberConnection,
   useGuildAppMembers,
   useRevokeAllConnections,
+  useRevokeAllDelegations,
   useRevokeMemberConnection,
+  useRevokeMemberDelegation,
 } from "@/hooks/useGuildAppDetail";
 import { useUsers } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
@@ -64,8 +70,9 @@ export function AppMembersPanel({ appId, enabled }: AppMembersPanelProps) {
 
   const summary = membersQuery.data?.summary ?? [];
   const items = membersQuery.data?.items ?? [];
+  const delegations = membersQuery.data?.delegations ?? [];
 
-  if (!summary.length) {
+  if (!summary.length && !delegations.length) {
     return <p className="text-muted-foreground text-sm">{t("apps:members.noPersonal")}</p>;
   }
 
@@ -85,17 +92,26 @@ export function AppMembersPanel({ appId, enabled }: AppMembersPanelProps) {
         />
       ))}
 
-      <div>
-        <Button
-          size="sm"
-          variant="destructive"
-          onClick={() => setConfirmingRevokeAll(true)}
-          disabled={revokeAll.isPending}
-        >
-          {revokeAll.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-          {t("apps:members.revokeAll")}
-        </Button>
-      </div>
+      {/* The inbound direction, beside the outbound one: both answer "what does
+          this app have of this member's", so an admin governing one finds the
+          other in the same place. */}
+      {delegations.length > 0 && (
+        <MemberDelegations appId={appId} delegations={delegations} nameFor={nameFor} />
+      )}
+
+      {summary.length > 0 && (
+        <div>
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={() => setConfirmingRevokeAll(true)}
+            disabled={revokeAll.isPending}
+          >
+            {revokeAll.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+            {t("apps:members.revokeAll")}
+          </Button>
+        </div>
+      )}
 
       <ConfirmDialog
         open={confirmingRevokeAll}
@@ -116,6 +132,127 @@ export function AppMembersPanel({ appId, enabled }: AppMembersPanelProps) {
         }
       />
     </div>
+  );
+}
+
+/**
+ * Who has authorized this app to act as them.
+ *
+ * An admin ends an authorization and cannot give one: the two buttons here both
+ * revoke. Whose name the app may carry is answered by that person, so an admin
+ * who takes it away has taken it away — they have not moved it to a setting
+ * they control.
+ */
+function MemberDelegations({
+  appId,
+  delegations,
+  nameFor,
+}: {
+  appId: number;
+  delegations: AppMemberDelegation[];
+  nameFor: (userId: number) => string;
+}) {
+  const { t } = useTranslation(["apps", "common"]);
+  const revoke = useRevokeMemberDelegation(appId);
+  const revokeAll = useRevokeAllDelegations(appId);
+  const [confirming, setConfirming] = useState(false);
+
+  const active = delegations.filter((row) => !row.revoked);
+
+  return (
+    <section className="space-y-2">
+      <header className="flex flex-wrap items-baseline gap-2">
+        <h3 className="font-medium text-sm">{t("apps:delegation.membersTitle")}</h3>
+        <span className="text-muted-foreground text-xs">
+          {t("apps:delegation.authorizedCount", { count: active.length })}
+        </span>
+      </header>
+
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t("apps:members.member")}</TableHead>
+              <TableHead>{t("apps:delegation.levelColumn")}</TableHead>
+              <TableHead>{t("apps:delegation.sinceColumn")}</TableHead>
+              <TableHead className="text-right">{t("common:actions")}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {delegations.map((row) => (
+              <TableRow key={row.user_id}>
+                <TableCell className="font-medium">{nameFor(row.user_id)}</TableCell>
+                <TableCell>
+                  {row.revoked ? (
+                    <Badge variant="outline">{t("apps:delegation.withdrawnBadge")}</Badge>
+                  ) : (
+                    <Badge variant="secondary">
+                      {row.can_write
+                        ? t("apps:delegation.levelWrite")
+                        : t("apps:delegation.levelRead")}
+                    </Badge>
+                  )}
+                </TableCell>
+                <TableCell className="text-muted-foreground text-xs">
+                  {new Date(
+                    row.revoked ? (row.revoked_at ?? row.updated_at) : row.granted_at
+                  ).toLocaleDateString()}
+                </TableCell>
+                <TableCell className="text-right">
+                  {!row.revoked && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={revoke.isPending}
+                      onClick={() =>
+                        revoke.mutate(row.user_id, {
+                          onSuccess: () => toast.success(t("apps:delegation.memberRevoked")),
+                          onError: (error) => toast.error(getErrorMessage(error, "apps:error")),
+                        })
+                      }
+                    >
+                      <UserX className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                      {t("apps:members.revoke")}
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      {active.length > 0 && (
+        <Button
+          size="sm"
+          variant="destructive"
+          disabled={revokeAll.isPending}
+          onClick={() => setConfirming(true)}
+        >
+          {revokeAll.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+          {t("apps:delegation.revokeAll")}
+        </Button>
+      )}
+
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={t("apps:delegation.revokeAllTitle")}
+        description={t("apps:delegation.revokeAllBody")}
+        confirmLabel={t("apps:delegation.revokeAll")}
+        isLoading={revokeAll.isPending}
+        destructive
+        onConfirm={() =>
+          revokeAll.mutate(undefined, {
+            onSuccess: () => {
+              toast.success(t("apps:delegation.revokedAll"));
+              setConfirming(false);
+            },
+            onError: (error) => toast.error(getErrorMessage(error, "apps:error")),
+          })
+        }
+      />
+    </section>
   );
 }
 

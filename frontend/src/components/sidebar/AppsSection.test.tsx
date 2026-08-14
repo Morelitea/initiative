@@ -169,4 +169,31 @@ describe("AppsSection", () => {
     expect(await screen.findByText("GitHub")).toBeInTheDocument();
     expect(screen.queryByText("1 more")).toBeNull();
   });
+
+  it("gives every app a settings gear, whatever else its entry does", async () => {
+    // Three shapes of entry — a page, a credential form, nothing at all — and
+    // the gear is on all of them, because every app has something a person may
+    // want to check or take back.
+    apps = [
+      app(),
+      app({
+        id: 9,
+        name: "GitHub",
+        tool: null,
+        artifacts: [],
+        definition: { connections: [{ id: "token", scope: "interactive" }] },
+      }),
+    ];
+    render(false);
+    await screen.findByText("Guild calendar");
+    expect(screen.getByLabelText("Guild calendar settings")).toBeInTheDocument();
+    expect(screen.getByLabelText("GitHub settings")).toBeInTheDocument();
+  });
+
+  it("gives the gear to an app with nothing to open, once it is shown", async () => {
+    apps = [app({ artifacts: [] })];
+    render(false);
+    (await screen.findByText("1 more")).click();
+    expect(await screen.findByLabelText("Guild calendar settings")).toBeInTheDocument();
+  });
 });
