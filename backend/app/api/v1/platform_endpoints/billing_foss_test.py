@@ -37,6 +37,7 @@ from app.models.platform.user import UserRole
 from app.services.platform import guilds as guilds_service
 from app.services.platform.guilds import GuildCapacityError
 from app.testing import (
+    guild_administration,
     create_guild,
     create_guild_membership,
     create_user,
@@ -144,7 +145,9 @@ async def test_operator_keeps_full_authority_over_billed_guild(
     assert status_change.json()["status"] == "read_only"
 
     await session.refresh(guild)
-    assert guild.tier_name == "gold"  # display metadata survives, untouched
+    administration = await guild_administration(session, guild)
+    await session.refresh(administration)
+    assert administration.tier_name == "gold"  # display metadata survives, untouched
 
 
 # --- tier_name is never an enforcement input --------------------------------
@@ -155,7 +158,8 @@ async def test_operator_keeps_full_authority_over_billed_guild(
 # (GuildRead + its serializer) is allowed — it renders the plan label, it does
 # not gate anything.
 _TIER_NAME_ALLOWED = {
-    "models/platform/guild.py",  # the column + its contract
+    "models/platform/guild_administration.py",  # the column + its contract
+    "testing/factories.py",  # routes the override to the administration row
     "models/platform/billing.py",  # audit vocabulary docstrings
     "schemas/platform/billing.py",  # the billing payloads
     "services/platform/billing.py",  # the boundary write

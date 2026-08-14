@@ -46,6 +46,7 @@ from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
 from app.models.tenant.document import Document, DocumentType
 from app.models.platform.guild import Guild, GuildMembership, GuildRole
+from app.models.platform.guild_administration import GuildAdministration
 from app.services.marketplace import catalog as marketplace_catalog
 from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.services.tenant.dashboard_definition import (
@@ -174,20 +175,42 @@ async def create_guild(
     if creator is None:
         creator = await create_user(session, commit=commit)
 
-    defaults = {
-        "name": f"Test Guild {datetime.now(timezone.utc).timestamp()}",
-        "description": "A test guild for integration testing",
-        "created_by_user_id": creator.id,
+    # The operator-set fields live on ``guild_administration``, so overrides for
+    # them are routed to that row rather than to the guild. Tests keep passing
+    # them as if they were guild fields.
+    administration_defaults: dict[str, Any] = {
         # Test guilds are sign-in-enabled by default so the guild-auth surface is
         # exercisable without extra setup; production guilds default off (the
         # operator opts each guild in from the Guilds dashboard). Pass
         # guild_auth_enabled=False to exercise the disabled paths.
         "guild_auth_enabled": True,
     }
+    administration_data = {
+        **administration_defaults,
+        **{
+            field: overrides.pop(field)
+            for field in (
+                "max_storage_bytes",
+                "max_users",
+                "tier_name",
+                "guild_auth_enabled",
+            )
+            if field in overrides
+        },
+    }
+
+    defaults = {
+        "name": f"Test Guild {datetime.now(timezone.utc).timestamp()}",
+        "description": "A test guild for integration testing",
+        "created_by_user_id": creator.id,
+    }
 
     guild_data = {**defaults, **overrides}
     guild = Guild(**guild_data)
     session.add(guild)
+    await session.flush()
+    # Every guild has exactly one, created with it — same as the service path.
+    session.add(GuildAdministration(guild_id=guild.id, **administration_data))
 
     if commit:
         await session.commit()
@@ -199,6 +222,32 @@ async def create_guild(
         await provision_guild(guild.id)
 
     return guild
+
+
+async def guild_administration(
+    session: AsyncSession, guild: Guild, commit: bool = True, **fields: Any
+) -> GuildAdministration:
+    """Read (and optionally set) a guild's operator-set row.
+
+    The caps, plan label, and sign-in entitlement live on ``guild_administration``
+    rather than on the guild, so a test that used to poke ``guild.max_users``
+    goes through here instead. Called with no ``fields`` it is a plain read.
+    """
+    row = (
+        await session.exec(
+            select(GuildAdministration).where(GuildAdministration.guild_id == guild.id)
+        )
+    ).one()
+    for name, value in fields.items():
+        setattr(row, name, value)
+    if fields:
+        session.add(row)
+        if commit:
+            await session.commit()
+            await session.refresh(row)
+        else:
+            await session.flush()
+    return row
 
 
 async def create_guild_membership(

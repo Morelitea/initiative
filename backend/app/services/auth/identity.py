@@ -35,7 +35,7 @@ from app.core.config import settings
 from app.core.encryption import SALT_EMAIL, encrypt_field, encrypt_token, hash_email
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.federated_identity import FederatedIdentity
-from app.models.platform.guild import Guild
+from app.models.platform.guild_administration import GuildAdministration
 from app.models.platform.federated_identity_secret import FederatedIdentitySecret
 from app.models.platform.user import User, UserRole, UserStatus
 
@@ -146,8 +146,14 @@ async def resolve_oidc_identity(
         if not await _registration_open(session):
             return IdentityResolution(outcome=ResolutionOutcome.REGISTRATION_DISABLED)
     else:
-        guild = await session.get(Guild, provider.guild_id)
-        if guild is None or not guild.guild_auth_enabled:
+        administration = (
+            await session.exec(
+                select(GuildAdministration).where(
+                    GuildAdministration.guild_id == provider.guild_id
+                )
+            )
+        ).one_or_none()
+        if administration is None or not administration.guild_auth_enabled:
             return IdentityResolution(outcome=ResolutionOutcome.JIT_DISABLED)
     return await _provision(
         session,

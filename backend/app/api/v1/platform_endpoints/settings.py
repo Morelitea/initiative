@@ -20,6 +20,7 @@ from app.core.rate_limit import limiter
 from app.db.session import get_admin_session, set_rls_context
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.guild import Guild, GuildMembership, GuildRole
+from app.models.platform.guild_administration import GuildAdministration
 from app.models.tenant.initiative import Initiative, InitiativeRoleModel
 from app.models.platform.oidc_claim_mapping import (
     OIDCClaimMapping,
@@ -411,11 +412,18 @@ async def list_platform_guild_storage(
     """List every guild with its storage cap, for the Admin dashboard Guilds tab.
 
     Admin/owner (``guilds.manage``). Reads only shared ``public`` tables
-    (``guilds``, ``guild_memberships``) — no guild-scoped content — so it runs on
-    the system admin engine without routing into any guild schema. Member
-    counts come from a single grouped query rather than per-guild (no N+1).
+    (``guilds``, ``guild_administration``, ``guild_memberships``) — no
+    guild-scoped content — so it runs on the system admin engine without routing
+    into any guild schema. The caps join in a single pass, and member counts come
+    from one grouped query rather than per-guild (no N+1).
     """
-    guilds = (await session.exec(select(Guild).order_by(Guild.name))).all()
+    rows = (
+        await session.exec(
+            select(Guild, GuildAdministration)
+            .join(GuildAdministration, GuildAdministration.guild_id == Guild.id)
+            .order_by(Guild.name)
+        )
+    ).all()
     counts = dict(
         (
             await session.exec(
@@ -430,14 +438,14 @@ async def list_platform_guild_storage(
             id=g.id,
             name=g.name,
             member_count=counts.get(g.id, 0),
-            tier_name=g.tier_name,
-            max_storage_bytes=g.max_storage_bytes,
-            max_users=g.max_users,
+            tier_name=administration.tier_name,
+            max_storage_bytes=administration.max_storage_bytes,
+            max_users=administration.max_users,
             status=GuildStatus(g.status),
             status_changed_at=g.status_changed_at,
-            guild_auth_enabled=g.guild_auth_enabled,
+            guild_auth_enabled=administration.guild_auth_enabled,
         )
-        for g in guilds
+        for g, administration in rows
     ]
 
 
@@ -450,8 +458,10 @@ async def update_platform_guild_storage(
 ) -> PlatformGuildStorageRead:
     """Set a guild's storage/member caps and/or lifecycle status. Admin/owner.
 
-    Writes only shared ``public.guilds`` columns (``max_storage_bytes`` /
-    ``max_users`` / ``status``) — no guild-schema routing needed.
+    Writes only shared ``public`` columns — the caps and the sign-in entitlement
+    on ``guild_administration``, the lifecycle ``status`` on ``guilds`` — so no
+    guild-schema routing is needed. Both are system-engine writes: no
+    request-path role holds INSERT/UPDATE on ``guild_administration`` at all.
     ``model_fields_set`` tells an omitted cap (leave untouched) from one sent as
     ``null`` (reset to unlimited). ``status`` (active / read_only / suspended) is
     a moderation action: it downgrades or cuts off member access on the request
@@ -494,16 +504,17 @@ async def update_platform_guild_storage(
         raise
     await session.commit()
     member_count = await guilds_service.count_members(session, guild_id=guild_id)
+    administration = await guilds_service.get_administration(session, guild_id=guild_id)
     return PlatformGuildStorageRead(
         id=guild.id,
         name=guild.name,
         member_count=member_count,
-        tier_name=guild.tier_name,
-        max_storage_bytes=guild.max_storage_bytes,
-        max_users=guild.max_users,
+        tier_name=administration.tier_name,
+        max_storage_bytes=administration.max_storage_bytes,
+        max_users=administration.max_users,
         status=GuildStatus(guild.status),
         status_changed_at=guild.status_changed_at,
-        guild_auth_enabled=guild.guild_auth_enabled,
+        guild_auth_enabled=administration.guild_auth_enabled,
     )
 
 

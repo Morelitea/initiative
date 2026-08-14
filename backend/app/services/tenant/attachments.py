@@ -585,7 +585,8 @@ async def enforce_storage_quota(session, *, guild_id: int, incoming_bytes: int) 
     """Reject an upload that would exceed the guild's ``max_storage_bytes``.
 
     NULL / absent limit means unlimited (the default), so this is a no-op until a
-    quota is set on the guild. The limit lives on the shared ``guilds`` row; the
+    quota is set on the guild. The limit lives on the shared
+    ``guild_administration`` row (read-only to every request-path role); the
     usage (``SUM(uploads.size_bytes)``) is read from the active guild's schema, so
     this must run under the guild-routed RLS session.
 
@@ -600,10 +601,14 @@ async def enforce_storage_quota(session, *, guild_id: int, incoming_bytes: int) 
     from sqlalchemy import text
     from sqlmodel import select
 
-    from app.models.platform.guild import Guild
+    from app.models.platform.guild_administration import GuildAdministration
 
     limit = (
-        await session.exec(select(Guild.max_storage_bytes).where(Guild.id == guild_id))
+        await session.exec(
+            select(GuildAdministration.max_storage_bytes).where(
+                GuildAdministration.guild_id == guild_id
+            )
+        )
     ).one_or_none()
     if limit is None:
         return

@@ -27,6 +27,7 @@ from app.models.platform.guild import Guild, GuildInvite, GuildRole, GuildStatus
 from app.models.platform.user import UserRole
 from app.services.tenant import task_statuses as task_statuses_service
 from app.testing import (
+    guild_administration,
     create_guild,
     create_initiative,
     create_task,
@@ -597,7 +598,7 @@ async def test_guild_admin_patch_cannot_touch_enforcement_fields(
     assert body["tier_name"] is None
 
     await session.refresh(a.guild)
-    assert a.guild.max_storage_bytes is None
+    assert (await guild_administration(session, a.guild)).max_storage_bytes is None
     assert a.guild.status == GuildStatus.active.value
 
 
