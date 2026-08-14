@@ -18,6 +18,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.embed_csp import parse_embed_path, resolve_frame_origins
 from app.core.config import settings
+from app.models.platform.app_service_registration import AppServiceStatus
 from app.models.platform.guild import GuildRole
 from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.testing import (
@@ -164,6 +165,39 @@ class TestResolvingOrigins:
         )
 
         registration.enabled = False
+        session.add(registration)
+        await session.commit()
+        invalidate_registrations()
+
+        assert (
+            await resolve_frame_origins(
+                guild_id=guild.id, app_id=app.id, user_id=user.id
+            )
+            == ()
+        )
+
+    async def test_an_unverified_registration_frames_nothing(
+        self, session: AsyncSession
+    ):
+        """The origins named here come from a manifest, so the header waits on
+        the verification that says which manifest this service serves."""
+        user = await create_user(session, email="drifted@example.com")
+        guild = await create_guild(session, creator=user)
+        await create_guild_membership(
+            session, user=user, guild=guild, role=GuildRole.admin
+        )
+        app = await create_guild_app(
+            session,
+            guild,
+            user,
+            definition=_definition(),
+            listing_uid=marketplace_uid("drifted"),
+        )
+        registration = await create_app_service_registration(
+            session, public_id=APP_ID, base_url="https://drifted.example.test"
+        )
+
+        registration.status = AppServiceStatus.MANIFEST_MISMATCH
         session.add(registration)
         await session.commit()
         invalidate_registrations()

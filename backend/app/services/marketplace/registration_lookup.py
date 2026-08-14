@@ -30,6 +30,7 @@ from app.db import session as db_session
 from app.models.platform.app_service_registration import (
     AppServiceRegistration,
     browser_base,
+    is_live,
 )
 
 __all__ = [
@@ -73,8 +74,12 @@ class RegistrationSnapshot:
 
     @property
     def live(self) -> bool:
-        """Whether anything may flow through this app right now."""
-        return self.enabled
+        """Whether anything may flow through this app right now.
+
+        Defers to :func:`is_live` so the embed plane and the data plane answer
+        this from the same rule rather than each stating one.
+        """
+        return is_live(self)
 
     @property
     def browser_base(self) -> str:
@@ -194,7 +199,7 @@ async def install_state(definition: dict[str, Any] | None) -> InstallState:
         # Installed here, but this deployment has not wired the service up (or
         # no longer does). Nothing it offers can be reached.
         return InstallState(mandatory=False, available=False)
-    return InstallState(mandatory=snapshot.mandatory, available=snapshot.enabled)
+    return InstallState(mandatory=snapshot.mandatory, available=snapshot.live)
 
 
 async def mandatory_registrations() -> list[RegistrationSnapshot]:
@@ -202,6 +207,13 @@ async def mandatory_registrations() -> list[RegistrationSnapshot]:
 
     Only the enabled ones: a registration the operator switched off installs
     nowhere new, because the kill switch outranks the flag (§7.7).
+
+    Deliberately ``enabled`` rather than :attr:`RegistrationSnapshot.live`. An
+    install is a local row, and a mandatory app whose container has not booted
+    yet is the ordinary case on a fresh deployment — it discovers the guild on
+    its next ``/installs`` pull. Waiting for a handshake here would make guild
+    creation depend on a container being up. What the unverified state does stop
+    is everything that flows *through* the app, which is what ``live`` gates.
     """
     return [
         snapshot
