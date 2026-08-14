@@ -114,6 +114,7 @@ async def test_list_guilds_administration_fields_are_admin_only(
     member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
 
     guild = await session.get(Guild, admin.guild.id)
+    assert guild is not None
     guild.max_storage_bytes = 5_000_000
     guild.max_users = 25
     guild.tier_name = "Bespoke Plan"
@@ -154,6 +155,7 @@ async def test_accepted_invite_withholds_administration_fields(
     member is not an admin, so the administration fields come back ``None``."""
     admin = await acting_user(guild_role=GuildRole.admin)
     guild = await session.get(Guild, admin.guild.id)
+    assert guild is not None
     guild.max_users = 25
     guild.tier_name = "Bespoke Plan"
     session.add(guild)
