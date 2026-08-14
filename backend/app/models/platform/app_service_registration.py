@@ -135,8 +135,9 @@ class AppServiceRegistration(SQLModel, table=True):
     # shape. A set rather than one key because an app rotates by publishing the
     # replacement alongside the current entry while tokens signed by the first
     # drain out; every entry carries a ``kid``, which is what a token names.
-    # Null on an app that does not delegate — and a key set here confers
-    # nothing on its own, since ``grants`` is what says an app may delegate.
+    # Public keys only. Null on an app that does not delegate: the column is
+    # kept only while ``grants`` holds ``delegation``, so taking the grant away
+    # takes the keys with it rather than leaving a set nothing displays.
     delegation_jwks: Optional[dict] = Field(
         default=None, sa_column=Column(JSONB, nullable=True)
     )

@@ -117,8 +117,10 @@ export const AppServiceFormDialog = ({
 
     // An emptied box clears the stored set; an untouched one on a row that
     // never had a key leaves it alone. Both arrive as {} vs null respectively,
-    // which is the distinction the PATCH reads.
-    const typed = form.delegationJwks.trim();
+    // which is the distinction the PATCH reads. Switching delegation off
+    // clears it too — the box is hidden then, and a key set the form no longer
+    // shows is not one it should keep sending.
+    const typed = form.delegation ? form.delegationJwks.trim() : "";
     let delegationJwks: Record<string, unknown> | null = null;
     if (typed) {
       try {

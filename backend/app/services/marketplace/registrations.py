@@ -229,13 +229,31 @@ def normalize_origins(
     return normalized
 
 
+#: Key types a verification key may be. ``oct`` is absent deliberately: a
+#: symmetric key is the signing key, and this column holds the half that is
+#: meant to be read.
+PUBLIC_JWK_TYPES: frozenset[str] = frozenset({"RSA", "EC", "OKP"})
+
+#: JWK members that only ever appear on a private key (RFC 7517 §9.3 / RFC
+#: 7518). Their presence means the whole key was pasted, not its public half.
+PRIVATE_JWK_MEMBERS: frozenset[str] = frozenset(
+    {"d", "p", "q", "dp", "dq", "qi", "oth", "k"}
+)
+
+
 def normalize_delegation_jwks(value: Optional[dict]) -> Optional[dict]:
-    """Check a delegation key set is one a token could actually be verified
-    against, and that every entry carries the ``kid`` a token names.
+    """Check a delegation key set holds public verification keys, each carrying
+    the ``kid`` a token names.
 
     Parsed on the way in rather than at first use, so an operator provisioning
     a key learns here whether it landed instead of at the first call that
     needs it. An empty object clears the set.
+
+    Held to public asymmetric keys only. This column is served in full to the
+    admin surface, which is right for a public half and wrong for anything
+    else, so a key carrying private members or a shared symmetric value is
+    refused rather than stored — the paste is a mistake worth naming at the
+    moment it happens.
     """
     if value is None:
         return None
@@ -273,6 +291,19 @@ def normalize_delegation_jwks(value: Optional[dict]) -> Optional[dict]:
                 f"two keys share the kid {kid!r}",
             )
         seen.add(kid)
+        if entry.get("kty") not in PUBLIC_JWK_TYPES:
+            raise _bad_request(
+                AppServiceMessages.INVALID_DELEGATION_JWKS,
+                f"key {kid!r} is not a public key type "
+                f"({', '.join(sorted(PUBLIC_JWK_TYPES))})",
+            )
+        private = sorted(PRIVATE_JWK_MEMBERS.intersection(entry))
+        if private:
+            raise _bad_request(
+                AppServiceMessages.INVALID_DELEGATION_JWKS,
+                f"key {kid!r} carries private material ({', '.join(private)}) — "
+                "provision the public half",
+            )
         try:
             PyJWK.from_dict(entry)
         except (PyJWKError, InvalidKeyError, KeyError, TypeError, ValueError) as exc:
@@ -282,6 +313,20 @@ def normalize_delegation_jwks(value: Optional[dict]) -> Optional[dict]:
             ) from exc
 
     return value
+
+
+def _delegation_keys_for(
+    key_set: Optional[dict], grants: Iterable[str]
+) -> Optional[dict]:
+    """Keys are kept only while the registration grants delegation.
+
+    Taking the grant away takes the key material with it, on every path that
+    writes a registration. Otherwise a row that no longer delegates still holds
+    a key set nothing displays — and re-granting later would quietly bring back
+    whichever key was last provisioned, rather than the one the operator is
+    looking at.
+    """
+    return key_set if "delegation" in set(grants) else None
 
 
 def normalize_grants(values: Optional[Iterable[str]]) -> list[str]:
@@ -390,7 +435,9 @@ async def create_registration(
     embed = normalize_embed_origin(embed_origin) if embed_origin else None
     origins = normalize_origins(allowed_origins, browser_base=embed or base_url)
     grant_list = normalize_grants(grants)
-    key_set = normalize_delegation_jwks(delegation_jwks)
+    key_set = _delegation_keys_for(
+        normalize_delegation_jwks(delegation_jwks), grant_list
+    )
     declared_id = normalize_public_id(public_id) if public_id else None
     if not secret or not secret.strip():
         raise HTTPException(
@@ -527,6 +574,9 @@ async def update_registration(
         # provisioned whole, so two entries mean a rotation is in flight and
         # one means it is over.
         row.delegation_jwks = normalize_delegation_jwks(delegation_jwks)
+    # Applied against the grants the row ends the edit with, so dropping the
+    # grant clears the keys even when this call said nothing about them.
+    row.delegation_jwks = _delegation_keys_for(row.delegation_jwks, row.grants or [])
     if mandatory is not None:
         row.mandatory = mandatory
     if enabled is not None:
@@ -680,7 +730,9 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
                 entry.get("allowed_origins"), browser_base=embed or base_url
             )
             grants = normalize_grants(entry.get("grants"))
-            key_set = normalize_delegation_jwks(entry.get("delegation_jwks"))
+            key_set = _delegation_keys_for(
+                normalize_delegation_jwks(entry.get("delegation_jwks")), grants
+            )
         except HTTPException as exc:
             logger.warning(
                 "app services: entry %r refused (%s)",
