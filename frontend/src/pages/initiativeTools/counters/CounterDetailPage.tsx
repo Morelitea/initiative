@@ -46,11 +46,11 @@ export function CounterDetailPage() {
   const gp = useGuildPath();
   const {
     guildId,
-    groupId: groupIdParam,
+    counterGroupId: groupIdParam,
     counterId: counterIdParam,
   } = useParams({
     strict: false,
-  }) as { guildId?: string; groupId?: string; counterId?: string };
+  }) as { guildId?: string; counterGroupId?: string; counterId?: string };
 
   const groupId = groupIdParam ? Number(groupIdParam) : null;
   const counterId = counterIdParam ? Number(counterIdParam) : null;
@@ -86,10 +86,10 @@ export function CounterDetailPage() {
     const next = counters[wrapped];
     if (!next) return;
     navigate({
-      to: "/g/$guildId/counter-groups/$groupId/counter/$counterId",
+      to: "/g/$guildId/counter-groups/$counterGroupId/counter/$counterId",
       params: {
         guildId,
-        groupId: String(groupId),
+        counterGroupId: String(groupId),
         counterId: String(next.id),
       },
       replace: true,

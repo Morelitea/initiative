@@ -44,8 +44,8 @@ import { hasWriteAccess } from "@/lib/permissions";
 
 export function CounterGroupSettingsPage() {
   const { t } = useTranslation(["counterGroups", "common", "access"]);
-  const { groupId } = useParams({ strict: false }) as { groupId?: string };
-  const parsedId = groupId ? Number(groupId) : Number.NaN;
+  const { counterGroupId } = useParams({ strict: false }) as { counterGroupId?: string };
+  const parsedId = counterGroupId ? Number(counterGroupId) : Number.NaN;
   const router = useRouter();
   const gp = useGuildPath();
 
