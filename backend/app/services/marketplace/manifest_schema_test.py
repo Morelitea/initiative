@@ -31,7 +31,7 @@ from app.services.marketplace.manifest_values import (
     MAX_PUBLIC_ID_LENGTH,
 )
 from app.services.marketplace.definitions import normalize_listing_definition
-from app.services.marketplace.widget_meta import MAX_TEXT_LENGTH
+from app.services.marketplace.widget_meta import MAX_LOCALES, MAX_TEXT_LENGTH
 from app.services.marketplace.service_apps import (
     APP_PROTOCOL_VERSIONS,
     CONNECTION_SCOPES,
@@ -402,15 +402,39 @@ def test_what_the_schema_refuses_the_platform_refuses_too(manifest, validator):
 
 
 @pytest.mark.unit
-def test_the_schema_flags_a_localized_value_the_platform_discards(validator):
-    """The one place it is stricter on purpose: a non-string entry is dropped
-    outright, so it has no effect, and saying so can only help."""
+@pytest.mark.parametrize(
+    "name,why",
+    [
+        ({"en": "N", "fr": 7}, "a value that is not a string is skipped"),
+        ({"en": "N", "not a tag": "x"}, "a key that is not a language tag is skipped"),
+        (
+            {"en": "N", **{f"x{i}": "y" for i in range(MAX_LOCALES + 5)}},
+            "entries past the locale cap are never inspected",
+        ),
+    ],
+)
+def test_a_localized_entry_the_platform_ignores_is_not_an_error(name, why, validator):
+    """Ignored is not refused. The object stands on its usable entries, so the
+    document installs — and a schema that rejected it would be telling an author
+    their working manifest is broken."""
     manifest = _manifest(
         features=["embeds"],
-        embeds=[{"id": "e", "path": "/e", "name": {"en": "N", "fr": 7}}],
+        embeds=[{"id": "e", "path": "/e", "name": name}],
     )
-    platform_accepts(manifest)  # the bad entry is skipped, the good one stands
+    platform_accepts(manifest)
+    assert list(validator.iter_errors(manifest)) == [], why
+
+
+@pytest.mark.unit
+def test_a_localized_object_with_nothing_usable_is_refused(validator):
+    """The one thing that does fail, and the only rule left on the type."""
+    manifest = _manifest(
+        features=["embeds"],
+        embeds=[{"id": "e", "path": "/e", "name": {}}],
+    )
     assert list(validator.iter_errors(manifest)) != []
+    with pytest.raises(ValueError):
+        platform_accepts(manifest)
 
 
 # --- where the schema stops -------------------------------------------------

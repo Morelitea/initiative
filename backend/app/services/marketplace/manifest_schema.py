@@ -41,9 +41,13 @@ Naming those as errors would tell an author their working manifest is broken, an
 the last one would also break forward compatibility: an app targeting a newer
 platform has to keep validating against an older copy of this file.
 
-The one exception is a value the platform discards *entirely*, which therefore
-has no effect at all: a localized entry whose value is not a string is skipped,
-and this schema does say so, because flagging something inert can only help.
+There is no exception. An earlier cut of this module made one for values the
+platform discards outright — a localized entry that is not a string — on the
+grounds that flagging something inert can only help. It cannot: the entry may be
+inert, but refusing it rejects the whole document, and a manifest that installs
+must never be reported as malformed. Catching a typo in an ignored value is a
+linter's job, and an SDK is free to tighten this schema for authoring; nothing
+downstream can loosen a published contract that refuses working input.
 """
 
 from __future__ import annotations
@@ -88,7 +92,7 @@ from app.services.marketplace.service_apps import (
     SURFACE_SCOPES,
     VISIBILITIES,
 )
-from app.services.marketplace.widget_meta import MAX_TEXT_LENGTH
+from app.services.marketplace.widget_meta import MAX_LOCALES, MAX_TEXT_LENGTH
 
 __all__ = ["SCHEMA_ID", "build_manifest_schema"]
 
@@ -148,22 +152,29 @@ def _enum(values: frozenset[str]) -> list[str]:
 def _localized_text(max_length: int = MAX_TEXT_LENGTH) -> dict[str, Any]:
     """A human-readable string in one or more languages, keyed by language tag.
 
-    No ``maxLength``: the platform truncates an over-long entry to
-    ``max_length`` rather than refusing it, so asserting the bound here would
-    reject a manifest that installs. It is named in the description instead.
-    The value type *is* asserted — an entry that is not a string is discarded
-    outright, so it has no effect and is worth flagging.
+    Neither the length nor the value type is asserted, because the platform
+    refuses neither: an over-long entry is truncated, and an entry that is not a
+    string — or one past the locale cap, which is never inspected at all — is
+    skipped while the rest of the object stands. Only ``minProperties`` survives,
+    which matches the one thing that does fail: an object with nothing usable in
+    it.
+
+    Losing the value type costs a generator some precision. That is the right
+    way round: a schema is a contract before it is a type source, and an SDK that
+    wants a stricter shape for *authoring* can tighten it locally, which nothing
+    downstream can do about a contract that rejects a working manifest.
     """
     return {
         "type": "object",
         "description": (
             "Localized text, keyed by language tag. At least one usable entry; "
             "the platform falls back to the reader's language, then to any "
-            f"entry. Text longer than {max_length} characters is truncated, and "
-            "entries past the locale cap are ignored."
+            f"entry. Values should be strings: text longer than {max_length} "
+            f"characters is truncated, and an entry that is not a string, is "
+            f"not a language tag, or falls past the first {MAX_LOCALES} is "
+            "ignored rather than refused."
         ),
         "minProperties": 1,
-        "additionalProperties": {"type": "string"},
     }
 
 

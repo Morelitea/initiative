@@ -111,11 +111,8 @@
     },
     "localizedText": {
       "type": "object",
-      "description": "Localized text, keyed by language tag. At least one usable entry; the platform falls back to the reader's language, then to any entry. Text longer than 120 characters is truncated, and entries past the locale cap are ignored.",
-      "minProperties": 1,
-      "additionalProperties": {
-        "type": "string"
-      }
+      "description": "Localized text, keyed by language tag. At least one usable entry; the platform falls back to the reader's language, then to any entry. Values should be strings: text longer than 120 characters is truncated, and an entry that is not a string, is not a language tag, or falls past the first 40 is ignored rather than refused.",
+      "minProperties": 1
     },
     "requires": {
       "type": "object",
