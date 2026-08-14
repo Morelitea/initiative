@@ -6,6 +6,7 @@ from sqlalchemy import (
     Boolean,
     Column,
     DateTime,
+    ForeignKey,
     Integer,
     String,
     Text,
@@ -78,8 +79,11 @@ class AuthProvider(SQLModel, table=True):
     guild_id: Optional[int] = Field(
         default=None,
         sa_column=Column(
-            Integer, nullable=True, index=True
-        ),  # FK declared in the migration (ON DELETE CASCADE)
+            Integer,
+            ForeignKey("guilds.id", ondelete="CASCADE"),
+            nullable=True,
+            index=True,
+        ),
     )
 
     # OIDC / OAuth2 discovery + client identity (non-secret).

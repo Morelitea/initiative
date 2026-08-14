@@ -1,7 +1,16 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Boolean, Column, DateTime, Integer, Text, UniqueConstraint, text
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlmodel import Field, SQLModel
 
 
@@ -29,9 +38,22 @@ class FederatedIdentity(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
 
-    # FKs declared in the migration (both ON DELETE CASCADE).
-    user_id: int = Field(sa_column=Column(Integer, nullable=False, index=True))
-    provider_id: int = Field(sa_column=Column(Integer, nullable=False, index=True))
+    user_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    provider_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("auth_providers.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
 
     # The IdP-asserted subject identifier — the stable join key.
     subject: str = Field(sa_column=Column(Text, nullable=False))

@@ -37,6 +37,7 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 
 from app.core.config import settings
+from conftest import connect_su_postgres
 from app.db.tenancy import GUILD_SCOPED_TABLES
 
 
@@ -200,6 +201,13 @@ def _ordered_revisions_base_to_head() -> list[str]:
 
 
 def _parse_admin_url() -> dict:
+    """Connection kwargs for the app's provisioning role (``DATABASE_URL``).
+
+    Everything these tests do *inside* the database runs as this role, exactly
+    as migrations do in production. Creating and dropping the database itself
+    does not: that is cluster-level, and the provisioning role is deliberately
+    ``NOCREATEDB``. ``connect_su_postgres`` covers those two statements.
+    """
     parsed = urlparse(settings.DATABASE_URL.replace("+asyncpg", ""))
     return {
         "user": parsed.username,
@@ -209,30 +217,56 @@ def _parse_admin_url() -> dict:
     }
 
 
+async def _drop_prefixed_roles(conn: asyncpg.Connection) -> None:
+    """Drop this worker's cluster-global roles.
+
+    Roles outlive the database that used them, so a crashed run leaves them
+    behind — and a CREATEROLE role holds ADMIN OPTION only on roles it created
+    itself, so the provisioning role cannot re-grant a leftover it did not
+    make. Clearing them alongside the database keeps each run creating its own.
+    Safe to run before the database exists; call it *after* dropping the
+    database so no privileges still depend on them.
+    """
+    rows = await conn.fetch(
+        "SELECT rolname FROM pg_roles WHERE rolname LIKE $1",
+        f"{_MIGRATIONS_ROLE_PREFIX}%",
+    )
+    if rows:
+        names = ", ".join(f'"{row["rolname"]}"' for row in rows)
+        await conn.execute(f"DROP ROLE IF EXISTS {names}")
+
+
 async def _drop_db() -> None:
-    """Drop the dedicated migrations test database if it exists.
+    """Drop the dedicated migrations test database and this worker's roles.
 
     ``DROP DATABASE`` requires no other sessions to be connected. We use
     ``WITH (FORCE)`` (PG 13+) to evict any leftover connections from a
     crashed prior run.
     """
-    conn = await asyncpg.connect(database="postgres", **_parse_admin_url())
+    conn = await connect_su_postgres()
     try:
         await conn.execute(
             f'DROP DATABASE IF EXISTS "{MIGRATIONS_DB_NAME}" WITH (FORCE)'
         )
+        await _drop_prefixed_roles(conn)
     finally:
         await conn.close()
 
 
 async def _drop_and_create_db() -> None:
-    """Drop+recreate the dedicated migrations test database."""
-    conn = await asyncpg.connect(database="postgres", **_parse_admin_url())
+    """Drop+recreate the dedicated migrations test database.
+
+    Owned by the provisioning role so the migration chain runs against objects
+    it owns, the way a real deployment does.
+    """
+    owner = _parse_admin_url()["user"]
+    conn = await connect_su_postgres()
     try:
         await conn.execute(
             f'DROP DATABASE IF EXISTS "{MIGRATIONS_DB_NAME}" WITH (FORCE)'
         )
-        await conn.execute(f'CREATE DATABASE "{MIGRATIONS_DB_NAME}"')
+        await _drop_prefixed_roles(conn)
+        await conn.execute(f'CREATE DATABASE "{MIGRATIONS_DB_NAME}" OWNER "{owner}"')
     finally:
         await conn.close()
 

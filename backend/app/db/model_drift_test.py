@@ -13,12 +13,10 @@ migrated test database through the exact ``include_object`` filter
 an empty diff — the database twin of the ``check-generated-types`` CI gate: if
 you changed a model, you must have generated the migration.
 
-Scope: guild mode only. The ``public`` schema carries known benign drift that
-predates this gate — FK ``ondelete`` behaviors that exist only in migrations,
-``ix_access_grants_user_guild`` undeclared in models — so a public-mode gate
-needs that cleanup first, tracked separately rather than baselined here as a
-tolerance list. (The index names left behind by the admin_api_keys →
-user_api_keys rename were part of that set; 20260811_0163 fixed them.)
+Both autogenerate modes are gated, and neither carries a tolerance list: the
+assertion is an empty diff. Anything the models genuinely don't own belongs in
+``include_object`` (where ``alembic revision --autogenerate`` honors it too),
+not in a per-diff exception here.
 """
 
 import pytest
@@ -62,4 +60,22 @@ async def test_models_match_guild_template(engine):
         "SQLModel models have drifted from guild_template — generate the guild "
         "migration with: cd backend && python scripts/gen_guild_migration.py "
         f'"desc". Autogenerate sees:\n{_render(diffs)}'
+    )
+
+
+@pytest.mark.database
+async def test_models_match_public_schema(engine):
+    """Shared/platform models == the migrated ``public`` schema. A diff means a
+    model changed without running ``alembic revision --autogenerate``.
+
+    Public mode compares more than guild mode does: FKs, indexes and unique
+    constraints are all model-declared here, so a model that leaves an
+    ``ondelete`` or a composite index to its migration reads as drift."""
+    async with engine.connect() as conn:
+        await conn.execute(text("SET LOCAL search_path TO public"))
+        diffs = await conn.run_sync(_model_diffs, False)
+    assert not diffs, (
+        "SQLModel models have drifted from the public schema — generate the "
+        'migration with: cd backend && alembic revision --autogenerate -m "desc". '
+        f"Autogenerate sees:\n{_render(diffs)}"
     )
