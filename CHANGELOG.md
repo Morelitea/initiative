@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- An app's embedded page is granted only the browser features its manifest asks for, from a fixed list — camera, microphone, location, screen capture, clipboard, and fullscreen. A surface that asks for nothing runs with all of them denied. What an app requests is part of what it declares, so it can be read before installing.
+
 ### Fixed
 
 - **Dashboards render on a deployed instance.** Widgets are evaluated by a WebAssembly runtime that the served content policy did not admit, so every widget on every dashboard failed with a runtime error. The runtime's own bundle is now served with a policy that admits it; the policy the rest of the app is served with is unchanged.
