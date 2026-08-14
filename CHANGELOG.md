@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.62.5] - 2026-08-14
+
 ### Added
 
 - **You decide whether an app may act as you.** A guild admin installing an app puts it in the guild; whether it may make requests in your name is a separate question, and now yours to answer — reads only, or reads and writes. Withdrawing takes effect on the app's next request, and leaving the guild takes it with you. Guild admins can see who has allowed what and end any of it, including everyone's at once without uninstalling the app, but cannot allow it on somebody else's behalf.
