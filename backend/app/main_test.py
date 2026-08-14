@@ -11,7 +11,7 @@ from fastapi.exceptions import RequestValidationError
 from httpx import ASGITransport, AsyncClient
 
 import app.main as main_module
-from app.core.config import API_V1_STR, Settings
+from app.core.config import API_V1_STR, Settings, settings
 from app.main import SecurityHeadersMiddleware, validation_exception_handler
 
 
@@ -58,6 +58,53 @@ async def test_responses_carry_content_security_policy(client: AsyncClient) -> N
     assert "default-src 'self'" in csp
     assert "script-src 'self'" in csp
     assert "object-src 'none'" in csp
+
+
+# --- Widget sandbox worker asset (WebAssembly is named on this one response) ---
+
+
+@pytest.mark.unit
+def test_widget_sandbox_match_names_one_file() -> None:
+    match = main_module._is_widget_sandbox_asset
+    assert match("assets/workers/sandbox.worker-DQURGIoN.js")
+
+    # Every other built file is an ordinary asset: a second worker, anything
+    # nested under a directory that merely starts with the name, the sourcemap,
+    # and the app's own chunks.
+    assert not match("assets/workers/other.worker-DQURGIoN.js")
+    assert not match("assets/workers/sandbox.worker-DQURGIoN/payload.js")
+    assert not match("assets/workers/sandbox.worker-DQURGIoN.js.map")
+    assert not match("assets/index-lSaaosYz.js")
+    assert not match("assets/workers/")
+
+
+@pytest.mark.integration
+async def test_only_the_widget_sandbox_asset_carries_its_policy(
+    client: AsyncClient,
+) -> None:
+    # End-to-end through the SPA file route: the worker bundle answers with the
+    # sandbox policy, and the chunk next to it answers with the app-wide one.
+    worker = main_module.static_path / "assets" / "workers" / "sandbox.worker-t3st.js"
+    ordinary = main_module.static_path / "assets" / "index-t3st.js"
+    worker.parent.mkdir(parents=True, exist_ok=True)
+    ordinary.parent.mkdir(parents=True, exist_ok=True)
+    worker.write_text("// widget sandbox worker\n")
+    ordinary.write_text("// app chunk\n")
+    try:
+        sandbox_resp = await client.get(f"/assets/workers/{worker.name}")
+        other_resp = await client.get(f"/assets/{ordinary.name}")
+    finally:
+        worker.unlink(missing_ok=True)
+        ordinary.unlink(missing_ok=True)
+
+    assert sandbox_resp.status_code == 200
+    sandbox_csp = sandbox_resp.headers.get("content-security-policy", "")
+    assert sandbox_csp == settings.widget_sandbox_content_security_policy
+
+    assert other_resp.status_code == 200
+    other_csp = other_resp.headers.get("content-security-policy", "")
+    assert "'wasm-unsafe-eval'" not in other_csp
+    assert "script-src 'self'" in other_csp
 
 
 @pytest.mark.integration
