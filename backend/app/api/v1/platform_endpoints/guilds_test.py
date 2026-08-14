@@ -22,9 +22,9 @@ from app.testing.schema_harness import route_session_to_guild
 from app.models.platform.guild import Guild, GuildMembership, GuildRole
 from app.models.platform.user import UserRole, UserStatus
 from app.models.tenant.initiative import InitiativeMember
-from app.services.platform import guilds as guilds_service
 from app.testing.factories import (
     create_federated_identity,
+    guild_administration,
     create_guild,
     create_guild_membership,
     create_user,
@@ -116,13 +116,14 @@ async def test_list_guilds_administration_fields_are_admin_only(
 
     guild = await session.get(Guild, admin.guild.id)
     assert guild is not None
-    administration = await guilds_service.get_administration(session, guild_id=guild.id)
-    administration.max_storage_bytes = 5_000_000
-    administration.max_users = 25
-    administration.tier_name = "Bespoke Plan"
-    administration.guild_auth_enabled = True
-    session.add(administration)
-    await session.commit()
+    await guild_administration(
+        session,
+        guild,
+        max_storage_bytes=5_000_000,
+        max_users=25,
+        tier_name="Bespoke Plan",
+        guild_auth_enabled=True,
+    )
 
     async def entry(headers: dict[str, str]) -> dict:
         resp = await client.get("/api/v1/guilds/", headers=headers)
@@ -158,11 +159,7 @@ async def test_accepted_invite_withholds_administration_fields(
     admin = await acting_user(guild_role=GuildRole.admin)
     guild = await session.get(Guild, admin.guild.id)
     assert guild is not None
-    administration = await guilds_service.get_administration(session, guild_id=guild.id)
-    administration.max_users = 25
-    administration.tier_name = "Bespoke Plan"
-    session.add(administration)
-    await session.commit()
+    await guild_administration(session, guild, max_users=25, tier_name="Bespoke Plan")
 
     invite = await client.post(
         f"/api/v1/guilds/{guild.id}/invites",

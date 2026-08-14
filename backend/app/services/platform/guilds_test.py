@@ -30,6 +30,14 @@ async def test_get_primary_guild_creates_if_missing(session: AsyncSession):
     assert guild.id is not None
     assert guild.name == "Primary Guild"
     assert guild.description == "Default guild"
+    # The bootstrap seed is a guild-creation path like any other, so it owes the
+    # same companion row: without it the operator dashboard has no caps to show
+    # and get_administration raises for the one guild a fresh install has.
+    administration = await guild_service.get_administration(session, guild_id=guild.id)
+    assert administration.max_storage_bytes is None
+    assert administration.max_users is None
+    assert administration.tier_name is None
+    assert administration.guild_auth_enabled is False
 
 
 @pytest.mark.unit

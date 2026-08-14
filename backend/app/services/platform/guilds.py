@@ -38,6 +38,22 @@ class GuildCapacityError(Exception):
     """Raised when adding a member would exceed the guild's ``max_users`` cap."""
 
 
+async def _persist_new_guild(session: AsyncSession, guild: Guild) -> Guild:
+    """Add a new guild row together with the administration row it must have.
+
+    Every guild has exactly one ``guild_administration`` companion, carrying the
+    defaults (no caps, no plan, guild sign-in off). Writing the pair here rather
+    than at each creation site is what lets every reader assume the row exists —
+    ``get_administration`` raises without it, and the operator dashboard joins
+    against it. The caller commits.
+    """
+    session.add(guild)
+    await session.flush()
+    session.add(GuildAdministration(guild_id=guild.id))
+    await session.flush()
+    return guild
+
+
 async def get_primary_guild(session: AsyncSession) -> Guild:
     result = await session.exec(select(Guild).order_by(Guild.id.asc()))
     guild = result.first()
@@ -70,13 +86,15 @@ async def get_primary_guild(session: AsyncSession) -> Guild:
             schema_count,
         )
     now = datetime.now(timezone.utc)
-    guild = Guild(
-        name="Primary Guild",
-        description="Default guild",
-        created_at=now,
-        updated_at=now,
+    guild = await _persist_new_guild(
+        session,
+        Guild(
+            name="Primary Guild",
+            description="Default guild",
+            created_at=now,
+            updated_at=now,
+        ),
     )
-    session.add(guild)
     # Commit the new guild row, then provision its schema — a brand-new primary
     # guild is schema-native from birth. (Only the first time the primary guild is
     # created, i.e. fresh-DB seeding.)
@@ -422,13 +440,7 @@ async def create_guild(
         created_at=now,
         updated_at=now,
     )
-    session.add(guild)
-    await session.flush()
-    # Every guild has exactly one administration row, created with it and
-    # carrying the defaults (no caps, no plan, guild sign-in off). Code that
-    # reads a guild's caps can then assume the row exists.
-    session.add(GuildAdministration(guild_id=guild.id))
-    await session.flush()
+    await _persist_new_guild(session, guild)
     admin = owner or creator
     if admin:
         await ensure_membership(

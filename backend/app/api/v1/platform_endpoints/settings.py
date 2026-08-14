@@ -417,10 +417,15 @@ async def list_platform_guild_storage(
     into any guild schema. The caps join in a single pass, and member counts come
     from one grouped query rather than per-guild (no N+1).
     """
+    # Outer join on purpose: this is the operator's view of *every* guild, and a
+    # guild missing its companion row must still be listed (with blank caps) so
+    # it stays manageable, rather than silently vanishing from the moderation
+    # surface. Creation writes the pair together, so this is a floor, not a
+    # normal case.
     rows = (
         await session.exec(
             select(Guild, GuildAdministration)
-            .join(GuildAdministration, GuildAdministration.guild_id == Guild.id)
+            .outerjoin(GuildAdministration, GuildAdministration.guild_id == Guild.id)
             .order_by(Guild.name)
         )
     ).all()
@@ -438,12 +443,16 @@ async def list_platform_guild_storage(
             id=g.id,
             name=g.name,
             member_count=counts.get(g.id, 0),
-            tier_name=administration.tier_name,
-            max_storage_bytes=administration.max_storage_bytes,
-            max_users=administration.max_users,
+            tier_name=administration.tier_name if administration else None,
+            max_storage_bytes=(
+                administration.max_storage_bytes if administration else None
+            ),
+            max_users=administration.max_users if administration else None,
             status=GuildStatus(g.status),
             status_changed_at=g.status_changed_at,
-            guild_auth_enabled=administration.guild_auth_enabled,
+            guild_auth_enabled=(
+                administration.guild_auth_enabled if administration else False
+            ),
         )
         for g, administration in rows
     ]
