@@ -35,8 +35,13 @@ jobs:
           --health-retries 5
 
     env:
-      # Provisioner/migrations: DIRECT to Postgres (never pooled, like prod).
-      DATABASE_URL: postgresql+asyncpg://initiative:initiative@localhost:5432/initiative_test
+      # Provisioner/migrations: DIRECT to Postgres (never pooled, like prod),
+      # as app_provisioner — the same least-privilege role a deployment runs
+      # migrations and guild provisioning with. Created by the bootstrap step
+      # below, mirroring the compose initdb config. POSTGRES_USER stays the
+      # cluster superuser, which conftest.py uses as test infrastructure
+      # (CREATE DATABASE per worker, raw writes on FORCE-RLS tables).
+      DATABASE_URL: postgresql+asyncpg://app_provisioner:app_provisioner@localhost:5432/initiative_test
       # Request + system engines: through PgBouncer in TRANSACTION mode
       # (started as a step below). The pooler environment is strictly harder
       # than direct Postgres, so one suite run proves both — and any
@@ -56,10 +61,25 @@ jobs:
         id: changes
         run: |
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- backend/ || true)
+            DIFF="git diff --name-only origin/${{ github.base_ref }}...HEAD"
           else
-            CHANGED=$(git diff --name-only HEAD~1...HEAD -- backend/ || true)
+            DIFF="git diff --name-only HEAD~1...HEAD"
           fi
+
+          # This workflow file is in scope for itself: it defines the roles,
+          # URLs and services the backend job runs against, so a change to it
+          # has to run the job — in full, migrations included — to be worth
+          # anything. Scope selection below reads backend/ paths, which a
+          # workflow-only change has none of, so short-circuit here.
+          if [[ -n "$($DIFF -- .github/workflows/ci.yml || true)" ]]; then
+            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "alembic_changed=true" >> $GITHUB_OUTPUT
+            echo "scope=app/ alembic/" >> $GITHUB_OUTPUT
+            echo "CI workflow changed — running the full backend job"
+            exit 0
+          fi
+
+          CHANGED=$($DIFF -- backend/ || true)
 
           if [[ -z "$CHANGED" ]]; then
             echo "skip=true" >> $GITHUB_OUTPUT
@@ -112,6 +132,34 @@ jobs:
               echo "Running tests in: $DIRS$ALEMBIC_SCOPE"
             fi
           fi
+
+      - name: Bootstrap database roles
+        # The three login roles a deployment has, created here the way the
+        # compose initdb config creates them on a fresh install: the superuser
+        # makes them, then hands the app's schema to app_provisioner. The
+        # login roles must exist before the provisioner-run baseline, which
+        # only syncs their passwords — Postgres 16+ reserves creating a
+        # BYPASSRLS role (app_admin) for BYPASSRLS holders, and
+        # app_provisioner is NOBYPASSRLS by design.
+        # psql comes from the same pinned image as the service, rather than
+        # whatever client the runner image happens to ship (the PgBouncer step
+        # below runs its container the same way).
+        if: steps.changes.outputs.skip != 'true'
+        run: |
+          docker run --rm -i --network host -e PGPASSWORD=initiative postgres:17 \
+            psql -v ON_ERROR_STOP=1 -h localhost -U initiative -d initiative_test <<'SQL'
+          CREATE ROLE app_provisioner WITH LOGIN CREATEROLE NOSUPERUSER NOBYPASSRLS
+            PASSWORD 'app_provisioner';
+          CREATE ROLE app_user WITH LOGIN NOINHERIT PASSWORD 'app_user';
+          CREATE ROLE app_admin WITH LOGIN BYPASSRLS PASSWORD 'app_admin';
+          GRANT CREATE, CONNECT ON DATABASE initiative_test TO app_provisioner;
+          -- Postgres 15+ made CREATE on public owner-only, and the baseline
+          -- (running as app_provisioner) builds the shared schema there.
+          ALTER SCHEMA public OWNER TO app_provisioner;
+          -- Lets the provisioner sync the login roles' passwords.
+          GRANT app_user TO app_provisioner WITH ADMIN OPTION;
+          GRANT app_admin TO app_provisioner WITH ADMIN OPTION;
+          SQL
 
       - name: Install uv
         if: steps.changes.outputs.skip != 'true'
