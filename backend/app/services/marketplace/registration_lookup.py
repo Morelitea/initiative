@@ -49,6 +49,7 @@ __all__ = [
     "delegation_allowed",
     "resolve_delegated_member",
     "delegation_keys_for",
+    "frame_origins",
     "install_state",
     "invalidate_registrations",
     "load_registrations",
@@ -174,6 +175,31 @@ async def load_registrations(*, force: bool = False) -> dict[str, RegistrationSn
     _cache = snapshots
     _loaded_at = time.monotonic()
     return snapshots
+
+
+async def frame_origins() -> tuple[str, ...]:
+    """Every origin an app surface may be framed from, deduped and ordered.
+
+    This deployment's registrations are its trusted-site list. An origin gets
+    on it by an operator wiring up an app service and that service's handshake
+    confirming the manifest it serves — so what comes back describes the
+    services this deployment runs, and says nothing about any guild or reader.
+
+    Only live registrations count, which is how the operator's kill switch and
+    a failed re-verification reach the frame policy: within the cache TTL, a
+    stopped or drifted app's origins are gone from it.
+    """
+    snapshots = await load_registrations()
+    return tuple(
+        sorted(
+            {
+                origin
+                for snapshot in snapshots.values()
+                if snapshot.live
+                for origin in snapshot.allowed_origins
+            }
+        )
+    )
 
 
 def service_public_id(definition: dict[str, Any] | None) -> Optional[str]:
