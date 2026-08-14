@@ -29,9 +29,14 @@ from app.models.tenant.task import (
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.models.platform.user import User
 from app.services import email as email_service
+from app.services.platform import push_notifications
 from app.services.notifications import (
+    ASSIGNMENT_ITEM_RETENTION,
+    ASSIGNMENT_MAX_WINDOW,
+    ASSIGNMENT_QUIET_PERIOD,
     _format_event_when,
     _run_assignment_digest_pass,
+    _run_assignment_gc_pass,
     _run_event_reminder_pass,
     _run_overdue_pass,
     notify_initiative_membership,
@@ -398,6 +403,133 @@ async def test_overdue_digest_gathers_tasks_across_user_guilds(
     assert captured.get("titles") == {"Alpha overdue", "Beta overdue"}
 
 
+def _capture_push(monkeypatch) -> list[dict]:
+    """Record every ``send_push_to_user`` call instead of hitting FCM."""
+    sent: list[dict] = []
+
+    async def _fake_push(
+        *, session, user_id, notification_type, title, body, data=None
+    ):
+        sent.append(
+            {
+                "user_id": user_id,
+                "type": notification_type,
+                "title": title,
+                "body": body,
+                "data": data or {},
+            }
+        )
+        return 1
+
+    monkeypatch.setattr(push_notifications, "send_push_to_user", _fake_push)
+    return sent
+
+
+@pytest.mark.integration
+async def test_overdue_digest_pushes_alongside_email(
+    session: AsyncSession, monkeypatch
+):
+    """Push and email are the same digest on two channels: a user opted into
+    both must get both, and the push must carry a tappable deep link."""
+    user = await create_user(
+        session,
+        email="overdue-both@example.com",
+        email_overdue_tasks=True,
+        push_overdue_tasks=True,
+        overdue_notification_time="00:00",
+        timezone="UTC",
+    )
+    await _overdue_task_in_new_guild(session, user, label="Alpha")
+
+    emails: list[int] = []
+
+    async def _capture_email(sess, recipient, tasks):
+        emails.append(recipient.id)
+
+    monkeypatch.setattr(email_service, "send_overdue_tasks_email", _capture_email)
+    pushes = _capture_push(monkeypatch)
+
+    await set_rls_context(session)
+    await _run_overdue_pass(session, now=datetime.now(timezone.utc))
+
+    assert emails == [user.id]
+    assert len(pushes) == 1
+    push = pushes[0]
+    assert push["user_id"] == user.id
+    assert push["type"] == NotificationType.overdue_tasks
+    assert "Alpha overdue" in push["body"]
+    # The digest spans guilds, so the tap lands on the cross-guild My Tasks
+    # list — no guild_id, which is what tells the app not to switch guilds.
+    assert push["data"]["target_path"] == "/"
+    assert "guild_id" not in push["data"]
+
+
+@pytest.mark.integration
+async def test_overdue_digest_pushes_when_email_opted_out(
+    session: AsyncSession, monkeypatch
+):
+    """Turning the email off must not silence the push — the two toggles are
+    independent, and the day's send is still stamped so it fires once."""
+    user = await create_user(
+        session,
+        email="overdue-push-only@example.com",
+        email_overdue_tasks=False,
+        push_overdue_tasks=True,
+        overdue_notification_time="00:00",
+        timezone="UTC",
+    )
+    await _overdue_task_in_new_guild(session, user, label="Alpha")
+
+    async def _fail_email(sess, recipient, tasks):  # pragma: no cover
+        raise AssertionError("email must not be sent to an opted-out user")
+
+    monkeypatch.setattr(email_service, "send_overdue_tasks_email", _fail_email)
+    pushes = _capture_push(monkeypatch)
+
+    now = datetime.now(timezone.utc)
+    await set_rls_context(session)
+    await _run_overdue_pass(session, now=now)
+    assert len(pushes) == 1
+
+    # Second pass the same day is a no-op (the stamp landed on the push alone).
+    session.expunge_all()
+    await set_rls_context(session)
+    await _run_overdue_pass(session, now=now + timedelta(minutes=5))
+    assert len(pushes) == 1
+
+    refreshed = (
+        await session.exec(select(User).where(User.id == user.id))
+    ).one_or_none()
+    assert refreshed.last_overdue_notification_at is not None
+
+
+@pytest.mark.integration
+async def test_overdue_digest_skips_push_when_opted_out(
+    session: AsyncSession, monkeypatch
+):
+    """A user who wants only the email gets only the email."""
+    user = await create_user(
+        session,
+        email="overdue-email-only@example.com",
+        email_overdue_tasks=True,
+        push_overdue_tasks=False,
+        overdue_notification_time="00:00",
+        timezone="UTC",
+    )
+    await _overdue_task_in_new_guild(session, user, label="Alpha")
+
+    async def _capture_email(sess, recipient, tasks):
+        return None
+
+    monkeypatch.setattr(email_service, "send_overdue_tasks_email", _capture_email)
+    pushes = _capture_push(monkeypatch)
+
+    await set_rls_context(session)
+    await _run_overdue_pass(session, now=datetime.now(timezone.utc))
+
+    assert pushes == []
+
+
 async def _assignment_item_in_new_guild(
     session: AsyncSession, user: User, *, label: str
 ):
@@ -470,7 +602,10 @@ async def test_assignment_digest_gathers_items_across_user_guilds(
     )
 
     await set_rls_context(session)
-    await _run_assignment_digest_pass(session, now=datetime.now(timezone.utc))
+    # Past the quiet period, so the items have settled and the digest is due.
+    await _run_assignment_digest_pass(
+        session, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+    )
 
     assert captured.get("user_id") == user.id
     assert captured.get("titles") == {"Alpha task", "Beta task"}
@@ -486,6 +621,196 @@ async def test_assignment_digest_gathers_items_across_user_guilds(
             )
         ).all()
         assert pending == [], f"guild {guild_id} items not marked processed"
+
+
+@pytest.mark.integration
+async def test_assignment_digest_waits_for_the_flurry_to_end(
+    session: AsyncSession, monkeypatch
+):
+    """The whole point of a digest: it must not fire on the first item while
+    more are still landing. The old behaviour emailed immediately and then
+    locked out for an hour, so a burst arrived as one mail plus a long delay."""
+    user = await create_user(session, email="debounce@example.com")
+    await _assignment_item_in_new_guild(session, user, label="Alpha")
+
+    sent: list[int] = []
+
+    async def _capture_email(sess, recipient, assignments):
+        sent.append(len(assignments))
+
+    monkeypatch.setattr(
+        email_service, "send_task_assignment_digest_email", _capture_email
+    )
+    _capture_push(monkeypatch)
+
+    # Item just landed — still accumulating, nothing goes out.
+    await set_rls_context(session)
+    await _run_assignment_digest_pass(session, now=datetime.now(timezone.utc))
+    assert sent == []
+
+    # A second item lands, and the quiet period restarts from it: the run at
+    # what would have been the first item's deadline must still hold.
+    await _assignment_item_in_new_guild(session, user, label="Beta")
+    session.expunge_all()
+    await set_rls_context(session)
+    await _run_assignment_digest_pass(
+        session, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD / 2
+    )
+    assert sent == []
+
+    # Once it has been quiet, both items ship together.
+    session.expunge_all()
+    await set_rls_context(session)
+    await _run_assignment_digest_pass(
+        session, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+    )
+    assert sent == [2]
+
+
+@pytest.mark.integration
+async def test_assignment_digest_caps_a_steady_trickle(
+    session: AsyncSession, monkeypatch
+):
+    """A trickle that never goes quiet must not defer the digest forever —
+    the max window is what stops the quiet period from being gamed."""
+    user = await create_user(session, email="trickle@example.com")
+    await _assignment_item_in_new_guild(session, user, label="Alpha")
+
+    sent: list[int] = []
+
+    async def _capture_email(sess, recipient, assignments):
+        sent.append(len(assignments))
+
+    monkeypatch.setattr(
+        email_service, "send_task_assignment_digest_email", _capture_email
+    )
+    _capture_push(monkeypatch)
+
+    # An item that landed a moment ago would normally hold the digest, but the
+    # window opened long enough ago that it ships regardless.
+    await set_rls_context(session)
+    await _run_assignment_digest_pass(
+        session, now=datetime.now(timezone.utc) + ASSIGNMENT_MAX_WINDOW
+    )
+    assert sent == [1]
+
+
+@pytest.mark.integration
+async def test_assignment_digest_sends_both_channels_together(
+    session: AsyncSession, monkeypatch
+):
+    """Email and push now ship from the same pass on the same trigger, so the
+    two channels can't tell different stories about the same assignments."""
+    user = await create_user(session, email="digest-both@example.com")
+    await _assignment_item_in_new_guild(session, user, label="Alpha")
+    await _assignment_item_in_new_guild(session, user, label="Beta")
+
+    emails: list[int] = []
+
+    async def _capture_email(sess, recipient, assignments):
+        emails.append(len(assignments))
+
+    monkeypatch.setattr(
+        email_service, "send_task_assignment_digest_email", _capture_email
+    )
+    pushes = _capture_push(monkeypatch)
+
+    await set_rls_context(session)
+    await _run_assignment_digest_pass(
+        session, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+    )
+
+    assert emails == [2]
+    assert len(pushes) == 1
+    # A multi-task digest spans guilds, so it lands on My Tasks.
+    assert pushes[0]["data"]["count"] == "2"
+    assert pushes[0]["data"]["target_path"] == "/"
+    assert "guild_id" not in pushes[0]["data"]
+
+
+@pytest.mark.integration
+async def test_assignment_digest_of_one_deep_links_to_the_task(
+    session: AsyncSession, monkeypatch
+):
+    """A digest of one has an unambiguous destination, so it keeps the deep
+    link the old per-task push had."""
+    user = await create_user(session, email="digest-one@example.com")
+    guild = await _assignment_item_in_new_guild(session, user, label="Alpha")
+
+    async def _capture_email(sess, recipient, assignments):
+        return None
+
+    monkeypatch.setattr(
+        email_service, "send_task_assignment_digest_email", _capture_email
+    )
+    pushes = _capture_push(monkeypatch)
+
+    await set_rls_context(session)
+    await _run_assignment_digest_pass(
+        session, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+    )
+
+    assert len(pushes) == 1
+    assert pushes[0]["data"]["guild_id"] == str(guild.id)
+    assert pushes[0]["data"]["target_path"].startswith("/tasks/")
+
+
+@pytest.mark.integration
+async def test_assignment_digest_pushes_when_email_opted_out(
+    session: AsyncSession, monkeypatch
+):
+    """Queueing is gated on either channel, so a push-only user still gets the
+    digest — previously the queue row was written only for email."""
+    user = await create_user(
+        session,
+        email="digest-push-only@example.com",
+        email_task_assignment=False,
+        push_task_assignment=True,
+    )
+    await _assignment_item_in_new_guild(session, user, label="Alpha")
+
+    async def _fail_email(sess, recipient, assignments):  # pragma: no cover
+        raise AssertionError("email must not be sent to an opted-out user")
+
+    monkeypatch.setattr(email_service, "send_task_assignment_digest_email", _fail_email)
+    pushes = _capture_push(monkeypatch)
+
+    await set_rls_context(session)
+    await _run_assignment_digest_pass(
+        session, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+    )
+
+    assert len(pushes) == 1
+
+
+@pytest.mark.integration
+async def test_assignment_gc_drops_items_past_retention(session: AsyncSession):
+    """Digest items accumulated forever — nothing ever deleted them. The sweep
+    clears anything past the retention window, sent or not, so an orphaned
+    queue can't grow without bound either."""
+    user = await create_user(session, email="digest-gc@example.com")
+    guild = await _assignment_item_in_new_guild(session, user, label="Alpha")
+
+    async def _row_count() -> int:
+        session.expunge_all()
+        await set_rls_context(session, user_id=user.id, guild_id=guild.id)
+        rows = (await session.exec(select(TaskAssignmentDigestItem))).all()
+        return len(rows)
+
+    assert await _row_count() == 1
+
+    # Well inside the window: nothing is touched.
+    session.expunge_all()
+    await set_rls_context(session)
+    await _run_assignment_gc_pass(session, now=datetime.now(timezone.utc))
+    assert await _row_count() == 1
+
+    session.expunge_all()
+    await set_rls_context(session)
+    await _run_assignment_gc_pass(
+        session, now=datetime.now(timezone.utc) + ASSIGNMENT_ITEM_RETENTION
+    )
+    assert await _row_count() == 0
 
 
 @pytest.mark.integration

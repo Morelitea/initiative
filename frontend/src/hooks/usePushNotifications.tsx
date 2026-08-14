@@ -107,13 +107,19 @@ export const usePushNotifications = (): UsePushNotificationsReturn => {
             // Handle notification tap (navigate to target)
             console.log("Push notification action performed:", notification);
             const data = notification.notification.data;
-            if (data.target_path && data.guild_id) {
+            if (data.target_path) {
               const targetPath = data.target_path as string;
-              const guildId = data.guild_id as string;
-              router.navigate({
-                to: "/navigate",
-                search: { guild_id: guildId, target: targetPath },
-              });
+              const guildId = data.guild_id as string | undefined;
+              if (guildId) {
+                router.navigate({
+                  to: "/navigate",
+                  search: { guild_id: guildId, target: targetPath },
+                });
+              } else {
+                // Cross-guild notifications (e.g. the overdue digest) name an
+                // app-level route with no guild to switch into.
+                router.navigate({ to: targetPath });
+              }
             }
           }
         );

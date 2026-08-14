@@ -722,6 +722,18 @@ async def _set_task_assignees(
 ) -> None:
     unique_ids = list(dict.fromkeys(assignee_ids or []))
 
+    # Read the current set before replacing it, so anyone dropped can have
+    # their un-sent digest item withdrawn. An explicit query rather than
+    # ``task.assignees`` — on a freshly flushed task that relationship is not
+    # loaded yet, and touching it would fire a lazy load.
+    previous_ids = set(
+        (
+            await session.exec(
+                select(TaskAssignee.user_id).where(TaskAssignee.task_id == task.id)
+            )
+        ).all()
+    )
+
     stmt = select(User).where(User.id.in_(tuple(unique_ids))) if unique_ids else None
 
     if stmt is not None:
@@ -740,6 +752,10 @@ async def _set_task_assignees(
         session.add_all(
             [TaskAssignee(task_id=task.id, user_id=user_id) for user_id in unique_ids]
         )
+
+    await notifications_service.dequeue_task_assignment_events(
+        session, task_id=task.id, user_ids=sorted(previous_ids - set(unique_ids))
+    )
 
     await session.flush()
     await session.refresh(task, attribute_names=["assignees"])

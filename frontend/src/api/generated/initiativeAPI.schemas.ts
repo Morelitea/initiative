@@ -2893,6 +2893,7 @@ export type NotificationType = (typeof NotificationType)[keyof typeof Notificati
 
 export const NotificationType = {
   task_assignment: "task_assignment",
+  overdue_tasks: "overdue_tasks",
   initiative_added: "initiative_added",
   project_added: "project_added",
   user_pending_approval: "user_pending_approval",

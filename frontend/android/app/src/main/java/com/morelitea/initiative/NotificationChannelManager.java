@@ -9,16 +9,32 @@ import android.util.Log;
 /**
  * Manages notification channels for different types of push notifications.
  * Android O (API 26) and above require notification channels for all notifications.
+ *
+ * A channel is what the user sees (and can mute) in the OS notification
+ * settings, so related notification types share one rather than getting a row
+ * each. The backend picks the channel per notification and sends its id in the
+ * FCM payload — see PUSH_CHANNELS in backend/app/services/platform/
+ * push_notifications.py, which must stay in sync with the ids created here.
+ * A notification naming a channel this app never created lands in Firebase's
+ * own fallback channel instead, so a new channel id needs a native release.
+ *
+ * Channel ids are permanent: renaming one orphans whatever the user configured
+ * on the old channel, so change the display name, not the id.
  */
 public class NotificationChannelManager {
     private static final String TAG = "NotificationChannels";
 
-    // Channel IDs - must match backend notification types exactly
+    // Channel IDs - must match the backend's PUSH_CHANNELS values exactly
     public static final String CHANNEL_TASK_ASSIGNMENT = "task_assignment";
+    public static final String CHANNEL_OVERDUE_TASKS = "overdue_tasks";
     public static final String CHANNEL_INITIATIVE_ADDED = "initiative_added";
     public static final String CHANNEL_PROJECT_ADDED = "project_added";
     public static final String CHANNEL_USER_PENDING_APPROVAL = "user_pending_approval";
     public static final String CHANNEL_MENTION = "mention";
+    public static final String CHANNEL_COMMENTS = "comments";
+    public static final String CHANNEL_CALENDAR_EVENTS = "calendar_events";
+    public static final String CHANNEL_EVENT_REMINDER = "event_reminder";
+    public static final String CHANNEL_ACCESS_GRANTS = "access_grants";
     public static final String CHANNEL_DEFAULT = "default";
 
     /**
@@ -42,99 +58,118 @@ public class NotificationChannelManager {
         }
 
         // 1. Task Assignment Channel
-        NotificationChannel taskChannel = new NotificationChannel(
+        createChannel(
+            notificationManager,
             CHANNEL_TASK_ASSIGNMENT,
             "Task Assignments",
+            "Notifications when you're assigned to a task",
             NotificationManager.IMPORTANCE_HIGH
         );
-        taskChannel.setDescription("Notifications when you're assigned to a task");
-        taskChannel.enableVibration(true);
-        taskChannel.setShowBadge(true);
-        notificationManager.createNotificationChannel(taskChannel);
 
-        // 2. Initiative Added Channel
-        NotificationChannel initiativeChannel = new NotificationChannel(
+        // 2. Overdue Tasks Channel
+        createChannel(
+            notificationManager,
+            CHANNEL_OVERDUE_TASKS,
+            "Overdue Tasks",
+            "Your daily summary of tasks past their due date",
+            NotificationManager.IMPORTANCE_DEFAULT
+        );
+
+        // 3. Initiative Added Channel
+        createChannel(
+            notificationManager,
             CHANNEL_INITIATIVE_ADDED,
             "Initiative Invites",
+            "Notifications when you're added to an initiative",
             NotificationManager.IMPORTANCE_DEFAULT
         );
-        initiativeChannel.setDescription("Notifications when you're added to an initiative");
-        initiativeChannel.enableVibration(true);
-        initiativeChannel.setShowBadge(true);
-        notificationManager.createNotificationChannel(initiativeChannel);
 
-        // 3. Project Added Channel
-        NotificationChannel projectChannel = new NotificationChannel(
+        // 4. Project Added Channel
+        createChannel(
+            notificationManager,
             CHANNEL_PROJECT_ADDED,
             "New Projects",
+            "Notifications when projects are created in your initiatives",
             NotificationManager.IMPORTANCE_DEFAULT
         );
-        projectChannel.setDescription("Notifications when projects are created in your initiatives");
-        projectChannel.enableVibration(true);
-        projectChannel.setShowBadge(true);
-        notificationManager.createNotificationChannel(projectChannel);
 
-        // 4. User Pending Approval Channel
-        NotificationChannel userApprovalChannel = new NotificationChannel(
+        // 5. User Pending Approval Channel
+        createChannel(
+            notificationManager,
             CHANNEL_USER_PENDING_APPROVAL,
             "User Approvals",
+            "Notifications when new users request access",
             NotificationManager.IMPORTANCE_DEFAULT
         );
-        userApprovalChannel.setDescription("Notifications when new users request access");
-        userApprovalChannel.enableVibration(true);
-        userApprovalChannel.setShowBadge(true);
-        notificationManager.createNotificationChannel(userApprovalChannel);
 
-        // 5. Mentions Channel
-        NotificationChannel mentionChannel = new NotificationChannel(
+        // 6. Mentions Channel
+        createChannel(
+            notificationManager,
             CHANNEL_MENTION,
             "Mentions",
+            "Notifications when someone mentions you",
             NotificationManager.IMPORTANCE_HIGH
         );
-        mentionChannel.setDescription("Notifications when someone mentions you in a document");
-        mentionChannel.enableVibration(true);
-        mentionChannel.setShowBadge(true);
-        notificationManager.createNotificationChannel(mentionChannel);
 
-        // 6. Default Channel (fallback)
-        NotificationChannel defaultChannel = new NotificationChannel(
-            CHANNEL_DEFAULT,
-            "General Notifications",
+        // 7. Comments Channel
+        createChannel(
+            notificationManager,
+            CHANNEL_COMMENTS,
+            "Comments",
+            "Notifications when someone comments on or replies to your work",
             NotificationManager.IMPORTANCE_DEFAULT
         );
-        defaultChannel.setDescription("General app notifications");
-        defaultChannel.enableVibration(true);
-        defaultChannel.setShowBadge(true);
-        notificationManager.createNotificationChannel(defaultChannel);
+
+        // 8. Calendar Events Channel
+        createChannel(
+            notificationManager,
+            CHANNEL_CALENDAR_EVENTS,
+            "Calendar Events",
+            "Invitations, updates, cancellations, and RSVPs for events",
+            NotificationManager.IMPORTANCE_DEFAULT
+        );
+
+        // 9. Event Reminders Channel
+        createChannel(
+            notificationManager,
+            CHANNEL_EVENT_REMINDER,
+            "Event Reminders",
+            "Reminders ahead of events you're attending",
+            NotificationManager.IMPORTANCE_HIGH
+        );
+
+        // 10. Access Grants Channel
+        createChannel(
+            notificationManager,
+            CHANNEL_ACCESS_GRANTS,
+            "Access Requests",
+            "Updates on requests for temporary access to a guild",
+            NotificationManager.IMPORTANCE_DEFAULT
+        );
+
+        // 11. Default Channel (fallback)
+        createChannel(
+            notificationManager,
+            CHANNEL_DEFAULT,
+            "General Notifications",
+            "General app notifications",
+            NotificationManager.IMPORTANCE_DEFAULT
+        );
 
         Log.i(TAG, "Notification channels created successfully");
     }
 
-    /**
-     * Get the channel ID for a notification type.
-     * Maps backend notification types to Android channel IDs.
-     *
-     * @param notificationType Backend notification type (e.g., "task_assignment")
-     * @return Android channel ID
-     */
-    public static String getChannelIdForType(String notificationType) {
-        if (notificationType == null) {
-            return CHANNEL_DEFAULT;
-        }
-
-        switch (notificationType) {
-            case "task_assignment":
-                return CHANNEL_TASK_ASSIGNMENT;
-            case "initiative_added":
-                return CHANNEL_INITIATIVE_ADDED;
-            case "project_added":
-                return CHANNEL_PROJECT_ADDED;
-            case "user_pending_approval":
-                return CHANNEL_USER_PENDING_APPROVAL;
-            case "mention":
-                return CHANNEL_MENTION;
-            default:
-                return CHANNEL_DEFAULT;
-        }
+    private static void createChannel(
+        NotificationManager notificationManager,
+        String id,
+        String name,
+        String description,
+        int importance
+    ) {
+        NotificationChannel channel = new NotificationChannel(id, name, importance);
+        channel.setDescription(description);
+        channel.enableVibration(true);
+        channel.setShowBadge(true);
+        notificationManager.createNotificationChannel(channel);
     }
 }

@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import select, delete, update as sa_update
+from sqlalchemy import or_, select, delete, update as sa_update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.email_i18n import email_t, translate
@@ -22,6 +22,7 @@ from app.models.tenant.calendar_event import (
     RSVPStatus,
 )
 from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
+from app.models.platform.guild import Guild, GuildStatus
 from app.models.platform.user import User
 from app.models.platform.notification import NotificationType
 from app.services import email as email_service
@@ -30,12 +31,27 @@ from app.services.platform import push_notifications
 
 logger = logging.getLogger(__name__)
 
-DIGEST_POLL_SECONDS = 120
+DIGEST_POLL_SECONDS = 60
 OVERDUE_POLL_SECONDS = 300
+# A task-assignment digest waits for the flurry to end rather than firing on
+# the first item: it ships once nothing new has arrived for QUIET_PERIOD, so a
+# lone assignment still lands promptly while a burst collapses into one
+# notification. MAX_WINDOW bounds how long a steady trickle can hold it back.
+ASSIGNMENT_QUIET_PERIOD = timedelta(minutes=5)
+ASSIGNMENT_MAX_WINDOW = timedelta(minutes=30)
+# How long a sent digest's items are kept before the GC sweep drops them. They
+# are only bookkeeping once delivered; the notification itself lives in the
+# bell. Unsent items are dropped at the same age — anything that old is either
+# orphaned or long past being worth sending.
+ASSIGNMENT_ITEM_RETENTION = timedelta(days=7)
+ASSIGNMENT_GC_POLL_SECONDS = 3600
 EVENT_REMINDER_POLL_SECONDS = 60
 # Events that started within this window are still eligible, so a 0-minute
 # ("at start") reminder fires on the next poll rather than being missed.
 EVENT_REMINDER_GRACE = timedelta(minutes=5)
+# My Tasks is the app root: the cross-guild list of everything assigned to you.
+# Cross-guild notifications point here instead of at one guild's copy.
+MY_TASKS_TARGET_PATH = "/"
 
 
 def _normalize_target_path(target_path: str) -> str:
@@ -122,8 +138,14 @@ async def enqueue_task_assignment_event(
             "smart_link": smart_link,
         },
     )
-    # Email: enqueue digest if email preference enabled
-    if assignee.email_task_assignment is not False:
+    # Email and push both ship from the digest worker on one schedule, so the
+    # item is queued when EITHER channel is on; the worker re-reads both
+    # preferences when it sends. Only the in-app notification above is
+    # immediate — the bell is a list, not an interruption.
+    if (
+        assignee.email_task_assignment is not False
+        or assignee.push_task_assignment is not False
+    ):
         event = TaskAssignmentDigestItem(
             user_id=assignee.id,
             task_id=task.id,
@@ -134,30 +156,36 @@ async def enqueue_task_assignment_event(
             assigned_by_id=assigned_by.id,
         )
         session.add(event)
-    # Push notification
-    if assignee.push_task_assignment is not False:
-        locale = _recipient_locale(assignee)
-        try:
-            await push_notifications.send_push_to_user(
-                session=session,
-                user_id=assignee.id,
-                notification_type=NotificationType.task_assignment,
-                title=_nt("task.assignment.title", locale),
-                body=_nt(
-                    "task.assignment.body",
-                    locale,
-                    title=task.title,
-                    project=project_name,
-                ),
-                data={
-                    "type": "task_assignment",
-                    "task_id": str(task.id),
-                    "guild_id": str(guild_id),
-                    "target_path": target_path,
-                },
-            )
-        except Exception as exc:
-            logger.error(f"Failed to send push notification: {exc}", exc_info=True)
+
+
+def wants_assignment_digest(email_pref: bool | None, push_pref: bool | None) -> bool:
+    """Whether a user still wants the assignment digest on either channel.
+
+    One queue backs both, so it may only be discarded once neither is on —
+    clearing it because the email was switched off would silently take the
+    push with it.
+    """
+    return email_pref is not False or push_pref is not False
+
+
+async def dequeue_task_assignment_events(
+    session: AsyncSession, *, task_id: int, user_ids: list[int]
+) -> None:
+    """Drop pending digest items for users just unassigned from ``task_id``.
+
+    A digest that has not gone out yet should not announce an assignment that
+    no longer holds. Operates on the CURRENTLY ROUTED guild schema, which is
+    the task's own. Already-sent items are left alone — that mail is gone.
+    """
+    if not user_ids:
+        return
+    await session.exec(
+        delete(TaskAssignmentDigestItem).where(
+            TaskAssignmentDigestItem.task_id == task_id,
+            TaskAssignmentDigestItem.user_id.in_(tuple(user_ids)),
+            TaskAssignmentDigestItem.processed_at.is_(None),
+        )
+    )
 
 
 async def clear_task_assignment_queue_for_user(
@@ -1142,6 +1170,63 @@ async def notify_event_reminder(
     )
 
 
+async def _send_assignment_push(
+    session: AsyncSession, user: User, assignments: list[dict]
+) -> tuple[bool, bool]:
+    """Push a task-assignment digest. Returns ``(delivered, retry_worth_it)``.
+
+    A digest of one names its task and deep-links to it; a larger one spans
+    guilds, so it points at My Tasks the way the overdue digest does.
+    """
+    locale = _recipient_locale(user)
+    first = assignments[0]
+    data: dict[str, str] = {
+        "type": NotificationType.task_assignment.value,
+        "count": str(len(assignments)),
+        "target_path": MY_TASKS_TARGET_PATH,
+    }
+    if len(assignments) == 1 and first.get("guild_id") is not None:
+        data["target_path"] = _task_target_path(
+            first.get("task_id"), first.get("project_id")
+        )
+        data["guild_id"] = str(first["guild_id"])
+    try:
+        sent = await push_notifications.send_push_to_user(
+            session=session,
+            user_id=user.id,
+            notification_type=NotificationType.task_assignment,
+            title=_nt("task.assignment.title", locale),
+            body=_nt(
+                "task.assignment.body",
+                locale,
+                count=len(assignments),
+                title=first.get("task_title") or "",
+                project=first.get("project_name") or "",
+            ),
+            data=data,
+        )
+    except Exception as exc:
+        logger.error("Failed to send assignment digest push: %s", exc, exc_info=True)
+        return False, True
+    return sent > 0, False
+
+
+def _digest_is_due(timestamps: list[datetime], *, now: datetime) -> bool:
+    """Whether a user's queued items have settled enough to send.
+
+    The digest ships once nothing new has arrived for ``ASSIGNMENT_QUIET_PERIOD``
+    — so a lone assignment goes out promptly and a burst arrives as one — or
+    once the oldest item hits ``ASSIGNMENT_MAX_WINDOW``, which stops a steady
+    trickle from deferring it indefinitely.
+    """
+    if not timestamps:
+        return False
+    return (
+        now - max(timestamps) >= ASSIGNMENT_QUIET_PERIOD
+        or now - min(timestamps) >= ASSIGNMENT_MAX_WINDOW
+    )
+
+
 async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -> None:
     """Send task-assignment digests to opted-in users as of ``now``.
 
@@ -1149,26 +1234,40 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
     the test session. Each user's pending digest items live in their own guild
     schemas, so they're gathered with the user's membership context (no
     the guild's role) and the items are marked processed back in each schema.
+
+    Email and push ship together from here, on the same trigger, so the two
+    channels tell the same story — see :func:`_digest_is_due` for the timing.
     """
     result = await session.exec(
-        select(User).where(User.email_task_assignment.is_not(False))
+        select(User).where(
+            or_(
+                User.email_task_assignment.is_not(False),
+                User.push_task_assignment.is_not(False),
+            )
+        )
     )
     users = result.scalars().all()
     if not users:
         logger.debug("task-digest: no opted-in users")
         return
     # Capture before routing — the gather expunges the identity map.
-    candidates = [(u.id, u.email, u.last_task_assignment_digest_at) for u in users]
-    for user_id, email, last_at in candidates:
-        if last_at and last_at + timedelta(hours=1) > now:
-            continue  # rate-limited to one digest per hour
+    candidates = [
+        (u.id, u.email, u.email_task_assignment, u.push_task_assignment) for u in users
+    ]
+    for user_id, email, wants_email, wants_push in candidates:
         per_guild_items: dict[int, list[int]] = {}
+        queued_at: list[datetime] = []
 
         # Capture user_id / per_guild_items as defaults so this closure doesn't
         # bind the loop variables by reference (B023) — safe even if the call
         # site is ever refactored to defer the closures.
         async def _fetch(
-            routed: AsyncSession, gid: int, *, _uid=user_id, _items=per_guild_items
+            routed: AsyncSession,
+            gid: int,
+            *,
+            _uid=user_id,
+            _items=per_guild_items,
+            _queued=queued_at,
         ) -> list[dict]:
             items = (
                 (
@@ -1185,6 +1284,7 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
                 .all()
             )
             _items[gid] = [item.id for item in items]
+            _queued.extend(item.created_at for item in items)
             return [
                 {
                     "task_title": item.task_title,
@@ -1194,6 +1294,12 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
                         target_path=_task_target_path(item.task_id, item.project_id),
                         guild_id=gid,  # the item's guild IS the routed schema
                     ),
+                    # The push carries one deep link rather than a list; these
+                    # let a digest of one point at its task. Ignored by the
+                    # email, which renders ``link`` per row.
+                    "task_id": item.task_id,
+                    "project_id": item.project_id,
+                    "guild_id": gid,
                 }
                 for item in items
             ]
@@ -1204,7 +1310,7 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
         assignments = await gather_across_guilds(
             session, user_id, guild_ids, _fetch, satisfied_providers=SYSTEM_SATISFIED
         )
-        if not assignments:
+        if not assignments or not _digest_is_due(queued_at, now=now):
             continue
         # Send: re-load the user (gather expunged it) in a shared-table context.
         session.expunge_all()
@@ -1216,18 +1322,34 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
             user is None
         ):  # deleted between the snapshot and now — skip, don't abort the pass
             continue
-        try:
-            await email_service.send_task_assignment_digest_email(
-                session, user, assignments
-            )
-            logger.info(
-                "task-digest: sent %d assignment(s) to user %s", len(assignments), email
-            )
-        except email_service.EmailNotConfiguredError:
-            logger.warning("SMTP not configured; skipping task digest for %s", email)
-            continue
-        except RuntimeError as exc:  # pragma: no cover
-            logger.error("Failed to send task digest: %s", exc)
+        delivered = False
+        # A channel that is merely unconfigured will never deliver these items,
+        # so holding the queue for it would re-send nothing every poll forever.
+        # Only a transient failure is worth another pass.
+        retry = False
+        if wants_email is not False:
+            try:
+                await email_service.send_task_assignment_digest_email(
+                    session, user, assignments
+                )
+                delivered = True
+                logger.info(
+                    "task-digest: sent %d assignment(s) to user %s",
+                    len(assignments),
+                    email,
+                )
+            except email_service.EmailNotConfiguredError:
+                logger.warning(
+                    "SMTP not configured; skipping task digest for %s", email
+                )
+            except RuntimeError as exc:  # pragma: no cover
+                logger.error("Failed to send task digest: %s", exc)
+                retry = True
+        if wants_push is not False:
+            pushed, push_retry = await _send_assignment_push(session, user, assignments)
+            delivered = delivered or pushed
+            retry = retry or push_retry
+        if retry and not delivered:
             continue
         # Mark the gathered items processed, back in each guild's schema.
         for gid, item_ids in per_guild_items.items():
@@ -1253,6 +1375,8 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
         ).scalar_one_or_none()
         if user is None:
             continue
+        # A record of when the last digest went out (it is serialized on the
+        # user), not a gate — the send window is derived from the queue itself.
         user.last_task_assignment_digest_at = now
         session.add(user)
         await session.commit()
@@ -1261,6 +1385,43 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
 async def process_task_assignment_digests() -> None:
     async with AdminSessionLocal() as session:
         await _run_assignment_digest_pass(session, now=datetime.now(timezone.utc))
+
+
+async def _run_assignment_gc_pass(session: AsyncSession, *, now: datetime) -> None:
+    """Drop digest items older than the retention window, guild by guild.
+
+    Sent items are bookkeeping once the mail is gone. Unsent items of the same
+    age are dropped too: they are either orphaned (the user turned the channel
+    off in a guild an admin could not reach) or so stale that announcing them
+    would be noise.
+    """
+    cutoff = now - ASSIGNMENT_ITEM_RETENTION
+    guild_ids = (
+        (
+            await session.exec(
+                select(Guild.id)
+                .where(Guild.status == GuildStatus.active.value)
+                .order_by(Guild.id.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for guild_id in guild_ids:
+        session.expunge_all()
+        await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+        await session.exec(
+            delete(TaskAssignmentDigestItem).where(
+                TaskAssignmentDigestItem.created_at < cutoff
+            )
+        )
+        await session.commit()
+
+
+async def process_assignment_digest_gc() -> None:
+    async with AdminSessionLocal() as session:
+        await set_rls_context(session)
+        await _run_assignment_gc_pass(session, now=datetime.now(timezone.utc))
 
 
 def _resolve_timezone(value: str | None) -> ZoneInfo:
@@ -1310,6 +1471,42 @@ async def _overdue_tasks_for_user(session: AsyncSession, user_id: int) -> list[d
     return tasks
 
 
+async def _send_overdue_push(
+    session: AsyncSession, user: User, tasks: list[dict]
+) -> bool:
+    """Push the overdue digest to the user's devices. Returns whether it landed.
+
+    The digest spans every guild the user belongs to, so the tap lands on My
+    Tasks — the cross-guild list — rather than on any one task. It carries no
+    ``guild_id`` for that reason; the mobile tap handler treats a bare
+    ``target_path`` as an app-level route.
+    """
+    locale = _recipient_locale(user)
+    data = {
+        "type": NotificationType.overdue_tasks.value,
+        "count": str(len(tasks)),
+        "target_path": MY_TASKS_TARGET_PATH,
+    }
+    try:
+        sent = await push_notifications.send_push_to_user(
+            session=session,
+            user_id=user.id,
+            notification_type=NotificationType.overdue_tasks,
+            title=_nt("task.overdue.title", locale),
+            body=_nt(
+                "task.overdue.body",
+                locale,
+                count=len(tasks),
+                title=tasks[0]["title"],
+            ),
+            data=data,
+        )
+    except Exception as exc:
+        logger.error("Failed to send overdue push: %s", exc, exc_info=True)
+        return False
+    return sent > 0
+
+
 async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
     """Send overdue-task digests to opted-in users as of ``now``.
 
@@ -1317,8 +1514,19 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
     the test session (the worker opens its own ``AdminSessionLocal``). Each
     user's overdue tasks are gathered from their own guild schemas with their
     membership context — no all-guild access.
+
+    Both channels ship from this one pass: the digest email and, for users with
+    ``push_overdue_tasks`` on, a push notification. A user opted into either
+    channel is a candidate, so turning email off doesn't silence push.
     """
-    result = await session.exec(select(User).where(User.email_overdue_tasks.is_(True)))
+    result = await session.exec(
+        select(User).where(
+            or_(
+                User.email_overdue_tasks.is_(True),
+                User.push_overdue_tasks.is_(True),
+            )
+        )
+    )
     users = result.scalars().all()
     if not users:
         logger.debug("overdue-digest: no users opted in")
@@ -1332,10 +1540,20 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
             u.timezone,
             u.overdue_notification_time,
             u.last_overdue_notification_at,
+            u.email_overdue_tasks,
+            u.push_overdue_tasks,
         )
         for u in users
     ]
-    for user_id, email, user_tz, notify_time, last_at in candidates:
+    for (
+        user_id,
+        email,
+        user_tz,
+        notify_time,
+        last_at,
+        wants_email,
+        wants_push,
+    ) in candidates:
         tz = _resolve_timezone(user_tz)
         now_local = now.astimezone(tz)
         try:
@@ -1374,16 +1592,28 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
             user is None
         ):  # deleted between the snapshot and now — skip, don't abort the pass
             continue
-        try:
-            await email_service.send_overdue_tasks_email(session, user, tasks)
-            logger.info(
-                "overdue-digest: sent %d overdue task(s) to user %s", len(tasks), email
-            )
-        except email_service.EmailNotConfiguredError:
-            logger.warning("SMTP not configured; skipping overdue digest for %s", email)
-            continue
-        except RuntimeError as exc:  # pragma: no cover
-            logger.error("Failed to send overdue digest: %s", exc)
+        # Only stamp once something actually went out, so a channel that is
+        # merely unconfigured (no SMTP, no FCM) re-tries on the next poll
+        # instead of burning the user's one digest for the day.
+        delivered = False
+        if wants_email:
+            try:
+                await email_service.send_overdue_tasks_email(session, user, tasks)
+                delivered = True
+                logger.info(
+                    "overdue-digest: sent %d overdue task(s) to user %s",
+                    len(tasks),
+                    email,
+                )
+            except email_service.EmailNotConfiguredError:
+                logger.warning(
+                    "SMTP not configured; skipping overdue digest for %s", email
+                )
+            except RuntimeError as exc:  # pragma: no cover
+                logger.error("Failed to send overdue digest: %s", exc)
+        if wants_push:
+            delivered = await _send_overdue_push(session, user, tasks) or delivered
+        if not delivered:
             continue
         user.last_overdue_notification_at = now
         session.add(user)

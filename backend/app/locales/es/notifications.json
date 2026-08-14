@@ -2,7 +2,13 @@
   "task": {
     "assignment": {
       "title": "Nueva tarea asignada",
-      "body": "{{title}} en {{project}}"
+      "body_one": "{{title}} en {{project}}",
+      "body_other": "Se te asignaron {{count}} tareas, incluida {{title}}"
+    },
+    "overdue": {
+      "title": "Tareas vencidas",
+      "body_one": "{{count}} tarea está vencida: {{title}}",
+      "body_other": "{{count}} tareas están vencidas, incluida {{title}}"
     }
   },
   "initiative": {
