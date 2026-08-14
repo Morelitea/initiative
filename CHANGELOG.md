@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Apps can now appear inside an initiative as well as guild-wide. An app that offers an initiative surface gets a row in each initiative's sidebar section, opening a page scoped to that initiative — the same install, told which initiative it is being read in.
 - App surfaces name who they are for: everyone in the guild, an initiative's managers, or guild admins. An entry only appears for a reader it is meant for.
+- An app service can now be wired up with a separate browser address. Its base URL is where Initiative's own server calls the app, so it may be an address only your network resolves; the new browser address is where a member's browser loads that app's embedded surfaces and connection pages. Leave it blank — the default, and what every existing registration keeps — and one address serves both, exactly as before.
 - Guild admins choose which initiatives an app appears in, from the app's own settings. New installs appear in every initiative, which is the default.
 
 ### Fixed

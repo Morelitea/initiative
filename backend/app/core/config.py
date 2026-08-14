@@ -624,8 +624,13 @@ class Settings(BaseSettings):
     # database at startup so a chart can wire approved apps with no admin
     # clicks. JSON (or a JSON array in a .json file):
     #   [{"public_id": "acme.shopify", "base_url": "http://shopify:9100",
+    #     "embed_origin": "https://shopify.example.com",
     #     "secret_env": "SHOPIFY_APP_SECRET", "allowed_origins": ["…"],
     #     "grants": [], "mandatory": false}]
+    # ``base_url`` is where this deployment's server calls the app, so it may be
+    # an address only the cluster resolves; ``embed_origin`` is where a browser
+    # loads its iframes and connection pages, and is omitted when the app
+    # answers both at one address.
     # The secret is named, never inlined, so the file can be a plain ConfigMap.
     # Unset (the default) ⇒ no reconciliation runs. Reconciliation never
     # re-enables a registration an operator disabled, and never blocks boot.

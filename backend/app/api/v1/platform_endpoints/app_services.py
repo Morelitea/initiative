@@ -46,6 +46,7 @@ def _to_read(row: AppServiceRegistration) -> AppServiceRegistrationRead:
         public_id=row.public_id,
         listing_uid=row.listing_uid,
         base_url=row.base_url,
+        embed_origin=row.embed_origin,
         allowed_origins=list(row.allowed_origins or []),
         has_secret=bool(row.secret_encrypted),
         manifest_hash=row.manifest_hash,
@@ -91,6 +92,7 @@ async def create_app_service(
         base_url=payload.base_url,
         secret=payload.secret,
         public_id=payload.public_id,
+        embed_origin=payload.embed_origin,
         allowed_origins=payload.allowed_origins,
         grants=payload.grants,
         mandatory=payload.mandatory,
@@ -116,13 +118,15 @@ async def update_app_service(
     session: AdminSessionDep,
     _admin: AppsManageDep,
 ) -> AppServiceRegistrationRead:
-    """Enable/disable, rotate the secret, repoint the URL, or change the powers
-    conferred. Rotating or repointing clears the recorded verification."""
+    """Enable/disable, rotate the secret, repoint either address, or change the
+    powers conferred. Rotating the secret or repointing ``base_url`` clears the
+    recorded verification; moving the browser address alone does not."""
     row = await registrations_service.update_registration(
         session,
         registration_id,
         base_url=payload.base_url,
         secret=payload.secret,
+        embed_origin=payload.embed_origin,
         allowed_origins=payload.allowed_origins,
         grants=payload.grants,
         mandatory=payload.mandatory,
