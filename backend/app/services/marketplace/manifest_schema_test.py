@@ -287,6 +287,30 @@ ACCEPTED = [
         ),
         id="over-long-label-truncated-not-refused",
     ),
+    pytest.param(
+        _manifest(
+            features=["data"],
+            connections=[
+                {
+                    "id": "api",
+                    "scope": "static",
+                    "label": {"en": "API"},
+                    "fields": [{"key": "t", "type": "secret", "label": {"en": "T"}}],
+                }
+            ],
+            data_sources=[
+                {
+                    "id": "s",
+                    "path": "/d",
+                    # One operator plus a key from a newer manifest revision.
+                    # The platform reads the operator and drops the rest, so a
+                    # rule that counted properties would refuse this.
+                    "requires": {"all_of": ["api"], "from_a_newer_revision": True},
+                }
+            ],
+        ),
+        id="requires-alongside-an-unknown-key",
+    ),
 ]
 
 
@@ -341,6 +365,28 @@ REFUSED_BY_BOTH = [
             ],
         ),
         id="capability-not-on-offer",
+    ),
+    # The two shapes `oneOf` has to keep refusing now that the object no longer
+    # counts its properties.
+    pytest.param(
+        _manifest(
+            features=["data"],
+            data_sources=[
+                {
+                    "id": "s",
+                    "path": "/d",
+                    "requires": {"all_of": ["a"], "any_of": ["b"]},
+                }
+            ],
+        ),
+        id="requires-naming-both-operators",
+    ),
+    pytest.param(
+        _manifest(
+            features=["data"],
+            data_sources=[{"id": "s", "path": "/d", "requires": {}}],
+        ),
+        id="requires-naming-no-operator",
     ),
 ]
 

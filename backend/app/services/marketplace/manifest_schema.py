@@ -205,10 +205,12 @@ def _field(*, types: frozenset[str], allow_managed: bool) -> dict[str, Any]:
 def _requires() -> dict[str, Any]:
     """Which connections satisfy an item — one level, one operator.
 
-    Exactly one of ``all_of`` / ``any_of``, expressed as
-    ``minProperties``/``maxProperties`` over a closed pair rather than a
-    ``oneOf``: the error an author gets from the former names the object they
-    wrote, and the latter reports every branch that failed.
+    ``oneOf`` over the two operators rather than a property count. The count
+    reads better in an error, but it counts *every* key: an unknown property
+    beside a valid operator would push the object to two, and the platform keeps
+    the operator and discards the unknown one. ``oneOf`` asks the question that
+    is actually being asked — is exactly one of these two present — and ignores
+    anything else in the object.
     """
     terms = {
         "type": "array",
@@ -223,9 +225,8 @@ def _requires() -> dict[str, Any]:
             "Exactly one of 'all_of' or 'any_of'; each id must name a connection "
             "this manifest declares. Absent means always available."
         ),
-        "minProperties": 1,
-        "maxProperties": 1,
         "properties": {"all_of": terms, "any_of": terms},
+        "oneOf": [{"required": ["all_of"]}, {"required": ["any_of"]}],
     }
 
 

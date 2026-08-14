@@ -120,8 +120,6 @@
     "requires": {
       "type": "object",
       "description": "Connection ids that must hold a value before this is offered. Exactly one of 'all_of' or 'any_of'; each id must name a connection this manifest declares. Absent means always available.",
-      "minProperties": 1,
-      "maxProperties": 1,
       "properties": {
         "all_of": {
           "type": "array",
@@ -139,7 +137,19 @@
             "$ref": "#/$defs/identifier"
           }
         }
-      }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "all_of"
+          ]
+        },
+        {
+          "required": [
+            "any_of"
+          ]
+        }
+      ]
     },
     "accessHint": {
       "type": "object",
