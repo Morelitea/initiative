@@ -18,12 +18,16 @@ that created nothing.
 
 import pytest
 
+from app.models.tenant.guild_app import GuildApp
 from app.services.marketplace.definitions import MOUNTABLE_TOOLS
 from app.services.tenant.guild_apps import (
     ARTIFACT_HANDLERS,
+    PlacementError,
     app_artifacts,
     get_app_content_id,
     legacy_artifacts,
+    normalize_placement,
+    placed_in,
 )
 
 pytestmark = pytest.mark.unit
@@ -109,3 +113,77 @@ class TestArtifactReading:
             ],
         )
         assert app_artifacts(app) == [{"type": "calendar", "id": 5}]
+
+
+class TestPlacement:
+    """Where an app's initiative surfaces appear.
+
+    Three states with one representation each, so a reader never has to work out
+    which of two shapes meant the same thing.
+    """
+
+    def test_saying_nothing_means_every_initiative(self):
+        assert normalize_placement(None, initiative_ids={1, 2}) == {}
+        assert normalize_placement({}, initiative_ids={1, 2}) == {}
+
+    def test_an_admin_may_narrow_it(self):
+        assert normalize_placement({"initiatives": [2, 1]}, initiative_ids={1, 2}) == {
+            "initiatives": [1, 2]
+        }
+
+    def test_naming_none_is_a_choice_rather_than_an_accident(self):
+        # Keeps the guild-wide surface and drops the per-initiative ones, which
+        # is a different wish from turning the whole app off.
+        assert normalize_placement({"initiatives": []}, initiative_ids={1}) == {
+            "initiatives": []
+        }
+
+    def test_a_repeated_id_is_stored_once(self):
+        assert normalize_placement({"initiatives": [1, 1]}, initiative_ids={1}) == {
+            "initiatives": [1]
+        }
+
+    def test_it_may_only_name_this_guild_s_initiatives(self):
+        with pytest.raises(PlacementError, match="not one of this guild"):
+            normalize_placement({"initiatives": [9]}, initiative_ids={1, 2})
+
+    def test_an_unknown_key_is_refused(self):
+        with pytest.raises(PlacementError, match="does not take"):
+            normalize_placement({"projects": [1]}, initiative_ids={1})
+
+    @pytest.mark.parametrize("value", ["1", 1.5, True, None, {"id": 1}])
+    def test_an_id_is_a_whole_number(self, value):
+        with pytest.raises(PlacementError, match="list of ids"):
+            normalize_placement({"initiatives": [value]}, initiative_ids={1})
+
+    def test_it_must_be_an_object(self):
+        with pytest.raises(PlacementError, match="must be an object"):
+            normalize_placement([1, 2], initiative_ids={1})
+
+    @staticmethod
+    def _app(placement: dict) -> GuildApp:
+        """An install carrying nothing but the placement under test."""
+        return GuildApp(
+            guild_id=1,
+            listing_uid="0000000000000",
+            listing_version="1.0.0",
+            app_kind="service",
+            name="WidgetCo",
+            installed_by_id=1,
+            placement=placement,
+        )
+
+    def test_an_unplaced_app_is_offered_everywhere(self):
+        app = self._app({})
+        assert placed_in(app, 1) is True
+        assert placed_in(app, 99) is True
+
+    def test_a_placed_app_is_offered_where_it_was_placed(self):
+        app = self._app({"initiatives": [1]})
+        assert placed_in(app, 1) is True
+        assert placed_in(app, 2) is False
+
+    def test_placement_says_nothing_about_the_guild_wide_reading(self):
+        # There is one guild-wide surface, and narrowing where the initiative
+        # ones appear does not move it.
+        assert placed_in(self._app({"initiatives": []}), None) is True

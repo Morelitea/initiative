@@ -28,7 +28,7 @@ nothing, whether or not the guild wanted it.
 
 import logging
 from datetime import datetime, timezone
-from typing import Annotated, Optional
+from typing import Annotated, Any, Optional
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -143,6 +143,22 @@ async def _load_initiative(
             detail=InitiativeMessages.NOT_FOUND,
         )
     return initiative
+
+
+async def _normalized_placement(session: RLSSessionDep, raw: Any) -> dict[str, Any]:
+    """What an admin chose, checked against the initiatives they have.
+
+    The ids come from the same routed session the rest of the request runs on,
+    so a placement can only ever name an initiative of this guild.
+    """
+    ids = set((await session.exec(select(Initiative.id))).all())
+    try:
+        return guild_apps_service.normalize_placement(raw, initiative_ids=ids)
+    except guild_apps_service.PlacementError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=GuildAppMessages.PLACEMENT_INVALID,
+        ) from exc
 
 
 async def _load(session: RLSSessionDep, app_id: int) -> GuildApp:
@@ -460,11 +476,16 @@ async def update_guild_app(
     current_user: CurrentUser,
     guild_context: GuildContextDep,
 ) -> GuildAppRead:
-    """Rename an app, or turn it off without removing what it created.
+    """Rename an app, place it, or turn it off without removing what it created.
 
     Renaming is always allowed — a guild may call an app whatever it likes.
     Turning one off is a different matter for an app the deployment provides:
     that switch belongs to the operator, so it is refused by name here.
+
+    Placement says which initiatives an app's initiative-scoped surfaces appear
+    in; ``{}`` is every one of them, which is where an install starts. It is the
+    guild's own answer to where an app belongs rather than a permission, so it
+    reads the same for everyone, admins included.
     """
     _require_guild_admin(guild_context)
     app = await _load(session, app_id)
@@ -476,6 +497,8 @@ async def update_guild_app(
         if not data["enabled"]:
             await _require_removable(app)
         app.enabled = data["enabled"]
+    if "placement" in data:
+        app.placement = await _normalized_placement(session, data["placement"])
     app.updated_at = datetime.now(timezone.utc)
     session.add(app)
     await session.commit()

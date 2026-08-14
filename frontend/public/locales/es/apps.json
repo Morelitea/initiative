@@ -111,5 +111,12 @@
     "unavailableDescription": "Un administrador debe conectar el servicio de esta aplicación antes de poder abrirla.",
     "noSurface": "{{name}} no tiene una página propia"
   },
-  "browse": "Explorar la tienda de aplicaciones"
+  "browse": "Explorar la tienda de aplicaciones",
+  "placement": {
+    "title": "Dónde aparece esta aplicación",
+    "description": "Esta aplicación ofrece una página dentro de las iniciativas. Elige en cuáles aparece.",
+    "all": "Todas las iniciativas",
+    "some": "Solo las iniciativas que yo elija",
+    "none": "No se eligió ninguna iniciativa, así que esta aplicación solo aparece a nivel de gremio."
+  }
 }

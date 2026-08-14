@@ -851,11 +851,16 @@ export function useGetGuildAppApiV1GGuildIdAppsAppIdGet<
 }
 
 /**
- * Rename an app, or turn it off without removing what it created.
+ * Rename an app, place it, or turn it off without removing what it created.
  *
  * Renaming is always allowed — a guild may call an app whatever it likes.
  * Turning one off is a different matter for an app the deployment provides:
  * that switch belongs to the operator, so it is refused by name here.
+ *
+ * Placement says which initiatives an app's initiative-scoped surfaces appear
+ * in; ``{}`` is every one of them, which is where an install starts. It is the
+ * guild's own answer to where an app belongs rather than a permission, so it
+ * reads the same for everyone, admins included.
  * @summary Update Guild App
  */
 export const updateGuildAppApiV1GGuildIdAppsAppIdPatch = (
@@ -2245,12 +2250,10 @@ export const useRevokeAllMemberConnectionsApiV1GGuildIdAppsAppIdRevokeAllPost = 
  * but the surface is being opened somewhere narrower, and the token says so.
  *
  * Three gates, outermost first. The initiative must be one this caller can
- * reach at all, which the routed session answers: a member of another
- * initiative simply does not see the row. The manifest must declare the
- * surface for this scope. And the surface's ``visibility`` is then read
- * *here*, where ``member`` means this initiative's members and
- * ``initiative_manager`` means its managers — a guild admin clears both, as
- * they do everywhere in their own guild.
+ * reach. The manifest must declare the surface for this scope. And the
+ * surface's ``visibility`` is then read *here*, where ``member`` means this
+ * initiative's members and ``initiative_manager`` means its managers — a
+ * guild admin clears both, as they do everywhere in their own guild.
  *
  * The initiative in the minted token is this route's, never the caller's to
  * supply, so an app can scope what it shows without asking a second question
