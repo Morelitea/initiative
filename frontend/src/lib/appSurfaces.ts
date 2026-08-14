@@ -35,9 +35,8 @@ export interface AppEmbed {
  * The `allow` attribute for a surface's frame.
  *
  * A frame is granted what its manifest named and nothing else, so a surface
- * that named nothing gets an empty attribute — which is every feature denied.
- * Each entry defaults to the frame's own origin, so a granted feature reaches
- * the app itself and not whatever the app goes on to embed.
+ * that named nothing gets an empty attribute. Each entry defaults to the
+ * frame's own origin, which is the app's.
  */
 export const embedAllow = (embed: Pick<AppEmbed, "capabilities"> | null | undefined): string =>
   (embed?.capabilities ?? []).join("; ");

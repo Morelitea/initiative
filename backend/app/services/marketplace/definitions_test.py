@@ -579,6 +579,16 @@ class TestWhatASurfaceMayAskItsFrameFor:
         with pytest.raises(ListingDefinitionError, match="not a capability"):
             self._embed(capabilities=["midi"])
 
+    @pytest.mark.parametrize(
+        "entry", [{"camera": True}, ["camera"], 7, None, True], ids=repr
+    )
+    def test_an_entry_that_is_not_a_name_is_refused(self, entry):
+        """A publisher gets the same validation error for any entry that is not
+        one of the names. Set membership is defined only for a hashable value,
+        so an entry is typed before it is looked up rather than after."""
+        with pytest.raises(ListingDefinitionError, match="not a capability"):
+            self._embed(capabilities=[entry])
+
     def test_payment_is_not_namable(self):
         """The platform takes payment on its own pages, so an embedded surface
         has no reading of this to request."""
