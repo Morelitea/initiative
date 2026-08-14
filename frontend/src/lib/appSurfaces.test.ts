@@ -13,6 +13,7 @@ import { describe, expect, it } from "vitest";
 import {
   appEmbeds,
   clearsVisibility,
+  embedAllow,
   guildAppPath,
   initiativeAppPath,
   placedIn,
@@ -28,6 +29,26 @@ const embed = (id: string, scopes?: string[], visibility?: string) => ({
   name: { en: id },
   ...(scopes ? { scopes } : {}),
   ...(visibility ? { visibility } : {}),
+});
+
+describe("embedAllow", () => {
+  it("grants a surface exactly what it asked for", () => {
+    expect(embedAllow({ capabilities: ["clipboard-write", "fullscreen"] })).toBe(
+      "clipboard-write; fullscreen"
+    );
+  });
+
+  it("grants nothing to a surface that asked for nothing", () => {
+    expect(embedAllow({ capabilities: [] })).toBe("");
+  });
+
+  it("grants nothing to a definition pinned before surfaces could ask", () => {
+    expect(embedAllow({})).toBe("");
+  });
+
+  it("grants nothing when there is no surface open", () => {
+    expect(embedAllow(null)).toBe("");
+  });
 });
 
 describe("clearsVisibility", () => {

@@ -75,15 +75,20 @@ const delivered = () =>
     .map((message) => message.handoff_token);
 
 let postSpy: ReturnType<typeof vi.fn>;
+let frameWindow: { postMessage: ReturnType<typeof vi.fn> };
 
 beforeEach(() => {
   mint.mockReset();
   postSpy = vi.fn();
   // Every iframe in the page reports the same window, which is the worst case:
   // nothing about the target distinguishes one surface's frame from another's.
+  // Stable across reads, the way a real frame's is — the page compares this
+  // value against itself to decide what is still current, so a getter handing
+  // back a fresh object each time would answer those comparisons by accident.
+  frameWindow = { postMessage: postSpy };
   Object.defineProperty(HTMLIFrameElement.prototype, "contentWindow", {
     configurable: true,
-    get: () => ({ postMessage: postSpy }),
+    get: () => frameWindow,
   });
 });
 
@@ -92,6 +97,9 @@ const ready = () =>
     new MessageEvent("message", {
       origin: "https://app.example.com",
       data: { type: "initiative-app:ready" },
+      // An announcement says which window it came from; the page exchanges
+      // only with the frame it mounted.
+      source: frameWindow as unknown as Window,
     })
   );
 
@@ -122,6 +130,32 @@ describe("GuildAppPage", () => {
     renderPage(() => <GuildAppPage appId={1} viewer={ADMIN} />);
 
     await screen.findByTitle("Automations");
+    await announceReady();
+  });
+
+  it("ignores an announcement from a window it did not mount", async () => {
+    // An app may have other windows at its own origin — a popup it opened for
+    // a vendor flow — so the origin alone does not say the mounted frame is
+    // asking. Nothing is handed over, and the token stays unspent for the
+    // frame that does ask.
+    mint.mockImplementation((surfaceId: string) => Promise.resolve(handoff(surfaceId)));
+    const { GuildAppPage } = await import("./GuildAppPage");
+    renderPage(() => <GuildAppPage appId={1} viewer={ADMIN} />);
+
+    await screen.findByTitle("Automations");
+    await waitFor(() => expect(mint).toHaveBeenCalledWith("one", expect.anything()));
+
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        origin: "https://app.example.com",
+        data: { type: "initiative-app:ready" },
+        source: { postMessage: vi.fn() } as unknown as Window,
+      })
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(delivered()).toEqual([]);
+
+    // The real frame still gets its token.
     await announceReady();
   });
 

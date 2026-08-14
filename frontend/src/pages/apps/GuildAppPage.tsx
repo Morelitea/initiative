@@ -26,7 +26,7 @@ import type { GuildAppHandoff } from "@/api/generated/initiativeAPI.schemas";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildAppDetail } from "@/hooks/useGuildAppDetail";
-import { appEmbeds, type SurfaceViewer } from "@/lib/appSurfaces";
+import { appEmbeds, embedAllow, type SurfaceViewer } from "@/lib/appSurfaces";
 import { cn } from "@/lib/utils";
 import { localized } from "@/lib/widgets/widgetMeta";
 
@@ -164,12 +164,15 @@ export function GuildAppPage({ appId, initiativeId, viewer }: GuildAppPageProps)
 
     const onMessage = (event: MessageEvent) => {
       if (!allowed.has(event.origin)) return;
+      // The mounted frame is the only window this page exchanges with. An app
+      // may have other windows at the same origin — a popup it opened for a
+      // vendor flow — and the origin alone does not tell them apart.
+      const target = iframeRef.current?.contentWindow;
+      if (!target || event.source !== target) return;
       const data = event.data;
       if (!data || typeof data !== "object" || typeof data.type !== "string") return;
 
       if (data.type === READY) {
-        const target = iframeRef.current?.contentWindow;
-        if (!target) return;
         if (!spentRef.current) {
           send(target, handoff);
           spentRef.current = true;
@@ -262,7 +265,9 @@ export function GuildAppPage({ appId, initiativeId, viewer }: GuildAppPageProps)
           // allow-popups-to-escape-sandbox.
           sandbox="allow-scripts allow-same-origin allow-forms allow-downloads"
           referrerPolicy="no-referrer"
-          allow="clipboard-read; clipboard-write"
+          // Exactly what this surface's manifest asked for. A surface that
+          // asked for nothing gets an empty attribute, which denies the lot.
+          allow={embedAllow(active)}
         />
       ) : (
         <div className="flex flex-1 items-center gap-2 p-4 text-muted-foreground text-sm">

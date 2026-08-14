@@ -55,6 +55,7 @@ __all__ = [
     "APP_PROTOCOL_VERSIONS",
     "APP_WIDGET_TYPE_PREFIX",
     "CONNECTION_SCOPES",
+    "EMBED_CAPABILITIES",
     "FEATURES",
     "FEATURE_BLOCKS",
     "FIELD_TYPES",
@@ -137,6 +138,33 @@ VISIBILITIES: frozenset[str] = frozenset(VISIBILITY_LADDER)
 #: ``initiative_manager`` is absent: outside an initiative there is nothing to
 #: manage, so the value would be stored as a claim nothing could ever evaluate.
 GUILD_WIDE_VISIBILITIES: frozenset[str] = VISIBILITIES - {"initiative_manager"}
+
+#: Browser features an embedded surface may ask its frame for.
+#:
+#: A frame is granted nothing it did not name here, so an app that says nothing
+#: gets a frame with every one of these denied. The vocabulary is closed for the
+#: same reason every other one in this module is: a value outside it is refused
+#: with a reason rather than stored as a request nothing resolves.
+#:
+#: These are Permissions-Policy feature names, and what a manifest asks for is
+#: what a guild admin is shown at install. ``payment`` is deliberately not
+#: namable — an embedded surface takes no money, and the platform processes
+#: payments on its own pages.
+EMBED_CAPABILITIES: frozenset[str] = frozenset(
+    {
+        "camera",
+        "clipboard-read",
+        "clipboard-write",
+        "display-capture",
+        "fullscreen",
+        "geolocation",
+        "microphone",
+    }
+)
+
+#: No surface has a use for the whole vocabulary at once; a manifest reaching
+#: this many is describing something other than an embedded page.
+MAX_EMBED_CAPABILITIES = 8
 
 #: Protocol versions this build speaks to an app service. A manifest naming a
 #: newer one is refused by name — the version floor (`min_app_version`) is how a
@@ -532,6 +560,27 @@ def _scopes(raw: Any, *, what: str) -> list[str]:
     return sorted(scopes)
 
 
+def _capabilities(raw: Any, *, what: str) -> list[str]:
+    """The browser features a surface asks its frame for.
+
+    Absent means none, which is also what a frame gets when the manifest names
+    nothing. Sorted and de-duplicated, so re-publishing the same manifest
+    produces the same document.
+    """
+    if raw is None:
+        return []
+    declared = require_list(raw, f"{what} capabilities", MAX_EMBED_CAPABILITIES)
+    capabilities: set[str] = set()
+    for entry in declared:
+        if entry not in EMBED_CAPABILITIES:
+            fail(
+                f"{what}: {entry!r} is not a capability a surface may request "
+                f"(one of {', '.join(sorted(EMBED_CAPABILITIES))})"
+            )
+        capabilities.add(entry)
+    return sorted(capabilities)
+
+
 def _embed(raw: Any, *, connection_ids: set[str]) -> dict[str, Any]:
     embed = require_mapping(raw, "embed")
     embed_id = check_identifier(embed.get("id"), what="embed id")
@@ -553,6 +602,9 @@ def _embed(raw: Any, *, connection_ids: set[str]) -> dict[str, Any]:
         ),
         "name": _label(embed.get("name"), what=what),
     }
+    capabilities = _capabilities(embed.get("capabilities"), what=what)
+    if capabilities:
+        cleaned["capabilities"] = capabilities
     requires = _requires(
         embed.get("requires"), connection_ids=connection_ids, what=what
     )
