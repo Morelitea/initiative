@@ -95,6 +95,8 @@ export const SettingsAppServicesPage = () => {
             embed_origin: values.embedOrigin,
             allowed_origins: origins,
             grants,
+            // Null leaves the stored key set alone; {} clears it.
+            ...(values.delegationJwks === null ? {} : { delegation_jwks: values.delegationJwks }),
             mandatory: values.mandatory,
             // Sending a secret re-targets the registration and clears its
             // recorded verification, so only send one the operator typed.
@@ -120,6 +122,7 @@ export const SettingsAppServicesPage = () => {
         embed_origin: values.embedOrigin || null,
         allowed_origins: origins,
         grants,
+        delegation_jwks: values.delegationJwks,
         mandatory: values.mandatory,
       },
       {

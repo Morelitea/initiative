@@ -429,6 +429,8 @@ export interface AppDataSourceRead {
   params_schema?: AppDataParam[];
 }
 
+export type AppServiceRegistrationCreateDelegationJwks = { [key: string]: unknown } | null;
+
 /**
  * Wire an app service up.
  *
@@ -448,9 +450,12 @@ export interface AppServiceRegistrationCreate {
   embed_origin?: string | null;
   allowed_origins?: string[] | null;
   grants?: string[] | null;
+  delegation_jwks?: AppServiceRegistrationCreateDelegationJwks;
   mandatory?: boolean;
   enabled?: boolean;
 }
+
+export type AppServiceRegistrationReadDelegationJwks = { [key: string]: unknown } | null;
 
 /**
  * A registration as the admin surface sees it.
@@ -466,6 +471,7 @@ export interface AppServiceRegistrationRead {
   manifest_hash: string | null;
   protocol_version: number | null;
   grants: string[];
+  delegation_jwks: AppServiceRegistrationReadDelegationJwks;
   mandatory: boolean;
   enabled: boolean;
   status: string;
@@ -473,6 +479,8 @@ export interface AppServiceRegistrationRead {
   created_at: string;
   updated_at: string;
 }
+
+export type AppServiceRegistrationUpdateDelegationJwks = { [key: string]: unknown } | null;
 
 /**
  * Partial edit. Rotating ``secret`` or repointing ``base_url`` clears the
@@ -488,6 +496,7 @@ export interface AppServiceRegistrationUpdate {
   embed_origin?: string | null;
   allowed_origins?: string[] | null;
   grants?: string[] | null;
+  delegation_jwks?: AppServiceRegistrationUpdateDelegationJwks;
   mandatory?: boolean | null;
   enabled?: boolean | null;
 }

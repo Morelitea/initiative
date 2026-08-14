@@ -383,6 +383,7 @@
   "APP_SERVICE_INVALID_PUBLIC_ID": "Cet identifiant d'application n'est pas valide. Utilisez la forme editeur.nom, en minuscules.",
   "APP_SERVICE_INVALID_BASE_URL": "Cette adresse n'est pas valide. Indiquez l'URL de base de l'application, sans paramètres de requête.",
   "APP_SERVICE_INVALID_ORIGIN": "Une origine autorisée n'est pas valide. Utilisez schéma://hôte avec un port facultatif et sans chemin.",
+  "APP_SERVICE_INVALID_DELEGATION_JWKS": "Ce jeu de clés de délégation ne permet pas à cette installation de vérifier un jeton.",
   "APP_SERVICE_UNKNOWN_GRANT": "Cette autorisation ne peut pas être accordée à un service applicatif.",
   "APP_SERVICE_SECRET_REQUIRED": "Ce service applicatif a besoin d'un secret partagé avant de pouvoir être vérifié.",
   "APP_SERVICE_SIGNING_NOT_CONFIGURED": "Les services applicatifs nécessitent une clé de signature qui n'est pas encore configurée. Contactez votre administration.",
