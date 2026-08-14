@@ -19,8 +19,11 @@ from app.services.marketplace.registration_lookup import (
     invalidate_registrations,
 )
 from app.testing import create_guild, create_guild_membership, create_user
+from app.models.tenant.guild_app import GuildApp
+from app.testing.schema_harness import route_session_to_guild
 from app.testing.delegation import (
     DELEGATE_KID,
+    DELEGATE_LISTING_UID,
     install_delegate,
     delegation_jwks,
     foreign_jwks,
@@ -220,3 +223,48 @@ async def test_a_switched_off_install_stops_the_app(
         },
     )
     assert response.status_code == 401
+
+
+@pytest.mark.integration
+async def test_a_token_naming_no_guild_is_refused_not_an_error(
+    client: AsyncClient, session: AsyncSession
+):
+    """A guild id naming no guild has no schema to read, and the call is
+    refused the way every other delegation refusal is rather than faulting."""
+    user = await create_user(session, email="absent-guild@example.com")
+    await register_delegate(session)
+
+    assert await _call_as_delegate(client, user.id, 9_999_999) == 401
+
+
+@pytest.mark.integration
+async def test_another_apps_install_does_not_let_this_one_act(
+    client: AsyncClient, session: AsyncSession
+):
+    """The install is matched on the service its pinned definition names. A
+    guild that installed some other app has not installed this one, whatever
+    listing the two happen to point at."""
+    user = await create_user(session, email="other-app@example.com")
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild)
+    await register_delegate(session)
+
+    # Same listing uid, a different app behind it.
+    await route_session_to_guild(session, guild.id)
+    session.add(
+        GuildApp(
+            guild_id=guild.id,
+            listing_uid=DELEGATE_LISTING_UID,
+            listing_version="1.0.0",
+            app_kind="service",
+            name="Someone else",
+            definition={
+                "app_kind": "service",
+                "service": {"public_id": "other.app"},
+            },
+            installed_by_id=user.id,
+        )
+    )
+    await session.commit()
+
+    assert await _call_as_delegate(client, user.id, guild.id) == 401

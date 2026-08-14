@@ -142,7 +142,7 @@ async def _authenticate_auto_delegation(
     # for every route a delegated call can reach — including the cross-guild
     # `/me/*` views, which have no path guild to check.
     if not await registration_lookup.app_is_installed(
-        claims.guild_id, signer.registration.listing_uid
+        claims.guild_id, signer.registration.public_id
     ):
         return None
 
