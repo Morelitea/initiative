@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.62.4] - 2026-08-13
+
 ### Fixed
 
 - An app's embedded surface now fills the page instead of sitting in a short box at the top.
