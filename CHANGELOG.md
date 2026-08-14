@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Apps can now appear inside an initiative as well as guild-wide. An app that offers an initiative surface gets a row in each initiative's sidebar section, opening a page scoped to that initiative — the same install, told which initiative it is being read in.
 - App surfaces name who they are for: everyone in the guild, an initiative's managers, or guild admins. An entry only appears for a reader it is meant for.
+- **Dashboards have a settings page.** A dashboard can now be renamed, described, tagged, shared, and deleted like every other tool, from a Settings button on the dashboard itself.
+
+### Changed
+
+- **Every tool's settings page is the same page now.** Projects, documents, queues, counter groups, calendars, and dashboards share one layout — Details, Access, Advanced — with rename and delete always in the same place. Calendars pick up the tabbed layout the others already had, and whatever is particular to a tool sits alongside the common settings rather than replacing them: a project's schedule and task statuses, a counter group's duplicate, a calendar's color, a document's copies.
+- Deleting a tool now names the thing being deleted, so the confirmation reads "Delete "Q3 Roadmap"?" instead of naming only its kind.
 
 ### Fixed
 
