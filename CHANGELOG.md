@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - An app's embedded page is granted only the browser features its manifest asks for, from a fixed list — camera, microphone, location, screen capture, clipboard, and fullscreen. A surface that asks for nothing runs with all of them denied. What an app requests is part of what it declares, so it can be read before installing.
+- **A guild tells its members about the guild, and its admins about running it.** Everyone in a guild still sees its name, description, icon, member count, and whether content is currently read-only. The administration details — the storage and member limits set for the guild and its trash retention window — now reach guild admins only, matching the settings pages that are already theirs alone.
 
 ### Fixed
 

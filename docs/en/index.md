@@ -4,7 +4,7 @@ icon: lucide/compass
 
 # Welcome to Initiative
 
-Initiative is a friendly home for your group's projects, tasks, documents, and plans. It's built for teams, clubs, gaming groups, and families who want to stay organized together without wrestling with complicated software.
+Initiative is where your group's projects, tasks, documents, and plans live together. It's made for small businesses, clubs, committees, event teams, families, and anyone else coordinating work with other people — without needing to learn project management first.
 
 !!! screenshot "The main screen, after signing in"
     **Show:** the whole app — the guild rail down the far left, the sidebar beside it (the guild's initiatives), and a project board open in the middle.
@@ -12,9 +12,13 @@ Initiative is a friendly home for your group's projects, tasks, documents, and p
     When you have the picture, save it to `en/images/home/overview.png` and replace this box with:
     `![The Initiative home screen](images/home/overview.png)`
 
+## Start small; it grows with you
+
+You can get real value on day one from a single board with tasks on it. Later, when your group needs a shared calendar, or a place to write things down, or a way to report on how the work is going, those are waiting — and until then they stay out of your way.
+
 ## New here? Start at the beginning
 
-If this is your first time, **Getting started** is the place to go. It covers creating your account, finding your way around, and joining or creating your first workspace.
+If this is your first time, **Getting started** covers creating your account, finding your way around, and joining or creating your first workspace.
 
 [Start with Getting started →](getting-started/index.md){ .md-button .md-button--primary }
 
@@ -40,9 +44,15 @@ If this is your first time, **Getting started** is the place to go. It covers cr
 
     [:octicons-arrow-right-24: How-to guides](guides/index.md)
 
+-   :material-storefront-outline: __Apps & the marketplace__
+
+    Add ready-made dashboards and apps built by other groups like yours.
+
+    [:octicons-arrow-right-24: Apps & the marketplace](guides/apps-and-marketplace.md)
+
 -   :material-account-multiple-check-outline: __Sharing & access__
 
-    Decide who can see and edit each project and document.
+    Decide exactly who can see and edit each project and document.
 
     [:octicons-arrow-right-24: Sharing & access](sharing/index.md)
 
@@ -60,8 +70,20 @@ If this is your first time, **Getting started** is the place to go. It covers cr
 
 </div>
 
+## You choose who sees what
+
+Nothing in Initiative is visible to "everyone" by default. Your group's space is separate from every other group's; inside it, each effort is visible only to the people you add to it; and individual projects and documents can be narrowed further still.
+
+That means a business owner can keep payroll planning away from the seasonal staff, and an event team can work on next year's programme without the volunteers seeing it — in the same workspace, with no extra setup. [How that works →](sharing/index.md)
+
 ??? techspec "For the technically minded — what Initiative is, briefly"
-    Initiative is a self-hosted web application. The interface is a single-page web app; it talks to a Python service backed by a PostgreSQL database. Each group ("guild") gets its own isolated area of the database, and who-can-see-what is enforced inside the database itself, not only in the app. There's a companion mobile app (iOS and Android) for notifications and on-the-go use. More in [Security & privacy](security/index.md) and the [administrator guide](admin/index.md).
+    Initiative is a web application you can run yourself. The interface is a single-page web app; it talks to a Python service backed by a PostgreSQL database. Each group ("guild") gets its **own database schema**, so a request in one guild can't address another guild's tables at all; the finer layers inside a guild — which effort, which role, which item — are enforced by the database's own row-level security rather than by the app alone. There's a companion mobile app (iOS and Android) for notifications and on-the-go use. More in [Security & privacy](security/index.md) and the [administrator guide](admin/index.md).
+
+## The tools come from people like you
+
+The thing your group needs has usually already been built by another group with the same problem. Initiative's **marketplace** lets you add ready-made dashboards and apps to your workspace in a couple of clicks — no developer, no custom build.
+
+It's curated, not a free-for-all: your marketplace holds what ships with Initiative plus what the person running your server has approved. See [Apps & the marketplace](guides/apps-and-marketplace.md).
 
 ## A note on the words we use
 
@@ -71,3 +93,7 @@ Initiative borrows a few everyday words and gives them a specific meaning. The t
 - An **initiative** is a folder for a big effort inside a guild. It gathers related projects and documents in one place.
 
 There's a full [glossary](reference/glossary.md) if you ever hit a word you don't recognize.
+
+## Built in the open
+
+Initiative is developed publicly, and the feedback of the people using it shapes what gets built next. If something here is unclear, wrong, or missing, that's worth telling us about — the [project on GitHub](https://github.com/Morelitea/initiative) is where it happens.

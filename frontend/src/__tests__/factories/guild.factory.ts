@@ -26,7 +26,7 @@ export function buildGuild(overrides: Partial<GuildRead> = {}): GuildRead {
 
 export function buildGuildInviteStatus(
   overrides: Partial<GuildInviteStatus> = {}
-): GuildReadInviteStatus {
+): GuildInviteStatus {
   counter++;
   return {
     code: `invite-code-${counter}`,

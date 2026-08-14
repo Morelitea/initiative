@@ -15,7 +15,12 @@ import { formatBytes } from "@/lib/fileUtils";
 const ratioPct = (used: number, max: number | null): number | null =>
   max && max > 0 ? Math.min(100, Math.round((used / max) * 100)) : null;
 
-/** Guild usage against its storage and member caps. */
+/** Guild usage against its storage and member caps.
+ *
+ * Guild admins only, and doubly so: it lives on the admin-gated guild settings
+ * page, and the numbers it renders are the administration half of `GuildRead`
+ * (caps, plan label), which the API sends to admins alone — as does the
+ * storage-usage endpoint below. */
 export const GuildUsagePanel = () => {
   const { t, i18n } = useTranslation(["guilds", "common"]);
   const { activeGuild } = useGuilds();
@@ -39,10 +44,6 @@ export const GuildUsagePanel = () => {
   const tierLabel = activeGuild.tier_name ?? t("usagePanel.selfHosted");
 
   const lang = i18n.resolvedLanguage ?? i18n.language;
-  const isAdmin = activeGuild.role === "admin";
-  const anonUpgradeUrl = billing
-    ? `${billing.url}/upgrade?guild=${activeGuild.id}&lang=${encodeURIComponent(lang)}`
-    : null;
 
   const openPortal = async (page: "manage" | "upgrade") => {
     if (!billing) return;
@@ -104,22 +105,12 @@ export const GuildUsagePanel = () => {
                 <span className="font-semibold">{tierLabel}</span>
               </p>
               <div className="flex gap-2">
-                {isAdmin ? (
-                  <>
-                    <Button size="sm" onClick={() => openPortal("upgrade")}>
-                      {t("usagePanel.upgrade")}
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => openPortal("manage")}>
-                      {t("usagePanel.manageBilling")}
-                    </Button>
-                  </>
-                ) : (
-                  <Button asChild size="sm">
-                    <a href={anonUpgradeUrl ?? "#"} target="_blank" rel="noopener noreferrer">
-                      {t("usagePanel.upgrade")}
-                    </a>
-                  </Button>
-                )}
+                <Button size="sm" onClick={() => openPortal("upgrade")}>
+                  {t("usagePanel.upgrade")}
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => openPortal("manage")}>
+                  {t("usagePanel.manageBilling")}
+                </Button>
               </div>
             </div>
           </>

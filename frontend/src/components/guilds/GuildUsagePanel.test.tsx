@@ -31,10 +31,14 @@ vi.mock("@/api/generated/guilds/guilds", () => ({
 
 import { GuildUsagePanel } from "./GuildUsagePanel";
 
+// The panel is a guild-admin surface: it lives on the admin-gated settings
+// page and renders fields the API sends to admins only, so every fixture here
+// is an admin's payload.
 describe("GuildUsagePanel", () => {
   beforeEach(() => {
     state.guild = buildGuild({
       id: 7,
+      role: "admin",
       max_storage_bytes: 1000,
       max_users: 10,
       member_count: 4,
@@ -63,6 +67,7 @@ describe("GuildUsagePanel", () => {
   it("renders unlimited caps without a hard limit", () => {
     state.guild = buildGuild({
       id: 7,
+      role: "admin",
       max_storage_bytes: null,
       max_users: null,
       member_count: 3,
@@ -71,11 +76,11 @@ describe("GuildUsagePanel", () => {
     expect(screen.getAllByText(/Unlimited/).length).toBeGreaterThan(0);
   });
 
-  it("member: anonymous upgrade link, no manage button", () => {
+  it("shows the plan label and both portal buttons when billing is configured", () => {
     state.billing = { url: "https://billing.example.com" };
     state.guild = buildGuild({
       id: 42,
-      role: "member",
+      role: "admin",
       max_storage_bytes: 1000,
       max_users: 10,
       member_count: 4,
@@ -84,9 +89,8 @@ describe("GuildUsagePanel", () => {
     renderWithProviders(<GuildUsagePanel />);
 
     expect(screen.getByText("gold")).toBeInTheDocument();
-    const upgrade = screen.getByText("Upgrade").closest("a");
-    expect(upgrade).toHaveAttribute("href", "https://billing.example.com/upgrade?guild=42&lang=en");
-    expect(screen.queryByText("Manage billing")).not.toBeInTheDocument();
+    expect(screen.getByText("Upgrade")).toBeInTheDocument();
+    expect(screen.getByText("Manage billing")).toBeInTheDocument();
   });
 
   it("admin: opens the portal with the minted token in the URL fragment", async () => {

@@ -18,7 +18,7 @@ graph TD
   P1["📋 Project<br/>(a task board)"]
   P2["📋 Project"]
   D1["📄 Documents"]
-  T1["🛠️ Tools<br/>(calendar, queues, counters)"]
+  T1["🛠️ Tools<br/>(calendar, queues,<br/>counters, dashboards)"]
   TASK["✅ Tasks"]
 
   G --> I1
@@ -39,9 +39,12 @@ From biggest to smallest:
 
 Let's take them one at a time.
 
+!!! tip "You don't have to set all this up"
+    Creating a guild gives you an initiative and somewhere to put your first project straight away. Most groups run on one guild, one initiative, and a couple of projects for a long time — and only reach for the rest when a real need turns up.
+
 ## Guild — your group's workspace
 
-A **guild** is the outermost container: one separate space for one group of people. Your tabletop campaign, your work team, and your neighborhood association would each be their own guild.
+A **guild** is the outermost container: one separate space for one group of people. Your business, your volunteer committee, and your neighborhood association would each be their own guild.
 
 Guilds don't mix. Nothing in one guild is visible from another, even on the same server. You can belong to several guilds and switch between them from the guild rail down the left edge of the screen — but each is its own sealed world.
 
@@ -65,23 +68,32 @@ People are added to an initiative as **members**, and each member is given a **r
 
 ## Projects and tasks — getting work done
 
-A **project** is a board for tracking work. It holds **tasks** — the individual to-dos — and lets you see them in whatever way suits you: a simple **Table**, a drag-and-drop **Kanban** board, or a **Calendar**.
+A **project** is a board for tracking work. It holds **tasks** — the individual to-dos — and lets you see them in whatever way suits you: a simple **Table**, a drag-and-drop **Kanban** board, or a **Calendar**. The same work, three ways of looking at it, so nobody has to think about it the way someone else does.
 
 A **task** can have a description, a status (like "To Do" or "Done"), a priority, start and due dates, people assigned to it, subtasks, and tags. Tasks are where the day-to-day happens. See [Projects & tasks](../guides/projects-and-tasks.md).
 
 ## Documents — writing things down
 
-A **document** lives inside an initiative and holds knowledge: meeting notes, a plan, a script, a spreadsheet. Documents can be written and edited **together, in real time**, so two people can work on the same page at once. You can also upload files (PDFs, Word, images) as documents. See [Documents](../guides/documents.md).
+A **document** lives inside an initiative and holds knowledge: meeting notes, a plan, a script, a budget spreadsheet, or a **whiteboard** for the things that are easier drawn than written. Documents can be written and edited **together, in real time**, so two people can work on the same page — or the same canvas — at once. You can also upload files (PDFs, Word, images) as documents. See [Documents](../guides/documents.md).
 
-## Tools — for groups that need more
+## Tools — added when you need them
 
-Beyond projects and documents, each initiative can use a few extra **tools**:
+Beyond projects and documents, each initiative can use extra **tools**:
 
 - **Calendar & events** — schedule things, invite attendees, and send reminders.
-- **Queues** — keep track of whose turn it is (great for games and rotations).
-- **Counters** — track numbers that go up and down (scores, health, budgets).
+- **Queues** — keep track of whose turn it is (rotations, rosters, running orders).
+- **Counters** — track numbers that go up and down (tallies, scores, budgets).
+- **Dashboards** — a single screen of charts, numbers, and timelines built from your own data.
 
 You don't have to use any of these — they're there when you need them. See [Tools](../guides/tools.md).
+
+## Apps — what the community has already built
+
+Some of what a group needs isn't in the list above, and doesn't have to be. Initiative has a **marketplace** of ready-made **dashboards** and **apps** built by people solving the same problems. Adding one takes a couple of clicks: pick a listing, choose where it goes, name it.
+
+What's on offer is what ships with Initiative plus what the person running your server has approved — so the catalog is curated by someone you can ask about it.
+
+Dashboards land in an initiative like any other tool. Apps are added at the guild level by a guild admin, because they add something the whole guild shares. See [Apps & the marketplace](../guides/apps-and-marketplace.md).
 
 ## The other half: people and access
 
@@ -94,13 +106,14 @@ Everything above is about *where things live*. The other half of the picture is 
 | **Initiative role** | What kinds of tools are you allowed to use here? |
 | **Sharing** | For *this specific* project or document, can you view it, edit it, or own it? |
 
-Each layer sits inside the one above it. You can only reach a document if you're in its guild, *and* in its initiative, *and* it's been shared with you. We explain this in friendly detail in [Sharing & access](../sharing/index.md), and in technical depth in [Security & privacy](../security/index.md).
+Each layer sits inside the one above it. You can only reach a document if you're in its guild, *and* in its initiative, *and* it's been shared with you. The practical upshot: the only people who ever see something are the people you deliberately put in front of it. We explain this in friendly detail in [Sharing & access](../sharing/index.md), and in technical depth in [Security & privacy](../security/index.md).
 
 ??? techspec "For the technically minded — these four layers are enforced in the database"
-    The four layers above aren't just interface conveniences — they're enforced at the database level using PostgreSQL's row-level security, so a bug in the app can't quietly hand someone data they shouldn't see. There are also two overrides: a **guild administrator** always has full access within their own guild, and platform staff can be granted **temporary, time-limited, audited** access for support — never a standing back door. The full model is in [How your data is kept separate](../security/how-your-data-is-kept-separate.md).
+    The four layers above aren't just interface conveniences. The **guild** layer is structural: each guild's content lives in its own PostgreSQL schema, and a request is routed into one guild's schema and can't address another's. The **initiative**, **role**, and **sharing** layers are enforced inside that schema by PostgreSQL's row-level security, evaluated on every statement — so a bug in the app can't quietly hand someone data they shouldn't see. There are also two overrides: a **guild administrator** always has full access within their own guild, and platform staff can be granted **temporary, time-limited, audited** access for support — never a standing back door. The full model is in [How your data is kept separate](../security/how-your-data-is-kept-separate.md).
 
 ## Where to go next
 
 - Ready to *do* things? Head to the [how-to guides](../guides/index.md).
 - Curious who-can-see-what? Read [Sharing & access](../sharing/index.md).
+- Want more than the built-in tools? See [Apps & the marketplace](../guides/apps-and-marketplace.md).
 - Hit an unfamiliar word? The [glossary](../reference/glossary.md) has you covered.

@@ -128,6 +128,6 @@ You can **export a project** (as a portable file) to keep an offline copy or mov
 
 ## Related
 
-- [Task views](task-views.md) — Table, Kanban, Calendar, and Timeline.
+- [Task views](task-views.md) — Table, Kanban, and Calendar.
 - [Tags](tags.md) — labeling and filtering.
 - [Your space](your-space.md) — see all your tasks across every project and guild.
