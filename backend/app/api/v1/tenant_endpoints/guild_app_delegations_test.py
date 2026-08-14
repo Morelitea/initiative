@@ -276,11 +276,36 @@ class TestWhoMayGrantIt:
         assert still.json()["can_write"] is False
 
     @pytest.mark.integration
+    async def test_the_native_app_can_grant_it(
+        self, client: AsyncClient, session: AsyncSession, acting_user
+    ):
+        """A device token is how somebody signs in on their phone, so it grants
+        exactly as a web session does. The line is between a person being here
+        and something acting for them, not between two clients."""
+        from app.services.platform import user_tokens
+
+        a = await acting_user(guild_role=GuildRole.member)
+        app = await _installed_for(session, a)
+        device_token = await user_tokens.create_device_token(
+            session, user_id=a.user.id, device_name="Phone"
+        )
+        await session.commit()
+
+        response = await client.put(
+            a.g(f"/apps/{app.id}/delegation"),
+            headers={"Authorization": f"DeviceToken {device_token}"},
+            json={"can_write": True},
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["granted"] is True
+        assert response.json()["confirmed_factor"] == "device_token"
+
+    @pytest.mark.integration
     async def test_an_api_key_cannot_grant_it(
         self, client: AsyncClient, session: AsyncSession, acting_user
     ):
-        """Handing out authority is done while signed in, not through a
-        standing credential."""
+        """Handing out authority is done while the person is here, not through
+        a credential running without them."""
         from app.services.platform import api_keys as api_keys_service
 
         a = await acting_user(guild_role=GuildRole.member)

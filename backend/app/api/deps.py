@@ -68,6 +68,12 @@ CREDENTIAL_API_KEY = "api_key"
 CREDENTIAL_DEVICE_TOKEN = "device_token"
 CREDENTIAL_DELEGATION = "delegation"
 
+#: The credentials that are somebody signing in, as opposed to something acting
+#: for them in their absence. The native app trades an email and password for a
+#: device token and then uses it for everything, so it belongs here beside the
+#: web session — the person is just as present either way.
+FIRST_PARTY_CREDENTIALS = frozenset({CREDENTIAL_SESSION, CREDENTIAL_DEVICE_TOKEN})
+
 
 async def _authenticate_device_token(
     session: AsyncSession, token: str
@@ -323,18 +329,24 @@ async def get_current_user(
 
 
 def require_first_party_session(request: Request) -> str:
-    """Refuse anything but a signed-in session, and report how it signed in.
+    """Refuse anything but the person's own sign-in, and report which kind.
 
     For the handful of actions that hand out authority rather than exercise it.
-    Granting is a decision the person makes, so it is made while they are here:
-    a standing credential — a delegation token, a PAT, a device token — carries
-    the authority it was issued with and is not a party to changing it.
+    Running unattended is the whole point of the credentials this excludes — a
+    workflow acts at three in the morning, a script runs on a timer, and that is
+    the feature. What they cannot do is set their own bounds: a grant is what
+    says how far a standing credential reaches, so it is made by the person, in
+    a session of their own, rather than by the thing being granted.
+
+    Two credentials qualify, because both are somebody signing in: a web session
+    and a device token, which is what the native app exchanges an email and
+    password for and then uses for everything after.
 
     Returns the credential kind, which is what a grant records as the factor it
     was confirmed by.
     """
     credential = getattr(request.state, "credential", None)
-    if credential != CREDENTIAL_SESSION:
+    if credential not in FIRST_PARTY_CREDENTIALS:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=AuthMessages.SESSION_REQUIRED,
