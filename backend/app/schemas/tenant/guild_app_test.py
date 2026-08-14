@@ -60,6 +60,9 @@ def _app(**overrides) -> SimpleNamespace:
             "config_state": "ok",
             "config_state_detail": None,
             "artifacts": [],
+            # Every initiative, which is what an install that never narrowed it
+            # says and what the serializer reads.
+            "placement": {},
             "installed_by_id": 11,
             "created_at": now,
             "updated_at": now,
