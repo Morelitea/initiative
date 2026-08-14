@@ -2035,6 +2035,33 @@ export interface GuildAppConnectionSummary {
   member_count: number;
 }
 
+/**
+ * Authorize the app to act as you.
+ *
+ * ``can_read`` is not asked for: authorizing at all is what lets the app act,
+ * so the only remaining question is whether it may change things. Withdrawing
+ * is how a member says no.
+ */
+export interface GuildAppDelegationGrant {
+  can_write?: boolean;
+}
+
+/**
+ * What the viewer has authorized this app to do as them.
+ *
+ * Always answerable, so the absence of a grant is a state rather than a 404:
+ * ``granted`` false is "you have not authorized this", which is exactly what
+ * the settings page needs to draw the question.
+ */
+export interface GuildAppDelegationRead {
+  granted: boolean;
+  can_read: boolean;
+  can_write: boolean;
+  granted_at: string | null;
+  revoked_at: string | null;
+  confirmed_factor: string | null;
+}
+
 export type GuildAppDetailDefinition = { [key: string]: unknown };
 
 export type GuildAppDetailPlacement = { [key: string]: unknown };
@@ -2064,10 +2091,12 @@ export interface GuildAppDetail {
   placement: GuildAppDetailPlacement;
   mandatory: boolean;
   available: boolean;
+  delegates: boolean;
   installed_by_id: number;
   created_at: string;
   updated_at: string;
   connections: GuildAppConnectionRead[];
+  delegation: GuildAppDelegationRead | null;
 }
 
 /**
@@ -2121,6 +2150,7 @@ export interface GuildAppRead {
   placement: GuildAppReadPlacement;
   mandatory: boolean;
   available: boolean;
+  delegates: boolean;
   installed_by_id: number;
   created_at: string;
   updated_at: string;
@@ -2149,9 +2179,23 @@ export interface GuildAppMemberConnection {
   updated_at: string;
 }
 
+/**
+ * One member's authorization, in the admin's Members view.
+ */
+export interface GuildAppMemberDelegation {
+  user_id: number;
+  can_read: boolean;
+  can_write: boolean;
+  revoked: boolean;
+  granted_at: string;
+  revoked_at: string | null;
+  updated_at: string;
+}
+
 export interface GuildAppMembersResponse {
   summary: GuildAppConnectionSummary[];
   items: GuildAppMemberConnection[];
+  delegations: GuildAppMemberDelegation[];
 }
 
 export type GuildAppUpdatePlacement = { [key: string]: unknown } | null;

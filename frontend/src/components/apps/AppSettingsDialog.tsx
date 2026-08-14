@@ -1,20 +1,33 @@
 /**
- * An app's own settings, opened from wherever the app is.
+ * One app's settings, opened from wherever the app is.
  *
- * For an app that has no page of its own — one whose whole purpose is a
- * credential, like connecting your account at a vendor — this *is* the app. So
- * it opens where the member clicked rather than sending them to hunt through
- * guild settings for the same form.
+ * **Every installed app has this**, whether or not it has a page of its own —
+ * there is always something a person may want to check or take back. For an app
+ * whose whole purpose is a credential it opens where the member clicked rather
+ * than sending them to hunt through guild settings; for an app with a page it
+ * is the gear beside its entry.
  *
- * The form itself is the one the settings page already uses: an app's settings
- * are its connections, and one renderer draws every app's from the fields its
- * pinned definition declares.
+ * What shows is scoped to what the viewer actually controls, which is not the
+ * same as what they can see:
+ *
+ * - **Everyone** gets the two answers that are theirs — whether the app may act
+ *   as them, and their own half of any connection. Nobody else's appears.
+ * - **A guild admin** additionally gets what the guild owns: the guild-wide
+ *   credential, where the app appears, and the governance view of what every
+ *   member has given it.
+ *
+ * This is deliberately not the guild-settings page. That one is about the
+ * install — adding, renaming, turning off, removing — and belongs to admins.
+ * This one is about a person's own relationship with an app that is already
+ * there.
  */
 
 import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { AppConnectionsPanel } from "@/components/apps/AppConnectionsPanel";
+import { AppDelegationPanel } from "@/components/apps/AppDelegationPanel";
+import { AppMembersPanel } from "@/components/apps/AppMembersPanel";
 import { AppPlacementPanel } from "@/components/apps/AppPlacementPanel";
 import {
   Dialog,
@@ -23,6 +36,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Separator } from "@/components/ui/separator";
 import { useGuildAppDetail } from "@/hooks/useGuildAppDetail";
 import { appEmbeds } from "@/lib/appSurfaces";
 
@@ -47,6 +61,10 @@ export function AppSettingsDialog({
   const detail = useGuildAppDetail(appId);
   const app = detail.data;
 
+  const showsPlacement =
+    isGuildAdmin && !!app && appEmbeds(app.definition, "initiative", ADMIN).length > 0;
+  const showsAdminSection = isGuildAdmin && !!app;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
@@ -61,15 +79,33 @@ export function AppSettingsDialog({
           </div>
         ) : (
           <div className="space-y-6">
+            {/* Yours first. An app that acts as people asks the question of
+                everybody, admins included — a guild admin's own name is not
+                something their role answers for. */}
+            {app.delegates && (
+              <AppDelegationPanel appId={app.id} appName={app.name} delegation={app.delegation} />
+            )}
+
             <AppConnectionsPanel
               appId={app.id}
               connections={app.connections}
               isGuildAdmin={isGuildAdmin}
             />
-            {/* Where the app goes is the guild's call, so only its admins see
-                the control — and only for an app that has somewhere to go. */}
-            {isGuildAdmin && appEmbeds(app.definition, "initiative", ADMIN).length > 0 && (
-              <AppPlacementPanel app={app} />
+
+            {showsAdminSection && (
+              <>
+                <Separator />
+                <div className="space-y-1">
+                  <h2 className="font-medium text-sm">{t("apps:settings.adminTitle")}</h2>
+                  <p className="text-muted-foreground text-xs">
+                    {t("apps:settings.adminDescription")}
+                  </p>
+                </div>
+                {/* Where the app goes is the guild's call, and only for an app
+                    that has somewhere to go. */}
+                {showsPlacement && <AppPlacementPanel app={app} />}
+                <AppMembersPanel appId={app.id} enabled />
+              </>
             )}
           </div>
         )}
