@@ -2028,6 +2028,8 @@ export interface GuildAppConnectionSummary {
 
 export type GuildAppDetailDefinition = { [key: string]: unknown };
 
+export type GuildAppDetailPlacement = { [key: string]: unknown };
+
 /**
  * An install plus its connections, for the settings page.
  *
@@ -2050,6 +2052,7 @@ export interface GuildAppDetail {
   avatar_url: string | null;
   features: string[];
   definition: GuildAppDetailDefinition;
+  placement: GuildAppDetailPlacement;
   mandatory: boolean;
   available: boolean;
   installed_by_id: number;
@@ -2088,6 +2091,8 @@ export interface GuildAppInstall {
 
 export type GuildAppReadDefinition = { [key: string]: unknown };
 
+export type GuildAppReadPlacement = { [key: string]: unknown };
+
 export interface GuildAppRead {
   id: number;
   guild_id: number;
@@ -2104,6 +2109,7 @@ export interface GuildAppRead {
   avatar_url: string | null;
   features: string[];
   definition: GuildAppReadDefinition;
+  placement: GuildAppReadPlacement;
   mandatory: boolean;
   available: boolean;
   installed_by_id: number;
@@ -2139,9 +2145,12 @@ export interface GuildAppMembersResponse {
   items: GuildAppMemberConnection[];
 }
 
+export type GuildAppUpdatePlacement = { [key: string]: unknown } | null;
+
 export interface GuildAppUpdate {
   name?: string | null;
   enabled?: boolean | null;
+  placement?: GuildAppUpdatePlacement;
 }
 
 export type GuildAuthPolicyReadPolicy =

@@ -111,5 +111,12 @@
     "unavailableDescription": "An administrator needs to connect this app's service before it can be opened.",
     "noSurface": "{{name}} has no page of its own"
   },
-  "browse": "Browse the app store"
+  "browse": "Browse the app store",
+  "placement": {
+    "title": "Where this app appears",
+    "description": "This app offers a page inside initiatives. Choose which ones it appears in.",
+    "all": "Every initiative",
+    "some": "Only the initiatives I choose",
+    "none": "No initiatives chosen, so this app appears only guild-wide."
+  }
 }

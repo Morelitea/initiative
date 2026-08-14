@@ -81,6 +81,8 @@ export interface GuildAppDetail {
   features: string[];
   /** The pinned definition, verbatim — what surfaces and connections it has. */
   definition: Record<string, unknown>;
+  /** Which initiatives its initiative surfaces appear in. `{}` is all of them. */
+  placement: Record<string, unknown>;
   admin_only: boolean;
   /** The platform provides this app: no remove, no turning it off. */
   mandatory: boolean;

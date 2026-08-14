@@ -374,6 +374,7 @@
   "MARKETPLACE_OPERATOR_CATALOG_SCAN_RUNNING": "Ya hay un análisis del catálogo en curso. Espera a que termine y vuelve a intentarlo.",
   "GUILD_APP_NOT_FOUND": "Esa aplicación no está instalada en este gremio.",
   "GUILD_APP_ADMIN_REQUIRED": "Solo los administradores del gremio pueden gestionar aplicaciones.",
+  "GUILD_APP_PLACEMENT_INVALID": "Ahí no se puede ubicar esta aplicación. Elige iniciativas de este gremio.",
   "GUILD_APP_LISTING_NOT_AN_APP": "Ese elemento no se puede instalar como aplicación.",
   "GUILD_APP_ALREADY_INSTALLED": "Este gremio ya tiene esa aplicación instalada.",
   "GUILD_APP_KIND_NOT_INSTALLABLE": "Este tipo de aplicación todavía no se puede instalar en esta versión de Initiative.",

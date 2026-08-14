@@ -106,6 +106,23 @@ class GuildApp(SQLModel, table=True):
         sa_column=Column(JSONB, nullable=False, server_default="[]"),
     )
 
+    # Which initiatives an app's initiative-scoped surfaces appear in.
+    #
+    # ``{}`` means every one of them, which is the default and the reading an
+    # install that never says otherwise keeps. ``{"initiatives": [12, 15]}``
+    # narrows it. One column rather than a mode plus a list, so "all" has
+    # exactly one representation and cannot fall out of step with a stale set of
+    # ids; an initiative that is deleted simply stops matching.
+    #
+    # This is placement, not permission. It is the guild admin's own answer to
+    # "where does this belong", so it applies to them as much as to anyone —
+    # unlike a surface's ``visibility``, which names an audience floor an admin
+    # always clears.
+    placement: dict[str, Any] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default="{}"),
+    )
+
     installed_by_id: int = Field(foreign_key="users.id", nullable=False)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
