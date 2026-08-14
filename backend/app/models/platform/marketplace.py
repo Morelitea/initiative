@@ -21,7 +21,16 @@ from datetime import datetime, timezone
 from typing import Any, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -133,6 +142,10 @@ class MarketplaceListingVersion(SQLModel, table=True):
     __tablename__ = "marketplace_listing_versions"
     __allow_unmapped__ = True
     model_config = ConfigDict(arbitrary_types_allowed=True)
+    __table_args__ = (
+        # A listing publishes each version string once.
+        UniqueConstraint("listing_id", "version"),
+    )
 
     id: Optional[int] = Field(default=None, primary_key=True)
     listing_id: int = Field(

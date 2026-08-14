@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Column, DateTime, Integer, String, Text
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 from sqlmodel import Field, SQLModel
 
 
@@ -22,17 +22,26 @@ class GuildAuthPolicy(SQLModel, table=True):
 
     __tablename__ = "guild_auth_policies"
 
-    # FK to guilds.id (ON DELETE CASCADE) declared in the migration.
-    guild_id: int = Field(sa_column=Column(Integer, primary_key=True))
+    guild_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("guilds.id", ondelete="CASCADE"),
+            primary_key=True,
+        )
+    )
 
     # 'open' | 'required' ('managed' arrives with the broker phase).
     policy: str = Field(sa_column=Column(String(16), nullable=False))
 
-    # FK to auth_providers.id (ON DELETE RESTRICT — deleting a provider a
-    # guild requires must surface the conflict, never silently reopen the
-    # guild) declared in the migration.
+    # RESTRICT: deleting a provider a guild requires must surface the conflict,
+    # never silently reopen the guild.
     provider_id: Optional[int] = Field(
-        default=None, sa_column=Column(Integer, nullable=True)
+        default=None,
+        sa_column=Column(
+            Integer,
+            ForeignKey("auth_providers.id", ondelete="RESTRICT"),
+            nullable=True,
+        ),
     )
     provider_slug: Optional[str] = Field(
         default=None, sa_column=Column(Text, nullable=True)

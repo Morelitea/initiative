@@ -31,7 +31,9 @@ class UserViewPreference(SQLModel, table=True):
     )
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    user_id: int = Field(foreign_key="users.id", index=True, nullable=False)
+    user_id: int = Field(
+        foreign_key="users.id", ondelete="CASCADE", index=True, nullable=False
+    )
     scope_key: str = Field(max_length=MAX_SCOPE_KEY_LENGTH, nullable=False)
     value: Any = Field(sa_column=Column(JSON, nullable=False))
     updated_at: datetime = Field(

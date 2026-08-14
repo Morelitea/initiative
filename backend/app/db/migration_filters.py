@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import Callable
 
+from app.db.system_grants import NON_MODEL_SHARED_TABLES
 from app.db.tenancy import GUILD_SCOPED_TABLES
 
 IncludeObject = Callable[[object, str, str, bool, object], bool]
@@ -24,7 +25,10 @@ def make_include_object(guild_autogen: bool) -> IncludeObject:
     Default mode compares shared/public tables only: guild-content tables live
     in the per-guild schemas, so without the filter autogenerate would try to
     CREATE them in ``public`` (the model metadata still declares them for the
-    ORM).
+    ORM). ``NON_MODEL_SHARED_TABLES`` drops out of both modes — those tables
+    carry no SQLModel on purpose (``storage_backfill_state`` is created lazily
+    by its service), so every autogenerate run would otherwise want to DROP
+    them.
 
     Guild mode (``-x guild``) inverts the table filter (guild-content tables
     only, compared against ``guild_template``) and additionally scopes WHAT
@@ -46,6 +50,8 @@ def make_include_object(guild_autogen: bool) -> IncludeObject:
 
     def include_object(obj, name, type_, reflected, compare_to) -> bool:
         if type_ == "table":
+            if name in NON_MODEL_SHARED_TABLES:
+                return False
             return (name in GUILD_SCOPED_TABLES) == guild_autogen
 
         table = getattr(obj, "table", None)  # indexes/constraints/columns

@@ -115,8 +115,13 @@ TEST_STATEMENT_TIMEOUT = "30s"
 BACKEND_DIR = Path(__file__).resolve().parent
 
 
-async def _connect_su_postgres() -> asyncpg.Connection:
-    """Test-infra superuser connection to the always-present ``postgres`` DB."""
+async def connect_su_postgres() -> asyncpg.Connection:
+    """Test-infra superuser connection to the always-present ``postgres`` DB.
+
+    Public because ``alembic/migrations_test.py`` creates its own database and
+    needs the same credentials — one definition of "the test-infra superuser",
+    not a second parse of ``DATABASE_URL`` that assumes the app's role is one.
+    """
     return await asyncpg.connect(
         user=_su_user,
         password=_su_password,
@@ -134,7 +139,7 @@ async def _ensure_test_database() -> None:
     being accessed"), so retry. ``CREATE DATABASE`` can't run inside a transaction,
     hence the autocommit asyncpg connection.
     """
-    conn = await _connect_su_postgres()
+    conn = await connect_su_postgres()
     try:
         for _attempt in range(12):
             exists = await conn.fetchval(
@@ -161,7 +166,7 @@ async def _ensure_test_database() -> None:
 async def _set_db_statement_timeout() -> None:
     """Apply a DB-level statement_timeout to the worker's test DB (catch-all net
     for cross-connection deadlocks). Affects connections opened afterward."""
-    conn = await _connect_su_postgres()
+    conn = await connect_su_postgres()
     try:
         await conn.execute(
             f'ALTER DATABASE "{TEST_DB_NAME}" SET statement_timeout = '
@@ -201,7 +206,7 @@ async def _migrate_under_lock() -> None:
     ``postgres`` DB for the whole migration; ``command.upgrade`` runs in a worker
     thread (where it can spin its own loop) while THIS loop keeps the lock
     connection — and thus the lock — alive."""
-    lock_conn = await _connect_su_postgres()
+    lock_conn = await connect_su_postgres()
     try:
         await lock_conn.execute("SELECT pg_advisory_lock($1)", _MIGRATION_LOCK_KEY)
         await _ensure_test_database()

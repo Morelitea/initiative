@@ -7,6 +7,7 @@ from sqlalchemy import (
     CheckConstraint,
     Column,
     DateTime,
+    ForeignKey,
     Integer,
     LargeBinary,
     Text,
@@ -60,8 +61,13 @@ class AuthSession(SQLModel, table=True):
             Uuid, primary_key=True, server_default=text("gen_random_uuid()")
         ),
     )
-    # FK declared in the migration (ON DELETE CASCADE).
-    user_id: int = Field(sa_column=Column(Integer, nullable=False))
+    user_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        )
+    )
 
     # SHA-256 of the raw refresh token — deterministic so a presented token maps
     # to one session by index lookup. The raw token is never stored.

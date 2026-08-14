@@ -30,6 +30,7 @@ class AutoDelegationJti(SQLModel, table=True):
     redeemed_at: datetime = Field(
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
+    # Indexed for the sweep that drops expired entries.
     expires_at: datetime = Field(
-        sa_column=Column(DateTime(timezone=True), nullable=False),
+        sa_column=Column(DateTime(timezone=True), nullable=False, index=True),
     )
