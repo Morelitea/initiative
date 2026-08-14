@@ -677,6 +677,7 @@ async def create_guild_app_handoff(
     """
     app = await _load(session, app_id)
     handoff = await handoff_service.mint_embed_handoff(
+        session,
         app,
         surface_id=surface_id,
         user_id=current_user.id,
@@ -686,6 +687,9 @@ async def create_guild_app_handoff(
         initiative_id=None,
         is_initiative_manager=False,
     )
+    # The mint records this member's subject the first time it is needed, and
+    # the token naming it is about to leave — so it is committed before then.
+    await session.commit()
     return _handoff_response(handoff)
 
 
@@ -720,6 +724,7 @@ async def create_initiative_app_handoff(
     initiative = await _load_initiative(session, initiative_id, current_user.id)
     app = await _load(session, app_id)
     handoff = await handoff_service.mint_embed_handoff(
+        session,
         app,
         surface_id=surface_id,
         user_id=current_user.id,
@@ -729,6 +734,7 @@ async def create_initiative_app_handoff(
             session, initiative_id=initiative.id, user=current_user
         ),
     )
+    await session.commit()
     return _handoff_response(handoff)
 
 

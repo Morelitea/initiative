@@ -34,6 +34,7 @@ from app.testing import (
 )
 from app.testing.delegation import (
     authorize_delegate,
+    delegate_subject,
     install_delegate,
     mint_delegation_token,
     register_delegate,
@@ -86,8 +87,9 @@ async def test_delegation_token_is_one_shot(
     token captured in transit can be replayed indefinitely."""
     user = await create_user(session, email="user@example.com")
     await authorize_delegate(session, delegate_guild, user)
+    subject = await delegate_subject(session, delegate_guild, user)
     token = _mint_delegation(
-        user_id=user.id, guild_id=delegate_guild.id, jti="replay-target-001"
+        subject=subject, guild_id=delegate_guild.id, jti="replay-target-001"
     )
 
     first = await client.get(
@@ -120,10 +122,11 @@ async def test_delegation_token_guild_claim_pins_context(
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild)
     await authorize_delegate(session, delegate_guild, user)
+    subject = await delegate_subject(session, delegate_guild, user)
     # The human is legitimately in their own guild, and the app is installed in
     # the guild its token names — so what refuses this is the pin itself, not a
     # missing install or an unknown guild.
-    token = _mint_delegation(user_id=user.id, guild_id=delegate_guild.id)
+    token = _mint_delegation(subject=subject, guild_id=delegate_guild.id)
 
     response = await client.get(
         f"/api/v1/g/{guild.id}/initiatives/",
@@ -144,7 +147,8 @@ async def test_delegation_token_guild_claim_provides_context(
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild)
     await authorize_delegate(session, guild, user)
-    token = _mint_delegation(user_id=user.id, guild_id=guild.id)
+    subject = await delegate_subject(session, guild, user)
+    token = _mint_delegation(subject=subject, guild_id=guild.id)
 
     response = await client.get(
         f"/api/v1/g/{guild.id}/initiatives/",
@@ -163,7 +167,8 @@ async def test_delegation_works_on_cross_guild_endpoints(
     checked wherever the call lands."""
     user = await create_user(session, email="cross-guild-allowed@example.com")
     await authorize_delegate(session, delegate_guild, user)
-    token = _mint_delegation(user_id=user.id, guild_id=delegate_guild.id)
+    subject = await delegate_subject(session, delegate_guild, user)
+    token = _mint_delegation(subject=subject, guild_id=delegate_guild.id)
 
     response = await client.get(
         "/api/v1/users/me",
@@ -184,8 +189,9 @@ async def test_delegation_rejects_deactivated_user(
     session.add(user)
     await session.commit()
     await session.refresh(user)
+    subject = await delegate_subject(session, delegate_guild, user)
 
-    token = _mint_delegation(user_id=user.id, guild_id=delegate_guild.id)
+    token = _mint_delegation(subject=subject, guild_id=delegate_guild.id)
 
     response = await client.get(
         "/api/v1/users/me",
@@ -195,13 +201,18 @@ async def test_delegation_rejects_deactivated_user(
 
 
 @pytest.mark.integration
-async def test_delegation_rejects_unknown_user(
+async def test_delegation_cannot_name_a_member_we_never_minted(
     client: AsyncClient, session: AsyncSession, delegate_guild
 ):
-    """A delegation for a user_id that doesn't exist in the DB must
-    fail — auto can't manufacture user identities Initiative didn't
-    issue."""
-    token = _mint_delegation(user_id=9_999_999, guild_id=delegate_guild.id)
+    """An app names a member by a subject this deployment derived and stored,
+    so there is no value it can invent that resolves to anybody.
+
+    Stronger than the old rule it replaces: a token used to be able to name any
+    user id and be refused only because that row was missing. Now the space of
+    namable members is exactly the set already minted for this install."""
+    token = _mint_delegation(
+        subject="never-minted-anywhere", guild_id=delegate_guild.id
+    )
 
     response = await client.get(
         "/api/v1/users/me",
@@ -217,9 +228,11 @@ async def test_delegation_rejects_wrong_audience(
     """A token with a different audience claim must not authenticate.
     Stops a regular session JWT (or any other audience) from being
     re-presented as a delegation."""
-    user = await create_user(session, email="wrong-aud@example.com")
+    # Refused at verification, so it never reaches subject resolution.
     token = _mint_delegation(
-        user_id=user.id, guild_id=delegate_guild.id, aud="initiative:something-else"
+        subject="any-subject",
+        guild_id=delegate_guild.id,
+        aud="initiative:something-else",
     )
 
     response = await client.get(
@@ -234,9 +247,8 @@ async def test_delegation_rejects_wrong_issuer(
     client: AsyncClient, session: AsyncSession, delegate_guild
 ):
     """Issuer must match — defense in depth alongside the audience check."""
-    user = await create_user(session, email="wrong-iss@example.com")
     token = _mint_delegation(
-        user_id=user.id, guild_id=delegate_guild.id, iss="someone-else"
+        subject="any-subject", guild_id=delegate_guild.id, iss="someone-else"
     )
 
     response = await client.get(
@@ -252,7 +264,6 @@ async def test_delegation_rejects_signature_from_other_key(
 ):
     """A token signed with a different RSA key must fail signature
     verification — the load-bearing crypto property of the whole flow."""
-    user = await create_user(session, email="bad-sig@example.com")
     other_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     other_private = other_key.private_bytes(
         serialization.Encoding.PEM,
@@ -260,7 +271,7 @@ async def test_delegation_rejects_signature_from_other_key(
         serialization.NoEncryption(),
     ).decode()
     token = _mint_delegation(
-        user_id=user.id, guild_id=delegate_guild.id, private_pem=other_private
+        subject="any-subject", guild_id=delegate_guild.id, private_pem=other_private
     )
 
     response = await client.get(
@@ -281,8 +292,7 @@ async def test_delegation_is_off_where_no_app_platform_is_configured(
         config_module.settings, "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM", None
     )
 
-    user = await create_user(session, email="delegation-off@example.com")
-    token = _mint_delegation(user_id=user.id, guild_id=delegate_guild.id)
+    token = _mint_delegation(subject="any-subject", guild_id=delegate_guild.id)
 
     response = await client.get(
         "/api/v1/users/me",

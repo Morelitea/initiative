@@ -164,6 +164,11 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # guild-governed access, not private property). The ciphertext is never
         # returned by the API to anyone, admin included.
         "guild_app_user_connections",
+        # What one installed app calls one member — a pairwise pseudonymous
+        # subject (OIDC Core §8.1). No initiative, and deliberately no own-row
+        # policy: it holds nothing about the member beyond the link, and both
+        # readers act for a member who is not the caller.
+        "guild_app_subjects",
         # A member's authorization for an installed app to act as them. Same
         # shape and same reasons as the connections beside it: no FK to any
         # initiative (an app is guild-wide), one owner per row, and guild-

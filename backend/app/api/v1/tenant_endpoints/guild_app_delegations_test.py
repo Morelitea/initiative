@@ -14,6 +14,7 @@ from app.models.platform.guild import GuildRole
 from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.testing.delegation import (
     DELEGATE_PUBLIC_ID,
+    delegate_subject,
     install_delegate,
     mint_delegation_token,
     register_delegate,
@@ -59,8 +60,16 @@ async def _installed_for(session: AsyncSession, actor):
     return await install_delegate(session, actor.guild, creator=actor.user)
 
 
-def _delegated(user_id: int, guild_id: int) -> dict[str, str]:
-    token = mint_delegation_token(user_id=user_id, guild_id=guild_id)
+async def _delegated(session, guild, user) -> dict[str, str]:
+    """Headers for a delegated call acting as one member.
+
+    The subject is derived here rather than passed a user id, because that is
+    all an app ever has: a delegation token names the pairwise identifier the
+    app was given, and the platform resolves it.
+    """
+    token = mint_delegation_token(
+        subject=await delegate_subject(session, guild, user), guild_id=guild.id
+    )
     return {"Authorization": f"Bearer {token}"}
 
 
@@ -75,7 +84,7 @@ class TestTheMembersOwnAnswer:
         await _installed_for(session, a)
 
         response = await client.get(
-            "/api/v1/users/me", headers=_delegated(a.user.id, a.guild.id)
+            "/api/v1/users/me", headers=await _delegated(session, a.guild, a.user)
         )
         assert response.status_code == 401
 
@@ -96,7 +105,7 @@ class TestTheMembersOwnAnswer:
         assert granted.json()["can_write"] is False
 
         response = await client.get(
-            "/api/v1/users/me", headers=_delegated(a.user.id, a.guild.id)
+            "/api/v1/users/me", headers=await _delegated(session, a.guild, a.user)
         )
         assert response.status_code == 200
 
@@ -115,13 +124,13 @@ class TestTheMembersOwnAnswer:
         )
 
         reading = await client.get(
-            a.g("/initiatives/"), headers=_delegated(a.user.id, a.guild.id)
+            a.g("/initiatives/"), headers=await _delegated(session, a.guild, a.user)
         )
         assert reading.status_code == 200
 
         writing = await client.post(
             a.g("/initiatives/"),
-            headers=_delegated(a.user.id, a.guild.id),
+            headers=await _delegated(session, a.guild, a.user),
             json={"name": "Written by the app"},
         )
         assert writing.status_code == 401
@@ -140,7 +149,7 @@ class TestTheMembersOwnAnswer:
 
         writing = await client.post(
             a.g("/initiatives/"),
-            headers=_delegated(a.user.id, a.guild.id),
+            headers=await _delegated(session, a.guild, a.user),
             json={"name": "Written by the app"},
         )
         assert writing.status_code == 201, writing.text
@@ -163,7 +172,7 @@ class TestTheMembersOwnAnswer:
         assert revoked.status_code == 204
 
         response = await client.get(
-            "/api/v1/users/me", headers=_delegated(a.user.id, a.guild.id)
+            "/api/v1/users/me", headers=await _delegated(session, a.guild, a.user)
         )
         assert response.status_code == 401
 
@@ -202,7 +211,7 @@ class TestTheMembersOwnAnswer:
         )
 
         response = await client.get(
-            "/api/v1/users/me", headers=_delegated(b.user.id, a.guild.id)
+            "/api/v1/users/me", headers=await _delegated(session, a.guild, b.user)
         )
         assert response.status_code == 401
 
@@ -265,7 +274,7 @@ class TestWhoMayGrantIt:
 
         response = await client.put(
             a.g(f"/apps/{app.id}/delegation"),
-            headers=_delegated(a.user.id, a.guild.id),
+            headers=await _delegated(session, a.guild, a.user),
             json={"can_write": True},
         )
         # The write it is trying to make is not one its read-only grant covers,
@@ -342,7 +351,7 @@ class TestWhoMayGrantIt:
 
         # The admin authorized themselves and nobody else.
         acting_as_b = await client.get(
-            "/api/v1/users/me", headers=_delegated(b.user.id, a.guild.id)
+            "/api/v1/users/me", headers=await _delegated(session, a.guild, b.user)
         )
         assert acting_as_b.status_code == 401
 
@@ -396,7 +405,7 @@ class TestWhatAnAdminGoverns:
         assert revoked.status_code == 204
 
         response = await client.get(
-            "/api/v1/users/me", headers=_delegated(b.user.id, a.guild.id)
+            "/api/v1/users/me", headers=await _delegated(session, a.guild, b.user)
         )
         assert response.status_code == 401
 
@@ -423,7 +432,8 @@ class TestWhatAnAdminGoverns:
 
         for actor in (a, b):
             response = await client.get(
-                "/api/v1/users/me", headers=_delegated(actor.user.id, a.guild.id)
+                "/api/v1/users/me",
+                headers=await _delegated(session, a.guild, actor.user),
             )
             assert response.status_code == 401
 
@@ -461,7 +471,8 @@ class TestWhenTheRelationshipEnds:
         assert left.status_code == 204, left.text
 
         response = await client.get(
-            "/api/v1/users/me", headers=_delegated(leaver.user.id, owner.guild.id)
+            "/api/v1/users/me",
+            headers=await _delegated(session, owner.guild, leaver.user),
         )
         assert response.status_code == 401
 
@@ -481,7 +492,7 @@ class TestWhenTheRelationshipEnds:
         assert removed.status_code == 204, removed.text
 
         response = await client.get(
-            "/api/v1/users/me", headers=_delegated(a.user.id, a.guild.id)
+            "/api/v1/users/me", headers=await _delegated(session, a.guild, a.user)
         )
         assert response.status_code == 401
 

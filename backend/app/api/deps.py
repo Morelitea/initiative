@@ -156,13 +156,23 @@ async def _authenticate_auto_delegation(
     if await auto_delegation_blocklist.is_jti_redeemed(session, claims.jti):
         return None
 
-    statement = select(User).where(User.id == claims.user_id)
+    # The token names its member by the pairwise subject the app was given, not
+    # by a user id — an app never learns which Initiative user it is acting for.
+    # Resolving it needs the guild, and it is scoped to the app that signed:
+    # a subject minted for one install must not resolve for another.
+    resolved = await registration_lookup.resolve_delegated_member(
+        claims.guild_id, signer.registration.public_id, claims.subject
+    )
+    if resolved is None:
+        return None
+
+    statement = select(User).where(User.id == resolved)
     result = await session.exec(statement)
     user = result.one_or_none()
     if user is None or user.status != UserStatus.active:
-        # The user the token names doesn't exist or has been deactivated
-        # since the token was minted. Auto can't impersonate non-active
-        # accounts — workflows die when their owner leaves, by design.
+        # The member the subject names has been deactivated since it was
+        # minted. A delegate cannot act for a non-active account — workflows
+        # die when their owner leaves, by design.
         return None
 
     # Identity settled, authorization next. Two parties have to have said yes:
@@ -177,7 +187,7 @@ async def _authenticate_auto_delegation(
     if not await registration_lookup.delegation_allowed(
         claims.guild_id,
         signer.registration.public_id,
-        claims.user_id,
+        resolved,
         need_write=request.method not in _SAFE_HTTP_METHODS,
     ):
         return None

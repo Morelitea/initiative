@@ -25,6 +25,7 @@ from app.testing.delegation import (
     DELEGATE_KID,
     DELEGATE_LISTING_UID,
     authorize_delegate,
+    delegate_subject,
     install_delegate,
     delegation_jwks,
     foreign_jwks,
@@ -48,8 +49,8 @@ def _app_platform_configured(monkeypatch):
 
 
 async def _acting_in_a_guild_that_installed_it(session: AsyncSession, email: str):
-    """A user, their guild, that guild's install of the delegate, and the
-    user's own authorization for it to act as them.
+    """A member's pairwise subject, and the guild it was minted in — with the
+    install and that member's own authorization already in place.
 
     Every case below varies one thing about the *registration*, so both of the
     other yeses a delegated call needs are held constant here rather than
@@ -60,15 +61,17 @@ async def _acting_in_a_guild_that_installed_it(session: AsyncSession, email: str
     await create_guild_membership(session, user=user, guild=guild)
     await install_delegate(session, guild, creator=user)
     await authorize_delegate(session, guild, user)
-    return user, guild
+    # What the app knows this member by. A delegation token names this, never
+    # a user id.
+    return await delegate_subject(session, guild, user), guild
 
 
-async def _call_as_delegate(client: AsyncClient, user_id: int, guild_id: int) -> int:
+async def _call_as_delegate(client: AsyncClient, subject: str, guild_id: int) -> int:
     response = await client.get(
         "/api/v1/users/me",
         headers={
             "Authorization": (
-                f"Bearer {mint_delegation_token(user_id=user_id, guild_id=guild_id)}"
+                f"Bearer {mint_delegation_token(subject=subject, guild_id=guild_id)}"
             )
         },
     )
@@ -79,24 +82,24 @@ async def _call_as_delegate(client: AsyncClient, user_id: int, guild_id: int) ->
 async def test_a_granted_registration_verifies_the_token(
     client: AsyncClient, session: AsyncSession
 ):
-    user, guild = await _acting_in_a_guild_that_installed_it(
+    subject, guild = await _acting_in_a_guild_that_installed_it(
         session, "delegated@example.com"
     )
     await register_delegate(session)
 
-    assert await _call_as_delegate(client, user.id, guild.id) == 200
+    assert await _call_as_delegate(client, subject, guild.id) == 200
 
 
 @pytest.mark.integration
 async def test_the_kill_switch_ends_delegation(
     client: AsyncClient, session: AsyncSession
 ):
-    user, guild = await _acting_in_a_guild_that_installed_it(
+    subject, guild = await _acting_in_a_guild_that_installed_it(
         session, "switched-off@example.com"
     )
     await register_delegate(session, enabled=False)
 
-    assert await _call_as_delegate(client, user.id, guild.id) == 401
+    assert await _call_as_delegate(client, subject, guild.id) == 401
 
 
 @pytest.mark.integration
@@ -104,24 +107,24 @@ async def test_keys_without_the_grant_verify_nothing(
     client: AsyncClient, session: AsyncSession
 ):
     """The key set says who signs; the grant says whether that app may act."""
-    user, guild = await _acting_in_a_guild_that_installed_it(
+    subject, guild = await _acting_in_a_guild_that_installed_it(
         session, "ungranted@example.com"
     )
     await register_delegate(session, grants=())
 
-    assert await _call_as_delegate(client, user.id, guild.id) == 401
+    assert await _call_as_delegate(client, subject, guild.id) == 401
 
 
 @pytest.mark.integration
 async def test_a_kid_no_registration_published_verifies_nothing(
     client: AsyncClient, session: AsyncSession
 ):
-    user, guild = await _acting_in_a_guild_that_installed_it(
+    subject, guild = await _acting_in_a_guild_that_installed_it(
         session, "unknown-kid@example.com"
     )
     await register_delegate(session, key_set=delegation_jwks("some-other-generation"))
 
-    assert await _call_as_delegate(client, user.id, guild.id) == 401
+    assert await _call_as_delegate(client, subject, guild.id) == 401
 
 
 @pytest.mark.integration
@@ -132,7 +135,7 @@ async def test_a_shared_kid_does_not_shadow_the_app_that_signed(
     same one. Every match is tried, and the call belongs to whichever key
     actually signed it — including for the install it is then held to, which
     the namesake here does not have."""
-    user, guild = await _acting_in_a_guild_that_installed_it(
+    subject, guild = await _acting_in_a_guild_that_installed_it(
         session, "shared-kid@example.com"
     )
     # A namesake sorting first, publishing a different key under the same kid.
@@ -143,7 +146,7 @@ async def test_a_shared_kid_does_not_shadow_the_app_that_signed(
     )
     await register_delegate(session)
 
-    assert await _call_as_delegate(client, user.id, guild.id) == 200
+    assert await _call_as_delegate(client, subject, guild.id) == 200
 
 
 @pytest.mark.integration
@@ -179,12 +182,15 @@ async def test_an_app_acts_only_where_it_was_installed(
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild)
     await register_delegate(session)
+    # Derived, not stored: the value is the same before and after the install,
+    # which is what lets one token be refused and then accepted.
+    subject = await delegate_subject(session, guild, user)
 
     refused = await client.get(
         f"/api/v1/g/{guild.id}/initiatives/",
         headers={
             "Authorization": (
-                f"Bearer {mint_delegation_token(user_id=user.id, guild_id=guild.id)}"
+                f"Bearer {mint_delegation_token(subject=subject, guild_id=guild.id)}"
             )
         },
     )
@@ -196,7 +202,7 @@ async def test_an_app_acts_only_where_it_was_installed(
         f"/api/v1/g/{guild.id}/initiatives/",
         headers={
             "Authorization": (
-                f"Bearer {mint_delegation_token(user_id=user.id, guild_id=guild.id)}"
+                f"Bearer {mint_delegation_token(subject=subject, guild_id=guild.id)}"
             )
         },
     )
@@ -215,6 +221,7 @@ async def test_a_switched_off_install_stops_the_app(
     await register_delegate(session)
     install = await install_delegate(session, guild)
     await authorize_delegate(session, guild, user)
+    subject = await delegate_subject(session, guild, user)
     install.enabled = False
     session.add(install)
     await session.commit()
@@ -223,7 +230,7 @@ async def test_a_switched_off_install_stops_the_app(
         f"/api/v1/g/{guild.id}/initiatives/",
         headers={
             "Authorization": (
-                f"Bearer {mint_delegation_token(user_id=user.id, guild_id=guild.id)}"
+                f"Bearer {mint_delegation_token(subject=subject, guild_id=guild.id)}"
             )
         },
     )
@@ -236,10 +243,9 @@ async def test_a_token_naming_no_guild_is_refused_not_an_error(
 ):
     """A guild id naming no guild has no schema to read, and the call is
     refused the way every other delegation refusal is rather than faulting."""
-    user = await create_user(session, email="absent-guild@example.com")
     await register_delegate(session)
 
-    assert await _call_as_delegate(client, user.id, 9_999_999) == 401
+    assert await _call_as_delegate(client, "subject-for-no-guild", 9_999_999) == 401
 
 
 @pytest.mark.integration
@@ -272,4 +278,6 @@ async def test_another_apps_install_does_not_let_this_one_act(
     )
     await session.commit()
 
-    assert await _call_as_delegate(client, user.id, guild.id) == 401
+    # No subject exists for this app here, and the one the other app's install
+    # would mint is not one this app may present.
+    assert await _call_as_delegate(client, "not-minted-here", guild.id) == 401

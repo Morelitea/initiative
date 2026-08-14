@@ -30,6 +30,7 @@ __all__ = [
     "DELEGATE_KID",
     "DELEGATE_PUBLIC_ID",
     "authorize_delegate",
+    "delegate_subject",
     "delegation_jwks",
     "DELEGATE_LISTING_UID",
     "delegation_verification_keys",
@@ -78,7 +79,7 @@ def foreign_jwks(kid: str = DELEGATE_KID) -> dict[str, Any]:
 
 def mint_delegation_token(
     *,
-    user_id: int,
+    subject: str,
     guild_id: int,
     initiative_id: Optional[int] = None,
     jti: Optional[str] = None,
@@ -88,11 +89,16 @@ def mint_delegation_token(
     private_pem: str = _PRIVATE_PEM,
     expires_in: int = 900,
 ) -> str:
-    """A delegation JWT as the delegate would mint it."""
+    """A delegation JWT as the delegate would mint it.
+
+    ``subject`` is the pairwise identifier the app was given for a member, not
+    a user id — an app never learns which Initiative user it acts for. Get one
+    from :func:`delegate_subject`.
+    """
     now = datetime.now(timezone.utc)
     payload: dict[str, Any] = {
         "jti": jti or secrets.token_hex(8),
-        "sub": str(user_id),
+        "sub": subject,
         "aud": aud,
         "iss": iss,
         "iat": int(now.timestamp()),
@@ -185,6 +191,22 @@ async def install_delegate(session: AsyncSession, guild, creator=None) -> Any:
         listing_uid=DELEGATE_LISTING_UID,
         name="Delegate",
     )
+
+
+async def delegate_subject(session: AsyncSession, guild, user) -> str:
+    """The pairwise subject the delegate knows one member by.
+
+    Installs the app if the guild has not, because the subject's sector is the
+    install — there is no subject for an app that is not there.
+    """
+    from app.services.marketplace.app_subjects import ensure_subject
+
+    app = await install_delegate(session, guild)
+    subject = await ensure_subject(
+        session, app_install_id=app.id, guild_id=guild.id, user_id=user.id
+    )
+    await session.commit()
+    return subject
 
 
 async def authorize_delegate(

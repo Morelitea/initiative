@@ -47,6 +47,7 @@ __all__ = [
     "RegistrationSnapshot",
     "any_delegate_registered",
     "delegation_allowed",
+    "resolve_delegated_member",
     "delegation_keys_for",
     "install_state",
     "invalidate_registrations",
@@ -316,6 +317,55 @@ async def any_delegate_registered() -> bool:
         and snapshot.delegation_keys
         for snapshot in (await load_registrations()).values()
     )
+
+
+async def resolve_delegated_member(
+    guild_id: int, public_id: str, subject: str
+) -> int | None:
+    """Which member a delegation token's subject names, or None.
+
+    A subject is pairwise — derived per install — so resolving one needs both
+    the guild it was minted in and the app it was minted for. Scoping to the
+    signer is the part that matters: without it, an app could present a subject
+    another app was given and act as that person.
+
+    Read on the system engine and routed into the guild, because the subject
+    table is guild content and the caller at this point is nobody yet.
+    """
+    if not public_id or not subject:
+        return None
+
+    from app.models.tenant.guild_app import GuildApp
+    from app.services.marketplace.app_subjects import resolve_subject
+
+    async with db_session.AdminSessionLocal() as session:
+        try:
+            await db_session.set_rls_context(
+                session, guild_id=guild_id, guild_role="admin"
+            )
+            row = await resolve_subject(session, subject=subject)
+            if row is None:
+                return None
+            # The subject resolved — now check it was minted for *this* app's
+            # install, in this guild.
+            install = (
+                await session.exec(
+                    select(GuildApp.id).where(
+                        GuildApp.id == row.app_id,
+                        GuildApp.enabled.is_(True),
+                        GuildApp.definition["app_kind"].astext == "service",
+                        GuildApp.definition["service"]["public_id"].astext == public_id,
+                    )
+                )
+            ).first()
+            if install is None:
+                return None
+            return row.user_id
+        except SQLAlchemyError:
+            logger.warning(
+                "app services: subject lookup could not read guild %s", guild_id
+            )
+            return None
 
 
 async def delegation_allowed(
