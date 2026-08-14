@@ -247,8 +247,15 @@ export const ToolSettingsPage = ({
                 <TagPicker
                   selectedTags={tags}
                   onChange={(newTags) => {
+                    // Tags persist on pick rather than with a Save button, so the
+                    // picker shows the new selection immediately and puts the old
+                    // one back if the write fails.
+                    const previous = tags;
                     setTags(newTags);
-                    setToolTags.mutate({ id: entity.id, tagIds: newTags.map((tag) => tag.id) });
+                    setToolTags.mutate(
+                      { id: entity.id, tagIds: newTags.map((tag) => tag.id) },
+                      { onError: () => setTags(previous) }
+                    );
                   }}
                 />
               ) : (
