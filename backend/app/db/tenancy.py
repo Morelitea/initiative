@@ -165,9 +165,10 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # returned by the API to anyone, admin included.
         "guild_app_user_connections",
         # What one installed app calls one member — a pairwise pseudonymous
-        # subject (OIDC Core §8.1). No initiative, and deliberately no own-row
-        # policy: it holds nothing about the member beyond the link, and both
-        # readers act for a member who is not the caller.
+        # subject (OIDC Core §8.1). No initiative, and one owner per row, so it
+        # carries own_row_* policies like its neighbours: the link is the whole
+        # point of the value, and a row that resolved for anyone would undo the
+        # unlinkability it exists to provide.
         "guild_app_subjects",
         # A member's authorization for an installed app to act as them. Same
         # shape and same reasons as the connections beside it: no FK to any
@@ -192,6 +193,7 @@ OWN_ROW_TABLES: dict[str, str] = {
     "guild_ai_member_prefs": "user_id",
     "guild_app_user_connections": "user_id",
     "guild_app_user_delegations": "user_id",
+    "guild_app_subjects": "user_id",
 }
 
 # --- Guild-scoped (derived) -------------------------------------------------

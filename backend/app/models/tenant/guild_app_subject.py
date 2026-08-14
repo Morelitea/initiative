@@ -9,11 +9,14 @@ What the row buys is the *reverse* direction. The derivation is one-way, so a
 delegation token naming a subject can only be resolved to a member by finding
 the value we minted — which is this.
 
-Guild-level: an install is guild-wide and this has no initiative. Unlike its
-neighbours it carries **no** own-row policy, because it holds nothing about the
-member beyond the link itself, and the two readers are the handoff mint and the
-delegation resolver — both of which run on the system engine for a member who is
-not the caller.
+Guild-level: an install is guild-wide and this has no initiative. Own-row like
+its neighbours (owner, or a guild admin) — the link *is* the value, so a row
+readable by anyone in the guild would undo the unlinkability it exists to
+provide, and a row writable by anyone would point an app's delegated calls at a
+different person.
+
+Both readers still work under that: the handoff mint runs as the member whose
+subject it is, and the delegation resolver runs routed as a guild admin.
 """
 
 from datetime import datetime, timezone
