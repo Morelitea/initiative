@@ -108,16 +108,26 @@ async def _authenticate_auto_delegation(
         delegation_token_kid(token) or ""
     )
 
-    try:
-        claims = verify_auto_delegation_token(
-            token, keys=[candidate.key for candidate in candidates]
-        )
-    except AutoDelegationVerificationError:
-        # Could be a session JWT or API key arriving on the same header.
-        # Returning None lets the caller try those instead of failing.
+    # One candidate at a time, so the app this call is attributed to is the one
+    # whose key actually verified. Two apps may publish the same `kid` — it is
+    # an opaque label each picks — and everything downstream (which install must
+    # exist, which app acted) has to follow the signature, not the order.
+    claims = None
+    signer = None
+    for candidate in candidates:
+        try:
+            claims = verify_auto_delegation_token(token, keys=[candidate.key])
+        except AutoDelegationVerificationError:
+            # Could also be a session JWT or API key arriving on the same
+            # header; falling through lets the caller try those.
+            continue
+        signer = candidate
+        break
+
+    if claims is None or signer is None:
         return None
 
-    request.state.delegating_app = candidates[0].registration.public_id
+    request.state.delegating_app = signer.registration.public_id
 
     # Replay guard: a delegation JWT is one-shot. Even though the JWT is
     # technically valid for 15 minutes, a captured token must not be
@@ -125,6 +135,15 @@ async def _authenticate_auto_delegation(
     # path; the ``record_jti`` insert below is the actual race-safe
     # guarantee (unique-violation on the PK).
     if await auto_delegation_blocklist.is_jti_redeemed(session, claims.jti):
+        return None
+
+    # An app acts only in the guilds that installed it, and a token names
+    # exactly one. Checked against the claim rather than the path, so it holds
+    # for every route a delegated call can reach — including the cross-guild
+    # `/me/*` views, which have no path guild to check.
+    if not await registration_lookup.app_is_installed(
+        claims.guild_id, signer.registration.listing_uid
+    ):
         return None
 
     statement = select(User).where(User.id == claims.user_id)

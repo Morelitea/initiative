@@ -30,7 +30,9 @@ __all__ = [
     "DELEGATE_KID",
     "DELEGATE_PUBLIC_ID",
     "delegation_jwks",
+    "DELEGATE_LISTING_UID",
     "delegation_verification_keys",
+    "install_delegate",
     "foreign_jwks",
     "mint_delegation_token",
     "register_delegate",
@@ -41,6 +43,9 @@ __all__ = [
 #: suffix, because a rotation runs two entries in one key set.
 DELEGATE_PUBLIC_ID = "acme.auto"
 DELEGATE_KID = f"{DELEGATE_PUBLIC_ID}-delegation-1"
+#: The listing the delegate's registration names, and therefore what a guild
+#: installs to let it act there.
+DELEGATE_LISTING_UID = "DELEGATE000001"
 
 # One keypair per test session. Generated rather than checked in so no test
 # depends on a fixed modulus, and cheap enough at 2048 bits to build once.
@@ -119,6 +124,7 @@ async def register_delegate(
     """
     row = AppServiceRegistration(
         public_id=public_id,
+        listing_uid=DELEGATE_LISTING_UID,
         base_url="http://auto.test:8080",
         allowed_origins=["http://auto.test:8080"],
         secret_encrypted=None,
@@ -139,3 +145,42 @@ def delegation_verification_keys() -> tuple[Any, ...]:
     """The public key itself, for a test calling the verifier directly rather
     than through the auth dep that would resolve it from a registration."""
     return (_keypair.public_key(),)
+
+
+async def install_delegate(session: AsyncSession, guild, creator=None) -> Any:
+    """Install the delegate in a guild, which is what lets it act there.
+
+    An app reaches a guild because that guild installed it, so a test that
+    expects a delegated call to succeed installs the app as well as registering
+    it — the two halves an operator and a guild admin each own.
+    """
+    from sqlmodel import select
+
+    from app.models.tenant.guild_app import GuildApp
+    from app.testing.factories import create_guild_app, create_user
+    from app.testing.schema_harness import route_session_to_guild
+
+    # Resolved before the session is routed: a user is a public row, and
+    # writing one on a guild-routed session is not a thing this should do.
+    installer = creator or await create_user(session)
+
+    await route_session_to_guild(session, guild.id)
+    existing = (
+        await session.exec(
+            select(GuildApp).where(GuildApp.listing_uid == DELEGATE_LISTING_UID)
+        )
+    ).first()
+    if existing is not None:
+        return existing
+
+    return await create_guild_app(
+        session,
+        guild,
+        installer,
+        definition={
+            "app_kind": "service",
+            "service": {"public_id": DELEGATE_PUBLIC_ID},
+        },
+        listing_uid=DELEGATE_LISTING_UID,
+        name="Delegate",
+    )

@@ -273,7 +273,10 @@ async def list_memberships(
     user's membership context — a single cross-guild join would hit the empty
     public table and report NULL for everyone. ``guild_settings.id`` is a
     per-schema serial that collides across schemas, so each settings row is
-    detached after reading so a cached row can't shadow the next guild's.
+    detached after reading so a cached row can't shadow the next guild's. It is
+    read only where the caller is that guild's admin: retention is one of the
+    administration fields ``GuildRead`` withholds from ordinary members, so for
+    them it comes back ``None`` and costs no query.
 
     ``member_count`` is the total number of members in the guild. It's read
     inside the same per-guild loop because the ``guild_memberships_select`` RLS
@@ -309,15 +312,17 @@ async def list_memberships(
         ):
             continue
         await set_rls_context(session, user_id=user_id, guild_id=guild.id)
-        row = (
-            await session.exec(
-                select(GuildSetting).where(GuildSetting.guild_id == guild.id)
-            )
-        ).one_or_none()
-        # No row yet → the 90-day default; an explicit NULL is the user's "never".
-        retention = 90 if row is None else row.retention_days
-        if row is not None:
-            session.expunge(row)
+        retention: int | None = None
+        if membership.role == GuildRole.admin:
+            row = (
+                await session.exec(
+                    select(GuildSetting).where(GuildSetting.guild_id == guild.id)
+                )
+            ).one_or_none()
+            # No row yet → the 90-day default; an explicit NULL is the user's "never".
+            retention = 90 if row is None else row.retention_days
+            if row is not None:
+                session.expunge(row)
         member_count = await count_members(session, guild_id=guild.id)
         out.append((guild, membership, retention, member_count))
 

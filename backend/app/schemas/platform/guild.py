@@ -28,6 +28,20 @@ class GuildCreate(GuildBase):
 
 
 class GuildRead(GuildBase):
+    """A guild as its own members see it (``GET /guilds/`` and friends).
+
+    The payload has two tiers, decided in one place — ``_serialize_guild`` in
+    the guilds router:
+
+    - The fields below with no note are for **every member**: guild identity,
+      the caller's own membership, the roster size, ``content_read_only``.
+    - The ones marked ADMIN-ONLY are guild administration — caps, plan label,
+      retention window, lifecycle status, sign-in entitlement. They back
+      admin-gated surfaces, so a regular member's payload leaves them ``None``.
+      (Operators read the same underlying columns through
+      :class:`PlatformGuildStorageRead` instead, which is capability-gated.)
+    """
+
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
@@ -37,29 +51,33 @@ class GuildRead(GuildBase):
     position: int
     created_at: datetime
     updated_at: datetime
+    # ADMIN-ONLY. Trash retention window, set from the guild's trash settings tab.
     retention_days: Optional[int] = None
+    # ADMIN-ONLY. Operator-set caps, rendered against usage on the settings page
+    # (the usage half, /g/{id}/storage/usage, is guild-admin only too).
     max_storage_bytes: Optional[int] = None
     max_users: Optional[int] = None
     member_count: int = 0
-    # Display/audit label of the paid tier (NULL = none / self-hosted). Shown by
-    # the plan panel only when a billing portal is configured; it is DISPLAY
-    # metadata and is never read in an enforcement path (billing_foss_test
-    # scans for that). Enforcement reads max_storage_bytes / max_users / status.
+    # ADMIN-ONLY. Display/audit label of the paid tier (NULL = none /
+    # self-hosted). Shown by the plan panel only when a billing portal is
+    # configured; it is DISPLAY metadata and is never read in an enforcement
+    # path (billing_foss_test scans for that). Enforcement reads
+    # max_storage_bytes / max_users / status.
     tier_name: Optional[str] = None
-    # Lifecycle status, surfaced to guild ADMINS only (so their settings page can
-    # show a "contact your operator" chip). ``None`` for non-admin members — the
-    # moderation hold is never disclosed to them (suspended guilds are also
-    # filtered from their guild list entirely).
+    # ADMIN-ONLY. Lifecycle status, so their settings page can show a "contact
+    # your operator" chip. ``None`` for non-admin members — the moderation hold
+    # is never disclosed to them (suspended guilds are also filtered from their
+    # guild list entirely).
     status: Optional[GuildStatus] = None
     # True when content writes are frozen (read_only lifecycle status). Unlike
     # ``status`` this IS serialized to every member: writes fail at the
     # database role level regardless, so the UI must be able to drop its write
     # affordances — the flag discloses the effect, not the reason.
     content_read_only: bool = False
-    # Whether this guild may configure its own sign-in (operator entitlement).
-    # Surfaced to guild ADMINS only, so their settings UI can show/hide the
-    # Authentication tab; ``None`` for non-admin members (they never configure
-    # auth). Only meaningful under the per-guild AUTH_SCOPE posture.
+    # ADMIN-ONLY. Whether this guild may configure its own sign-in (operator
+    # entitlement), so their settings UI can show/hide the Authentication tab;
+    # ``None`` for non-admin members (they never configure auth). Only
+    # meaningful under the per-guild AUTH_SCOPE posture.
     guild_auth_enabled: Optional[bool] = None
 
 

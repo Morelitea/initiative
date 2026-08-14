@@ -44,6 +44,7 @@ __all__ = [
     "InstallState",
     "RegistrationSnapshot",
     "any_delegate_registered",
+    "app_is_installed",
     "delegation_keys_for",
     "install_state",
     "invalidate_registrations",
@@ -305,3 +306,38 @@ async def any_delegate_registered() -> bool:
         and snapshot.delegation_keys
         for snapshot in (await load_registrations()).values()
     )
+
+
+async def app_is_installed(guild_id: int, listing_uid: Optional[str]) -> bool:
+    """Whether the guild has this app installed and switched on.
+
+    The install is what makes an app present in a guild, so it is also what
+    bounds a delegate to the guilds that chose it — uninstalling ends that
+    reach, which is the property §10.3 of the platform design claims.
+
+    Read per call rather than cached: the registration snapshot can afford a
+    TTL because an operator's kill switch is deployment-wide and rare, while an
+    uninstall is a guild's own decision and is expected to bite at once.
+
+    A registration that has never completed a handshake names no listing, and
+    nothing can be installed from it — so it is not installed anywhere.
+    """
+    if not listing_uid:
+        return False
+
+    from app.models.tenant.guild_app import GuildApp
+
+    async with db_session.AdminSessionLocal() as session:
+        # Guild content lives in the guild's own schema, so the read is routed
+        # there. `admin` because this asks what the guild has, not what any
+        # particular member may see.
+        await db_session.set_rls_context(session, guild_id=guild_id, guild_role="admin")
+        found = (
+            await session.exec(
+                select(GuildApp.id).where(
+                    GuildApp.listing_uid == listing_uid,
+                    GuildApp.enabled.is_(True),
+                )
+            )
+        ).first()
+    return found is not None
