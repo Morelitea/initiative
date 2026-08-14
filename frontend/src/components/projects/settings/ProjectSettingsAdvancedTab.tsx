@@ -13,11 +13,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { TabsContent } from "@/components/ui/tabs";
 import {
   useArchiveProject,
-  useDeleteProject,
   useDuplicateProject,
   useUnarchiveProject,
   useUpdateProject,
@@ -28,14 +25,12 @@ interface ProjectSettingsAdvancedTabProps {
   project: ProjectRead;
   projectId: number;
   canWriteProject: boolean;
-  isOwner: boolean;
 }
 
 export const ProjectSettingsAdvancedTab = ({
   project,
   projectId,
   canWriteProject,
-  isOwner,
 }: ProjectSettingsAdvancedTabProps) => {
   const { t } = useTranslation("projects");
   const router = useRouter();
@@ -43,7 +38,6 @@ export const ProjectSettingsAdvancedTab = ({
 
   const [templateMessage, setTemplateMessage] = useState<string | null>(null);
   const [duplicateMessage, setDuplicateMessage] = useState<string | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const toggleTemplateStatus = useUpdateProject(projectId, {
     onSuccess: (_data, vars) => {
@@ -66,15 +60,9 @@ export const ProjectSettingsAdvancedTab = ({
 
   const unarchiveProject = useUnarchiveProject();
 
-  const deleteProject = useDeleteProject({
-    onSuccess: () => {
-      router.navigate({ to: "/" });
-    },
-  });
-
   return (
     <>
-      <TabsContent value="advanced" className="space-y-6">
+      <>
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle>{t("settings.templateStatus.title")}</CardTitle>
@@ -192,42 +180,7 @@ export const ProjectSettingsAdvancedTab = ({
           projectName={project.name}
           canWriteProject={canWriteProject}
         />
-
-        {isOwner ? (
-          <Card className="border-destructive/40 bg-destructive/5 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-destructive">{t("settings.danger.title")}</CardTitle>
-              <CardDescription className="text-destructive">
-                {t("settings.danger.description")}
-              </CardDescription>
-            </CardHeader>
-            <CardFooter>
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={() => setShowDeleteConfirm(true)}
-                disabled={deleteProject.isPending}
-              >
-                {t("settings.danger.deleteButton")}
-              </Button>
-            </CardFooter>
-          </Card>
-        ) : null}
-      </TabsContent>
-
-      <ConfirmDialog
-        open={showDeleteConfirm}
-        onOpenChange={setShowDeleteConfirm}
-        title={t("settings.danger.deleteTitle")}
-        description={t("settings.danger.deleteDescription")}
-        confirmLabel={t("settings.danger.deleteConfirm")}
-        onConfirm={() => {
-          deleteProject.mutate(projectId);
-          setShowDeleteConfirm(false);
-        }}
-        isLoading={deleteProject.isPending}
-        destructive
-      />
+      </>
     </>
   );
 };

@@ -41,11 +41,6 @@ interface DocumentSettingsDialogsProps {
   isCopying: boolean;
   copyableInitiatives: InitiativeRead[];
   isLoadingInitiatives: boolean;
-  // Delete dialog
-  deleteDialogOpen: boolean;
-  onDeleteDialogOpenChange: (open: boolean) => void;
-  onDelete: () => void;
-  isDeleting: boolean;
 }
 
 export const DocumentSettingsDialogs = ({
@@ -68,11 +63,6 @@ export const DocumentSettingsDialogs = ({
   isCopying,
   copyableInitiatives,
   isLoadingInitiatives,
-  // Delete dialog
-  deleteDialogOpen,
-  onDeleteDialogOpenChange,
-  onDelete,
-  isDeleting,
 }: DocumentSettingsDialogsProps) => {
   const { t } = useTranslation(["documents", "common"]);
 
@@ -192,34 +182,6 @@ export const DocumentSettingsDialogs = ({
                 </>
               ) : (
                 t("settings.copyDocument")
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={deleteDialogOpen} onOpenChange={onDeleteDialogOpenChange}>
-        <DialogContent className="max-h-screen overflow-y-auto bg-card">
-          <DialogHeader>
-            <DialogTitle>{t("settings.deleteDialogTitle")}</DialogTitle>
-            <DialogDescription>{t("settings.deleteDialogDescription")}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => onDeleteDialogOpenChange(false)}
-            >
-              {t("common:cancel")}
-            </Button>
-            <Button type="button" variant="destructive" onClick={onDelete} disabled={isDeleting}>
-              {isDeleting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  {t("settings.deleting")}
-                </>
-              ) : (
-                t("common:delete")
               )}
             </Button>
           </DialogFooter>

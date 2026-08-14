@@ -178,6 +178,15 @@ describe("tool routes", () => {
     }
   });
 
+  // Every tool is renameable and deletable from its own settings page. The
+  // absence of this check is how a tool shipped with no way to do either.
+  it("every tool has its per-entity settings route", () => {
+    for (const tool of TOOLS) {
+      const file = `../routes/_serverRequired/_authenticated/g/$guildId/${toolRouteSegment(tool)}_.$${toolParamName(tool)}_.settings.tsx`;
+      expect(guildRouteFiles, `missing settings route file ${file}`).toContain(file);
+    }
+  });
+
   it("derives the route param name from the enum", () => {
     expect(toolCamelSingular(Tool.counter_group)).toBe("counterGroup");
     expect(toolParamName(Tool.counter_group)).toBe("counterGroupId");

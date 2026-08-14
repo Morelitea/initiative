@@ -83,5 +83,27 @@
   "createAccess": {
     "advancedOptions": "Opciones avanzadas"
   },
-  "deletedUserName": "Usuario eliminado #{{id}}"
+  "deletedUserName": "Usuario eliminado #{{id}}",
+  "toolSettings": {
+    "title": "Configuración",
+    "description": "Gestiona los detalles, el acceso y las opciones avanzadas.",
+    "tabDetails": "Detalles",
+    "tabAccess": "Acceso",
+    "tabAdvanced": "Avanzado",
+    "namePlaceholder": "Escribe un nombre",
+    "descriptionPlaceholder": "Descripción opcional",
+    "saving": "Guardando...",
+    "detailsUpdated": "Detalles actualizados",
+    "tags": "Etiquetas",
+    "tagsDescription": "Agrega etiquetas para organizar y filtrar.",
+    "tagsNoAccess": "Necesitas acceso de escritura para administrar etiquetas.",
+    "permissionsUpdated": "Permisos actualizados",
+    "dangerZone": "Zona de peligro",
+    "dangerZoneDescription": "Acciones destructivas. Los elementos eliminados van a la papelera y pueden restaurarse antes de que finalice el período de retención.",
+    "deleteConfirmTitle": "¿Eliminar «{{name}}»?",
+    "deleteConfirmDescription": "Se enviará a la papelera. Puedes restaurarlo desde Configuración → Papelera antes de que finalice el período de retención.",
+    "deleted": "«{{name}}» eliminado",
+    "notFound": "No encontrado",
+    "loadError": "No se pudo cargar este elemento."
+  }
 }

@@ -83,5 +83,27 @@
   },
   "createAccess": {
     "advancedOptions": "Advanced options"
+  },
+  "toolSettings": {
+    "title": "Settings",
+    "description": "Manage details, access, and advanced options.",
+    "tabDetails": "Details",
+    "tabAccess": "Access",
+    "tabAdvanced": "Advanced",
+    "namePlaceholder": "Enter a name",
+    "descriptionPlaceholder": "Optional description",
+    "saving": "Saving...",
+    "detailsUpdated": "Details updated",
+    "tags": "Tags",
+    "tagsDescription": "Add tags to organize and filter.",
+    "tagsNoAccess": "You need write access to manage tags.",
+    "permissionsUpdated": "Permissions updated",
+    "dangerZone": "Danger Zone",
+    "dangerZoneDescription": "Destructive actions. Deleted items go to the trash and can be restored before the retention period ends.",
+    "deleteConfirmTitle": "Delete \"{{name}}\"?",
+    "deleteConfirmDescription": "It will be sent to the trash. You can restore it from Settings → Trash before the retention period ends.",
+    "deleted": "\"{{name}}\" deleted",
+    "notFound": "Not found",
+    "loadError": "This item could not be loaded."
   }
 }

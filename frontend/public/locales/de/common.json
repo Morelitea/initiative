@@ -83,5 +83,27 @@
   },
   "createAccess": {
     "advancedOptions": "Erweiterte Optionen"
+  },
+  "toolSettings": {
+    "title": "Einstellungen",
+    "description": "Verwalte Details, Zugriff und erweiterte Optionen.",
+    "tabDetails": "Details",
+    "tabAccess": "Zugriff",
+    "tabAdvanced": "Erweitert",
+    "namePlaceholder": "Namen eingeben",
+    "descriptionPlaceholder": "Optionale Beschreibung",
+    "saving": "Wird gespeichert...",
+    "detailsUpdated": "Details aktualisiert",
+    "tags": "Tags",
+    "tagsDescription": "Füge Tags hinzu, um zu organisieren und zu filtern.",
+    "tagsNoAccess": "Du benötigst Schreibzugriff, um Tags zu verwalten.",
+    "permissionsUpdated": "Berechtigungen aktualisiert",
+    "dangerZone": "Gefahrenzone",
+    "dangerZoneDescription": "Destruktive Aktionen. Gelöschte Elemente landen im Papierkorb und können wiederhergestellt werden, bevor der Aufbewahrungszeitraum endet.",
+    "deleteConfirmTitle": "„{{name}}“ löschen?",
+    "deleteConfirmDescription": "Das Element wird in den Papierkorb verschoben. Du kannst es unter Einstellungen → Papierkorb wiederherstellen, bevor der Aufbewahrungszeitraum endet.",
+    "deleted": "„{{name}}“ gelöscht",
+    "notFound": "Nicht gefunden",
+    "loadError": "Dieses Element konnte nicht geladen werden."
   }
 }
