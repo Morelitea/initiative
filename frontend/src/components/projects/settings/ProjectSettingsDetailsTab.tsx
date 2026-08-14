@@ -104,7 +104,7 @@ export const ProjectSettingsDetailsTab = ({
     }
   }, [project]);
 
-  const updateProject = useUpdateProject({
+  const updateProject = useUpdateProject(projectId, {
     onSuccess: (data) => {
       // Re-baseline to what the server stored, so the form counts as clean
       // again and the next refetch is free to reseed it.
@@ -140,15 +140,12 @@ export const ProjectSettingsDetailsTab = ({
                 setSavedMessage(null);
                 const trimmedIcon = iconText.trim();
                 updateProject.mutate({
-                  projectId: projectId,
-                  data: {
-                    name: nameText.trim() || project.name || "",
-                    icon: trimmedIcon || null,
-                    description: descriptionText,
-                    // "" means "no date" in the picker; the API clears on null.
-                    start_date: startDate || null,
-                    end_date: endDate || null,
-                  },
+                  name: nameText.trim() || project.name || "",
+                  icon: trimmedIcon || null,
+                  description: descriptionText,
+                  // "" means "no date" in the picker; the API clears on null.
+                  start_date: startDate || null,
+                  end_date: endDate || null,
                 });
               }}
             >

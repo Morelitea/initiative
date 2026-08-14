@@ -152,7 +152,6 @@ export const DocumentSettingsPage = () => {
   });
 
   const deleteDocumentMutation = useDeleteDocument({
-    suppressSuccessToast: true,
     onSuccess: () => {
       toast.success(t("settings.documentDeleted"));
       setDeleteDialogOpen(false);
@@ -163,7 +162,7 @@ export const DocumentSettingsPage = () => {
     },
   });
 
-  const updateTemplate = useUpdateDocument({
+  const updateTemplate = useUpdateDocument(parsedId, {
     onSuccess: (updated) => {
       setIsTemplate(updated.is_template);
       setDocumentCache(parsedId, updated);
@@ -180,7 +179,7 @@ export const DocumentSettingsPage = () => {
     const previous = isTemplate;
     setIsTemplate(value);
     updateTemplate.mutate(
-      { documentId: document.id, data: { is_template: value } },
+      { is_template: value },
       {
         onError: () => setIsTemplate(previous),
       }
@@ -324,7 +323,7 @@ export const DocumentSettingsPage = () => {
         // Delete dialog
         deleteDialogOpen={deleteDialogOpen}
         onDeleteDialogOpenChange={setDeleteDialogOpen}
-        onDelete={() => deleteDocumentMutation.mutate([parsedId])}
+        onDelete={() => deleteDocumentMutation.mutate(parsedId)}
         isDeleting={deleteDocumentMutation.isPending}
       />
     </div>

@@ -45,10 +45,10 @@ export const ProjectSettingsAdvancedTab = ({
   const [duplicateMessage, setDuplicateMessage] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const toggleTemplateStatus = useUpdateProject({
+  const toggleTemplateStatus = useUpdateProject(projectId, {
     onSuccess: (_data, vars) => {
       setTemplateMessage(
-        vars.data.is_template
+        vars.is_template
           ? t("settings.templateStatus.markedAsTemplate")
           : t("settings.templateStatus.removedFromTemplates")
       );
@@ -95,10 +95,7 @@ export const ProjectSettingsAdvancedTab = ({
                 variant={project.is_template ? "outline" : "default"}
                 onClick={() => {
                   setTemplateMessage(null);
-                  toggleTemplateStatus.mutate({
-                    projectId: projectId,
-                    data: { is_template: !project.is_template },
-                  });
+                  toggleTemplateStatus.mutate({ is_template: !project.is_template });
                 }}
                 disabled={toggleTemplateStatus.isPending}
               >
