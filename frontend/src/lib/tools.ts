@@ -3,27 +3,30 @@
  *
  * The canonical tool set is the backend `Tool` enum (mirrored into the
  * generated types). Every derived name follows one rule set, so a tool's
- * entry here is just its icon plus honest capability flags:
+ * entry here is just its icon:
  *
  *   value            "counter_group"          (the enum / resource_type)
  *   plural           "counter_groups"         → permission keys, member flags
  *   kebab plural     "counter-groups"         → route segment, API path
  *   camel plural     "counterGroups"          → i18n namespace, palette group
+ *   camel singular   "counterGroup"           → route param name
  *   pascal singular  "CounterGroup"           → nav create-label key
  *
  * ## Adding a tool
  * 1. Backend: add the `Tool` enum member + wire the registries there
  *    (`app/core/tools.py` — its drift tests walk you through the rest).
  * 2. Regenerate types (`pnpm generate:api`).
- * 3. Add ONE entry to `TOOL_REGISTRY` below.
+ * 3. Add ONE entry to `TOOL_ICONS` below.
  * 4. Add the i18n namespace file + nav keys, the route files, and a data
  *    hook — `src/lib/tools.test.ts` fails with a list of exactly what is
  *    missing until every surface exists.
  *
- * Capability flags are deliberate product decisions, not omissions — a flag
- * set to `false` documents an intentional gap (e.g. no notification types
- * for queues yet), and the drift tests hold the rest of the app to whatever
- * is declared here.
+ * There is deliberately NO per-tool capability matrix. Every tool is
+ * recentable, taggable, shareable, has a command-palette group, and has a
+ * settings page. A tool that genuinely differs is named in ONE exception set
+ * below with its reason — the same way `app/core/tools.py` states these facts
+ * — so a new tool gets every surface by default and an omission has to be
+ * written down to happen.
  */
 
 import type { ParseKeys } from "i18next";
@@ -35,7 +38,6 @@ import {
   ListTodo,
   type LucideIcon,
   ScrollText,
-  Sparkles,
 } from "lucide-react";
 
 import type {
@@ -45,116 +47,48 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 
-export interface ToolDef {
-  /** Icon used everywhere the tool renders (sidebar, recents, palette). */
-  icon: LucideIcon;
-  /**
-   * Core tools are always on: no per-initiative master switch, visible to
-   * every member by default. Non-core tools are opt-in per initiative via
-   * their `{plural}_enabled` switch.
-   */
-  core: boolean;
-  /**
-   * Appears in the recent-items tabs bar. Must mirror the backend's
-   * RECENTABLE_TOOLS.
-   */
-  recents: boolean;
-  /** Has a command-palette group. */
-  commandPalette: boolean;
-  /**
-   * Has dedicated notification types. Intentional gap for queues and counter
-   * groups — recorded here, not scattered as TODOs.
-   */
-  notifications: boolean;
-  /** Personal cross-guild page under the top-level router, if any. */
-  personalRoute: string | null;
-  /**
-   * Has an export-engine source: single-entity export plus bulk selection
-   * export (`{tool}_ids` selectors; a calendar exports as one combined
-   * file carrying its events).
-   */
-  bulkExport: boolean;
-  /** Has an import surface: a JSON envelope of this type can be imported
-   * (drives the list-page "Import" affordances). Backup import is separate
-   * (guild settings), not per-tool. */
-  importable: boolean;
-}
-
-export const TOOL_REGISTRY: Record<Tool, ToolDef> = {
-  [Tool.project]: {
-    icon: ListTodo,
-    core: true,
-    recents: true,
-    commandPalette: true,
-    notifications: true,
-    personalRoute: "/my-projects",
-    bulkExport: true,
-    importable: true,
-  },
-  [Tool.document]: {
-    icon: ScrollText,
-    core: true,
-    recents: true,
-    commandPalette: true,
-    notifications: true,
-    personalRoute: "/my-documents",
-    bulkExport: true,
-    importable: true,
-  },
-  [Tool.queue]: {
-    icon: GalleryHorizontalEnd,
-    core: false,
-    recents: true,
-    commandPalette: true,
-    notifications: false,
-    personalRoute: null,
-    bulkExport: true,
-    importable: true,
-  },
-  [Tool.counter_group]: {
-    icon: Gauge,
-    core: false,
-    recents: true,
-    commandPalette: true,
-    notifications: false,
-    personalRoute: null,
-    bulkExport: true,
-    importable: true,
-  },
-  [Tool.calendar]: {
-    icon: CalendarDays,
-    core: false,
-    recents: true,
-    commandPalette: true,
-    notifications: true,
-    personalRoute: "/my-calendar",
-    bulkExport: true,
-    importable: true,
-  },
-  [Tool.dashboard]: {
-    icon: LayoutDashboard,
-    core: false,
-    recents: true,
-    commandPalette: true,
-    notifications: false,
-    personalRoute: null,
-    bulkExport: false,
-    importable: false,
-  },
+/**
+ * The icon each tool renders with everywhere (sidebar, recents, palette,
+ * settings). The one fact about a tool that cannot be derived from its name.
+ */
+export const TOOL_ICONS: Record<Tool, LucideIcon> = {
+  [Tool.project]: ListTodo,
+  [Tool.document]: ScrollText,
+  [Tool.queue]: GalleryHorizontalEnd,
+  [Tool.counter_group]: Gauge,
+  [Tool.calendar]: CalendarDays,
+  [Tool.dashboard]: LayoutDashboard,
 };
 
 /** Every tool, in canonical enum order. */
 export const TOOLS = Object.values(Tool) as Tool[];
 
+/**
+ * Always on: no per-initiative master switch, visible to every member by
+ * default. Mirrors backend `CORE_TOOLS`, and matches the generated
+ * `InitiativeRead`, which carries a `{plural}_enabled` column for every OTHER
+ * tool and none for these.
+ */
+export const CORE_TOOLS: ReadonlySet<Tool> = new Set([Tool.project, Tool.document]);
+
 /** Tools with a per-initiative master switch (everything non-core). */
-export const TOGGLEABLE_TOOLS = TOOLS.filter((t) => !TOOL_REGISTRY[t].core);
+export const TOGGLEABLE_TOOLS = TOOLS.filter((t) => !CORE_TOOLS.has(t));
 
-/** Tools that appear in the recents bar — mirrors backend RECENTABLE_TOOLS. */
-export const RECENTABLE_TOOLS = TOOLS.filter((t) => TOOL_REGISTRY[t].recents);
+/**
+ * Tools WITHOUT an export-engine source, and why. Stated as an exclusion so
+ * the default is "a new tool is portable" — mirrors backend
+ * `NON_EXPORTABLE_TOOLS`. Export and import are ONE capability (a tool's JSON
+ * envelope round-trips through both), so this set governs each.
+ */
+export const NON_EXPORTABLE_TOOLS: ReadonlySet<Tool> = new Set([
+  // Export/import ships with the marketplace, which owns the definition
+  // envelope format.
+  Tool.dashboard,
+]);
 
-/** Tools with an export-engine source (single + bulk selection export). */
-export const BULK_EXPORT_TOOLS = TOOLS.filter((t) => TOOL_REGISTRY[t].bulkExport);
-export const IMPORTABLE_TOOLS = TOOLS.filter((t) => TOOL_REGISTRY[t].importable);
+/** Tools with an export-engine source (single + bulk selection export), and
+ *  equally the tools whose envelope can be imported. */
+export const BULK_EXPORT_TOOLS = TOOLS.filter((t) => !NON_EXPORTABLE_TOOLS.has(t));
 
 /**
  * Sidebar display order within an initiative. Projects render last because the
@@ -188,6 +122,10 @@ export const toolForRouteSegment = (segment: string): Tool | null =>
 export const toolCamelPlural = (tool: Tool): string =>
   toolPlural(tool).replace(/_(\w)/g, (_, c: string) => c.toUpperCase());
 
+/** "counter_group" → "counterGroup" — the stem of the route param name. */
+export const toolCamelSingular = (tool: Tool): string =>
+  tool.replace(/_(\w)/g, (_, c: string) => c.toUpperCase());
+
 /** "counter_group" → "CounterGroup" */
 export const toolPascalSingular = (tool: Tool): string =>
   tool.replace(/(?:^|_)(\w)/g, (_, c: string) => c.toUpperCase());
@@ -198,6 +136,18 @@ export const toolApiPath = (tool: Tool): string => `/api/v1/${toolRouteSegment(t
 
 /** Guild-relative list route, e.g. "/counter-groups". */
 export const toolListRoute = (tool: Tool): string => `/${toolRouteSegment(tool)}`;
+
+/** Guild-relative detail route for one entity, e.g. "/counter-groups/12". */
+export const toolDetailRoute = (tool: Tool, id: number): string => `${toolListRoute(tool)}/${id}`;
+
+/** Guild-relative settings route for one entity, e.g. "/counter-groups/12/settings". */
+export const toolSettingsRoute = (tool: Tool, id: number): string =>
+  `${toolDetailRoute(tool, id)}/settings`;
+
+/** The router path param carrying a tool entity's id, e.g. "counterGroupId".
+ *  Every tool's detail/settings route names its param this way, so the shared
+ *  settings page reads the id without a per-tool lookup. */
+export const toolParamName = (tool: Tool): string => `${toolCamelSingular(tool)}Id`;
 
 /** Export-engine endpoint (relative to /g/{guildId}), e.g. "/exports/counter-group"
  * — the engine's source name is the KEBAB SINGULAR of the tool. */
@@ -213,7 +163,7 @@ export const toolEnvelopeType = (tool: Tool): string => `initiative-${tool.repla
 /** Inverse of {@link toolEnvelopeType}: which tool an envelope belongs to,
  * or null for an unknown/backup type. */
 export const toolForEnvelopeType = (type: string): Tool | null =>
-  IMPORTABLE_TOOLS.find((tool) => toolEnvelopeType(tool) === type) ?? null;
+  BULK_EXPORT_TOOLS.find((tool) => toolEnvelopeType(tool) === type) ?? null;
 
 /** Bulk-selection export selector param, e.g. "counter_group_ids". */
 export const toolExportIdsParam = (tool: Tool): string => `${tool}_ids`;
@@ -249,7 +199,7 @@ export const toolMemberCreateFlag = (tool: Tool): keyof InitiativeMemberRead =>
  * the view permission). Core tools have no switch — callers get `true`.
  */
 export const isToolEnabled = (tool: Tool, initiative: InitiativeRead): boolean =>
-  TOOL_REGISTRY[tool].core ||
+  CORE_TOOLS.has(tool) ||
   Boolean(initiative[`${toolPlural(tool)}_enabled` as keyof InitiativeRead]);
 
 /** Guild-relative sidebar/nav row target for a tool inside an initiative: its

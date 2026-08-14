@@ -12,10 +12,18 @@ that surface, and the surface's own ``visibility`` must admit the caller. An app
 never has to make that decision, and never sees a request from somebody who
 failed it.
 
-**The token carries the minimum.** Guild, install, surface, and who is opening
-it — nothing about their role, their name, or their address. What an app may do
-with a person is a function of what the manifest declared and the guild
-accepted, not of anything it can read out of a claim set.
+**The token carries the minimum.** Guild, install, surface, who is opening it,
+and — where the surface was opened inside an initiative — which one. Nothing
+about their role, their name, or their address. What an app may do with a person
+is a function of what the manifest declared and the guild accepted, not of
+anything it can read out of a claim set.
+
+**Where a surface was opened is the route's to say.** A surface declares the
+scopes it renders in, and the caller names none of them: the initiative in the
+token is the one whose route was taken and whose gate the caller passed, never a
+value they supplied. That is also what makes ``visibility`` readable in two
+places at once — the same rung means an initiative's members inside it and the
+whole guild outside it.
 
 This generalizes the advanced tool's mint: same shape, but target, origins and
 audience come from the registration row rather than from deployment settings, so
@@ -41,6 +49,8 @@ from app.core.security import (
 )
 from app.models.tenant.guild_app import GuildApp
 from app.services.marketplace import registration_lookup
+from app.services.marketplace.service_apps import clears_visibility
+from app.services.tenant.guild_apps import placed_in
 
 __all__ = [
     "APP_EMBED_HANDOFF_LIFETIME",
@@ -62,8 +72,8 @@ class EmbedHandoff:
 
     token: str
     expires_in_seconds: int
-    #: Where the iframe points: the registration's base URL joined to the path
-    #: the manifest declared for this surface.
+    #: Where the iframe points: the registration's browser base joined to the
+    #: path the manifest declared for this surface.
     embed_url: str
     #: The origins the SPA accepts messages from, and posts the token to.
     allowed_origins: tuple[str, ...]
@@ -72,27 +82,48 @@ class EmbedHandoff:
 
 
 def embed_by_id(
-    definition: dict[str, Any] | None, surface_id: str
+    definition: dict[str, Any] | None, surface_id: str, *, scope: str
 ) -> Optional[dict[str, Any]]:
-    """One declared embed surface from a pinned definition."""
+    """One declared embed surface from a pinned definition, if it renders here.
+
+    ``scope`` is where the surface is being opened from — the route's to state,
+    never the caller's. A surface that never asked to render there is not a
+    surface of that route, so it is simply not found. Definitions pinned before
+    a surface could say where it belongs carry no ``scopes``, and every one of
+    those is guild-wide.
+    """
     if not isinstance(definition, dict):
         return None
     embeds = definition.get("embeds")
     if not isinstance(embeds, list):
         return None
     for embed in embeds:
-        if isinstance(embed, dict) and embed.get("id") == surface_id:
-            return embed
+        if not isinstance(embed, dict) or embed.get("id") != surface_id:
+            continue
+        scopes = embed.get("scopes")
+        renders = scope in scopes if isinstance(scopes, list) else scope == "guild"
+        return embed if renders else None
     return None
 
 
-def _require_visibility(embed: dict[str, Any], *, is_guild_admin: bool) -> None:
-    """A surface an app declared for admins is opened by admins.
+def _require_visibility(
+    embed: dict[str, Any],
+    *,
+    is_guild_admin: bool,
+    is_initiative_manager: bool = False,
+) -> None:
+    """A surface is opened by the audience the app declared for it.
 
     ``member`` is the default the manifest validator applies, so an embed that
-    says nothing is open to every member of the installing guild.
+    says nothing is open to every member of the installing guild. The ordering
+    lives with the vocabulary that defines it, so this cannot drift from what a
+    manifest is allowed to say.
     """
-    if embed.get("visibility") == "guild_admin" and not is_guild_admin:
+    if not clears_visibility(
+        embed.get("visibility"),
+        is_guild_admin=is_guild_admin,
+        is_initiative_manager=is_initiative_manager,
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=GuildAppMessages.SURFACE_ADMIN_ONLY,
@@ -123,20 +154,41 @@ async def mint_embed_handoff(
     surface_id: str,
     user_id: int,
     is_guild_admin: bool,
+    initiative_id: int | None,
+    is_initiative_manager: bool,
 ) -> EmbedHandoff:
-    """Authorize the caller for one surface, then mint its handoff."""
+    """Authorize the caller for one surface, then mint its handoff.
+
+    ``initiative_id`` is where the surface was opened, and it is the only thing
+    that says so — the scope is derived from it rather than passed alongside,
+    because two arguments could disagree and there is nothing sensible for a
+    mint to do when they do. It comes from a route whose gate the caller already
+    passed, so by the time it is a claim it is a fact.
+
+    Resolving the surface is scoped to that, so the visibility rung — read
+    against where a surface was opened — is only ever measured somewhere the
+    surface agreed to appear.
+    """
     if not app.enabled:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=GuildAppMessages.DISABLED
         )
 
-    embed = embed_by_id(app.definition, surface_id)
-    if embed is None:
+    scope = "guild" if initiative_id is None else "initiative"
+    # Two ways there is no surface here: the app never declared one for this
+    # scope, or the guild placed its initiative surfaces somewhere else. Same
+    # answer, because from this route both mean the same thing.
+    embed = embed_by_id(app.definition, surface_id, scope=scope)
+    if embed is None or not placed_in(app, initiative_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=GuildAppMessages.SURFACE_NOT_FOUND,
         )
-    _require_visibility(embed, is_guild_admin=is_guild_admin)
+    _require_visibility(
+        embed,
+        is_guild_admin=is_guild_admin,
+        is_initiative_manager=is_initiative_manager,
+    )
 
     registration = await require_live_registration(app)
 
@@ -166,13 +218,17 @@ async def mint_embed_handoff(
         "app_install_id": app.id,
         "surface_id": surface_id,
     }
+    # Absent guild-wide rather than null, so "which initiative is this?" has one
+    # answer instead of two shapes that both mean none.
+    if initiative_id is not None:
+        payload["initiative_id"] = initiative_id
     headers: dict[str, Any] | None = {"kid": kid} if kid else None
     token = jwt.encode(payload, key, algorithm=algorithm, headers=headers)
 
     return EmbedHandoff(
         token=token,
         expires_in_seconds=int(APP_EMBED_HANDOFF_LIFETIME.total_seconds()),
-        embed_url=f"{registration.base_url}{embed.get('path') or ''}",
+        embed_url=f"{registration.browser_base}{embed.get('path') or ''}",
         allowed_origins=registration.allowed_origins,
         audience=audience,
         surface_id=surface_id,

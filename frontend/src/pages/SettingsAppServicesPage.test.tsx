@@ -13,6 +13,7 @@ const buildRegistration = (
   public_id: "core.github",
   listing_uid: null,
   base_url: "http://initiative-github:8080",
+  embed_origin: null,
   allowed_origins: [],
   has_secret: true,
   manifest_hash: "abc123",
@@ -179,10 +180,36 @@ describe("SettingsAppServicesPage", () => {
           base_url: "http://shopify:8080",
           secret: "s3cret",
           public_id: "acme.shopify",
+          // Left blank: the app answers both surfaces at the base URL.
+          embed_origin: null,
           allowed_origins: null,
           grants: ["delegation"],
           mandatory: false,
         },
+        expect.anything()
+      );
+    });
+
+    it("sends the browser address when the app is published somewhere else", async () => {
+      const user = userEvent.setup();
+      renderAsOperator();
+
+      await user.click(screen.getByRole("button", { name: "Add app service" }));
+
+      await user.type(await screen.findByLabelText("App identifier"), "acme.shopify");
+      await user.type(screen.getByLabelText("Base URL"), "http://shopify:8080");
+      await user.type(screen.getByLabelText("Browser address"), "https://shop.example.com");
+      await user.type(
+        screen.getByPlaceholderText("Paste the app's INITIATIVE_APP_SECRET"),
+        "s3cret"
+      );
+      await user.click(screen.getByRole("button", { name: "Save" }));
+
+      expect(createMutate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          base_url: "http://shopify:8080",
+          embed_origin: "https://shop.example.com",
+        }),
         expect.anything()
       );
     });

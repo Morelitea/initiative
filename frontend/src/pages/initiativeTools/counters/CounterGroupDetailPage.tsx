@@ -77,9 +77,9 @@ export function CounterGroupDetailPage() {
   const { t } = useTranslation(["counterGroups", "common"]);
   const router = useRouter();
   const gp = useGuildPath();
-  const { guildId, groupId: groupIdParam } = useParams({ strict: false }) as {
+  const { guildId, counterGroupId: groupIdParam } = useParams({ strict: false }) as {
     guildId: string;
-    groupId?: string;
+    counterGroupId?: string;
   };
   const groupId = groupIdParam ? Number(groupIdParam) : null;
 

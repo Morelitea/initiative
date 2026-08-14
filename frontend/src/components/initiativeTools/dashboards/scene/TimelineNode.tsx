@@ -50,7 +50,7 @@ export function TimelineNode({ node }: { node: Node }) {
         {ticks.map((tick, index) => (
           <span
             key={tick.at}
-            className="flex-1 text-[10px] text-muted-foreground"
+            className="flex-1 text-muted-foreground text-xs"
             style={{ textAlign: index === ticks.length - 1 ? "right" : "left" }}
           >
             {tick.label}

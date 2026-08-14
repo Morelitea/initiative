@@ -1,7 +1,7 @@
 import { renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildInitiative, buildUser } from "@/__tests__/factories";
+import { buildInitiative, buildInitiativeMember, buildUser } from "@/__tests__/factories";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import type { GuildEntry } from "@/hooks/useGuilds";
 import {
@@ -150,5 +150,81 @@ describe("useGlobalCreateAccess", () => {
 
     const { result } = renderHook(() => useGlobalCreateAccess());
     expect(result.current).toEqual({ document: true, task: true });
+  });
+});
+
+describe("useInitiativeAccess canManage", () => {
+  const asMember = (user: ReturnType<typeof buildUser>) => {
+    mockUseAuth.mockReturnValue({ user });
+    mockUseGuilds.mockReturnValue({ activeGuild: { id: 1, role: "member" } });
+  };
+
+  /** One initiative, with this user holding the given role. */
+  const withRole = (
+    user: ReturnType<typeof buildUser>,
+    role: Partial<ReturnType<typeof buildInitiativeMember>>
+  ) =>
+    buildInitiative({
+      members: [
+        buildInitiativeMember({
+          user: { id: user.id, full_name: user.full_name, email: user.email },
+          ...role,
+        }),
+      ],
+    });
+
+  it("counts the built-in managing role", () => {
+    const user = buildUser();
+    asMember(user);
+    const initiative = withRole(user, {
+      role_name: "project_manager",
+      is_manager: true,
+    });
+
+    const { result } = renderHook(() => useInitiativeAccess());
+    expect(result.current.canManage(initiative)).toBe(true);
+  });
+
+  it("counts a managing role the initiative named itself", () => {
+    // An initiative that renamed its managers, or added a second managing
+    // role: the flag is what the server reads, not the role's name.
+    const user = buildUser();
+    asMember(user);
+    const initiative = withRole(user, {
+      role_name: "lead",
+      role_display_name: "Lead",
+      is_manager: true,
+    });
+
+    const { result } = renderHook(() => useInitiativeAccess());
+    expect(result.current.canManage(initiative)).toBe(true);
+  });
+
+  it("does not count an ordinary member", () => {
+    const user = buildUser();
+    asMember(user);
+
+    const { result } = renderHook(() => useInitiativeAccess());
+    expect(result.current.canManage(withRole(user, { is_manager: false }))).toBe(false);
+  });
+
+  it("does not count managing some other initiative", () => {
+    const user = buildUser();
+    asMember(user);
+    const elsewhere = buildInitiative({
+      members: [buildInitiativeMember({ is_manager: true })],
+    });
+
+    const { result } = renderHook(() => useInitiativeAccess());
+    expect(result.current.canManage(elsewhere)).toBe(false);
+  });
+
+  it("counts a guild admin everywhere", () => {
+    const user = buildUser();
+    mockUseAuth.mockReturnValue({ user });
+    mockUseGuilds.mockReturnValue({ activeGuild: { id: 1, role: "admin" } });
+
+    const { result } = renderHook(() => useInitiativeAccess());
+    expect(result.current.canManage(buildInitiative({ members: [] }))).toBe(true);
   });
 });

@@ -83,5 +83,27 @@
   "createAccess": {
     "advancedOptions": "Options avancées"
   },
-  "deletedUserName": "Utilisateur supprimé #{{id}}"
+  "deletedUserName": "Utilisateur supprimé #{{id}}",
+  "toolSettings": {
+    "title": "Paramètres",
+    "description": "Gérez les détails, l'accès et les options avancées.",
+    "tabDetails": "Détails",
+    "tabAccess": "Accès",
+    "tabAdvanced": "Avancé",
+    "namePlaceholder": "Saisissez un nom",
+    "descriptionPlaceholder": "Description optionnelle",
+    "saving": "Enregistrement...",
+    "detailsUpdated": "Détails mis à jour",
+    "tags": "Étiquettes",
+    "tagsDescription": "Ajoutez des étiquettes pour organiser et filtrer.",
+    "tagsNoAccess": "Vous avez besoin d'un accès en écriture pour gérer les étiquettes.",
+    "permissionsUpdated": "Permissions mises à jour",
+    "dangerZone": "Zone de danger",
+    "dangerZoneDescription": "Actions destructrices. Les éléments supprimés vont à la corbeille et peuvent être restaurés avant la fin de la période de rétention.",
+    "deleteConfirmTitle": "Supprimer « {{name}} » ?",
+    "deleteConfirmDescription": "L'élément sera envoyé à la corbeille. Vous pouvez le restaurer depuis Paramètres → Corbeille avant la fin de la période de rétention.",
+    "deleted": "« {{name}} » supprimé",
+    "notFound": "Introuvable",
+    "loadError": "Impossible de charger cet élément."
+  }
 }

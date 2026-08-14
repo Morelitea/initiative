@@ -28,7 +28,7 @@ nothing, whether or not the guild wanted it.
 
 import logging
 from datetime import datetime, timezone
-from typing import Annotated, Optional
+from typing import Annotated, Any, Optional
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -42,11 +42,16 @@ from app.api.deps import (
     get_current_active_user,
     get_guild_membership,
 )
-from app.core.messages import GuildAppMessages, MarketplaceMessages
+from app.core.messages import (
+    GuildAppMessages,
+    InitiativeMessages,
+    MarketplaceMessages,
+)
 from app.db import session as db_session
 from app.models.platform.guild import GuildMembership
 from app.models.platform.user import User
 from app.models.tenant.guild_app import GuildApp
+from app.models.tenant.initiative import Initiative
 from app.schemas.tenant.guild_app import (
     GuildAppConfigUpdate,
     GuildAppConnectionSummary,
@@ -73,6 +78,7 @@ from app.services.marketplace.installs import (
     ListingInstallError,
     resolve_listing_install,
 )
+from app.services.membership import initiative_scope_clause
 from app.services.platform import guilds as guilds_service
 from app.services.tenant import app_config as app_config_service
 from app.services.tenant import app_connections as connections_service
@@ -83,6 +89,12 @@ from app.services.tenant import guild_apps as guild_apps_service
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+#: The same installs, reached from inside one initiative. Mounted at the guild
+#: root rather than under ``/apps`` because the initiative comes first in the
+#: path — it is what the request is scoped to, and an app is what it is asking
+#: about.
+initiative_router = APIRouter()
 
 CurrentUser = Annotated[User, Depends(get_current_active_user)]
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
@@ -105,6 +117,48 @@ async def _app_avatar(session: AsyncSession, app: GuildApp) -> Optional[str]:
     """The artwork for one install's listing."""
     avatars = await catalog_service.listing_avatars(session, [app.listing_uid])
     return avatars.get(app.listing_uid)
+
+
+async def _load_initiative(
+    session: RLSSessionDep, initiative_id: int, user_id: int
+) -> Initiative:
+    """The initiative this request is scoped to, or a 404.
+
+    Scoped with ``initiative_scope_clause`` — the one rule initiative content
+    reads use — so what is reachable here is what is reachable anywhere else.
+    "Not yours" and "not there" are one answer, as they are on every other
+    initiative-scoped read.
+    """
+    initiative = (
+        await session.exec(
+            select(Initiative).where(
+                Initiative.id == initiative_id,
+                initiative_scope_clause(user_id, Initiative.id),
+            )
+        )
+    ).first()
+    if initiative is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=InitiativeMessages.NOT_FOUND,
+        )
+    return initiative
+
+
+async def _normalized_placement(session: RLSSessionDep, raw: Any) -> dict[str, Any]:
+    """What an admin chose, checked against the initiatives they have.
+
+    The ids come from the same routed session the rest of the request runs on,
+    so a placement can only ever name an initiative of this guild.
+    """
+    ids = set((await session.exec(select(Initiative.id))).all())
+    try:
+        return guild_apps_service.normalize_placement(raw, initiative_ids=ids)
+    except guild_apps_service.PlacementError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=GuildAppMessages.PLACEMENT_INVALID,
+        ) from exc
 
 
 async def _load(session: RLSSessionDep, app_id: int) -> GuildApp:
@@ -422,11 +476,16 @@ async def update_guild_app(
     current_user: CurrentUser,
     guild_context: GuildContextDep,
 ) -> GuildAppRead:
-    """Rename an app, or turn it off without removing what it created.
+    """Rename an app, place it, or turn it off without removing what it created.
 
     Renaming is always allowed — a guild may call an app whatever it likes.
     Turning one off is a different matter for an app the deployment provides:
     that switch belongs to the operator, so it is refused by name here.
+
+    Placement says which initiatives an app's initiative-scoped surfaces appear
+    in; ``{}`` is every one of them, which is where an install starts. It is the
+    guild's own answer to where an app belongs rather than a permission, so it
+    reads the same for everyone, admins included.
     """
     _require_guild_admin(guild_context)
     app = await _load(session, app_id)
@@ -438,6 +497,8 @@ async def update_guild_app(
         if not data["enabled"]:
             await _require_removable(app)
         app.enabled = data["enabled"]
+    if "placement" in data:
+        app.placement = await _normalized_placement(session, data["placement"])
     app.updated_at = datetime.now(timezone.utc)
     session.add(app)
     await session.commit()
@@ -597,7 +658,8 @@ async def create_guild_app_handoff(
     Whether the surface may be opened is decided here, under the caller's real
     session, so the app never makes that call and never sees a request from
     somebody who failed it. What the manifest declared as ``visibility``
-    governs: a surface marked ``guild_admin`` is admin-only, and everything
+    governs, read guild-wide: a surface naming any audience narrower than
+    ``member`` is reachable here only by the guild's admins, and everything
     else is open to every member of the installing guild.
 
     The token goes to the iframe by ``postMessage`` — never a query string —
@@ -609,7 +671,63 @@ async def create_guild_app_handoff(
         surface_id=surface_id,
         user_id=current_user.id,
         is_guild_admin=rls_service.is_guild_admin(guild_context.role),
+        # This route reaches a guild and names no initiative. A surface that
+        # renders only inside one is not offered here.
+        initiative_id=None,
+        is_initiative_manager=False,
     )
+    return _handoff_response(handoff)
+
+
+@initiative_router.post(
+    "/initiatives/{initiative_id}/apps/{app_id}/handoff/{surface_id}",
+    response_model=GuildAppHandoff,
+    tags=["apps"],
+)
+async def create_initiative_app_handoff(
+    initiative_id: int,
+    app_id: int,
+    surface_id: str,
+    session: RLSSessionDep,
+    current_user: CurrentUser,
+    guild_context: GuildContextDep,
+) -> GuildAppHandoff:
+    """Mint the credential for a surface opened inside one initiative.
+
+    The install is the guild's — there is one of it, not one per initiative —
+    but the surface is being opened somewhere narrower, and the token says so.
+
+    Three gates, outermost first. The initiative must be one this caller can
+    reach. The manifest must declare the surface for this scope. And the
+    surface's ``visibility`` is then read *here*, where ``member`` means this
+    initiative's members and ``initiative_manager`` means its managers — a
+    guild admin clears both, as they do everywhere in their own guild.
+
+    The initiative in the minted token is this route's, never the caller's to
+    supply, so an app can scope what it shows without asking a second question
+    or trusting a parameter.
+    """
+    initiative = await _load_initiative(session, initiative_id, current_user.id)
+    app = await _load(session, app_id)
+    handoff = await handoff_service.mint_embed_handoff(
+        app,
+        surface_id=surface_id,
+        user_id=current_user.id,
+        is_guild_admin=rls_service.is_guild_admin(guild_context.role),
+        initiative_id=initiative.id,
+        is_initiative_manager=await rls_service.is_initiative_manager(
+            session, initiative_id=initiative.id, user=current_user
+        ),
+    )
+    return _handoff_response(handoff)
+
+
+def _handoff_response(handoff: handoff_service.EmbedHandoff) -> GuildAppHandoff:
+    """The same answer either route gives.
+
+    The initiative is not in it: it is a claim in the token, and the browser
+    already knows which initiative it is looking at.
+    """
     return GuildAppHandoff(
         handoff_token=handoff.token,
         expires_in_seconds=handoff.expires_in_seconds,
@@ -693,7 +811,9 @@ async def connect_guild_app(
         connection_ref=row.connection_ref,
         connect_path=connect_path,
         connect_url=(
-            f"{registration.base_url}{connect_path}"
+            # The member's browser is what follows this, so it is built from
+            # the address a browser can resolve.
+            f"{registration.browser_base}{connect_path}"
             f"?connection_ref={quote(row.connection_ref, safe='')}"
         ),
         status=row.status,

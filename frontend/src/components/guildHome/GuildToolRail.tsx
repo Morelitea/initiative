@@ -10,7 +10,7 @@ import { useTranslation } from "react-i18next";
 
 import type { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { useGuildPath } from "@/lib/guildUrl";
-import { TOOL_REGISTRY, toolNavLabelKey, toolRouteSegment } from "@/lib/tools";
+import { TOOL_ICONS, toolNavLabelKey, toolRouteSegment } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 interface GuildToolRailProps {
@@ -28,7 +28,7 @@ export const GuildToolRail = ({ tools, selected }: GuildToolRailProps) => {
     <nav aria-label={t("guildHome:toolRail")} className="-mx-2 overflow-x-auto px-2 pb-1">
       <ul className="flex min-w-max items-start gap-2 sm:gap-4">
         {tools.map((tool) => {
-          const Icon = TOOL_REGISTRY[tool].icon;
+          const Icon = TOOL_ICONS[tool];
           const isSelected = tool === selected;
           return (
             <li key={tool}>

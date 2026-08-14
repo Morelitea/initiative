@@ -111,5 +111,12 @@
     "unavailableDescription": "Un administrateur doit connecter le service de cette application avant qu'elle puisse être ouverte.",
     "noSurface": "{{name}} n'a pas de page dédiée"
   },
-  "browse": "Parcourir la boutique d'applications"
+  "browse": "Parcourir la boutique d'applications",
+  "placement": {
+    "title": "Où cette application apparaît",
+    "description": "Cette application propose une page à l'intérieur des initiatives. Choisissez dans lesquelles elle apparaît.",
+    "all": "Toutes les initiatives",
+    "some": "Uniquement les initiatives que je choisis",
+    "none": "Aucune initiative choisie : cette application n'apparaît qu'à l'échelle de la guilde."
+  }
 }

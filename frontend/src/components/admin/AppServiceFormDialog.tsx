@@ -21,6 +21,8 @@ import { hasGrant, parseAllowedOrigins } from "@/lib/appServices";
 export interface AppServiceFormValues {
   publicId: string;
   baseUrl: string;
+  /** Where a browser loads the app, or "" when that is the base URL too. */
+  embedOrigin: string;
   allowedOrigins: string[];
   /** The new shared secret, or null to leave the stored one alone. */
   secret: string | null;
@@ -31,6 +33,7 @@ export interface AppServiceFormValues {
 interface FormState {
   publicId: string;
   baseUrl: string;
+  embedOrigin: string;
   allowedOrigins: string;
   secret: string;
   delegation: boolean;
@@ -40,6 +43,7 @@ interface FormState {
 const EMPTY_FORM: FormState = {
   publicId: "",
   baseUrl: "",
+  embedOrigin: "",
   allowedOrigins: "",
   secret: "",
   delegation: false,
@@ -81,6 +85,7 @@ export const AppServiceFormDialog = ({
       setForm({
         publicId: editing.public_id,
         baseUrl: editing.base_url,
+        embedOrigin: editing.embed_origin ?? "",
         allowedOrigins: editing.allowed_origins.join("\n"),
         secret: "",
         delegation: hasGrant(editing, "delegation"),
@@ -100,6 +105,7 @@ export const AppServiceFormDialog = ({
     onSubmit({
       publicId: form.publicId.trim(),
       baseUrl: form.baseUrl.trim(),
+      embedOrigin: form.embedOrigin.trim(),
       allowedOrigins: parseAllowedOrigins(form.allowedOrigins),
       secret: replaceSecret && form.secret ? form.secret : null,
       delegation: form.delegation,
@@ -147,6 +153,20 @@ export const AppServiceFormDialog = ({
               required
             />
             <p className="text-muted-foreground text-xs">{t("appServices.baseUrlHelp")}</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="app-service-embed-origin">{t("appServices.embedOriginLabel")}</Label>
+            <Input
+              id="app-service-embed-origin"
+              value={form.embedOrigin}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, embedOrigin: event.target.value }))
+              }
+              placeholder={t("appServices.embedOriginPlaceholder")}
+              maxLength={1000}
+            />
+            <p className="text-muted-foreground text-xs">{t("appServices.embedOriginHelp")}</p>
           </div>
 
           <div className="space-y-2">

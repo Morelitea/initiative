@@ -6,8 +6,8 @@ import { type GuildEntry, useGuilds } from "@/hooks/useGuilds";
 import { useInitiatives, useInitiativesForGuild } from "@/hooks/useInitiatives";
 import { Capability, hasCapability } from "@/lib/permissions";
 import {
+  CORE_TOOLS,
   isToolEnabled,
-  TOOL_REGISTRY,
   TOOLS,
   toolMemberCreateFlag,
   toolMemberViewFlag,
@@ -72,7 +72,7 @@ const fullAccess = (initiative: InitiativeRead, canCreate: boolean): InitiativeT
 // Bare read of the always-visible core tools for someone with no membership
 // and no grant — mirrors the historical non-member default.
 const readOnlyDefault: InitiativeToolAccess = Object.fromEntries(
-  TOOLS.map((tool) => [tool, { view: TOOL_REGISTRY[tool].core, create: false }])
+  TOOLS.map((tool) => [tool, { view: CORE_TOOLS.has(tool), create: false }])
 ) as InitiativeToolAccess;
 
 /**
@@ -95,7 +95,7 @@ export function toolAccessForInitiative(
     TOOLS.map((tool) => [
       tool,
       {
-        view: Boolean(membership[toolMemberViewFlag(tool)] ?? TOOL_REGISTRY[tool].core),
+        view: Boolean(membership[toolMemberViewFlag(tool)] ?? CORE_TOOLS.has(tool)),
         create: !contentReadOnly && Boolean(membership[toolMemberCreateFlag(tool)] ?? false),
       },
     ])
@@ -196,12 +196,16 @@ export function useInitiativeAccess() {
   );
 
   /** Whether the user can manage (PM/admin) a specific initiative. A grant
-   * never confers management — those operations are owner/PM-gated. */
+   * never confers management — those operations are owner/PM-gated.
+   *
+   * Read off `is_manager`, the flag an initiative role actually carries, so an
+   * initiative that renamed its managers or added a second managing role counts
+   * the same members the server does. */
   const canManage = useCallback(
     (initiative: InitiativeRead): boolean => {
       if (isGuildAdmin) return true;
       if (!user) return false;
-      return initiative.members.some((m) => m.user.id === user.id && m.role === "project_manager");
+      return initiative.members.some((m) => m.user.id === user.id && m.is_manager);
     },
     [user, isGuildAdmin]
   );

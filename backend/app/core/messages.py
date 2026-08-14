@@ -629,12 +629,16 @@ class GuildAppMessages:
     SERVICE_NOT_REGISTERED = "GUILD_APP_SERVICE_NOT_REGISTERED"
     #: The pinned definition declares no surface under that id.
     SURFACE_NOT_FOUND = "GUILD_APP_SURFACE_NOT_FOUND"
-    #: The surface declares ``visibility: guild_admin`` and the caller is a
-    #: plain member.
+    #: The surface names an audience the caller is not in — declared for the
+    #: guild's admins, or for an initiative's managers where the caller manages
+    #: nothing.
     SURFACE_ADMIN_ONLY = "GUILD_APP_SURFACE_ADMIN_ONLY"
     #: An interactive connection whose pinned definition carries no
     #: ``connect_path``, so there is no vendor flow to send the member to.
     CONNECT_PATH_MISSING = "GUILD_APP_CONNECT_PATH_MISSING"
+    #: The placement sent is not a shape this build stores, or it names an
+    #: initiative that is not one of this guild's.
+    PLACEMENT_INVALID = "GUILD_APP_PLACEMENT_INVALID"
 
 
 class AppServiceMessages:
@@ -650,6 +654,9 @@ class AppServiceMessages:
     #: public_id, base_url, an origin, or a version string this build refuses.
     INVALID_PUBLIC_ID = "APP_SERVICE_INVALID_PUBLIC_ID"
     INVALID_BASE_URL = "APP_SERVICE_INVALID_BASE_URL"
+    #: The browser-facing base, when an app answers there rather than at the
+    #: address Initiative's own server calls.
+    INVALID_EMBED_ORIGIN = "APP_SERVICE_INVALID_EMBED_ORIGIN"
     INVALID_ORIGIN = "APP_SERVICE_INVALID_ORIGIN"
     #: A grant outside the closed operator-conferred vocabulary.
     UNKNOWN_GRANT = "APP_SERVICE_UNKNOWN_GRANT"

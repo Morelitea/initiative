@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useGuildPath } from "@/lib/guildUrl";
-import { TOOL_REGISTRY, toolCreateLabelKey, toolCreateTarget } from "@/lib/tools";
+import { toolCreateLabelKey, toolCreateTarget } from "@/lib/tools";
 
 /**
  * The single source of "how do I create this tool" — derived entirely from the

@@ -23,6 +23,10 @@ from app.services.marketplace.handshake_test import BASE_URL, SECRET, make_trans
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
 
+#: A public address for the same app, standing in for what a reverse proxy
+#: publishes while ``BASE_URL`` stays the address the deployment itself calls.
+EMBED_ORIGIN = "https://widgets.example.com"
+
 
 @pytest.fixture(autouse=True)
 def _signing_key(monkeypatch):
@@ -65,8 +69,25 @@ def test_base_url_and_origin_shapes_are_enforced():
             service.normalize_origin(bad)
 
 
-def test_origins_default_to_the_base_url_origin():
-    assert service.normalize_origins(None, base_url=BASE_URL) == [BASE_URL]
+def test_origins_default_to_the_browser_base_origin():
+    """The list holds browser origins, so it is derived from the address a
+    browser uses — the wire surface only when the app answers on one address."""
+    assert service.normalize_origins(None, browser_base=BASE_URL) == [BASE_URL]
+    assert service.normalize_origins(None, browser_base=f"{EMBED_ORIGIN}/apps/x") == [
+        EMBED_ORIGIN
+    ]
+
+
+def test_embed_origin_accepts_a_base_and_reports_its_own_code():
+    """Held to the same shape as base_url, since it stands in for it — a
+    deployment publishing an app under a path prefix says so here too."""
+    assert service.normalize_embed_origin(f"{EMBED_ORIGIN}/auto/") == (
+        f"{EMBED_ORIGIN}/auto"
+    )
+    for bad in ("ftp://x", "http://", "https://h#frag", "not-a-url"):
+        with pytest.raises(HTTPException) as excinfo:
+            service.normalize_embed_origin(bad)
+        assert excinfo.value.detail == AppServiceMessages.INVALID_EMBED_ORIGIN
 
 
 # --- signing key -------------------------------------------------------------
@@ -196,6 +217,81 @@ async def test_rotating_the_secret_clears_the_recorded_verification(session):
     assert updated.last_verified_at is None
 
 
+async def test_create_keeps_the_handshake_on_the_wire_surface(session):
+    """A registration can carry two addresses, and the handshake uses exactly
+    one of them: the app is checked where this deployment calls it."""
+    seen: list[str] = []
+    app = make_transport()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(f"{request.url.scheme}://{request.url.netloc.decode()}")
+        return app.handle_request(request)
+
+    row = await service.create_registration(
+        session,
+        base_url=BASE_URL,
+        secret=SECRET,
+        embed_origin=EMBED_ORIGIN,
+        transport=httpx.MockTransport(handler),
+    )
+
+    assert set(seen) == {BASE_URL}
+    assert row.status == AppServiceStatus.OK
+    assert row.embed_origin == EMBED_ORIGIN
+    # Browser origins, so they come from the browser address.
+    assert row.allowed_origins == [EMBED_ORIGIN]
+
+
+async def test_moving_the_browser_address_keeps_the_verification(session):
+    """The manifest hash describes what the handshake fetched, and the handshake
+    never goes to the browser address — so moving it settles nothing."""
+    row = await service.create_registration(
+        session, base_url=BASE_URL, secret=SECRET, transport=make_transport()
+    )
+    assert row.allowed_origins == [BASE_URL]
+
+    updated = await service.update_registration(
+        session, row.id, embed_origin=EMBED_ORIGIN
+    )
+
+    assert updated.status == AppServiceStatus.OK
+    assert updated.manifest_hash == row.manifest_hash
+    assert updated.last_verified_at is not None
+    # The list was still the app's own origin, so it follows the app.
+    assert updated.allowed_origins == [EMBED_ORIGIN]
+
+
+async def test_an_operators_own_origin_list_survives_a_move(session):
+    row = await service.create_registration(
+        session,
+        base_url=BASE_URL,
+        secret=SECRET,
+        allowed_origins=["https://chosen.example.com"],
+        transport=make_transport(),
+    )
+
+    updated = await service.update_registration(
+        session, row.id, embed_origin=EMBED_ORIGIN
+    )
+
+    assert updated.allowed_origins == ["https://chosen.example.com"]
+
+
+async def test_clearing_the_browser_address_puts_both_surfaces_back(session):
+    row = await service.create_registration(
+        session,
+        base_url=BASE_URL,
+        secret=SECRET,
+        embed_origin=EMBED_ORIGIN,
+        transport=make_transport(),
+    )
+
+    updated = await service.update_registration(session, row.id, embed_origin="")
+
+    assert updated.embed_origin is None
+    assert updated.allowed_origins == [BASE_URL]
+
+
 async def test_update_refuses_a_grant_outside_the_vocabulary(session):
     row = await service.create_registration(
         session, base_url=BASE_URL, secret=SECRET, transport=make_transport()
@@ -257,6 +353,40 @@ async def test_reconcile_creates_registrations_from_the_mounted_file(
     assert decrypt_field(row.secret_encrypted, SALT_APP_SERVICE_SECRET) == (
         "from-the-environment"
     )
+
+
+async def test_reconcile_reads_the_browser_address_from_the_file(
+    session, tmp_path, monkeypatch
+):
+    """A chart states both addresses, so the two-address case is wired with no
+    admin clicks — and adding one later is an update, not a re-verification."""
+    monkeypatch.setenv("TEST_APP_SECRET", "from-the-environment")
+    entry = {
+        "public_id": "acme.two-addresses",
+        "base_url": BASE_URL,
+        "secret_env": "TEST_APP_SECRET",
+    }
+    monkeypatch.setattr(
+        settings, "APP_SERVICES_CONFIG", _write_config(tmp_path, [entry])
+    )
+    await service.reconcile_from_config(session)
+
+    entry["embed_origin"] = EMBED_ORIGIN
+    monkeypatch.setattr(
+        settings, "APP_SERVICES_CONFIG", _write_config(tmp_path, [entry])
+    )
+    result = await service.reconcile_from_config(session)
+
+    assert (result.created, result.updated, result.unchanged) == (0, 1, 0)
+    row = (
+        await session.exec(
+            select(AppServiceRegistration).where(
+                AppServiceRegistration.public_id == "acme.two-addresses"
+            )
+        )
+    ).one()
+    assert row.embed_origin == EMBED_ORIGIN
+    assert row.allowed_origins == [EMBED_ORIGIN]
 
 
 async def test_reconcile_is_idempotent(session, tmp_path, monkeypatch):

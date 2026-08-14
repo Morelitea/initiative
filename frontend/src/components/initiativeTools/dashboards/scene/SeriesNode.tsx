@@ -48,7 +48,7 @@ const toRows = (node: Node) => {
 
 const axisProps = {
   stroke: "var(--muted-foreground)",
-  fontSize: 11,
+  fontSize: 12,
   tickLine: false,
   axisLine: false,
 } as const;

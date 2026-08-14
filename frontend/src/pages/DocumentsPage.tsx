@@ -34,7 +34,7 @@ import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import { useDefaultFiltersOpen } from "@/hooks/useDefaultFiltersOpen";
 import {
   useCopyDocument,
-  useDeleteDocument,
+  useDeleteDocuments,
   useDocumentCounts,
   useDocumentsList,
   usePrefetchDocumentsList,
@@ -453,7 +453,7 @@ export const DocumentsView = ({
     });
   };
 
-  const deleteDocuments = useDeleteDocument({
+  const deleteDocuments = useDeleteDocuments({
     onSuccess: () => setSelectedDocuments([]),
   });
 

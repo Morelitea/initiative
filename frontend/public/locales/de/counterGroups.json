@@ -8,11 +8,7 @@
   "noGroupsDescription": "Zählergruppen bündeln zusammengehörige Zahlenwerte (wie HP, Munition oder Scores), die du erhöhen, verringern oder direkt setzen kannst.",
   "createGroup": "Zählergruppe erstellen",
   "editGroup": "Zählergruppe bearbeiten",
-  "deleteGroup": "Zählergruppe löschen",
-  "deleteGroupConfirm": "Die Zählergruppe und ihre Zähler werden in den Papierkorb verschoben. Du kannst sie unter Einstellungen → Papierkorb wiederherstellen, bevor der Aufbewahrungszeitraum endet.",
   "groupCreated": "Zählergruppe erstellt",
-  "groupUpdated": "Zählergruppe aktualisiert",
-  "groupDeleted": "Zählergruppe gelöscht",
   "name": "Name",
   "namePlaceholder": "Gruppennamen eingeben",
   "description": "Beschreibung",
@@ -94,7 +90,6 @@
   },
   "createFirst": "Erstelle deine erste Zählergruppe",
   "settings": "Einstellungen",
-  "settingsDescription": "Verwalte Details, Zugriff und erweiterte Optionen der Zählergruppe.",
   "details": "Details",
   "access": "Zugriff",
   "advanced": "Erweitert",
@@ -110,7 +105,5 @@
     "allInitiatives": "Alle Initiativen",
     "noMatchingGroups": "Keine Zählergruppen entsprechen deinen Filtern."
   },
-  "tags": "Tags",
-  "tagsDescription": "Füge Tags hinzu, um Zählergruppen zu organisieren und zu filtern.",
-  "noWriteAccessTags": "Du benötigst Schreibzugriff, um Tags zu verwalten."
+  "tags": "Tags"
 }

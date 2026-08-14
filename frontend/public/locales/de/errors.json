@@ -374,6 +374,7 @@
   "MARKETPLACE_OPERATOR_CATALOG_SCAN_RUNNING": "Es läuft bereits ein Katalog-Scan. Warte, bis er abgeschlossen ist, und versuche es dann erneut.",
   "GUILD_APP_NOT_FOUND": "Diese App ist in dieser Gilde nicht installiert.",
   "GUILD_APP_ADMIN_REQUIRED": "Nur Gildenadministratorinnen und -administratoren können Apps verwalten.",
+  "GUILD_APP_PLACEMENT_INVALID": "Dort kann diese App nicht platziert werden. Wähle Initiativen aus dieser Gilde.",
   "GUILD_APP_LISTING_NOT_AN_APP": "Dieser Eintrag kann nicht als App installiert werden.",
   "GUILD_APP_ALREADY_INSTALLED": "Diese Gilde hat diese App bereits installiert.",
   "GUILD_APP_KIND_NOT_INSTALLABLE": "Diese Art von App kann in dieser Version von Initiative noch nicht installiert werden.",

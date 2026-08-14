@@ -514,7 +514,8 @@ export const useDeleteDocumentVersion = (
 };
 
 export const useUpdateDocument = (
-  options?: MutationOpts<DocumentRead, { documentId: number; data: DocumentUpdate }> & {
+  documentId: number,
+  options?: MutationOpts<DocumentRead, DocumentUpdate> & {
     /** If provided and returns true, the default error toast will be skipped. */
     suppressErrorToast?: (error: unknown) => boolean;
   }
@@ -525,13 +526,13 @@ export const useUpdateDocument = (
 
   return useMutation({
     ...rest,
-    mutationFn: async ({ documentId, data }: { documentId: number; data: DocumentUpdate }) => {
+    mutationFn: async (data: DocumentUpdate) => {
       return updateDocumentApiV1GGuildIdDocumentsDocumentIdPatch(guildId, documentId, data);
     },
     onSuccess: (...args) => {
-      const [updated, vars] = args;
+      const [updated] = args;
       queryClient.setQueryData(
-        getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryKey(guildId, vars.documentId),
+        getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryKey(guildId, documentId),
         updated
       );
       void invalidateAllDocuments();
@@ -548,7 +549,23 @@ export const useUpdateDocument = (
   });
 };
 
-export const useDeleteDocument = (
+/**
+ * Single-document delete — the shape every tool's delete hook takes, so the
+ * shared settings page needs no per-tool adapter. Bulk selection deletes go
+ * through {@link useDeleteDocuments}.
+ */
+export const useDeleteDocument = (options?: MutationOpts<void, number>) =>
+  useGuildMutation<void, number>(
+    {
+      mutationFn: (guildId, documentId) =>
+        deleteDocumentApiV1GGuildIdDocumentsDocumentIdDelete(guildId, documentId),
+      invalidate: () => invalidateAllDocuments(),
+      errorKey: "documents:bulk.deleteError",
+    },
+    options
+  );
+
+export const useDeleteDocuments = (
   options?: MutationOpts<void, number[]> & {
     /** If true, the default "X documents deleted" success toast is skipped so the caller can show its own. */
     suppressSuccessToast?: boolean;

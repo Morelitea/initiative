@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.62.3] - 2026-08-13
+
+### Added
+
+- Apps can now appear inside an initiative as well as guild-wide. An app that offers an initiative surface gets a row in each initiative's sidebar section, opening a page scoped to that initiative — the same install, told which initiative it is being read in.
+- App surfaces name who they are for: everyone in the guild, an initiative's managers, or guild admins. An entry only appears for a reader it is meant for.
+- **Dashboards have a settings page.** A dashboard can now be renamed, described, tagged, shared, and deleted like every other tool, from a Settings button on the dashboard itself.
+
+### Changed
+
+- **Every tool's settings page is the same page now.** Projects, documents, queues, counter groups, calendars, and dashboards share one layout — Details, Access, Advanced — with rename and delete always in the same place. Calendars pick up the tabbed layout the others already had, and whatever is particular to a tool sits alongside the common settings rather than replacing them: a project's schedule and task statuses, a counter group's duplicate, a calendar's color, a document's copies.
+- Deleting a tool now names the thing being deleted, so the confirmation reads "Delete "Q3 Roadmap"?" instead of naming only its kind.
+- An app service can now be wired up with a separate browser address. Its base URL is where Initiative's own server calls the app, so it may be an address only your network resolves; the new browser address is where a member's browser loads that app's embedded surfaces and connection pages. Leave it blank — the default, and what every existing registration keeps — and one address serves both, exactly as before.
+- Guild admins choose which initiatives an app appears in, from the app's own settings. New installs appear in every initiative, which is the default.
+- **Dashboard widgets are set in the same type as the rest of the app.** A widget's headline number carries the weight the figures on My Stats do, and a number that reads as good, cautionary, or bad is the same green, yellow, or red wherever you meet it. Labels, captions, table headers, and chart axis ticks now sit at one legible size instead of shrinking a step per widget.
+
+### Fixed
+
+- An initiative that renamed its managing role, or gave a second role manager standing, now sees the manager affordances it should: the sidebar reads the role's manager flag rather than looking for the built-in role by name.
+- Pinning follows the same rule: a manager of an initiative can pin and unpin its projects whatever their role is called.
+
 ## [0.62.2] - 2026-08-13
 
 ### Fixed

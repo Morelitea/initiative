@@ -11,10 +11,10 @@ type Node = Extract<SceneNode, { kind: "metric" }>;
  *  it wants treated as positive, because falling cycle time and falling revenue
  *  are the same arrow with opposite meanings. */
 const deltaTone = (delta: number, good: Node["deltaGood"]) => {
-  if (delta === 0) return "text-muted-foreground";
+  if (delta === 0) return toneTextClass("muted");
   const rising = delta > 0;
   const isGood = good === "down" ? !rising : rising;
-  return isGood ? "text-green-600 dark:text-green-400" : "text-destructive";
+  return toneTextClass(isGood ? "positive" : "negative");
 };
 
 export function MetricNode({ node }: { node: Node }) {
@@ -27,7 +27,7 @@ export function MetricNode({ node }: { node: Node }) {
           {node.label}
         </p>
       )}
-      <p className={cn("truncate font-semibold text-3xl tabular-nums", toneTextClass(node.tone))}>
+      <p className={cn("truncate font-bold text-3xl tabular-nums", toneTextClass(node.tone))}>
         {formatValue(node.value, node.format)}
       </p>
       <div className="flex items-center gap-2">

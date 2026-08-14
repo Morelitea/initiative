@@ -6,7 +6,6 @@ from pydantic import ConfigDict, EmailStr, Field, computed_field
 from app.schemas.base import RawTextStr, SanitizedBaseModel
 
 from app.core.capabilities import Capability, capabilities_for
-from app.models.tenant.initiative import InitiativeRole
 from app.models.platform.user import UserRole, UserStatus
 from app.core.config import settings
 
@@ -233,7 +232,8 @@ class UserRead(UserBase):
 class UserInitiativeRole(SanitizedBaseModel):
     initiative_id: int
     initiative_name: str
-    role: InitiativeRole
+    # The role's own name; ``None`` when the role it pointed at was deleted.
+    role: Optional[str] = None
 
 
 class UserSelfUpdate(SanitizedBaseModel):

@@ -23,7 +23,7 @@ import { useInitiatives } from "@/hooks/useInitiatives";
 import { useProjects } from "@/hooks/useProjects";
 import { useQueuesList } from "@/hooks/useQueues";
 import { getDocumentIcon, getDocumentIconColor } from "@/lib/fileUtils";
-import { TOOL_REGISTRY, toolCamelPlural, toolListRoute } from "@/lib/tools";
+import { TOOLS, toolCamelPlural, toolListRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 export interface PaletteItem {
@@ -156,7 +156,5 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
   },
 };
 
-/** Registry-driven list of tools that get a palette group, in display order. */
-export const PALETTE_TOOLS: Tool[] = (Object.values(Tool) as Tool[]).filter(
-  (tool) => TOOL_REGISTRY[tool].commandPalette
-);
+/** Tools that get a command-palette group, in display order — every tool does. */
+export const PALETTE_TOOLS: Tool[] = TOOLS;

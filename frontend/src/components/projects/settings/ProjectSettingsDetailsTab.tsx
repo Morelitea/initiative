@@ -1,19 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { ProjectRead, TagSummary } from "@/api/generated/initiativeAPI.schemas";
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { ProjectDateFields } from "@/components/projects/ProjectDateFields";
-import { TagPicker } from "@/components/tags";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useUpdateProject } from "@/hooks/useProjects";
-import { useSetToolTags } from "@/hooks/useToolTags";
 import { dateRangeBounds } from "@/lib/dateRange";
 
 interface ProjectSettingsDetailsTabProps {
@@ -55,7 +51,6 @@ export const ProjectSettingsDetailsTab = ({
   const [descriptionText, setDescriptionText] = useState<string>("");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
-  const [projectTags, setProjectTags] = useState<TagSummary[]>([]);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   // The server values the form was last filled from. Anything that still
   // matches them is safe to replace on a refetch; anything else is the user's
@@ -63,8 +58,6 @@ export const ProjectSettingsDetailsTab = ({
   const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
   const seededProjectIdRef = useRef<number | null>(null);
   const isDirtyRef = useRef(false);
-
-  const setProjectTagsMutation = useSetToolTags(Tool.project);
 
   const currentSnapshot = serializeDetails({
     name: nameText,
@@ -97,14 +90,13 @@ export const ProjectSettingsDetailsTab = ({
     setDescriptionText(next.description);
     setStartDate(next.startDate);
     setEndDate(next.endDate);
-    setProjectTags(project.tags ?? []);
     setSavedSnapshot(serializeDetails(next));
     if (isNewProject) {
       setSavedMessage(null);
     }
   }, [project]);
 
-  const updateProject = useUpdateProject({
+  const updateProject = useUpdateProject(projectId, {
     onSuccess: (data) => {
       // Re-baseline to what the server stored, so the form counts as clean
       // again and the next refetch is free to reseed it.
@@ -122,7 +114,7 @@ export const ProjectSettingsDetailsTab = ({
   const { isInverted: datesInverted } = dateRangeBounds(startDate, endDate);
 
   return (
-    <TabsContent value="details" className="space-y-6">
+    <>
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle>{t("settings.details.title")}</CardTitle>
@@ -140,15 +132,12 @@ export const ProjectSettingsDetailsTab = ({
                 setSavedMessage(null);
                 const trimmedIcon = iconText.trim();
                 updateProject.mutate({
-                  projectId: projectId,
-                  data: {
-                    name: nameText.trim() || project.name || "",
-                    icon: trimmedIcon || null,
-                    description: descriptionText,
-                    // "" means "no date" in the picker; the API clears on null.
-                    start_date: startDate || null,
-                    end_date: endDate || null,
-                  },
+                  name: nameText.trim() || project.name || "",
+                  icon: trimmedIcon || null,
+                  description: descriptionText,
+                  // "" means "no date" in the picker; the API clears on null.
+                  start_date: startDate || null,
+                  end_date: endDate || null,
                 });
               }}
             >
@@ -236,37 +225,8 @@ export const ProjectSettingsDetailsTab = ({
           ) : (
             <p className="text-muted-foreground text-sm">{t("settings.details.noWriteAccess")}</p>
           )}
-
-          <div className="h-px bg-border" />
-
-          {/* Tags save on pick rather than with the form — the picker commits
-              each change as you make it, like the tag chips elsewhere. */}
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <h3 className="font-medium text-base">{t("settings.details.tagsHeading")}</h3>
-              <p className="text-muted-foreground text-sm">
-                {t("settings.details.tagsDescription")}
-              </p>
-            </div>
-            {canWriteProject ? (
-              <TagPicker
-                selectedTags={projectTags}
-                onChange={(newTags) => {
-                  setProjectTags(newTags);
-                  setProjectTagsMutation.mutate({
-                    id: projectId,
-                    tagIds: newTags.map((tag) => tag.id),
-                  });
-                }}
-              />
-            ) : (
-              <p className="text-muted-foreground text-sm">
-                {t("settings.details.noWriteAccessTags")}
-              </p>
-            )}
-          </div>
         </CardContent>
       </Card>
-    </TabsContent>
+    </>
   );
 };

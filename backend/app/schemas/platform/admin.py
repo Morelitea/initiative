@@ -7,7 +7,6 @@ from pydantic import ConfigDict, Field
 from app.schemas.base import SanitizedBaseModel
 
 from app.models.platform.guild import GuildRole
-from app.models.tenant.initiative import InitiativeRole
 from app.models.platform.user import UserRole
 from app.schemas.platform.user import ProjectBasic, UserPublic
 
@@ -76,6 +75,10 @@ class AdminGuildRoleUpdate(SanitizedBaseModel):
 
 
 class AdminInitiativeRoleUpdate(SanitizedBaseModel):
-    """Schema for updating a user's initiative role via admin endpoint."""
+    """Schema for updating a user's initiative role via admin endpoint.
 
-    role: InitiativeRole
+    ``role`` is the name of a role defined in that initiative — built-in
+    (``project_manager``, ``member``) or custom.
+    """
+
+    role: str = Field(..., min_length=1, max_length=100)

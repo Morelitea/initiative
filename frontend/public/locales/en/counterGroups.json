@@ -8,11 +8,7 @@
   "noGroupsDescription": "Counter groups bundle related numeric values — like HP, ammo, or scores — that you can increment, decrement, or set directly.",
   "createGroup": "Create Counter Group",
   "editGroup": "Edit Counter Group",
-  "deleteGroup": "Delete Counter Group",
-  "deleteGroupConfirm": "The counter group and its counters will be sent to the trash. You can restore it from Settings → Trash before the retention period ends.",
   "groupCreated": "Counter group created",
-  "groupUpdated": "Counter group updated",
-  "groupDeleted": "Counter group deleted",
   "name": "Name",
   "namePlaceholder": "Enter group name",
   "description": "Description",
@@ -94,7 +90,6 @@
   },
   "createFirst": "Create Your First Counter Group",
   "settings": "Settings",
-  "settingsDescription": "Manage counter group details, access, and advanced options.",
   "details": "Details",
   "access": "Access",
   "advanced": "Advanced",
@@ -110,7 +105,5 @@
     "allInitiatives": "All initiatives",
     "noMatchingGroups": "No counter groups match your filters."
   },
-  "tags": "Tags",
-  "tagsDescription": "Add tags to organize and filter counter groups.",
-  "noWriteAccessTags": "You need write access to manage tags."
+  "tags": "Tags"
 }

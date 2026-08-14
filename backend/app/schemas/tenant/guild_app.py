@@ -37,6 +37,10 @@ class GuildAppUpdate(SanitizedBaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=255)
     #: Turning an app off hides it without touching what it created.
     enabled: Optional[bool] = None
+    #: Which initiatives this app's initiative-scoped surfaces appear in.
+    #: ``{}`` is every one of them; ``{"initiatives": [12, 15]}`` narrows it.
+    #: Left out entirely, the current placement is untouched.
+    placement: Optional[Dict[str, Any]] = None
 
 
 class GuildAppConfigUpdate(SanitizedBaseModel):
@@ -142,6 +146,11 @@ class GuildAppRead(SanitizedBaseModel):
     #: definition describes the form, and what was typed into it lives in
     #: columns nothing here reads.
     definition: Dict[str, Any] = {}
+    #: Which initiatives this app's initiative-scoped surfaces appear in, as the
+    #: guild's admins set it. ``{}`` — the default — is every one of them.
+    #: Placement rather than permission: it is the guild's own answer to where
+    #: an app belongs, so it reads the same for everyone.
+    placement: Dict[str, Any] = {}
     #: The deployment provides this app to every guild, and a guild admin
     #: neither removes nor disables it. The affordances are absent rather than
     #: erroring, so the client is told which installs those are.
@@ -289,6 +298,7 @@ def serialize_guild_app(
         avatar_url=avatar_url,
         features=list(features) if isinstance(features, list) else [],
         definition=definition,
+        placement=app.placement or {},
         mandatory=service_state.mandatory,
         available=service_state.available,
         installed_by_id=app.installed_by_id,

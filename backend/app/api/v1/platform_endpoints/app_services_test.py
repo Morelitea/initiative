@@ -206,6 +206,48 @@ async def test_create_refuses_a_malformed_base_url(
     assert response.json()["detail"] == AppServiceMessages.INVALID_BASE_URL
 
 
+async def test_create_refuses_a_malformed_embed_origin(
+    client: AsyncClient, session: AsyncSession
+):
+    """Its own code, so an operator is told which of the two addresses the
+    registry would not take."""
+    headers = await _owner_headers(session)
+
+    response = await client.post(
+        BASE,
+        headers=headers,
+        json={
+            "base_url": APP_URL,
+            "secret": SECRET,
+            "embed_origin": "ftp://app.example.com",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == AppServiceMessages.INVALID_EMBED_ORIGIN
+
+
+async def test_the_browser_address_round_trips_and_clears(
+    client: AsyncClient, session: AsyncSession
+):
+    headers = await _owner_headers(session)
+    row = await _seed(session)
+
+    set_it = await client.patch(
+        f"{BASE}{row.id}",
+        headers=headers,
+        json={"embed_origin": "https://app.example.com"},
+    )
+    assert set_it.status_code == 200, set_it.text
+    assert set_it.json()["embed_origin"] == "https://app.example.com"
+
+    cleared = await client.patch(
+        f"{BASE}{row.id}", headers=headers, json={"embed_origin": ""}
+    )
+    assert cleared.status_code == 200, cleared.text
+    assert cleared.json()["embed_origin"] is None
+
+
 async def test_create_refuses_a_malformed_origin(
     client: AsyncClient, session: AsyncSession
 ):

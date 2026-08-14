@@ -1,9 +1,13 @@
 import { Link } from "@tanstack/react-router";
-import { CircleChevronRight, MoreVertical, Settings } from "lucide-react";
+import { Blocks, CircleChevronRight, MoreVertical, Settings } from "lucide-react";
 import { memo, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { InitiativeRead, ProjectRead } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  GuildAppRead,
+  InitiativeRead,
+  ProjectRead,
+} from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCreateButton } from "@/components/tools/ToolCreateButton";
 import { Button } from "@/components/ui/button";
@@ -18,10 +22,11 @@ import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import type { InitiativeToolAccess } from "@/hooks/useInitiativeAccess";
+import { initiativeAppPath } from "@/lib/appSurfaces";
 import { guildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
 import { getItem, setItem } from "@/lib/storage";
-import { SIDEBAR_TOOLS, TOOL_REGISTRY, toolNavLabelKey, toolRowTarget } from "@/lib/tools";
+import { SIDEBAR_TOOLS, TOOL_ICONS, toolNavLabelKey, toolRowTarget } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 export interface InitiativeSectionProps {
@@ -35,6 +40,11 @@ export interface InitiativeSectionProps {
   /** Per-tool sidebar counts. Every in-app list tool shows one — the rows all
    *  present the same way; a hand-off (embedded) tool has no list to count. */
   counts: Partial<Record<Tool, number>>;
+  /** The guild's installed apps. Those declaring a surface for this reader
+   *  inside an initiative get a row here, drawn from the same one install. */
+  apps: GuildAppRead[];
+  /** Whether the reader is a guild admin, which clears every surface's rung. */
+  isGuildAdmin: boolean;
   activeGuildId: number | null;
   /** Changing this value re-syncs the open/closed state from storage. */
   collapseKey?: number;
@@ -49,6 +59,8 @@ export const InitiativeSection = memo(
     userId,
     access,
     counts,
+    apps,
+    isGuildAdmin,
     activeGuildId,
     collapseKey,
   }: InitiativeSectionProps) => {
@@ -66,6 +78,19 @@ export const InitiativeSection = memo(
 
     /** Whether to surface a create affordance for a tool. */
     const canCreateTool = (tool: Tool): boolean => access[tool].create;
+
+    // Apps offering this reader a surface inside *this* initiative. Managing
+    // one initiative says nothing about another, so the standing is resolved
+    // per section rather than once for the sidebar.
+    const appRows = apps
+      .map((app) => ({
+        app,
+        path: initiativeAppPath(app, initiative.id, {
+          isGuildAdmin,
+          isInitiativeManager: canManageInitiative,
+        }),
+      }))
+      .filter((row): row is { app: GuildAppRead; path: string } => row.path !== null);
 
     // Load initial state from storage, default to true if not found
     const [isOpen, setIsOpen] = useState(() => {
@@ -196,11 +221,34 @@ export const InitiativeSection = memo(
             forceMount
           >
             <SidebarMenu>
+              {/* Apps first, above the tools, the same way the guild's apps sit
+                  above its initiatives — and because the tool rows end with
+                  projects, whose list has to expand directly beneath them. */}
+              {appRows.map(({ app, path }) => (
+                <SidebarMenuItem key={`app-${app.id}`}>
+                  <SidebarMenuButton asChild size="sm" className="min-w-0">
+                    <Link to={gp(path)} className="flex min-w-0 items-center gap-2">
+                      {app.avatar_url ? (
+                        <img
+                          src={app.avatar_url}
+                          alt=""
+                          aria-hidden
+                          className="h-4 w-4 shrink-0 rounded-sm object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <Blocks className="h-4 w-4 shrink-0" />
+                      )}
+                      <span className="min-w-0 flex-1 truncate">{app.name}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+
               {/* One row per tool, in SIDEBAR_TOOLS order (projects last so
                   the project list expands directly beneath their row). */}
               {SIDEBAR_TOOLS.filter(showTool).map((tool) => {
-                const def = TOOL_REGISTRY[tool];
-                const Icon = def.icon;
+                const Icon = TOOL_ICONS[tool];
                 const row = toolRowTarget(tool, initiative.id);
                 return (
                   <SidebarMenuItem key={tool}>
