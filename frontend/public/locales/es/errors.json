@@ -383,6 +383,7 @@
   "APP_SERVICE_INVALID_PUBLIC_ID": "Ese identificador de aplicación no es válido. Usa la forma editor.nombre, en minúsculas.",
   "APP_SERVICE_INVALID_BASE_URL": "Esa dirección no es válida. Indica la URL base de la aplicación, sin parámetros de consulta.",
   "APP_SERVICE_INVALID_ORIGIN": "Uno de los orígenes permitidos no es válido. Usa esquema://host con un puerto opcional y sin ruta.",
+  "APP_SERVICE_INVALID_DELEGATION_JWKS": "Ese conjunto de claves de delegación no sirve a esta instalación para verificar un token.",
   "APP_SERVICE_UNKNOWN_GRANT": "Ese permiso no se le puede conceder a un servicio de aplicación.",
   "APP_SERVICE_SECRET_REQUIRED": "Este servicio de aplicación necesita un secreto compartido antes de poder verificarse.",
   "APP_SERVICE_SIGNING_NOT_CONFIGURED": "Los servicios de aplicación necesitan una clave de firma que aún no está configurada. Contacta con tu administración.",

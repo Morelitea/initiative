@@ -660,6 +660,9 @@ class AppServiceMessages:
     INVALID_ORIGIN = "APP_SERVICE_INVALID_ORIGIN"
     #: A grant outside the closed operator-conferred vocabulary.
     UNKNOWN_GRANT = "APP_SERVICE_UNKNOWN_GRANT"
+    #: The delegation key set is not a JWKS this build can verify against, or
+    #: an entry in it carries no ``kid`` for a token to name.
+    INVALID_DELEGATION_JWKS = "APP_SERVICE_INVALID_DELEGATION_JWKS"
     #: A registration with no stored secret cannot complete a handshake.
     SECRET_REQUIRED = "APP_SERVICE_SECRET_REQUIRED"
     #: The APP_PLATFORM_* signing keypair is not configured. It is required and

@@ -37,6 +37,8 @@ from urllib.parse import urlparse
 
 import httpx
 from fastapi import HTTPException, status as http_status
+from jwt import PyJWK
+from jwt.exceptions import InvalidKeyError, PyJWKError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -64,6 +66,7 @@ __all__ = [
     "get_registration",
     "list_registrations",
     "normalize_base_url",
+    "normalize_delegation_jwks",
     "normalize_embed_origin",
     "normalize_grants",
     "normalize_origin",
@@ -226,6 +229,61 @@ def normalize_origins(
     return normalized
 
 
+def normalize_delegation_jwks(value: Optional[dict]) -> Optional[dict]:
+    """Check a delegation key set is one a token could actually be verified
+    against, and that every entry carries the ``kid`` a token names.
+
+    Parsed on the way in rather than at first use, so an operator provisioning
+    a key learns here whether it landed instead of at the first call that
+    needs it. An empty object clears the set.
+    """
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise _bad_request(
+            AppServiceMessages.INVALID_DELEGATION_JWKS,
+            "expected a JWKS object",
+        )
+    if not value:
+        return None
+
+    keys = value.get("keys")
+    if not isinstance(keys, list) or not keys:
+        raise _bad_request(
+            AppServiceMessages.INVALID_DELEGATION_JWKS,
+            "expected {'keys': [...]} holding at least one key",
+        )
+
+    seen: set[str] = set()
+    for entry in keys:
+        if not isinstance(entry, dict):
+            raise _bad_request(
+                AppServiceMessages.INVALID_DELEGATION_JWKS,
+                "every entry in 'keys' must be an object",
+            )
+        kid = entry.get("kid")
+        if not isinstance(kid, str) or not kid.strip():
+            raise _bad_request(
+                AppServiceMessages.INVALID_DELEGATION_JWKS,
+                "every key needs a 'kid' — a token names one to select it",
+            )
+        if kid in seen:
+            raise _bad_request(
+                AppServiceMessages.INVALID_DELEGATION_JWKS,
+                f"two keys share the kid {kid!r}",
+            )
+        seen.add(kid)
+        try:
+            PyJWK.from_dict(entry)
+        except (PyJWKError, InvalidKeyError, KeyError, TypeError, ValueError) as exc:
+            raise _bad_request(
+                AppServiceMessages.INVALID_DELEGATION_JWKS,
+                f"key {kid!r} is unusable: {exc}",
+            ) from exc
+
+    return value
+
+
 def normalize_grants(values: Optional[Iterable[str]]) -> list[str]:
     """Check operator-conferred powers against the closed vocabulary.
 
@@ -311,6 +369,7 @@ async def create_registration(
     embed_origin: Optional[str] = None,
     allowed_origins: Optional[Iterable[str]] = None,
     grants: Optional[Iterable[str]] = None,
+    delegation_jwks: Optional[dict] = None,
     mandatory: bool = False,
     enabled: bool = True,
     transport: httpx.AsyncBaseTransport | None = None,
@@ -331,6 +390,7 @@ async def create_registration(
     embed = normalize_embed_origin(embed_origin) if embed_origin else None
     origins = normalize_origins(allowed_origins, browser_base=embed or base_url)
     grant_list = normalize_grants(grants)
+    key_set = normalize_delegation_jwks(delegation_jwks)
     declared_id = normalize_public_id(public_id) if public_id else None
     if not secret or not secret.strip():
         raise HTTPException(
@@ -396,6 +456,7 @@ async def create_registration(
         manifest_hash=manifest_hash,
         protocol_version=protocol_version,
         grants=grant_list,
+        delegation_jwks=key_set,
         mandatory=mandatory,
         enabled=enabled,
         status=row_status,
@@ -417,6 +478,7 @@ async def update_registration(
     embed_origin: Optional[str] = None,
     allowed_origins: Optional[Iterable[str]] = None,
     grants: Optional[Iterable[str]] = None,
+    delegation_jwks: Optional[dict] = None,
     mandatory: Optional[bool] = None,
     enabled: Optional[bool] = None,
 ) -> AppServiceRegistration:
@@ -460,6 +522,11 @@ async def update_registration(
         row.allowed_origins = normalize_origins(None, browser_base=browser_base(row))
     if grants is not None:
         row.grants = normalize_grants(grants)
+    if delegation_jwks is not None:
+        # Replaces rather than merges, and an empty object clears: a key set is
+        # provisioned whole, so two entries mean a rotation is in flight and
+        # one means it is over.
+        row.delegation_jwks = normalize_delegation_jwks(delegation_jwks)
     if mandatory is not None:
         row.mandatory = mandatory
     if enabled is not None:
@@ -613,6 +680,7 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
                 entry.get("allowed_origins"), browser_base=embed or base_url
             )
             grants = normalize_grants(entry.get("grants"))
+            key_set = normalize_delegation_jwks(entry.get("delegation_jwks"))
         except HTTPException as exc:
             logger.warning(
                 "app services: entry %r refused (%s)",
@@ -654,6 +722,7 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
                     allowed_origins=origins,
                     secret_encrypted=encrypt_field(secret, SALT_APP_SERVICE_SECRET),
                     grants=grants,
+                    delegation_jwks=key_set,
                     mandatory=mandatory,
                     enabled=True,
                     status=AppServiceStatus.UNVERIFIED,
@@ -678,6 +747,7 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
             or embed != row.embed_origin
             or origins != list(row.allowed_origins or [])
             or grants != list(row.grants or [])
+            or key_set != row.delegation_jwks
             or mandatory != row.mandatory
         )
         if not dirty:
@@ -688,6 +758,7 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
         row.embed_origin = embed
         row.allowed_origins = origins
         row.grants = grants
+        row.delegation_jwks = key_set
         row.mandatory = mandatory
         if retarget:
             row.secret_encrypted = encrypt_field(secret, SALT_APP_SERVICE_SECRET)

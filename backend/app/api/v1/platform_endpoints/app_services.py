@@ -52,6 +52,7 @@ def _to_read(row: AppServiceRegistration) -> AppServiceRegistrationRead:
         manifest_hash=row.manifest_hash,
         protocol_version=row.protocol_version,
         grants=list(row.grants or []),
+        delegation_jwks=row.delegation_jwks,
         mandatory=row.mandatory,
         enabled=row.enabled,
         status=row.status,
@@ -95,6 +96,7 @@ async def create_app_service(
         embed_origin=payload.embed_origin,
         allowed_origins=payload.allowed_origins,
         grants=payload.grants,
+        delegation_jwks=payload.delegation_jwks,
         mandatory=payload.mandatory,
         enabled=payload.enabled,
     )
@@ -129,6 +131,7 @@ async def update_app_service(
         embed_origin=payload.embed_origin,
         allowed_origins=payload.allowed_origins,
         grants=payload.grants,
+        delegation_jwks=payload.delegation_jwks,
         mandatory=payload.mandatory,
         enabled=payload.enabled,
     )

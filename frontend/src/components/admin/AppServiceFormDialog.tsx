@@ -27,6 +27,8 @@ export interface AppServiceFormValues {
   /** The new shared secret, or null to leave the stored one alone. */
   secret: string | null;
   delegation: boolean;
+  /** Parsed JWKS, or null to leave the stored key set untouched. */
+  delegationJwks: Record<string, unknown> | null;
   mandatory: boolean;
 }
 
@@ -37,6 +39,7 @@ interface FormState {
   allowedOrigins: string;
   secret: string;
   delegation: boolean;
+  delegationJwks: string;
   mandatory: boolean;
 }
 
@@ -47,6 +50,7 @@ const EMPTY_FORM: FormState = {
   allowedOrigins: "",
   secret: "",
   delegation: false,
+  delegationJwks: "",
   mandatory: false,
 };
 
@@ -76,6 +80,9 @@ export const AppServiceFormDialog = ({
   const { t } = useTranslation("settings");
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [replaceSecret, setReplaceSecret] = useState(false);
+  // Only whether the paste is JSON at all. Whether it is a key set we could
+  // verify against is the server's answer, and it gives a message code.
+  const [jwksError, setJwksError] = useState<string | null>(null);
 
   // Re-seed whenever the dialog opens, so a reopened form never shows the
   // previous row's values (and never carries a typed secret forward).
@@ -89,20 +96,44 @@ export const AppServiceFormDialog = ({
         allowedOrigins: editing.allowed_origins.join("\n"),
         secret: "",
         delegation: hasGrant(editing, "delegation"),
+        delegationJwks: editing.delegation_jwks
+          ? JSON.stringify(editing.delegation_jwks, null, 2)
+          : "",
         mandatory: editing.mandatory,
       });
+      setJwksError(null);
       // A registration with no secret cannot complete a handshake, so go
       // straight to the input rather than hiding it behind an opt-in.
       setReplaceSecret(!editing.has_secret);
     } else {
       setForm(EMPTY_FORM);
       setReplaceSecret(true);
+      setJwksError(null);
     }
   }, [open, editing]);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    // An emptied box clears the stored set; an untouched one on a row that
+    // never had a key leaves it alone. Both arrive as {} vs null respectively,
+    // which is the distinction the PATCH reads.
+    const typed = form.delegationJwks.trim();
+    let delegationJwks: Record<string, unknown> | null = null;
+    if (typed) {
+      try {
+        delegationJwks = JSON.parse(typed) as Record<string, unknown>;
+      } catch {
+        setJwksError(t("appServices.delegationJwksInvalid"));
+        return;
+      }
+    } else if (editing?.delegation_jwks) {
+      delegationJwks = {};
+    }
+    setJwksError(null);
+
     onSubmit({
+      delegationJwks,
       publicId: form.publicId.trim(),
       baseUrl: form.baseUrl.trim(),
       embedOrigin: form.embedOrigin.trim(),
@@ -245,6 +276,27 @@ export const AppServiceFormDialog = ({
                 }
               />
             </div>
+            {form.delegation && (
+              <div className="space-y-2 pt-1">
+                <Label htmlFor="app-service-delegation-jwks">
+                  {t("appServices.delegationJwksLabel")}
+                </Label>
+                <Textarea
+                  id="app-service-delegation-jwks"
+                  value={form.delegationJwks}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, delegationJwks: event.target.value }))
+                  }
+                  rows={6}
+                  className="font-mono text-xs"
+                  placeholder={'{\n  "keys": [ … ]\n}'}
+                />
+                <p className="text-muted-foreground text-xs">
+                  {t("appServices.delegationJwksHelp")}
+                </p>
+                {jwksError && <p className="text-destructive text-xs">{jwksError}</p>}
+              </div>
+            )}
             <div className="flex items-start justify-between gap-3 pt-1">
               <div>
                 <Label htmlFor="app-service-mandatory" className="font-medium">

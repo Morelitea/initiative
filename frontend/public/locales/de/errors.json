@@ -383,6 +383,7 @@
   "APP_SERVICE_INVALID_PUBLIC_ID": "Diese App-Kennung ist ungültig. Verwende die Form herausgeber.name in Kleinbuchstaben.",
   "APP_SERVICE_INVALID_BASE_URL": "Diese Adresse ist ungültig. Gib die Basis-URL der App an, ohne Abfrageparameter.",
   "APP_SERVICE_INVALID_ORIGIN": "Eine erlaubte Herkunft ist ungültig. Verwende schema://host mit optionalem Port und ohne Pfad.",
+  "APP_SERVICE_INVALID_DELEGATION_JWKS": "Dieser Delegations-Schlüsselsatz kann von dieser Installation nicht zur Token-Prüfung verwendet werden.",
   "APP_SERVICE_UNKNOWN_GRANT": "Diese Berechtigung kann einem App-Dienst nicht erteilt werden.",
   "APP_SERVICE_SECRET_REQUIRED": "Dieser App-Dienst benötigt ein gemeinsames Geheimnis, bevor er überprüft werden kann.",
   "APP_SERVICE_SIGNING_NOT_CONFIGURED": "App-Dienste benötigen einen Signaturschlüssel, der noch nicht konfiguriert ist. Wende dich an deine Administration.",

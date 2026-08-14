@@ -184,6 +184,9 @@ describe("SettingsAppServicesPage", () => {
           embed_origin: null,
           allowed_origins: null,
           grants: ["delegation"],
+          // Delegation is on but no key set was pasted, so the app can be
+          // granted the power now and provisioned with its key later.
+          delegation_jwks: null,
           mandatory: false,
         },
         expect.anything()

@@ -383,6 +383,7 @@
   "APP_SERVICE_INVALID_PUBLIC_ID": "That app identifier isn't valid. Use the form publisher.name, in lowercase.",
   "APP_SERVICE_INVALID_BASE_URL": "That address isn't valid. Give the app's base URL, with no query string.",
   "APP_SERVICE_INVALID_ORIGIN": "An allowed origin isn't valid. Use scheme://host with an optional port, and no path.",
+  "APP_SERVICE_INVALID_DELEGATION_JWKS": "That delegation key set isn't one this deployment can verify a token against.",
   "APP_SERVICE_UNKNOWN_GRANT": "That permission isn't one an app service can be granted.",
   "APP_SERVICE_SECRET_REQUIRED": "This app service needs a shared secret before it can be verified.",
   "APP_SERVICE_SIGNING_NOT_CONFIGURED": "App services need a signing key that hasn't been configured yet. Contact your administrator.",
