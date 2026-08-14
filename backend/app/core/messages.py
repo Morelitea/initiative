@@ -651,6 +651,9 @@ class AppServiceMessages:
     #: public_id, base_url, an origin, or a version string this build refuses.
     INVALID_PUBLIC_ID = "APP_SERVICE_INVALID_PUBLIC_ID"
     INVALID_BASE_URL = "APP_SERVICE_INVALID_BASE_URL"
+    #: The browser-facing base, when an app answers there rather than at the
+    #: address Initiative's own server calls.
+    INVALID_EMBED_ORIGIN = "APP_SERVICE_INVALID_EMBED_ORIGIN"
     INVALID_ORIGIN = "APP_SERVICE_INVALID_ORIGIN"
     #: A grant outside the closed operator-conferred vocabulary.
     UNKNOWN_GRANT = "APP_SERVICE_UNKNOWN_GRANT"

@@ -788,7 +788,9 @@ async def connect_guild_app(
         connection_ref=row.connection_ref,
         connect_path=connect_path,
         connect_url=(
-            f"{registration.base_url}{connect_path}"
+            # The member's browser is what follows this, so it is built from
+            # the address a browser can resolve.
+            f"{registration.browser_base}{connect_path}"
             f"?connection_ref={quote(row.connection_ref, safe='')}"
         ),
         status=row.status,

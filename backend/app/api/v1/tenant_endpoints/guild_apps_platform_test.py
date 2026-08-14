@@ -290,6 +290,30 @@ class TestHandoff:
         assert body["expires_in_seconds"] == 60
         assert body["handoff_token"]
 
+    async def test_the_iframe_opens_at_the_browser_address(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        """A deployment may call an app somewhere a browser cannot reach, so the
+        iframe is built from the address the operator published, not the one the
+        server dials."""
+        await _mark(
+            session,
+            registration,
+            base_url="http://widgetco.internal:8200",
+            embed_origin="https://widgetco.example.test",
+        )
+        a = await acting_user(guild_role=GuildRole.admin)
+        app = await _installed(session, a)
+
+        response = await client.post(
+            a.g(f"/apps/{app.id}/handoff/board"), headers=a.headers
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["embed_url"] == (
+            "https://widgetco.example.test/embed/board"
+        )
+
     async def test_the_token_names_the_guild_the_install_and_the_surface(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
@@ -668,6 +692,30 @@ class TestConnectLaunch:
         assert body["connect_url"] == (
             "https://widgetco.example.test/connect/github"
             f"?connection_ref={body['connection_ref']}"
+        )
+
+    async def test_the_url_uses_the_browser_address(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        """The member's own browser follows this one, so it is built from the
+        published address rather than the one the server dials."""
+        await _mark(
+            session,
+            registration,
+            base_url="http://widgetco.internal:8200",
+            embed_origin="https://widgetco.example.test",
+        )
+        a = await acting_user(guild_role=GuildRole.admin)
+        app = await self._install(session, a)
+
+        body = (
+            await client.post(
+                a.g(f"/apps/{app.id}/connections/github/connect"), headers=a.headers
+            )
+        ).json()
+
+        assert body["connect_url"].startswith(
+            "https://widgetco.example.test/connect/github"
         )
 
     async def test_no_token_travels_in_the_url(

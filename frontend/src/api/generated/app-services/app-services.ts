@@ -431,8 +431,9 @@ export function useReadAppServiceApiV1AppServicesRegistrationIdGet<
 }
 
 /**
- * Enable/disable, rotate the secret, repoint the URL, or change the powers
- * conferred. Rotating or repointing clears the recorded verification.
+ * Enable/disable, rotate the secret, repoint either address, or change the
+ * powers conferred. Rotating the secret or repointing ``base_url`` clears the
+ * recorded verification; moving the browser address alone does not.
  * @summary Update App Service
  */
 export const updateAppServiceApiV1AppServicesRegistrationIdPatch = (

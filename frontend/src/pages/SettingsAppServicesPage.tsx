@@ -90,6 +90,9 @@ export const SettingsAppServicesPage = () => {
           registrationId: editing.id,
           data: {
             base_url: values.baseUrl,
+            // Always sent, so emptying the field clears it and puts both
+            // surfaces back on the base URL.
+            embed_origin: values.embedOrigin,
             allowed_origins: origins,
             grants,
             mandatory: values.mandatory,
@@ -114,6 +117,7 @@ export const SettingsAppServicesPage = () => {
         base_url: values.baseUrl,
         secret: values.secret ?? "",
         public_id: values.publicId || null,
+        embed_origin: values.embedOrigin || null,
         allowed_origins: origins,
         grants,
         mandatory: values.mandatory,
@@ -232,6 +236,13 @@ export const SettingsAppServicesPage = () => {
                       <p className="truncate text-muted-foreground text-sm">
                         {registration.base_url}
                       </p>
+                      {registration.embed_origin && (
+                        <p className="truncate text-muted-foreground text-sm">
+                          {t("appServices.embedOriginSummary", {
+                            origin: registration.embed_origin,
+                          })}
+                        </p>
+                      )}
                     </div>
 
                     <div className="flex shrink-0 flex-wrap items-center gap-2">

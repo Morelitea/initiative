@@ -27,7 +27,10 @@ from typing import Any, Optional
 from sqlmodel import select
 
 from app.db import session as db_session
-from app.models.platform.app_service_registration import AppServiceRegistration
+from app.models.platform.app_service_registration import (
+    AppServiceRegistration,
+    browser_base,
+)
 
 __all__ = [
     "CACHE_TTL_SECONDS",
@@ -53,7 +56,11 @@ class RegistrationSnapshot:
 
     public_id: str
     listing_uid: Optional[str]
+    #: Where Initiative's own server calls this app.
     base_url: str
+    #: Where a person's browser loads its surfaces, when the app answers there
+    #: rather than at ``base_url``. Read through :attr:`browser_base`.
+    embed_origin: Optional[str]
     #: Origins this app's surfaces may be framed from and postMessage'd to.
     allowed_origins: tuple[str, ...]
     #: Operator-conferred powers, for callers that gate on one.
@@ -68,6 +75,11 @@ class RegistrationSnapshot:
     def live(self) -> bool:
         """Whether anything may flow through this app right now."""
         return self.enabled
+
+    @property
+    def browser_base(self) -> str:
+        """The base to build an address a browser will be sent to."""
+        return browser_base(self)
 
 
 _cache: dict[str, RegistrationSnapshot] | None = None
@@ -106,6 +118,7 @@ async def load_registrations(*, force: bool = False) -> dict[str, RegistrationSn
             public_id=row.public_id,
             listing_uid=row.listing_uid,
             base_url=row.base_url,
+            embed_origin=row.embed_origin,
             allowed_origins=tuple(row.allowed_origins or []),
             grants=tuple(row.grants or []),
             mandatory=bool(row.mandatory),

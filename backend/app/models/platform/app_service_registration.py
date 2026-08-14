@@ -23,7 +23,7 @@ boot reconciliation from ``APP_SERVICES_CONFIG``.
 """
 
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List, Optional, Protocol
 
 from pydantic import ConfigDict
 from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
@@ -35,6 +35,8 @@ __all__ = [
     "APP_SERVICE_STATUSES",
     "AppServiceRegistration",
     "AppServiceStatus",
+    "BrowserAddressed",
+    "browser_base",
 ]
 
 
@@ -92,10 +94,18 @@ class AppServiceRegistration(SQLModel, table=True):
         default=None, sa_column=Column(String(14), nullable=True, index=True)
     )
     # Base of the service's wire surface: the well-known manifest, the
-    # handshake, and later the data/lifecycle endpoints all hang off it.
+    # handshake, and later the data/lifecycle endpoints all hang off it. Every
+    # consumer of this column is Initiative's own server calling the app.
     base_url: str = Field(sa_column=Column(String(1000), nullable=False))
+    # Base of the service's browser surface: the iframe an embed opens and the
+    # page a member is sent to for an interactive connection. Unset means the
+    # app answers both surfaces at one address, which is the ordinary case and
+    # what every registration written before this column existed says.
+    embed_origin: Optional[str] = Field(
+        default=None, sa_column=Column(String(1000), nullable=True)
+    )
     # Origins this app's embedded surfaces may be framed from and postMessage'd
-    # to. Defaults to the base_url's own origin.
+    # to. Defaults to the browser base's own origin.
     allowed_origins: List[str] = Field(
         default_factory=list,
         sa_column=Column(JSONB, nullable=False, server_default="[]"),
@@ -144,3 +154,23 @@ class AppServiceRegistration(SQLModel, table=True):
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
+
+
+class BrowserAddressed(Protocol):
+    """Anything carrying a registration's two addresses.
+
+    The row and the request path's snapshot of it both do, and both need the
+    same answer, so the rule that relates them is written once.
+    """
+
+    base_url: str
+    embed_origin: Optional[str]
+
+
+def browser_base(registration: BrowserAddressed) -> str:
+    """The base a person's browser resolves for this app's surfaces.
+
+    ``embed_origin`` when the deployment gave one, ``base_url`` otherwise — an
+    app reachable at a single address needs no second field to say so.
+    """
+    return registration.embed_origin or registration.base_url
