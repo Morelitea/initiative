@@ -19,24 +19,26 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.core import config as config_module
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.services.tenant import webhook_dispatcher
 from app.services.tenant.webhook_dispatcher import _sign, dispatch_event
 
+
 # Delivery targets belong to the automation delegate, so the dispatcher only
 # runs on a deployment that has one. The setting is only tested for presence,
 # so a placeholder value is enough here.
-_DELEGATE_PEM = "-----BEGIN PUBLIC KEY-----\ntest-delegate\n-----END PUBLIC KEY-----"
-
-
 @pytest.fixture(autouse=True)
 def _delegate_configured(monkeypatch):
-    """Every test below assumes a configured delegate unless it says otherwise
-    — with none, dispatch is inert and there is nothing to assert about
-    matching or signing."""
+    """Every test below assumes a delegate exists unless it says otherwise —
+    with none, dispatch is inert and there is nothing to assert about matching
+    or signing.
+
+    Patched at the lookup rather than registered, because most of this file
+    never touches the database: what the dispatcher asks is one question, and
+    these tests are about what it does with the answer.
+    """
     monkeypatch.setattr(
-        config_module.settings, "AUTO_DELEGATION_PUBLIC_KEY_PEM", _DELEGATE_PEM
+        webhook_dispatcher, "any_delegate_registered", AsyncMock(return_value=True)
     )
 
 
@@ -422,7 +424,9 @@ async def test_dispatch_is_inert_without_a_delegate(session, monkeypatch):
         event_types=["task.created"],
     )
 
-    monkeypatch.setattr(config_module.settings, "AUTO_DELEGATION_PUBLIC_KEY_PEM", None)
+    monkeypatch.setattr(
+        webhook_dispatcher, "any_delegate_registered", AsyncMock(return_value=False)
+    )
     monkeypatch.setattr(webhook_dispatcher, "_inert_logged", False)
 
     with patch(
@@ -451,7 +455,9 @@ async def test_inert_dispatch_explains_itself_once_per_process(monkeypatch):
     """Every write that produces an event calls the dispatcher, so the
     "no delegate configured" explanation is logged once per process rather
     than once per event."""
-    monkeypatch.setattr(config_module.settings, "AUTO_DELEGATION_PUBLIC_KEY_PEM", None)
+    monkeypatch.setattr(
+        webhook_dispatcher, "any_delegate_registered", AsyncMock(return_value=False)
+    )
     monkeypatch.setattr(webhook_dispatcher, "_inert_logged", False)
 
     with patch.object(webhook_dispatcher.logger, "info") as mock_info:

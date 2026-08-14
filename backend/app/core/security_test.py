@@ -340,6 +340,8 @@ def test_decode_session_token_rejects_garbage():
 # ──────────────────────────────────────────────────────────────────────────
 
 
+DELEGATE_KID_SHAPE = "acme.auto-delegation-1"
+
 _KEYPAIRS = [
     rsa.generate_private_key(public_exponent=65537, key_size=2048) for _ in range(3)
 ]
@@ -355,6 +357,11 @@ def private_pem(index: int) -> str:
         )
         .decode()
     )
+
+
+def public_key(index: int):
+    """One verifying key, as a caller that resolved it would hold it."""
+    return _KEYPAIRS[index].public_key()
 
 
 def public_bundle(*indexes: int) -> str:
@@ -433,78 +440,84 @@ def _mint_delegation(
     )
 
 
-@pytest.fixture
-def delegation_pem(monkeypatch):
-    def configure(bundle: str | None):
-        monkeypatch.setattr(security.settings, "AUTO_DELEGATION_PUBLIC_KEY_PEM", bundle)
-
-    return configure
-
-
 @pytest.mark.unit
-def test_delegation_accepts_its_one_configured_key(delegation_pem):
-    delegation_pem(public_bundle(0))
-    claims = security.verify_auto_delegation_token(_mint_delegation(signed_by=0))
+def test_delegation_accepts_the_key_it_was_given():
+    claims = security.verify_auto_delegation_token(
+        _mint_delegation(signed_by=0), keys=[public_key(0)]
+    )
     assert (claims.user_id, claims.guild_id) == (5, 9)
 
 
 @pytest.mark.unit
-def test_delegation_accepts_either_key_while_the_delegate_rotates(delegation_pem):
-    """The point of the bundle: both keys work, so the two sides can switch at
-    their own pace instead of in the same instant."""
-    delegation_pem(public_bundle(0, 1))
+def test_delegation_accepts_either_key_while_the_delegate_rotates():
+    """The point of passing a set: both keys work, so an app can publish its
+    replacement and switch at its own pace rather than in one instant."""
     for index in (0, 1):
         assert (
             security.verify_auto_delegation_token(
-                _mint_delegation(signed_by=index)
+                _mint_delegation(signed_by=index), keys=[public_key(0), public_key(1)]
             ).user_id
             == 5
         )
 
 
 @pytest.mark.unit
-def test_delegation_refuses_a_key_that_is_not_configured(delegation_pem):
-    """Trusting two keys is not trusting any RS256 signer."""
-    delegation_pem(public_bundle(0, 1))
+def test_delegation_refuses_a_key_it_was_not_given():
+    """Holding two keys is not holding every RS256 signer."""
     with pytest.raises(security.AutoDelegationVerificationError):
-        security.verify_auto_delegation_token(_mint_delegation(signed_by=2))
+        security.verify_auto_delegation_token(
+            _mint_delegation(signed_by=2), keys=[public_key(0), public_key(1)]
+        )
 
 
 @pytest.mark.unit
-def test_delegation_stops_accepting_a_dropped_key(delegation_pem):
-    """Rotation ends by removing a block, so that key must stop working."""
-    delegation_pem(public_bundle(1))
+def test_delegation_refuses_when_nothing_resolved():
+    """An empty set is the "no registration published this kid" case, and it
+    answers the same way a bad signature does."""
     with pytest.raises(security.AutoDelegationVerificationError):
-        security.verify_auto_delegation_token(_mint_delegation(signed_by=0))
+        security.verify_auto_delegation_token(_mint_delegation(signed_by=0), keys=[])
 
 
 @pytest.mark.unit
-def test_delegation_ignores_a_token_key_id(delegation_pem):
-    """The delegate stamps a ``kid``; nothing reads it. Pinned because that
-    header is unsigned, so it must not steer which key is used."""
-    delegation_pem(public_bundle(0, 1))
+def test_delegation_stops_accepting_a_dropped_key():
+    """Rotation ends by dropping an entry, so that key must stop working."""
+    with pytest.raises(security.AutoDelegationVerificationError):
+        security.verify_auto_delegation_token(
+            _mint_delegation(signed_by=0), keys=[public_key(1)]
+        )
+
+
+@pytest.mark.unit
+def test_a_token_key_id_does_not_steer_verification():
+    """The ``kid`` selects which registration's keys are tried; within them it
+    decides nothing. A token stamped with a misleading one still stands or
+    falls on the key that actually signed it."""
     assert (
         security.verify_auto_delegation_token(
-            _mint_delegation(signed_by=1, kid="names-the-other-key")
+            _mint_delegation(signed_by=1, kid="names-the-other-key"),
+            keys=[public_key(0), public_key(1)],
         ).user_id
         == 5
     )
+    with pytest.raises(security.AutoDelegationVerificationError):
+        security.verify_auto_delegation_token(
+            _mint_delegation(signed_by=2, kid=DELEGATE_KID_SHAPE),
+            keys=[public_key(0), public_key(1)],
+        )
 
 
 @pytest.mark.unit
-def test_delegation_reports_expiry_rather_than_the_next_key(delegation_pem):
+def test_delegation_reports_expiry_rather_than_the_next_key():
     """With several keys tried, the reported failure is the real one."""
-    delegation_pem(public_bundle(0, 1))
     with pytest.raises(security.AutoDelegationVerificationError) as excinfo:
         security.verify_auto_delegation_token(
-            _mint_delegation(signed_by=0, expires_in=-30)
+            _mint_delegation(signed_by=0, expires_in=-30),
+            keys=[public_key(0), public_key(1)],
         )
     assert "expired" in str(excinfo.value).lower()
 
 
 @pytest.mark.unit
-def test_delegation_is_off_with_no_key(delegation_pem):
-    delegation_pem(None)
-    assert security.auto_delegation_configured() is False
-    with pytest.raises(security.AutoDelegationVerificationError):
-        security.verify_auto_delegation_token(_mint_delegation(signed_by=0))
+def test_delegation_is_off_where_no_app_platform_is_configured(monkeypatch):
+    monkeypatch.setattr(security.settings, "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM", None)
+    assert security.delegation_possible() is False

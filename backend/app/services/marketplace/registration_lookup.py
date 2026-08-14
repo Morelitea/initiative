@@ -29,7 +29,6 @@ from typing import Any, Mapping, Optional
 from jwt import PyJWK
 from sqlmodel import select
 
-from app.core.config import settings
 from app.db import session as db_session
 from app.models.platform.app_service_registration import (
     AppServiceRegistration,
@@ -45,8 +44,7 @@ __all__ = [
     "InstallState",
     "RegistrationSnapshot",
     "any_delegate_registered",
-    "delegate_available",
-    "delegation_key_for",
+    "delegation_keys_for",
     "install_state",
     "invalidate_registrations",
     "load_registrations",
@@ -267,34 +265,39 @@ class DelegationKey:
     key: Any
 
 
-async def delegation_key_for(kid: str) -> Optional[DelegationKey]:
-    """The key a delegation token's ``kid`` names, if an app may delegate.
+async def delegation_keys_for(kid: str) -> tuple[DelegationKey, ...]:
+    """Every key a delegation token's ``kid`` could name.
 
-    Resolution is by ``kid`` rather than by parsing the app's name out of it:
-    a ``kid`` is an opaque label its owner chooses, and rotation means one app
-    publishes two at once.
+    Only from registrations that are ``enabled`` and hold the ``delegation``
+    grant, so an operator ends an app's ability to act with an edit rather than
+    a key rotation.
+
+    All matches rather than the first: a ``kid`` is an opaque label its owner
+    chooses, so two apps may pick the same one, and the token belongs to
+    whichever key verifies it. Resolution is by ``kid`` rather than by reading
+    an app's name out of it, for the same reason.
 
     Deliberately ``enabled`` rather than :attr:`RegistrationSnapshot.live` — a
-    delegate calls the API directly, so its ability to act should follow the
+    delegate calls the API directly, so its ability to act follows the
     operator's kill switch, not whether its manifest was reachable at the last
     handshake.
     """
     if not kid:
-        return None
-    for snapshot in (await load_registrations()).values():
-        if not snapshot.enabled or "delegation" not in snapshot.grants:
-            continue
-        key = snapshot.delegation_keys.get(kid)
-        if key is not None:
-            return DelegationKey(registration=snapshot, key=key)
-    return None
+        return ()
+    return tuple(
+        DelegationKey(registration=snapshot, key=key)
+        for snapshot in (await load_registrations()).values()
+        if snapshot.enabled and "delegation" in snapshot.grants
+        for key in (snapshot.delegation_keys.get(kid),)
+        if key is not None
+    )
 
 
 async def any_delegate_registered() -> bool:
     """Whether some app on this deployment may delegate and can be verified.
 
-    The accurate answer, for callers deciding whether a delegate exists at all
-    rather than whether this token resolves.
+    What every surface that is delegate-owned reads: the subscription
+    endpoints refuse without one and the outbound dispatcher stays inert.
     """
     return any(
         snapshot.enabled
@@ -302,19 +305,3 @@ async def any_delegate_registered() -> bool:
         and snapshot.delegation_keys
         for snapshot in (await load_registrations()).values()
     )
-
-
-async def delegate_available() -> bool:
-    """Whether this deployment has a delegate at all.
-
-    True for a registration that holds the grant and a key, and for the
-    deployment-wide ``AUTO_DELEGATION_PUBLIC_KEY_PEM`` while that is still the
-    trust root — a deployment that has not yet moved its delegate onto its own
-    registration must keep working, so both count for one release.
-
-    This is the answer for "does a delegate exist here", as distinct from
-    :func:`auto_delegation_configured`'s cheaper "could one".
-    """
-    if settings.AUTO_DELEGATION_PUBLIC_KEY_PEM:
-        return True
-    return await any_delegate_registered()

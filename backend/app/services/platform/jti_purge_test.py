@@ -35,7 +35,7 @@ def _configure(monkeypatch, *, billing: bool, delegation: bool) -> None:
     )
     monkeypatch.setattr(
         config_module.settings,
-        "AUTO_DELEGATION_PUBLIC_KEY_PEM",
+        "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM",
         "pk" if delegation else None,
     )
 

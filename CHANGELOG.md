@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **An app is granted the power to act as your members individually.** Delegation now follows the app's own registration — its keys, its grant, its switch — instead of one setting shared by the whole deployment. Turning an app's delegation off, or turning the app off, ends what it can do straight away. Existing deployments keep working on the old setting while their apps are provisioned with keys of their own.
+- **An app is granted the power to act as your members individually.** Delegation follows the app's own registration — its keys, its grant, its switch — rather than one setting shared by the whole deployment. Turning an app's delegation off, or turning the app off, ends what it can do straight away.
 - An app service registration can hold the public keys its app signs delegation tokens with, as a JWKS — pasted into the registration form or declared in the app services file alongside the app's other settings. Two entries in one key set is how an app rotates its signing key without downtime, and clearing the field removes it.
 
 ### Changed
