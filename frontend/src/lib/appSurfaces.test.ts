@@ -10,7 +10,13 @@
 
 import { describe, expect, it } from "vitest";
 
-import { appEmbeds, clearsVisibility, guildAppPath, initiativeAppPath } from "./appSurfaces";
+import {
+  appEmbeds,
+  clearsVisibility,
+  guildAppPath,
+  initiativeAppPath,
+  placedIn,
+} from "./appSurfaces";
 
 const ADMIN = { isGuildAdmin: true };
 const MANAGER = { isGuildAdmin: false, isInitiativeManager: true };
@@ -151,5 +157,38 @@ describe("initiativeAppPath", () => {
         ADMIN
       )
     ).toBeNull();
+  });
+});
+
+describe("placedIn", () => {
+  it("offers an unplaced app in every initiative", () => {
+    expect(placedIn({ placement: {} }, 4)).toBe(true);
+    expect(placedIn({ placement: null }, 4)).toBe(true);
+    expect(placedIn({}, 4)).toBe(true);
+  });
+
+  it("offers a placed app only where it was placed", () => {
+    expect(placedIn({ placement: { initiatives: [4, 9] } }, 4)).toBe(true);
+    expect(placedIn({ placement: { initiatives: [4, 9] } }, 5)).toBe(false);
+  });
+
+  it("reads an empty choice as nowhere rather than everywhere", () => {
+    // Distinct from `{}`: the guild kept the guild-wide surface and dropped
+    // the per-initiative ones.
+    expect(placedIn({ placement: { initiatives: [] } }, 4)).toBe(false);
+  });
+
+  it("keeps a row out of an initiative the app was placed away from", () => {
+    // Placement is where the app goes, so it reads the same for an admin.
+    const app = {
+      id: 7,
+      placement: { initiatives: [9] },
+      definition: {
+        embeds: [{ id: "runs", path: "/embed", name: { en: "Runs" }, scopes: ["initiative"] }],
+      },
+    };
+    expect(initiativeAppPath(app, 9, ADMIN)).toBe("/initiatives/9/apps/7");
+    expect(initiativeAppPath(app, 4, ADMIN)).toBeNull();
+    expect(initiativeAppPath(app, 4, MANAGER)).toBeNull();
   });
 });

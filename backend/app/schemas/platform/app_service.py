@@ -29,7 +29,10 @@ class AppServiceRegistrationRead(SanitizedBaseModel):
     id: int
     public_id: str
     listing_uid: Optional[str] = None
+    #: Where this deployment's server calls the app.
     base_url: str
+    #: Where a browser loads its surfaces. Null when that is ``base_url`` too.
+    embed_origin: Optional[str] = None
     allowed_origins: List[str] = []
     #: Presence only — the value never leaves the server.
     has_secret: bool = False
@@ -52,12 +55,17 @@ class AppServiceRegistrationCreate(SanitizedBaseModel):
     ``public_id`` is optional: a reachable service names itself in its manifest.
     Supplying it lets a registration be created before the service answers (the
     declarative case), and is checked against the manifest when one arrives.
+
+    ``embed_origin`` is optional too, and unset is the ordinary case: an app
+    reachable at one address needs only ``base_url``. Give one when the address
+    a browser must use is not the address this deployment calls.
     """
 
     base_url: str = Field(max_length=1000)
     #: Opaque shared secret — kept verbatim and never echoed.
     secret: RawTextStr
     public_id: Optional[str] = Field(default=None, max_length=120)
+    embed_origin: Optional[str] = Field(default=None, max_length=1000)
     allowed_origins: Optional[List[str]] = None
     grants: Optional[List[str]] = None
     mandatory: bool = False
@@ -66,10 +74,16 @@ class AppServiceRegistrationCreate(SanitizedBaseModel):
 
 class AppServiceRegistrationUpdate(SanitizedBaseModel):
     """Partial edit. Rotating ``secret`` or repointing ``base_url`` clears the
-    recorded verification — the stored manifest hash described the old target."""
+    recorded verification — the stored manifest hash described the old target.
+
+    Repointing ``embed_origin`` does not: the handshake is a server-to-server
+    call to ``base_url``, and it never visits the browser address. An empty
+    string clears it, putting both surfaces back on ``base_url``.
+    """
 
     base_url: Optional[str] = Field(default=None, max_length=1000)
     secret: Optional[RawTextStr] = None
+    embed_origin: Optional[str] = Field(default=None, max_length=1000)
     allowed_origins: Optional[List[str]] = None
     grants: Optional[List[str]] = None
     mandatory: Optional[bool] = None

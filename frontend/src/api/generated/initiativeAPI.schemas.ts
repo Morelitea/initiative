@@ -435,12 +435,17 @@ export interface AppDataSourceRead {
  * ``public_id`` is optional: a reachable service names itself in its manifest.
  * Supplying it lets a registration be created before the service answers (the
  * declarative case), and is checked against the manifest when one arrives.
+ *
+ * ``embed_origin`` is optional too, and unset is the ordinary case: an app
+ * reachable at one address needs only ``base_url``. Give one when the address
+ * a browser must use is not the address this deployment calls.
  */
 export interface AppServiceRegistrationCreate {
   /** @maxLength 1000 */
   base_url: string;
   secret: string;
   public_id?: string | null;
+  embed_origin?: string | null;
   allowed_origins?: string[] | null;
   grants?: string[] | null;
   mandatory?: boolean;
@@ -455,6 +460,7 @@ export interface AppServiceRegistrationRead {
   public_id: string;
   listing_uid: string | null;
   base_url: string;
+  embed_origin: string | null;
   allowed_origins: string[];
   has_secret: boolean;
   manifest_hash: string | null;
@@ -471,10 +477,15 @@ export interface AppServiceRegistrationRead {
 /**
  * Partial edit. Rotating ``secret`` or repointing ``base_url`` clears the
  * recorded verification — the stored manifest hash described the old target.
+ *
+ * Repointing ``embed_origin`` does not: the handshake is a server-to-server
+ * call to ``base_url``, and it never visits the browser address. An empty
+ * string clears it, putting both surfaces back on ``base_url``.
  */
 export interface AppServiceRegistrationUpdate {
   base_url?: string | null;
   secret?: string | null;
+  embed_origin?: string | null;
   allowed_origins?: string[] | null;
   grants?: string[] | null;
   mandatory?: boolean | null;
@@ -2017,6 +2028,8 @@ export interface GuildAppConnectionSummary {
 
 export type GuildAppDetailDefinition = { [key: string]: unknown };
 
+export type GuildAppDetailPlacement = { [key: string]: unknown };
+
 /**
  * An install plus its connections, for the settings page.
  *
@@ -2039,6 +2052,7 @@ export interface GuildAppDetail {
   avatar_url: string | null;
   features: string[];
   definition: GuildAppDetailDefinition;
+  placement: GuildAppDetailPlacement;
   mandatory: boolean;
   available: boolean;
   installed_by_id: number;
@@ -2077,6 +2091,8 @@ export interface GuildAppInstall {
 
 export type GuildAppReadDefinition = { [key: string]: unknown };
 
+export type GuildAppReadPlacement = { [key: string]: unknown };
+
 export interface GuildAppRead {
   id: number;
   guild_id: number;
@@ -2093,6 +2109,7 @@ export interface GuildAppRead {
   avatar_url: string | null;
   features: string[];
   definition: GuildAppReadDefinition;
+  placement: GuildAppReadPlacement;
   mandatory: boolean;
   available: boolean;
   installed_by_id: number;
@@ -2128,9 +2145,12 @@ export interface GuildAppMembersResponse {
   items: GuildAppMemberConnection[];
 }
 
+export type GuildAppUpdatePlacement = { [key: string]: unknown } | null;
+
 export interface GuildAppUpdate {
   name?: string | null;
   enabled?: boolean | null;
+  placement?: GuildAppUpdatePlacement;
 }
 
 export type GuildAuthPolicyReadPolicy =

@@ -43,7 +43,24 @@ export interface AppSurfaceSource {
   tool?: string | null;
   artifacts?: { type: string; id: number }[];
   definition?: Record<string, unknown> | null;
+  /** Where the guild put this app. `{}` — the default — is every initiative. */
+  placement?: Record<string, unknown> | null;
 }
+
+/**
+ * Whether an app's initiative surfaces appear in one initiative.
+ *
+ * Placement is the guild's own answer to where an app belongs, so unlike a
+ * surface's audience it reads the same for everyone — an admin who narrowed it
+ * narrowed it for themselves too.
+ */
+export const placedIn = (
+  app: Pick<AppSurfaceSource, "placement">,
+  initiativeId: number
+): boolean => {
+  const chosen = app.placement?.initiatives;
+  return Array.isArray(chosen) ? chosen.includes(initiativeId) : true;
+};
 
 /**
  * Whether a reader clears the rung a surface named.
@@ -125,7 +142,7 @@ export const initiativeAppPath = (
   initiativeId: number,
   viewer: SurfaceViewer
 ): string | null => {
-  if (app.tool) return null;
+  if (app.tool || !placedIn(app, initiativeId)) return null;
   return appEmbeds(app.definition, "initiative", viewer).length
     ? `/initiatives/${initiativeId}/apps/${app.id}`
     : null;

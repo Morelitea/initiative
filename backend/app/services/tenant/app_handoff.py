@@ -50,6 +50,7 @@ from app.core.security import (
 from app.models.tenant.guild_app import GuildApp
 from app.services.marketplace import registration_lookup
 from app.services.marketplace.service_apps import clears_visibility
+from app.services.tenant.guild_apps import placed_in
 
 __all__ = [
     "APP_EMBED_HANDOFF_LIFETIME",
@@ -71,8 +72,8 @@ class EmbedHandoff:
 
     token: str
     expires_in_seconds: int
-    #: Where the iframe points: the registration's base URL joined to the path
-    #: the manifest declared for this surface.
+    #: Where the iframe points: the registration's browser base joined to the
+    #: path the manifest declared for this surface.
     embed_url: str
     #: The origins the SPA accepts messages from, and posts the token to.
     allowed_origins: tuple[str, ...]
@@ -174,8 +175,11 @@ async def mint_embed_handoff(
         )
 
     scope = "guild" if initiative_id is None else "initiative"
+    # Two ways there is no surface here: the app never declared one for this
+    # scope, or the guild placed its initiative surfaces somewhere else. Same
+    # answer, because from this route both mean the same thing.
     embed = embed_by_id(app.definition, surface_id, scope=scope)
-    if embed is None:
+    if embed is None or not placed_in(app, initiative_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=GuildAppMessages.SURFACE_NOT_FOUND,
@@ -224,7 +228,7 @@ async def mint_embed_handoff(
     return EmbedHandoff(
         token=token,
         expires_in_seconds=int(APP_EMBED_HANDOFF_LIFETIME.total_seconds()),
-        embed_url=f"{registration.base_url}{embed.get('path') or ''}",
+        embed_url=f"{registration.browser_base}{embed.get('path') or ''}",
         allowed_origins=registration.allowed_origins,
         audience=audience,
         surface_id=surface_id,

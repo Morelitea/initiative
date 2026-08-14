@@ -18,6 +18,7 @@ import httpx
 import pytest
 
 from app.core.messages import AppDataMessages
+from app.models.platform.app_service_registration import AppServiceRegistration
 from app.services.marketplace import app_data as service
 
 pytestmark = pytest.mark.unit
@@ -200,6 +201,20 @@ class TestDefinitionReading:
         definition = {"app_kind": "service", "data_sources": [SOURCE]}
         assert service.find_data_source(definition, "orders") == SOURCE
         assert service.find_data_source(definition, "other") is None
+
+    def test_a_source_is_read_over_the_wire_surface(self):
+        """A registration may carry two addresses. This one is Initiative's own
+        server calling the app, so it uses the address meant for that — the
+        browser address is for what a browser opens."""
+        registration = AppServiceRegistration(
+            public_id="acme.shop",
+            base_url="http://acme-shop:8200",
+            embed_origin="https://shop.example.com",
+        )
+
+        assert service._source_url(registration, SOURCE) == (
+            "http://acme-shop:8200/v1/data/orders"
+        )
 
     def test_only_a_service_app_has_a_backing_service(self):
         assert (

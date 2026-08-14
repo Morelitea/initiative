@@ -17,7 +17,8 @@ Two rules the reconciler keeps, both about not undoing a person:
   is the incident-response lever, so a restart must not quietly reverse it;
 * changing the base URL or the secret clears the recorded verification, because
   a stored manifest hash describes the target it was fetched from and nothing
-  else.
+  else. The browser address is not that target, so moving it changes nothing
+  about what was verified.
 
 Everything here runs on the system engine: ``app_service_registrations`` has no
 request-path write grant.
@@ -47,6 +48,7 @@ from app.models.platform.app_service_registration import (
     APP_SERVICE_GRANTS,
     AppServiceRegistration,
     AppServiceStatus,
+    browser_base,
 )
 from app.services.marketplace.handshake import HandshakeError, perform_handshake
 from app.services.marketplace.registration_lookup import invalidate_registrations
@@ -62,10 +64,12 @@ __all__ = [
     "get_registration",
     "list_registrations",
     "normalize_base_url",
+    "normalize_embed_origin",
     "normalize_grants",
     "normalize_origin",
     "normalize_origins",
     "normalize_public_id",
+    "origin_of",
     "reconcile_from_config",
     "update_registration",
     "verify_registration",
@@ -127,30 +131,54 @@ def normalize_public_id(value: str) -> str:
     return cleaned
 
 
-def normalize_base_url(value: str) -> str:
+def _normalize_url_base(value: str, *, code: str, field: str) -> str:
     """A base URL is a scheme, a host, an optional port, and an optional path
     prefix — nothing else. The egress policy (scheme vs address class) is
     applied when the connection is actually made, by ``safe_http``.
     """
     cleaned = (value or "").strip().rstrip("/")
     if not cleaned or len(cleaned) > _MAX_BASE_URL:
-        raise _bad_request(
-            AppServiceMessages.INVALID_BASE_URL,
-            f"base_url must be 1..{_MAX_BASE_URL} characters",
-        )
+        raise _bad_request(code, f"{field} must be 1..{_MAX_BASE_URL} characters")
     parsed = urlparse(cleaned)
     if parsed.scheme not in ("http", "https"):
-        raise _bad_request(
-            AppServiceMessages.INVALID_BASE_URL, "base_url must be http or https"
-        )
+        raise _bad_request(code, f"{field} must be http or https")
     if not parsed.hostname:
-        raise _bad_request(AppServiceMessages.INVALID_BASE_URL, "base_url needs a host")
+        raise _bad_request(code, f"{field} needs a host")
     if parsed.query or parsed.fragment or parsed.username or parsed.password:
-        raise _bad_request(
-            AppServiceMessages.INVALID_BASE_URL,
-            "base_url carries no query, fragment, or credentials",
-        )
+        raise _bad_request(code, f"{field} carries no query, fragment, or credentials")
     return cleaned
+
+
+def normalize_base_url(value: str) -> str:
+    """Where Initiative's own server calls this app."""
+    return _normalize_url_base(
+        value, code=AppServiceMessages.INVALID_BASE_URL, field="base_url"
+    )
+
+
+def normalize_embed_origin(value: str) -> str:
+    """Where a person's browser loads this app's surfaces.
+
+    Held to the same shape as ``base_url`` because it stands in for it: the
+    manifest declares one path per surface, and it is joined to whichever of the
+    two addresses the reader is on. A deployment that publishes its apps under a
+    path prefix can therefore say so here as well.
+    """
+    return _normalize_url_base(
+        value, code=AppServiceMessages.INVALID_EMBED_ORIGIN, field="embed_origin"
+    )
+
+
+def origin_of(base: str) -> str:
+    """The origin half of an already-normalized base URL.
+
+    A base may carry a path prefix and an origin never does, so the prefix is
+    dropped here rather than refused — this reads a value the service itself
+    validated, not something a person typed.
+    """
+    parsed = urlparse(base)
+    port = f":{parsed.port}" if parsed.port is not None else ""
+    return f"{parsed.scheme}://{parsed.hostname}{port}"
 
 
 def normalize_origin(value: str) -> str:
@@ -171,15 +199,20 @@ def normalize_origin(value: str) -> str:
         raise _bad_request(
             AppServiceMessages.INVALID_ORIGIN, "origin carries no path or query"
         )
-    port = f":{parsed.port}" if parsed.port is not None else ""
-    return f"{parsed.scheme}://{parsed.hostname}{port}"
+    return origin_of(cleaned)
 
 
-def normalize_origins(values: Optional[Iterable[str]], *, base_url: str) -> list[str]:
-    """Canonicalize the origin list, defaulting to the base URL's own origin."""
+def normalize_origins(
+    values: Optional[Iterable[str]], *, browser_base: str
+) -> list[str]:
+    """Canonicalize the origin list, defaulting to the browser base's own origin.
+
+    Derived from the browser base rather than the wire surface because these are
+    browser origins: what a document may frame, and what the SPA posts to.
+    """
     items = [v for v in (values or []) if isinstance(v, str) and v.strip()]
     if not items:
-        return [normalize_origin(base_url)]
+        return [origin_of(browser_base)]
     if len(items) > _MAX_ORIGINS:
         raise _bad_request(
             AppServiceMessages.INVALID_ORIGIN,
@@ -275,6 +308,7 @@ async def create_registration(
     base_url: str,
     secret: str,
     public_id: Optional[str] = None,
+    embed_origin: Optional[str] = None,
     allowed_origins: Optional[Iterable[str]] = None,
     grants: Optional[Iterable[str]] = None,
     mandatory: bool = False,
@@ -288,10 +322,14 @@ async def create_registration(
     operator who named the app anyway still gets a row — carrying the failure —
     so a service that has not booted yet can be registered ahead of time and
     verified once it answers.
+
+    The handshake runs against ``base_url``: what this checks is the app on the
+    wire, and an ``embed_origin`` names the same app to a browser.
     """
     check_signing_configured()
     base_url = normalize_base_url(base_url)
-    origins = normalize_origins(allowed_origins, base_url=base_url)
+    embed = normalize_embed_origin(embed_origin) if embed_origin else None
+    origins = normalize_origins(allowed_origins, browser_base=embed or base_url)
     grant_list = normalize_grants(grants)
     declared_id = normalize_public_id(public_id) if public_id else None
     if not secret or not secret.strip():
@@ -352,6 +390,7 @@ async def create_registration(
         public_id=resolved_id,
         listing_uid=listing_uid,
         base_url=base_url,
+        embed_origin=embed,
         allowed_origins=origins,
         secret_encrypted=encrypt_field(secret, SALT_APP_SERVICE_SECRET),
         manifest_hash=manifest_hash,
@@ -375,20 +414,36 @@ async def update_registration(
     *,
     base_url: Optional[str] = None,
     secret: Optional[str] = None,
+    embed_origin: Optional[str] = None,
     allowed_origins: Optional[Iterable[str]] = None,
     grants: Optional[Iterable[str]] = None,
     mandatory: Optional[bool] = None,
     enabled: Optional[bool] = None,
 ) -> AppServiceRegistration:
     """Edit a registration. Rotating the secret or repointing the base URL
-    discards the recorded verification — re-verify after either."""
+    discards the recorded verification — re-verify after either.
+
+    ``embed_origin`` is the exception: it names the same app to a browser and
+    the handshake never goes there, so changing it leaves the verification
+    standing. An empty string clears it, putting both surfaces back on
+    ``base_url``.
+    """
     row = await get_registration(session, registration_id)
     retarget = False
+    # Whether the origin list is still just the app's own origin. An untouched
+    # list follows the address it was derived from; one an operator typed is
+    # theirs and is left exactly as typed.
+    origins_were_default = list(row.allowed_origins or []) == [
+        origin_of(browser_base(row))
+    ]
 
     if base_url is not None:
         new_url = normalize_base_url(base_url)
         retarget = retarget or new_url != row.base_url
         row.base_url = new_url
+    if embed_origin is not None:
+        cleaned = embed_origin.strip()
+        row.embed_origin = normalize_embed_origin(cleaned) if cleaned else None
     if secret is not None:
         if not secret.strip():
             raise HTTPException(
@@ -398,7 +453,11 @@ async def update_registration(
         row.secret_encrypted = encrypt_field(secret, SALT_APP_SERVICE_SECRET)
         retarget = True
     if allowed_origins is not None:
-        row.allowed_origins = normalize_origins(allowed_origins, base_url=row.base_url)
+        row.allowed_origins = normalize_origins(
+            allowed_origins, browser_base=browser_base(row)
+        )
+    elif origins_were_default:
+        row.allowed_origins = normalize_origins(None, browser_base=browser_base(row))
     if grants is not None:
         row.grants = normalize_grants(grants)
     if mandatory is not None:
@@ -546,7 +605,13 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
         try:
             public_id = normalize_public_id(str(entry.get("public_id", "")))
             base_url = normalize_base_url(str(entry.get("base_url", "")))
-            origins = normalize_origins(entry.get("allowed_origins"), base_url=base_url)
+            declared_embed = entry.get("embed_origin")
+            embed = (
+                normalize_embed_origin(str(declared_embed)) if declared_embed else None
+            )
+            origins = normalize_origins(
+                entry.get("allowed_origins"), browser_base=embed or base_url
+            )
             grants = normalize_grants(entry.get("grants"))
         except HTTPException as exc:
             logger.warning(
@@ -585,6 +650,7 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
                 AppServiceRegistration(
                     public_id=public_id,
                     base_url=base_url,
+                    embed_origin=embed,
                     allowed_origins=origins,
                     secret_encrypted=encrypt_field(secret, SALT_APP_SERVICE_SECRET),
                     grants=grants,
@@ -604,9 +670,12 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
             if row.secret_encrypted
             else None
         )
+        # Only the wire surface and the secret retarget the handshake; where a
+        # browser loads the app is not something the handshake ever visits.
         retarget = base_url != row.base_url or secret != current_secret
         dirty = (
             retarget
+            or embed != row.embed_origin
             or origins != list(row.allowed_origins or [])
             or grants != list(row.grants or [])
             or mandatory != row.mandatory
@@ -616,6 +685,7 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
             continue
 
         row.base_url = base_url
+        row.embed_origin = embed
         row.allowed_origins = origins
         row.grants = grants
         row.mandatory = mandatory

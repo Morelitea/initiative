@@ -111,5 +111,12 @@
     "unavailableDescription": "Eine Administratorin oder ein Administrator muss den Dienst dieser App verbinden, bevor sie geöffnet werden kann.",
     "noSurface": "{{name}} hat keine eigene Seite"
   },
-  "browse": "App-Store durchsuchen"
+  "browse": "App-Store durchsuchen",
+  "placement": {
+    "title": "Wo diese App erscheint",
+    "description": "Diese App bietet eine Seite innerhalb von Initiativen. Wähle aus, in welchen sie erscheint.",
+    "all": "Alle Initiativen",
+    "some": "Nur ausgewählte Initiativen",
+    "none": "Keine Initiative ausgewählt – diese App erscheint nur gildenweit."
+  }
 }

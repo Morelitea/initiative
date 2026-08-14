@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Every tool's settings page is the same page now.** Projects, documents, queues, counter groups, calendars, and dashboards share one layout — Details, Access, Advanced — with rename and delete always in the same place. Calendars pick up the tabbed layout the others already had, and whatever is particular to a tool sits alongside the common settings rather than replacing them: a project's schedule and task statuses, a counter group's duplicate, a calendar's color, a document's copies.
 - Deleting a tool now names the thing being deleted, so the confirmation reads "Delete "Q3 Roadmap"?" instead of naming only its kind.
+- An app service can now be wired up with a separate browser address. Its base URL is where Initiative's own server calls the app, so it may be an address only your network resolves; the new browser address is where a member's browser loads that app's embedded surfaces and connection pages. Leave it blank — the default, and what every existing registration keeps — and one address serves both, exactly as before.
+- Guild admins choose which initiatives an app appears in, from the app's own settings. New installs appear in every initiative, which is the default.
 
 ### Fixed
 

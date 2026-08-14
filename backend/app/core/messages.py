@@ -636,6 +636,9 @@ class GuildAppMessages:
     #: An interactive connection whose pinned definition carries no
     #: ``connect_path``, so there is no vendor flow to send the member to.
     CONNECT_PATH_MISSING = "GUILD_APP_CONNECT_PATH_MISSING"
+    #: The placement sent is not a shape this build stores, or it names an
+    #: initiative that is not one of this guild's.
+    PLACEMENT_INVALID = "GUILD_APP_PLACEMENT_INVALID"
 
 
 class AppServiceMessages:
@@ -651,6 +654,9 @@ class AppServiceMessages:
     #: public_id, base_url, an origin, or a version string this build refuses.
     INVALID_PUBLIC_ID = "APP_SERVICE_INVALID_PUBLIC_ID"
     INVALID_BASE_URL = "APP_SERVICE_INVALID_BASE_URL"
+    #: The browser-facing base, when an app answers there rather than at the
+    #: address Initiative's own server calls.
+    INVALID_EMBED_ORIGIN = "APP_SERVICE_INVALID_EMBED_ORIGIN"
     INVALID_ORIGIN = "APP_SERVICE_INVALID_ORIGIN"
     #: A grant outside the closed operator-conferred vocabulary.
     UNKNOWN_GRANT = "APP_SERVICE_UNKNOWN_GRANT"

@@ -47,11 +47,14 @@ from app.services.tenant.soft_delete import soft_delete_entity
 __all__ = [
     "ARTIFACT_HANDLERS",
     "ArtifactHandler",
+    "PlacementError",
     "app_artifacts",
     "create_app_artifacts",
     "get_app_content_id",
     "install_app",
     "legacy_artifacts",
+    "normalize_placement",
+    "placed_in",
     "remove_app_artifacts",
     "touch",
 ]
@@ -298,3 +301,67 @@ async def remove_app_artifacts(
 
 def touch(app: GuildApp) -> None:
     app.updated_at = datetime.now(timezone.utc)
+
+
+# --- placement --------------------------------------------------------------
+#
+# Where an app's initiative-scoped surfaces appear. Placement is the guild
+# admin's own answer to "where does this belong", so it applies to everyone
+# including them — unlike a surface's ``visibility``, which names an audience
+# floor an admin always clears.
+
+
+class PlacementError(ValueError):
+    """A placement that names something this guild cannot place an app in."""
+
+
+def normalize_placement(raw: Any, *, initiative_ids: set[int]) -> dict[str, Any]:
+    """Canonicalize what an admin chose, or refuse it.
+
+    Three states, and each has exactly one representation:
+
+    * ``{}`` — every initiative. The default, and what an install that never
+      says otherwise keeps.
+    * ``{"initiatives": [12, 15]}`` — only these.
+    * ``{"initiatives": []}`` — none of them, which keeps the guild-wide
+      surface and drops the per-initiative ones. A real choice rather than an
+      accident, so it is stored as asked rather than coerced into "all".
+
+    Ids are checked against the guild's own initiatives, which is what bounds
+    the list — there is no count to cap, because a guild may place an app in as
+    many initiatives as it has.
+    """
+    if raw is None or raw == {}:
+        return {}
+    if not isinstance(raw, dict):
+        raise PlacementError("placement must be an object")
+    unknown = set(raw) - {"initiatives"}
+    if unknown:
+        raise PlacementError(f"placement does not take {sorted(unknown)[0]!r}")
+
+    entries = raw.get("initiatives")
+    if not isinstance(entries, list):
+        raise PlacementError("placement.initiatives must be a list of ids")
+
+    cleaned: list[int] = []
+    for entry in entries:
+        if isinstance(entry, bool) or not isinstance(entry, int):
+            raise PlacementError("placement.initiatives must be a list of ids")
+        if entry not in initiative_ids:
+            raise PlacementError(f"initiative {entry} is not one of this guild's")
+        if entry not in cleaned:
+            cleaned.append(entry)
+    return {"initiatives": sorted(cleaned)}
+
+
+def placed_in(app: GuildApp, initiative_id: Optional[int]) -> bool:
+    """Whether this install offers its initiative surfaces in that initiative.
+
+    ``None`` is the guild-wide reading, which placement says nothing about.
+    """
+    if initiative_id is None:
+        return True
+    entries = (app.placement or {}).get("initiatives")
+    if not isinstance(entries, list):
+        return True
+    return initiative_id in entries
