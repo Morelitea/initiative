@@ -61,8 +61,10 @@ def platform_accepts(manifest) -> None:
 SCHEMA_FILE = Path(__file__).resolve().parents[3] / "schemas" / "app-manifest.json"
 
 
+# Unannotated on purpose: `jsonschema` builds its validator classes at runtime,
+# so the name is not a type the checker can resolve.
 @pytest.fixture(scope="module")
-def validator() -> Draft202012Validator:
+def validator():
     schema = build_manifest_schema()
     Draft202012Validator.check_schema(schema)
     return Draft202012Validator(schema)
