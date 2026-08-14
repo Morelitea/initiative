@@ -851,11 +851,16 @@ export function useGetGuildAppApiV1GGuildIdAppsAppIdGet<
 }
 
 /**
- * Rename an app, or turn it off without removing what it created.
+ * Rename an app, place it, or turn it off without removing what it created.
  *
  * Renaming is always allowed — a guild may call an app whatever it likes.
  * Turning one off is a different matter for an app the deployment provides:
  * that switch belongs to the operator, so it is refused by name here.
+ *
+ * Placement says which initiatives an app's initiative-scoped surfaces appear
+ * in; ``{}`` is every one of them, which is where an install starts. It is the
+ * guild's own answer to where an app belongs rather than a permission, so it
+ * reads the same for everyone, admins included.
  * @summary Update Guild App
  */
 export const updateGuildAppApiV1GGuildIdAppsAppIdPatch = (

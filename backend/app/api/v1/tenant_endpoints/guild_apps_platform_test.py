@@ -595,6 +595,125 @@ class TestInitiativeHandoff:
             assert response.json()["detail"] == GuildAppMessages.SURFACE_NOT_FOUND
 
 
+class TestPlacement:
+    """Which initiatives an app's initiative surfaces appear in.
+
+    Placement is the guild's own answer to where an app belongs, not an
+    audience rule — so unlike ``visibility``, it reads the same for a guild
+    admin as for anyone else.
+    """
+
+    @pytest.fixture(autouse=True)
+    def signing_key(self, monkeypatch):
+        monkeypatch.setattr(
+            settings, "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM", _SIGNING_KEY_PEM
+        )
+        monkeypatch.setattr(settings, "APP_PLATFORM_SIGNING_KEY_ID", "test-key")
+
+    @staticmethod
+    def _path(actor, initiative_id: int, app_id: int, surface: str) -> str:
+        return actor.g(f"/initiatives/{initiative_id}/apps/{app_id}/handoff/{surface}")
+
+    async def test_an_install_starts_placed_everywhere(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        a = await acting_user(guild_role=GuildRole.admin)
+        await _installed(session, a)
+
+        body = (await client.get(a.g("/apps/"), headers=a.headers)).json()
+        assert [item["placement"] for item in body["items"]] == [{}]
+
+    async def test_an_admin_narrows_it(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        app = await _installed(session, a)
+
+        response = await client.patch(
+            a.g(f"/apps/{app.id}"),
+            headers=a.headers,
+            json={"placement": {"initiatives": [a.initiative.id]}},
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["placement"] == {"initiatives": [a.initiative.id]}
+
+    async def test_it_may_only_name_an_initiative_this_guild_has(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        """Stated as an id this guild has no initiative for, rather than as one
+        borrowed from another guild: initiative ids are per-guild, so the two
+        guilds' numbering can coincide and a borrowed id would only be refused
+        when the numbers happened to differ."""
+        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        app = await _installed(session, a)
+
+        response = await client.patch(
+            a.g(f"/apps/{app.id}"),
+            headers=a.headers,
+            json={"placement": {"initiatives": [a.initiative.id + 10_000]}},
+        )
+        assert response.status_code == 422
+        assert response.json()["detail"] == GuildAppMessages.PLACEMENT_INVALID
+
+    async def test_a_member_does_not_place_apps(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        app = await _installed(session, a)
+        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+
+        response = await client.patch(
+            member.g(f"/apps/{app.id}"),
+            headers=member.headers,
+            json={"placement": {"initiatives": []}},
+        )
+        assert response.status_code == 403
+
+    async def test_a_surface_placed_elsewhere_is_not_in_this_initiative(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        """And not for the admin who placed it either — this is where the app
+        goes, which is their own answer rather than a rule about them."""
+        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        other = await acting_user(
+            guild_role=GuildRole.admin, guild=a.guild, initiative=True
+        )
+        app = await _installed(session, a)
+
+        await client.patch(
+            a.g(f"/apps/{app.id}"),
+            headers=a.headers,
+            json={"placement": {"initiatives": [other.initiative.id]}},
+        )
+
+        placed = await client.post(
+            self._path(a, other.initiative.id, app.id, "runs"), headers=a.headers
+        )
+        assert placed.status_code == 200, placed.text
+
+        elsewhere = await client.post(
+            self._path(a, a.initiative.id, app.id, "runs"), headers=a.headers
+        )
+        assert elsewhere.status_code == 404
+        assert elsewhere.json()["detail"] == GuildAppMessages.SURFACE_NOT_FOUND
+
+    async def test_placement_leaves_the_guild_wide_surface_alone(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        app = await _installed(session, a)
+        await client.patch(
+            a.g(f"/apps/{app.id}"),
+            headers=a.headers,
+            json={"placement": {"initiatives": []}},
+        )
+
+        response = await client.post(
+            a.g(f"/apps/{app.id}/handoff/runs"), headers=a.headers
+        )
+        assert response.status_code == 200, response.text
+
+
 class TestHandoffWithoutASigningKey:
     async def test_it_fails_closed(
         self,

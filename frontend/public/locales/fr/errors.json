@@ -374,6 +374,7 @@
   "MARKETPLACE_OPERATOR_CATALOG_SCAN_RUNNING": "Une analyse du catalogue est déjà en cours. Attendez qu'elle se termine, puis réessayez.",
   "GUILD_APP_NOT_FOUND": "Cette application n'est pas installée dans cette guilde.",
   "GUILD_APP_ADMIN_REQUIRED": "Seules les administratrices et administrateurs de la guilde peuvent gérer les applications.",
+  "GUILD_APP_PLACEMENT_INVALID": "Cette application ne peut pas être placée là. Choisissez des initiatives de cette guilde.",
   "GUILD_APP_LISTING_NOT_AN_APP": "Cette fiche ne peut pas être installée en tant qu'application.",
   "GUILD_APP_ALREADY_INSTALLED": "Cette guilde a déjà installé cette application.",
   "GUILD_APP_KIND_NOT_INSTALLABLE": "Ce type d'application ne peut pas encore être installé sur cette version d'Initiative.",

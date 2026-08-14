@@ -15,6 +15,7 @@ import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { AppConnectionsPanel } from "@/components/apps/AppConnectionsPanel";
+import { AppPlacementPanel } from "@/components/apps/AppPlacementPanel";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +24,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useGuildAppDetail } from "@/hooks/useGuildAppDetail";
+import { appEmbeds } from "@/lib/appSurfaces";
+
+/** Only an admin reaches the placement control, and an admin clears every rung. */
+const ADMIN = { isGuildAdmin: true };
 
 export interface AppSettingsDialogProps {
   appId: number;
@@ -55,11 +60,18 @@ export function AppSettingsDialog({
             {t("common:loading")}
           </div>
         ) : (
-          <AppConnectionsPanel
-            appId={app.id}
-            connections={app.connections}
-            isGuildAdmin={isGuildAdmin}
-          />
+          <div className="space-y-6">
+            <AppConnectionsPanel
+              appId={app.id}
+              connections={app.connections}
+              isGuildAdmin={isGuildAdmin}
+            />
+            {/* Where the app goes is the guild's call, so only its admins see
+                the control — and only for an app that has somewhere to go. */}
+            {isGuildAdmin && appEmbeds(app.definition, "initiative", ADMIN).length > 0 && (
+              <AppPlacementPanel app={app} />
+            )}
+          </div>
         )}
       </DialogContent>
     </Dialog>

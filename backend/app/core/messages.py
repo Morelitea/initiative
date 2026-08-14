@@ -636,6 +636,9 @@ class GuildAppMessages:
     #: An interactive connection whose pinned definition carries no
     #: ``connect_path``, so there is no vendor flow to send the member to.
     CONNECT_PATH_MISSING = "GUILD_APP_CONNECT_PATH_MISSING"
+    #: The placement sent is not a shape this build stores, or it names an
+    #: initiative that is not one of this guild's.
+    PLACEMENT_INVALID = "GUILD_APP_PLACEMENT_INVALID"
 
 
 class AppServiceMessages:

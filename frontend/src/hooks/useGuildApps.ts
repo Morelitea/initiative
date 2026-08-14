@@ -40,7 +40,13 @@ export const useGuildApps = (options?: QueryOpts<GuildAppListResponse>) => {
 };
 
 const invalidateApps = (guildId: number) =>
-  queryClient.invalidateQueries({ queryKey: appsKey(guildId) });
+  Promise.all([
+    queryClient.invalidateQueries({ queryKey: appsKey(guildId) }),
+    // The detail read is the same install seen another way, and it is what the
+    // settings dialog renders. Invalidated by prefix so a rename or a placement
+    // change reaches it too, rather than only the list the sidebar draws.
+    queryClient.invalidateQueries({ queryKey: ["guild-app"] }),
+  ]);
 
 export const useInstallGuildApp = (options?: MutationOpts<GuildAppRead, GuildAppInstall>) => {
   const guildId = useActiveGuildId();

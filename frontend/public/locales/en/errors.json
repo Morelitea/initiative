@@ -374,6 +374,7 @@
   "MARKETPLACE_OPERATOR_CATALOG_SCAN_RUNNING": "A catalog scan is already running. Wait for it to finish, then try again.",
   "GUILD_APP_NOT_FOUND": "That app isn't installed in this guild.",
   "GUILD_APP_ADMIN_REQUIRED": "Only guild admins can manage apps.",
+  "GUILD_APP_PLACEMENT_INVALID": "That isn't somewhere this app can be placed. Choose initiatives from this guild.",
   "GUILD_APP_LISTING_NOT_AN_APP": "That listing can't be installed as an app.",
   "GUILD_APP_ALREADY_INSTALLED": "This guild already has that app installed.",
   "GUILD_APP_KIND_NOT_INSTALLABLE": "This kind of app can't be installed on this version of Initiative yet.",
