@@ -153,6 +153,15 @@ export async function renderWidget(request: RenderRequest): Promise<WidgetRender
 // rather than a stale entry.
 const metaCache = new Map<string, WidgetMeta | null>();
 
+/** Outcomes that describe the runtime rather than the module: a worker that
+ *  never booted, or one that stopped answering and was rebuilt. Reading again
+ *  can give a different answer, so these are the two the cache does not keep —
+ *  every other failure is a property of the source and would only repeat. */
+const RUNTIME_META_FAILURES: ReadonlySet<SandboxErrorCode> = new Set([
+  SandboxErrorCode.UNAVAILABLE,
+  SandboxErrorCode.TIMEOUT,
+]);
+
 /**
  * A widget's own name, description, and option labels.
  *
@@ -160,6 +169,10 @@ const metaCache = new Map<string, WidgetMeta | null>();
  * `validateWidgetMeta` — a module's metadata is untrusted input like anything
  * else it produces. Returns `null` when the module declares none, which is not
  * an error: callers fall back to the widget's type id.
+ *
+ * A widget that could not be read *this time* falls back to its type id for now
+ * and is read again on the next ask, rather than wearing that id for the rest of
+ * the session.
  */
 export async function readWidgetMeta(source: string): Promise<WidgetMeta | null> {
   const cached = metaCache.get(source);
@@ -170,6 +183,8 @@ export async function readWidgetMeta(source: string): Promise<WidgetMeta | null>
     () => readMetaInSandbox(source)
   );
   const meta = result.ok ? validateWidgetMeta(result.value) : null;
-  metaCache.set(source, meta);
+  if (result.ok || !RUNTIME_META_FAILURES.has(result.code)) {
+    metaCache.set(source, meta);
+  }
   return meta;
 }
