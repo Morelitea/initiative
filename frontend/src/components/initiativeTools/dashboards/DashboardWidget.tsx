@@ -100,7 +100,7 @@ export function DashboardWidget({
 
   return (
     <section
-      className="flex h-full w-full flex-col overflow-hidden rounded-lg border bg-card"
+      className="flex h-full w-full flex-col overflow-hidden rounded-lg border bg-card text-card-foreground"
       aria-label={title}
     >
       <header
@@ -115,7 +115,7 @@ export function DashboardWidget({
         {canEdit && (
           <GripVertical className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
         )}
-        <h3 className="min-w-0 flex-1 truncate font-medium text-sm">{title}</h3>
+        <h3 className="min-w-0 flex-1 truncate font-semibold text-sm">{title}</h3>
         {canEdit && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

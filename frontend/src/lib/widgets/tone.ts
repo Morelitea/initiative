@@ -14,7 +14,7 @@ const TONE_COLORS: Record<Tone, string> = {
   accent: "var(--primary)",
   positive: "var(--color-green-500)",
   negative: "var(--destructive)",
-  warning: "var(--color-amber-500)",
+  warning: "var(--color-yellow-500)",
   neutral: "var(--foreground)",
   muted: "var(--muted-foreground)",
   "series-1": "var(--chart-1)",
@@ -35,12 +35,14 @@ export const seriesColor = (index: number, tone?: Tone): string =>
   tone ? toneColor(tone) : toneColor(SERIES_TONES[index % SERIES_TONES.length]);
 
 /** Text tones map to classes so they inherit the theme's foreground handling
- *  rather than being painted a literal color. */
+ *  rather than being painted a literal color. The three semantic tones are the
+ *  same pairs the stats cards use, so a "good" number reads the same green
+ *  wherever the app shows one. */
 const TONE_TEXT_CLASSES: Record<Tone, string> = {
   accent: "text-primary",
   positive: "text-green-600 dark:text-green-400",
-  negative: "text-destructive",
-  warning: "text-amber-600 dark:text-amber-400",
+  negative: "text-red-600 dark:text-red-400",
+  warning: "text-yellow-600 dark:text-yellow-400",
   neutral: "text-foreground",
   muted: "text-muted-foreground",
   "series-1": "text-foreground",

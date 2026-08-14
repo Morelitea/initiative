@@ -112,18 +112,18 @@ export function WidgetTile({
   if (chromeless) {
     // No label here: the canvas's own <section> already names this region, and
     // a second label on a plain div would only add noise for a screen reader.
-    return <div className={cn("h-full w-full", className)}>{body}</div>;
+    return <div className={cn("h-full w-full text-card-foreground", className)}>{body}</div>;
   }
 
   return (
     <section
       className={cn(
-        "flex h-full w-full flex-col overflow-hidden rounded-lg border bg-card p-3",
+        "flex h-full w-full flex-col overflow-hidden rounded-lg border bg-card p-3 text-card-foreground",
         className
       )}
       aria-label={title ?? type}
     >
-      {title && <h3 className="mb-2 shrink-0 truncate font-medium text-sm">{title}</h3>}
+      {title && <h3 className="mb-2 shrink-0 truncate font-semibold text-sm">{title}</h3>}
       <div className="min-h-0 flex-1">{body}</div>
     </section>
   );
@@ -137,13 +137,11 @@ function WidgetError({ code, detail }: { code: WidgetErrorCode; detail?: string 
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-1 p-2 text-center">
       <AlertTriangle className="h-4 w-4 text-muted-foreground" aria-hidden />
-      <p className="text-muted-foreground text-xs">
+      <p className="text-muted-foreground text-sm">
         {t(`widgetError.${code}`, { defaultValue: t("widgetError.default") })}
       </p>
       {detail && (
-        <p className="max-w-full truncate font-mono text-[10px] text-muted-foreground/70">
-          {detail}
-        </p>
+        <p className="max-w-full truncate font-mono text-muted-foreground/70 text-xs">{detail}</p>
       )}
     </div>
   );
