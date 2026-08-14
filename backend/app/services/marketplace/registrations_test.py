@@ -225,7 +225,7 @@ async def test_create_keeps_the_handshake_on_the_wire_surface(session):
 
     def handler(request: httpx.Request) -> httpx.Response:
         seen.append(f"{request.url.scheme}://{request.url.netloc.decode()}")
-        return app.handler(request)
+        return app.handle_request(request)
 
     row = await service.create_registration(
         session,
