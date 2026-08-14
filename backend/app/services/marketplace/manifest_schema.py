@@ -31,6 +31,19 @@ Schema and are enforced only by ``normalize_service_app_definition``:
 
 Those are stated in the schema's own ``description`` too, so the limitation
 travels with the file rather than living only here.
+
+**Where the two are allowed to differ.** The rule is one-directional: this schema
+must never reject a manifest the platform accepts *and acts on*. So it is
+deliberately permissive in three places where the platform takes a value rather
+than refusing it — an out-of-range ``cache_ttl_seconds`` is clamped into range, an
+over-long localized string is truncated, and an unrecognized property is dropped.
+Naming those as errors would tell an author their working manifest is broken, and
+the last one would also break forward compatibility: an app targeting a newer
+platform has to keep validating against an older copy of this file.
+
+The one exception is a value the platform discards *entirely*, which therefore
+has no effect at all: a localized entry whose value is not a string is skipped,
+and this schema does say so, because flagging something inert can only help.
 """
 
 from __future__ import annotations
@@ -133,15 +146,24 @@ def _enum(values: frozenset[str]) -> list[str]:
 
 
 def _localized_text(max_length: int = MAX_TEXT_LENGTH) -> dict[str, Any]:
-    """A human-readable string in one or more languages, keyed by language tag."""
+    """A human-readable string in one or more languages, keyed by language tag.
+
+    No ``maxLength``: the platform truncates an over-long entry to
+    ``max_length`` rather than refusing it, so asserting the bound here would
+    reject a manifest that installs. It is named in the description instead.
+    The value type *is* asserted — an entry that is not a string is discarded
+    outright, so it has no effect and is worth flagging.
+    """
     return {
         "type": "object",
         "description": (
-            "Localized text, keyed by language tag. At least one entry; the "
-            "platform falls back to the reader's language, then to any entry."
+            "Localized text, keyed by language tag. At least one usable entry; "
+            "the platform falls back to the reader's language, then to any "
+            f"entry. Text longer than {max_length} characters is truncated, and "
+            "entries past the locale cap are ignored."
         ),
         "minProperties": 1,
-        "additionalProperties": {"type": "string", "maxLength": max_length},
+        "additionalProperties": {"type": "string"},
     }
 
 
@@ -172,7 +194,6 @@ def _field(*, types: frozenset[str], allow_managed: bool) -> dict[str, Any]:
     return {
         "type": "object",
         "required": ["key", "type", "label"],
-        "additionalProperties": False,
         "properties": properties,
         # Expressible here, unlike the cross-reference rules: whether options are
         # required follows from this object alone.
@@ -202,7 +223,6 @@ def _requires() -> dict[str, Any]:
             "Exactly one of 'all_of' or 'any_of'; each id must name a connection "
             "this manifest declares. Absent means always available."
         ),
-        "additionalProperties": False,
         "minProperties": 1,
         "maxProperties": 1,
         "properties": {"all_of": terms, "any_of": terms},
@@ -213,7 +233,6 @@ def _connection() -> dict[str, Any]:
     return {
         "type": "object",
         "required": ["id", "scope", "label", "fields"],
-        "additionalProperties": False,
         "properties": {
             "id": {"$ref": "#/$defs/identifier"},
             "scope": {
@@ -250,7 +269,6 @@ def _access_hint() -> dict[str, Any]:
             "beside the form so an admin can mint a minimal credential, and no "
             "other system's permissions are enforced from it."
         ),
-        "additionalProperties": False,
         "properties": {
             "api": {"type": "string", "maxLength": MAX_HINT_LENGTH},
             "scopes": {
@@ -266,7 +284,6 @@ def _data_source() -> dict[str, Any]:
     return {
         "type": "object",
         "required": ["id", "path"],
-        "additionalProperties": False,
         "properties": {
             "id": {"$ref": "#/$defs/identifier"},
             "path": {"$ref": "#/$defs/path"},
@@ -279,10 +296,13 @@ def _data_source() -> dict[str, Any]:
             },
             "cache_ttl_seconds": {
                 "type": "integer",
-                "minimum": 0,
-                "maximum": MAX_CACHE_TTL_SECONDS,
                 "default": 0,
-                "description": "Clamped into range rather than refused.",
+                "description": (
+                    "How long a response may be reused. Clamped into "
+                    f"0..{MAX_CACHE_TTL_SECONDS} rather than refused, so a value "
+                    "outside that range is accepted and takes effect at the "
+                    "bound — which is why no range is asserted here."
+                ),
             },
             "params_schema": {
                 "type": "array",
@@ -298,7 +318,6 @@ def _widget() -> dict[str, Any]:
     return {
         "type": "object",
         "required": ["id", "meta", "module_source"],
-        "additionalProperties": False,
         "properties": {
             "id": {"$ref": "#/$defs/identifier"},
             "meta": {
@@ -341,7 +360,6 @@ def _embed() -> dict[str, Any]:
     return {
         "type": "object",
         "required": ["id", "path", "name"],
-        "additionalProperties": False,
         "properties": {
             "id": {"$ref": "#/$defs/identifier"},
             "path": {"$ref": "#/$defs/path"},
@@ -391,7 +409,6 @@ def build_manifest_schema() -> dict[str, Any]:
         ),
         "type": "object",
         "required": ["app_kind", "service", "features"],
-        "additionalProperties": False,
         "properties": {
             "app_kind": {
                 "const": "service",
@@ -400,7 +417,6 @@ def build_manifest_schema() -> dict[str, Any]:
             "service": {
                 "type": "object",
                 "required": ["public_id"],
-                "additionalProperties": False,
                 "properties": {
                     "public_id": {
                         "type": "string",

@@ -31,6 +31,7 @@ from app.services.marketplace.manifest_values import (
     MAX_PUBLIC_ID_LENGTH,
 )
 from app.services.marketplace.definitions import normalize_listing_definition
+from app.services.marketplace.widget_meta import MAX_TEXT_LENGTH
 from app.services.marketplace.service_apps import (
     APP_PROTOCOL_VERSIONS,
     CONNECTION_SCOPES,
@@ -258,6 +259,34 @@ ACCEPTED = [
         ),
         id="events-and-opaque-automation",
     ),
+    # The three the platform takes rather than refuses. Each was a real
+    # over-strict rule in the first cut of this schema, caught in review: a
+    # schema that rejects any of these tells an author their working manifest
+    # is broken.
+    pytest.param(
+        _manifest(
+            features=["data"],
+            data_sources=[{"id": "s", "path": "/d", "cache_ttl_seconds": 10_000_000}],
+        ),
+        id="cache-ttl-clamped-not-refused",
+    ),
+    pytest.param(
+        _manifest(
+            features=["data"],
+            data_sources=[{"id": "s", "path": "/d", "invented_by_a_newer_app": 1}],
+            some_future_block={"whatever": True},
+        ),
+        id="unknown-keys-dropped-not-refused",
+    ),
+    pytest.param(
+        _manifest(
+            features=["embeds"],
+            embeds=[
+                {"id": "e", "path": "/e", "name": {"en": "N" * (MAX_TEXT_LENGTH + 50)}}
+            ],
+        ),
+        id="over-long-label-truncated-not-refused",
+    ),
 ]
 
 
@@ -324,6 +353,18 @@ def test_what_the_schema_refuses_the_platform_refuses_too(manifest, validator):
     assert list(validator.iter_errors(manifest)) != [], "schema accepted it"
     with pytest.raises(ValueError):
         platform_accepts(manifest)
+
+
+@pytest.mark.unit
+def test_the_schema_flags_a_localized_value_the_platform_discards(validator):
+    """The one place it is stricter on purpose: a non-string entry is dropped
+    outright, so it has no effect, and saying so can only help."""
+    manifest = _manifest(
+        features=["embeds"],
+        embeds=[{"id": "e", "path": "/e", "name": {"en": "N", "fr": 7}}],
+    )
+    platform_accepts(manifest)  # the bad entry is skipped, the good one stands
+    assert list(validator.iter_errors(manifest)) != []
 
 
 # --- where the schema stops -------------------------------------------------

@@ -9,7 +9,6 @@
     "service",
     "features"
   ],
-  "additionalProperties": false,
   "properties": {
     "app_kind": {
       "const": "service",
@@ -20,7 +19,6 @@
       "required": [
         "public_id"
       ],
-      "additionalProperties": false,
       "properties": {
         "public_id": {
           "type": "string",
@@ -113,17 +111,15 @@
     },
     "localizedText": {
       "type": "object",
-      "description": "Localized text, keyed by language tag. At least one entry; the platform falls back to the reader's language, then to any entry.",
+      "description": "Localized text, keyed by language tag. At least one usable entry; the platform falls back to the reader's language, then to any entry. Text longer than 120 characters is truncated, and entries past the locale cap are ignored.",
       "minProperties": 1,
       "additionalProperties": {
-        "type": "string",
-        "maxLength": 120
+        "type": "string"
       }
     },
     "requires": {
       "type": "object",
       "description": "Connection ids that must hold a value before this is offered. Exactly one of 'all_of' or 'any_of'; each id must name a connection this manifest declares. Absent means always available.",
-      "additionalProperties": false,
       "minProperties": 1,
       "maxProperties": 1,
       "properties": {
@@ -148,7 +144,6 @@
     "accessHint": {
       "type": "object",
       "description": "What the credential will be used for. Display-only: it is shown beside the form so an admin can mint a minimal credential, and no other system's permissions are enforced from it.",
-      "additionalProperties": false,
       "properties": {
         "api": {
           "type": "string",
@@ -171,7 +166,6 @@
         "type",
         "label"
       ],
-      "additionalProperties": false,
       "properties": {
         "key": {
           "type": "string",
@@ -233,7 +227,6 @@
         "type",
         "label"
       ],
-      "additionalProperties": false,
       "properties": {
         "key": {
           "type": "string",
@@ -290,7 +283,6 @@
         "label",
         "fields"
       ],
-      "additionalProperties": false,
       "properties": {
         "id": {
           "$ref": "#/$defs/identifier"
@@ -327,7 +319,6 @@
         "id",
         "path"
       ],
-      "additionalProperties": false,
       "properties": {
         "id": {
           "$ref": "#/$defs/identifier"
@@ -344,10 +335,8 @@
         },
         "cache_ttl_seconds": {
           "type": "integer",
-          "minimum": 0,
-          "maximum": 86400,
           "default": 0,
-          "description": "Clamped into range rather than refused."
+          "description": "How long a response may be reused. Clamped into 0..86400 rather than refused, so a value outside that range is accepted and takes effect at the bound \u2014 which is why no range is asserted here."
         },
         "params_schema": {
           "type": "array",
@@ -368,7 +357,6 @@
         "meta",
         "module_source"
       ],
-      "additionalProperties": false,
       "properties": {
         "id": {
           "$ref": "#/$defs/identifier"
@@ -406,7 +394,6 @@
         "path",
         "name"
       ],
-      "additionalProperties": false,
       "properties": {
         "id": {
           "$ref": "#/$defs/identifier"
