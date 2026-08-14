@@ -37,6 +37,7 @@ from app.core.messages import (
     GuildAppMessages,
     InitiativeMessages,
 )
+from app.models.platform.app_service_registration import AppServiceStatus
 from app.models.platform.guild import GuildRole
 from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.testing import (
@@ -169,6 +170,32 @@ class TestInstallState:
         and the read says so rather than showing a working app."""
         a = await acting_user(guild_role=GuildRole.admin)
         await _installed(session, a)
+
+        items = (await client.get(a.g("/apps/"), headers=a.headers)).json()["items"]
+        assert [item["available"] for item in items] == [False]
+
+    @pytest.mark.parametrize(
+        "status",
+        [
+            AppServiceStatus.UNVERIFIED,
+            AppServiceStatus.UNREACHABLE,
+            AppServiceStatus.MANIFEST_MISMATCH,
+            AppServiceStatus.SIGNATURE_MISMATCH,
+        ],
+    )
+    async def test_only_a_verified_registration_is_available(
+        self,
+        client: AsyncClient,
+        acting_user,
+        session: AsyncSession,
+        registration,
+        status: str,
+    ):
+        """Availability tracks the last verification as well as the kill switch:
+        the app the deployment registered is the one that has to be answering."""
+        a = await acting_user(guild_role=GuildRole.admin)
+        await _installed(session, a)
+        await _mark(session, registration, status=status)
 
         items = (await client.get(a.g("/apps/"), headers=a.headers)).json()["items"]
         assert [item["available"] for item in items] == [False]
@@ -433,6 +460,36 @@ class TestHandoff:
     ):
         a = await acting_user(guild_role=GuildRole.admin)
         app = await _installed(session, a)
+        response = await client.post(
+            a.g(f"/apps/{app.id}/handoff/board"), headers=a.headers
+        )
+        assert response.status_code == 409
+        assert response.json()["detail"] == GuildAppMessages.SERVICE_NOT_REGISTERED
+
+    @pytest.mark.parametrize(
+        "status",
+        [
+            AppServiceStatus.UNVERIFIED,
+            AppServiceStatus.UNREACHABLE,
+            AppServiceStatus.MANIFEST_MISMATCH,
+            AppServiceStatus.SIGNATURE_MISMATCH,
+        ],
+    )
+    async def test_only_a_verified_registration_mints(
+        self,
+        client: AsyncClient,
+        acting_user,
+        session: AsyncSession,
+        registration,
+        status: str,
+    ):
+        """A surface is declared by a manifest, so the mint requires the last
+        verification to have confirmed which manifest this service serves. The
+        data plane already read it this way; this is the same rule."""
+        a = await acting_user(guild_role=GuildRole.admin)
+        app = await _installed(session, a)
+        await _mark(session, registration, status=status)
+
         response = await client.post(
             a.g(f"/apps/{app.id}/handoff/board"), headers=a.headers
         )

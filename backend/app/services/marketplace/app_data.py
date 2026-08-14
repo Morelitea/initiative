@@ -59,7 +59,7 @@ from app.core.security import (
 from app.db import session as db_session
 from app.models.platform.app_service_registration import (
     AppServiceRegistration,
-    AppServiceStatus,
+    is_live,
 )
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
@@ -395,7 +395,7 @@ async def _load_registration(public_id: str) -> AppServiceRegistration:
         ).first()
     if row is None:
         raise AppDataError(AppDataMessages.SERVICE_NOT_REGISTERED, 404)
-    if not row.enabled or row.status != AppServiceStatus.OK:
+    if not is_live(row):
         raise AppDataError(AppDataMessages.SERVICE_DISABLED, 409)
     return row
 

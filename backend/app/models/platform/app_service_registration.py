@@ -36,7 +36,9 @@ __all__ = [
     "AppServiceRegistration",
     "AppServiceStatus",
     "BrowserAddressed",
+    "ServiceState",
     "browser_base",
+    "is_live",
 ]
 
 
@@ -174,3 +176,27 @@ def browser_base(registration: BrowserAddressed) -> str:
     app reachable at a single address needs no second field to say so.
     """
     return registration.embed_origin or registration.base_url
+
+
+class ServiceState(Protocol):
+    """Anything carrying a registration's two state columns.
+
+    Like :class:`BrowserAddressed`, satisfied by both the row and the request
+    path's snapshot of it, so the rule below is written once and every channel
+    reads the same answer.
+    """
+
+    enabled: bool
+    status: str
+
+
+def is_live(registration: ServiceState) -> bool:
+    """Whether anything may flow through this app right now.
+
+    Two conditions, and both are the operator's: the kill switch is on, and the
+    last verification concluded that the service answering is the one this
+    deployment registered. A row that has never handshaken is ``unverified`` and
+    is not live — there is no confirmed manifest behind it to have declared
+    anything.
+    """
+    return registration.enabled and registration.status == AppServiceStatus.OK
