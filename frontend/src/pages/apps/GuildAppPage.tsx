@@ -257,7 +257,7 @@ export function GuildAppPage({ appId, initiativeId, viewer }: GuildAppPageProps)
           ref={iframeRef}
           src={handoff.embed_url}
           title={app.name}
-          className="block h-full w-full flex-1 border-0 bg-background"
+          className="block min-h-0 w-full flex-1 border-0 bg-background"
           // Notably absent: allow-top-navigation, allow-modals,
           // allow-popups-to-escape-sandbox.
           sandbox="allow-scripts allow-same-origin allow-forms allow-downloads"
