@@ -134,10 +134,9 @@ describe("GuildAppPage", () => {
   });
 
   it("ignores an announcement from a window it did not mount", async () => {
-    // An app may have other windows at its own origin — a popup it opened for
-    // a vendor flow — so the origin alone does not say the mounted frame is
-    // asking. Nothing is handed over, and the token stays unspent for the
-    // frame that does ask.
+    // An app may hold more than one window at its own address, so the page
+    // matches an announcement to the frame it mounted rather than to the
+    // origin. The token stays unspent for the frame that does ask.
     mint.mockImplementation((surfaceId: string) => Promise.resolve(handoff(surfaceId)));
     const { GuildAppPage } = await import("./GuildAppPage");
     renderPage(() => <GuildAppPage appId={1} viewer={ADMIN} />);

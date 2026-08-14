@@ -572,7 +572,9 @@ def _capabilities(raw: Any, *, what: str) -> list[str]:
     declared = require_list(raw, f"{what} capabilities", MAX_EMBED_CAPABILITIES)
     capabilities: set[str] = set()
     for entry in declared:
-        if entry not in EMBED_CAPABILITIES:
+        # Typed before it is looked up: set membership is defined only for a
+        # hashable value, so a name is what this compares.
+        if not isinstance(entry, str) or entry not in EMBED_CAPABILITIES:
             fail(
                 f"{what}: {entry!r} is not a capability a surface may request "
                 f"(one of {', '.join(sorted(EMBED_CAPABILITIES))})"
