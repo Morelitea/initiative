@@ -605,9 +605,11 @@ async def test_guild_admin_patch_cannot_touch_enforcement_fields(
 async def test_guild_role_lacks_update_on_enforcement_columns(
     session: AsyncSession, acting_user, role_session
 ):
-    """Column-scoped grants (migration 0138): the assumed ``guild_<id>`` role
-    can rename its guild but a direct UPDATE of ``status`` / caps / tier dies
-    with insufficient_privilege — the DB, not app code, is the boundary."""
+    """Grants, not app code, are the boundary: the assumed ``guild_<id>`` role
+    can rename its guild, but a direct UPDATE of the lifecycle ``status`` pair
+    (column-scoped on ``guilds``, migration 0138) or of the caps and plan label
+    (a whole table it holds no write verb on, migration 0179) dies with
+    insufficient_privilege."""
     import sqlalchemy.exc
     from sqlalchemy import text as sa_text
 
@@ -625,22 +627,36 @@ async def test_guild_role_lacks_update_on_enforcement_columns(
     )
     await s.rollback()
 
-    for column, value in [
-        ("status", "'suspended'"),
-        ("status_changed_at", "now()"),
-        ("tier_name", "'Enterprise'"),
-        ("max_storage_bytes", "5"),
-        ("max_users", "1"),
+    for table, key, column, value in [
+        ("public.guilds", "id", "status", "'suspended'"),
+        ("public.guilds", "id", "status_changed_at", "now()"),
+        ("public.guild_administration", "guild_id", "tier_name", "'Enterprise'"),
+        ("public.guild_administration", "guild_id", "max_storage_bytes", "5"),
+        ("public.guild_administration", "guild_id", "max_users", "1"),
+        ("public.guild_administration", "guild_id", "guild_auth_enabled", "true"),
     ]:
         await set_rls_context(
             s, user_id=a.user.id, guild_id=a.guild.id, guild_role="admin"
         )
         with pytest.raises(sqlalchemy.exc.ProgrammingError, match="permission denied"):
             await s.exec(
-                sa_text(f"UPDATE public.guilds SET {column} = {value} WHERE id = :gid"),
+                sa_text(f"UPDATE {table} SET {column} = {value} WHERE {key} = :gid"),
                 params={"gid": a.guild.id},
             )
         await s.rollback()
+
+    # Reading its own caps is allowed — the settings page shows usage against them.
+    await set_rls_context(s, user_id=a.user.id, guild_id=a.guild.id, guild_role="admin")
+    readable = (
+        await s.exec(
+            sa_text(
+                "SELECT guild_id FROM public.guild_administration WHERE guild_id = :gid"
+            ),
+            params={"gid": a.guild.id},
+        )
+    ).one_or_none()
+    assert readable is not None
+    await s.rollback()
 
 
 async def test_platform_guild_status_endpoint_requires_guilds_manage(

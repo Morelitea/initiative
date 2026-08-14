@@ -24,8 +24,8 @@ The public schema default-grants ``app_user`` / ``app_guild_base`` /
 before granting read. The dropped columns' own ACLs and CHECK constraints go
 with the columns; the CHECKs are recreated on the new table.
 
-Revision ID: 20260814_0178
-Revises: 20260814_0177
+Revision ID: 20260814_0179
+Revises: 20260814_0178
 Create Date: 2026-08-14
 """
 
@@ -37,8 +37,8 @@ from sqlalchemy import text
 
 from app.core.config import settings
 
-revision = "20260814_0178"
-down_revision = "20260814_0177"
+revision = "20260814_0179"
+down_revision = "20260814_0178"
 branch_labels = None
 depends_on = None
 
