@@ -11,7 +11,7 @@ from fastapi.exceptions import RequestValidationError
 from httpx import ASGITransport, AsyncClient
 
 import app.main as main_module
-from app.core.config import API_V1_STR, Settings
+from app.core.config import API_V1_STR, Settings, settings
 from app.main import SecurityHeadersMiddleware, validation_exception_handler
 
 
@@ -99,7 +99,7 @@ async def test_only_the_widget_sandbox_asset_carries_its_policy(
 
     assert sandbox_resp.status_code == 200
     sandbox_csp = sandbox_resp.headers.get("content-security-policy", "")
-    assert sandbox_csp == Settings().widget_sandbox_content_security_policy
+    assert sandbox_csp == settings.widget_sandbox_content_security_policy
 
     assert other_resp.status_code == 200
     other_csp = other_resp.headers.get("content-security-policy", "")
