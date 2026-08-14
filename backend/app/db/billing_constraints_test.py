@@ -3,9 +3,10 @@
 ``CHECK (x >= 0)`` passes on NULL, so the CHECK/NULL pairing on each column
 is deliberate and must be pinned exactly (write-boundary plan P-2):
 
-* ``guilds.max_storage_bytes`` / ``max_users`` are **nullable by design**
-  (NULL = unlimited) with NULL-aware non-negativity CHECKs; ``tier_name``
-  nullable (NULL = no paid tier).
+* ``guild_administration.max_storage_bytes`` / ``max_users`` are **nullable by
+  design** (NULL = unlimited) with NULL-aware non-negativity CHECKs;
+  ``tier_name`` nullable (NULL = no paid tier). They moved off ``guilds`` in
+  migration 0178, which carried the CHECKs across with them.
 * ``billing_event_log``: ``event_id`` PRIMARY KEY; ``guild_id``/``op``/
   ``source`` NOT NULL; ``actor`` nullable; **no FK to guilds** — audit rows
   must survive guild erasure.
@@ -48,16 +49,16 @@ async def _constraints(session, table: str, contype: str) -> dict[str, str]:
 
 
 async def test_guild_cap_columns_nullable_with_nonnegative_checks(session):
-    cols = await _nullability(session, "guilds")
+    cols = await _nullability(session, "guild_administration")
     # NULL = unlimited is load-bearing (paid tiers run max_users = NULL);
     # NULL = no paid tier for the display label.
     assert cols["max_storage_bytes"] is True
     assert cols["max_users"] is True
     assert cols["tier_name"] is True
 
-    checks = await _constraints(session, "guilds", "c")
-    storage = checks["ck_guilds_max_storage_bytes_nonnegative"]
-    users = checks["ck_guilds_max_users_nonnegative"]
+    checks = await _constraints(session, "guild_administration", "c")
+    storage = checks["ck_guild_administration_max_storage_bytes_nonnegative"]
+    users = checks["ck_guild_administration_max_users_nonnegative"]
     # NULL-aware form: the CHECK constrains values without outlawing NULL.
     assert "max_storage_bytes IS NULL" in storage and ">= 0" in storage
     assert "max_users IS NULL" in users and ">= 0" in users

@@ -43,6 +43,7 @@ from app.models.platform.billing import (
     BillingSource,
 )
 from app.models.platform.guild import Guild, GuildMembership, GuildStatus
+from app.models.platform.guild_administration import GuildAdministration
 from app.schemas.platform.billing import BillingGuildTierApply, BillingGuildTierRead
 
 logger = logging.getLogger(__name__)
@@ -197,11 +198,14 @@ async def record_jti(session: AsyncSession, *, jti: str, expires_at: datetime) -
         raise BillingReplayError(f"jti {jti} already redeemed") from exc
 
 
+# The caps and the plan label live on ``guild_administration``; the lifecycle
+# status stays on ``guilds`` (every request reads it). Billing sees exactly
+# these columns of each — nothing else on either table.
 _GUILD_TIER_COLUMNS = (
     Guild.id,
-    Guild.tier_name,
-    Guild.max_storage_bytes,
-    Guild.max_users,
+    GuildAdministration.tier_name,
+    GuildAdministration.max_storage_bytes,
+    GuildAdministration.max_users,
     Guild.status,
 )
 
@@ -210,7 +214,11 @@ async def _select_tier_row(session: AsyncSession, guild_id: int):
     """Read the billing-visible slice of one guild. Explicit columns only —
     the role's grants are column-scoped, so an ORM ``SELECT *`` would fail."""
     return (
-        await session.exec(select(*_GUILD_TIER_COLUMNS).where(Guild.id == guild_id))
+        await session.exec(
+            select(*_GUILD_TIER_COLUMNS)
+            .join(GuildAdministration, GuildAdministration.guild_id == Guild.id)
+            .where(Guild.id == guild_id)
+        )
     ).one_or_none()
 
 
@@ -281,13 +289,16 @@ async def apply_guild_tier(
 
     if applied:
         now = datetime.now(timezone.utc)
-        values: dict = {}
+        # Two rows, one transaction: the caps and plan label on
+        # ``guild_administration``, the lifecycle status on ``guilds``.
+        administration_values: dict = {}
         for field in ("tier_name", "max_storage_bytes", "max_users"):
             if field in provided:
-                values[field] = getattr(payload, field)
+                administration_values[field] = getattr(payload, field)
+        guild_values: dict = {}
         if payload.status is not None and payload.status.value != row.status:
-            values["status"] = payload.status.value
-            values["status_changed_at"] = now
+            guild_values["status"] = payload.status.value
+            guild_values["status_changed_at"] = now
             logger.info(
                 "billing: guild %s status %s -> %s (source=%s actor=%s event=%s)",
                 payload.guild_id,
@@ -297,10 +308,18 @@ async def apply_guild_tier(
                 payload.actor,
                 payload.event_id,
             )
-        if values:
-            values["updated_at"] = now
+        if administration_values or guild_values:
+            if administration_values:
+                await session.exec(
+                    update(GuildAdministration)
+                    .where(GuildAdministration.guild_id == payload.guild_id)
+                    .values(**administration_values)
+                )
+            # Stamp the guild whichever row moved: "when did this guild last
+            # change" stays a fact about the guild.
+            guild_values["updated_at"] = now
             await session.exec(
-                update(Guild).where(Guild.id == payload.guild_id).values(**values)
+                update(Guild).where(Guild.id == payload.guild_id).values(**guild_values)
             )
             row = await _select_tier_row(session, payload.guild_id)
 

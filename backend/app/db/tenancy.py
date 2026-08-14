@@ -65,6 +65,10 @@ SHARED_TABLES: frozenset[str] = frozenset(
         "user_view_preferences",  # personal UI state (filters/sort/view-mode)
         # Tenancy roster — must be readable *before* a request is routed
         "guilds",
+        # The operator-set half of a guild (caps / plan label / sign-in
+        # entitlement), split off ``guilds`` so identity and administration
+        # carry different grants. Shared, like the guild row it hangs off.
+        "guild_administration",
         "guild_memberships",
         # Consumed pre-membership / pre-routing
         "guild_invites",  # looked up by token before the user is a member

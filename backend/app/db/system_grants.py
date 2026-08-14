@@ -70,6 +70,14 @@ VALID_GRANT_VERBS: frozenset[str] = frozenset(_VERB_ORDER)
 SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     "users": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     "guilds": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # The operator-set caps / plan label / sign-in entitlement. The system engine
+    # is the only writer on the request path: the platform Guilds dashboard runs
+    # on AdminSessionDep, and provisioning creates the row with the guild. (The
+    # verified billing path writes its three columns under its own role, which is
+    # granted per column in migration 0178 and so is not listed here.) DELETE
+    # rides the FK cascade off ``guilds``, but the guild-deletion path removes it
+    # explicitly too.
+    "guild_administration": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     "guild_memberships": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # invite redemption reads/creates/updates; row removal rides the FK cascade
     "guild_invites": frozenset({"SELECT", "INSERT", "UPDATE"}),
@@ -196,6 +204,10 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # bare pre-routing login role never touches them
     "platform_ai_connections": None,
     "guilds": frozenset({"SELECT"}),
+    # Read-only for every request-path role, this one included — no login role
+    # writes a guild's caps or its sign-in entitlement. RLS narrows the rows to
+    # the caller's own guilds (plus a live PAM grant).
+    "guild_administration": frozenset({"SELECT"}),
     "guild_invites": frozenset({"SELECT"}),
     "guild_memberships": frozenset({"SELECT"}),
     "access_grants": frozenset({"SELECT"}),

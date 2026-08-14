@@ -2,12 +2,13 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import BigInteger, Boolean, Column, DateTime, String, Integer
+from sqlalchemy import Boolean, Column, DateTime, String, Integer
 from sqlmodel import Field, SQLModel, Enum as SQLEnum, Relationship
 from pydantic import ConfigDict
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.platform.user import User
+    from app.models.platform.guild_administration import GuildAdministration
     from app.models.tenant.initiative import Initiative
     from app.models.tenant.guild_setting import GuildSetting
 
@@ -53,23 +54,13 @@ class Guild(SQLModel, table=True):
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
-    # Max total stored blob bytes for this guild. NULL = unlimited (default).
-    max_storage_bytes: Optional[int] = Field(
-        default=None, sa_column=Column(BigInteger, nullable=True)
-    )
-    # Max number of members allowed in this guild. NULL = unlimited (default).
-    max_users: Optional[int] = Field(
-        default=None, sa_column=Column(Integer, nullable=True)
-    )
-    # Display/audit label of the paid tier (NULL = none). CONTRACT: never an
-    # enforcement input — enforcement reads only max_storage_bytes / max_users
-    # / status, so the FOSS app enforces numbers, not plans. A test pins
-    # tier_name to the billing surface (billing_foss_test.py).
-    tier_name: Optional[str] = Field(
-        default=None, sa_column=Column(String(64), nullable=True)
-    )
     # Lifecycle status (see GuildStatus). Stored as a plain string with a CHECK
     # constraint (the access_grants pattern) rather than a Postgres enum.
+    #
+    # Alone among the operator-set fields it lives here rather than on
+    # ``GuildAdministration``: every guild request reads it (suspended -> 403,
+    # read_only -> frozen writes) off a guild row the request already loads, so
+    # moving it would buy a join on the hottest path in the app.
     status: str = Field(
         default=GuildStatus.active.value,
         sa_column=Column(
@@ -80,19 +71,14 @@ class Guild(SQLModel, table=True):
     status_changed_at: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
-    # Operator entitlement: may this guild configure its own per-guild sign-in?
-    # Set from the platform Guilds dashboard (operator-only — the guild's own
-    # admins can't write it; migration 0138's column-scoped UPDATE grant on
-    # public.guilds omits it). Default off: turning it ON opens the guild's
-    # auth-config surface and lets new accounts onboard through its IdP.
-    # Turning it OFF never deletes providers or signs existing members out — it
-    # only closes the config surface and stops NEW-account provisioning;
-    # members with a linked identity keep signing in and any existing sign-in
-    # requirement stays enforced. Irrelevant under platform AUTH_SCOPE (the
-    # whole guild-auth surface is dormant then).
-    guild_auth_enabled: bool = Field(
-        default=False,
-        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    # The operator-set caps, plan label, and sign-in entitlement — everything
+    # this row is NOT. See GuildAdministration for why they live apart.
+    administration: Optional["GuildAdministration"] = Relationship(
+        back_populates="guild",
+        sa_relationship_kwargs={
+            "uselist": False,
+            "cascade": "all, delete-orphan",
+        },
     )
 
     members: List["GuildMembership"] = Relationship(

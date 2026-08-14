@@ -19,6 +19,7 @@ from app.models.platform.guild import (
     GuildRole,
     GuildStatus,
 )
+from app.models.platform.guild_administration import GuildAdministration
 from app.models.tenant.guild_setting import GuildSetting
 from app.models.platform.user import User
 from app.services.platform import billing_ping
@@ -35,6 +36,22 @@ class GuildInviteError(Exception):
 
 class GuildCapacityError(Exception):
     """Raised when adding a member would exceed the guild's ``max_users`` cap."""
+
+
+async def _persist_new_guild(session: AsyncSession, guild: Guild) -> Guild:
+    """Add a new guild row together with the administration row it must have.
+
+    Every guild has exactly one ``guild_administration`` companion, carrying the
+    defaults (no caps, no plan, guild sign-in off). Writing the pair here rather
+    than at each creation site is what lets every reader assume the row exists —
+    ``get_administration`` raises without it, and the operator dashboard joins
+    against it. The caller commits.
+    """
+    session.add(guild)
+    await session.flush()
+    session.add(GuildAdministration(guild_id=guild.id))
+    await session.flush()
+    return guild
 
 
 async def get_primary_guild(session: AsyncSession) -> Guild:
@@ -69,13 +86,15 @@ async def get_primary_guild(session: AsyncSession) -> Guild:
             schema_count,
         )
     now = datetime.now(timezone.utc)
-    guild = Guild(
-        name="Primary Guild",
-        description="Default guild",
-        created_at=now,
-        updated_at=now,
+    guild = await _persist_new_guild(
+        session,
+        Guild(
+            name="Primary Guild",
+            description="Default guild",
+            created_at=now,
+            updated_at=now,
+        ),
     )
-    session.add(guild)
     # Commit the new guild row, then provision its schema — a brand-new primary
     # guild is schema-native from birth. (Only the first time the primary guild is
     # created, i.e. fresh-DB seeding.)
@@ -98,6 +117,25 @@ async def get_guild(session: AsyncSession, guild_id: int) -> Guild:
     if not guild:
         raise ValueError(GuildMessages.GUILD_NOT_FOUND)
     return guild
+
+
+async def get_administration(
+    session: AsyncSession, guild_id: int
+) -> GuildAdministration:
+    """The guild's operator-set row (caps / plan label / sign-in entitlement).
+
+    Created with the guild, so a missing row means the guild is missing too —
+    or that the caller's session cannot see it. The row is readable by the
+    guild's own members (RLS scopes it to their guilds) but writable by no
+    request-path role; write it on the system engine.
+    """
+    result = await session.exec(
+        select(GuildAdministration).where(GuildAdministration.guild_id == guild_id)
+    )
+    administration = result.one_or_none()
+    if not administration:
+        raise ValueError(GuildMessages.GUILD_NOT_FOUND)
+    return administration
 
 
 async def ensure_membership(
@@ -170,14 +208,14 @@ async def _assert_member_capacity(session: AsyncSession, *, guild_id: int) -> No
     the cap (a TOCTOU race). The lock releases on commit/rollback and only
     serializes joins to the SAME guild (mirrors ``enforce_storage_quota``).
     """
-    guild = await get_guild(session, guild_id=guild_id)
-    if guild.max_users is None:
+    administration = await get_administration(session, guild_id=guild_id)
+    if administration.max_users is None:
         return
     await session.exec(
         text("SELECT pg_advisory_xact_lock(:ns, :gid)"),
         params={"ns": _MEMBER_CAP_LOCK_NAMESPACE, "gid": int(guild_id)},
     )
-    if await count_members(session, guild_id=guild_id) >= guild.max_users:
+    if await count_members(session, guild_id=guild_id) >= administration.max_users:
         raise GuildCapacityError(GuildMessages.GUILD_USER_LIMIT_REACHED)
 
 
@@ -264,9 +302,9 @@ async def list_memberships(
     session: AsyncSession,
     *,
     user_id: int,
-) -> list[tuple[Guild, GuildMembership, int | None, int]]:
-    """Return (guild, membership, retention_days, member_count) for each guild
-    the user belongs to.
+) -> list[tuple[Guild, GuildMembership, int | None, int, GuildAdministration | None]]:
+    """Return (guild, membership, retention_days, member_count, administration)
+    for each guild the user belongs to.
 
     The guild + membership rows are shared (public). ``retention_days`` lives in
     each guild's own schema (``guild_settings``), so it's read per guild with the
@@ -282,7 +320,12 @@ async def list_memberships(
     inside the same per-guild loop because the ``guild_memberships_select`` RLS
     policy only exposes sibling rows while that guild's context is active
     (``guild_id = current_guild_id``); under the caller's user-only context a
-    cross-guild count would see just the user's own row."""
+    cross-guild count would see just the user's own row.
+
+    ``administration`` (caps + plan label + sign-in entitlement) is read on the
+    same admin-only terms as retention, and for the same reason: ``GuildRead``
+    serves those fields to guild admins alone, so a member's request never pays
+    for the row."""
     from app.db.session import set_rls_context  # lazy: avoids a circular import
 
     await set_rls_context(session, user_id=user_id)
@@ -299,7 +342,9 @@ async def list_memberships(
         )
     ).all()
 
-    out: list[tuple[Guild, GuildMembership, int | None, int]] = []
+    out: list[
+        tuple[Guild, GuildMembership, int | None, int, GuildAdministration | None]
+    ] = []
     for guild, membership in pairs:
         # A suspended guild disappears from its members' guild list; guild
         # ADMINS keep the entry so they can still reach the settings surface
@@ -313,6 +358,7 @@ async def list_memberships(
             continue
         await set_rls_context(session, user_id=user_id, guild_id=guild.id)
         retention: int | None = None
+        administration: GuildAdministration | None = None
         if membership.role == GuildRole.admin:
             row = (
                 await session.exec(
@@ -323,8 +369,15 @@ async def list_memberships(
             retention = 90 if row is None else row.retention_days
             if row is not None:
                 session.expunge(row)
+            administration = (
+                await session.exec(
+                    select(GuildAdministration).where(
+                        GuildAdministration.guild_id == guild.id
+                    )
+                )
+            ).one_or_none()
         member_count = await count_members(session, guild_id=guild.id)
-        out.append((guild, membership, retention, member_count))
+        out.append((guild, membership, retention, member_count, administration))
 
     # Restore the user-only context the caller (UserSessionDep) handed us.
     await set_rls_context(session, user_id=user_id)
@@ -387,8 +440,7 @@ async def create_guild(
         created_at=now,
         updated_at=now,
     )
-    session.add(guild)
-    await session.flush()
+    await _persist_new_guild(session, guild)
     admin = owner or creator
     if admin:
         await ensure_membership(
@@ -485,28 +537,46 @@ async def update_guild(
     if icon_provided and icon_base64 != guild.icon_base64:
         guild.icon_base64 = icon_base64
         updated = True
-    if max_storage_bytes_provided and guild.max_storage_bytes != max_storage_bytes:
-        guild.max_storage_bytes = max_storage_bytes
-        updated = True
-    if max_users_provided and guild.max_users != max_users:
-        guild.max_users = max_users
-        updated = True
-    # An explicit ``null`` is meaningless for a boolean entitlement (unlike the
-    # caps, where null resets to unlimited), so guard on ``is not None`` and
-    # treat null/omitted alike as a no-op — mirroring how the operator endpoint
-    # guards ``status``. Pydantic keeps an explicit null in ``model_fields_set``,
-    # so a plain "provided" flag would let ``{"guild_auth_enabled": null}``
-    # silently disable the entitlement.
-    if (
-        guild_auth_enabled is not None
-        and guild.guild_auth_enabled != guild_auth_enabled
-    ):
-        guild.guild_auth_enabled = guild_auth_enabled
-        updated = True
     if updated:
         guild.updated_at = datetime.now(timezone.utc)
         session.add(guild)
         await session.flush()
+
+    # The operator-set fields live on their own row and are writable only on the
+    # system engine, so they are applied separately from the identity edits
+    # above — a guild admin's PATCH carries none of them, and skipping the whole
+    # block spares that path a query it would never use.
+    if (
+        max_storage_bytes_provided
+        or max_users_provided
+        or guild_auth_enabled is not None
+    ):
+        administration_updated = False
+        administration = await get_administration(session, guild_id=guild_id)
+        if (
+            max_storage_bytes_provided
+            and administration.max_storage_bytes != max_storage_bytes
+        ):
+            administration.max_storage_bytes = max_storage_bytes
+            administration_updated = True
+        if max_users_provided and administration.max_users != max_users:
+            administration.max_users = max_users
+            administration_updated = True
+        # An explicit ``null`` is meaningless for a boolean entitlement (unlike
+        # the caps, where null resets to unlimited), so guard on ``is not None``
+        # and treat null/omitted alike as a no-op — mirroring how the operator
+        # endpoint guards ``status``. Pydantic keeps an explicit null in
+        # ``model_fields_set``, so a plain "provided" flag would let
+        # ``{"guild_auth_enabled": null}`` silently disable the entitlement.
+        if (
+            guild_auth_enabled is not None
+            and administration.guild_auth_enabled != guild_auth_enabled
+        ):
+            administration.guild_auth_enabled = guild_auth_enabled
+            administration_updated = True
+        if administration_updated:
+            session.add(administration)
+            await session.flush()
     if retention_days_provided:
         from app.services.platform.app_settings import get_or_create_guild_settings
 

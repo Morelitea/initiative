@@ -21,6 +21,7 @@ from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.platform.user import User
 from app.services.auth import sessions as session_service
 from app.testing.factories import (
+    guild_administration,
     create_auth_provider,
     create_federated_identity,
     create_user,
@@ -265,9 +266,7 @@ async def test_guild_callback_refused_when_guild_full_discards_provisioned_user(
     session, no membership, and no orphaned account (they belong to no other
     guild, so a usable-nowhere row would just accumulate)."""
     guild, provider = await _guild_provider(session)
-    guild.max_users = 0
-    session.add(guild)
-    await session.commit()
+    await guild_administration(session, guild, max_users=0)
     guild_id = guild.id
     idp = FakeIdp()
     _wire_fake_idp(monkeypatch, idp)
@@ -308,9 +307,7 @@ async def test_guild_full_keeps_existing_user_account(
     await create_federated_identity(
         session, user, subject="idp-subject-1", provider=provider
     )
-    guild.max_users = 0
-    session.add(guild)
-    await session.commit()
+    await guild_administration(session, guild, max_users=0)
     guild_id, user_id = guild.id, user.id
     idp = FakeIdp()
     _wire_fake_idp(monkeypatch, idp)

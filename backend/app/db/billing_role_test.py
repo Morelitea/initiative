@@ -7,7 +7,10 @@ login role, assume the billing context exactly as the endpoints do
 (``set_billing_context``), and assert the role is denied everything outside
 its four verbs:
 
-* columns beyond the tier/cap surface of ``guilds`` (name, description, …);
+* columns beyond the lifecycle surface of ``guilds`` (name, description, …)
+  and beyond the tier/cap surface of ``guild_administration``, where the caps
+  and plan label now live (migration 0178) — ``guild_auth_enabled`` shares that
+  table but is not billing's, so it must be denied;
 * member identities (``guild_memberships.user_id``) — headcount only;
 * any other shared table (``users`` is the canary);
 * rows of any guild other than the pinned one (RLS, both read and write);
@@ -56,20 +59,36 @@ async def test_billing_role_is_confined_to_its_column_and_guild_surface(
     # --- Positive controls: the four legitimate verbs work ------------------
     row = (
         await s.execute(
-            text(
-                "SELECT id, tier_name, max_storage_bytes, max_users, status "
-                "FROM guilds WHERE id = :gid"
-            ),
+            text("SELECT id, status FROM guilds WHERE id = :gid"),
             {"gid": guild_a.id},
         )
     ).one()
     assert row.id == guild_a.id
 
+    caps = (
+        await s.execute(
+            text(
+                "SELECT guild_id, tier_name, max_storage_bytes, max_users "
+                "FROM guild_administration WHERE guild_id = :gid"
+            ),
+            {"gid": guild_a.id},
+        )
+    ).one()
+    assert caps.guild_id == guild_a.id
+
     updated = await s.execute(
-        text("UPDATE guilds SET tier_name = 'gold' WHERE id = :gid"),
+        text(
+            "UPDATE guild_administration SET tier_name = 'gold' WHERE guild_id = :gid"
+        ),
         {"gid": guild_a.id},
     )
     assert updated.rowcount == 1
+
+    status_updated = await s.execute(
+        text("UPDATE guilds SET status = 'active' WHERE id = :gid"),
+        {"gid": guild_a.id},
+    )
+    assert status_updated.rowcount == 1
 
     count = (
         await s.execute(
@@ -94,6 +113,20 @@ async def test_billing_role_is_confined_to_its_column_and_guild_surface(
     await _denied(s, f"SELECT description FROM guilds WHERE id = {guild_a.id}")
     await _denied(s, f"SELECT created_by_user_id FROM guilds WHERE id = {guild_a.id}")
     await _denied(s, f"UPDATE guilds SET name = 'pwned' WHERE id = {guild_a.id}")
+    # The administration row is billing's only where its own three columns are
+    # concerned: the sign-in entitlement shares the table and stays out of reach,
+    # as does creating or removing the row.
+    await _denied(
+        s,
+        f"SELECT guild_auth_enabled FROM guild_administration WHERE guild_id = {guild_a.id}",
+    )
+    await _denied(
+        s,
+        "UPDATE guild_administration SET guild_auth_enabled = true "
+        f"WHERE guild_id = {guild_a.id}",
+    )
+    await _denied(s, f"DELETE FROM guild_administration WHERE guild_id = {guild_a.id}")
+    await _denied(s, "INSERT INTO guild_administration (guild_id) VALUES (999999)")
     await _denied(s, "SELECT user_id FROM guild_memberships")
     await _denied(s, "SELECT id FROM users")
     await _denied(s, "DELETE FROM guilds WHERE id = 999999")
@@ -119,8 +152,18 @@ async def test_billing_role_is_confined_to_its_column_and_guild_surface(
     ).one_or_none()
     assert invisible is None, "RLS must hide every guild but the pinned one"
 
+    cross_caps = (
+        await s.execute(
+            text("SELECT guild_id FROM guild_administration WHERE guild_id = :gid"),
+            {"gid": guild_b.id},
+        )
+    ).one_or_none()
+    assert cross_caps is None, "RLS must hide every guild's caps but the pinned one"
+
     cross_update = await s.execute(
-        text("UPDATE guilds SET tier_name = 'stolen' WHERE id = :gid"),
+        text(
+            "UPDATE guild_administration SET tier_name = 'stolen' WHERE guild_id = :gid"
+        ),
         {"gid": guild_b.id},
     )
     assert cross_update.rowcount == 0
@@ -153,9 +196,15 @@ async def test_unpinned_billing_guc_sees_nothing(session, role_session, guilds):
     await s.execute(text("SELECT set_config('app.billing_guild_id', '', true)"))
     visible = (await s.execute(text("SELECT id FROM guilds"))).all()
     assert visible == []
+    visible_caps = (
+        await s.execute(text("SELECT guild_id FROM guild_administration"))
+    ).all()
+    assert visible_caps == []
 
     unpinned_update = await s.execute(
-        text("UPDATE guilds SET tier_name = 'nowhere' WHERE id = :gid"),
+        text(
+            "UPDATE guild_administration SET tier_name = 'nowhere' WHERE guild_id = :gid"
+        ),
         {"gid": guild_a.id},
     )
     assert unpinned_update.rowcount == 0

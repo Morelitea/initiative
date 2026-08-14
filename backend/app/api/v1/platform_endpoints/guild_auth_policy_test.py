@@ -15,6 +15,7 @@ from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.tenant.project import Project
 from app.services.platform.ws_auth import authenticate_ws_token
 from app.testing.factories import (
+    guild_administration,
     create_auth_provider,
     create_document,
     create_guild,
@@ -264,9 +265,7 @@ async def test_disabling_guild_auth_keeps_existing_requirement_enforced(
     await _require_provider(session, guild.id, provider)
 
     # Operator turns per-guild sign-in off after the requirement was set.
-    guild.guild_auth_enabled = False
-    session.add(guild)
-    await session.commit()
+    await guild_administration(session, guild, guild_auth_enabled=False)
 
     blocked = await client.get(
         f"/api/v1/g/{guild.id}/initiatives/", headers=get_auth_headers(member)

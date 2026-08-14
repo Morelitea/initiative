@@ -44,6 +44,7 @@ _RLS_SHARED_TABLES = {
     "billing_event_log",
     "federated_identities",
     "federated_identity_secrets",
+    "guild_administration",
     "guild_auth_policies",
     "guild_invites",
     "guild_memberships",
@@ -245,21 +246,19 @@ async def test_users_request_path_insert_is_pinned_to_member(engine):
 
 
 async def test_guild_billing_columns_are_not_writable_by_request_roles(engine):
-    """Tier and cap columns on ``guilds`` are not writable by the request-path
-    floors (migration 0138). Drift guard."""
+    """The operator-set fields are not writable by the request-path floors.
+
+    They live in two places: the lifecycle ``status`` pair stayed on ``guilds``
+    (every request reads it), and the caps / plan label / sign-in entitlement
+    moved to ``guild_administration`` (migration 0178). Neither floor may write
+    either — ``guilds`` by column-scoped grant (0138), ``guild_administration``
+    by holding no write verb on the table at all. Drift guard."""
     request_roles = ["app_guild_base", f"{settings.PLATFORM_ROLE_PREFIX}platform_base"]
-    billing_columns = [
-        "tier_name",
-        "max_storage_bytes",
-        "max_users",
-        "status",
-        "status_changed_at",
-    ]
     async with engine.connect() as conn:
         for role in request_roles:
             writable = {
                 column
-                for column in billing_columns
+                for column in ("status", "status_changed_at")
                 if (
                     await conn.execute(
                         text(
@@ -271,10 +270,30 @@ async def test_guild_billing_columns_are_not_writable_by_request_roles(engine):
                 ).scalar()
             }
             assert writable == set(), (
-                f"{role} must hold no UPDATE on guilds billing columns — a tier "
-                f"or cap change is operator/billing-only: {sorted(writable)}"
+                f"{role} must hold no UPDATE on the guilds lifecycle columns — a "
+                f"status change is operator/billing-only: {sorted(writable)}"
             )
-        # Positive control, so the assertion above can't pass on a blanket revoke.
+            # The whole administration table is read-only to the request path,
+            # so this is a table-level check rather than a column allowlist.
+            granted = {
+                verb
+                for verb in ("INSERT", "UPDATE", "DELETE")
+                if (
+                    await conn.execute(
+                        text(
+                            "SELECT has_table_privilege("
+                            ":role, 'public.guild_administration', :verb)"
+                        ),
+                        {"role": role, "verb": verb},
+                    )
+                ).scalar()
+            }
+            assert granted == set(), (
+                f"{role} must hold no write verb on guild_administration — caps, "
+                f"plan label, and sign-in entitlement are operator-set: "
+                f"{sorted(granted)}"
+            )
+        # Positive controls, so the assertions above can't pass on a blanket revoke.
         identity_writable = (
             await conn.execute(
                 text(
@@ -285,6 +304,18 @@ async def test_guild_billing_columns_are_not_writable_by_request_roles(engine):
         ).scalar()
         assert identity_writable, (
             "app_guild_base must retain UPDATE on guilds.name (guild identity)"
+        )
+        caps_readable = (
+            await conn.execute(
+                text(
+                    "SELECT has_table_privilege("
+                    "'app_guild_base', 'public.guild_administration', 'SELECT')"
+                )
+            )
+        ).scalar()
+        assert caps_readable, (
+            "app_guild_base must retain SELECT on guild_administration — a guild "
+            "admin's settings page shows usage against the caps"
         )
 
 
