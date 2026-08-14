@@ -19,6 +19,10 @@ class AuthMessages:
     TOKEN_NOT_FOUND = "TOKEN_NOT_FOUND"
     NOT_AUTHENTICATED = "NOT_AUTHENTICATED"
     INVALID_DEVICE_TOKEN = "INVALID_DEVICE_TOKEN"
+    #: The action hands out authority, so it is taken while signed in rather
+    #: than through a standing credential (an API key, a device token, an app
+    #: acting on someone's behalf).
+    SESSION_REQUIRED = "SESSION_REQUIRED"
     COULD_NOT_VALIDATE_CREDENTIALS = "COULD_NOT_VALIDATE_CREDENTIALS"
     INVALID_TOKEN_PAYLOAD = "INVALID_TOKEN_PAYLOAD"
     USER_NOT_FOUND = "USER_NOT_FOUND"
@@ -615,6 +619,13 @@ class GuildAppMessages:
     CONNECTION_BLOCKED = "GUILD_APP_CONNECTION_BLOCKED"
     #: The app is installed but turned off, so nothing flows through it.
     DISABLED = "GUILD_APP_DISABLED"
+
+    # --- acting as a member ---
+    #: This app never acts as anybody, so there is nothing for a member to
+    #: authorize.
+    DELEGATION_NOT_OFFERED = "GUILD_APP_DELEGATION_NOT_OFFERED"
+    #: No authorization from this member for this app.
+    DELEGATION_NOT_FOUND = "GUILD_APP_DELEGATION_NOT_FOUND"
 
     # --- apps the deployment provides ---
     #: The deployment installs this app in every guild and a guild admin does

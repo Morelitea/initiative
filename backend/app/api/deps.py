@@ -56,6 +56,25 @@ oauth2_scheme = OAuth2PasswordBearer(
 )
 
 
+_SAFE_HTTP_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+#: Which kind of credential authenticated a request, recorded on
+#: ``request.state.credential``. Most endpoints do not care — a person acting
+#: through a script is still that person. It matters where the *act* is granting
+#: something authority the credential itself carries, because there the
+#: credential is a party to the decision rather than a way of transporting it.
+CREDENTIAL_SESSION = "session"
+CREDENTIAL_API_KEY = "api_key"
+CREDENTIAL_DEVICE_TOKEN = "device_token"
+CREDENTIAL_DELEGATION = "delegation"
+
+#: The credentials that are somebody signing in, as opposed to something acting
+#: for them in their absence. The native app trades an email and password for a
+#: device token and then uses it for everything, so it belongs here beside the
+#: web session — the person is just as present either way.
+FIRST_PARTY_CREDENTIALS = frozenset({CREDENTIAL_SESSION, CREDENTIAL_DEVICE_TOKEN})
+
+
 async def _authenticate_device_token(
     session: AsyncSession, token: str
 ) -> Optional[User]:
@@ -137,15 +156,6 @@ async def _authenticate_auto_delegation(
     if await auto_delegation_blocklist.is_jti_redeemed(session, claims.jti):
         return None
 
-    # An app acts only in the guilds that installed it, and a token names
-    # exactly one. Checked against the claim rather than the path, so it holds
-    # for every route a delegated call can reach — including the cross-guild
-    # `/me/*` views, which have no path guild to check.
-    if not await registration_lookup.app_is_installed(
-        claims.guild_id, signer.registration.public_id
-    ):
-        return None
-
     statement = select(User).where(User.id == claims.user_id)
     result = await session.exec(statement)
     user = result.one_or_none()
@@ -153,6 +163,23 @@ async def _authenticate_auto_delegation(
         # The user the token names doesn't exist or has been deactivated
         # since the token was minted. Auto can't impersonate non-active
         # accounts — workflows die when their owner leaves, by design.
+        return None
+
+    # Identity settled, authorization next. Two parties have to have said yes:
+    # the guild installed the app, and this member authorized it to carry their
+    # name — to the depth this call needs. Checked against the token's own
+    # claims rather than the path, so it holds for every route a delegated call
+    # can reach, including the cross-guild `/me/*` views that have no path
+    # guild.
+    #
+    # The read/write split follows the request method, the same line
+    # `_enforce_api_key_scope` draws for a read-only PAT.
+    if not await registration_lookup.delegation_allowed(
+        claims.guild_id,
+        signer.registration.public_id,
+        claims.user_id,
+        need_write=request.method not in _SAFE_HTTP_METHODS,
+    ):
         return None
 
     # Burn the jti now. Two requests racing past the pre-flight check
@@ -185,9 +212,6 @@ def _delegation_exp_from_jwt(token: str) -> datetime:
     return datetime.fromtimestamp(int(payload["exp"]), tz=timezone.utc)
 
 
-_SAFE_HTTP_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
-
-
 def _enforce_api_key_scope(request: Request, api_key: UserApiKey) -> None:
     """Apply a scoped PAT's restrictions at authentication time.
 
@@ -215,6 +239,10 @@ async def get_current_user(
     # Start from the fail-closed empty satisfied-provider set; only the session
     # JWT branch below records a real one (see app.core.auth_context).
     set_satisfied_providers(None)
+    # Which kind of credential this turns out to be, for the few endpoints that
+    # care (see `require_first_party_session`). Set before any branch can
+    # return, so an unrecognized path reads as something other than a session.
+    request.state.credential = None
 
     # Check for Authorization header - could be Bearer, DeviceToken, or API key
     auth_header = request.headers.get("Authorization", "")
@@ -224,6 +252,7 @@ async def get_current_user(
         device_token = auth_header[12:]  # len("DeviceToken ") = 12
         user = await _authenticate_device_token(session, device_token)
         if user:
+            request.state.credential = CREDENTIAL_DEVICE_TOKEN
             return user
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -245,6 +274,7 @@ async def get_current_user(
     if api_auth:
         user, api_key = api_auth
         _enforce_api_key_scope(request, api_key)
+        request.state.credential = CREDENTIAL_API_KEY
         return user
 
     # Try delegation JWT from initiative-auto (RS256, distinct audience).
@@ -253,6 +283,7 @@ async def get_current_user(
     # next branch.
     user = await _authenticate_auto_delegation(request, session, token)
     if user:
+        request.state.credential = CREDENTIAL_DELEGATION
         return user
 
     # Try JWT authentication. Any PyJWTError (expired signature, bad sig,
@@ -293,7 +324,34 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail=AuthMessages.INVALID_TOKEN
         )
+    request.state.credential = CREDENTIAL_SESSION
     return user
+
+
+def require_first_party_session(request: Request) -> str:
+    """Refuse anything but the person's own sign-in, and report which kind.
+
+    For the handful of actions that hand out authority rather than exercise it.
+    Running unattended is the whole point of the credentials this excludes — a
+    workflow acts at three in the morning, a script runs on a timer, and that is
+    the feature. What they cannot do is set their own bounds: a grant is what
+    says how far a standing credential reaches, so it is made by the person, in
+    a session of their own, rather than by the thing being granted.
+
+    Two credentials qualify, because both are somebody signing in: a web session
+    and a device token, which is what the native app exchanges an email and
+    password for and then uses for everything after.
+
+    Returns the credential kind, which is what a grant records as the factor it
+    was confirmed by.
+    """
+    credential = getattr(request.state, "credential", None)
+    if credential not in FIRST_PARTY_CREDENTIALS:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=AuthMessages.SESSION_REQUIRED,
+        )
+    return credential
 
 
 async def get_current_user_optional(

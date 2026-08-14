@@ -522,6 +522,7 @@ async def _drop_user_memberships(session: AsyncSession, user_id: int) -> User:
     # caller will commit once, preserving the atomicity guarantee. ``expunge_all``
     # between guilds avoids ORM identity-map collisions (ids repeat per schema).
     from app.services.tenant import app_connections as app_connections_service
+    from app.services.tenant import app_delegations as app_delegations_service
 
     for gid in guild_ids:
         session.expunge_all()
@@ -538,6 +539,12 @@ async def _drop_user_memberships(session: AsyncSession, user_id: int) -> User:
         # session does not own (an admin removing somebody else's account).
         await app_connections_service.delete_member_connections(
             session, user_id=user_id, reason="account_closed"
+        )
+        # And every app this person let act as them. An authorization to carry
+        # somebody's name has nothing left to mean once the account it named is
+        # gone.
+        await app_delegations_service.delete_member_delegations(
+            session, user_id=user_id
         )
         await session.flush()
 

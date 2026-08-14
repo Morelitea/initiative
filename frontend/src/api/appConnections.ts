@@ -88,10 +88,16 @@ export interface GuildAppDetail {
   mandatory: boolean;
   /** False when the app's service is not wired up here, or is switched off. */
   available: boolean;
+  /** Whether this app is one that acts as members, and so has something for
+   *  each of them to authorize. */
+  delegates: boolean;
   installed_by_id: number;
   created_at: string;
   updated_at: string;
   connections: AppConnection[];
+  /** The viewer's own authorization, so the page draws it without a second
+   *  request. Says nothing about anybody else. */
+  delegation?: AppDelegation | null;
 }
 
 export interface AppConnectStart {
@@ -127,9 +133,37 @@ export interface AppConnectionSummary {
   member_count: number;
 }
 
+/** One member's authorization for the app to act as them, in an admin's view. */
+export interface AppMemberDelegation {
+  user_id: number;
+  can_read: boolean;
+  can_write: boolean;
+  revoked: boolean;
+  granted_at: string;
+  revoked_at?: string | null;
+  updated_at: string;
+}
+
 export interface AppMembersResponse {
   summary: AppConnectionSummary[];
   items: AppMemberConnection[];
+  delegations: AppMemberDelegation[];
+}
+
+/**
+ * What the viewer has authorized this app to do as them.
+ *
+ * Answerable whether or not they ever have: `granted` false with a
+ * `revoked_at` is somebody who withdrew, and `granted` false without one is
+ * somebody who was never asked. The page says different things for each.
+ */
+export interface AppDelegation {
+  granted: boolean;
+  can_read: boolean;
+  can_write: boolean;
+  granted_at?: string | null;
+  revoked_at?: string | null;
+  confirmed_factor?: string | null;
 }
 
 /** A value being set, or `null` to clear it. A key left out is untouched. */
@@ -198,3 +232,24 @@ export const unblockMemberConnection = (
 
 export const revokeAllMemberConnections = (guildId: number, appId: number) =>
   apiClient.post<void>(`${base(guildId, appId)}/revoke-all`).then(() => undefined);
+
+// --- acting as a member ------------------------------------------------------
+// These take no user id on purpose: whose name an app may carry is answered by
+// that person and nobody else, so the caller *is* the subject. The one admin
+// route below ends an authorization and cannot create one.
+
+export const grantAppDelegation = (guildId: number, appId: number, canWrite: boolean) =>
+  apiClient
+    .put<AppDelegation>(`${base(guildId, appId)}/delegation`, { can_write: canWrite })
+    .then((r) => r.data);
+
+export const revokeAppDelegation = (guildId: number, appId: number) =>
+  apiClient.delete<void>(`${base(guildId, appId)}/delegation`).then(() => undefined);
+
+export const revokeMemberDelegation = (guildId: number, appId: number, userId: number) =>
+  apiClient
+    .delete<void>(`${base(guildId, appId)}/members/${userId}/delegation`)
+    .then(() => undefined);
+
+export const revokeAllMemberDelegations = (guildId: number, appId: number) =>
+  apiClient.post<void>(`${base(guildId, appId)}/delegations/revoke-all`).then(() => undefined);

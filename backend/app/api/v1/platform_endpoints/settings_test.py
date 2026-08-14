@@ -783,7 +783,17 @@ async def test_raising_cap_reopens_joins(
         json={"code": invite.code},
     )
     assert accepted.status_code == 200
-    assert accepted.json()["max_users"] == 5
+    # The cap itself is an admin-only field, and the invitee joins as a plain
+    # member, so their own payload withholds it (``_serialize_guild``). What
+    # proves the raise landed is the join that was refused a moment ago.
+    assert accepted.json()["max_users"] is None
+    assert accepted.json()["member_count"] == 2
+
+    # And it reads back as 5 for somebody entitled to see it.
+    listed = await client.get("/api/v1/settings/guilds", headers=headers)
+    assert listed.status_code == 200
+    rows = {row["id"]: row for row in listed.json()}
+    assert rows[guild.id]["max_users"] == 5
 
 
 @pytest.mark.integration
