@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Deleting a tool now names the thing being deleted, so the confirmation reads "Delete "Q3 Roadmap"?" instead of naming only its kind.
 - An app service can now be wired up with a separate browser address. Its base URL is where Initiative's own server calls the app, so it may be an address only your network resolves; the new browser address is where a member's browser loads that app's embedded surfaces and connection pages. Leave it blank — the default, and what every existing registration keeps — and one address serves both, exactly as before.
 - Guild admins choose which initiatives an app appears in, from the app's own settings. New installs appear in every initiative, which is the default.
+- **Dashboard widgets are set in the same type as the rest of the app.** A widget's headline number carries the weight the figures on My Stats do, and a number that reads as good, cautionary, or bad is the same green, yellow, or red wherever you meet it. Labels, captions, table headers, and chart axis ticks now sit at one legible size instead of shrinking a step per widget.
 
 ### Fixed
 
