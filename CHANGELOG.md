@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **An app is told who you are without being told which account you are.** Apps now know each member by an identifier unique to that app's own installation, rather than by an account id shared across everything. Two apps cannot compare notes and work out they are dealing with the same person, and an app installed in two guilds cannot link those guilds to one of your members.
+
 ## [0.62.5] - 2026-08-14
 
 ### Added
