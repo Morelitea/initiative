@@ -8,11 +8,7 @@
   "noGroupsDescription": "Les groupes de compteurs regroupent des valeurs numériques liées — comme les PV, les munitions ou les scores — que vous pouvez incrémenter, décrémenter ou définir directement.",
   "createGroup": "Créer un groupe de compteurs",
   "editGroup": "Modifier le groupe de compteurs",
-  "deleteGroup": "Supprimer le groupe de compteurs",
-  "deleteGroupConfirm": "Le groupe de compteurs et ses compteurs seront envoyés à la corbeille. Vous pouvez le restaurer depuis Paramètres → Corbeille avant la fin de la période de rétention.",
   "groupCreated": "Groupe de compteurs créé",
-  "groupUpdated": "Groupe de compteurs mis à jour",
-  "groupDeleted": "Groupe de compteurs supprimé",
   "name": "Nom",
   "namePlaceholder": "Saisissez le nom du groupe",
   "description": "Description",
@@ -94,7 +90,6 @@
   },
   "createFirst": "Créez votre premier groupe de compteurs",
   "settings": "Paramètres",
-  "settingsDescription": "Gérez les détails, l’accès et les options avancées du groupe de compteurs.",
   "details": "Détails",
   "access": "Accès",
   "advanced": "Avancé",
@@ -110,7 +105,5 @@
     "allInitiatives": "Toutes les initiatives",
     "noMatchingGroups": "Aucun groupe de compteurs ne correspond à vos filtres."
   },
-  "tags": "Étiquettes",
-  "tagsDescription": "Ajoutez des étiquettes pour organiser et filtrer les groupes de compteurs.",
-  "noWriteAccessTags": "Vous avez besoin d'un accès en écriture pour gérer les étiquettes."
+  "tags": "Étiquettes"
 }

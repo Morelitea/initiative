@@ -26,7 +26,7 @@ import { initiativeAppPath } from "@/lib/appSurfaces";
 import { guildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
 import { getItem, setItem } from "@/lib/storage";
-import { SIDEBAR_TOOLS, TOOL_REGISTRY, toolNavLabelKey, toolRowTarget } from "@/lib/tools";
+import { SIDEBAR_TOOLS, TOOL_ICONS, toolNavLabelKey, toolRowTarget } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 export interface InitiativeSectionProps {
@@ -248,8 +248,7 @@ export const InitiativeSection = memo(
               {/* One row per tool, in SIDEBAR_TOOLS order (projects last so
                   the project list expands directly beneath their row). */}
               {SIDEBAR_TOOLS.filter(showTool).map((tool) => {
-                const def = TOOL_REGISTRY[tool];
-                const Icon = def.icon;
+                const Icon = TOOL_ICONS[tool];
                 const row = toolRowTarget(tool, initiative.id);
                 return (
                   <SidebarMenuItem key={tool}>

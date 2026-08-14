@@ -23,8 +23,8 @@ import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import {
+  CORE_TOOLS,
   TOGGLEABLE_TOOLS,
-  TOOL_REGISTRY,
   TOOLS,
   toolCamelPlural,
   toolCreatePermission,
@@ -192,8 +192,8 @@ const toolPermissionGroup = (tool: Tool): PermissionGroup => ({
 });
 
 // Core (always-on) tools' permissions, always visible
-export const CORE_PERMISSION_GROUPS: PermissionGroup[] = TOOLS.filter(
-  (tool) => TOOL_REGISTRY[tool].core
+export const CORE_PERMISSION_GROUPS: PermissionGroup[] = TOOLS.filter((tool) =>
+  CORE_TOOLS.has(tool)
 ).map(toolPermissionGroup);
 
 // Opt-in tools' permissions, shown in an accordion.

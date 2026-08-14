@@ -1,7 +1,7 @@
 import type { DocumentReadDocumentType } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import type { ExportFormatOption } from "@/components/exports/ExportButton";
-import { SIDEBAR_TOOLS, TOOL_REGISTRY } from "@/lib/tools";
+import { NON_EXPORTABLE_TOOLS, SIDEBAR_TOOLS } from "@/lib/tools";
 
 // Engine formats per document type — mirrors the backend adapter's rules.
 export const DOCUMENT_TYPE_FORMATS: Record<DocumentReadDocumentType, ExportFormatOption[]> = {
@@ -61,7 +61,7 @@ export function documentSelectionFormats(types: DocumentReadDocumentType[]): Exp
 // its backend adapter's format set. Documents are deliberately ABSENT: their
 // formats depend on the selected documents' types (documentSelectionFormats
 // above / DOCUMENT_TYPE_FORMATS). The registry drift test holds this table to
-// TOOL_REGISTRY's bulkExport flags.
+// NON_EXPORTABLE_TOOLS's bulkExport flags.
 export const TOOL_EXPORT_FORMATS: Partial<Record<Tool, ExportFormatOption[]>> = {
   [Tool.project]: [
     // The importable JSON backup, then the task-table report formats.
@@ -102,7 +102,7 @@ export const TOOL_EXPORT_FORMATS: Partial<Record<Tool, ExportFormatOption[]>> = 
  * tools — registry-driven, so a new bulk-exportable tool appears here
  * without a hand-wired list. */
 export const AGGREGATE_EXPORT_TOOLS: Tool[] = SIDEBAR_TOOLS.filter(
-  (tool) => TOOL_REGISTRY[tool].bulkExport
+  (tool) => !NON_EXPORTABLE_TOOLS.has(tool)
 );
 
 /** Report-mode format choices per tool — mirrors the backend aggregate

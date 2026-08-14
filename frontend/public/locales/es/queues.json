@@ -6,11 +6,8 @@
   "noQueuesDescription": "Las colas te permiten organizar elementos por prioridad, seguir el orden de turnos y gestionar quién sigue.",
   "createQueue": "Crear cola",
   "editQueue": "Editar cola",
-  "deleteQueue": "Eliminar cola",
-  "deleteQueueConfirm": "La cola y sus elementos se enviarán a la papelera. Puedes restaurarla desde Configuración → Papelera antes de que finalice el período de retención.",
   "queueCreated": "Cola creada",
   "queueUpdated": "Cola actualizada",
-  "queueDeleted": "Cola eliminada",
   "name": "Nombre",
   "namePlaceholder": "Nombre de la cola",
   "description": "Descripción",
@@ -97,13 +94,11 @@
   "noTasks": "Sin tareas vinculadas",
   "removeLink": "Eliminar",
   "settings": "Configuración",
-  "settingsDescription": "Gestiona los detalles, acceso y opciones avanzadas de la cola.",
   "details": "Detalles",
   "access": "Acceso",
   "advanced": "Avanzado",
   "dangerZone": "Zona de peligro",
   "dangerZoneDescription": "Acciones destructivas. Las colas eliminadas van a la papelera y pueden restaurarse antes de que finalice el período de retención.",
-  "permissionsUpdated": "Permisos actualizados",
   "detailsUpdated": "Detalles de la cola actualizados",
   "viewLabel": "Vista",
   "viewList": "Vista de lista",
@@ -121,7 +116,5 @@
     "activeOnly": "Activas",
     "inactiveOnly": "Inactivas",
     "noMatchingQueues": "Ninguna cola coincide con tus filtros."
-  },
-  "tagsDescription": "Agrega etiquetas para organizar y filtrar colas.",
-  "noWriteAccessTags": "Necesitas acceso de escritura para administrar etiquetas."
+  }
 }

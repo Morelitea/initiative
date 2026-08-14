@@ -1,6 +1,6 @@
 import type { RecentItemRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { guildPath } from "@/lib/guildUrl";
-import { RECENTABLE_TOOLS, toolRouteSegment } from "@/lib/tools";
+import { TOOLS, toolRouteSegment } from "@/lib/tools";
 
 export type RecentKey = {
   entityType: RecentItemRead["entity_type"];
@@ -49,7 +49,7 @@ export function getActiveRecentKey(pathname: string): RecentKey | null {
   if (guildId == null || entityId == null) {
     return null;
   }
-  for (const tool of RECENTABLE_TOOLS) {
+  for (const tool of TOOLS) {
     if (toolRouteSegment(tool) === toolSegment) {
       return { entityType: tool as RecentKey["entityType"], entityId, guildId };
     }

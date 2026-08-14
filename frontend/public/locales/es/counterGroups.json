@@ -8,11 +8,7 @@
   "noGroupsDescription": "Los grupos de contadores reúnen valores numéricos relacionados —como PG, munición o puntuaciones— que puedes incrementar, decrementar o ajustar directamente.",
   "createGroup": "Crear grupo de contadores",
   "editGroup": "Editar grupo de contadores",
-  "deleteGroup": "Eliminar grupo de contadores",
-  "deleteGroupConfirm": "El grupo de contadores y sus contadores se enviarán a la papelera. Puedes restaurarlo desde Configuración → Papelera antes de que termine el período de retención.",
   "groupCreated": "Grupo de contadores creado",
-  "groupUpdated": "Grupo de contadores actualizado",
-  "groupDeleted": "Grupo de contadores eliminado",
   "name": "Nombre",
   "namePlaceholder": "Introduce el nombre del grupo",
   "description": "Descripción",
@@ -94,7 +90,6 @@
   },
   "createFirst": "Crea tu primer grupo de contadores",
   "settings": "Configuración",
-  "settingsDescription": "Gestiona los detalles, el acceso y las opciones avanzadas del grupo de contadores.",
   "details": "Detalles",
   "access": "Acceso",
   "advanced": "Avanzado",
@@ -110,7 +105,5 @@
     "allInitiatives": "Todas las iniciativas",
     "noMatchingGroups": "Ningún grupo de contadores coincide con tus filtros."
   },
-  "tags": "Etiquetas",
-  "tagsDescription": "Agrega etiquetas para organizar y filtrar grupos de contadores.",
-  "noWriteAccessTags": "Necesitas acceso de escritura para administrar etiquetas."
+  "tags": "Etiquetas"
 }

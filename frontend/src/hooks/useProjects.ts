@@ -209,25 +209,33 @@ export const useCreateProject = (
     options
   );
 
+type ProjectPatch = Parameters<typeof updateProjectApiV1GGuildIdProjectsProjectIdPatch>[2];
+
 export const useUpdateProject = (
-  options?: MutationOpts<
-    ProjectRead,
-    {
-      projectId: number;
-      data: Parameters<typeof updateProjectApiV1GGuildIdProjectsProjectIdPatch>[2];
-    }
-  >
+  projectId: number,
+  options?: MutationOpts<ProjectRead, ProjectPatch>
 ) =>
-  useGuildMutation<
-    ProjectRead,
+  useGuildMutation<ProjectRead, ProjectPatch>(
     {
-      projectId: number;
-      data: Parameters<typeof updateProjectApiV1GGuildIdProjectsProjectIdPatch>[2];
-    }
-  >(
-    {
-      mutationFn: (guildId, { projectId, data }) =>
+      mutationFn: (guildId, data) =>
         updateProjectApiV1GGuildIdProjectsProjectIdPatch(guildId, projectId, data),
+      invalidate: () => invalidateAllProjects(),
+      errorKey: "projects:settings.details.updateError",
+    },
+    options
+  );
+
+/**
+ * Row-level template removal from the projects list, where the id varies per
+ * row so the curried {@link useUpdateProject} doesn't fit.
+ */
+export const useRemoveProjectTemplate = (options?: MutationOpts<ProjectRead, number>) =>
+  useGuildMutation<ProjectRead, number>(
+    {
+      mutationFn: (guildId, projectId) =>
+        updateProjectApiV1GGuildIdProjectsProjectIdPatch(guildId, projectId, {
+          is_template: false,
+        }),
       invalidate: () => invalidateAllProjects(),
       errorKey: "projects:settings.details.updateError",
     },

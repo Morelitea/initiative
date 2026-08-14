@@ -6,8 +6,8 @@ import { type GuildEntry, useGuilds } from "@/hooks/useGuilds";
 import { useInitiatives, useInitiativesForGuild } from "@/hooks/useInitiatives";
 import { Capability, hasCapability } from "@/lib/permissions";
 import {
+  CORE_TOOLS,
   isToolEnabled,
-  TOOL_REGISTRY,
   TOOLS,
   toolMemberCreateFlag,
   toolMemberViewFlag,
@@ -72,7 +72,7 @@ const fullAccess = (initiative: InitiativeRead, canCreate: boolean): InitiativeT
 // Bare read of the always-visible core tools for someone with no membership
 // and no grant — mirrors the historical non-member default.
 const readOnlyDefault: InitiativeToolAccess = Object.fromEntries(
-  TOOLS.map((tool) => [tool, { view: TOOL_REGISTRY[tool].core, create: false }])
+  TOOLS.map((tool) => [tool, { view: CORE_TOOLS.has(tool), create: false }])
 ) as InitiativeToolAccess;
 
 /**
@@ -95,7 +95,7 @@ export function toolAccessForInitiative(
     TOOLS.map((tool) => [
       tool,
       {
-        view: Boolean(membership[toolMemberViewFlag(tool)] ?? TOOL_REGISTRY[tool].core),
+        view: Boolean(membership[toolMemberViewFlag(tool)] ?? CORE_TOOLS.has(tool)),
         create: !contentReadOnly && Boolean(membership[toolMemberCreateFlag(tool)] ?? false),
       },
     ])

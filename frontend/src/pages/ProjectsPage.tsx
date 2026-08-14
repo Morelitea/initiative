@@ -61,10 +61,10 @@ import { useInitiatives } from "@/hooks/useInitiatives";
 import {
   useArchivedProjects,
   useProjects,
+  useRemoveProjectTemplate,
   useReorderProjects,
   useTemplateProjects,
   useUnarchiveProject,
-  useUpdateProject,
 } from "@/hooks/useProjects";
 import { useTags } from "@/hooks/useTags";
 import { useViewPreference } from "@/hooks/useViewPreference";
@@ -127,12 +127,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     [setPersistedSortMode]
   );
   const [customOrder, setCustomOrder] = useState<number[]>([]);
-  const updateProjectMutation = useUpdateProject();
-  const removeTemplate = {
-    mutate: (projectId: number) =>
-      updateProjectMutation.mutate({ projectId, data: { is_template: false } }),
-    isPending: updateProjectMutation.isPending,
-  };
+  const removeTemplate = useRemoveProjectTemplate();
 
   const [initiativeFilter, setInitiativeFilter] = useState<string>(
     lockedInitiativeId ? String(lockedInitiativeId) : INITIATIVE_FILTER_ALL

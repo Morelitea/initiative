@@ -518,7 +518,7 @@ export const DocumentDetailPage = () => {
     commentsCache.updateComment(updatedComment);
   };
 
-  const saveDocument = useUpdateDocument({
+  const saveDocument = useUpdateDocument(parsedId, {
     // Suppress the default error toast when the save failed because we're offline —
     // the persistent offline toast already explains the situation to the user.
     // Using `isOnline` (not `navigator.onLine`) so native WebView users get the
@@ -656,12 +656,9 @@ export const DocumentDetailPage = () => {
       const timer = setTimeout(() => {
         isAutosaveRef.current = true;
         saveDocument.mutate({
-          documentId: parsedId,
-          data: {
-            title: title?.trim(),
-            content: contentForSave,
-            featured_image_url: featuredImageUrl,
-          },
+          title: title?.trim(),
+          content: contentForSave,
+          featured_image_url: featuredImageUrl,
         });
       }, collabDebounceMs);
       return () => clearTimeout(timer);
@@ -672,12 +669,9 @@ export const DocumentDetailPage = () => {
       const timer = setTimeout(() => {
         isAutosaveRef.current = true;
         saveDocument.mutate({
-          documentId: parsedId,
-          data: {
-            title: title?.trim(),
-            content: contentForSave,
-            featured_image_url: featuredImageUrl,
-          },
+          title: title?.trim(),
+          content: contentForSave,
+          featured_image_url: featuredImageUrl,
         });
       }, 2000);
       return () => clearTimeout(timer);
@@ -710,12 +704,9 @@ export const DocumentDetailPage = () => {
     // users who edited while offline get explicit confirmation their work
     // was persisted after reconnecting.
     saveDocument.mutate({
-      documentId: parsedId,
-      data: {
-        title: title?.trim(),
-        content: contentForSave,
-        featured_image_url: featuredImageUrl,
-      },
+      title: title?.trim(),
+      content: contentForSave,
+      featured_image_url: featuredImageUrl,
     });
   }, [
     isOnline,
@@ -825,12 +816,9 @@ export const DocumentDetailPage = () => {
         e.preventDefault();
         if (!saveDocument.isPending) {
           saveDocument.mutate({
-            documentId: parsedId,
-            data: {
-              title: title?.trim(),
-              content: contentForSave,
-              featured_image_url: featuredImageUrl,
-            },
+            title: title?.trim(),
+            content: contentForSave,
+            featured_image_url: featuredImageUrl,
           });
         }
       }
@@ -921,12 +909,9 @@ export const DocumentDetailPage = () => {
       setFeaturedImageUrl(response.url);
       isAutosaveRef.current = true;
       saveDocument.mutate({
-        documentId: parsedId,
-        data: {
-          title: title?.trim(),
-          content: contentForSave,
-          featured_image_url: response.url,
-        },
+        title: title?.trim(),
+        content: contentForSave,
+        featured_image_url: response.url,
       });
       toast.success(t("detail.imageUploaded"));
     } catch (error) {
@@ -1127,12 +1112,9 @@ export const DocumentDetailPage = () => {
               onClick={() => {
                 if (saveDocument.isPending) return;
                 saveDocument.mutate({
-                  documentId: parsedId,
-                  data: {
-                    title: title?.trim(),
-                    content: contentForSave,
-                    featured_image_url: featuredImageUrl,
-                  },
+                  title: title?.trim(),
+                  content: contentForSave,
+                  featured_image_url: featuredImageUrl,
                 });
               }}
               disabled={saveDocument.isPending}
@@ -1258,12 +1240,9 @@ export const DocumentDetailPage = () => {
                                   setFeaturedImageUrl(null);
                                   isAutosaveRef.current = true;
                                   saveDocument.mutate({
-                                    documentId: parsedId,
-                                    data: {
-                                      title: title?.trim(),
-                                      content: contentForSave,
-                                      featured_image_url: null,
-                                    },
+                                    title: title?.trim(),
+                                    content: contentForSave,
+                                    featured_image_url: null,
                                   });
                                 }}
                                 disabled={isUploadingFeaturedImage}
@@ -1474,12 +1453,9 @@ export const DocumentDetailPage = () => {
                         type="button"
                         onClick={() =>
                           saveDocument.mutate({
-                            documentId: parsedId,
-                            data: {
-                              title: title?.trim(),
-                              content: contentForSave,
-                              featured_image_url: featuredImageUrl,
-                            },
+                            title: title?.trim(),
+                            content: contentForSave,
+                            featured_image_url: featuredImageUrl,
                           })
                         }
                         disabled={!isDirty || saveDocument.isPending}

@@ -22,7 +22,7 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { useGuildToolRows } from "@/hooks/useGuildToolRows";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
-import { TOOL_REGISTRY, TOOLS, toolForRouteSegment } from "@/lib/tools";
+import { CORE_TOOLS, TOOLS, toolForRouteSegment } from "@/lib/tools";
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -41,7 +41,7 @@ export function GuildHomePage() {
   const tools = useMemo(() => {
     const visible = filterVisible(initiativesQuery.data);
     if (visible.length === 0) {
-      return TOOLS.filter((tool) => TOOL_REGISTRY[tool].core);
+      return TOOLS.filter((tool) => CORE_TOOLS.has(tool));
     }
     return TOOLS.filter((tool) =>
       visible.some((initiative) => permissionsFor(initiative)[tool].view)

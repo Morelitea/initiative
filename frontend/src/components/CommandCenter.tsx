@@ -38,7 +38,7 @@ import { canAccessAdminDashboard, canManagePlatformConfig } from "@/lib/permissi
 import { renderRecentIcon } from "@/lib/recentIcon";
 import { recentRoute } from "@/lib/recentRoute";
 import { PALETTE_TOOLS, TOOL_PALETTE } from "@/lib/toolPalette";
-import { TOOL_REGISTRY } from "@/lib/tools";
+import { TOOL_ICONS } from "@/lib/tools";
 
 // Module-level callback so other components can open the command center
 let openCommandCenter: (() => void) | null = null;
@@ -349,7 +349,7 @@ function ToolPaletteGroup({
   const heading = TOOL_PALETTE[tool].useHeading();
   const items = TOOL_PALETTE[tool].useItems({ enabled, search });
   if (heading === null) return null;
-  const Icon = TOOL_REGISTRY[tool].icon;
+  const Icon = TOOL_ICONS[tool];
   return (
     <CommandGroup heading={heading}>
       {items.map((item) => (
