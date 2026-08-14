@@ -27,12 +27,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.counter import CounterGroup
 
 
-# Legacy enum kept for backwards compatibility during migration
-class InitiativeRole(str, Enum):
-    project_manager = "project_manager"
-    member = "member"
-
-
 # Permission keys for role-based access control — fully derived from the Tool
 # enum: one `{plural}_enabled` + `create_{plural}` pair per tool
 # (documents_enabled, create_documents, …, counter_groups_enabled,

@@ -71,7 +71,7 @@ export const InitiativeDetailPage = () => {
       : null;
   const isGuildAdmin = activeGuild?.role === "admin";
   const membership = initiative?.members.find((member) => member.user.id === user?.id) ?? null;
-  const isInitiativeManager = membership?.is_manager || membership?.role === "project_manager";
+  const isInitiativeManager = Boolean(membership?.is_manager);
   const canManageInitiative = Boolean(isGuildAdmin || isInitiativeManager);
 
   // A tool's tab renders when its permission allows viewing it (the backend
@@ -93,13 +93,11 @@ export const InitiativeDetailPage = () => {
 
   const memberCount = initiative?.members.length ?? 0;
 
-  const roleBadgeLabel = permissions?.role_display_name
-    ? permissions.role_display_name
-    : membership
-      ? (membership.role_display_name ?? membership.role)
-      : isGuildAdmin
-        ? guildAdminLabel
-        : null;
+  const roleBadgeLabel =
+    permissions?.role_display_name ??
+    membership?.role_display_name ??
+    membership?.role_name ??
+    (isGuildAdmin ? guildAdminLabel : null);
 
   if (!hasValidInitiativeId) {
     return <Navigate to="/initiatives" replace />;

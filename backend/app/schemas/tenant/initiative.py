@@ -6,7 +6,7 @@ from pydantic import ConfigDict, Field, create_model
 from app.core.tools import CORE_TOOLS, TOGGLEABLE_TOOLS, Tool
 from app.schemas.base import RichTextStr, SanitizedBaseModel
 
-from app.models.tenant.initiative import InitiativeRole, PermissionKey
+from app.models.tenant.initiative import PermissionKey
 from app.schemas.platform.user import UserPublic
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -160,8 +160,6 @@ class InitiativeMemberRead(_MemberToolFlags):
     role_display_name: Optional[str] = None
     is_manager: bool = False
     joined_at: datetime
-    # Legacy field for backward compatibility
-    role: InitiativeRole = InitiativeRole.member
     oidc_managed: bool = False
 
 
@@ -244,13 +242,6 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
         role_ref = getattr(membership, "role_ref", None)
         role_name = role_ref.name if role_ref else None
 
-        # Determine legacy role for backward compatibility
-        legacy_role = (
-            InitiativeRole.project_manager
-            if role_name == "project_manager"
-            else InitiativeRole.member
-        )
-
         members.append(
             InitiativeMemberRead(
                 user=UserPublic.model_validate(membership.user),
@@ -259,7 +250,6 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
                 role_display_name=role_ref.display_name if role_ref else None,
                 is_manager=role_ref.is_manager if role_ref else False,
                 joined_at=membership.joined_at,
-                role=legacy_role,
                 oidc_managed=membership.oidc_managed,
                 **member_tool_flags(initiative, membership),
             )

@@ -177,7 +177,6 @@ describe("useInitiativeAccess canManage", () => {
     const user = buildUser();
     asMember(user);
     const initiative = withRole(user, {
-      role: "project_manager",
       role_name: "project_manager",
       is_manager: true,
     });
@@ -188,12 +187,10 @@ describe("useInitiativeAccess canManage", () => {
 
   it("counts a managing role the initiative named itself", () => {
     // An initiative that renamed its managers, or added a second managing
-    // role: the flag is what the server reads, and the legacy `role` field
-    // reports `member` for anything but the built-in name.
+    // role: the flag is what the server reads, not the role's name.
     const user = buildUser();
     asMember(user);
     const initiative = withRole(user, {
-      role: "member",
       role_name: "lead",
       role_display_name: "Lead",
       is_manager: true,
