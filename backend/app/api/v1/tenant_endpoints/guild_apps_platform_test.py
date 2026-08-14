@@ -39,6 +39,7 @@ from app.core.messages import (
 )
 from app.models.platform.app_service_registration import AppServiceStatus
 from app.models.platform.guild import GuildRole
+from app.services.marketplace.app_subjects import ensure_subject
 from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.testing import (
     create_app_service_registration,
@@ -361,9 +362,16 @@ class TestHandoff:
         assert claims["guild_id"] == a.guild.id
         assert claims["app_install_id"] == app.id
         assert claims["surface_id"] == "board"
-        assert claims["sub"] == str(a.user.id)
         assert claims["jti"]
         assert "email" not in claims and "guild_role" not in claims
+
+        # The subject is pairwise (OIDC Core §8.1): it names the member to this
+        # install and is not the row id, so an app storing `sub` as its key for
+        # a person is not storing something another app would recognize.
+        assert claims["sub"] != str(a.user.id)
+        assert claims["sub"] == await ensure_subject(
+            session, app_install_id=app.id, guild_id=a.guild.id, user_id=a.user.id
+        )
 
     async def test_a_member_may_not_open_an_admin_surface(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration

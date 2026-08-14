@@ -492,7 +492,10 @@ class AutoDelegationClaims:
     """Validated payload of a delegation JWT minted by initiative-auto."""
 
     jti: str
-    user_id: int
+    #: The pairwise subject the app knows this member by, NOT a user id. The
+    #: caller resolves it inside the guild the token names — an app that never
+    #: learns who somebody is can still act as them.
+    subject: str
     guild_id: int
     initiative_id: int | None
     workflow_id: int | None
@@ -530,7 +533,12 @@ def delegation_token_kid(token: str) -> str | None:
 def verify_auto_delegation_token(
     token: str, *, keys: Sequence[Any]
 ) -> AutoDelegationClaims:
-    """Verify a delegation JWT and resolve it to the user it names.
+    """Verify a delegation JWT and return what it claims.
+
+    The token names its member by a **pairwise subject** rather than a user id
+    (OIDC Core §8.1) — the same value the app was given, opaque to it and
+    unrelated to what any other install derives for the same person. Resolving
+    it to a member is the caller's step, because that needs the guild.
 
     ``keys`` is the verification material the caller resolved — the key set on
     the registration of the app that signed this token. More than one is
@@ -568,12 +576,9 @@ def verify_auto_delegation_token(
             f"jwt verification failed: {first_error}"
         ) from first_error
 
-    try:
-        user_id = int(payload["sub"])
-    except (KeyError, TypeError, ValueError) as e:
-        raise AutoDelegationVerificationError(
-            f"sub must be a numeric user id: {e}"
-        ) from e
+    subject = payload.get("sub")
+    if not isinstance(subject, str) or not subject:
+        raise AutoDelegationVerificationError("sub must be a pairwise subject")
 
     guild_id = payload.get("guild_id")
     if not isinstance(guild_id, int):
@@ -591,7 +596,7 @@ def verify_auto_delegation_token(
 
     return AutoDelegationClaims(
         jti=str(payload["jti"]),
-        user_id=user_id,
+        subject=subject,
         guild_id=guild_id,
         initiative_id=initiative_id,
         workflow_id=workflow_id,

@@ -48,7 +48,9 @@ from app.core.security import (
     resolve_app_platform_signing_material,
 )
 from app.models.tenant.guild_app import GuildApp
-from app.services.marketplace import registration_lookup
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.services.marketplace import app_subjects, registration_lookup
 from app.services.marketplace.service_apps import clears_visibility
 from app.services.tenant.guild_apps import placed_in
 
@@ -149,6 +151,7 @@ async def require_live_registration(
 
 
 async def mint_embed_handoff(
+    session: AsyncSession,
     app: GuildApp,
     *,
     surface_id: str,
@@ -203,13 +206,20 @@ async def mint_embed_handoff(
             detail=AppServiceMessages.SIGNING_NOT_CONFIGURED,
         ) from exc
 
+    subject = await app_subjects.ensure_subject(
+        session, app_install_id=app.id, guild_id=app.guild_id, user_id=user_id
+    )
+
     now = datetime.now(timezone.utc)
     audience = app_platform_audience(registration.public_id)
     payload: dict[str, Any] = {
         # One-shot marker: the app blocklists a handoff once it has exchanged
         # it, so a captured token is not replayable inside its short window.
         "jti": str(uuid.uuid4()),
-        "sub": str(user_id),
+        # The pairwise subject this install knows the member by, never the row
+        # id: two apps must not be able to compare notes and find they are
+        # talking to the same person (OIDC Core §8.1).
+        "sub": subject,
         "aud": audience,
         "iss": settings.APP_PLATFORM_ISSUER,
         "iat": int(now.timestamp()),
