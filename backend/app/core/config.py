@@ -355,6 +355,30 @@ class Settings(BaseSettings):
         return _format_csp(directives)
 
     @property
+    def widget_sandbox_content_security_policy(self) -> str:
+        """CSP for the widget sandbox worker bundle ONLY (applied per-response).
+
+        Dashboard widgets are evaluated by QuickJS compiled to WebAssembly
+        (``frontend/src/lib/widgets/runtime/sandbox.worker.ts``). A worker takes
+        its policy from the response that served its script rather than from the
+        document that started it, so the WebAssembly source expression is named
+        here — on that one built asset — and the app-wide policy above needs no
+        mention of it.
+
+        The worker is given the three things it uses and nothing else: its own
+        script, WebAssembly compilation, and a same-origin fetch for the
+        ``.wasm`` file. It has no DOM, loads no styles, images, or fonts, and
+        talks to nobody but the page that started it.
+        """
+        return _format_csp(
+            {
+                "default-src": ["'none'"],
+                "script-src": ["'self'", "'wasm-unsafe-eval'"],
+                "connect-src": ["'self'"],
+            }
+        )
+
+    @property
     def docs_content_security_policy(self) -> str:
         """Relaxed CSP for the Swagger ``/docs`` page ONLY (applied per-route).
 

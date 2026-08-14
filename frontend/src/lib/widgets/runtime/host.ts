@@ -5,6 +5,10 @@
  * `SceneSpec` or a machine code for the error tile. Everything between —
  * spawning the worker, framing the request, and surviving a worker that stops
  * answering — lives here so components never touch the runtime directly.
+ *
+ * Every call goes to the worker, which is where the interpreter is compiled.
+ * The in-process path below serves environments with no `Worker` at all — jsdom
+ * under test; in a browser it resolves to `WIDGET_RUNTIME_UNAVAILABLE`.
  */
 
 import type { WidgetErrorCode } from "../errors";
@@ -93,12 +97,18 @@ export function disposeWidgetHost(): void {
   workerUnavailable = false;
 }
 
-async function evaluate(request: RenderRequest): Promise<SandboxResult> {
+/** Send one request to the worker and wait for its answer. `inline` is the same
+ *  work done in-process, for the no-`Worker` case described at the top. */
+async function evaluate(
+  frame: (id: number) => SandboxWorkerRequest,
+  inline: () => Promise<SandboxResult>,
+  timeoutMs = DEFAULT_LIMITS.timeoutMs
+): Promise<SandboxResult> {
   const host = getWorker();
-  if (!host) return renderInSandbox(request);
+  if (!host) return inline();
 
   const id = nextId++;
-  const budget = (request.limits?.timeoutMs ?? DEFAULT_LIMITS.timeoutMs) + WORKER_GRACE_MS;
+  const budget = timeoutMs + WORKER_GRACE_MS;
 
   return new Promise<SandboxResult>((resolve) => {
     const timer = setTimeout(() => {
@@ -107,8 +117,7 @@ async function evaluate(request: RenderRequest): Promise<SandboxResult> {
       resetWorker(SandboxErrorCode.TIMEOUT);
     }, budget);
     pending.set(id, { resolve, timer });
-    const message: SandboxWorkerRequest = { id, request };
-    host.postMessage(message);
+    host.postMessage(frame(id));
   });
 }
 
@@ -120,13 +129,18 @@ async function evaluate(request: RenderRequest): Promise<SandboxResult> {
  * renders as an error.
  */
 export async function renderWidget(request: RenderRequest): Promise<WidgetRenderOutcome> {
-  const result = await evaluate({
+  const framed: RenderRequest = {
     ...request,
     // Widgets that mark work late need to know "now". Rounding to the minute
     // keeps the render stable across re-renders — the sandbox default of 0 is
     // deliberately inert so tests state their own clock.
     now: request.now ?? Math.floor(Date.now() / 60_000) * 60_000,
-  });
+  };
+  const result = await evaluate(
+    (id) => ({ id, kind: "render", request: framed }),
+    () => renderInSandbox(framed),
+    framed.limits?.timeoutMs
+  );
   if (!result.ok) return { ok: false, code: result.code, detail: result.detail };
 
   const validation = validateScene(result.value);
@@ -151,7 +165,10 @@ export async function readWidgetMeta(source: string): Promise<WidgetMeta | null>
   const cached = metaCache.get(source);
   if (cached !== undefined) return cached;
 
-  const result = await readMetaInSandbox(source);
+  const result = await evaluate(
+    (id) => ({ id, kind: "meta", source }),
+    () => readMetaInSandbox(source)
+  );
   const meta = result.ok ? validateWidgetMeta(result.value) : null;
   metaCache.set(source, meta);
   return meta;
