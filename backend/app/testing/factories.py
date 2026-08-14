@@ -41,6 +41,7 @@ from app.models.platform.marketplace import (
 )
 from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.guild_app import GuildApp
+from app.models.tenant.guild_app_user_delegation import GuildAppUserDelegation
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
@@ -992,6 +993,38 @@ async def create_app_service_registration(
     await session.commit()
     await session.refresh(row)
     invalidate_registrations()
+    return row
+
+
+async def create_app_delegation(
+    session: AsyncSession,
+    app: GuildApp,
+    user: User,
+    *,
+    can_read: bool = True,
+    can_write: bool = False,
+    **overrides: Any,
+) -> GuildAppUserDelegation:
+    """A member's standing authorization for one install to act as them.
+
+    Written straight into the guild's schema, so a suite that is about what a
+    delegated call may do does not have to walk the consent flow first.
+    """
+    await route_session_to_guild(session, app.guild_id)
+
+    row = GuildAppUserDelegation(
+        **{
+            "guild_id": app.guild_id,
+            "app_id": app.id,
+            "user_id": user.id,
+            "can_read": can_read,
+            "can_write": can_write,
+            **overrides,
+        }
+    )
+    session.add(row)
+    await session.commit()
+    await session.refresh(row)
     return row
 
 

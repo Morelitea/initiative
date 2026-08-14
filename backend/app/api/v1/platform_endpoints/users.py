@@ -68,6 +68,7 @@ from app.services import notifications as notifications_service
 from app.services.auth import sessions as session_service
 from app.services.auth.identity import has_federated_identity
 from app.services.tenant import app_connections as app_connections_service
+from app.services.tenant import app_delegations as app_delegations_service
 from app.services.tenant import app_revocation as app_revocation_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.platform import guilds as guilds_service
@@ -1168,6 +1169,8 @@ async def delete_user(
     await app_connections_service.delete_member_connections(
         session, user_id=user_id, reason="removed_from_guild"
     )
+    # And what they let this guild's apps do as them, for the same reason.
+    await app_delegations_service.delete_member_delegations(session, user_id=user_id)
 
     await session.delete(membership)
     await session.commit()

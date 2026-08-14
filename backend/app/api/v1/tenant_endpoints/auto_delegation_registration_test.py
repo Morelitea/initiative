@@ -24,6 +24,7 @@ from app.testing.schema_harness import route_session_to_guild
 from app.testing.delegation import (
     DELEGATE_KID,
     DELEGATE_LISTING_UID,
+    authorize_delegate,
     install_delegate,
     delegation_jwks,
     foreign_jwks,
@@ -47,15 +48,18 @@ def _app_platform_configured(monkeypatch):
 
 
 async def _acting_in_a_guild_that_installed_it(session: AsyncSession, email: str):
-    """A user, their guild, and that guild's install of the delegate.
+    """A user, their guild, that guild's install of the delegate, and the
+    user's own authorization for it to act as them.
 
-    Every case below varies one thing about the *registration*, so the install
-    side is held constant here rather than restated each time.
+    Every case below varies one thing about the *registration*, so both of the
+    other yeses a delegated call needs are held constant here rather than
+    restated each time.
     """
     user = await create_user(session, email=email)
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild)
     await install_delegate(session, guild, creator=user)
+    await authorize_delegate(session, guild, user)
     return user, guild
 
 
@@ -186,7 +190,7 @@ async def test_an_app_acts_only_where_it_was_installed(
     )
     assert refused.status_code == 401
 
-    await install_delegate(session, guild)
+    await authorize_delegate(session, guild, user)
 
     allowed = await client.get(
         f"/api/v1/g/{guild.id}/initiatives/",
@@ -210,6 +214,7 @@ async def test_a_switched_off_install_stops_the_app(
     await create_guild_membership(session, user=user, guild=guild)
     await register_delegate(session)
     install = await install_delegate(session, guild)
+    await authorize_delegate(session, guild, user)
     install.enabled = False
     session.add(install)
     await session.commit()
