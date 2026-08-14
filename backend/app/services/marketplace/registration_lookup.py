@@ -20,22 +20,34 @@ handle to a row:
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass
-from typing import Any, Optional
+from types import MappingProxyType
+from typing import Any, Mapping, Optional
 
+from jwt import PyJWK
+from sqlalchemy import true as sa_true
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
 
 from app.db import session as db_session
 from app.models.platform.app_service_registration import (
     AppServiceRegistration,
     browser_base,
+    is_live,
 )
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "CACHE_TTL_SECONDS",
+    "DelegationKey",
     "InstallState",
     "RegistrationSnapshot",
+    "any_delegate_registered",
+    "delegation_allowed",
+    "delegation_keys_for",
     "install_state",
     "invalidate_registrations",
     "load_registrations",
@@ -65,6 +77,10 @@ class RegistrationSnapshot:
     allowed_origins: tuple[str, ...]
     #: Operator-conferred powers, for callers that gate on one.
     grants: tuple[str, ...]
+    #: Public verification keys this app signs delegation tokens with, by the
+    #: ``kid`` a token names. Parsed once when the snapshot is built rather than
+    #: per token. Empty on an app that has not been provisioned with one.
+    delegation_keys: Mapping[str, Any]
     #: The deployment installs this app in every guild (§7.7).
     mandatory: bool
     #: The operator's kill switch. False stops every channel this app has.
@@ -73,13 +89,39 @@ class RegistrationSnapshot:
 
     @property
     def live(self) -> bool:
-        """Whether anything may flow through this app right now."""
-        return self.enabled
+        """Whether anything may flow through this app right now.
+
+        Defers to :func:`is_live` so the embed plane and the data plane answer
+        this from the same rule rather than each stating one.
+        """
+        return is_live(self)
 
     @property
     def browser_base(self) -> str:
         """The base to build an address a browser will be sent to."""
         return browser_base(self)
+
+
+def _parse_delegation_keys(row: AppServiceRegistration) -> Mapping[str, Any]:
+    """Build the ``kid`` → key index for one registration.
+
+    The keys were validated when they were stored, so anything unusable here
+    is a surprise worth logging rather than a case to model: the entry is left
+    out, and a token naming it finds no key.
+    """
+    key_set = row.delegation_jwks or {}
+    parsed: dict[str, Any] = {}
+    for entry in key_set.get("keys", []) or []:
+        kid = entry.get("kid") if isinstance(entry, dict) else None
+        if not kid:
+            continue
+        try:
+            parsed[kid] = PyJWK.from_dict(entry).key
+        except Exception:
+            logger.warning(
+                "app services: %s has an unusable delegation key %r", row.public_id, kid
+            )
+    return MappingProxyType(parsed)
 
 
 _cache: dict[str, RegistrationSnapshot] | None = None
@@ -121,6 +163,7 @@ async def load_registrations(*, force: bool = False) -> dict[str, RegistrationSn
             embed_origin=row.embed_origin,
             allowed_origins=tuple(row.allowed_origins or []),
             grants=tuple(row.grants or []),
+            delegation_keys=_parse_delegation_keys(row),
             mandatory=bool(row.mandatory),
             enabled=bool(row.enabled),
             status=row.status,
@@ -178,6 +221,10 @@ class InstallState:
 
     mandatory: bool = False
     available: bool = True
+    #: Whether this app is one that acts as members, and so has something for
+    #: each of them to authorize. An operator clearing the grant takes the
+    #: question away everywhere the app is installed.
+    delegates: bool = False
 
 
 async def install_state(definition: dict[str, Any] | None) -> InstallState:
@@ -194,7 +241,11 @@ async def install_state(definition: dict[str, Any] | None) -> InstallState:
         # Installed here, but this deployment has not wired the service up (or
         # no longer does). Nothing it offers can be reached.
         return InstallState(mandatory=False, available=False)
-    return InstallState(mandatory=snapshot.mandatory, available=snapshot.enabled)
+    return InstallState(
+        mandatory=snapshot.mandatory,
+        available=snapshot.live,
+        delegates="delegation" in snapshot.grants,
+    )
 
 
 async def mandatory_registrations() -> list[RegistrationSnapshot]:
@@ -202,9 +253,136 @@ async def mandatory_registrations() -> list[RegistrationSnapshot]:
 
     Only the enabled ones: a registration the operator switched off installs
     nowhere new, because the kill switch outranks the flag (§7.7).
+
+    Deliberately ``enabled`` rather than :attr:`RegistrationSnapshot.live`. An
+    install is a local row, and a mandatory app whose container has not booted
+    yet is the ordinary case on a fresh deployment — it discovers the guild on
+    its next ``/installs`` pull. Waiting for a handshake here would make guild
+    creation depend on a container being up. What the unverified state does stop
+    is everything that flows *through* the app, which is what ``live`` gates.
     """
     return [
         snapshot
         for snapshot in (await load_registrations()).values()
         if snapshot.mandatory and snapshot.enabled
     ]
+
+
+@dataclass(frozen=True)
+class DelegationKey:
+    """A verification key, and the app whose registration published it."""
+
+    registration: RegistrationSnapshot
+    key: Any
+
+
+async def delegation_keys_for(kid: str) -> tuple[DelegationKey, ...]:
+    """Every key a delegation token's ``kid`` could name.
+
+    Only from registrations that are ``enabled`` and hold the ``delegation``
+    grant, so an operator ends an app's ability to act with an edit rather than
+    a key rotation.
+
+    All matches rather than the first: a ``kid`` is an opaque label its owner
+    chooses, so two apps may pick the same one, and the token belongs to
+    whichever key verifies it. Resolution is by ``kid`` rather than by reading
+    an app's name out of it, for the same reason.
+
+    Deliberately ``enabled`` rather than :attr:`RegistrationSnapshot.live` — a
+    delegate calls the API directly, so its ability to act follows the
+    operator's kill switch, not whether its manifest was reachable at the last
+    handshake.
+    """
+    if not kid:
+        return ()
+    return tuple(
+        DelegationKey(registration=snapshot, key=key)
+        for snapshot in (await load_registrations()).values()
+        if snapshot.enabled and "delegation" in snapshot.grants
+        for key in (snapshot.delegation_keys.get(kid),)
+        if key is not None
+    )
+
+
+async def any_delegate_registered() -> bool:
+    """Whether some app on this deployment may delegate and can be verified.
+
+    What every surface that is delegate-owned reads: the subscription
+    endpoints refuse without one and the outbound dispatcher stays inert.
+    """
+    return any(
+        snapshot.enabled
+        and "delegation" in snapshot.grants
+        and snapshot.delegation_keys
+        for snapshot in (await load_registrations()).values()
+    )
+
+
+async def delegation_allowed(
+    guild_id: int, public_id: str, user_id: int, *, need_write: bool
+) -> bool:
+    """Whether this app may act as this member, here, right now.
+
+    Two separate parties have to have said yes, and this asks both in one read
+    of the guild's own schema:
+
+    * **The guild installed the app.** The install is what makes an app present
+      in a guild, so it is also what bounds a delegate to the guilds that chose
+      it — uninstalling ends that reach, which is the property §10.3 of the
+      platform design claims.
+    * **The member authorized it to act as them**, to at least the depth this
+      call needs. Installing is the guild's decision; carrying one person's name
+      is that person's.
+
+    The install is matched on the pinned definition's service id, the same
+    identity :func:`registration_for_definition` resolves an install by. A row's
+    ``listing_uid`` is re-recorded from the manifest on every handshake, so it
+    names the listing an app currently claims rather than the app itself.
+
+    Read per call rather than cached: the registration snapshot can afford a
+    TTL because an operator's kill switch is deployment-wide and rare, while an
+    uninstall and a withdrawal are each a decision made here and expected to
+    bite at once.
+    """
+    if not public_id:
+        return False
+
+    from app.models.tenant.guild_app import GuildApp
+    from app.models.tenant.guild_app_user_delegation import GuildAppUserDelegation
+
+    write_leg = GuildAppUserDelegation.can_write.is_(True) if need_write else sa_true()
+
+    async with db_session.AdminSessionLocal() as session:
+        try:
+            # Guild content lives in the guild's own schema, so the read is
+            # routed there. `admin` because this asks what the guild has and
+            # what one member said, not what any particular caller may see.
+            await db_session.set_rls_context(
+                session, guild_id=guild_id, guild_role="admin"
+            )
+            found = (
+                await session.exec(
+                    select(GuildApp.id)
+                    .join(
+                        GuildAppUserDelegation,
+                        GuildAppUserDelegation.app_id == GuildApp.id,
+                    )
+                    .where(
+                        GuildApp.enabled.is_(True),
+                        GuildApp.definition["app_kind"].astext == "service",
+                        GuildApp.definition["service"]["public_id"].astext == public_id,
+                        GuildAppUserDelegation.user_id == user_id,
+                        GuildAppUserDelegation.revoked_at.is_(None),
+                        GuildAppUserDelegation.can_read.is_(True),
+                        write_leg,
+                    )
+                )
+            ).first()
+        except SQLAlchemyError:
+            # A guild id naming no guild has no schema to route into, and
+            # nothing is installed in a guild that is not there.
+            logger.warning(
+                "app services: delegation check could not read guild %s", guild_id
+            )
+            return False
+    return found is not None

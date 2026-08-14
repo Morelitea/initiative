@@ -63,6 +63,17 @@ The spreadsheet supports the everyday essentials:
 - **Freeze** rows or columns so headers stay put as you scroll.
 - **Import and export** as CSV or Excel (XLSX).
 
+## Sketching on a whiteboard
+
+A **whiteboard** is a free-form canvas for the thinking that doesn't fit in a paragraph — a floor plan, a seating chart, a flow of who-does-what, boxes and arrows on a wall.
+
+- **Draw anything** — shapes, arrows, freehand lines, text, and images, arranged however you like.
+- **Work on it together** — everyone's pointer shows up live, labeled with their name, so you can point at the same thing at the same time.
+- **Go fullscreen** when the canvas needs the whole window.
+- **Export as a picture** — save a whiteboard as a **PNG** or **SVG** image to drop into a slide deck, an email, or a printout.
+
+Whiteboards autosave like everything else, and they're shared, tagged, and commented on exactly like any other document.
+
 ## Editing together, live
 
 Documents are built for collaboration:

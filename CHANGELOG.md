@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.62.5] - 2026-08-14
+
+### Added
+
+- **You decide whether an app may act as you.** A guild admin installing an app puts it in the guild; whether it may make requests in your name is a separate question, and now yours to answer — reads only, or reads and writes. Withdrawing takes effect on the app's next request, and leaving the guild takes it with you. Guild admins can see who has allowed what and end any of it, including everyone's at once without uninstalling the app, but cannot allow it on somebody else's behalf.
+- **Every app has settings of its own**, reached from the gear beside its name in the sidebar. It shows what you control: your own answer about the app acting as you, and your own half of any connection — plus, for guild admins, what the guild owns, being the shared credential, where the app appears, and what each member has given it.
+- **An app acts only in the guilds that installed it.** A delegating app reaching a guild now needs that guild's install to be present and switched on, alongside the power its registration grants — so uninstalling an app, or turning the install off, ends what it can do there without touching any other guild.
+- **An app is granted the power to act as your members individually.** Delegation follows the app's own registration — its keys, its grant, its switch — rather than one setting shared by the whole deployment. Turning an app's delegation off, or turning the app off, ends what it can do straight away.
+- An app service registration can hold the public keys its app signs delegation tokens with, as a JWKS — pasted into the registration form or declared in the app services file alongside the app's other settings. Two entries in one key set is how an app rotates its signing key without downtime, and clearing the field removes it.
+
+### Changed
+
+- An app's embedded page is granted only the browser features its manifest asks for, from a fixed list — camera, microphone, location, screen capture, clipboard, and fullscreen. A surface that asks for nothing runs with all of them denied. What an app requests is part of what it declares, so it can be read before installing.
+- **A guild tells its members about the guild, and its admins about running it.** Everyone in a guild still sees its name, description, icon, member count, and whether content is currently read-only. The administration details — the storage and member limits set for the guild and its trash retention window — now reach guild admins only, matching the settings pages that are already theirs alone.
+
+### Fixed
+
+- **Dashboards render on a deployed instance.** Widgets are evaluated by a WebAssembly runtime that the served content policy did not admit, so every widget on every dashboard failed with a runtime error. The runtime's own bundle is now served with a policy that admits it; the policy the rest of the app is served with is unchanged.
+- An app whose service stops matching what this deployment registered now stops offering its embedded pages, not only its data — the two halves of an app go quiet together. Both return on the next successful verification, and the app reads as unavailable meanwhile instead of opening a surface that cannot load.
+
 ## [0.62.4] - 2026-08-13
 
 ### Fixed

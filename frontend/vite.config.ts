@@ -47,6 +47,18 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  worker: {
+    // Worker bundles land in their own directory so a served response can be
+    // matched by path. The backend keys the widget sandbox's policy off
+    // `assets/workers/sandbox.worker-` — see `_WIDGET_SANDBOX_ASSET` in
+    // backend/app/main.py, which is pinned by tests on both sides.
+    rolldownOptions: {
+      output: {
+        entryFileNames: "assets/workers/[name]-[hash].js",
+        chunkFileNames: "assets/workers/[name]-[hash].js",
+      },
+    },
+  },
   build: {
     rolldownOptions: {
       output: {

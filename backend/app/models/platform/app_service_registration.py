@@ -36,7 +36,9 @@ __all__ = [
     "AppServiceRegistration",
     "AppServiceStatus",
     "BrowserAddressed",
+    "ServiceState",
     "browser_base",
+    "is_live",
 ]
 
 
@@ -129,6 +131,16 @@ class AppServiceRegistration(SQLModel, table=True):
         default_factory=list,
         sa_column=Column(JSONB, nullable=False, server_default="[]"),
     )
+    # Public half of the key this app signs delegation tokens with, in JWKS
+    # shape. A set rather than one key because an app rotates by publishing the
+    # replacement alongside the current entry while tokens signed by the first
+    # drain out; every entry carries a ``kid``, which is what a token names.
+    # Public keys only. Null on an app that does not delegate: the column is
+    # kept only while ``grants`` holds ``delegation``, so taking the grant away
+    # takes the keys with it rather than leaving a set nothing displays.
+    delegation_jwks: Optional[dict] = Field(
+        default=None, sa_column=Column(JSONB, nullable=True)
+    )
     # Auto-installed into every guild and not removable by guild admins.
     mandatory: bool = Field(
         default=False,
@@ -174,3 +186,27 @@ def browser_base(registration: BrowserAddressed) -> str:
     app reachable at a single address needs no second field to say so.
     """
     return registration.embed_origin or registration.base_url
+
+
+class ServiceState(Protocol):
+    """Anything carrying a registration's two state columns.
+
+    Like :class:`BrowserAddressed`, satisfied by both the row and the request
+    path's snapshot of it, so the rule below is written once and every channel
+    reads the same answer.
+    """
+
+    enabled: bool
+    status: str
+
+
+def is_live(registration: ServiceState) -> bool:
+    """Whether anything may flow through this app right now.
+
+    Two conditions, and both are the operator's: the kill switch is on, and the
+    last verification concluded that the service answering is the one this
+    deployment registered. A row that has never handshaken is ``unverified`` and
+    is not live — there is no confirmed manifest behind it to have declared
+    anything.
+    """
+    return registration.enabled and registration.status == AppServiceStatus.OK

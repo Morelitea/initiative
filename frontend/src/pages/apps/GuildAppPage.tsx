@@ -9,9 +9,11 @@
  * 2. The token is delivered by `postMessage` to the iframe's own origin, never
  *    in the URL, so it stays out of history, referrers and proxy logs.
  * 3. Inbound messages are ignored unless `event.origin` is one the registration
- *    listed.
+ *    listed and `event.source` is the frame this page mounted.
  * 4. The token is one-shot, so a reloading embed asks again and gets a fresh
  *    one rather than being stuck until the page is reloaded.
+ * 5. The frame is granted the browser features the surface's manifest declared,
+ *    and no others.
  */
 
 import { Loader2 } from "lucide-react";
@@ -26,7 +28,7 @@ import type { GuildAppHandoff } from "@/api/generated/initiativeAPI.schemas";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildAppDetail } from "@/hooks/useGuildAppDetail";
-import { appEmbeds, type SurfaceViewer } from "@/lib/appSurfaces";
+import { appEmbeds, embedAllow, type SurfaceViewer } from "@/lib/appSurfaces";
 import { cn } from "@/lib/utils";
 import { localized } from "@/lib/widgets/widgetMeta";
 
@@ -164,12 +166,15 @@ export function GuildAppPage({ appId, initiativeId, viewer }: GuildAppPageProps)
 
     const onMessage = (event: MessageEvent) => {
       if (!allowed.has(event.origin)) return;
+      // This page exchanges with one window: the frame it mounted. An
+      // announcement is matched to it by window rather than by origin, since
+      // an app may hold more than one window at the same address.
+      const target = iframeRef.current?.contentWindow;
+      if (!target || event.source !== target) return;
       const data = event.data;
       if (!data || typeof data !== "object" || typeof data.type !== "string") return;
 
       if (data.type === READY) {
-        const target = iframeRef.current?.contentWindow;
-        if (!target) return;
         if (!spentRef.current) {
           send(target, handoff);
           spentRef.current = true;
@@ -262,7 +267,9 @@ export function GuildAppPage({ appId, initiativeId, viewer }: GuildAppPageProps)
           // allow-popups-to-escape-sandbox.
           sandbox="allow-scripts allow-same-origin allow-forms allow-downloads"
           referrerPolicy="no-referrer"
-          allow="clipboard-read; clipboard-write"
+          // Built from what this surface's manifest declared; empty when it
+          // declared none.
+          allow={embedAllow(active)}
         />
       ) : (
         <div className="flex flex-1 items-center gap-2 p-4 text-muted-foreground text-sm">

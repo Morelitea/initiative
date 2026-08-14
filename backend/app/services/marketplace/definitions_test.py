@@ -29,6 +29,7 @@ from app.services.marketplace.definitions import (
     reserved_prefix_problem,
 )
 from app.services.marketplace.manifest_values import IDENTIFIER_CHARS
+from app.services.marketplace.service_apps import EMBED_CAPABILITIES
 
 pytestmark = pytest.mark.unit
 
@@ -542,6 +543,58 @@ class TestEmbeds:
                 "name": {"en": "Orders"},
             }
         ]
+
+
+class TestWhatASurfaceMayAskItsFrameFor:
+    """``capabilities`` is the whole of what a frame is granted.
+
+    A manifest names browser features from a closed vocabulary, and a surface
+    that names none is stored with no such key — which is what every definition
+    pinned before this existed says, and what their frames now get.
+    """
+
+    def _embed(self, **overrides) -> dict:
+        embed = {"id": "board", "path": "/embed", "name": _label("Board")}
+        embed.update(overrides)
+        return _normalize(features=["embeds"], embeds=[embed])["embeds"][0]
+
+    def test_a_surface_asking_for_nothing_stores_nothing(self):
+        assert "capabilities" not in self._embed()
+
+    def test_a_surface_may_ask_for_what_it_needs(self):
+        assert self._embed(capabilities=["clipboard-write"])["capabilities"] == [
+            "clipboard-write"
+        ]
+
+    def test_capabilities_are_stored_canonically(self):
+        """Sorted and de-duplicated, so re-publishing the same manifest produces
+        the same document."""
+        asked = ["fullscreen", "clipboard-write", "fullscreen"]
+        assert self._embed(capabilities=asked)["capabilities"] == [
+            "clipboard-write",
+            "fullscreen",
+        ]
+
+    def test_a_capability_outside_the_vocabulary_is_refused(self):
+        with pytest.raises(ListingDefinitionError, match="not a capability"):
+            self._embed(capabilities=["midi"])
+
+    @pytest.mark.parametrize(
+        "entry", [{"camera": True}, ["camera"], 7, None, True], ids=repr
+    )
+    def test_an_entry_that_is_not_a_name_is_refused(self, entry):
+        """A publisher gets the same validation error for any entry that is not
+        one of the names. Set membership is defined only for a hashable value,
+        so an entry is typed before it is looked up rather than after."""
+        with pytest.raises(ListingDefinitionError, match="not a capability"):
+            self._embed(capabilities=[entry])
+
+    def test_payment_is_not_namable(self):
+        """The platform takes payment on its own pages, so an embedded surface
+        has no reading of this to request."""
+        assert "payment" not in EMBED_CAPABILITIES
+        with pytest.raises(ListingDefinitionError, match="not a capability"):
+            self._embed(capabilities=["payment"])
 
 
 class TestWhereASurfaceRenders:

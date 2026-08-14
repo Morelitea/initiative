@@ -41,11 +41,13 @@ from app.models.platform.marketplace import (
 )
 from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.guild_app import GuildApp
+from app.models.tenant.guild_app_user_delegation import GuildAppUserDelegation
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
 from app.models.tenant.document import Document, DocumentType
 from app.models.platform.guild import Guild, GuildMembership, GuildRole
+from app.models.platform.guild_administration import GuildAdministration
 from app.services.marketplace import catalog as marketplace_catalog
 from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.services.tenant.dashboard_definition import (
@@ -174,20 +176,42 @@ async def create_guild(
     if creator is None:
         creator = await create_user(session, commit=commit)
 
-    defaults = {
-        "name": f"Test Guild {datetime.now(timezone.utc).timestamp()}",
-        "description": "A test guild for integration testing",
-        "created_by_user_id": creator.id,
+    # The operator-set fields live on ``guild_administration``, so overrides for
+    # them are routed to that row rather than to the guild. Tests keep passing
+    # them as if they were guild fields.
+    administration_defaults: dict[str, Any] = {
         # Test guilds are sign-in-enabled by default so the guild-auth surface is
         # exercisable without extra setup; production guilds default off (the
         # operator opts each guild in from the Guilds dashboard). Pass
         # guild_auth_enabled=False to exercise the disabled paths.
         "guild_auth_enabled": True,
     }
+    administration_data = {
+        **administration_defaults,
+        **{
+            field: overrides.pop(field)
+            for field in (
+                "max_storage_bytes",
+                "max_users",
+                "tier_name",
+                "guild_auth_enabled",
+            )
+            if field in overrides
+        },
+    }
+
+    defaults = {
+        "name": f"Test Guild {datetime.now(timezone.utc).timestamp()}",
+        "description": "A test guild for integration testing",
+        "created_by_user_id": creator.id,
+    }
 
     guild_data = {**defaults, **overrides}
     guild = Guild(**guild_data)
     session.add(guild)
+    await session.flush()
+    # Every guild has exactly one, created with it — same as the service path.
+    session.add(GuildAdministration(guild_id=guild.id, **administration_data))
 
     if commit:
         await session.commit()
@@ -199,6 +223,32 @@ async def create_guild(
         await provision_guild(guild.id)
 
     return guild
+
+
+async def guild_administration(
+    session: AsyncSession, guild: Guild, commit: bool = True, **fields: Any
+) -> GuildAdministration:
+    """Read (and optionally set) a guild's operator-set row.
+
+    The caps, plan label, and sign-in entitlement live on ``guild_administration``
+    rather than on the guild, so a test that used to poke ``guild.max_users``
+    goes through here instead. Called with no ``fields`` it is a plain read.
+    """
+    row = (
+        await session.exec(
+            select(GuildAdministration).where(GuildAdministration.guild_id == guild.id)
+        )
+    ).one()
+    for name, value in fields.items():
+        setattr(row, name, value)
+    if fields:
+        session.add(row)
+        if commit:
+            await session.commit()
+            await session.refresh(row)
+        else:
+            await session.flush()
+    return row
 
 
 async def create_guild_membership(
@@ -992,6 +1042,38 @@ async def create_app_service_registration(
     await session.commit()
     await session.refresh(row)
     invalidate_registrations()
+    return row
+
+
+async def create_app_delegation(
+    session: AsyncSession,
+    app: GuildApp,
+    user: User,
+    *,
+    can_read: bool = True,
+    can_write: bool = False,
+    **overrides: Any,
+) -> GuildAppUserDelegation:
+    """A member's standing authorization for one install to act as them.
+
+    Written straight into the guild's schema, so a suite that is about what a
+    delegated call may do does not have to walk the consent flow first.
+    """
+    await route_session_to_guild(session, app.guild_id)
+
+    row = GuildAppUserDelegation(
+        **{
+            "guild_id": app.guild_id,
+            "app_id": app.id,
+            "user_id": user.id,
+            "can_read": can_read,
+            "can_write": can_write,
+            **overrides,
+        }
+    )
+    session.add(row)
+    await session.commit()
+    await session.refresh(row)
     return row
 
 

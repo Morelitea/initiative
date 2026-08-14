@@ -29,7 +29,8 @@ from app.core.security import (
     SESSION_COOKIE_NAME,
     AutoDelegationVerificationError,
     UploadTokenError,
-    auto_delegation_configured,
+    delegation_possible,
+    delegation_token_kid,
     decode_session_token,
     verify_auto_delegation_token,
     verify_upload_token,
@@ -43,6 +44,7 @@ from app.models.platform.user import User, UserRole, UserStatus
 from app.schemas.platform.token import TokenPayload
 from app.services.platform import access_grants as access_grants_service
 from app.services.platform import api_keys as api_keys_service
+from app.services.marketplace import registration_lookup
 from app.services.platform import auto_delegation_blocklist
 from app.services.platform import guilds as guilds_service
 from app.services.platform import user_tokens
@@ -52,6 +54,25 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl=f"{API_V1_STR}/auth/token", auto_error=False
 )
+
+
+_SAFE_HTTP_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+#: Which kind of credential authenticated a request, recorded on
+#: ``request.state.credential``. Most endpoints do not care — a person acting
+#: through a script is still that person. It matters where the *act* is granting
+#: something authority the credential itself carries, because there the
+#: credential is a party to the decision rather than a way of transporting it.
+CREDENTIAL_SESSION = "session"
+CREDENTIAL_API_KEY = "api_key"
+CREDENTIAL_DEVICE_TOKEN = "device_token"
+CREDENTIAL_DELEGATION = "delegation"
+
+#: The credentials that are somebody signing in, as opposed to something acting
+#: for them in their absence. The native app trades an email and password for a
+#: device token and then uses it for everything, so it belongs here beside the
+#: web session — the person is just as present either way.
+FIRST_PARTY_CREDENTIALS = frozenset({CREDENTIAL_SESSION, CREDENTIAL_DEVICE_TOKEN})
 
 
 async def _authenticate_device_token(
@@ -94,15 +115,38 @@ async def _authenticate_auto_delegation(
     the user's memberships and must agree with the ``/g/{guild_id}`` path, so an
     auto workflow always acts in the guild its token was issued for.
     """
-    if not auto_delegation_configured():
-        return None  # delegation disabled — let other auth paths run
+    if not delegation_possible():
+        return None  # no app platform here — let other auth paths run
 
-    try:
-        claims = verify_auto_delegation_token(token)
-    except AutoDelegationVerificationError:
-        # Could be a session JWT or API key arriving on the same header.
-        # Returning None lets the caller try those instead of failing.
+    # Which app signed this decides which keys may verify it. The token names a
+    # `kid`, and the registrations that published it must be enabled and hold
+    # the `delegation` grant, so an operator ends an app's ability to act with
+    # an edit rather than a key rotation. Resolving nothing ends the attempt:
+    # there is no other key this token could be held against.
+    candidates = await registration_lookup.delegation_keys_for(
+        delegation_token_kid(token) or ""
+    )
+
+    # One candidate at a time, so the app this call is attributed to is the one
+    # whose key actually verified. Two apps may publish the same `kid` — it is
+    # an opaque label each picks — and everything downstream (which install must
+    # exist, which app acted) has to follow the signature, not the order.
+    claims = None
+    signer = None
+    for candidate in candidates:
+        try:
+            claims = verify_auto_delegation_token(token, keys=[candidate.key])
+        except AutoDelegationVerificationError:
+            # Could also be a session JWT or API key arriving on the same
+            # header; falling through lets the caller try those.
+            continue
+        signer = candidate
+        break
+
+    if claims is None or signer is None:
         return None
+
+    request.state.delegating_app = signer.registration.public_id
 
     # Replay guard: a delegation JWT is one-shot. Even though the JWT is
     # technically valid for 15 minutes, a captured token must not be
@@ -119,6 +163,23 @@ async def _authenticate_auto_delegation(
         # The user the token names doesn't exist or has been deactivated
         # since the token was minted. Auto can't impersonate non-active
         # accounts — workflows die when their owner leaves, by design.
+        return None
+
+    # Identity settled, authorization next. Two parties have to have said yes:
+    # the guild installed the app, and this member authorized it to carry their
+    # name — to the depth this call needs. Checked against the token's own
+    # claims rather than the path, so it holds for every route a delegated call
+    # can reach, including the cross-guild `/me/*` views that have no path
+    # guild.
+    #
+    # The read/write split follows the request method, the same line
+    # `_enforce_api_key_scope` draws for a read-only PAT.
+    if not await registration_lookup.delegation_allowed(
+        claims.guild_id,
+        signer.registration.public_id,
+        claims.user_id,
+        need_write=request.method not in _SAFE_HTTP_METHODS,
+    ):
         return None
 
     # Burn the jti now. Two requests racing past the pre-flight check
@@ -151,9 +212,6 @@ def _delegation_exp_from_jwt(token: str) -> datetime:
     return datetime.fromtimestamp(int(payload["exp"]), tz=timezone.utc)
 
 
-_SAFE_HTTP_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
-
-
 def _enforce_api_key_scope(request: Request, api_key: UserApiKey) -> None:
     """Apply a scoped PAT's restrictions at authentication time.
 
@@ -181,6 +239,10 @@ async def get_current_user(
     # Start from the fail-closed empty satisfied-provider set; only the session
     # JWT branch below records a real one (see app.core.auth_context).
     set_satisfied_providers(None)
+    # Which kind of credential this turns out to be, for the few endpoints that
+    # care (see `require_first_party_session`). Set before any branch can
+    # return, so an unrecognized path reads as something other than a session.
+    request.state.credential = None
 
     # Check for Authorization header - could be Bearer, DeviceToken, or API key
     auth_header = request.headers.get("Authorization", "")
@@ -190,6 +252,7 @@ async def get_current_user(
         device_token = auth_header[12:]  # len("DeviceToken ") = 12
         user = await _authenticate_device_token(session, device_token)
         if user:
+            request.state.credential = CREDENTIAL_DEVICE_TOKEN
             return user
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -211,6 +274,7 @@ async def get_current_user(
     if api_auth:
         user, api_key = api_auth
         _enforce_api_key_scope(request, api_key)
+        request.state.credential = CREDENTIAL_API_KEY
         return user
 
     # Try delegation JWT from initiative-auto (RS256, distinct audience).
@@ -219,6 +283,7 @@ async def get_current_user(
     # next branch.
     user = await _authenticate_auto_delegation(request, session, token)
     if user:
+        request.state.credential = CREDENTIAL_DELEGATION
         return user
 
     # Try JWT authentication. Any PyJWTError (expired signature, bad sig,
@@ -259,7 +324,34 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail=AuthMessages.INVALID_TOKEN
         )
+    request.state.credential = CREDENTIAL_SESSION
     return user
+
+
+def require_first_party_session(request: Request) -> str:
+    """Refuse anything but the person's own sign-in, and report which kind.
+
+    For the handful of actions that hand out authority rather than exercise it.
+    Running unattended is the whole point of the credentials this excludes — a
+    workflow acts at three in the morning, a script runs on a timer, and that is
+    the feature. What they cannot do is set their own bounds: a grant is what
+    says how far a standing credential reaches, so it is made by the person, in
+    a session of their own, rather than by the thing being granted.
+
+    Two credentials qualify, because both are somebody signing in: a web session
+    and a device token, which is what the native app exchanges an email and
+    password for and then uses for everything after.
+
+    Returns the credential kind, which is what a grant records as the factor it
+    was confirmed by.
+    """
+    credential = getattr(request.state, "credential", None)
+    if credential not in FIRST_PARTY_CREDENTIALS:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=AuthMessages.SESSION_REQUIRED,
+        )
+    return credential
 
 
 async def get_current_user_optional(
@@ -629,7 +721,7 @@ async def require_auto_delegate(
     token-guild vs path-guild comparison is also made in
     ``get_guild_membership``; it is repeated here so the gate holds on its own.
     """
-    if not auto_delegation_configured():
+    if not await registration_lookup.any_delegate_registered():
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=WebhookSubscriptionMessages.DELEGATE_NOT_CONFIGURED,

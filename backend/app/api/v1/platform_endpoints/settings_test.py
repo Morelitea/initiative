@@ -19,6 +19,7 @@ from app.models.platform.access_grant import AccessLevel
 from app.models.platform.user import UserRole
 from app.services import email as email_service
 from app.testing import (
+    guild_administration,
     create_guild,
     create_guild_membership,
     create_initiative,
@@ -591,8 +592,8 @@ async def test_guild_auth_enabled_is_operator_only(
     # The guild-admin schema ignores unknown fields; the flag stays off.
     assert resp.status_code == 200, resp.text
     session.expire_all()
-    refreshed = await session.get(Guild, guild_id)
-    assert refreshed.guild_auth_enabled is False
+    guild = await session.get(Guild, guild_id)
+    assert (await guild_administration(session, guild)).guild_auth_enabled is False
 
 
 @pytest.mark.integration
@@ -782,7 +783,17 @@ async def test_raising_cap_reopens_joins(
         json={"code": invite.code},
     )
     assert accepted.status_code == 200
-    assert accepted.json()["max_users"] == 5
+    # The cap itself is an admin-only field, and the invitee joins as a plain
+    # member, so their own payload withholds it (``_serialize_guild``). What
+    # proves the raise landed is the join that was refused a moment ago.
+    assert accepted.json()["max_users"] is None
+    assert accepted.json()["member_count"] == 2
+
+    # And it reads back as 5 for somebody entitled to see it.
+    listed = await client.get("/api/v1/settings/guilds", headers=headers)
+    assert listed.status_code == 200
+    rows = {row["id"]: row for row in listed.json()}
+    assert rows[guild.id]["max_users"] == 5
 
 
 @pytest.mark.integration
@@ -1202,12 +1213,10 @@ def _configure_billing(monkeypatch):
 
 @pytest.mark.integration
 async def test_guild_list_exposes_tier_name(client: AsyncClient, session: AsyncSession):
-    """The Guilds tab reads the plan label verbatim off the guild row."""
+    """The Guilds tab reads the plan label verbatim off the administration row."""
     owner = await create_user(session, email="owner@example.com", role=UserRole.owner)
     guild = await create_guild(session)
-    guild.tier_name = "Bespoke Plan"
-    session.add(guild)
-    await session.commit()
+    await guild_administration(session, guild, tier_name="Bespoke Plan")
 
     resp = await client.get("/api/v1/settings/guilds", headers=get_auth_headers(owner))
     assert resp.status_code == 200

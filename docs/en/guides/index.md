@@ -4,7 +4,7 @@ icon: lucide/book-open
 
 # Using Initiative
 
-These are the everyday how-to guides — the things you'll actually do in Initiative, explained step by step. Dip in wherever you need; you don't have to read them in order.
+These are the everyday how-to guides — the things you'll actually do in Initiative, explained step by step. Dip in wherever you need; you don't have to read them in order, and you don't need any of them to get started.
 
 If you're not sure how the pieces fit together yet, start with [How Initiative is organized](../concepts/index.md) and come back here.
 
@@ -30,21 +30,27 @@ If you're not sure how the pieces fit together yet, start with [How Initiative i
 
 -   :material-view-dashboard-outline: __Task views__
 
-    Table, Kanban, Calendar, and Timeline — pick the view that fits.
+    Table, Kanban, and Calendar — pick the view that fits.
 
     [:octicons-arrow-right-24: Task views](task-views.md)
 
 -   :material-file-document-edit-outline: __Documents__
 
-    Write together in real time, upload files, and leave comments.
+    Text, spreadsheets, and whiteboards — written together in real time.
 
     [:octicons-arrow-right-24: Documents](documents.md)
 
 -   :material-toolbox-outline: __Tools__
 
-    The calendar, queues, and counters for groups that need them.
+    The calendar, queues, counters, and dashboards, for when you need them.
 
     [:octicons-arrow-right-24: Tools](tools.md)
+
+-   :material-storefront-outline: __Apps & the marketplace__
+
+    Add ready-made dashboards and apps built by other groups.
+
+    [:octicons-arrow-right-24: Apps & the marketplace](apps-and-marketplace.md)
 
 -   :material-tag-multiple-outline: __Tags__
 

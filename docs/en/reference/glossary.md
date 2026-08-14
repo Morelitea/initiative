@@ -20,7 +20,7 @@ The starter initiative every new guild comes with, so there's always somewhere t
 
 ### Project
 
-A **board for tracking work**, made of tasks. It can be viewed as a Table, Kanban board, Calendar, or Timeline. See [Projects & tasks](../guides/projects-and-tasks.md).
+A **board for tracking work**, made of tasks. It can be viewed as a Table, Kanban board, or Calendar. See [Projects & tasks](../guides/projects-and-tasks.md).
 
 ### Task
 
@@ -52,15 +52,35 @@ A **label** you attach to tasks, projects, documents, and events to group and fi
 
 ### Tools
 
-The optional extras inside an initiative: the **calendar/events**, **queues**, and **counters**. See [Tools](../guides/tools.md).
+The optional extras inside an initiative: the **calendar/events**, **queues**, **counters**, and **dashboards**. See [Tools](../guides/tools.md).
 
 ### Queue
 
-A tool for tracking **whose turn it is** — useful for games, rotations, and roster orders.
+A tool for tracking **whose turn it is** — useful for rotations, rosters, and running orders.
 
 ### Counter
 
-A tool for tracking a **number that changes** (a score, health, a budget), bundled into **counter groups**.
+A tool for tracking a **number that changes** (a tally, a budget, a score), bundled into **counter groups**.
+
+### Dashboard
+
+A tool that puts charts, single numbers, and timelines on **one screen**, drawn from your own data. Dashboards only display — nothing can be edited from one. See [Tools](../guides/tools.md#dashboards).
+
+### Marketplace
+
+The catalog of ready-made **dashboards** and **apps** you can add to your workspace. It holds what ships with Initiative plus what your platform owner has added and approved. See [Apps & the marketplace](../guides/apps-and-marketplace.md).
+
+### App
+
+Something added from the marketplace that serves the **whole guild** rather than one initiative. Only guild admins can add or remove one. See [Apps & the marketplace](../guides/apps-and-marketplace.md).
+
+### Widget
+
+A single tile on a dashboard. Widgets from the marketplace run in an isolated sandbox and can only return something to draw.
+
+### Listing
+
+One entry in the marketplace — a dashboard or an app, with its name, description, publisher, and version.
 
 ### Role (initiative role)
 

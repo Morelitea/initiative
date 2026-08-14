@@ -9,7 +9,7 @@ Initiative's marketplace ships with a set of ready-made dashboards and apps. It'
 Nothing about this needs a fork, a code change, or a new build of Initiative. If you've designed a dashboard your group keeps rebuilding by hand, or someone has published a listing file you'd like to run, this is how it gets in.
 
 !!! info "Where the trust comes from"
-    Listings added this way are shown as **added by your administrator** — because that's exactly what happened. You control the directory, so a file being in it *is* your decision to publish it. Listings that ship with Initiative are shown as from Initiative, and there's no way for a listing you add to claim that badge (see [Reserved names](#names-you-cant-use)).
+    You control the directory, so a file being in it *is* your decision to publish it. Every listing is shown with the publisher named in its own file, wherever it appears — on the card, on its page, and in the dialog where someone adds it — so the question of who made it is answered at the moment of the decision. Listings that ship with Initiative are credited to Initiative, and a listing you add can't claim that credit (see [Reserved names](#names-you-cant-use)).
 
 ## Turning it on
 
@@ -180,4 +180,5 @@ Work down this list — the scan result above answers most of it directly.
 
 - [Configuration](configuration.md) — every setting, including `MARKETPLACE_EXTRA_CATALOG_DIR`.
 - [Platform roles](platform-roles.md) — who may trigger a rescan.
+- [Apps & the marketplace](../guides/apps-and-marketplace.md) — how your listings look to the people installing them.
 - [Tools](../guides/tools.md) — what a dashboard is, from a member's side.

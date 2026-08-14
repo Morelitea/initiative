@@ -30,6 +30,14 @@ async def test_get_primary_guild_creates_if_missing(session: AsyncSession):
     assert guild.id is not None
     assert guild.name == "Primary Guild"
     assert guild.description == "Default guild"
+    # The bootstrap seed is a guild-creation path like any other, so it owes the
+    # same companion row: without it the operator dashboard has no caps to show
+    # and get_administration raises for the one guild a fresh install has.
+    administration = await guild_service.get_administration(session, guild_id=guild.id)
+    assert administration.max_storage_bytes is None
+    assert administration.max_users is None
+    assert administration.tier_name is None
+    assert administration.guild_auth_enabled is False
 
 
 @pytest.mark.unit
@@ -376,7 +384,9 @@ async def test_list_memberships(session: AsyncSession):
     memberships = await guild_service.list_memberships(session, user_id=user.id)
 
     assert len(memberships) == 2
-    guild_names = {guild.name for guild, _membership, _retention, _count in memberships}
+    guild_names = {
+        guild.name for guild, _membership, _retention, _count, _admin in memberships
+    }
     assert "Guild 1" in guild_names
     assert "Guild 2" in guild_names
 
@@ -403,7 +413,9 @@ async def test_reorder_memberships(session: AsyncSession):
 
     # Verify order
     memberships = await guild_service.list_memberships(session, user_id=user.id)
-    ordered_ids = [guild.id for guild, _membership, _retention, _count in memberships]
+    ordered_ids = [
+        guild.id for guild, _membership, _retention, _count, _admin in memberships
+    ]
 
     assert ordered_ids == [guild3.id, guild1.id, guild2.id]
 
@@ -779,7 +791,8 @@ async def test_list_memberships_reads_retention_per_guild(session: AsyncSession)
 
     memberships = await guild_service.list_memberships(session, user_id=user.id)
     by_guild = {
-        guild.id: retention for guild, _membership, retention, _count in memberships
+        guild.id: retention
+        for guild, _membership, retention, _count, _admin in memberships
     }
 
     assert by_guild[guild_30.id] == 30  # read from the guild's own schema
@@ -803,7 +816,9 @@ async def test_list_memberships_includes_member_count(session: AsyncSession):
     await create_guild_membership(session, user=user, guild=solo)
 
     memberships = await guild_service.list_memberships(session, user_id=user.id)
-    counts = {guild.id: count for guild, _membership, _retention, count in memberships}
+    counts = {
+        guild.id: count for guild, _membership, _retention, count, _admin in memberships
+    }
 
     assert counts[shared.id] == 2
     assert counts[solo.id] == 1

@@ -65,6 +65,10 @@ SHARED_TABLES: frozenset[str] = frozenset(
         "user_view_preferences",  # personal UI state (filters/sort/view-mode)
         # Tenancy roster — must be readable *before* a request is routed
         "guilds",
+        # The operator-set half of a guild (caps / plan label / sign-in
+        # entitlement), split off ``guilds`` so identity and administration
+        # carry different grants. Shared, like the guild row it hangs off.
+        "guild_administration",
         "guild_memberships",
         # Consumed pre-membership / pre-routing
         "guild_invites",  # looked up by token before the user is a member
@@ -160,6 +164,12 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # guild-governed access, not private property). The ciphertext is never
         # returned by the API to anyone, admin included.
         "guild_app_user_connections",
+        # A member's authorization for an installed app to act as them. Same
+        # shape and same reasons as the connections beside it: no FK to any
+        # initiative (an app is guild-wide), one owner per row, and guild-
+        # governed access rather than private property — so own_row_* policies,
+        # owner OR guild admin.
+        "guild_app_user_delegations",
     }
 )
 
@@ -176,6 +186,7 @@ OWN_ROW_TABLES: dict[str, str] = {
     "guild_ai_member_keys": "user_id",
     "guild_ai_member_prefs": "user_id",
     "guild_app_user_connections": "user_id",
+    "guild_app_user_delegations": "user_id",
 }
 
 # --- Guild-scoped (derived) -------------------------------------------------

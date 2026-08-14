@@ -26,7 +26,20 @@ export interface AppEmbed {
   scopes?: string[];
   visibility?: string;
   name?: LocalizedText;
+  /** Browser features the surface asked its frame for, from the closed
+   *  vocabulary the manifest validator checks. Absent means it asked for none. */
+  capabilities?: string[];
 }
+
+/**
+ * The `allow` attribute for a surface's frame.
+ *
+ * A frame is granted what its manifest named and nothing else, so a surface
+ * that named nothing gets an empty attribute. Each entry defaults to the
+ * frame's own origin, which is the app's.
+ */
+export const embedAllow = (embed: Pick<AppEmbed, "capabilities"> | null | undefined): string =>
+  (embed?.capabilities ?? []).join("; ");
 
 /** The places a surface can be reached from. */
 export type SurfaceScope = "guild" | "initiative";

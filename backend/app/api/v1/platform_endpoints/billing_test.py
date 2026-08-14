@@ -39,6 +39,7 @@ from app.services.tenant.attachments import (
 )
 from app.testing.schema_harness import route_session_to_guild
 from app.testing import (
+    guild_administration,
     create_guild,
     create_upload,
     create_user,
@@ -304,10 +305,11 @@ async def test_apply_guild_tier_happy_path(client: AsyncClient, session: AsyncSe
     assert data["status"] == "active"
     assert data["member_count"] == 0  # the factory creates no membership rows
 
-    await session.refresh(guild)
-    assert guild.tier_name == "gold"
-    assert guild.max_storage_bytes == 50 * 1024**3
-    assert guild.max_users == 25
+    administration = await guild_administration(session, guild)
+    await session.refresh(administration)
+    assert administration.tier_name == "gold"
+    assert administration.max_storage_bytes == 50 * 1024**3
+    assert administration.max_users == 25
 
     event = (
         await session.exec(
@@ -341,8 +343,9 @@ async def test_replayed_event_id_is_noop(client: AsyncClient, session: AsyncSess
     assert data["applied"] is False
     assert data["tier_name"] == "gold"  # untouched by the replay
 
-    await session.refresh(guild)
-    assert guild.tier_name == "gold"
+    administration = await guild_administration(session, guild)
+    await session.refresh(administration)
+    assert administration.tier_name == "gold"
 
 
 async def test_sentinel_semantics_omit_vs_null(
@@ -499,8 +502,9 @@ async def test_support_source_cannot_lower_storage(
     assert lowered.status_code == 422
     assert lowered.json()["detail"] == "BILLING_SUPPORT_CANNOT_LOWER"
 
-    await session.refresh(guild)
-    assert guild.max_storage_bytes == 4096  # untouched
+    administration = await guild_administration(session, guild)
+    await session.refresh(administration)
+    assert administration.max_storage_bytes == 4096  # untouched
 
     # Equal-to-current is an idempotent re-apply, and the refused event id
     # above was NOT consumed — reusing it now succeeds.

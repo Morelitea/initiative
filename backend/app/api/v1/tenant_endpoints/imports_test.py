@@ -13,6 +13,7 @@ from app.models.tenant.import_job import ImportJob, ImportJobStatus
 from app.services.import_engine import worker as import_worker
 from app.services.storage import get_guild_storage
 from app.testing.factories import (
+    guild_administration,
     create_calendar_event,
     create_counter_group,
     create_document,
@@ -1124,9 +1125,7 @@ async def test_backup_quota_exceeded_fails_job(
 
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     guild = (await session.exec(select(Guild).where(Guild.id == a.guild.id))).one()
-    guild.max_storage_bytes = 1
-    session.add(guild)
-    await session.commit()
+    await guild_administration(session, guild, max_storage_bytes=1)
 
     manifest = _minimal_manifest(
         assets=[
@@ -1319,9 +1318,7 @@ async def test_backup_quota_uses_zip_sizes_not_manifest_claims(
 
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     guild = (await session.exec(select(Guild).where(Guild.id == a.guild.id))).one()
-    guild.max_storage_bytes = 10_000
-    session.add(guild)
-    await session.commit()
+    await guild_administration(session, guild, max_storage_bytes=10_000)
 
     big_blob = b"x" * 50_000  # actual bytes far over the quota
     manifest = _minimal_manifest(

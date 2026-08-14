@@ -25,6 +25,10 @@ from sqlalchemy.exc import DBAPIError
 from sqlmodel import select
 
 from app.core import config as config_module
+from app.testing.delegation import (
+    delegation_verification_keys,
+    register_delegate,
+)
 from app.core.security import (
     AutoDelegationVerificationError,
     verify_auto_delegation_token,
@@ -103,8 +107,11 @@ async def test_purged_jti_still_unreplayable(session, role_session, monkeypatch)
     """Pruning an expired jti never re-opens a replay window: the token's own
     exp refuses it at verification, before the blocklist is consulted."""
     monkeypatch.setattr(
-        config_module.settings, "AUTO_DELEGATION_PUBLIC_KEY_PEM", _PUBLIC_PEM
+        config_module.settings,
+        "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM",
+        "-----BEGIN PRIVATE KEY-----",
     )
+    await register_delegate(session)
     jti = "deleg-purged"
     token = _mint(jti=jti, expires_in=-30)  # exp already in the past
 
@@ -122,4 +129,4 @@ async def test_purged_jti_still_unreplayable(session, role_session, monkeypatch)
 
     # Blocklist row gone, but the token's exp still refuses the replay.
     with pytest.raises(AutoDelegationVerificationError):
-        verify_auto_delegation_token(token)
+        verify_auto_delegation_token(token, keys=list(delegation_verification_keys()))

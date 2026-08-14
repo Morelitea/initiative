@@ -378,6 +378,25 @@ async def insufficient_privilege_handler(
 # Computed once — Settings are fixed for the process lifetime (pentest MED-001).
 _CONTENT_SECURITY_POLICY = settings.content_security_policy
 
+# The widget sandbox worker, and only it, is served with a policy that admits
+# WebAssembly. Vite emits worker bundles into `assets/workers/` with a content
+# hash (see `worker.rolldownOptions` in frontend/vite.config.ts), so the match is
+# by directory + stem; the literal is pinned by tests on both sides.
+_WIDGET_SANDBOX_ASSET_PREFIX = "assets/workers/sandbox.worker-"
+_WIDGET_SANDBOX_CSP = settings.widget_sandbox_content_security_policy
+
+
+def _is_widget_sandbox_asset(path: str) -> bool:
+    """True for the one built file that carries the widget sandbox policy.
+
+    The hash varies per build, so the tail is open — but only as far as the one
+    filename: anything nested below that name is an ordinary asset.
+    """
+    if not path.startswith(_WIDGET_SANDBOX_ASSET_PREFIX) or not path.endswith(".js"):
+        return False
+    return "/" not in path[len(_WIDGET_SANDBOX_ASSET_PREFIX) :]
+
+
 # Emit HSTS only when the public origin is HTTPS (pentest SEC-16): the header is
 # inert over plain HTTP and pinning a dev http:// origin to HTTPS would break it.
 # Two years + includeSubDomains is the preload-eligible baseline; computed once
@@ -677,10 +696,12 @@ async def serve_spa(request: Request, full_path: str) -> FileResponse:
     static_file = _resolve_static_file(full_path) if full_path else None
     if static_file:
         if full_path.startswith("assets/"):
-            return FileResponse(
-                static_file,
-                headers={"Cache-Control": "public, max-age=31536000, immutable"},
-            )
+            headers = {"Cache-Control": "public, max-age=31536000, immutable"}
+            # The middleware sets the app-wide policy with setdefault, so this
+            # per-asset one wins where it applies.
+            if _is_widget_sandbox_asset(full_path):
+                headers["Content-Security-Policy"] = _WIDGET_SANDBOX_CSP
+            return FileResponse(static_file, headers=headers)
         return FileResponse(
             static_file,
             headers={"Cache-Control": "public, max-age=3600"},

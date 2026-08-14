@@ -1,6 +1,6 @@
 # Initiative
 
-A self-hosted project management platform designed for friend groups, gaming communities, and small teams who want an intuitive way to organize projects, share documents, and track tasks — without the complexity of enterprise tools.
+Collaborative project management for people who never wanted to become project managers — small groups, small businesses, event coordinators, clubs, families, and anyone else who needs to organize work with other people.
 
 > **Pre-release software** — this project hasn't reached v1.0.0 yet. The API may change between minor releases.
 
@@ -10,52 +10,59 @@ A self-hosted project management platform designed for friend groups, gaming com
 
 ## What is Initiative?
 
-Initiative is project management for people who don't want to think about project management. It's built for groups that need to coordinate work, share information, and stay on the same page — whether you're running a tabletop campaign, organizing a community event, or managing a small team.
+Most project management software assumes you've already learned project management. Initiative doesn't. You can be productive on day one knowing exactly one thing: a **board with tasks on it**. Everything else waits until you need it.
 
-- **Guilds** keep each group's data completely separate — run multiple communities from one instance
-- **Initiatives** organize related projects and documents so nothing gets lost
-- **Drag-and-drop boards** make task tracking visual and immediate
-- **Collaborative documents** let your team write and edit together in real time
-- **Simple sharing** — control who sees what without needing a degree in access management
-- **Self-hosted with Docker** — your data stays on your hardware
+That matters because the people doing the coordinating usually aren't specialists. They're the owner of a five-person business who can't justify hiring a coordinator. The person running the neighborhood fundraiser. The parent keeping a household's plans in one place. The volunteer who ended up with the spreadsheet.
+
+Initiative is built on three ideas:
+
+- **It grows with you.** Start with one board. Add a calendar when you start scheduling, a document when you start writing things down, a dashboard when you start reporting. Nothing you haven't asked for gets in your way.
+- **You decide exactly who sees what.** Each group's data sits in its own database schema, and the layers inside it are enforced by the database itself — not just hidden in the interface. Someone who isn't part of an effort doesn't see a locked door; they see nothing at all.
+- **The tools come from the community.** The exact thing your group needs usually already exists, because someone with the same problem built it. Dashboards and apps are installed from a marketplace, not commissioned from a developer — and whoever runs your Initiative decides which ones it offers.
+
+And it's built in the open — publicly, with contributions and feedback shaping what gets made.
 
 ---
 
 ## Key Features
 
-### Guilds
+### Guilds — your group's own space
 
-Each guild is a completely separate workspace — your D&D group and your work team never see each other's data, even on the same server.
+A **guild** is one organization's space: a business, a club, a committee, a household. Everything that group works on lives inside it, and guilds never see each other — even on the same server.
 
-- **True data isolation**: PostgreSQL Row Level Security enforces guild boundaries at the database layer
-- **Switch between guilds instantly**: Join multiple guilds and move between them with one click
-- **Invite links**: Share links with optional expiry dates and usage limits
-- **Controlled creation**: Optionally restrict guild creation for hosted deployments
+- **A structural boundary, not a filter**: every guild gets its **own PostgreSQL schema**, provisioned when the guild is created. A request is routed into one guild's schema and cannot address another's tables at all
+- **Layered inside that**: within the schema, Row Level Security enforces the initiative, role, and sharing layers on every statement — so the boundary between two efforts in the *same* guild is a database boundary too
+- **Belong to as many as you like**: your work team and your volunteer committee are two guilds, one click apart
+- **Invite links**: share a link with an optional expiry date and usage limit
+- **Controlled creation**: optionally restrict who can create guilds
 
 **Guild settings:**
 <img width="1905" height="1050" alt="Guild settings" src="https://github.com/user-attachments/assets/656b7d08-0a91-48be-868c-29f545a32165" />
 
-### Initiatives & Projects
+### Initiatives — one effort at a time
 
-Initiatives group related projects and documents together — think of them as folders for an entire effort (a campaign, an event, a product).
+An **initiative** gathers everything belonging to a single effort: a product launch, a spring event, a client, a season. Projects, documents, calendars, and dashboards all live inside one.
 
-- **Everything in one place**: Bundle projects, documents, and team members under a single initiative
-- **Automatic scoping**: Members only see initiatives they belong to
-- **Custom project boards**: Drag-and-drop Kanban boards with customizable task statuses
-- **Color-coded organization**: Visual distinction with initiative-specific colors
+This is also the privacy boundary that matters most day to day. **If someone isn't in an initiative, its contents don't exist for them** — not greyed out, not "access denied," simply not there.
+
+- **Everything for one effort in one place**: projects, documents, tools, and the people involved
+- **Add only who belongs**: the summer event team never sees the spring event's budget
+- **Custom boards**: drag-and-drop Kanban with statuses you define
+- **Color-coded**: tell your efforts apart at a glance
 
 **Initiatives page:**
 <img width="1905" height="1049" alt="Initiatives page" src="https://github.com/user-attachments/assets/3ea4f727-4f84-4e75-b860-a5bb17cb9e49" />
 
-### Simple Sharing & Permissions
+### Sharing that reads like a sentence
 
-Sharing is straightforward: add people to a guild, add them to an initiative, then choose who can see or edit each project and document. No complicated admin panels required.
+Add someone to the guild. Add them to the initiative. Give them a role. Share the specific things they need. Each step narrows the last, and you can stop at any of them.
 
-- **Initiative roles**: Create roles like "player" or "DM" with different feature access
-- **Project & document sharing**: Set owner, write, or read access per user or per role
-- **Role-based grants**: Share with an entire role at once instead of adding people one by one
+- **Initiative roles**: bundle permissions into roles that match how your group actually works — "Coordinator," "Volunteer," "Client"
+- **Per-item sharing**: give view, edit, or owner access on a single project or document
+- **Share with a role**: hand access to a whole role at once instead of one person at a time
+- **Bulk edits**: select several items in a list and change who can reach them in one step
 
-For details on how access control is enforced under the hood, see [SECURITY.md](SECURITY.md).
+For how these boundaries are enforced under the hood, see [SECURITY.md](SECURITY.md).
 
 **Initiative role permissions:**
 <img width="1920" height="1080" alt="Initiative role permissions" src="https://github.com/user-attachments/assets/5ee163da-207a-4f57-a95c-659f423eb688" />
@@ -63,15 +70,17 @@ For details on how access control is enforced under the hood, see [SECURITY.md](
 **Project/Document access control:**
 <img width="1920" height="1079" alt="Project DAC permissions" src="https://github.com/user-attachments/assets/135a733e-3a2b-4cbc-aa66-b1eaf6234d75" />
 
-### Rich Task Management
+### Tasks, seen the way you think
 
-- **Multiple views**: Table, Kanban, and Calendar with row virtualization for large datasets
-- **Priority levels**: Low, medium, high, and urgent with visual indicators
-- **Flexible scheduling**: Start dates, due dates, and recurring tasks
-- **Subtasks**: Break down complex work with completion tracking
-- **Multiple assignees**: Assign tasks to multiple team members
-- **Server-side pagination & sorting**: Multi-column sort with advanced filtering
-- **My Tasks dashboard**: Personal cross-guild view with date grouping and timezone support
+The same work, shown however makes sense to you — a list, a board, or a calendar. No one has to adopt someone else's way of looking at it.
+
+- **Multiple views**: Table, Kanban, and Calendar, with row virtualization for large datasets
+- **Priority levels**: low, medium, high, and urgent with visual indicators
+- **Flexible scheduling**: start dates, due dates, and recurring tasks
+- **Subtasks**: break down bigger work with completion tracking
+- **Multiple assignees**: several people on one task, each finishing their own part
+- **Server-side pagination & sorting**: multi-column sort with advanced filtering
+- **My Tasks**: your own work from every guild, in one place
 
 **Project Kanban view (Table, Kanban, and Calendar views supported):**
 <img width="1905" height="1050" alt="Project Kanban view" src="https://github.com/user-attachments/assets/26d169c7-0415-4ea8-b81d-bd1b8f9a0576" />
@@ -79,44 +88,66 @@ For details on how access control is enforced under the hood, see [SECURITY.md](
 **Task details:**
 <img width="1905" height="1050" alt="Task details" src="https://github.com/user-attachments/assets/cdea8e20-a157-48cb-b5bb-2fdd1f5d5228" />
 
-### Collaborative Documents
+### Documents you write together
 
-- **Rich text editing**: Full-featured editor with JSONB storage
-- **Live collaboration**: Real-time multi-user editing via WebSocket
-- **File documents**: Upload and manage PDFs, DOCX, and other file types with permission-gated downloads
-- **Document templates**: Create reusable templates for common workflows
-- **Threaded comments**: Discuss documents with nested comment threads
+- **Rich text editing**: full-featured editor with JSONB storage
+- **Spreadsheets**: formulas, number formats, frozen headers, CSV/XLSX import and export
+- **Whiteboards**: a free-form Excalidraw canvas for diagrams and visual planning, with live multiplayer cursors and PNG/SVG export
+- **Live collaboration**: real-time multi-user editing over WebSocket
+- **File documents**: upload PDFs, DOCX, and more, with permission-gated downloads
+- **Templates**: save a starting point and reuse it
+- **Threaded comments**: discuss in place, in nested threads
 
 **Document editor:**
 <img width="1905" height="1050" alt="Document editor" src="https://github.com/user-attachments/assets/b7118ed4-01c1-4ac5-b6b7-c1185455e2a2" />
 
+### Tools you add when you need them
+
+Each initiative can turn on extra tools — none of them are in your way until you ask for them:
+
+- **Calendar & events** — schedule things, invite people, collect RSVPs, send reminders
+- **Queues** — track whose turn it is, for rotations, rosters, and running orders
+- **Counters** — track numbers that go up and down: scores, tallies, budgets
+- **Dashboards** — a canvas of charts, numbers, and timelines built from your own data
+
+### A marketplace of ready-made tools
+
+The dashboards and apps your group needs are usually the ones another group already needed. Initiative ships a **marketplace**: browse a listing, add it to an initiative or your guild, rename it, and it's yours. Every listing shows who published it, and updates are opt-in.
+
+**Every marketplace is curated.** A deployment offers the listings that ship with Initiative, plus the ones its **platform owner has added and approved** — nothing appears in your marketplace that the person running your server didn't put there. If you self-host, that person is you.
+
+- **Dashboards** — add a ready-made reporting canvas to an initiative
+- **Apps** — add something the whole guild shares; only guild admins can install them
+- **Sandboxed** — marketplace widgets run in an isolated runtime with no access to your credentials or the page around them
+- **Curate your own** — point Initiative at a directory of listing files and those listings appear alongside the built-ins, with no fork and no rebuild. Anyone can write one; what reaches your marketplace is your call (see [Publishing your own listings](docs/en/admin/publishing-listings.md))
+
 ### Command Center
 
-Press `Cmd+K` / `Ctrl+K` to instantly navigate to projects, tasks, documents, and pages with fuzzy search. Available via sidebar shortcut or 3-finger tap on mobile.
+Press `Cmd+K` / `Ctrl+K` to jump to any project, task, document, or page with fuzzy search. Also available from the sidebar, or a 3-finger tap on mobile.
 
 ### Authentication
 
-- **Email & password** or **OpenID Connect (OIDC) SSO** — connect your existing identity provider
-- **OIDC claim-to-role mapping**: Automatically assign guild and initiative memberships from identity provider claims
-- **Encryption at rest** for sensitive data — see [SECURITY.md](SECURITY.md) for the full security architecture
+- **Email & password** or **OpenID Connect (OIDC) SSO** — connect the identity provider you already use
+- **OIDC claim-to-role mapping**: assign guild and initiative memberships automatically from provider claims
+- **Encryption at rest** for sensitive data — see [SECURITY.md](SECURITY.md) for the full architecture
 
 ### Notifications
 
 - **Real-time updates**: WebSocket-based live updates for collaborative work
-- **Per-channel preferences**: Independent email and mobile push toggles per notification category
-- **Overdue task digests**: Configurable email digests for overdue tasks
-- **Mobile push**: Firebase Cloud Messaging support for iOS and Android
+- **Per-channel preferences**: independent email and mobile push toggles per category
+- **Overdue task digests**: configurable email digests
+- **Mobile push**: Firebase Cloud Messaging for iOS and Android
 
 ### AI Integration
 
-- **Bring Your Own Key (BYOK)**: Configure API keys for OpenAI, Anthropic, Ollama, or OpenAI-compatible APIs
-- **Hierarchical settings**: Platform, guild, and user-level AI configuration with override controls
-- **AI-powered tasks**: Generate task descriptions, subtasks, and document summaries
+- **Bring Your Own Key (BYOK)**: configure keys for OpenAI, Anthropic, Ollama, or OpenAI-compatible APIs
+- **Hierarchical settings**: platform, guild, and user-level configuration with override controls
+- **AI-assisted work**: generate task descriptions, subtasks, and document summaries
 
 ### Internationalization
 
-- Full i18n support with 16 translation namespaces
-- English and Spanish locales included (community translations welcome)
+- Full i18n support with a namespace per feature area
+- English, Spanish, German, and French locales included (community translations welcome)
 - Locale-aware AI content generation
 
 ---
@@ -148,9 +179,9 @@ docker-compose up -d
 
 **First-time setup:**
 
-1. The first user to register becomes the platform admin
+1. The first user to register becomes the platform owner
 2. Configure SMTP in the admin panel to enable email notifications
-3. Create your first guild and start inviting team members
+3. Create your first guild and start inviting people
 
 See [Key Environment Variables](#key-environment-variables) for full configuration options.
 
@@ -179,6 +210,7 @@ Images support `linux/amd64` and `linux/arm64` architectures.
 | `DISABLE_GUILD_CREATION` | Restrict guild creation to super admin | `false` |
 | `ENABLE_PUBLIC_REGISTRATION` | Allow registration without invite link | `true` |
 | `ENABLE_MCP` | Mount the in-app MCP server at `/api/v1/mcp/` for AI assistants (see [MCP Server](#mcp-server)) | `false` |
+| `MARKETPLACE_EXTRA_CATALOG_DIR` | Directory of your own marketplace listing files (see [Publishing your own listings](docs/en/admin/publishing-listings.md)) | - |
 | `CAPTCHA_PROVIDER` | Captcha vendor for registration: `hcaptcha`, `turnstile`, or `recaptcha` (v2 only). Unset / unrecognised disables the gate | - |
 | `CAPTCHA_SITE_KEY` | Public key sent to the SPA to render the widget | - |
 | `CAPTCHA_SECRET_KEY` | Server-side key for the provider's siteverify endpoint | - |
@@ -269,32 +301,45 @@ The surface is curated and **default-deny** — only the following are exposed. 
 
 ---
 
+## How we build
+
+Initiative is developed in public. The issues, the pull requests, the design discussions, and the mistakes are all here in the open, and the roadmap moves in response to what people actually ask for.
+
+Two commitments shape the work:
+
+- **Nobody should need a course to use this.** If a feature can't be explained in a sentence to someone who has never used project management software, it isn't finished.
+- **People think differently, and the software should meet them there.** The same work can be read as a board, a table, a calendar, or a timeline. Keyboard navigation, screen-reader labels, light and dark themes, plain-language documentation, and full localization are part of building a feature, not a follow-up to it.
+
+Improvements to the [help site](docs/en/index.md) are as welcome as improvements to the code.
+
+---
+
 ## Roadmap
 
-### Current Status
-- Most core features are implemented and functional:
-  - AGPL container: frontend + storage
-  - Rich task management (Kanban, Calendar, Table)
-  - Collaborative documents with real-time editing
-  - Notifications and AI integrations
-  - Additional tooling menu for initaitive based features such as calender and queues
-  - Self-hosted via Docker, multi-guild support
+### Current status
 
-### Focus for Upcoming Iterations
-- **Iterate and polish** existing features:
-  - Debugging, UX refinements, accessibility
-  - Standardize testing accross the board for stability between releases
-  - CI/CD improvements
+Most core features are implemented and in use:
 
-- **New minor features / improvements**:
-  - Whiteboard document type for collaborative visual planning
-  - Additional templates for documents and workflows
-  - Improved API endpoints for integrations
+- Task management across Kanban, Table, and Calendar views
+- Collaborative documents — rich text, spreadsheets, and whiteboards — with real-time editing
+- Calendars, queues, counters, and dashboards
+- A curated marketplace of ready-made dashboards and apps
+- Notifications and BYOK AI integration
+- Self-hosted via Docker, with multi-guild support
 
-### Long-Term / Philosophy
-- Maintain the AGPL container as fully open-source
-- Automation visuals, storage, and frontend exist in the container; the execution logic runs in a private, paid cloud instance
-- Initiative is designed for small teams, communities, and personal learning projects
+### Focus for upcoming iterations
+
+- **Iterate and polish** — debugging, UX refinements, accessibility
+- **Stability** — standardized testing across the board, CI/CD improvements
+- **Build your own add-on apps** — a published template for building and hosting an app of your own, so a self-hoster can extend Initiative the same way we do
+- **A richer marketplace** — more listings, and apps that connect Initiative securely to the other tools your group already uses
+- **More templates** and improved API endpoints for integrations
+
+### Long-term
+
+- The app in this repository is the whole app, and stays AGPL-licensed.
+- Some add-on apps are built to run as hosted services rather than inside the container, and are distributed separately. The app template above is how you build your own on the same footing.
+- Initiative stays aimed at small groups, small businesses, and communities — not at enterprises with a dedicated PMO.
 
 ---
 
@@ -319,6 +364,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for full development setup, testing, code
 
 ## Documentation
 
+- **[Help site](docs/en/index.md)** — guides for everyone using Initiative, plus the administrator handbook
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — Development setup, testing, code style, submitting PRs
 - **[SECURITY.md](SECURITY.md)** — Security philosophy and vulnerability reporting
 - **[CHANGELOG.md](CHANGELOG.md)** — Release history

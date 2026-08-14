@@ -20,6 +20,7 @@ from app.core.security import (
 from app.db.schema_provisioning import deprovision_guild
 from app.db.session import get_admin_session, set_rls_context
 from app.models.platform.guild import GuildRole, GuildMembership, Guild, GuildStatus
+from app.models.platform.guild_administration import GuildAdministration
 from app.models.platform.user import User, UserStatus
 from app.schemas.platform.billing import BillingPortalHandoffResponse
 from app.schemas.platform.guild import (
@@ -51,6 +52,7 @@ from app.services.tenant import initiatives as initiatives_service
 from app.services import rls as rls_service
 from app.services.stream_authz import authority as stream_authority
 from app.services.platform import users as users_service
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
@@ -64,7 +66,31 @@ def _serialize_guild(
     membership: GuildMembership,
     retention_days: int | None = None,
     member_count: int = 0,
+    administration: GuildAdministration | None = None,
 ) -> GuildRead:
+    """Build one entry of the caller's own guild list.
+
+    ``GuildRead`` carries two kinds of information and this is the single seam
+    that decides who gets which:
+
+    - **Everyone in the guild** — the guild's identity (name, description,
+      icon), the caller's own membership (role, position), the roster size, and
+      ``content_read_only`` so the UI can drop write affordances.
+    - **Guild admins only** — the administration fields: the operator-set caps
+      and plan label, the trash retention window, the lifecycle status, and the
+      per-guild sign-in entitlement. Each backs an admin-only surface (the whole
+      guild settings section is admin-gated, as is ``/g/{id}/storage/usage``,
+      the panel's other half), so a regular member's payload leaves them
+      ``None``.
+
+    Most of the second group now arrives as ``administration`` — a separate row
+    the caller may read but no request path may write. Callers serving a member
+    pass ``None`` for it and never read the row at all.
+    """
+    is_admin = membership.role == GuildRole.admin
+    # Role decides, not the caller: passing the row for a member still serves a
+    # member's payload, so this stays the one place the split is made.
+    admin_row = administration if is_admin else None
     return GuildRead(
         id=guild.id,
         name=guild.name,
@@ -74,26 +100,24 @@ def _serialize_guild(
         updated_at=guild.updated_at,
         role=membership.role,
         position=membership.position,
-        retention_days=retention_days,
+        # Trash retention window — set from the admin-only trash settings tab.
+        retention_days=retention_days if is_admin else None,
         member_count=member_count,
-        max_storage_bytes=guild.max_storage_bytes,
-        max_users=guild.max_users,
+        # Operator-set caps, shown against usage on the admin settings page.
+        max_storage_bytes=admin_row.max_storage_bytes if admin_row else None,
+        max_users=admin_row.max_users if admin_row else None,
         # Display-only plan label (never an enforcement input); the SPA shows
         # it only when a billing portal is configured.
-        tier_name=guild.tier_name,
+        tier_name=admin_row.tier_name if admin_row else None,
         # Only guild admins learn the lifecycle status (for the settings-page
         # chip); members get None so a moderation hold isn't disclosed to them.
-        status=(
-            GuildStatus(guild.status) if membership.role == GuildRole.admin else None
-        ),
+        status=GuildStatus(guild.status) if is_admin else None,
         # Every member learns the *effect* of a read_only hold (their writes
         # already fail at the DB role level) so the UI can drop write
         # affordances — without disclosing the status itself.
         content_read_only=(guild.status == GuildStatus.read_only.value),
         # Admins only: lets their settings UI show/hide the Authentication tab.
-        guild_auth_enabled=(
-            guild.guild_auth_enabled if membership.role == GuildRole.admin else None
-        ),
+        guild_auth_enabled=admin_row.guild_auth_enabled if admin_row else None,
     )
 
 
@@ -146,13 +170,14 @@ async def list_guilds(
         session, user_id=current_user.id
     )
     payloads: List[GuildRead] = []
-    for guild, membership, retention_days, member_count in memberships:
+    for guild, membership, retention_days, member_count, administration in memberships:
         payloads.append(
             _serialize_guild(
                 guild,
                 membership,
                 retention_days=retention_days,
                 member_count=member_count,
+                administration=administration,
             )
         )
     return payloads
@@ -310,7 +335,15 @@ async def create_guild(
             detail=GuildMessages.GUILD_MEMBERSHIP_CREATE_FAILED,
         )
     member_count = await guilds_service.count_members(session, guild_id=guild.id)
-    return _serialize_guild(guild, membership, member_count=member_count)
+    # The creator is the new guild's admin, so their payload carries the
+    # administration row — freshly created with the guild, all defaults.
+    administration = await guilds_service.get_administration(session, guild_id=guild.id)
+    return _serialize_guild(
+        guild,
+        membership,
+        member_count=member_count,
+        administration=administration,
+    )
 
 
 @router.get("/{guild_id}/invites", response_model=List[GuildInviteRead])
@@ -357,11 +390,14 @@ async def update_guild(
     await session.commit()
     retention_days = await guilds_service.get_guild_retention_days(session, guild_id)
     member_count = await guilds_service.count_members(session, guild_id=guild_id)
+    # Only a guild admin reaches this endpoint, so the caps belong in the reply.
+    administration = await guilds_service.get_administration(session, guild_id=guild_id)
     return _serialize_guild(
         guild,
         membership,
         retention_days=retention_days,
         member_count=member_count,
+        administration=administration,
     )
 
 
@@ -427,8 +463,12 @@ async def _require_guild_auth_enabled(
     Like that gate, this bounds *management* only: turning the toggle back off
     never deletes providers, keeps existing members signing in through them, and
     leaves any existing sign-in requirement enforced (see the Guild model)."""
-    guild = await admin_session.get(Guild, guild_id)
-    if guild is None or not guild.guild_auth_enabled:
+    administration = (
+        await admin_session.exec(
+            select(GuildAdministration).where(GuildAdministration.guild_id == guild_id)
+        )
+    ).one_or_none()
+    if administration is None or not administration.guild_auth_enabled:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=GuildMessages.GUILD_AUTH_NOT_ENABLED,

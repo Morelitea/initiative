@@ -24,7 +24,7 @@ from typing import Callable
 
 from sqlmodel import SQLModel
 
-from app.core.security import auto_delegation_configured
+from app.core.security import delegation_possible
 from app.db.jti_blocklist import purge_expired_jtis
 from app.models.platform.app_service_nonce import AppServiceNonce
 from app.models.platform.auto_delegation_jti import AutoDelegationJti
@@ -50,7 +50,7 @@ class _Blocklist:
 # its janitor can never disagree about whether that peer exists here.
 _BLOCKLISTS: tuple[_Blocklist, ...] = (
     _Blocklist(BillingJti, billing_inbound_enabled, "billing"),
-    _Blocklist(AutoDelegationJti, auto_delegation_configured, "auto-delegation"),
+    _Blocklist(AutoDelegationJti, delegation_possible, "auto-delegation"),
     _Blocklist(AppServiceNonce, app_channel_possible, "app-service"),
 )
 

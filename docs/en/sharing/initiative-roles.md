@@ -26,6 +26,7 @@ Permissions are grouped by tool. For each tool, a role can typically allow **vie
 | **Queues** | View, Create |
 | **Counters** | View, Create |
 | **Events** (calendar) | View, Create |
+| **Dashboards** | View, Create |
 
 So a "Contributor" role might be allowed to view and create projects and documents, while a "Guest" role can only view them, and has no access to queues or counters at all.
 
