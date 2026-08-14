@@ -606,19 +606,11 @@ class Settings(BaseSettings):
     # to pick the right verifying key — useful when rotating.
     HANDOFF_SIGNING_KEY_ID: str | None = None
 
-    # Inbound delegation from the automation service (initiative-auto).
-    # When auto needs to call Initiative on behalf of a user — either
-    # because the user is in the iframe right now, or because a workflow
-    # they own is firing — it presents a JWT signed with RS256 by its
-    # own private key. This is the matching public key. When unset,
-    # delegation auth is disabled and Initiative only accepts its own
-    # session tokens / API keys.
-    #
-    # Accepts more than one key, as concatenated PEM blocks, which is how the
-    # delegate rotates without downtime: append the new key, let auto start
-    # signing with it, then drop the old block. A token is accepted if any
-    # block verifies it.
-    AUTO_DELEGATION_PUBLIC_KEY_PEM: str | None = None
+    # Inbound delegation from an app service acting for one of its members.
+    # The app presents a JWT signed with its own private key (RS256); the
+    # public half lives on that app's registration, which is also what says
+    # whether it may delegate at all. These two are the envelope every such
+    # token is checked against.
     AUTO_DELEGATION_AUDIENCE: str = "initiative:auto-delegation"
     AUTO_DELEGATION_ISSUER: str = "initiative-auto"
 

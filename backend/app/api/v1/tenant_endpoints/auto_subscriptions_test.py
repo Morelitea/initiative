@@ -18,21 +18,20 @@ RSA keypair whose public half is monkeypatched into settings, and one fresh
 
 from __future__ import annotations
 
-import secrets
 import socket
 from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
-import jwt
 import pytest
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
 from httpx import AsyncClient
+from sqlmodel import select
 
 from app.core import config as config_module
+from app.models.platform.app_service_registration import AppServiceRegistration
 from app.models.platform.guild import GuildRole
+from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.testing import Actor
+from app.testing.delegation import mint_delegation_token, register_delegate
 
 _WEBHOOK_HOST = "hooks.example.com"
 # A public unicast IPv4 (example.com) with a real stream socket type/proto, so
@@ -41,50 +40,37 @@ _FAKE_INFOS = [
     (socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("93.184.216.34", 0))
 ]
 
-_keypair = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-_PRIVATE_PEM = _keypair.private_bytes(
-    serialization.Encoding.PEM,
-    serialization.PrivateFormat.PKCS8,
-    serialization.NoEncryption(),
-).decode()
-_PUBLIC_PEM = (
-    _keypair.public_key()
-    .public_bytes(
-        serialization.Encoding.PEM,
-        serialization.PublicFormat.SubjectPublicKeyInfo,
-    )
-    .decode()
-)
-
 
 @pytest.fixture(autouse=True)
-def _enable_delegation(monkeypatch):
-    """Configure an automation delegate for the duration of each test here.
+async def _enable_delegation(session):
+    """Register the delegate these tests act as.
 
-    Without it every route answers 503 — which is its own test below, not the
+    Without one every route answers 503 — which is its own test below, not the
     baseline the rest of the file is written against.
     """
-    monkeypatch.setattr(
-        config_module.settings, "AUTO_DELEGATION_PUBLIC_KEY_PEM", _PUBLIC_PEM
-    )
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(
+            config_module.settings,
+            "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM",
+            "-----BEGIN PRIVATE KEY-----",
+        )
+        await register_delegate(session)
+        yield
+    invalidate_registrations()
+
+
+async def _drop_the_delegate(session) -> None:
+    """Take the registration the autouse fixture put there back out, for the
+    tests about a deployment that has no delegate at all."""
+    for row in (await session.exec(select(AppServiceRegistration))).all():
+        await session.delete(row)
+    await session.commit()
+    invalidate_registrations()
 
 
 def _delegation_headers(*, user_id: int, guild_id: int) -> dict[str, str]:
     """Mint a fresh (one-shot) delegation JWT for the user + guild."""
-    now = datetime.now(timezone.utc)
-    token = jwt.encode(
-        {
-            "jti": secrets.token_hex(8),
-            "sub": str(user_id),
-            "aud": "initiative:auto-delegation",
-            "iss": "initiative-auto",
-            "iat": int(now.timestamp()),
-            "exp": now + timedelta(seconds=900),
-            "guild_id": guild_id,
-        },
-        _PRIVATE_PEM,
-        algorithm="RS256",
-    )
+    token = mint_delegation_token(user_id=user_id, guild_id=guild_id)
     return {"Authorization": f"Bearer {token}"}
 
 
@@ -170,12 +156,12 @@ async def test_ordinary_caller_is_refused_on_every_route(
     [("post", "/auto/subscriptions"), ("get", "/auto/subscriptions")],
 )
 async def test_no_delegate_configured_refuses_with_503(
-    client: AsyncClient, acting_user, monkeypatch, method: str, path: str
+    client: AsyncClient, session, acting_user, method: str, path: str
 ):
-    """A deployment with no automation delegate has nothing that may own a
-    delivery target, so the routes are unavailable rather than forbidden —
-    503, which resolves itself once an operator configures a delegate."""
-    monkeypatch.setattr(config_module.settings, "AUTO_DELEGATION_PUBLIC_KEY_PEM", None)
+    """A deployment with no delegate has nothing that may own a delivery
+    target, so the routes are unavailable rather than forbidden — 503, which
+    resolves itself once an operator grants an app the power."""
+    await _drop_the_delegate(session)
     a = await acting_user(guild_role=GuildRole.admin)
 
     kwargs: dict = {"headers": a.headers}

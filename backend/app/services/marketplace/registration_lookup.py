@@ -20,10 +20,13 @@ handle to a row:
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass
-from typing import Any, Optional
+from types import MappingProxyType
+from typing import Any, Mapping, Optional
 
+from jwt import PyJWK
 from sqlmodel import select
 
 from app.db import session as db_session
@@ -33,10 +36,15 @@ from app.models.platform.app_service_registration import (
     is_live,
 )
 
+logger = logging.getLogger(__name__)
+
 __all__ = [
     "CACHE_TTL_SECONDS",
+    "DelegationKey",
     "InstallState",
     "RegistrationSnapshot",
+    "any_delegate_registered",
+    "delegation_keys_for",
     "install_state",
     "invalidate_registrations",
     "load_registrations",
@@ -66,6 +74,10 @@ class RegistrationSnapshot:
     allowed_origins: tuple[str, ...]
     #: Operator-conferred powers, for callers that gate on one.
     grants: tuple[str, ...]
+    #: Public verification keys this app signs delegation tokens with, by the
+    #: ``kid`` a token names. Parsed once when the snapshot is built rather than
+    #: per token. Empty on an app that has not been provisioned with one.
+    delegation_keys: Mapping[str, Any]
     #: The deployment installs this app in every guild (§7.7).
     mandatory: bool
     #: The operator's kill switch. False stops every channel this app has.
@@ -85,6 +97,28 @@ class RegistrationSnapshot:
     def browser_base(self) -> str:
         """The base to build an address a browser will be sent to."""
         return browser_base(self)
+
+
+def _parse_delegation_keys(row: AppServiceRegistration) -> Mapping[str, Any]:
+    """Build the ``kid`` → key index for one registration.
+
+    The keys were validated when they were stored, so anything unusable here
+    is a surprise worth logging rather than a case to model: the entry is left
+    out, and a token naming it finds no key.
+    """
+    key_set = row.delegation_jwks or {}
+    parsed: dict[str, Any] = {}
+    for entry in key_set.get("keys", []) or []:
+        kid = entry.get("kid") if isinstance(entry, dict) else None
+        if not kid:
+            continue
+        try:
+            parsed[kid] = PyJWK.from_dict(entry).key
+        except Exception:
+            logger.warning(
+                "app services: %s has an unusable delegation key %r", row.public_id, kid
+            )
+    return MappingProxyType(parsed)
 
 
 _cache: dict[str, RegistrationSnapshot] | None = None
@@ -126,6 +160,7 @@ async def load_registrations(*, force: bool = False) -> dict[str, RegistrationSn
             embed_origin=row.embed_origin,
             allowed_origins=tuple(row.allowed_origins or []),
             grants=tuple(row.grants or []),
+            delegation_keys=_parse_delegation_keys(row),
             mandatory=bool(row.mandatory),
             enabled=bool(row.enabled),
             status=row.status,
@@ -220,3 +255,53 @@ async def mandatory_registrations() -> list[RegistrationSnapshot]:
         for snapshot in (await load_registrations()).values()
         if snapshot.mandatory and snapshot.enabled
     ]
+
+
+@dataclass(frozen=True)
+class DelegationKey:
+    """A verification key, and the app whose registration published it."""
+
+    registration: RegistrationSnapshot
+    key: Any
+
+
+async def delegation_keys_for(kid: str) -> tuple[DelegationKey, ...]:
+    """Every key a delegation token's ``kid`` could name.
+
+    Only from registrations that are ``enabled`` and hold the ``delegation``
+    grant, so an operator ends an app's ability to act with an edit rather than
+    a key rotation.
+
+    All matches rather than the first: a ``kid`` is an opaque label its owner
+    chooses, so two apps may pick the same one, and the token belongs to
+    whichever key verifies it. Resolution is by ``kid`` rather than by reading
+    an app's name out of it, for the same reason.
+
+    Deliberately ``enabled`` rather than :attr:`RegistrationSnapshot.live` — a
+    delegate calls the API directly, so its ability to act follows the
+    operator's kill switch, not whether its manifest was reachable at the last
+    handshake.
+    """
+    if not kid:
+        return ()
+    return tuple(
+        DelegationKey(registration=snapshot, key=key)
+        for snapshot in (await load_registrations()).values()
+        if snapshot.enabled and "delegation" in snapshot.grants
+        for key in (snapshot.delegation_keys.get(kid),)
+        if key is not None
+    )
+
+
+async def any_delegate_registered() -> bool:
+    """Whether some app on this deployment may delegate and can be verified.
+
+    What every surface that is delegate-owned reads: the subscription
+    endpoints refuse without one and the outbound dispatcher stays inert.
+    """
+    return any(
+        snapshot.enabled
+        and "delegation" in snapshot.grants
+        and snapshot.delegation_keys
+        for snapshot in (await load_registrations()).values()
+    )

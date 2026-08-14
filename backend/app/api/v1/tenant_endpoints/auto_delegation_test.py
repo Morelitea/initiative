@@ -17,10 +17,7 @@ blocklist + cross-claim consistency the dep enforces.
 
 from __future__ import annotations
 
-import secrets
-from datetime import datetime, timedelta, timezone
 
-import jwt
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -29,66 +26,36 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import config as config_module
 from app.models.platform.user import UserStatus
+from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.testing import (
     create_guild,
     create_guild_membership,
     create_user,
 )
-
-
-# A fresh keypair per test session — keeps signatures from leaking between
-# tests if the same private key were reused via fixture caching.
-_keypair = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-_PRIVATE_PEM = _keypair.private_bytes(
-    serialization.Encoding.PEM,
-    serialization.PrivateFormat.PKCS8,
-    serialization.NoEncryption(),
-).decode()
-_PUBLIC_PEM = (
-    _keypair.public_key()
-    .public_bytes(
-        serialization.Encoding.PEM,
-        serialization.PublicFormat.SubjectPublicKeyInfo,
-    )
-    .decode()
-)
-
-
-def _mint_delegation(
-    *,
-    user_id: int,
-    guild_id: int,
-    initiative_id: int | None = None,
-    jti: str | None = None,
-    aud: str = "initiative:auto-delegation",
-    iss: str = "initiative-auto",
-    private_pem: str = _PRIVATE_PEM,
-    expires_in: int = 900,
-) -> str:
-    now = datetime.now(timezone.utc)
-    payload: dict = {
-        "jti": jti or secrets.token_hex(8),
-        "sub": str(user_id),
-        "aud": aud,
-        "iss": iss,
-        "iat": int(now.timestamp()),
-        "exp": now + timedelta(seconds=expires_in),
-        "guild_id": guild_id,
-    }
-    if initiative_id is not None:
-        payload["initiative_id"] = initiative_id
-    return jwt.encode(payload, private_pem, algorithm="RS256")
+from app.testing.delegation import mint_delegation_token, register_delegate
 
 
 @pytest.fixture(autouse=True)
-def _enable_delegation(monkeypatch):
-    """Configure the public key for the duration of each test in this file.
-    Without it, ``_authenticate_auto_delegation`` short-circuits to None
-    and the tests fall through to standard-JWT auth, which is not what
-    we're exercising here."""
-    monkeypatch.setattr(
-        config_module.settings, "AUTO_DELEGATION_PUBLIC_KEY_PEM", _PUBLIC_PEM
-    )
+async def _enable_delegation(session: AsyncSession):
+    """Register the app whose tokens these tests expect to be accepted.
+
+    A delegation token is decided by the registration that published its
+    ``kid``, so the delegate is a row rather than a setting. The app-platform
+    key stands in for "registrations are reachable on this deployment", which
+    is the cheap gate the auth dep reads first.
+    """
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(
+            config_module.settings,
+            "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM",
+            "-----BEGIN PRIVATE KEY-----",
+        )
+        await register_delegate(session)
+        yield
+    invalidate_registrations()
+
+
+_mint_delegation = mint_delegation_token
 
 
 @pytest.mark.integration
@@ -270,13 +237,15 @@ async def test_delegation_rejects_signature_from_other_key(
 
 
 @pytest.mark.integration
-async def test_delegation_disabled_when_public_key_unset(
+async def test_delegation_is_off_where_no_app_platform_is_configured(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
-    """Operator hasn't configured the public key → delegation auth is
-    fully off and the request falls through to the standard 401 from
-    the JWT path. No 500 from a half-configured state."""
-    monkeypatch.setattr(config_module.settings, "AUTO_DELEGATION_PUBLIC_KEY_PEM", None)
+    """No app platform means no registrations, so nothing can delegate here.
+    The request falls through to the standard 401 from the JWT path rather
+    than erroring on a half-configured state."""
+    monkeypatch.setattr(
+        config_module.settings, "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM", None
+    )
 
     user = await create_user(session, email="delegation-off@example.com")
     token = _mint_delegation(user_id=user.id, guild_id=1)

@@ -477,10 +477,10 @@ def create_billing_support_handoff_token(
 # ──────────────────────────────────────────────────────────────────────────
 # Inbound delegation from initiative-auto
 #
-# When auto calls our API on behalf of a user, it presents a JWT signed
-# with its private key (RS256). We verify here using the public half
-# configured at AUTO_DELEGATION_PUBLIC_KEY_PEM and resolve the JWT to a
-# user_id that the auth dependency then loads as a User. From that
+# When an app calls our API on behalf of a user, it presents a JWT signed
+# with its private key (RS256). We verify here using the public half its
+# registration publishes, and resolve the JWT to a user_id that the auth
+# dependency then loads as a User. From that
 # point on the request runs through our normal RLS + role-permission
 # stack — the delegation just answers "who is acting", not "what can
 # they do".
@@ -502,36 +502,47 @@ class AutoDelegationVerificationError(Exception):
     """Raised when the inbound delegation JWT fails any check."""
 
 
-def auto_delegation_configured() -> bool:
-    """True when this deployment has an automation delegate.
+def delegation_possible() -> bool:
+    """True when this deployment could have a delegate at all.
 
-    The delegate is identified by the public half of its signing key, so the
-    presence of that key is what "a delegate exists here" means. Single source
-    of truth for every surface that is delegate-owned: the subscription
-    endpoints refuse without it and the outbound dispatcher stays inert.
+    A delegate is an app service holding the ``delegation`` grant, so the
+    machinery is present exactly when the app platform has its signing key.
+    Whether an app *actually* holds the grant is
+    :func:`app.services.marketplace.registration_lookup.any_delegate_registered`,
+    which reads the registrations; this is the settings-only answer, for the
+    callers that only need to know whether the table could have rows.
     """
-    return bool(settings.AUTO_DELEGATION_PUBLIC_KEY_PEM)
+    return bool(settings.APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM)
 
 
-def verify_auto_delegation_token(token: str) -> AutoDelegationClaims:
-    """Verify a delegation JWT minted by initiative-auto.
+def delegation_token_kid(token: str) -> str | None:
+    """The ``kid`` a delegation token names, read before any verification.
 
-    Disabled when ``AUTO_DELEGATION_PUBLIC_KEY_PEM`` is unset — that
-    config gap surfaces as a verification error so the auth dep can
-    fall through to its other token paths instead of 500'ing.
-
-    The setting holds one key normally and two while the delegate is rotating,
-    so the token is accepted if any configured key verifies it.
+    Selecting a key is what a header is for, and nothing is trusted on the
+    strength of it: the key it resolves to is what decides the token.
     """
     try:
-        keys = load_verification_keys(settings.AUTO_DELEGATION_PUBLIC_KEY_PEM or "")
-    except PublicKeyBundleError as e:
-        raise AutoDelegationVerificationError(
-            f"AUTO_DELEGATION_PUBLIC_KEY_PEM is unusable: {e}"
-        ) from e
-    # Covers both an unset setting and one holding no PEM block at all.
+        return jwt.get_unverified_header(token).get("kid")
+    except jwt.PyJWTError:
+        return None
+
+
+def verify_auto_delegation_token(
+    token: str, *, keys: Sequence[Any]
+) -> AutoDelegationClaims:
+    """Verify a delegation JWT and resolve it to the user it names.
+
+    ``keys`` is the verification material the caller resolved — the key set on
+    the registration of the app that signed this token. More than one is
+    accepted for two reasons: a rotation publishes the replacement alongside
+    the current key, and a ``kid`` is an opaque label two apps may both pick,
+    so the token belongs to whichever key verifies it.
+
+    An empty sequence raises rather than returning, so a caller that resolved
+    nothing gets the same "not a delegation token" answer as a bad signature.
+    """
     if not keys:
-        raise AutoDelegationVerificationError("delegation auth not configured")
+        raise AutoDelegationVerificationError("no verification key for this token")
 
     payload = None
     first_error: jwt.PyJWTError | None = None

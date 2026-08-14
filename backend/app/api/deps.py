@@ -29,7 +29,8 @@ from app.core.security import (
     SESSION_COOKIE_NAME,
     AutoDelegationVerificationError,
     UploadTokenError,
-    auto_delegation_configured,
+    delegation_possible,
+    delegation_token_kid,
     decode_session_token,
     verify_auto_delegation_token,
     verify_upload_token,
@@ -43,6 +44,7 @@ from app.models.platform.user import User, UserRole, UserStatus
 from app.schemas.platform.token import TokenPayload
 from app.services.platform import access_grants as access_grants_service
 from app.services.platform import api_keys as api_keys_service
+from app.services.marketplace import registration_lookup
 from app.services.platform import auto_delegation_blocklist
 from app.services.platform import guilds as guilds_service
 from app.services.platform import user_tokens
@@ -94,15 +96,28 @@ async def _authenticate_auto_delegation(
     the user's memberships and must agree with the ``/g/{guild_id}`` path, so an
     auto workflow always acts in the guild its token was issued for.
     """
-    if not auto_delegation_configured():
-        return None  # delegation disabled — let other auth paths run
+    if not delegation_possible():
+        return None  # no app platform here — let other auth paths run
+
+    # Which app signed this decides which keys may verify it. The token names a
+    # `kid`, and the registrations that published it must be enabled and hold
+    # the `delegation` grant, so an operator ends an app's ability to act with
+    # an edit rather than a key rotation. Resolving nothing ends the attempt:
+    # there is no other key this token could be held against.
+    candidates = await registration_lookup.delegation_keys_for(
+        delegation_token_kid(token) or ""
+    )
 
     try:
-        claims = verify_auto_delegation_token(token)
+        claims = verify_auto_delegation_token(
+            token, keys=[candidate.key for candidate in candidates]
+        )
     except AutoDelegationVerificationError:
         # Could be a session JWT or API key arriving on the same header.
         # Returning None lets the caller try those instead of failing.
         return None
+
+    request.state.delegating_app = candidates[0].registration.public_id
 
     # Replay guard: a delegation JWT is one-shot. Even though the JWT is
     # technically valid for 15 minutes, a captured token must not be
@@ -629,7 +644,7 @@ async def require_auto_delegate(
     token-guild vs path-guild comparison is also made in
     ``get_guild_membership``; it is repeated here so the gate holds on its own.
     """
-    if not auto_delegation_configured():
+    if not await registration_lookup.any_delegate_registered():
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=WebhookSubscriptionMessages.DELEGATE_NOT_CONFIGURED,
