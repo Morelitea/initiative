@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Column, DateTime, Integer, Text
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, Text
 from sqlmodel import Field, SQLModel
 
 
@@ -13,7 +13,7 @@ class AuthProviderSecret(SQLModel, table=True):
     ``auth_providers``; only the secret lives here.
 
     1:1 with the provider — ``provider_id`` is the PK and an FK to
-    ``auth_providers.id`` (``ON DELETE CASCADE``, declared in the migration).
+    ``auth_providers.id`` (``ON DELETE CASCADE``).
     ``client_secret_encrypted`` is Fernet-encrypted at rest with
     ``SALT_OIDC_CLIENT_SECRET`` (registered in the secret-key rotation registry);
     it is ``NULL`` for public / PKCE-only providers with no secret.
@@ -21,8 +21,13 @@ class AuthProviderSecret(SQLModel, table=True):
 
     __tablename__ = "auth_provider_secrets"
 
-    # PK + FK to auth_providers (ON DELETE CASCADE declared in the migration).
-    provider_id: int = Field(sa_column=Column(Integer, primary_key=True))
+    provider_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("auth_providers.id", ondelete="CASCADE"),
+            primary_key=True,
+        )
+    )
 
     client_secret_encrypted: Optional[str] = Field(
         default=None, sa_column=Column(Text, nullable=True)

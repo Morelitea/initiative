@@ -365,6 +365,27 @@ async def create_user(
     return user
 
 
+def _assignment_digest_turned_off(user: User, update_data: dict) -> bool:
+    """Whether this update leaves the user wanting no assignment digest at all.
+
+    Email and push share one queue, so it is discarded only on the transition
+    to both being off — never when just one channel is switched off.
+    """
+
+    def _next(field: str, current: bool) -> bool | None:
+        value = update_data.get(field)
+        return current if value is None else value
+
+    was_on = notifications_service.wants_assignment_digest(
+        user.email_task_assignment, user.push_task_assignment
+    )
+    now_on = notifications_service.wants_assignment_digest(
+        _next("email_task_assignment", user.email_task_assignment),
+        _next("push_task_assignment", user.push_task_assignment),
+    )
+    return was_on and not now_on
+
+
 @router.patch("/me", response_model=UserRead)
 async def update_users_me(
     request: Request,
@@ -385,16 +406,12 @@ async def update_users_me(
         payload.has_federated_identity = is_sso_account
         return payload
 
-    if (
-        update_data.get("email_task_assignment") is False
-        and current_user.email_task_assignment is not False
-    ):
+    if _assignment_digest_turned_off(current_user, update_data):
         # The digest queue is guild-scoped, so it must be cleared inside each
         # of the user's guild schemas — before any mutation below, because the
         # fan-out expunges the identity map (per-schema ids collide). Restore
         # the platform context and re-fetch the user afterwards; the deletes
-        # ride this request's transaction and commit with it. Skipped when the
-        # preference is already off (nothing can be queued).
+        # ride this request's transaction and commit with it.
         user_id = current_user.id
         await notifications_service.clear_task_assignment_queue_across_guilds(
             session, user_id
@@ -624,6 +641,14 @@ async def update_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=UserMessages.STATUS_WRONG_ENDPOINT,
         )
+    if _assignment_digest_turned_off(user, update_data):
+        # This session is routed into one guild, so only that guild's queue is
+        # reachable — a guild admin has no business writing to schemas they
+        # have no rights in. Items left in the user's other guilds age out via
+        # the digest GC sweep.
+        await notifications_service.clear_task_assignment_queue_for_user(
+            session, user.id
+        )
     if password := update_data.pop("password", None):
         await enforce_password_policy(password)
         user.hashed_password = get_password_hash(password)
@@ -661,10 +686,6 @@ async def update_user(
             if normalized_week_start is not None:
                 setattr(user, field, normalized_week_start)
             continue
-        if field == "email_task_assignment" and value is False:
-            await notifications_service.clear_task_assignment_queue_for_user(
-                session, user.id
-            )
         setattr(user, field, value)
     user.updated_at = datetime.now(timezone.utc)
 

@@ -2,7 +2,13 @@
   "task": {
     "assignment": {
       "title": "New Task Assignment",
-      "body": "{{title}} in {{project}}"
+      "body_one": "{{title}} in {{project}}",
+      "body_other": "{{count}} tasks assigned to you, including {{title}}"
+    },
+    "overdue": {
+      "title": "Overdue tasks",
+      "body_one": "{{count}} task is overdue: {{title}}",
+      "body_other": "{{count}} tasks are overdue, including {{title}}"
     }
   },
   "initiative": {

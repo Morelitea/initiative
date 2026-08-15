@@ -1,0 +1,458 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://initiative.morels.me/schemas/app-manifest-v1.json",
+  "title": "Initiative app manifest",
+  "description": "What a service app may declare at /.well-known/initiative-app.json. Generated from the platform's own validator vocabulary. A manifest that satisfies this schema is well-formed, not necessarily acceptable. Cross-references (a widget's data sources, a requires term's connection, an event's service prefix), the features/blocks cross-check in both directions, UTF-8 byte-size caps, and the conditional rules for connect_path and initiative visibility are enforced by the platform on publish and are not expressible here.",
+  "type": "object",
+  "required": [
+    "app_kind",
+    "service",
+    "features"
+  ],
+  "properties": {
+    "app_kind": {
+      "const": "service",
+      "description": "The only kind that names a container to call."
+    },
+    "service": {
+      "type": "object",
+      "required": [
+        "public_id"
+      ],
+      "properties": {
+        "public_id": {
+          "type": "string",
+          "maxLength": 120,
+          "pattern": "^[\\-.0123456789_abcdefghijklmnopqrstuvwxyz]*\\.[\\-.0123456789_abcdefghijklmnopqrstuvwxyz]*$",
+          "description": "'<publisher>.<slug>'. The name the deployment's registration is matched by, and the namespace this app's events are emitted under."
+        },
+        "protocol": {
+          "enum": [
+            1
+          ],
+          "default": 1
+        }
+      }
+    },
+    "features": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "enum": [
+          "automations",
+          "data",
+          "embeds",
+          "events",
+          "widgets"
+        ]
+      },
+      "description": "What this app contributes. Cross-checked against the blocks present in both directions: a feature with no block, or a block with no feature, is refused."
+    },
+    "default_name": {
+      "type": "string",
+      "maxLength": 255
+    },
+    "connections": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "$ref": "#/$defs/connection"
+      }
+    },
+    "data_sources": {
+      "type": "array",
+      "maxItems": 24,
+      "items": {
+        "$ref": "#/$defs/dataSource"
+      }
+    },
+    "widgets": {
+      "type": "array",
+      "maxItems": 12,
+      "items": {
+        "$ref": "#/$defs/widget"
+      }
+    },
+    "embeds": {
+      "type": "array",
+      "maxItems": 12,
+      "items": {
+        "$ref": "#/$defs/embed"
+      }
+    },
+    "events": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "string",
+        "maxLength": 200,
+        "pattern": "^[\\-.0123456789_abcdefghijklmnopqrstuvwxyz]+$",
+        "description": "Namespaced under the app's own service id \u2014 'app.<public_id>.<name>'. The prefix is checked against the emitting registration at ingress."
+      }
+    },
+    "automation": {
+      "type": "object",
+      "description": "The automation service's own block. Opaque to the platform: checked for shape and size, stored verbatim, and described by no vocabulary here."
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[\\-0123456789_abcdefghijklmnopqrstuvwxyz]+$"
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^(?!.*(?://|\\.\\.))/[\\-./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz]*$",
+      "description": "A route on the app's own service, never an address. The deployment joins it to the base URL its registration supplies."
+    },
+    "localizedText": {
+      "type": "object",
+      "description": "Localized text, keyed by language tag. At least one usable entry; the platform falls back to the reader's language, then to any entry. Values should be strings: text longer than 120 characters is truncated, and an entry that is not a string, is not a language tag, or falls past the first 40 is ignored rather than refused.",
+      "minProperties": 1
+    },
+    "requires": {
+      "type": "object",
+      "description": "Connection ids that must hold a value before this is offered. Exactly one of 'all_of' or 'any_of'; each id must name a connection this manifest declares. Absent means always available.",
+      "properties": {
+        "all_of": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        },
+        "any_of": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "all_of"
+          ]
+        },
+        {
+          "required": [
+            "any_of"
+          ]
+        }
+      ]
+    },
+    "accessHint": {
+      "type": "object",
+      "description": "What the credential will be used for. Display-only: it is shown beside the form so an admin can mint a minimal credential, and no other system's permissions are enforced from it.",
+      "properties": {
+        "api": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "scopes": {
+          "type": "array",
+          "maxItems": 24,
+          "items": {
+            "type": "string",
+            "maxLength": 120
+          }
+        }
+      }
+    },
+    "connectionField": {
+      "type": "object",
+      "required": [
+        "key",
+        "type",
+        "label"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "$ref": "#/$defs/identifier"
+        },
+        "type": {
+          "enum": [
+            "bool",
+            "int",
+            "secret",
+            "select",
+            "string",
+            "url"
+          ]
+        },
+        "required": {
+          "type": "boolean",
+          "default": false
+        },
+        "label": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "options": {
+          "type": "array",
+          "description": "Required when type is 'select'.",
+          "maxItems": 24,
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "maxLength": 120
+          }
+        },
+        "managed": {
+          "type": "boolean",
+          "default": false,
+          "description": "The app writes this value back itself when it finishes a vendor flow; it is not typed into the settings form."
+        }
+      },
+      "if": {
+        "properties": {
+          "type": {
+            "const": "select"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "required": [
+          "options"
+        ]
+      }
+    },
+    "sourceParam": {
+      "type": "object",
+      "required": [
+        "key",
+        "type",
+        "label"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "$ref": "#/$defs/identifier"
+        },
+        "type": {
+          "enum": [
+            "bool",
+            "int",
+            "select",
+            "string",
+            "url"
+          ]
+        },
+        "required": {
+          "type": "boolean",
+          "default": false
+        },
+        "label": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "options": {
+          "type": "array",
+          "description": "Required when type is 'select'.",
+          "maxItems": 24,
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "maxLength": 120
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "type": {
+            "const": "select"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "required": [
+          "options"
+        ]
+      }
+    },
+    "connection": {
+      "type": "object",
+      "required": [
+        "id",
+        "scope",
+        "label",
+        "fields"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "scope": {
+          "enum": [
+            "interactive",
+            "static"
+          ],
+          "description": "'static' is one credential a guild admin supplies for the whole guild; 'interactive' is each member's own account, connected through the app's own vendor flow."
+        },
+        "label": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "fields": {
+          "type": "array",
+          "maxItems": 12,
+          "items": {
+            "$ref": "#/$defs/connectionField"
+          }
+        },
+        "connect_path": {
+          "$ref": "#/$defs/path",
+          "description": "Where the member is sent so the app can run the vendor's flow. Interactive connections only."
+        },
+        "access_hint": {
+          "$ref": "#/$defs/accessHint"
+        }
+      }
+    },
+    "dataSource": {
+      "type": "object",
+      "required": [
+        "id",
+        "path"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "path": {
+          "$ref": "#/$defs/path"
+        },
+        "visibility": {
+          "enum": [
+            "guild_admin",
+            "member"
+          ],
+          "description": "A source is fetched for a guild rather than an initiative, so the initiative rung is not on offer."
+        },
+        "cache_ttl_seconds": {
+          "type": "integer",
+          "default": 0,
+          "description": "How long a response may be reused. Clamped into 0..86400 rather than refused, so a value outside that range is accepted and takes effect at the bound \u2014 which is why no range is asserted here."
+        },
+        "params_schema": {
+          "type": "array",
+          "maxItems": 12,
+          "items": {
+            "$ref": "#/$defs/sourceParam"
+          }
+        },
+        "requires": {
+          "$ref": "#/$defs/requires"
+        }
+      }
+    },
+    "widget": {
+      "type": "object",
+      "required": [
+        "id",
+        "meta",
+        "module_source"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "meta": {
+          "type": "object",
+          "description": "The widget's own name and description, as the picker shows them. Must name the widget in at least one language."
+        },
+        "module_source": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The widget's browser-side module. Stored as an opaque string and executed only inside the sandbox; the platform never parses it. Capped in UTF-8 bytes, which this schema cannot express."
+        },
+        "sources": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "$ref": "#/$defs/identifier"
+          },
+          "description": "Data source ids this manifest also declares."
+        },
+        "sample_data": {
+          "type": "object",
+          "description": "Rows keyed by declared source id, so a preview renders with no network call. Keys naming an undeclared source are dropped."
+        },
+        "requires": {
+          "$ref": "#/$defs/requires"
+        }
+      }
+    },
+    "embed": {
+      "type": "object",
+      "required": [
+        "id",
+        "path",
+        "name"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "path": {
+          "$ref": "#/$defs/path"
+        },
+        "name": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "scopes": {
+          "type": "array",
+          "maxItems": 2,
+          "items": {
+            "enum": [
+              "guild",
+              "initiative"
+            ]
+          },
+          "default": [
+            "guild"
+          ],
+          "description": "Where the surface renders. Declaring both gives it a guild-wide entry and an entry inside each initiative."
+        },
+        "visibility": {
+          "enum": [
+            "guild_admin",
+            "initiative_manager",
+            "member"
+          ],
+          "description": "The floor an audience clears. 'initiative_manager' is only namable by a surface that also renders in an initiative \u2014 a rule the platform enforces, not this schema."
+        },
+        "capabilities": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "enum": [
+              "camera",
+              "clipboard-read",
+              "clipboard-write",
+              "display-capture",
+              "fullscreen",
+              "geolocation",
+              "microphone"
+            ]
+          },
+          "description": "Browser features the frame is granted. A surface that names nothing is framed with all of them denied."
+        },
+        "requires": {
+          "$ref": "#/$defs/requires"
+        }
+      }
+    }
+  }
+}

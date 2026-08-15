@@ -248,6 +248,19 @@ async def test_support_role_write_capped_on_protected_tables(engine):
                 for verb in ("INSERT", "UPDATE", "DELETE"):
                     assert await priv(table, verb) is False, f"{table} {verb}"
 
+            # Every table that decides who may reach what is on the list. Stated
+            # as a set rather than left to the loop above, because that list is
+            # opt-in: a new access-management table silently gets full support
+            # DML until somebody remembers it, which has happened twice.
+            for table in (
+                "resource_grants",
+                "initiative_members",
+                "guild_app_user_connections",
+                "guild_app_user_delegations",
+                "guild_app_subjects",
+            ):
+                assert table in SUPPORT_WRITE_PROTECTED_TABLES, table
+
             # Content + guild settings: full DML (settings write is the carve-out).
             for table in ("tasks", "guild_settings"):
                 for verb in ("SELECT", "INSERT", "UPDATE", "DELETE"):

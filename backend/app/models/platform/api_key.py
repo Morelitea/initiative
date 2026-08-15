@@ -9,7 +9,9 @@ class UserApiKey(SQLModel, table=True):
     __tablename__ = "user_api_keys"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    user_id: int = Field(foreign_key="users.id", nullable=False, index=True)
+    user_id: int = Field(
+        foreign_key="users.id", ondelete="CASCADE", nullable=False, index=True
+    )
     name: str = Field(nullable=False, max_length=100)
     token_prefix: str = Field(nullable=False, max_length=16, index=True)
     token_hash: str = Field(nullable=False, unique=True, max_length=128)

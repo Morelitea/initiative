@@ -2,8 +2,8 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import Boolean, Column, DateTime, String, Integer
-from sqlmodel import Field, SQLModel, Enum as SQLEnum, Relationship
+from sqlalchemy import Boolean, Column, DateTime, String, Integer, Text
+from sqlmodel import Field, Index, SQLModel, Enum as SQLEnum, Relationship
 from pydantic import ConfigDict
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -41,9 +41,11 @@ class Guild(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(nullable=False)
-    description: Optional[str] = Field(default=None)
+    description: Optional[str] = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
     icon_base64: Optional[str] = Field(
-        default=None, sa_column=Column(String, nullable=True)
+        default=None, sa_column=Column(Text, nullable=True)
     )
     created_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
     created_at: datetime = Field(
@@ -110,9 +112,14 @@ class GuildMembership(SQLModel, table=True):
     __tablename__ = "guild_memberships"
     __allow_unmapped__ = True
     model_config = ConfigDict(arbitrary_types_allowed=True)
+    __table_args__ = (
+        # The primary key is (guild_id, user_id); this is the other direction,
+        # for "which guilds is this user in".
+        Index("idx_guild_memberships_user_guild", "user_id", "guild_id"),
+    )
 
-    guild_id: int = Field(foreign_key="guilds.id", primary_key=True)
-    user_id: int = Field(foreign_key="users.id", primary_key=True)
+    guild_id: int = Field(foreign_key="guilds.id", ondelete="CASCADE", primary_key=True)
+    user_id: int = Field(foreign_key="users.id", ondelete="CASCADE", primary_key=True)
     role: GuildRole = Field(
         default=GuildRole.member,
         sa_column=Column(
@@ -145,8 +152,11 @@ class GuildInvite(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     code: str = Field(index=True, unique=True, nullable=False, max_length=64)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False)
-    created_by_user_id: Optional[int] = Field(foreign_key="users.id", nullable=True)
+    guild_id: int = Field(foreign_key="guilds.id", ondelete="CASCADE", nullable=False)
+    # The invite outlives the admin who issued it.
+    created_by_user_id: Optional[int] = Field(
+        foreign_key="users.id", ondelete="SET NULL", nullable=True
+    )
     expires_at: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )

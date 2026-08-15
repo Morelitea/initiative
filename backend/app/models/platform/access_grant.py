@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Optional
 
 from sqlalchemy import Column, DateTime, Integer, String, Text
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field, Index, SQLModel
 
 
 class AccessLevel(str, Enum):
@@ -64,12 +64,21 @@ class AccessGrant(SQLModel, table=True):
     """
 
     __tablename__ = "access_grants"
+    __table_args__ = (
+        # The live-grant lookup: "does this user hold a grant on this guild".
+        Index("ix_access_grants_user_guild", "user_id", "guild_id"),
+    )
 
     id: Optional[int] = Field(default=None, primary_key=True)
 
-    # The grantee and the guild they're being granted access to.
-    user_id: int = Field(foreign_key="users.id", nullable=False, index=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
+    # The grantee and the guild they're being granted access to. A grant is
+    # meaningless once either side is gone, so both cascade.
+    user_id: int = Field(
+        foreign_key="users.id", ondelete="CASCADE", nullable=False, index=True
+    )
+    guild_id: int = Field(
+        foreign_key="guilds.id", ondelete="CASCADE", nullable=False, index=True
+    )
 
     access_level: str = Field(
         sa_column=Column(
@@ -103,12 +112,16 @@ class AccessGrant(SQLModel, table=True):
     # Actors. ``requested_by_id`` equals ``user_id`` for self-service requests
     # but is kept distinct so an approver could later request on someone's
     # behalf without schema changes.
-    requested_by_id: int = Field(foreign_key="users.id", nullable=False)
+    # The requester goes with the grant; a decider does not — the audit row
+    # outlives the staff account that decided it, so those null out.
+    requested_by_id: int = Field(
+        foreign_key="users.id", ondelete="CASCADE", nullable=False
+    )
     approved_by_id: Optional[int] = Field(
-        default=None, foreign_key="users.id", nullable=True
+        default=None, foreign_key="users.id", ondelete="SET NULL", nullable=True
     )
     revoked_by_id: Optional[int] = Field(
-        default=None, foreign_key="users.id", nullable=True
+        default=None, foreign_key="users.id", ondelete="SET NULL", nullable=True
     )
 
     requested_at: datetime = Field(

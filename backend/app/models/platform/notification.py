@@ -3,11 +3,12 @@ from enum import Enum
 from typing import Any, Optional
 
 from sqlalchemy import Column, DateTime, JSON, String
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field, Index, SQLModel
 
 
 class NotificationType(str, Enum):
     task_assignment = "task_assignment"
+    overdue_tasks = "overdue_tasks"
     initiative_added = "initiative_added"
     project_added = "project_added"
     user_pending_approval = "user_pending_approval"
@@ -32,9 +33,15 @@ class NotificationType(str, Enum):
 
 class Notification(SQLModel, table=True):
     __tablename__ = "notifications"
+    __table_args__ = (
+        # The inbox query is always "my notifications, unread first", so the
+        # composite carries it; a bare ``user_id`` index would be a prefix of
+        # this one.
+        Index("ix_notifications_user_read", "user_id", "read_at"),
+    )
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    user_id: int = Field(foreign_key="users.id", nullable=False, index=True)
+    user_id: int = Field(foreign_key="users.id", ondelete="CASCADE", nullable=False)
     type: NotificationType = Field(
         sa_column=Column(String(64), nullable=False),
         default=NotificationType.task_assignment,

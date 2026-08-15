@@ -15,13 +15,18 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.db.query import MAX_ID_FILTER_VALUES
+from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import User, UserRole, UserStatus
+from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 
 from app.testing.factories import (
     create_federated_identity,
     create_guild,
     create_guild_membership,
+    create_initiative,
+    create_project,
+    create_task,
     create_user,
     get_auth_headers,
     get_auth_token,
@@ -94,6 +99,80 @@ async def test_update_current_user_notification_preferences(
     data = response.json()
     assert data["email_task_assignment"] is False
     assert data["email_overdue_tasks"] is False
+
+
+async def _queue_assignment_item(session: AsyncSession, user, guild) -> None:
+    """Put one pending digest item in ``guild``'s schema for ``user``."""
+    initiative = await create_initiative(session, guild, user, name="Queue")
+    project = await create_project(session, initiative, user, name="Queue Project")
+    task = await create_task(session, project, title="Queued")
+    await set_rls_context(session, user_id=user.id, guild_id=guild.id)
+    session.add(
+        TaskAssignmentDigestItem(
+            user_id=user.id,
+            task_id=task.id,
+            project_id=project.id,
+            task_title="Queued",
+            project_name=project.name,
+            assigned_by_name="Assigner",
+        )
+    )
+    await session.commit()
+
+
+async def _pending_assignment_items(session: AsyncSession, user, guild) -> int:
+    session.expunge_all()
+    await set_rls_context(session, user_id=user.id, guild_id=guild.id)
+    rows = (
+        await session.exec(
+            select(TaskAssignmentDigestItem).where(
+                TaskAssignmentDigestItem.processed_at.is_(None)
+            )
+        )
+    ).all()
+    return len(rows)
+
+
+@pytest.mark.integration
+async def test_disabling_assignment_email_keeps_the_push_queue(
+    client: AsyncClient, session: AsyncSession
+):
+    """One queue now backs both channels, so switching the email off must not
+    discard the items the push digest is still going to send."""
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild)
+    await _queue_assignment_item(session, user, guild)
+
+    response = await client.patch(
+        "/api/v1/users/me",
+        headers=get_auth_headers(user),
+        json={"email_task_assignment": False},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["email_task_assignment"] is False
+    assert await _pending_assignment_items(session, user, guild) == 1
+
+
+@pytest.mark.integration
+async def test_disabling_both_assignment_channels_clears_the_queue(
+    client: AsyncClient, session: AsyncSession
+):
+    """With neither channel left on, nothing will ever send the items."""
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild)
+    await _queue_assignment_item(session, user, guild)
+
+    response = await client.patch(
+        "/api/v1/users/me",
+        headers=get_auth_headers(user),
+        json={"email_task_assignment": False, "push_task_assignment": False},
+    )
+
+    assert response.status_code == 200
+    assert await _pending_assignment_items(session, user, guild) == 0
 
 
 @pytest.mark.integration

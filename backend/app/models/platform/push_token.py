@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field, Index, SQLModel
 
 
 class PushToken(SQLModel, table=True):
@@ -13,13 +13,24 @@ class PushToken(SQLModel, table=True):
     """
 
     __tablename__ = "push_tokens"
+    __table_args__ = (
+        # One row per (device, token): re-registering the same token for a user
+        # updates the existing row rather than fanning out duplicate pushes.
+        Index("ix_push_tokens_user_device_token", "user_id", "push_token", unique=True),
+    )
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    user_id: int = Field(foreign_key="users.id", nullable=False, index=True)
+    user_id: int = Field(
+        foreign_key="users.id", ondelete="CASCADE", nullable=False, index=True
+    )
     # Links to device authentication token (nullable for cases where device token is deleted)
     device_token_id: Optional[int] = Field(
         default=None,
-        sa_column=Column(Integer, ForeignKey("user_tokens.id"), nullable=True),
+        sa_column=Column(
+            Integer,
+            ForeignKey("user_tokens.id", ondelete="CASCADE"),
+            nullable=True,
+        ),
     )
     # FCM registration token (Android) or APNS device token (iOS)
     push_token: str = Field(

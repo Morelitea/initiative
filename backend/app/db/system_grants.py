@@ -141,7 +141,10 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     "user_view_preferences": None,
     "notifications": frozenset({"SELECT", "INSERT", "DELETE"}),
     "user_tokens": frozenset({"SELECT", "INSERT", "DELETE"}),
-    "push_tokens": frozenset({"SELECT", "INSERT", "DELETE"}),
+    # the system engine delivers push itself (background digests, PAM notices),
+    # and delivery bookkeeping is part of that: UPDATE stamps last_used_at,
+    # DELETE prunes tokens FCM reports as unregistered
+    "push_tokens": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # pre-auth credential store — validated by token_hash before the user is
     # known, so the lookup + create + deactivate all run on the system engine
     # (no request-path grant, no own-row policy), like auth_sessions

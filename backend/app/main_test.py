@@ -9,10 +9,12 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from fastapi.exceptions import RequestValidationError
 from httpx import ASGITransport, AsyncClient
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 import app.main as main_module
 from app.core.config import API_V1_STR, Settings, settings
 from app.main import SecurityHeadersMiddleware, validation_exception_handler
+from app.testing import create_app_service_registration
 
 
 @pytest.mark.unit
@@ -105,6 +107,50 @@ async def test_only_the_widget_sandbox_asset_carries_its_policy(
     other_csp = other_resp.headers.get("content-security-policy", "")
     assert "'wasm-unsafe-eval'" not in other_csp
     assert "script-src 'self'" in other_csp
+
+
+# --- The registered app frame origins (named on documents, and only there) ---
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    "route",
+    ["/g/7/apps/12", "/g/7/initiatives/3/apps/12", "/"],
+)
+async def test_every_document_frames_the_registered_apps(
+    client: AsyncClient, session: AsyncSession, route: str
+) -> None:
+    """One header, whatever the route. An app opens the same way from a guild
+    page, from inside an initiative, and from a tab the SPA navigated to after
+    loading somewhere else — so the permission cannot be a property of which
+    document the browser happened to ask for."""
+    await create_app_service_registration(
+        session,
+        public_id="tests.framed",
+        base_url="https://framed.example.test",
+        allowed_origins=["https://framed.example.test"],
+    )
+    index = main_module.static_index_path
+    # A real build leaves one here; only a run without one writes and removes it.
+    written = not index.is_file()
+    if written:
+        index.parent.mkdir(parents=True, exist_ok=True)
+        index.write_text("<!doctype html>\n")
+    try:
+        document = await client.get(route)
+        api = await client.get("/api/v1/config")
+    finally:
+        if written:
+            index.unlink(missing_ok=True)
+
+    assert document.status_code == 200
+    assert "https://framed.example.test" in document.headers.get(
+        "content-security-policy", ""
+    )
+    # Only a document frames anything, so every other response is unchanged.
+    assert "https://framed.example.test" not in api.headers.get(
+        "content-security-policy", ""
+    )
 
 
 @pytest.mark.integration
