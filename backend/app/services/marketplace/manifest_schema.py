@@ -413,11 +413,14 @@ def build_manifest_schema() -> dict[str, Any]:
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": SCHEMA_ID,
-        "title": "Initiative app manifest",
+        "title": "Initiative app manifest (the 'definition' body)",
         "description": (
-            "What a service app may declare at "
-            "/.well-known/initiative-app.json. Generated from the platform's "
-            f"own validator vocabulary. {_AUTHORITY_NOTE}"
+            "What a service app declares it can do. This is the 'definition' "
+            "field of the document served at /.well-known/initiative-app.json, "
+            "NOT that whole document: a registrar also requires "
+            "protocol_version, public_id and kind alongside it, and refuses a "
+            "definition served bare. Generated from the platform's own "
+            f"validator vocabulary. {_AUTHORITY_NOTE}"
         ),
         "type": "object",
         "required": ["app_kind", "service", "features"],
