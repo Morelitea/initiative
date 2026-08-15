@@ -116,7 +116,7 @@ async def deliver(
         logger.warning(
             "webhook delivery failed: target=%s event=%s err=%s",
             target_url,
-            envelope["event_type"],
+            envelope.get("event_id"),
             exc,
         )
         return False
@@ -125,7 +125,7 @@ async def deliver(
         logger.warning(
             "webhook delivery non-2xx: target=%s event=%s status=%s",
             target_url,
-            envelope["event_type"],
+            envelope.get("event_id"),
             response.status_code,
         )
         return False

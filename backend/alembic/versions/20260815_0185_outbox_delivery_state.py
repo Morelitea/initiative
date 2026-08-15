@@ -35,6 +35,19 @@ def upgrade() -> None:
 
 
 def _apply_upgrade() -> None:
+    # The capture trigger fires while a row is being deleted, including when
+    # that deletion is the cascade from removing the initiative or user the
+    # event names — so the log's own insert would fail the delete it is
+    # reporting. Both references become weak (plain ints): the log outlives what
+    # it describes, retention sweeps orphans, and RLS still resolves
+    # initiative_id through initiative_access.
+    op.drop_constraint(
+        "event_outbox_initiative_id_fkey", "event_outbox", type_="foreignkey"
+    )
+    op.drop_constraint(
+        "event_outbox_actor_user_id_fkey", "event_outbox", type_="foreignkey"
+    )
+
     op.add_column(
         "webhook_subscriptions",
         sa.Column("failure_count", sa.Integer(), nullable=False, server_default="0"),
@@ -57,3 +70,20 @@ def _apply_downgrade() -> None:
     )
     op.drop_column("webhook_subscriptions", "next_attempt_at")
     op.drop_column("webhook_subscriptions", "failure_count")
+
+    op.create_foreign_key(
+        "event_outbox_actor_user_id_fkey",
+        "event_outbox",
+        "users",
+        ["actor_user_id"],
+        ["id"],
+        ondelete="SET NULL",
+    )
+    op.create_foreign_key(
+        "event_outbox_initiative_id_fkey",
+        "event_outbox",
+        "initiatives",
+        ["initiative_id"],
+        ["id"],
+        ondelete="CASCADE",
+    )
