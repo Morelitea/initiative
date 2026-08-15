@@ -365,6 +365,7 @@
   "BILLING_PORTAL_SIGNING_NOT_CONFIGURED": "Le portail de facturation n'est pas encore entièrement configuré. Contacte ton administration.",
   "BILLING_PORTAL_GRANT_UNAVAILABLE": "Impossible d'obtenir l'accès à la facturation de cette guilde. Vérifie si une demande d'accès est encore en attente.",
   "MARKETPLACE_LISTING_NOT_FOUND": "Cette fiche du catalogue n'existe plus.",
+  "MARKETPLACE_LISTING_NEEDS_APP": "Ce tableau de bord accompagne une application que votre guilde n'a pas installée. Installez d'abord l'application, puis ajoutez le tableau de bord.",
   "MARKETPLACE_LISTING_UNAVAILABLE": "Cette fiche a été retirée et ne peut plus être installée.",
   "MARKETPLACE_LISTING_VERSION_INCOMPATIBLE": "Cette fiche nécessite une version plus récente de l'application. Demandez à une administratrice ou un administrateur de la mettre à jour, puis réessayez.",
   "MARKETPLACE_NOT_INSTALLED_FROM_LISTING": "Ceci a été créé ici plutôt qu'installé : il n'y a donc aucune fiche depuis laquelle le mettre à jour.",

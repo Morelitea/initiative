@@ -23,6 +23,8 @@ from __future__ import annotations
 import json
 from typing import Any, NoReturn
 
+from app.models.platform.marketplace import UID_ALPHABET, UID_LENGTH
+
 __all__ = [
     "ListingDefinitionError",
     "IDENTIFIER_CHARS",
@@ -41,6 +43,7 @@ __all__ = [
     "check_path",
     "check_public_id",
     "check_single_line",
+    "check_uid",
     "check_url",
     "clean_text",
     "fail",
@@ -183,6 +186,23 @@ def check_public_id(value: Any, *, what: str) -> str:
             fail(f"{what} contains {character!r}, which is not allowed")
     if "." not in value:
         fail(f"{what} must be '<publisher>.<slug>'")
+    return value
+
+
+def check_uid(value: Any, *, what: str) -> str:
+    """A catalog uid: publisher-assigned, immutable, never reused.
+
+    One rule for the shape of a uid wherever it appears — the catalog's own
+    ingestion check and a manifest declaring one for a dashboard it bundles both
+    come here, so a value either accepts is a value the other does.
+    """
+    if not isinstance(value, str) or not value:
+        fail(f"{what} is required")
+    if len(value) != UID_LENGTH:
+        fail(f"{what} must be {UID_LENGTH} characters, got {len(value)}")
+    for character in value:
+        if character not in UID_ALPHABET:
+            fail(f"{what} contains {character!r}, which is not in the alphabet")
     return value
 
 
