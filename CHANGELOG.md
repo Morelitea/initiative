@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.62.6] - 2026-08-14
+
 ### Added
 
 - **Android notifications now arrive on channels you can tune individually.** Comments, calendar events, event reminders, access requests, and the new overdue summary each get their own entry in the system notification settings, so you can silence one kind without silencing the rest — previously only five kinds were sorted this way and everything else arrived under a general heading. This part needs the updated app; the notifications themselves reach existing installs either way.
