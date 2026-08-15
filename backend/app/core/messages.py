@@ -472,6 +472,10 @@ class MarketplaceMessages:
     #: by its publisher, or its only versions need a newer app.
     LISTING_UNAVAILABLE = "MARKETPLACE_LISTING_UNAVAILABLE"
     LISTING_VERSION_INCOMPATIBLE = "MARKETPLACE_LISTING_VERSION_INCOMPATIBLE"
+    #: A dashboard that ships with an app, asked for by a guild that does not
+    #: have that app installed. Its tiles draw that app's widgets, so there
+    #: would be nothing behind any of them.
+    LISTING_NEEDS_APP = "MARKETPLACE_LISTING_NEEDS_APP"
     #: An upgrade was asked for on a dashboard that was authored here, not
     #: installed — there is no listing to re-pin it to.
     NOT_INSTALLED_FROM_LISTING = "MARKETPLACE_NOT_INSTALLED_FROM_LISTING"

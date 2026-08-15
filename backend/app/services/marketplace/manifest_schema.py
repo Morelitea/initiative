@@ -54,6 +54,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.models.platform.marketplace import UID_ALPHABET, UID_LENGTH
 from app.services.marketplace.manifest_values import (
     IDENTIFIER_CHARS,
     MAX_HINT_LENGTH,
@@ -75,14 +76,20 @@ from app.services.marketplace.service_apps import (
     FIELD_TYPES,
     GUILD_WIDE_VISIBILITIES,
     MAX_ACCESS_HINT_SCOPES,
+    MAX_BUNDLED_DASHBOARDS,
     MAX_CACHE_TTL_SECONDS,
     MAX_CONNECTIONS,
+    MAX_DASHBOARD_BINDING_PARAMS,
+    MAX_DASHBOARD_GRID_COLUMNS,
+    MAX_DASHBOARD_WIDGETS,
     MAX_DATA_SOURCES,
+    MAX_DESCRIPTION_LENGTH,
     MAX_EMBED_CAPABILITIES,
     MAX_EMBEDS,
     MAX_EVENT_TYPE_LENGTH,
     MAX_EVENTS,
     MAX_FIELDS_PER_CONNECTION,
+    MAX_PARAM_VALUE_LENGTH,
     MAX_PARAMS_PER_SOURCE,
     MAX_REQUIRES_TERMS,
     MAX_SELECT_OPTIONS,
@@ -368,6 +375,108 @@ def _widget() -> dict[str, Any]:
     }
 
 
+def _bundled_dashboard() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "required": ["uid", "public_id", "name", "widgets"],
+        "properties": {
+            "uid": {
+                "type": "string",
+                "minLength": UID_LENGTH,
+                "maxLength": UID_LENGTH,
+                "pattern": _pattern(frozenset(UID_ALPHABET)),
+                "description": (
+                    "This dashboard's own catalog id — publisher-assigned, "
+                    "immutable, never reused. It becomes a listing of its own, "
+                    "so this is a real catalog identity and not the app's."
+                ),
+            },
+            "public_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": MAX_PUBLIC_ID_LENGTH,
+                "pattern": _pattern(PUBLIC_ID_CHARS),
+                "description": (
+                    "'<publisher>.<slug>', and not the app's own — a bundled "
+                    "dashboard is a separate listing."
+                ),
+            },
+            "name": {"type": "string", "minLength": 1, "maxLength": MAX_NAME_LENGTH},
+            "description": {"type": "string", "maxLength": MAX_DESCRIPTION_LENGTH},
+            "layout": {
+                "type": "object",
+                "properties": {
+                    "columns": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": MAX_DASHBOARD_GRID_COLUMNS,
+                    }
+                },
+            },
+            "widgets": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": MAX_DASHBOARD_WIDGETS,
+                "items": {"$ref": "#/$defs/bundledDashboardWidget"},
+            },
+        },
+    }
+
+
+def _bundled_dashboard_widget() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "required": ["type", "binding"],
+        "properties": {
+            "id": {"$ref": "#/$defs/identifier"},
+            "type": {
+                "$ref": "#/$defs/identifier",
+                "description": (
+                    "One of this manifest's own widget ids — bare, with no uid. "
+                    "The platform stamps the app's uid on when it publishes, so "
+                    "the two can never disagree."
+                ),
+            },
+            "title": {"type": "string", "maxLength": MAX_NAME_LENGTH},
+            "grid": {
+                "type": "object",
+                "properties": {
+                    "x": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": MAX_DASHBOARD_GRID_COLUMNS,
+                    },
+                    "y": {"type": "integer", "minimum": 0},
+                    "w": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": MAX_DASHBOARD_GRID_COLUMNS,
+                    },
+                    "h": {"type": "integer", "minimum": 1},
+                },
+            },
+            "binding": {
+                "type": "object",
+                "required": ["source_id"],
+                "properties": {
+                    "source_id": {
+                        "$ref": "#/$defs/identifier",
+                        "description": "One of this manifest's own data source ids.",
+                    },
+                    "params": {
+                        "type": "object",
+                        "maxProperties": MAX_DASHBOARD_BINDING_PARAMS,
+                        "additionalProperties": {
+                            "type": ["string", "integer", "boolean"],
+                            "maxLength": MAX_PARAM_VALUE_LENGTH,
+                        },
+                    },
+                },
+            },
+        },
+    }
+
+
 def _embed() -> dict[str, Any]:
     return {
         "type": "object",
@@ -507,6 +616,16 @@ def build_manifest_schema() -> dict[str, Any]:
                     "by no vocabulary here."
                 ),
             },
+            "dashboards": {
+                "type": "array",
+                "maxItems": MAX_BUNDLED_DASHBOARDS,
+                "items": {"$ref": "#/$defs/bundledDashboard"},
+                "description": (
+                    "Ready-made arrangements of this app's own widgets. "
+                    "Publishing the app publishes one ordinary dashboard listing "
+                    "per entry, offered to guilds that install the app."
+                ),
+            },
         },
         "$defs": {
             "identifier": {
@@ -535,5 +654,7 @@ def build_manifest_schema() -> dict[str, Any]:
             "dataSource": _data_source(),
             "widget": _widget(),
             "embed": _embed(),
+            "bundledDashboard": _bundled_dashboard(),
+            "bundledDashboardWidget": _bundled_dashboard_widget(),
         },
     }

@@ -38,6 +38,7 @@ from app.services.marketplace.definitions import (
     LISTING_KINDS,
     LISTING_SOURCES,
     ListingDefinitionError,
+    app_widget_type,
     normalize_publisher,
     normalize_listing_definition,
     reserved_prefix_problem,
@@ -163,10 +164,19 @@ async def list_listings(
     kind: Optional[str] = None,
     query: Optional[str] = None,
     include_unavailable: bool = False,
+    bundled_with: Optional[Sequence[str]] = None,
     offset: int = 0,
     limit: int = 50,
 ) -> tuple[Sequence[MarketplaceListing], int]:
-    """A page of listings, newest first, with the total that matched."""
+    """A page of listings, newest first, with the total that matched.
+
+    ``bundled_with`` names the app uids the caller is entitled to see bundled
+    dashboards for — the apps a guild has installed. Left unset, a dashboard
+    that ships with an app is not offered at all, which is the right answer for
+    a caller that has no guild to answer it for: such a dashboard draws that
+    app's widgets, so offering it where the app cannot be is offering a canvas
+    of tiles with nothing behind them.
+    """
     statement = select(MarketplaceListing)
     count_statement = select(func.count()).select_from(MarketplaceListing)
 
@@ -175,6 +185,15 @@ async def list_listings(
         filters.append(MarketplaceListing.available.is_(True))
     if kind:
         filters.append(MarketplaceListing.kind == kind)
+    if bundled_with:
+        filters.append(
+            or_(
+                MarketplaceListing.bundled_with_uid.is_(None),
+                MarketplaceListing.bundled_with_uid.in_(list(bundled_with)),
+            )
+        )
+    else:
+        filters.append(MarketplaceListing.bundled_with_uid.is_(None))
     if query:
         # Case-insensitive across the three fields someone would actually type.
         needle = f"%{query.strip()}%"
@@ -266,6 +285,7 @@ async def upsert_listing(
     manifest: dict[str, Any],
     *,
     source: str,
+    bundled_with: Optional[str] = None,
 ) -> MarketplaceListing:
     """Create or update one listing and the version its manifest describes.
 
@@ -274,6 +294,13 @@ async def upsert_listing(
     reassignable — a uid already held by a different ``public_id`` is refused,
     and vice versa, so a uid keeps meaning the listing it was first published
     for.
+
+    ``bundled_with`` names the app this listing is published as part of, and is
+    a third thing that cannot be reassigned. It is set only by
+    :func:`_publish_bundled_dashboards`, which is the app's own publish; every
+    other caller leaves it ``None`` and is publishing something that stands on
+    its own. A publish whose ownership disagrees with the stored row is refused
+    rather than applied, in either direction.
     """
     if source not in LISTING_SOURCES:
         raise CatalogError(f"unknown listing source {source!r}")
@@ -327,6 +354,21 @@ async def upsert_listing(
         raise CatalogError(
             f"uid {uid} is already held by {existing.public_id}; refusing to reassign"
         )
+    elif existing.bundled_with_uid != bundled_with:
+        # Both identities matching is what an *update* looks like, so this is
+        # the one path that reaches an existing row rather than being refused
+        # above — and who owns a listing is not something a later publish may
+        # change. An app bundling a uid somebody else published would otherwise
+        # rewrite that listing and attach its withdrawal to a different app.
+        held = (
+            f"as part of {existing.bundled_with_uid}"
+            if existing.bundled_with_uid
+            else "on its own"
+        )
+        wants = f"as part of {bundled_with}" if bundled_with else "on its own"
+        raise CatalogError(
+            f"{public_id} is already published {held}; refusing to republish {wants}"
+        )
 
     now = datetime.now(timezone.utc)
     # Everything a publish sets, whether the row is new or being updated. Built
@@ -341,6 +383,7 @@ async def upsert_listing(
         "long_description": manifest.get("long_description"),
         "avatar_url": avatar_url,
         "images": list(images),
+        "bundled_with_uid": bundled_with,
         "available": True,
         "updated_at": now,
     }
@@ -399,7 +442,108 @@ async def upsert_listing(
     listing.latest_version_id = version.id
     session.add(listing)
     await session.flush()
+
+    if kind == "app":
+        await _publish_bundled_dashboards(
+            session,
+            app=listing,
+            definition=definition,
+            version=version_str,
+            source=source,
+        )
+
     return listing
+
+
+async def _publish_bundled_dashboards(
+    session: AsyncSession,
+    *,
+    app: MarketplaceListing,
+    definition: dict[str, Any],
+    version: str,
+    source: str,
+) -> None:
+    """Publish one dashboard listing per entry in an app's ``dashboards`` block.
+
+    This is the whole reason a publisher declares these inside the manifest
+    rather than beside it: the operator adds one file, and the dashboards that
+    ship with the app are published, versioned and withdrawn with it.
+
+    Each one is an ordinary listing. It carries the publisher's own uid — which
+    is what makes it a real catalog identity rather than something invented here
+    — and inherits the app's publisher, source and version, because it *is* the
+    app's publish. ``bundled_with_uid`` is what marks it, and is how the browse
+    path knows to offer it only where the app is installed.
+
+    Widget types are resolved to their namespaced form here. A manifest carries
+    no uid inside it, so a publisher writes the bare widget id and this stamps
+    the app's own uid on — the same value :func:`app_widget_type` puts on the
+    palette. What gets stored is therefore the shape the dashboard tool already
+    renders, and nothing downstream needs to know the row was derived.
+    """
+    published: set[str] = set()
+
+    for entry in definition.get("dashboards") or []:
+        widgets = [
+            {
+                "id": widget["id"],
+                "type": app_widget_type(app.uid, widget["type"]),
+                **({"title": widget["title"]} if "title" in widget else {}),
+                **({"grid": widget["grid"]} if "grid" in widget else {}),
+                "binding": {"source": "app", "app_uid": app.uid, **widget["binding"]},
+            }
+            for widget in entry["widgets"]
+        ]
+        manifest: dict[str, Any] = {
+            "uid": entry["uid"],
+            "public_id": entry["public_id"],
+            "kind": "dashboard",
+            "name": entry["name"],
+            "publisher": app.publisher,
+            "description": entry.get("description") or app.description,
+            "version": version,
+            # No artwork of its own, deliberately: a dashboard previews by
+            # rendering its actual widgets against the sample data those widgets
+            # declare, which cannot go stale against the app the way a picture
+            # would.
+            "avatar_url": DEFAULT_AVATAR_URL,
+            "images": [],
+            "definition": {
+                "schema_version": 1,
+                "kind": "dashboard",
+                **({"layout": entry["layout"]} if "layout" in entry else {}),
+                "widgets": widgets,
+            },
+        }
+        # Ownership goes in as part of the publish rather than being stamped on
+        # afterwards, so the same call that refuses to reassign a uid refuses to
+        # take a listing away from whoever already published it.
+        await upsert_listing(session, manifest, source=source, bundled_with=app.uid)
+        published.add(entry["uid"])
+
+    # A dashboard dropped from the manifest is withdrawn rather than left
+    # offered: the app that supplied its widgets no longer ships it. Withdrawn,
+    # not deleted — a guild that already installed it keeps what it has.
+    for stale in await _bundled_dashboards_of(session, app.uid):
+        if stale.uid not in published and stale.available:
+            stale.available = False
+            stale.updated_at = datetime.now(timezone.utc)
+            session.add(stale)
+
+    await session.flush()
+
+
+async def _bundled_dashboards_of(
+    session: AsyncSession, app_uid: str
+) -> Sequence[MarketplaceListing]:
+    """Every dashboard listing published as part of one app."""
+    return (
+        await session.exec(
+            select(MarketplaceListing).where(
+                MarketplaceListing.bundled_with_uid == app_uid
+            )
+        )
+    ).all()
 
 
 async def withdraw_listing(session: AsyncSession, uid: str) -> bool:
@@ -411,13 +555,27 @@ async def withdraw_listing(session: AsyncSession, uid: str) -> bool:
     cannot be installed again. Used when a deployment stops being able to serve
     something it previously seeded — an operator removing the configuration an
     app depends on — and later by the registry for a listing its publisher pulls.
+
+    Withdrawing an app withdraws the dashboards it bundles. They were published
+    by its manifest and have no existence apart from it, so leaving them offered
+    would mean offering an arrangement of widgets a guild can no longer install
+    the app for.
     """
     listing = await get_listing_by_uid(session, uid)
     if listing is None or not listing.available:
         return False
+    now = datetime.now(timezone.utc)
     listing.available = False
-    listing.updated_at = datetime.now(timezone.utc)
+    listing.updated_at = now
     session.add(listing)
+
+    if listing.kind == "app":
+        for bundled in await _bundled_dashboards_of(session, listing.uid):
+            if bundled.available:
+                bundled.available = False
+                bundled.updated_at = now
+                session.add(bundled)
+
     await session.flush()
     return True
 

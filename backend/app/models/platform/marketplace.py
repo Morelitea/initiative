@@ -105,6 +105,23 @@ class MarketplaceListing(SQLModel, table=True):
     installs_count: int = Field(
         default=0, sa_column=Column(Integer, nullable=False, server_default="0")
     )
+    # Set on a dashboard listing an app ships with itself; NULL on anything
+    # published on its own.
+    #
+    # A bundled dashboard is an ordinary listing in every other respect — same
+    # kind, same uid rules, installed by the same call — because a dashboard
+    # somebody publishes to share and a dashboard that arrives with an app are
+    # the same thing to the guild installing it. This column carries the two
+    # ways they differ: it is offered only to guilds that have that app, and it
+    # is published and withdrawn with the app rather than on its own.
+    #
+    # The uid rather than a foreign key. Both rows come from one manifest, and a
+    # referential cascade here would be a second mechanism for a lifecycle the
+    # publish already owns.
+    bundled_with_uid: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(UID_LENGTH), nullable=True, index=True),
+    )
     # False once a registry withdraws a listing. Never deleted: installed
     # instances keep working and keep their provenance.
     available: bool = Field(

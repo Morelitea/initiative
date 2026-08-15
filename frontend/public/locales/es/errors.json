@@ -365,6 +365,7 @@
   "BILLING_PORTAL_SIGNING_NOT_CONFIGURED": "El portal de facturación aún no está configurado por completo. Contacta con tu administración.",
   "BILLING_PORTAL_GRANT_UNAVAILABLE": "No se pudo obtener acceso a la facturación de este gremio. Comprueba si tienes una solicitud de acceso pendiente.",
   "MARKETPLACE_LISTING_NOT_FOUND": "Ese elemento del mercado ya no existe.",
+  "MARKETPLACE_LISTING_NEEDS_APP": "Este panel viene con una aplicación que tu gremio no tiene instalada. Instala primero la aplicación y después añade el panel.",
   "MARKETPLACE_LISTING_UNAVAILABLE": "Este elemento se ha retirado y ya no se puede instalar.",
   "MARKETPLACE_LISTING_VERSION_INCOMPATIBLE": "Este elemento necesita una versión más reciente de la aplicación. Pide a un administrador que la actualice y vuelve a intentarlo.",
   "MARKETPLACE_NOT_INSTALLED_FROM_LISTING": "Esto se creó aquí en lugar de instalarse, así que no hay ningún elemento desde el que actualizarlo.",

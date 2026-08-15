@@ -365,6 +365,7 @@
   "BILLING_PORTAL_SIGNING_NOT_CONFIGURED": "Das Abrechnungsportal ist noch nicht vollständig konfiguriert. Wende dich an deine Administration.",
   "BILLING_PORTAL_GRANT_UNAVAILABLE": "Zugriff auf die Abrechnung dieser Gilde nicht möglich. Prüfe, ob dafür noch eine Zugriffsanfrage offen ist.",
   "MARKETPLACE_LISTING_NOT_FOUND": "Diesen Marktplatz-Eintrag gibt es nicht mehr.",
+  "MARKETPLACE_LISTING_NEEDS_APP": "Dieses Dashboard gehört zu einer App, die deine Gilde nicht installiert hat. Installiere zuerst die App und füge dann das Dashboard hinzu.",
   "MARKETPLACE_LISTING_UNAVAILABLE": "Dieser Eintrag wurde zurückgezogen und kann nicht mehr installiert werden.",
   "MARKETPLACE_LISTING_VERSION_INCOMPATIBLE": "Dieser Eintrag benötigt eine neuere Version der App. Bitte eine Administratorin oder einen Administrator um ein Update und versuche es dann erneut.",
   "MARKETPLACE_NOT_INSTALLED_FROM_LISTING": "Das wurde hier erstellt und nicht installiert – es gibt also keinen Eintrag, von dem aus aktualisiert werden könnte.",
