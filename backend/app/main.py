@@ -20,7 +20,7 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_upload_user
-from app.api.embed_csp import embed_document_csp
+from app.api.embed_csp import app_frame_policy
 from app.core.body_limit import BodySizeLimitMiddleware
 from app.api.v1.api import api_router
 from app.core.messages import GuildMessages
@@ -690,7 +690,7 @@ def _resolve_static_file(path: str) -> Path | None:
 
 
 @app.get("/{full_path:path}", include_in_schema=False)
-async def serve_spa(request: Request, full_path: str) -> FileResponse:
+async def serve_spa(full_path: str) -> FileResponse:
     if _is_reserved_path(full_path):
         raise HTTPException(status_code=404)
     static_file = _resolve_static_file(full_path) if full_path else None
@@ -707,13 +707,13 @@ async def serve_spa(request: Request, full_path: str) -> FileResponse:
             headers={"Cache-Control": "public, max-age=3600"},
         )
     if static_index_path.is_file():
-        headers = {"Cache-Control": "no-cache"}
-        # The document that opens one app's embed carries the frame permission
-        # for that app's registered origins; every other document carries none
-        # (see app.api.embed_csp). The middleware sets the app-wide policy with
-        # setdefault, so this scoped one wins where it applies.
-        scoped_csp = await embed_document_csp(request, full_path)
-        if scoped_csp is not None:
-            headers["Content-Security-Policy"] = scoped_csp
+        # A document is where `frame-src` means anything, so the registered app
+        # origins are named here rather than on every response (see
+        # app.api.embed_csp). The middleware sets the app-wide policy with
+        # setdefault, so this one wins.
+        headers = {
+            "Cache-Control": "no-cache",
+            "Content-Security-Policy": await app_frame_policy(),
+        }
         return FileResponse(static_index_path, headers=headers)
     raise HTTPException(status_code=404, detail="SPA bundle not found")

@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **An app is told who you are without being told which account you are.** Apps now know each member by an identifier unique to that app's own installation, rather than by an account id shared across everything. Two apps cannot compare notes and work out they are dealing with the same person, and an app installed in two guilds cannot link those guilds to one of your members.
 
+### Fixed
+
+- **An app's page opens wherever the app is, however you got there, however long you have been signed in.** An app placed in an initiative now loads its page instead of an empty frame. So does one reached by clicking through the sidebar rather than by opening its address directly, and one opened after a long-running tab has been sitting idle. The browser permission an embedded app needs is now settled by which app services the deployment has connected, so it no longer depends on which page a tab happened to load first or on how recently you signed in.
+
 ## [0.62.5] - 2026-08-14
 
 ### Added

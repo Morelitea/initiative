@@ -291,7 +291,7 @@ class Settings(BaseSettings):
     def content_security_policy_with_frames(
         self, app_frame_origins: Sequence[str]
     ) -> str:
-        """The app-wide CSP, optionally admitting one app's frame origins.
+        """The app-wide CSP, optionally admitting the registered frame origins.
 
         Locks down the high-value vectors (``object-src``/``base-uri``/
         ``frame-ancestors``/``form-action``) and confines scripts to
@@ -304,13 +304,12 @@ class Settings(BaseSettings):
         ``https:``.
 
         ``app_frame_origins`` is how a marketplace app's embedded surface gets
-        framed, and it is deliberately **per document**: the response that opens
-        one app's embed names that app's registered origins, and every other
-        response names none. Listing every registered app instead would make
-        this header grow with the size of the catalog, on every response, for a
-        capability almost no page uses — and would advertise each app's origins
-        to pages that have nothing to do with it. ``connect-src`` is untouched:
-        an app's data reaches the browser same-origin through the proxy.
+        framed. It holds the origins of the app services this deployment has
+        registered — the operator's trusted-site list, passed in by
+        ``app.api.embed_csp`` on the documents where ``frame-src`` applies, and
+        empty here so the app-wide default names none. ``connect-src`` is
+        untouched: an app's data reaches the browser same-origin through the
+        proxy.
         """
         ws = "wss:" if self.APP_URL.startswith("https") else "ws:"
 
