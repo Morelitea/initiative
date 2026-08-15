@@ -8,7 +8,7 @@ an in-flight transaction.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import pytest
 
@@ -97,63 +97,30 @@ def test_one_transaction_is_one_envelope():
         }
 
 
-class _FakeSession:
-    """Just enough session to drive _advance / _release."""
-
-    def __init__(self) -> None:
-        self.commits = 0
-
-    def add(self, _obj) -> None:  # noqa: D102
-        pass
-
-    async def commit(self) -> None:
-        self.commits += 1
-
-
-async def test_an_empty_window_does_not_clear_a_failing_backoff():
-    """A window holding nothing this subscriber wanted is not a delivery, so it
-    must not reset a failing target's failure count."""
+def test_a_window_with_nothing_to_send_leaves_failure_state_alone():
+    """A window holding nothing this subscriber wanted is not evidence about the
+    target, so it must not clear a failing one's backoff."""
     now = datetime.now(timezone.utc)
-    subscription = _subscription(
-        failure_count=3, next_attempt_at=now + timedelta(seconds=600)
-    )
-    session = _FakeSession()
-
-    await outbox_poller._advance(session, subscription, 50, now=now, outcome=None)
-
-    assert subscription.failure_count == 3, (
+    count, next_attempt = outbox_poller._next_retry_state(3, outcome=None, now=now)
+    assert count == 3, (
         "a non-matching window reset the backoff, so unrelated traffic would "
         "keep a dead target being retried every pass"
     )
-    assert subscription.cursor_event_id == 50
+    assert next_attempt is None
 
 
-async def test_a_refused_delivery_backs_off_and_holds_the_cursor():
+def test_a_refused_delivery_backs_off():
     now = datetime.now(timezone.utc)
-    subscription = _subscription(cursor_event_id=10, failure_count=1)
-    session = _FakeSession()
-
-    await outbox_poller._advance(session, subscription, 9, now=now, outcome=False)
-
-    assert subscription.failure_count == 2
-    assert subscription.next_attempt_at is not None
-    assert subscription.next_attempt_at > now
-    # The cursor never moves backwards.
-    assert subscription.cursor_event_id == 10
+    count, next_attempt = outbox_poller._next_retry_state(1, outcome=False, now=now)
+    assert count == 2
+    assert next_attempt is not None and next_attempt > now
 
 
-async def test_an_accepted_delivery_clears_failure_state():
+def test_an_accepted_delivery_clears_failure_state():
     now = datetime.now(timezone.utc)
-    subscription = _subscription(
-        cursor_event_id=10, failure_count=4, next_attempt_at=now
-    )
-    session = _FakeSession()
-
-    await outbox_poller._advance(session, subscription, 42, now=now, outcome=True)
-
-    assert subscription.failure_count == 0
-    assert subscription.next_attempt_at is None
-    assert subscription.cursor_event_id == 42
+    count, next_attempt = outbox_poller._next_retry_state(4, outcome=True, now=now)
+    assert count == 0
+    assert next_attempt is None
 
 
 def test_backoff_grows_and_is_bounded():
@@ -179,3 +146,41 @@ def test_window_trim_never_splits_a_transaction_at_the_limit():
     assert len(rows) == limit
     # Transaction 501 is held back whole rather than delivered as rows 3 of 4.
     assert all(r.txn_id != 501 for r in trimmed)
+
+
+def test_interleaved_window_never_advances_past_a_withheld_row():
+    """The cursor is one number, so it may only stop where every transaction
+    that started below it also finished below it.
+
+    Trimming the tail transaction by id alone loses events: with rows
+    1(A) 2(B) 3(A) 4(B), dropping B leaves [1, 3] and a watermark of 3 — but
+    row 2 is B's and sits *below* 3, so it would never be read again.
+    """
+    rows = [_row(1, 500), _row(2, 501), _row(3, 500), _row(4, 501)]
+
+    prefix, watermark = outbox_poller._complete_prefix(rows, truncated=True)
+
+    assert watermark is None or watermark < 2, (
+        f"watermark {watermark} skips row 2, which was withheld with its "
+        "transaction — those events are unreachable on every later pass"
+    )
+    assert all(r.id <= (watermark or 0) for r in prefix)
+
+
+def test_complete_prefix_stops_before_an_unfinished_transaction():
+    """Transaction 500 closes at row 2; 501 is still open at the window edge."""
+    rows = [_row(1, 500), _row(2, 500), _row(3, 501)]
+
+    prefix, watermark = outbox_poller._complete_prefix(rows, truncated=True)
+
+    assert watermark == 2
+    assert [r.id for r in prefix] == [1, 2]
+
+
+def test_complete_prefix_takes_everything_when_nothing_is_open():
+    rows = [_row(1, 500), _row(2, 500), _row(3, 501)]
+
+    prefix, watermark = outbox_poller._complete_prefix(rows, truncated=False)
+
+    assert watermark == 3
+    assert [r.id for r in prefix] == [1, 2, 3]

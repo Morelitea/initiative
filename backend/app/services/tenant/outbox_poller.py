@@ -141,33 +141,32 @@ def _envelope(
 
 async def _claim(
     session: AsyncSession, subscription: WebhookSubscription, *, now: datetime
-) -> bool:
-    """Take this subscription for one pass, or report that someone else has it.
+) -> datetime | None:
+    """Take this subscription for one pass, returning the lease that proves it.
 
     A conditional update is the claim: only the replica whose UPDATE matches a
     row proceeds. ``next_attempt_at`` doubles as the lease, so a holder that dies
-    mid-drain releases it by expiry rather than stranding the subscription.
+    mid-drain releases it by expiry rather than stranding the subscription — and
+    the value written is the token every later write is checked against, so a
+    holder whose lease lapsed cannot settle over whoever took it next.
     """
+    lease = now + timedelta(seconds=LEASE_SECONDS)
     result = await session.exec(
         text(
             "UPDATE webhook_subscriptions SET next_attempt_at = :lease "
             "WHERE id = :id AND (next_attempt_at IS NULL OR next_attempt_at <= :now) "
             "RETURNING id"
-        ).bindparams(
-            lease=now + timedelta(seconds=LEASE_SECONDS),
-            id=subscription.id,
-            now=now,
-        )
+        ).bindparams(lease=lease, id=subscription.id, now=now)
     )
     claimed = result.first() is not None
     await session.commit()
-    if claimed:
-        # The claim was raw SQL, so the in-memory instance still holds what it
-        # was loaded with — including a cursor another replica may have advanced
-        # between the load and the claim. Every later write goes through this
-        # object, so re-read it before trusting any of its state.
-        await session.refresh(subscription)
-    return claimed
+    if not claimed:
+        return None
+    # The claim was raw SQL, so the in-memory instance still holds what it was
+    # loaded with — including a cursor another replica may have advanced between
+    # the load and the claim. Re-read before trusting any of its state.
+    await session.refresh(subscription)
+    return lease
 
 
 async def _readable_window(
@@ -200,26 +199,72 @@ async def _readable_window(
     if not settled:
         return [], None
 
-    if len(rows) == BATCH_LIMIT and settled[-1] is rows[-1]:
-        # The window ended exactly at the row limit, so the last transaction may
-        # continue past it. Drop its rows and take them whole next pass —
-        # otherwise one transaction arrives as two envelopes.
-        tail_txn = settled[-1].txn_id
-        trimmed = [row for row in settled if row.txn_id != tail_txn]
-        if trimmed:
-            return trimmed, trimmed[-1].id
-        # The whole window is one transaction, so trimming would make no
-        # progress ever. Read that transaction in full instead.
-        whole = list(
-            await session.exec(
-                select(EventOutbox)
-                .where(EventOutbox.id > cursor, EventOutbox.txn_id == tail_txn)
-                .order_by(EventOutbox.id.asc())
-            )
-        )
-        return whole, whole[-1].id
+    truncated = len(rows) == BATCH_LIMIT and settled[-1] is rows[-1]
+    prefix, watermark = _complete_prefix(settled, truncated=truncated)
+    if prefix:
+        return prefix, watermark
 
-    return settled, settled[-1].id
+    if not truncated:
+        # Nothing was withheld for length reasons, so the prefix is empty only
+        # if the settled rows are themselves incomplete — wait for them.
+        return [], None
+
+    # No transaction closed inside the window: the rows we can see all belong to
+    # transactions that continue past it. Re-read those transactions in full so
+    # the cursor can move at all.
+    txn_ids = {row.txn_id for row in settled}
+    whole = list(
+        await session.exec(
+            select(EventOutbox)
+            .where(EventOutbox.id > cursor, EventOutbox.txn_id.in_(txn_ids))
+            .order_by(EventOutbox.id.asc())
+        )
+    )
+    prefix, watermark = _complete_prefix(whole, truncated=False)
+    return (prefix, watermark) if prefix else ([], None)
+
+
+def _complete_prefix(
+    rows: list[EventOutbox], *, truncated: bool
+) -> tuple[list[EventOutbox], int | None]:
+    """The longest run of rows containing only whole transactions.
+
+    Ids come from a sequence at insert time, so concurrent transactions
+    interleave: one transaction's rows can sit either side of another's. A
+    cursor is a single number, so the only safe place to stop is a point where
+    every transaction that started below it has also finished below it —
+    otherwise advancing skips a withheld row that lies beneath the watermark,
+    and that row is never read again.
+
+    ``truncated`` marks a window cut at the row limit, where the last
+    transaction may continue past what we can see; it is treated as unfinished.
+    """
+    if not rows:
+        return [], None
+
+    # Rows come from a SELECT, so every id is populated; the model types it
+    # optional only because an unsaved instance has none.
+    last_id_of: dict[int, int] = {
+        row.txn_id: row.id for row in rows if row.id is not None
+    }
+    tail_txn = rows[-1].txn_id
+
+    open_txns: set[int] = set()
+    watermark: int | None = None
+    cut = 0
+    for index, row in enumerate(rows):
+        open_txns.add(row.txn_id)
+        if row.id == last_id_of[row.txn_id] and not (
+            truncated and row.txn_id == tail_txn
+        ):
+            open_txns.discard(row.txn_id)
+        if not open_txns:
+            watermark = row.id
+            cut = index + 1
+
+    if watermark is None:
+        return [], None
+    return rows[:cut], watermark
 
 
 async def _drain_subscription(
@@ -227,6 +272,7 @@ async def _drain_subscription(
     subscription: WebhookSubscription,
     *,
     now: datetime,
+    lease: datetime,
 ) -> None:
     """Deliver one subscription's pending events, as its owner.
 
@@ -247,7 +293,7 @@ async def _drain_subscription(
     if watermark is None:
         # Nothing settled to send. Release the lease without touching failure
         # state — no delivery was attempted, so nothing was proven either way.
-        await _release(session, subscription)
+        await _release(session, subscription, lease=lease)
         return
 
     # Group by transaction id, not by adjacency: concurrent commits interleave
@@ -261,7 +307,9 @@ async def _drain_subscription(
         # The window held nothing for this subscription. Skip past it so a
         # narrow filter doesn't re-read the same rows forever — but this is not
         # a delivery, so failure state is left alone.
-        await _advance(session, subscription, watermark, now=now, outcome=None)
+        await _advance(
+            session, subscription, watermark, now=now, outcome=None, lease=lease
+        )
         return
 
     # Oldest transaction first, so a receiver sees changes in the order they
@@ -277,18 +325,41 @@ async def _drain_subscription(
             # Hold the cursor beneath this transaction so it and everything
             # after it retry in order.
             await _advance(
-                session, subscription, batch[0].id - 1, now=now, outcome=False
+                session,
+                subscription,
+                batch[0].id - 1,
+                now=now,
+                outcome=False,
+                lease=lease,
             )
             return
 
-    await _advance(session, subscription, watermark, now=now, outcome=True)
+    await _advance(session, subscription, watermark, now=now, outcome=True, lease=lease)
 
 
-async def _release(session: AsyncSession, subscription: WebhookSubscription) -> None:
-    """Drop the lease, leaving failure state untouched."""
-    subscription.next_attempt_at = None
-    session.add(subscription)
-    await session.commit()
+def _next_retry_state(
+    failure_count: int, *, outcome: bool | None, now: datetime
+) -> tuple[int, datetime | None]:
+    """The retry state an attempt leaves behind.
+
+    ``outcome`` None means no request was made — a window that held nothing this
+    subscriber wanted. That is not evidence about the target, so it must leave
+    the failure count alone; treating it as success would let unrelated traffic
+    clear a failing target's backoff.
+    """
+    if outcome is True:
+        return 0, None
+    if outcome is False:
+        failed = failure_count + 1
+        return failed, now + _backoff(failed)
+    return failure_count, None
+
+
+async def _release(
+    session: AsyncSession, subscription: WebhookSubscription, *, lease: datetime
+) -> None:
+    """Drop the lease, leaving cursor and failure state untouched."""
+    await _settle(session, subscription, lease=lease)
 
 
 async def _advance(
@@ -298,6 +369,7 @@ async def _advance(
     *,
     now: datetime,
     outcome: bool | None,
+    lease: datetime,
 ) -> None:
     """Move the cursor and settle the lease.
 
@@ -306,18 +378,66 @@ async def _advance(
     moves failure state: a window that merely contained nothing this subscriber
     wanted must not clear a failing target's backoff.
     """
-    if cursor > subscription.cursor_event_id:
-        subscription.cursor_event_id = cursor
-    if outcome is True:
-        subscription.failure_count = 0
-        subscription.next_attempt_at = None
-    elif outcome is False:
-        subscription.failure_count += 1
-        subscription.next_attempt_at = now + _backoff(subscription.failure_count)
-    else:
-        subscription.next_attempt_at = None
-    session.add(subscription)
+    failure_count, next_attempt = _next_retry_state(
+        subscription.failure_count, outcome=outcome, now=now
+    )
+    await _settle(
+        session,
+        subscription,
+        lease=lease,
+        cursor=cursor,
+        failure_count=failure_count,
+        next_attempt=next_attempt,
+    )
+
+
+async def _settle(
+    session: AsyncSession,
+    subscription: WebhookSubscription,
+    *,
+    lease: datetime,
+    cursor: int | None = None,
+    failure_count: int | None = None,
+    next_attempt: datetime | None = None,
+) -> None:
+    """Write final state, but only while this pass still holds the lease.
+
+    A drain that overran its lease has already been taken over by another
+    replica, and writing here would undo whatever that replica settled —
+    regressing a cursor into events it already delivered, or clearing a backoff
+    it just set. The ``next_attempt_at = :lease`` predicate is what makes this
+    write a no-op in that case. GREATEST keeps the cursor monotonic even when
+    two passes race legitimately.
+    """
+    result = await session.exec(
+        text(
+            "UPDATE webhook_subscriptions SET "
+            "  cursor_event_id = GREATEST(cursor_event_id, :cursor), "
+            "  failure_count = COALESCE(:failure_count, failure_count), "
+            "  next_attempt_at = :next_attempt "
+            "WHERE id = :id AND next_attempt_at = :lease "
+            "RETURNING cursor_event_id"
+        ).bindparams(
+            cursor=cursor if cursor is not None else subscription.cursor_event_id,
+            failure_count=failure_count,
+            next_attempt=next_attempt,
+            id=subscription.id,
+            lease=lease,
+        )
+    )
+    row = result.first()
     await session.commit()
+    if row is None:
+        logger.warning(
+            "outbox settle skipped — lease no longer held: subscription=%s",
+            subscription.id,
+        )
+        return
+    # Keep the in-memory instance in step with what actually landed.
+    subscription.cursor_event_id = row[0]
+    if failure_count is not None:
+        subscription.failure_count = failure_count
+    subscription.next_attempt_at = next_attempt
 
 
 async def _drain_guild(session: AsyncSession, guild_id: int, *, now: datetime) -> None:
@@ -335,9 +455,10 @@ async def _drain_guild(session: AsyncSession, guild_id: int, *, now: datetime) -
     )
     for subscription in subscriptions:
         try:
-            if not await _claim(session, subscription, now=now):
+            lease = await _claim(session, subscription, now=now)
+            if lease is None:
                 continue
-            await _drain_subscription(session, subscription, now=now)
+            await _drain_subscription(session, subscription, now=now, lease=lease)
         except Exception:
             logger.exception(
                 "outbox drain failed: guild=%s subscription=%s",
