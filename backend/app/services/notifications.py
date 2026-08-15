@@ -1250,11 +1250,11 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
     if not users:
         logger.debug("task-digest: no opted-in users")
         return
-    # Capture before routing — the gather expunges the identity map.
-    candidates = [
-        (u.id, u.email, u.email_task_assignment, u.push_task_assignment) for u in users
-    ]
-    for user_id, email, wants_email, wants_push in candidates:
+    # Capture before routing — the gather expunges the identity map. The
+    # channel preferences are deliberately NOT snapshotted here; they are read
+    # off the freshly reloaded row at delivery time.
+    candidates = [(u.id, u.email) for u in users]
+    for user_id, email in candidates:
         per_guild_items: dict[int, list[int]] = {}
         queued_at: list[datetime] = []
 
@@ -1327,7 +1327,10 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
         # so holding the queue for it would re-send nothing every poll forever.
         # Only a transient failure is worth another pass.
         retry = False
-        if wants_email is not False:
+        # Re-read the preferences off the row just reloaded, not the snapshot
+        # taken before the cross-guild gather: a channel switched off while the
+        # gather was running must not still be delivered to.
+        if user.email_task_assignment is not False:
             try:
                 await email_service.send_task_assignment_digest_email(
                     session, user, assignments
@@ -1345,12 +1348,24 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
             except RuntimeError as exc:  # pragma: no cover
                 logger.error("Failed to send task digest: %s", exc)
                 retry = True
-        if wants_push is not False:
+        if user.push_task_assignment is not False:
             pushed, push_retry = await _send_assignment_push(session, user, assignments)
             delivered = delivered or pushed
             retry = retry or push_retry
         if retry and not delivered:
             continue
+        if retry:  # pragma: no cover — one channel got through, the other did not
+            # The two channels share one queue with a single processed marker,
+            # so the batch is consumed either way. Consuming loses one channel's
+            # copy; retaining would re-send the channel that already succeeded,
+            # and a duplicate digest is the louder failure. Logged so the loss
+            # is visible rather than silent.
+            logger.warning(
+                "task-digest: a channel failed after another delivered; "
+                "%d assignment(s) not retried for user %s",
+                len(assignments),
+                email,
+            )
         # Mark the gathered items processed, back in each guild's schema.
         for gid, item_ids in per_guild_items.items():
             if not item_ids:
@@ -1532,7 +1547,9 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
         logger.debug("overdue-digest: no users opted in")
         return
     # Capture plain fields up front: gathering routes per guild and expunges the
-    # identity map, which would detach these ORM rows.
+    # identity map, which would detach these ORM rows. The channel preferences
+    # are deliberately NOT snapshotted here; they are read off the freshly
+    # reloaded row at delivery time.
     candidates = [
         (
             u.id,
@@ -1540,20 +1557,10 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
             u.timezone,
             u.overdue_notification_time,
             u.last_overdue_notification_at,
-            u.email_overdue_tasks,
-            u.push_overdue_tasks,
         )
         for u in users
     ]
-    for (
-        user_id,
-        email,
-        user_tz,
-        notify_time,
-        last_at,
-        wants_email,
-        wants_push,
-    ) in candidates:
+    for user_id, email, user_tz, notify_time, last_at in candidates:
         tz = _resolve_timezone(user_tz)
         now_local = now.astimezone(tz)
         try:
@@ -1594,9 +1601,11 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
             continue
         # Only stamp once something actually went out, so a channel that is
         # merely unconfigured (no SMTP, no FCM) re-tries on the next poll
-        # instead of burning the user's one digest for the day.
+        # instead of burning the user's one digest for the day. Preferences are
+        # re-read off the row just reloaded, not the snapshot taken before the
+        # cross-guild gather, so a channel switched off meanwhile stays quiet.
         delivered = False
-        if wants_email:
+        if user.email_overdue_tasks:
             try:
                 await email_service.send_overdue_tasks_email(session, user, tasks)
                 delivered = True
@@ -1611,7 +1620,7 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
                 )
             except RuntimeError as exc:  # pragma: no cover
                 logger.error("Failed to send overdue digest: %s", exc)
-        if wants_push:
+        if user.push_overdue_tasks:
             delivered = await _send_overdue_push(session, user, tasks) or delivered
         if not delivered:
             continue

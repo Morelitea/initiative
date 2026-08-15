@@ -784,6 +784,40 @@ async def test_assignment_digest_pushes_when_email_opted_out(
 
 
 @pytest.mark.integration
+async def test_assignment_digest_honours_a_preference_changed_mid_pass(
+    session: AsyncSession, monkeypatch
+):
+    """The pass snapshots its candidates, then spends time routing through each
+    guild. A channel switched off in that gap must not still be delivered to —
+    the send has to read the reloaded row, not the snapshot."""
+    user = await create_user(session, email="pref-race@example.com")
+    await _assignment_item_in_new_guild(session, user, label="Alpha")
+
+    async def _fail_email(sess, recipient, assignments):  # pragma: no cover
+        raise AssertionError("email must not be sent after opting out")
+
+    monkeypatch.setattr(email_service, "send_task_assignment_digest_email", _fail_email)
+    pushes = _capture_push(monkeypatch)
+
+    # Turn the email off after the items were queued — as a request handled
+    # while the worker is mid-gather would.
+    session.expunge_all()
+    await set_rls_context(session, user_id=user.id)
+    fresh = (await session.exec(select(User).where(User.id == user.id))).one()
+    fresh.email_task_assignment = False
+    session.add(fresh)
+    await session.commit()
+
+    session.expunge_all()
+    await set_rls_context(session)
+    await _run_assignment_digest_pass(
+        session, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+    )
+
+    assert len(pushes) == 1  # push is still on, and still delivers
+
+
+@pytest.mark.integration
 async def test_assignment_gc_drops_items_past_retention(session: AsyncSession):
     """Digest items accumulated forever — nothing ever deleted them. The sweep
     clears anything past the retention window, sent or not, so an orphaned
