@@ -161,6 +161,12 @@ async def _claim(
     )
     claimed = result.first() is not None
     await session.commit()
+    if claimed:
+        # The claim was raw SQL, so the in-memory instance still holds what it
+        # was loaded with — including a cursor another replica may have advanced
+        # between the load and the claim. Every later write goes through this
+        # object, so re-read it before trusting any of its state.
+        await session.refresh(subscription)
     return claimed
 
 
@@ -193,6 +199,26 @@ async def _readable_window(
         settled.append(row)
     if not settled:
         return [], None
+
+    if len(rows) == BATCH_LIMIT and settled[-1] is rows[-1]:
+        # The window ended exactly at the row limit, so the last transaction may
+        # continue past it. Drop its rows and take them whole next pass —
+        # otherwise one transaction arrives as two envelopes.
+        tail_txn = settled[-1].txn_id
+        trimmed = [row for row in settled if row.txn_id != tail_txn]
+        if trimmed:
+            return trimmed, trimmed[-1].id
+        # The whole window is one transaction, so trimming would make no
+        # progress ever. Read that transaction in full instead.
+        whole = list(
+            await session.exec(
+                select(EventOutbox)
+                .where(EventOutbox.id > cursor, EventOutbox.txn_id == tail_txn)
+                .order_by(EventOutbox.id.asc())
+            )
+        )
+        return whole, whole[-1].id
+
     return settled, settled[-1].id
 
 

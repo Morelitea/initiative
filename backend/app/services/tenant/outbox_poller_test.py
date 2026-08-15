@@ -160,3 +160,22 @@ def test_backoff_grows_and_is_bounded():
     schedule = [outbox_poller._backoff(n).total_seconds() for n in range(1, 10)]
     assert schedule == sorted(schedule), "backoff must never shrink"
     assert schedule[-1] == outbox_poller._BACKOFF_SECONDS[-1]
+
+
+def test_window_trim_never_splits_a_transaction_at_the_limit():
+    """The row limit must not cut a transaction in half.
+
+    Mirrors _readable_window's trim: when the window ends exactly at the limit,
+    the last transaction may continue past it, so its rows wait for the next
+    pass rather than going out as a partial envelope.
+    """
+    limit = 4
+    rows = [_row(1, 500), _row(2, 500), _row(3, 501), _row(4, 501)]
+
+    tail_txn = rows[-1].txn_id
+    trimmed = [r for r in rows if r.txn_id != tail_txn]
+
+    assert [r.id for r in trimmed] == [1, 2]
+    assert len(rows) == limit
+    # Transaction 501 is held back whole rather than delivered as rows 3 of 4.
+    assert all(r.txn_id != 501 for r in trimmed)
