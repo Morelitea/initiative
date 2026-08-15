@@ -311,6 +311,69 @@ ACCEPTED = [
         ),
         id="requires-alongside-an-unknown-key",
     ),
+    pytest.param(
+        _manifest(
+            features=["data", "widgets", "dashboards"],
+            data_sources=[{"id": "s", "path": "/d"}],
+            widgets=[
+                {
+                    "id": "w",
+                    "meta": {"name": {"en": "W"}},
+                    "module_source": "export default () => ({});",
+                    "sources": ["s"],
+                }
+            ],
+            dashboards=[
+                {
+                    "uid": "J9H7S9T7GP7FAG",
+                    "public_id": "acme.tracker-overview",
+                    "name": "Overview",
+                    "description": "At a glance.",
+                    "layout": {"columns": 12},
+                    "widgets": [
+                        {
+                            "id": "one",
+                            # Bare, with no uid: the platform stamps the app's
+                            # own on when it publishes.
+                            "type": "w",
+                            "title": "One",
+                            "grid": {"x": 0, "y": 0, "w": 4, "h": 3},
+                            "binding": {
+                                "source_id": "s",
+                                "params": {"label": "bug", "limit": 5, "open": True},
+                            },
+                        }
+                    ],
+                }
+            ],
+        ),
+        id="a-dashboard-the-app-ships-with-itself",
+    ),
+    pytest.param(
+        _manifest(
+            features=["data", "widgets", "dashboards"],
+            data_sources=[{"id": "s", "path": "/d"}],
+            widgets=[
+                {
+                    "id": "w",
+                    "meta": {"name": {"en": "W"}},
+                    "module_source": "export default () => ({});",
+                    "sources": ["s"],
+                }
+            ],
+            dashboards=[
+                {
+                    "uid": "J9H7S9T7GP7FAG",
+                    "public_id": "acme.tracker-overview",
+                    "name": "Overview",
+                    # No description, layout, widget id or grid: a publisher who
+                    # wants one tile per widget writes almost nothing.
+                    "widgets": [{"type": "w", "binding": {"source_id": "s"}}],
+                }
+            ],
+        ),
+        id="a-bundled-dashboard-with-only-what-is-required",
+    ),
 ]
 
 

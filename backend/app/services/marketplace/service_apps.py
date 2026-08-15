@@ -29,7 +29,7 @@ foothold in a guild is a legitimate install with nothing to render.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 from app.services.marketplace.manifest_values import (
     MAX_HINT_LENGTH,
@@ -39,6 +39,7 @@ from app.services.marketplace.manifest_values import (
     check_json_size,
     check_path,
     check_public_id,
+    check_uid,
     clean_text,
     fail,
     require_list,
@@ -71,21 +72,25 @@ __all__ = [
 
 # --- vocabulary -------------------------------------------------------------
 
-#: Capability classes an app can contribute. Closed: a manifest naming anything
-#: else is refused rather than stored as a claim nothing can act on.
-FEATURES: frozenset[str] = frozenset(
-    {"data", "widgets", "embeds", "events", "automations"}
-)
-
 #: Which block backs each feature. The single source for the cross-check that
-#: keeps a declaration and a manifest body from disagreeing.
+#: keeps a declaration and a manifest body from disagreeing — and, below, for
+#: the vocabulary itself.
 FEATURE_BLOCKS: dict[str, str] = {
     "data": "data_sources",
     "widgets": "widgets",
     "embeds": "embeds",
     "events": "events",
     "automations": "automation",
+    "dashboards": "dashboards",
 }
+
+#: Capability classes an app can contribute. Closed: a manifest naming anything
+#: else is refused rather than stored as a claim nothing can act on.
+#:
+#: Derived rather than restated. A feature with no block behind it is exactly
+#: what :func:`_check_features` refuses, so a second list could only ever be
+#: wrong — and was, until a feature was added to one of them.
+FEATURES: frozenset[str] = frozenset(FEATURE_BLOCKS)
 
 #: Who supplies a connection's credential, which decides its scope.
 #:
@@ -197,6 +202,21 @@ MAX_WIDGET_SOURCES = 8
 MAX_DATA_SOURCES = 24
 MAX_PARAMS_PER_SOURCE = 12
 MAX_EMBEDS = 12
+#: An app ships a handful of arrangements of its own widgets, not a library of
+#: them. Each becomes a catalog row, so this is also how many listings a single
+#: publish can create.
+MAX_BUNDLED_DASHBOARDS = 8
+#: The dashboard tool's own limits, restated rather than imported: this is the
+#: manifest vocabulary, and the tool validates the derived definition again on
+#: its own terms when an instance is created from it.
+MAX_DASHBOARD_WIDGETS = 50
+MAX_DASHBOARD_GRID_COLUMNS = 12
+MAX_DASHBOARD_BINDING_PARAMS = 12
+#: One line under a bundled dashboard's name. Matches the catalog column it
+#: becomes, so a description that publishes here fits the row it derives.
+MAX_DESCRIPTION_LENGTH = 500
+#: A fixed parameter value on a tile's binding.
+MAX_PARAM_VALUE_LENGTH = 2_000
 MAX_EVENTS = 50
 MAX_EVENT_TYPE_LENGTH = 200
 #: A day. A source that wants a longer memory than that is asking for a stale
@@ -523,6 +543,182 @@ def _widget(
     return cleaned
 
 
+def _bundled_dashboard(
+    raw: Any, *, widget_ids: set[str], source_ids: set[str]
+) -> dict[str, Any]:
+    """One dashboard an app ships with itself.
+
+    A publisher who declares widgets otherwise leaves every guild to arrange
+    them. This is a ready-made arrangement of *this app's own* widgets, which
+    becomes an ordinary ``dashboard`` catalog listing when the app is published —
+    so a guild installs it the same way it installs any other dashboard, and
+    what it gets afterwards is an ordinary dashboard of its own.
+
+    Two things make it different from a dashboard published on its own, and both
+    are why it can be checked here at all:
+
+    * **It names widgets by bare id.** A manifest has no uid inside it — the uid
+      lives in the document envelope — so widget types are resolved to
+      ``app:<uid>:<widget id>`` at publish, exactly as
+      :func:`app_widget_type` already does for the palette. The publisher never
+      writes a uid into a widget type, so the two cannot disagree.
+    * **It can only reference this manifest.** Every widget and every bound
+      source is checked against what the same document declares, so a bundled
+      dashboard cannot name a widget the app does not have — the failure a
+      separately published dashboard can only hit at install, and silently.
+
+    The ``uid`` and ``public_id`` are the publisher's own, and are what make the
+    derived row a real catalog identity rather than something invented here.
+    """
+    entry = require_mapping(raw, "bundled dashboard")
+    uid = check_uid(entry.get("uid"), what="bundled dashboard uid")
+    public_id = check_public_id(
+        entry.get("public_id"), what=f"bundled dashboard {uid} public_id"
+    )
+    what = f"bundled dashboard {public_id!r}"
+
+    name = clean_text(entry.get("name"), what=f"{what} name", limit=MAX_NAME_LENGTH)
+    if not name:
+        fail(f"{what}: name is required")
+    description = clean_text(
+        entry.get("description"),
+        what=f"{what} description",
+        limit=MAX_DESCRIPTION_LENGTH,
+        required=False,
+    )
+
+    widgets = [
+        _bundled_dashboard_widget(
+            widget, widget_ids=widget_ids, source_ids=source_ids, what=what
+        )
+        for widget in require_list(
+            entry.get("widgets"), f"{what} widgets", MAX_DASHBOARD_WIDGETS
+        )
+    ]
+    if not widgets:
+        fail(f"{what}: a dashboard with no widgets shows nothing")
+
+    seen: set[str] = set()
+    for widget in widgets:
+        if widget["id"] in seen:
+            fail(f"{what}: two widgets share the id {widget['id']!r}")
+        seen.add(widget["id"])
+
+    cleaned: dict[str, Any] = {
+        "uid": uid,
+        "public_id": public_id,
+        "name": name,
+        "widgets": widgets,
+    }
+    if description is not None:
+        cleaned["description"] = description
+
+    columns = _grid_int(
+        (entry.get("layout") or {}).get("columns")
+        if isinstance(entry.get("layout"), dict)
+        else None,
+        low=1,
+        high=MAX_DASHBOARD_GRID_COLUMNS,
+        what=f"{what} layout.columns",
+    )
+    if columns is not None:
+        cleaned["layout"] = {"columns": columns}
+    return cleaned
+
+
+def _bundled_dashboard_widget(
+    raw: Any, *, widget_ids: set[str], source_ids: set[str], what: str
+) -> dict[str, Any]:
+    """One tile, naming one of this app's widgets and one of its sources."""
+    widget = require_mapping(raw, f"{what} widget")
+    widget_type = check_identifier(widget.get("type"), what=f"{what} widget type")
+    if widget_type not in widget_ids:
+        fail(f"{what}: names unknown widget {widget_type!r}")
+
+    binding = require_mapping(widget.get("binding"), f"{what} widget binding")
+    source_id = check_identifier(
+        binding.get("source_id"), what=f"{what} widget binding source_id"
+    )
+    if source_id not in source_ids:
+        fail(f"{what}: binds unknown data source {source_id!r}")
+
+    bound: dict[str, Any] = {"source_id": source_id}
+    params = binding.get("params")
+    if params is not None:
+        bound["params"] = _bundled_binding_params(params, what=what)
+
+    cleaned: dict[str, Any] = {
+        # Defaulted from the widget it draws, so a publisher who ships one tile
+        # per widget writes no ids at all.
+        "id": check_identifier(
+            widget.get("id") or widget_type, what=f"{what} widget id"
+        ),
+        "type": widget_type,
+        "binding": bound,
+    }
+
+    title = clean_text(
+        widget.get("title"),
+        what=f"{what} widget title",
+        limit=MAX_NAME_LENGTH,
+        required=False,
+    )
+    if title is not None:
+        cleaned["title"] = title
+
+    grid = widget.get("grid")
+    if isinstance(grid, dict):
+        placed = {
+            key: _grid_int(
+                grid.get(key),
+                low=0 if key in ("x", "y") else 1,
+                high=MAX_DASHBOARD_GRID_COLUMNS if key in ("x", "w") else None,
+                what=f"{what} widget grid.{key}",
+            )
+            for key in ("x", "y", "w", "h")
+        }
+        kept = {key: value for key, value in placed.items() if value is not None}
+        if kept:
+            cleaned["grid"] = kept
+    return cleaned
+
+
+def _bundled_binding_params(raw: Any, *, what: str) -> dict[str, Any]:
+    """Fixed parameter values for a tile's source. Scalars, kept as they are.
+
+    Deliberately not coerced: the source's ``params_schema`` declares the type,
+    and turning a ``true`` into a ``1`` here would satisfy a check the fetch path
+    is meant to make.
+    """
+    params = require_mapping(raw, f"{what} widget binding params")
+    if len(params) > MAX_DASHBOARD_BINDING_PARAMS:
+        fail(f"{what}: a binding carries at most {MAX_DASHBOARD_BINDING_PARAMS} params")
+    cleaned: dict[str, Any] = {}
+    for key, value in params.items():
+        name = check_identifier(key, what=f"{what} binding param")
+        if isinstance(value, bool) or isinstance(value, int):
+            cleaned[name] = value
+        elif isinstance(value, str):
+            cleaned[name] = clean_text(
+                value, what=f"{what} binding param {name}", limit=MAX_PARAM_VALUE_LENGTH
+            )
+        else:
+            fail(f"{what}: binding param {name!r} must be a string, integer or boolean")
+    return cleaned
+
+
+def _grid_int(raw: Any, *, low: int, high: Optional[int], what: str) -> Optional[int]:
+    """A grid coordinate, or ``None`` when the publisher left it to the canvas."""
+    if raw is None:
+        return None
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        fail(f"{what} must be a whole number")
+    if raw < low or (high is not None and raw > high):
+        bound = f"{low}..{high}" if high is not None else f"at least {low}"
+        fail(f"{what} must be {bound}")
+    return raw
+
+
 def _sample_data(raw: Any, *, sources: list[str], what: str) -> dict[str, Any]:
     """Rows that let a preview render with no network call at all.
 
@@ -789,6 +985,38 @@ def normalize_service_app_definition(definition: Any) -> dict[str, Any]:
         cleaned["widgets"] = widgets
     if embeds:
         cleaned["embeds"] = embeds
+
+    # After the widgets and sources it can name, because every tile is checked
+    # against them — the whole point of bundling rather than publishing
+    # separately is that this cross-check is possible at all.
+    dashboards = [
+        _bundled_dashboard(entry, widget_ids=widget_ids, source_ids=source_ids)
+        for entry in require_list(
+            body.get("dashboards"), "service app: dashboards", MAX_BUNDLED_DASHBOARDS
+        )
+    ]
+    if dashboards:
+        seen_uids: set[str] = set()
+        seen_public_ids: set[str] = set()
+        for dashboard in dashboards:
+            # Checked here as well as by the catalog: these become listing rows
+            # whose identities are unique, and a manifest that collides with
+            # itself would fail halfway through a publish.
+            if dashboard["uid"] in seen_uids:
+                fail(f"service app: two dashboards share the uid {dashboard['uid']}")
+            if dashboard["public_id"] in seen_public_ids:
+                fail(
+                    "service app: two dashboards share the public_id "
+                    f"{dashboard['public_id']!r}"
+                )
+            if dashboard["public_id"] == service["public_id"]:
+                fail(
+                    f"service app: dashboard {dashboard['uid']} uses the app's own "
+                    "public_id; a bundled dashboard is its own listing"
+                )
+            seen_uids.add(dashboard["uid"])
+            seen_public_ids.add(dashboard["public_id"])
+        cleaned["dashboards"] = dashboards
 
     events = _events(body.get("events"), service_public_id=service["public_id"])
     if events:
