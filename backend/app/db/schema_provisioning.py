@@ -155,6 +155,7 @@ class ProvisioningBundle:
 
     schema_ddl: str
     rls_ddl: str
+    capture_ddl: str
     stamp: str
 
 
@@ -170,13 +171,16 @@ async def get_provisioning_bundle() -> ProvisioningBundle:
     async with _bundle_lock:
         if _bundle is not None:
             return _bundle
+        from app.db.event_capture import render_guild_capture_ddl
         from app.db.guild_ddl import render_guild_rls_ddl, render_guild_schema_ddl
 
         schema_ddl = await render_guild_schema_ddl(db_session.provisioning_engine)
         rls_ddl = render_guild_rls_ddl()
+        capture_ddl = render_guild_capture_ddl()
         digest = hashlib.sha256()
         digest.update(schema_ddl.encode())
         digest.update(rls_ddl.encode())
+        digest.update(capture_ddl.encode())
         digest.update(
             "\n".join(
                 _grant_statements(
@@ -190,6 +194,7 @@ async def get_provisioning_bundle() -> ProvisioningBundle:
         _bundle = ProvisioningBundle(
             schema_ddl=schema_ddl,
             rls_ddl=rls_ddl,
+            capture_ddl=capture_ddl,
             stamp=f"provisioned:{digest.hexdigest()[:16]}",
         )
         return _bundle
@@ -238,6 +243,24 @@ async def apply_guild_rls(conn: AsyncConnection, schema: str) -> None:
     )
 
 
+async def apply_guild_capture(conn: AsyncConnection, schema: str) -> None:
+    """Install the change-capture triggers on ``schema``'s evented tables.
+
+    Schema-relative + idempotent (``DROP TRIGGER IF EXISTS`` + ``CREATE
+    TRIGGER``), so a re-run re-asserts them harmlessly. Every trigger calls the
+    one ``public.capture_change`` (qualified, so it resolves regardless of
+    search_path); the per-table initiative lookups it runs resolve against the
+    guild-local tables through the caller's search_path, the same way the RLS
+    policies' EXISTS joins do. Requires ``public.capture_change`` to exist
+    (created by migration 20260815_0184).
+    """
+    ddl = (await get_provisioning_bundle()).capture_ddl
+    raw = await conn.get_raw_connection()
+    await raw.driver_connection.execute(
+        f'SET search_path TO "{schema}", public;\n{ddl}\nSET search_path TO public;'
+    )
+
+
 async def apply_template_rls() -> None:
     """Re-assert the registry-rendered RLS on ``guild_template``.
 
@@ -250,6 +273,7 @@ async def apply_template_rls() -> None:
 
     async with db_session.provisioning_engine.begin() as conn:
         await apply_guild_rls(conn, TEMPLATE_SCHEMA)
+        await apply_guild_capture(conn, TEMPLATE_SCHEMA)
 
 
 def _grant_statements(
@@ -359,6 +383,7 @@ async def provision_guild_schema(conn: AsyncConnection, guild_id: int) -> str:
     await apply_guild_schema(conn, schema)  # canonical Alembic-owned table DDL
     await _exec_batch(conn, _grant_statements(schema, role, ro_role, support_role))
     await apply_guild_rls(conn, schema)  # initiative-level RLS policies
+    await apply_guild_capture(conn, schema)  # change-capture triggers
     # Stamp the artifacts' version so the boot back-fill can skip this guild
     # until they change (constant hex literal, safe to inline).
     stamp = (await get_provisioning_bundle()).stamp

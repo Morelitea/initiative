@@ -15,8 +15,8 @@ that registry at provisioning time, not from this migration.
 log. Delivery state lives there rather than in per-(event, subscription) rows,
 so one log row serves any number of subscribers and retention is an age sweep.
 
-Revision ID: 20260815_0182
-Revises: 20260814_0181
+Revision ID: 20260815_0183
+Revises: 20260815_0182
 Create Date: 2026-08-15
 """
 
@@ -28,8 +28,8 @@ from sqlalchemy.dialects import postgresql
 
 from app.db.guild_migrations import run_for_each_guild_schema
 
-revision = "20260815_0182"
-down_revision = "20260814_0181"
+revision = "20260815_0183"
+down_revision = "20260815_0182"
 branch_labels = None
 depends_on = None
 
