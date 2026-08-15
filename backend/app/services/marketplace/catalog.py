@@ -285,6 +285,7 @@ async def upsert_listing(
     manifest: dict[str, Any],
     *,
     source: str,
+    bundled_with: Optional[str] = None,
 ) -> MarketplaceListing:
     """Create or update one listing and the version its manifest describes.
 
@@ -293,6 +294,13 @@ async def upsert_listing(
     reassignable — a uid already held by a different ``public_id`` is refused,
     and vice versa, so a uid keeps meaning the listing it was first published
     for.
+
+    ``bundled_with`` names the app this listing is published as part of, and is
+    a third thing that cannot be reassigned. It is set only by
+    :func:`_publish_bundled_dashboards`, which is the app's own publish; every
+    other caller leaves it ``None`` and is publishing something that stands on
+    its own. A publish whose ownership disagrees with the stored row is refused
+    rather than applied, in either direction.
     """
     if source not in LISTING_SOURCES:
         raise CatalogError(f"unknown listing source {source!r}")
@@ -346,6 +354,21 @@ async def upsert_listing(
         raise CatalogError(
             f"uid {uid} is already held by {existing.public_id}; refusing to reassign"
         )
+    elif existing.bundled_with_uid != bundled_with:
+        # Both identities matching is what an *update* looks like, so this is
+        # the one path that reaches an existing row rather than being refused
+        # above — and who owns a listing is not something a later publish may
+        # change. An app bundling a uid somebody else published would otherwise
+        # rewrite that listing and attach its withdrawal to a different app.
+        held = (
+            f"as part of {existing.bundled_with_uid}"
+            if existing.bundled_with_uid
+            else "on its own"
+        )
+        wants = f"as part of {bundled_with}" if bundled_with else "on its own"
+        raise CatalogError(
+            f"{public_id} is already published {held}; refusing to republish {wants}"
+        )
 
     now = datetime.now(timezone.utc)
     # Everything a publish sets, whether the row is new or being updated. Built
@@ -360,6 +383,7 @@ async def upsert_listing(
         "long_description": manifest.get("long_description"),
         "avatar_url": avatar_url,
         "images": list(images),
+        "bundled_with_uid": bundled_with,
         "available": True,
         "updated_at": now,
     }
@@ -491,9 +515,10 @@ async def _publish_bundled_dashboards(
                 "widgets": widgets,
             },
         }
-        derived = await upsert_listing(session, manifest, source=source)
-        derived.bundled_with_uid = app.uid
-        session.add(derived)
+        # Ownership goes in as part of the publish rather than being stamped on
+        # afterwards, so the same call that refuses to reassign a uid refuses to
+        # take a listing away from whoever already published it.
+        await upsert_listing(session, manifest, source=source, bundled_with=app.uid)
         published.add(entry["uid"])
 
     # A dashboard dropped from the manifest is withdrawn rather than left

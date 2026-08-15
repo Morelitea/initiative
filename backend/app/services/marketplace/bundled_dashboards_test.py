@@ -186,6 +186,104 @@ class TestPublishing:
             )
 
 
+class TestItCannotTakeOverSomebodyElsesListing:
+    """Both identities matching is what an *update* looks like, so this is the
+    one path where a publish reaches an existing row rather than being refused
+    by the uniqueness rules. Ownership has to be checked on its own."""
+
+    async def _standalone(
+        self, session, uid=DASH_UID, public_id="tests.tracker-overview"
+    ):
+        # Deliberately a *different* version from the app's. Publishing at the
+        # same one would collide on version immutability and refuse for a reason
+        # that has nothing to do with ownership — which is how this case hid.
+        await service.upsert_listing(
+            session,
+            {
+                **_app_manifest(version="0.9.0"),
+                "uid": uid,
+                "public_id": public_id,
+                "kind": "dashboard",
+                "name": "Somebody else's board",
+                "definition": {"widgets": []},
+            },
+            source="operator",
+        )
+        await session.commit()
+
+    async def test_it_cannot_adopt_a_standalone_dashboard(self, session):
+        await self._standalone(session)
+
+        with pytest.raises(CatalogError):
+            await service.upsert_listing(
+                session, _app_manifest([_dashboard()]), source="operator"
+            )
+
+    async def test_the_standalone_listing_is_left_alone(self, session):
+        await self._standalone(session)
+
+        with pytest.raises(CatalogError):
+            await service.upsert_listing(
+                session, _app_manifest([_dashboard()]), source="operator"
+            )
+        await session.rollback()
+
+        untouched = await _by_uid(session, DASH_UID)
+        assert untouched.name == "Somebody else's board"
+        assert untouched.bundled_with_uid is None
+
+    async def test_it_cannot_adopt_another_app_s_dashboard(self, session):
+        await service.upsert_listing(
+            session, _app_manifest([_dashboard()]), source="operator"
+        )
+        await session.commit()
+
+        # A different version too, so version immutability cannot be what
+        # refuses it — ownership has to be.
+        other = _app_manifest([_dashboard()], version="2.0.0")
+        other["uid"] = "P3R9WT5HZ2NM6D"
+        other["public_id"] = "tests.other-app"
+        other["definition"]["service"]["public_id"] = "tests.other-app"
+
+        with pytest.raises(CatalogError):
+            await service.upsert_listing(session, other, source="operator")
+
+    async def test_a_standalone_publish_cannot_adopt_a_bundled_one(self, session):
+        """The mirror. An operator dropping a file with a uid an app already
+        bundles must not edit that row, or take it out of the app's lifecycle."""
+        await service.upsert_listing(
+            session, _app_manifest([_dashboard()]), source="operator"
+        )
+        await session.commit()
+
+        with pytest.raises(CatalogError):
+            await service.upsert_listing(
+                session,
+                {
+                    **_app_manifest(version="3.0.0"),
+                    "uid": DASH_UID,
+                    "public_id": "tests.tracker-overview",
+                    "kind": "dashboard",
+                    "name": "Mine now",
+                    "definition": {"widgets": []},
+                },
+                source="operator",
+            )
+
+    async def test_republishing_the_same_app_is_not_a_takeover(self, session):
+        """The case all of this has to stay out of the way of."""
+        await service.upsert_listing(
+            session, _app_manifest([_dashboard()], version="1.0.0"), source="operator"
+        )
+        await session.commit()
+        await service.upsert_listing(
+            session, _app_manifest([_dashboard()], version="2.0.0"), source="operator"
+        )
+        await session.commit()
+
+        assert (await _by_uid(session, DASH_UID)).bundled_with_uid == APP_UID
+
+
 class TestLifecycle:
     async def test_they_version_with_the_app(self, session):
         await service.upsert_listing(
