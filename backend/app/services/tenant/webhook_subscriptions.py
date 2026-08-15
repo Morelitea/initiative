@@ -94,7 +94,6 @@ async def create_subscription(
     subscription = WebhookSubscription(
         guild_id=guild_id,
         initiative_id=payload.initiative_id,
-        workflow_id=payload.workflow_id,
         created_by_user_id=created_by_user_id,
         target_url=str(payload.target_url),
         hmac_secret=secret,

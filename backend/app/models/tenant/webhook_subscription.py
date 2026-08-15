@@ -46,14 +46,6 @@ class WebhookSubscription(SQLModel, table=True):
             nullable=True,
         ),
     )
-    # Soft pointer back to the auto-side workflow this subscription was
-    # created for. Not enforced by FK because the source of truth lives
-    # in initiative-auto's DB.
-    workflow_id: Optional[int] = Field(
-        default=None,
-        sa_column=Column(Integer, nullable=True),
-    )
-
     created_by_user_id: int = Field(
         sa_column=Column(
             Integer,
@@ -81,6 +73,18 @@ class WebhookSubscription(SQLModel, table=True):
     cursor_event_id: int = Field(
         default=0,
         sa_column=Column(BigInteger, nullable=False, server_default="0"),
+    )
+
+    # Consecutive failed deliveries, and when this target is next eligible.
+    # A subscriber that is down backs off instead of being retried every pass.
+    # Reset on the first 2xx.
+    failure_count: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False, server_default="0"),
+    )
+    next_attempt_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
     )
 
     # TZ-aware columns to match the migration.

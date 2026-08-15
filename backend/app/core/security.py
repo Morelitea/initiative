@@ -498,7 +498,6 @@ class AutoDelegationClaims:
     subject: str
     guild_id: int
     initiative_id: int | None
-    workflow_id: int | None
 
 
 class AutoDelegationVerificationError(Exception):
@@ -590,14 +589,9 @@ def verify_auto_delegation_token(
             "initiative_id must be an int when present"
         )
 
-    workflow_id = payload.get("workflow_id")
-    if workflow_id is not None and not isinstance(workflow_id, int):
-        raise AutoDelegationVerificationError("workflow_id must be an int when present")
-
     return AutoDelegationClaims(
         jti=str(payload["jti"]),
         subject=subject,
         guild_id=guild_id,
         initiative_id=initiative_id,
-        workflow_id=workflow_id,
     )

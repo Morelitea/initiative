@@ -15,7 +15,7 @@ Tenant isolation is by RLS on the table; the endpoint adds an explicit
 Auto's flow:
 
   POST /api/v1/auto/subscriptions
-    body: {target_url, event_types, initiative_id?, workflow_id?}
+    body: {target_url, event_types, initiative_id?}
     → returns subscription + plaintext hmac_secret (one-time)
   GET  /api/v1/auto/subscriptions
   DELETE /api/v1/auto/subscriptions/{id}
@@ -128,7 +128,6 @@ async def create_subscription(
         id=subscription.id,
         guild_id=subscription.guild_id,
         initiative_id=subscription.initiative_id,
-        workflow_id=subscription.workflow_id,
         created_by_user_id=subscription.created_by_user_id,
         target_url=subscription.target_url,
         event_types=subscription.event_types,
