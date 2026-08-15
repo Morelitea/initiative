@@ -252,7 +252,7 @@ async def apply_guild_capture(conn: AsyncConnection, schema: str) -> None:
     search_path); the per-table initiative lookups it runs resolve against the
     guild-local tables through the caller's search_path, the same way the RLS
     policies' EXISTS joins do. Requires ``public.capture_change`` to exist
-    (created by migration 20260815_0183).
+    (created by migration 20260815_0184).
     """
     ddl = (await get_provisioning_bundle()).capture_ddl
     raw = await conn.get_raw_connection()

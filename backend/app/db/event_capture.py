@@ -32,7 +32,9 @@ junction's name — so a new junction is covered by construction.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
+from sqlalchemy import Column
 from sqlmodel import SQLModel
 
 from app.db.initiative_rls import EVENTED_TABLES, INITIATIVE_PATHS
@@ -78,7 +80,7 @@ def _singular(table: str) -> str:
     return table[:-1] if table.endswith("s") else table
 
 
-def _owner_of(column) -> str | None:
+def _owner_of(column: Column[Any]) -> str | None:
     """The table a FK column points at, or None if it is not a FK."""
     for fk in column.foreign_keys:
         return fk.column.table.name
@@ -219,13 +221,17 @@ BEGIN
 
     v_actor := NULLIF(current_setting('app.current_user_id', true), '')::integer;
 
-    INSERT INTO event_outbox (
-        txn_id, occurred_at, actor_user_id, initiative_id,
-        resource_type, resource_id, action, changed
-    ) VALUES (
-        txid_current(), now(), v_actor, v_initiative,
-        TG_ARGV[1], v_resource, v_action, v_changed
-    );
+    -- Write to the outbox of the schema the CHANGED ROW lives in, named from
+    -- TG_TABLE_SCHEMA rather than resolved through the caller's search_path.
+    -- The row's own schema is the authoritative answer to which guild this
+    -- event belongs to, and it is what the trigger is attached to.
+    EXECUTE format(
+        'INSERT INTO %I.event_outbox ('
+        '  txn_id, occurred_at, actor_user_id, initiative_id,'
+        '  resource_type, resource_id, action, changed'
+        ') VALUES (txid_current(), now(), $1, $2, $3, $4, $5, $6)',
+        TG_TABLE_SCHEMA
+    ) USING v_actor, v_initiative, TG_ARGV[1], v_resource, v_action, v_changed;
 
     RETURN NULL;
 END

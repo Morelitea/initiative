@@ -14,8 +14,8 @@ schema at provisioning time, not here.
 The function writes identifiers, an action, and changed column NAMES. It never
 writes a value: a consumer reads current state back through the REST API.
 
-Revision ID: 20260815_0183
-Revises: 20260815_0182
+Revision ID: 20260815_0184
+Revises: 20260815_0183
 Create Date: 2026-08-15
 """
 
@@ -25,8 +25,8 @@ from alembic import op
 
 from app.db.event_capture import CAPTURE_FUNCTION, CAPTURE_FUNCTION_SQL
 
-revision = "20260815_0183"
-down_revision = "20260815_0182"
+revision = "20260815_0184"
+down_revision = "20260815_0183"
 branch_labels = None
 depends_on = None
 
