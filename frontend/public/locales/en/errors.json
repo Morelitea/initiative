@@ -365,6 +365,7 @@
   "BILLING_PORTAL_SIGNING_NOT_CONFIGURED": "The billing portal is not fully configured yet. Contact your administrator.",
   "BILLING_PORTAL_GRANT_UNAVAILABLE": "Could not obtain access to this guild's billing. Check whether you have an access request still pending for it.",
   "MARKETPLACE_LISTING_NOT_FOUND": "That marketplace listing no longer exists.",
+  "MARKETPLACE_LISTING_NEEDS_APP": "This dashboard comes with an app your guild has not installed. Install the app first, then add the dashboard.",
   "MARKETPLACE_LISTING_UNAVAILABLE": "This listing has been withdrawn and can no longer be installed.",
   "MARKETPLACE_LISTING_VERSION_INCOMPATIBLE": "This listing needs a newer version of the app. Ask an administrator to update, then try again.",
   "MARKETPLACE_NOT_INSTALLED_FROM_LISTING": "This was built here rather than installed, so there is no listing to update it from.",
