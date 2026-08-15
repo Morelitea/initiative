@@ -4595,8 +4595,7 @@ export interface VikunjaParseResult {
  *
  * Initiative-id and guild-id are NOT taken from the body — they
  * come from the caller's delegation token (guild) and an optional
- * delegation initiative_id claim. ``workflow_id`` is opaque to us;
- * we just store it so dispatched events can reference it.
+ * delegation initiative_id claim.
  */
 export interface WebhookSubscriptionCreate {
   /**
@@ -4607,7 +4606,6 @@ export interface WebhookSubscriptionCreate {
   /** @minItems 1 */
   event_types: string[];
   initiative_id?: number | null;
-  workflow_id?: number | null;
 }
 
 /**
@@ -4618,7 +4616,6 @@ export interface WebhookSubscriptionCreated {
   id: number;
   guild_id: number;
   initiative_id: number | null;
-  workflow_id: number | null;
   created_by_user_id: number;
   target_url: string;
   event_types: string[];
@@ -4637,7 +4634,6 @@ export interface WebhookSubscriptionRead {
   id: number;
   guild_id: number;
   initiative_id: number | null;
-  workflow_id: number | null;
   created_by_user_id: number;
   target_url: string;
   event_types: string[];
