@@ -33,7 +33,7 @@ from sqlalchemy.schema import CheckConstraint, CreateTable
 from app.db.initiative_rls import (
     INITIATIVE_PATHS,
     INITIATIVE_SCOPED_TABLES,
-    PathBuilder,
+    InitiativePath,
 )
 from app.db.soft_delete_filter import SOFT_DELETE_TABLES
 from app.db.tenancy import GUILD_SCOPED_TABLES, OWN_ROW_TABLES
@@ -144,13 +144,13 @@ _COMMANDS = (
 )
 
 
-def _table_block(table: str, build: PathBuilder) -> str:
+def _table_block(table: str, path: InitiativePath) -> str:
     lines = [
         f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;",
         f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY;",
     ]
     for suffix, command, clause, write in _COMMANDS:
-        pred = build(table, write)
+        pred = path.predicate(table, write)
         name = f"initiative_member_{suffix}"
         lines.append(f"DROP POLICY IF EXISTS {name} ON {table};")
         lines.append(f"CREATE POLICY {name} ON {table} AS PERMISSIVE FOR {command}")

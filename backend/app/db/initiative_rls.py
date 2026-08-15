@@ -20,6 +20,7 @@ be imported by ``tenancy`` and by the build-time generator alike.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Callable
 
 from app.core.tools import RECENTABLE_TOOLS
@@ -33,54 +34,102 @@ _UID = "(NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::
 # the four policies — read uses write=False, write commands use write=True.
 PathBuilder = Callable[[str, bool], str]
 
+# A row-locator takes a trigger row alias ("NEW"/"OLD") and returns a scalar SQL
+# expression yielding that row's initiative id (or NULL).
+RowLocator = Callable[[str], str]
+
+
+@dataclass(frozen=True)
+class InitiativePath:
+    """How one table's rows resolve an initiative, rendered two ways.
+
+    ``predicate`` builds the RLS policy body; ``initiative_expr`` builds the
+    scalar lookup the change-capture trigger stamps onto an outbox row. Both come
+    from the SAME declaration, so a table cannot be gated by one initiative and
+    have its events attributed to another. Adding a table still means one entry
+    in ``INITIATIVE_PATHS`` — the builders below produce both forms.
+    """
+
+    predicate: PathBuilder
+    initiative_expr: RowLocator
+
 
 def _access(initiative_expr: str, write: bool) -> str:
     return f"public.initiative_access({initiative_expr}, {_UID}, {'true' if write else 'false'})"
 
 
-def direct() -> PathBuilder:
+def direct() -> InitiativePath:
     """The table has its own ``initiative_id`` column."""
-    return lambda t, w: _access(f"{t}.initiative_id", w)
+    return InitiativePath(
+        predicate=lambda t, w: _access(f"{t}.initiative_id", w),
+        initiative_expr=lambda r: f"{r}.initiative_id",
+    )
 
 
-def via(parent: str, fk: str, *, parent_pk: str = "id") -> PathBuilder:
+def via(parent: str, fk: str, *, parent_pk: str = "id") -> InitiativePath:
     """One hop: ``table.<fk> -> parent.<parent_pk>``; parent has ``initiative_id``."""
-    return lambda t, w: (
-        f"EXISTS (SELECT 1 FROM {parent} "
-        f"WHERE {parent}.{parent_pk} = {t}.{fk} "
-        f"AND {_access(f'{parent}.initiative_id', w)})"
+    return InitiativePath(
+        predicate=lambda t, w: (
+            f"EXISTS (SELECT 1 FROM {parent} "
+            f"WHERE {parent}.{parent_pk} = {t}.{fk} "
+            f"AND {_access(f'{parent}.initiative_id', w)})"
+        ),
+        initiative_expr=lambda r: (
+            f"(SELECT {parent}.initiative_id FROM {parent} "  # noqa: S608
+            f"WHERE {parent}.{parent_pk} = {r}.{fk})"
+        ),
     )
 
 
-def via_task_project(fk: str = "task_id") -> PathBuilder:
+def via_task_project(fk: str = "task_id") -> InitiativePath:
     """Two hops: ``table.<fk> -> tasks -> projects.initiative_id``."""
-    return lambda t, w: (
-        f"EXISTS (SELECT 1 FROM tasks tk JOIN projects pr ON pr.id = tk.project_id "
-        f"WHERE tk.id = {t}.{fk} "
-        f"AND {_access('pr.initiative_id', w)})"
+    return InitiativePath(
+        predicate=lambda t, w: (
+            f"EXISTS (SELECT 1 FROM tasks tk JOIN projects pr ON pr.id = tk.project_id "
+            f"WHERE tk.id = {t}.{fk} "
+            f"AND {_access('pr.initiative_id', w)})"
+        ),
+        initiative_expr=lambda r: (
+            f"(SELECT pr.initiative_id FROM tasks tk "  # noqa: S608
+            f"JOIN projects pr ON pr.id = tk.project_id WHERE tk.id = {r}.{fk})"
+        ),
     )
 
 
-def via_queue_item(fk: str = "queue_item_id") -> PathBuilder:
+def via_queue_item(fk: str = "queue_item_id") -> InitiativePath:
     """Two hops: ``table.<fk> -> queue_items -> queues.initiative_id``."""
-    return lambda t, w: (
-        f"EXISTS (SELECT 1 FROM queue_items qi JOIN queues q ON q.id = qi.queue_id "
-        f"WHERE qi.id = {t}.{fk} "
-        f"AND {_access('q.initiative_id', w)})"
+    return InitiativePath(
+        predicate=lambda t, w: (
+            f"EXISTS (SELECT 1 FROM queue_items qi JOIN queues q ON q.id = qi.queue_id "
+            f"WHERE qi.id = {t}.{fk} "
+            f"AND {_access('q.initiative_id', w)})"
+        ),
+        initiative_expr=lambda r: (
+            f"(SELECT q.initiative_id FROM queue_items qi "  # noqa: S608
+            f"JOIN queues q ON q.id = qi.queue_id WHERE qi.id = {r}.{fk})"
+        ),
     )
 
 
-def via_event_calendar(fk: str = "calendar_event_id") -> PathBuilder:
+def via_event_calendar(fk: str = "calendar_event_id") -> InitiativePath:
     """Two hops: ``table.<fk> -> calendar_events -> calendars.initiative_id``."""
-    return lambda t, w: (
-        f"EXISTS (SELECT 1 FROM calendar_events ce "
-        f"JOIN calendars cal ON cal.id = ce.calendar_id "
-        f"WHERE ce.id = {t}.{fk} "
-        f"AND {_access('cal.initiative_id', w)})"
+    return InitiativePath(
+        predicate=lambda t, w: (
+            f"EXISTS (SELECT 1 FROM calendar_events ce "
+            f"JOIN calendars cal ON cal.id = ce.calendar_id "
+            f"WHERE ce.id = {t}.{fk} "
+            f"AND {_access('cal.initiative_id', w)})"
+        ),
+        initiative_expr=lambda r: (
+            f"(SELECT cal.initiative_id FROM calendar_events ce "  # noqa: S608
+            f"JOIN calendars cal ON cal.id = ce.calendar_id WHERE ce.id = {r}.{fk})"
+        ),
     )
 
 
-def via_property(entity_from: str, entity_pred: str, entity_init: str) -> PathBuilder:
+def via_property(
+    entity_from: str, entity_pred: str, entity_init: str
+) -> InitiativePath:
     """Property-value rows: join the entity and ``property_definitions`` and
     require both resolve to the SAME initiative, then check access on it.
 
@@ -92,23 +141,40 @@ def via_property(entity_from: str, entity_pred: str, entity_init: str) -> PathBu
     Every fragment interpolated here is a string literal from the
     INITIATIVE_PATHS registry in this module — policy DDL rendering, never
     user input."""
-    return lambda t, w: (
-        f"EXISTS (SELECT 1 FROM {entity_from} "  # noqa: S608
-        f"JOIN property_definitions pd ON pd.id = {t}.property_id "
-        f"WHERE {entity_pred.format(t=t)} AND {entity_init} = pd.initiative_id "
-        f"AND {_access('pd.initiative_id', w)})"
+    return InitiativePath(
+        predicate=lambda t, w: (
+            f"EXISTS (SELECT 1 FROM {entity_from} "  # noqa: S608
+            f"JOIN property_definitions pd ON pd.id = {t}.property_id "
+            f"WHERE {entity_pred.format(t=t)} AND {entity_init} = pd.initiative_id "
+            f"AND {_access('pd.initiative_id', w)})"
+        ),
+        # The policy already requires entity and definition to share an
+        # initiative, so either side names the same one; the definition is a
+        # single-table lookup.
+        initiative_expr=lambda r: (
+            f"(SELECT pd.initiative_id FROM property_definitions pd "  # noqa: S608
+            f"WHERE pd.id = {r}.property_id)"
+        ),
     )
 
 
-def comments_path() -> PathBuilder:
+def comments_path() -> InitiativePath:
     """Comments hang off EITHER a task or a document."""
-    return lambda t, w: (
-        f"(({t}.task_id IS NOT NULL AND EXISTS ("
-        f"SELECT 1 FROM tasks tk JOIN projects pr ON pr.id = tk.project_id "
-        f"WHERE tk.id = {t}.task_id AND {_access('pr.initiative_id', w)})) "
-        f"OR ({t}.document_id IS NOT NULL AND EXISTS ("
-        f"SELECT 1 FROM documents d WHERE d.id = {t}.document_id "
-        f"AND {_access('d.initiative_id', w)})))"
+    return InitiativePath(
+        predicate=lambda t, w: (
+            f"(({t}.task_id IS NOT NULL AND EXISTS ("
+            f"SELECT 1 FROM tasks tk JOIN projects pr ON pr.id = tk.project_id "
+            f"WHERE tk.id = {t}.task_id AND {_access('pr.initiative_id', w)})) "
+            f"OR ({t}.document_id IS NOT NULL AND EXISTS ("
+            f"SELECT 1 FROM documents d WHERE d.id = {t}.document_id "
+            f"AND {_access('d.initiative_id', w)})))"
+        ),
+        initiative_expr=lambda r: (
+            "COALESCE("
+            f"(SELECT pr.initiative_id FROM tasks tk "  # noqa: S608
+            f"JOIN projects pr ON pr.id = tk.project_id WHERE tk.id = {r}.task_id), "
+            f"(SELECT d.initiative_id FROM documents d WHERE d.id = {r}.document_id))"
+        ),
     )
 
 
@@ -119,7 +185,7 @@ def comments_path() -> PathBuilder:
 RECENT_ENTITY_TABLES: dict[str, str] = {t.value: t.plural for t in RECENTABLE_TOOLS}
 
 
-def recent_views_path() -> PathBuilder:
+def recent_views_path() -> InitiativePath:
     def build(t: str, w: bool) -> str:
         legs = [
             f"({t}.entity_type = '{etype}' AND EXISTS (SELECT 1 FROM {tbl} "
@@ -128,10 +194,18 @@ def recent_views_path() -> PathBuilder:
         ]
         return "(" + " OR ".join(legs) + ")"
 
-    return build
+    def locate(r: str) -> str:
+        arms = " ".join(
+            f"WHEN '{etype}' THEN "
+            f"(SELECT {tbl}.initiative_id FROM {tbl} WHERE {tbl}.id = {r}.entity_id)"  # noqa: S608
+            for etype, tbl in RECENT_ENTITY_TABLES.items()
+        )
+        return f"(CASE {r}.entity_type {arms} END)"
+
+    return InitiativePath(predicate=build, initiative_expr=locate)
 
 
-def document_links_path() -> PathBuilder:
+def document_links_path() -> InitiativePath:
     """A link must clear initiative access on BOTH endpoints. With only the
     source checked, a write-member of one initiative could point
     ``target_document_id`` at a document in an initiative they can't reach (and
@@ -143,15 +217,23 @@ def document_links_path() -> PathBuilder:
             f"AND {_access('documents.initiative_id', w)})"
         )
 
-    return lambda t, w: (
-        f"({_leg('source_document_id', t, w)} AND {_leg('target_document_id', t, w)})"
+    return InitiativePath(
+        predicate=lambda t, w: (
+            f"({_leg('source_document_id', t, w)} AND {_leg('target_document_id', t, w)})"
+        ),
+        # Both endpoints clear the same gate to exist, so the source names the
+        # initiative the link belongs to.
+        initiative_expr=lambda r: (
+            f"(SELECT documents.initiative_id FROM documents "  # noqa: S608
+            f"WHERE documents.id = {r}.source_document_id)"
+        ),
     )
 
 
 # table -> how its rows resolve an initiative for initiative_access(...). THE
 # source of truth: INITIATIVE_SCOPED_TABLES and the rendered RLS DDL (app.db.guild_ddl) both derive from
 # this dict, so a new initiative-scoped table is declared here exactly once.
-INITIATIVE_PATHS: dict[str, PathBuilder] = {
+INITIATIVE_PATHS: dict[str, InitiativePath] = {
     # Own initiative_id column
     "projects": direct(),
     "documents": direct(),
@@ -161,6 +243,9 @@ INITIATIVE_PATHS: dict[str, PathBuilder] = {
     "dashboards": direct(),
     "property_definitions": direct(),
     "resource_grants": direct(),
+    # The change log itself. Scoped like the rows it describes, which is what
+    # lets the poller read it AS the subscriber (see EVENTED_TABLES below).
+    "event_outbox": direct(),
     # One hop -> projects
     "tasks": via("projects", "project_id"),
     "task_statuses": via("projects", "project_id"),
@@ -219,3 +304,30 @@ INITIATIVE_PATHS: dict[str, PathBuilder] = {
 
 # Derived — the classification follows the registry, never duplicates it.
 INITIATIVE_SCOPED_TABLES: frozenset[str] = frozenset(INITIATIVE_PATHS)
+
+
+# Tables that get NO change-capture trigger, and why. Stated as an EXCLUSION so
+# the default is "a new content table is evented": a new entry in
+# INITIATIVE_PATHS starts emitting with no second edit, and anything that should
+# stay silent has to say so here deliberately. An inclusion list would instead
+# let a new table ship emitting nothing, which is the failure this whole
+# mechanism exists to remove.
+NON_EVENTED_TABLES: frozenset[str] = frozenset(
+    {
+        # The log cannot log itself.
+        "event_outbox",
+        # Per-user viewing/ordering state and internal dispatch bookkeeping.
+        # These record what one member did with their own UI, not a change to
+        # the initiative's content, so emitting them is pure noise on every
+        # subscription.
+        "recent_views",
+        "project_orders",
+        "project_favorites",
+        "task_assignment_digest_items",
+        "event_reminder_dispatches",
+    }
+)
+
+# The tables the capture trigger is installed on. Derived, so it follows
+# INITIATIVE_PATHS automatically.
+EVENTED_TABLES: frozenset[str] = INITIATIVE_SCOPED_TABLES - NON_EVENTED_TABLES
