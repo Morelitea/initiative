@@ -2,7 +2,13 @@
   "task": {
     "assignment": {
       "title": "Neue Aufgabenzuweisung",
-      "body": "{{title}} in {{project}}"
+      "body_one": "{{title}} in {{project}}",
+      "body_other": "{{count}} Aufgaben wurden dir zugewiesen, darunter {{title}}"
+    },
+    "overdue": {
+      "title": "Überfällige Aufgaben",
+      "body_one": "{{count}} Aufgabe ist überfällig: {{title}}",
+      "body_other": "{{count}} Aufgaben sind überfällig, darunter {{title}}"
     }
   },
   "initiative": {

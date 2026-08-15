@@ -19,7 +19,11 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sqlmodel import select
+
+from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
+from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
@@ -493,6 +497,57 @@ async def test_assign_user_to_task(
     data = response.json()
     assignee_ids = {a["id"] for a in data["assignees"]}
     assert assignee.user.id in assignee_ids
+
+
+@pytest.mark.integration
+async def test_unassigning_withdraws_the_pending_digest_item(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """An assignment that is undone before the digest goes out should not be
+    announced — the queue row is withdrawn along with the assignment."""
+    user = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    assignee = await acting_user(
+        guild_role=GuildRole.member,
+        guild=user.guild,
+        initiative=user.initiative,
+        initiative_role="member",
+    )
+    task = await _create_task(session, user.project)
+
+    assign = await client.patch(
+        user.g(f"/tasks/{task.id}"),
+        headers=user.headers,
+        json={"assignee_ids": [assignee.user.id]},
+    )
+    assert assign.status_code == 200
+
+    await set_rls_context(session, user_id=user.user.id, guild_id=user.guild.id)
+    pending = (
+        await session.exec(
+            select(TaskAssignmentDigestItem).where(
+                TaskAssignmentDigestItem.user_id == assignee.user.id,
+                TaskAssignmentDigestItem.processed_at.is_(None),
+            )
+        )
+    ).all()
+    assert len(pending) == 1
+
+    unassign = await client.patch(
+        user.g(f"/tasks/{task.id}"), headers=user.headers, json={"assignee_ids": []}
+    )
+    assert unassign.status_code == 200
+
+    session.expunge_all()
+    await set_rls_context(session, user_id=user.user.id, guild_id=user.guild.id)
+    pending = (
+        await session.exec(
+            select(TaskAssignmentDigestItem).where(
+                TaskAssignmentDigestItem.user_id == assignee.user.id,
+                TaskAssignmentDigestItem.processed_at.is_(None),
+            )
+        )
+    ).all()
+    assert pending == []
 
 
 @pytest.mark.integration

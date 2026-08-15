@@ -8,6 +8,7 @@ from sqlmodel import Field, Index, SQLModel
 
 class NotificationType(str, Enum):
     task_assignment = "task_assignment"
+    overdue_tasks = "overdue_tasks"
     initiative_added = "initiative_added"
     project_added = "project_added"
     user_pending_approval = "user_pending_approval"

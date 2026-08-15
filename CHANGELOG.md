@@ -7,9 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Android notifications now arrive on channels you can tune individually.** Comments, calendar events, event reminders, access requests, and the new overdue summary each get their own entry in the system notification settings, so you can silence one kind without silencing the rest — previously only five kinds were sorted this way and everything else arrived under a general heading. This part needs the updated app; the notifications themselves reach existing installs either way.
+
 ### Changed
 
 - **An app is told who you are without being told which account you are.** Apps now know each member by an identifier unique to that app's own installation, rather than by an account id shared across everything. Two apps cannot compare notes and work out they are dealing with the same person, and an app installed in two guilds cannot link those guilds to one of your members.
+- **The task-assignment digest now waits for the flurry to end.** It used to send on the first assignment and then go quiet for an hour, so a single task got an instant email while a batch of twelve arrived as one message plus a long silence — the opposite of what a digest is for. It now sends once nothing new has arrived for five minutes, or after thirty minutes if assignments keep trickling in. A lone assignment still reaches you promptly; a burst arrives as one summary.
+- **Assignment email and push are the same message on the same schedule.** Push fired once per task, so twelve assignments meant twelve buzzes while your inbox got one summary. Both channels now ship together from the digest, and a summary covering one task still opens straight to it. The in-app bell is unchanged and still lists each assignment as it happens.
+- Turning off the assignment email no longer stops push as well — the two toggles are now independent, as the settings page always implied.
+
+### Fixed
+
+- **Overdue tasks now reach your phone, not just your inbox.** The daily overdue digest was email-only despite the push toggle sitting beside it in notification settings, so anyone relying on the app for reminders never heard about overdue work. It now sends on whichever channels you have on, and turning the email off no longer silences the push. Tapping it opens My Tasks, since the digest spans every guild you are in.
+- Push notifications sent by the app's own background work — the overdue and assignment digests, and access-request notices — reached the device and then failed while recording the delivery, which could leave a stale device registration in place after the phone had been handed on.
+- **Un-assigning someone before the digest goes out now withdraws the announcement.** Previously the email still told them they had been assigned a task they no longer held.
+- Sent digest entries are now cleared a week after the fact. Nothing had ever deleted them, so every task assignment ever made left a permanent row behind.
 
 ### Fixed
 

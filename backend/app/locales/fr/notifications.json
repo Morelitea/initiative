@@ -2,7 +2,13 @@
   "task": {
     "assignment": {
       "title": "Nouvelle tâche assignée",
-      "body": "{{title}} dans {{project}}"
+      "body_one": "{{title}} dans {{project}}",
+      "body_other": "{{count}} tâches vous ont été assignées, dont {{title}}"
+    },
+    "overdue": {
+      "title": "Tâches en retard",
+      "body_one": "{{count}} tâche est en retard : {{title}}",
+      "body_other": "{{count}} tâches sont en retard, dont {{title}}"
     }
   },
   "initiative": {

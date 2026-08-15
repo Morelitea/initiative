@@ -19,6 +19,43 @@ FCM_API_URL = "https://fcm.googleapis.com/v1/projects/{project_id}/messages:send
 # OAuth2 scopes required for FCM
 FCM_SCOPES = ["https://www.googleapis.com/auth/firebase.messaging"]
 
+# Android notification channel a given notification type is delivered on. The
+# channel is what the user sees (and can mute) in the OS notification settings,
+# so related types share one rather than getting a row each.
+#
+# These ids must exist in the installed app — see NotificationChannelManager in
+# frontend/android, which registers exactly this set. A type absent here (the
+# in-app-only ones, which never push) falls back to the general channel; adding
+# a NEW channel id means a native release, so prefer an existing one.
+DEFAULT_CHANNEL = "default"
+PUSH_CHANNELS: dict[NotificationType, str] = {
+    NotificationType.task_assignment: "task_assignment",
+    NotificationType.overdue_tasks: "overdue_tasks",
+    NotificationType.initiative_added: "initiative_added",
+    NotificationType.project_added: "project_added",
+    NotificationType.user_pending_approval: "user_pending_approval",
+    NotificationType.mention: "mention",
+    NotificationType.comment_on_task: "comments",
+    NotificationType.comment_on_document: "comments",
+    NotificationType.comment_reply: "comments",
+    NotificationType.event_invitation: "calendar_events",
+    NotificationType.event_updated: "calendar_events",
+    NotificationType.event_cancelled: "calendar_events",
+    NotificationType.event_rsvp: "calendar_events",
+    NotificationType.event_reminder: "event_reminder",
+    NotificationType.access_grant_requested: "access_grants",
+    NotificationType.access_grant_approved: "access_grants",
+    NotificationType.access_grant_denied: "access_grants",
+    NotificationType.access_grant_revoked: "access_grants",
+}
+
+
+def channel_for(notification_type: Optional[NotificationType]) -> str:
+    """Android channel id for a notification type."""
+    if notification_type is None:
+        return DEFAULT_CHANNEL
+    return PUSH_CHANNELS.get(notification_type, DEFAULT_CHANNEL)
+
 
 def _get_fcm_access_token() -> Optional[str]:
     """Get OAuth2 access token from service account credentials.
@@ -52,7 +89,7 @@ async def _send_to_fcm(
     title: str,
     body: str,
     data: Optional[Dict[str, Any]] = None,
-    notification_type: Optional[str] = None,
+    channel_id: Optional[str] = None,
 ) -> tuple[bool, bool]:
     """Send a push notification via FCM HTTP v1 API.
 
@@ -61,7 +98,7 @@ async def _send_to_fcm(
         title: Notification title
         body: Notification body
         data: Optional data payload (must be string key-value pairs)
-        notification_type: Type of notification for Android channel routing
+        channel_id: Android notification channel to deliver on
 
     Returns:
         Tuple of (success, should_delete_token):
@@ -94,10 +131,10 @@ async def _send_to_fcm(
     message = {"message": fcm_message}
 
     # Add Android-specific configuration for notification channels
-    if notification_type:
+    if channel_id:
         fcm_message["android"] = {
             "notification": {
-                "channel_id": notification_type,  # Maps to Android channel ID
+                "channel_id": channel_id,
             }
         }
 
@@ -156,7 +193,7 @@ async def send_push_notification(
     body: str,
     data: Optional[Dict[str, Any]] = None,
     platform: str = "android",
-    notification_type: Optional[str] = None,
+    channel_id: Optional[str] = None,
 ) -> tuple[bool, bool]:
     """Send a push notification to a single device.
 
@@ -166,14 +203,14 @@ async def send_push_notification(
         body: Notification body
         data: Optional data payload
         platform: Platform identifier ('android' or 'ios')
-        notification_type: Type of notification for Android channel routing
+        channel_id: Android notification channel to deliver on
 
     Returns:
         Tuple of (success, should_delete_token):
         - success: True if notification was sent successfully
         - should_delete_token: True if token is invalid and should be deleted
     """
-    return await _send_to_fcm(push_token, title, body, data, notification_type)
+    return await _send_to_fcm(push_token, title, body, data, channel_id)
 
 
 async def send_push_to_user(
@@ -210,8 +247,7 @@ async def send_push_to_user(
     successful = 0
     tokens_to_delete = []
 
-    # Convert NotificationType enum to string for channel routing
-    notification_type_str = notification_type.value if notification_type else None
+    channel_id = channel_for(notification_type)
 
     for token_record in tokens:
         success, should_delete = await send_push_notification(
@@ -220,7 +256,7 @@ async def send_push_to_user(
             body=body,
             data=data,
             platform=token_record.platform,
-            notification_type=notification_type_str,
+            channel_id=channel_id,
         )
 
         if success:
