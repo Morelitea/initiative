@@ -12,7 +12,15 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+)
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlmodel import Field, SQLModel
 
@@ -64,6 +72,15 @@ class WebhookSubscription(SQLModel, table=True):
     active: bool = Field(
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+
+    # This subscription's position in ``event_outbox``. The poller reads rows
+    # with a greater id, delivers them, and only then advances — so a delivery
+    # that fails is retried on the next cycle rather than lost. One log, one
+    # cursor per subscriber, no per-subscription delivery rows.
+    cursor_event_id: int = Field(
+        default=0,
+        sa_column=Column(BigInteger, nullable=False, server_default="0"),
     )
 
     # TZ-aware columns to match the migration.

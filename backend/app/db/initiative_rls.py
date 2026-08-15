@@ -243,6 +243,9 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "dashboards": direct(),
     "property_definitions": direct(),
     "resource_grants": direct(),
+    # The change log itself. Scoped like the rows it describes, which is what
+    # lets the poller read it AS the subscriber (see EVENTED_TABLES below).
+    "event_outbox": direct(),
     # One hop -> projects
     "tasks": via("projects", "project_id"),
     "task_statuses": via("projects", "project_id"),
@@ -301,3 +304,30 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
 
 # Derived — the classification follows the registry, never duplicates it.
 INITIATIVE_SCOPED_TABLES: frozenset[str] = frozenset(INITIATIVE_PATHS)
+
+
+# Tables that get NO change-capture trigger, and why. Stated as an EXCLUSION so
+# the default is "a new content table is evented": a new entry in
+# INITIATIVE_PATHS starts emitting with no second edit, and anything that should
+# stay silent has to say so here deliberately. An inclusion list would instead
+# let a new table ship emitting nothing, which is the failure this whole
+# mechanism exists to remove.
+NON_EVENTED_TABLES: frozenset[str] = frozenset(
+    {
+        # The log cannot log itself.
+        "event_outbox",
+        # Per-user viewing/ordering state and internal dispatch bookkeeping.
+        # These record what one member did with their own UI, not a change to
+        # the initiative's content, so emitting them is pure noise on every
+        # subscription.
+        "recent_views",
+        "project_orders",
+        "project_favorites",
+        "task_assignment_digest_items",
+        "event_reminder_dispatches",
+    }
+)
+
+# The tables the capture trigger is installed on. Derived, so it follows
+# INITIATIVE_PATHS automatically.
+EVENTED_TABLES: frozenset[str] = INITIATIVE_SCOPED_TABLES - NON_EVENTED_TABLES
