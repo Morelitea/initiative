@@ -454,6 +454,5 @@
   "APP_DATA_BUSY": "This app has too many requests in flight. Try again shortly.",
   "APP_DATA_RATE_LIMITED": "This app has been asked for too much too quickly. Try again shortly.",
   "WEBHOOK_UNKNOWN_EVENT_TYPE": "That event type doesn't exist. Check the list of available events.",
-  "WEBHOOK_UNKNOWN_FIELD": "That field doesn't exist on the events you selected.",
-  "WEBHOOK_TOO_MANY_SUBSCRIPTIONS": "This guild has reached its limit of webhooks."
+  "WEBHOOK_UNKNOWN_FIELD": "That field doesn't exist on the events you selected."
 }

@@ -454,6 +454,5 @@
   "APP_DATA_BUSY": "Cette application a trop de requêtes en cours. Réessayez dans un instant.",
   "APP_DATA_RATE_LIMITED": "Cette application a été sollicitée trop souvent en peu de temps. Réessayez dans un instant.",
   "WEBHOOK_UNKNOWN_EVENT_TYPE": "Ce type d'événement n'existe pas. Consultez la liste des événements disponibles.",
-  "WEBHOOK_UNKNOWN_FIELD": "Ce champ n'existe pas pour les événements sélectionnés.",
-  "WEBHOOK_TOO_MANY_SUBSCRIPTIONS": "Cette guilde a atteint sa limite de webhooks."
+  "WEBHOOK_UNKNOWN_FIELD": "Ce champ n'existe pas pour les événements sélectionnés."
 }

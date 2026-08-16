@@ -454,6 +454,5 @@
   "APP_DATA_BUSY": "Diese App hat zu viele laufende Anfragen. Versuch es gleich noch einmal.",
   "APP_DATA_RATE_LIMITED": "Diese App wurde zu oft in kurzer Zeit abgefragt. Versuch es gleich noch einmal.",
   "WEBHOOK_UNKNOWN_EVENT_TYPE": "Dieser Ereignistyp existiert nicht. Prüfe die Liste der verfügbaren Ereignisse.",
-  "WEBHOOK_UNKNOWN_FIELD": "Dieses Feld existiert bei den ausgewählten Ereignissen nicht.",
-  "WEBHOOK_TOO_MANY_SUBSCRIPTIONS": "Diese Gilde hat ihr Webhook-Limit erreicht."
+  "WEBHOOK_UNKNOWN_FIELD": "Dieses Feld existiert bei den ausgewählten Ereignissen nicht."
 }

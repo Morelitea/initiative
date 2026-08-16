@@ -49,7 +49,6 @@ from app.schemas.tenant.webhook_subscription import (
 )
 from app.services.tenant import webhook_subscriptions as subscriptions_service
 from app.services.tenant.webhook_subscriptions import (
-    WebhookSubscriptionLimitError,
     WebhookSubscriptionNotFoundError,
 )
 from app.services.webhook_target_url import (
@@ -143,18 +142,12 @@ async def create_subscription(
     _validate_vocabulary(list(payload.event_types), payload.fields)
     await _validate_target_url(str(payload.target_url))
 
-    try:
-        subscription, secret = await subscriptions_service.create_subscription(
-            session,
-            payload=payload,
-            created_by_user_id=current_user.id,
-            guild_id=guild_context.guild_id,
-        )
-    except WebhookSubscriptionLimitError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=WebhookSubscriptionMessages.TOO_MANY_SUBSCRIPTIONS,
-        ) from exc
+    subscription, secret = await subscriptions_service.create_subscription(
+        session,
+        payload=payload,
+        created_by_user_id=current_user.id,
+        guild_id=guild_context.guild_id,
+    )
 
     return WebhookSubscriptionCreated(
         id=subscription.id,

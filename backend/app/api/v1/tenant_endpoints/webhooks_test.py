@@ -241,32 +241,6 @@ async def test_a_private_target_url_is_refused(client, acting_user):
     }
 
 
-async def test_the_per_member_cap_is_enforced(client, acting_user, monkeypatch):
-    from app.core.config import settings
-
-    monkeypatch.setattr(settings, "WEBHOOK_MAX_SUBSCRIPTIONS_PER_MEMBER", 1)
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
-
-    with _mock_public_dns():
-        first = await client.post(
-            _url(a.guild.id),
-            json=_body(initiative_id=a.initiative.id),
-            headers=a.headers,
-        )
-        assert first.status_code == 201
-        second = await client.post(
-            _url(a.guild.id),
-            json=_body(
-                initiative_id=a.initiative.id,
-                target_url=f"https://{_WEBHOOK_HOST}/other",
-            ),
-            headers=a.headers,
-        )
-
-    assert second.status_code == 409
-    assert second.json()["detail"] == "WEBHOOK_TOO_MANY_SUBSCRIPTIONS"
-
-
 async def test_an_initiative_subscription_is_visible_to_that_initiative(
     client, acting_user
 ):
