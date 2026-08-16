@@ -8,7 +8,7 @@ an in-flight transaction.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -29,9 +29,6 @@ def _subscription(**overrides) -> WebhookSubscription:
         hmac_secret="s3cret",
         event_types=["tasks.created", "tasks.updated"],
         active=True,
-        cursor_event_id=0,
-        failure_count=0,
-        next_attempt_at=None,
     )
     defaults.update(overrides)
     return WebhookSubscription(**defaults)
@@ -97,38 +94,6 @@ def test_one_transaction_is_one_envelope():
         }
 
 
-def test_a_window_with_nothing_to_send_leaves_failure_state_alone():
-    """A window holding nothing this subscriber wanted is not evidence about the
-    target, so it must not clear a failing one's backoff."""
-    now = datetime.now(timezone.utc)
-    count, next_attempt = outbox_poller._next_retry_state(3, outcome=None, now=now)
-    assert count == 3, (
-        "a non-matching window reset the backoff, so unrelated traffic would "
-        "keep a dead target being retried every pass"
-    )
-    assert next_attempt is None
-
-
-def test_a_refused_delivery_backs_off():
-    now = datetime.now(timezone.utc)
-    count, next_attempt = outbox_poller._next_retry_state(1, outcome=False, now=now)
-    assert count == 2
-    assert next_attempt is not None and next_attempt > now
-
-
-def test_an_accepted_delivery_clears_failure_state():
-    now = datetime.now(timezone.utc)
-    count, next_attempt = outbox_poller._next_retry_state(4, outcome=True, now=now)
-    assert count == 0
-    assert next_attempt is None
-
-
-def test_backoff_grows_and_is_bounded():
-    schedule = [outbox_poller._backoff(n).total_seconds() for n in range(1, 10)]
-    assert schedule == sorted(schedule), "backoff must never shrink"
-    assert schedule[-1] == outbox_poller._BACKOFF_SECONDS[-1]
-
-
 async def test_every_subscription_in_a_guild_is_drained(
     session, acting_user, monkeypatch
 ):
@@ -150,9 +115,6 @@ async def test_every_subscription_in_a_guild_is_drained(
                 hmac_secret=f"secret-{index}",
                 event_types=["tasks.created"],
                 active=True,
-                cursor_event_id=0,
-                failure_count=0,
-                next_attempt_at=None,
                 created_at=datetime.now(timezone.utc),
                 updated_at=datetime.now(timezone.utc),
             )
@@ -161,7 +123,7 @@ async def test_every_subscription_in_a_guild_is_drained(
 
     drained: list[int] = []
 
-    async def _record(session_, subscription, *, now, lease):
+    async def _record(session_, subscription, *, now):
         drained.append(subscription.id)
 
     monkeypatch.setattr(poller, "_drain_subscription", _record)
@@ -175,44 +137,113 @@ async def test_every_subscription_in_a_guild_is_drained(
     )
 
 
-class _Span:
-    """A (txn_id, first_id, last_id) row as the spans query returns it."""
+def test_a_batch_is_one_transaction_whole():
+    """Rows are selected by txn_id, so a batch is every row that transaction
+    wrote. A partial batch is not a state this design can reach."""
+    subscription = _subscription()
+    rows = [_row(1, 500), _row(3, 500), _row(9, 500)]
 
-    def __init__(self, txn_id: int, first_id: int, last_id: int) -> None:
-        self.txn_id = txn_id
-        self.first_id = first_id
-        self.last_id = last_id
+    envelope = outbox_poller._envelope(subscription, 500, rows)
 
-
-def test_watermark_never_lands_inside_a_transaction():
-    """A stops at 5 but opened at 1, and B sits entirely inside that span.
-    Stopping at B's end would cut A, so the only safe stop is A's end."""
-    spans = [_Span(500, 1, 5), _Span(501, 2, 3)]
-
-    assert outbox_poller._safe_watermark(spans) == 5
+    assert [c["resource"]["id"] for c in envelope["changes"]] == [101, 103, 109]
+    assert envelope["event_id"] == outbox_poller._event_id(subscription.id, 500)
 
 
-def test_watermark_stops_where_every_open_transaction_has_closed():
-    spans = [_Span(500, 1, 2), _Span(501, 3, 4)]
+def test_backoff_grows_and_is_bounded():
+    schedule = [outbox_poller._backoff(n).total_seconds() for n in range(1, 10)]
+    assert schedule == sorted(schedule), "backoff must never shrink"
+    assert schedule[0] == outbox_poller._BACKOFF_SECONDS[0]
+    assert schedule[-1] == outbox_poller._BACKOFF_SECONDS[-1]
 
-    assert outbox_poller._safe_watermark(spans) == 4
 
+@pytest.mark.integration
+async def test_ledger_delivers_each_transaction_once(session, acting_user, monkeypatch):
+    """A drain marks each pending transaction delivered, and a second pass over
+    the same log sends nothing further."""
+    from app.models.platform.guild import GuildRole
+    from app.services.tenant import outbox_poller as poller
+    from app.testing import create_task
 
-def test_a_transaction_hidden_beyond_a_barrier_is_not_treated_as_finished():
-    """The regression that produced duplicate-id envelopes.
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    await create_task(session, a.project)
+    await create_task(session, a.project)
 
-    A wrote rows 1, 3 and 5; an in-flight transaction holds row 4. Reading rows
-    and stopping at row 4 makes A look finished at 3 — it ships as [1, 3], then
-    row 5 ships later under the SAME event_id and a deduping receiver drops it.
-    Spans come from the database and A's last_id is 5, so the barrier at 4
-    excludes A entirely rather than truncating it.
-    """
-    spans = [_Span(500, 1, 5)]
-    barrier = 4
-
-    eligible = [s for s in spans if s.last_id < barrier]
-
-    assert eligible == [], (
-        "transaction A ends past the barrier, so no part of it may go out yet"
+    session.add(
+        WebhookSubscription(
+            guild_id=a.guild.id,
+            initiative_id=None,
+            created_by_user_id=a.user.id,
+            target_url="https://example.test/hook",
+            hmac_secret="secret",
+            event_types=["tasks.created"],
+            active=True,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
     )
-    assert outbox_poller._safe_watermark(eligible) is None
+    await session.commit()
+
+    sent: list[dict] = []
+
+    async def _accept(*, target_url, secret, envelope):
+        sent.append(envelope)
+        return True
+
+    monkeypatch.setattr(poller, "deliver", _accept)
+
+    await poller._drain_guild(session, a.guild.id, now=datetime.now(timezone.utc))
+    first_pass = len(sent)
+    assert first_pass > 0, "no transaction was delivered"
+
+    await poller._drain_guild(session, a.guild.id, now=datetime.now(timezone.utc))
+    assert len(sent) == first_pass, (
+        "a settled transaction was delivered twice — the ledger row should make "
+        "it ineligible on every later pass"
+    )
+
+
+@pytest.mark.integration
+async def test_a_refused_batch_is_retried_not_lost(session, acting_user, monkeypatch):
+    """A refusal leaves the transaction pending, so it comes back once its
+    backoff expires rather than being skipped."""
+    from app.models.platform.guild import GuildRole
+    from app.services.tenant import outbox_poller as poller
+    from app.testing import create_task
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    await create_task(session, a.project)
+
+    session.add(
+        WebhookSubscription(
+            guild_id=a.guild.id,
+            initiative_id=None,
+            created_by_user_id=a.user.id,
+            target_url="https://example.test/hook",
+            hmac_secret="secret",
+            event_types=["tasks.created"],
+            active=True,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+    )
+    await session.commit()
+
+    attempts: list[str] = []
+
+    async def _refuse(*, target_url, secret, envelope):
+        attempts.append(envelope["event_id"])
+        return False
+
+    monkeypatch.setattr(poller, "deliver", _refuse)
+
+    await poller._drain_guild(session, a.guild.id, now=datetime.now(timezone.utc))
+    assert len(attempts) == 1
+
+    # Past the backoff, the same batch is offered again under the same id.
+    later = datetime.now(timezone.utc) + timedelta(hours=2)
+    await poller._drain_guild(session, a.guild.id, now=later)
+    assert len(attempts) == 2, "a refused batch was dropped instead of retried"
+    assert attempts[0] == attempts[1], (
+        "the retry carried a different event_id, so a receiver deduping on it "
+        "would treat the redelivery as new work"
+    )

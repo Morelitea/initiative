@@ -12,30 +12,27 @@ pass with no subscription edit and no cache to invalidate.
 ``initiative_id`` on the subscription is a narrowing filter on top of that, never
 a widening one.
 
-Three properties this has to actually hold, not merely intend:
+Progress is a ledger row per ``(subscription, transaction)``, not a cursor, and
+that is a correctness decision rather than a tuning one. Outbox ids come from a
+sequence at insert time but are published at commit time, so a transaction still
+in flight can put a row *beneath* any watermark chosen while that row was
+invisible — and no query can see an uncommitted row to defend against it. A
+ledger has nothing for a late row to be beneath: a transaction is either recorded
+for a subscription or it is not.
 
-**A transaction is never split.** Rows carry the ``txid_current()`` that wrote
-them, and one transaction's rows go out as one envelope. Ids alone don't give
-that: they come from a sequence at insert time, so concurrent transactions
-interleave and one transaction's rows sit either side of another's. Which
-transactions have finished is therefore asked of the database — first and last
-id per transaction — never inferred from a list of rows that some limit or
-barrier has already shortened. A transaction still in flight bars the cursor
-rather than being stepped over, which is what keeps a slow writer's events from
-being lost to a reader that raced past their ids.
+What follows from that:
 
-**One replica drains a subscription at a time.** Every replica runs this loop, so
-a subscription is claimed with a conditional update before it is drained, and the
-claim is a lease that expires if the holder dies.
+* **Nothing is skipped.** Work not taken this pass is still pending on the next.
+  ``BATCH_LIMIT`` bounds throughput, never visibility.
+* **Two replicas racing is settled by the database.** Claiming is an insert on
+  the ledger's primary key; the loser gets no row and moves on.
+* **A duplicate is recognizable as one.** ``event_id`` derives from
+  ``(subscription_id, txn_id)``, so a batch redelivered after a lapsed claim
+  carries the id a receiver already saw.
 
-**A duplicate is recognizable as one.** ``event_id`` is derived from
-``(subscription_id, txn_id)``, so if a batch is somehow delivered twice — a lease
-that lapsed mid-flight, a retry after an ambiguous timeout — both copies carry
-the same id and a receiver deduping on it drops the second. A random id per
-envelope would make every duplicate look like new work.
-
-A cursor advances only after a 2xx. Failures accumulate a backoff, so a target
-that is down slows its own deliveries instead of spinning.
+Only settled transactions are eligible (``txn_id < xmin``). That is about batch
+completeness, not cursor safety: half a transaction is not a batch. Skipping one
+costs nothing, because it is simply still pending next pass.
 """
 
 from __future__ import annotations
@@ -45,7 +42,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import func, text
+from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -61,20 +58,17 @@ logger = logging.getLogger(__name__)
 #: How often the drain runs.
 OUTBOX_POLL_SECONDS = 5
 
-#: How often drained history is swept.
+#: How often delivered history is swept.
 OUTBOX_RETENTION_POLL_SECONDS = 3600
 
-#: Transactions a subscription may take in one pass. Bounds a single pass, not
-#: what stays visible: whatever is not taken is simply still pending next time.
-BATCH_LIMIT = 500
+#: Transactions a subscription may take in one pass. A throughput bound only —
+#: anything not taken remains exactly as visible next pass.
+BATCH_LIMIT = 50
 
-#: How long a claim on a subscription is held. Long enough to cover a full
-#: window of deliveries at the per-request timeout, short enough that a replica
-#: dying mid-drain doesn't strand the subscription for long.
+#: How long a claim on one transaction is held before another pass may retry it.
 LEASE_SECONDS = 300
 
-#: Backoff schedule, in seconds, indexed by consecutive failure count. A target
-#: that stays down is retried ever less often rather than every cycle.
+#: Backoff schedule, in seconds, indexed by consecutive failures on a batch.
 _BACKOFF_SECONDS = (5, 30, 120, 600, 1800, 3600)
 
 #: Namespace for deterministic envelope ids. Fixed forever: changing it would
@@ -82,8 +76,8 @@ _BACKOFF_SECONDS = (5, 30, 120, 600, 1800, 3600)
 _EVENT_ID_NAMESPACE = uuid.UUID("6f9619ff-8b86-d011-b42d-00c04fc964ff")
 
 
-def _backoff(failure_count: int) -> timedelta:
-    index = min(failure_count, len(_BACKOFF_SECONDS) - 1)
+def _backoff(attempts: int) -> timedelta:
+    index = min(max(attempts, 1), len(_BACKOFF_SECONDS)) - 1
     return timedelta(seconds=_BACKOFF_SECONDS[index])
 
 
@@ -97,11 +91,7 @@ def _event_type(row: EventOutbox) -> str:
 
 
 def _matches(row: EventOutbox, subscription: WebhookSubscription) -> bool:
-    """Whether one change-item belongs in this subscription's batch.
-
-    Applied per item BEFORE the batch is assembled, so grouping by transaction
-    never widens what a subscription receives.
-    """
+    """Whether one change-item belongs in this subscription's batch."""
     if _event_type(row) not in subscription.event_types:
         return False
     if (
@@ -140,116 +130,106 @@ def _envelope(
     }
 
 
-async def _claim(
+async def _pending_transactions(
     session: AsyncSession, subscription: WebhookSubscription, *, now: datetime
-) -> datetime | None:
-    """Take this subscription for one pass, returning the lease that proves it.
+) -> list[int]:
+    """Settled transactions this subscription still owes, oldest first.
 
-    A conditional update is the claim: only the replica whose UPDATE matches a
-    row proceeds. ``next_attempt_at`` doubles as the lease, so a holder that dies
-    mid-drain releases it by expiry rather than stranding the subscription — and
-    the value written is the token every later write is checked against, so a
-    holder whose lease lapsed cannot settle over whoever took it next.
+    Ordered by the first outbox id each transaction wrote, so batches arrive
+    roughly in the order they were created. Eligibility is "no ledger row yet"
+    or "a row that failed and is out of backoff" — there is no position to
+    maintain, so a transaction missed by one pass is simply still pending.
+
+    The outbox read runs under the SUBSCRIPTION OWNER's context, so RLS has
+    already removed transactions holding nothing that owner may see.
     """
-    lease = now + timedelta(seconds=LEASE_SECONDS)
+    rows = await session.exec(
+        text(
+            "SELECT o.txn_id "
+            "FROM event_outbox o "
+            "WHERE o.txn_id < pg_snapshot_xmin(pg_current_snapshot())::text::bigint "
+            "  AND NOT EXISTS ("
+            "    SELECT 1 FROM webhook_deliveries d "
+            "    WHERE d.subscription_id = :sid AND d.txn_id = o.txn_id "
+            "      AND (d.delivered_at IS NOT NULL OR d.next_attempt_at > :now)"
+            "  ) "
+            "GROUP BY o.txn_id "
+            "ORDER BY min(o.id) ASC "
+            "LIMIT :limit"
+        ).bindparams(sid=subscription.id, now=now, limit=BATCH_LIMIT)
+    )
+    return [row[0] for row in rows]
+
+
+async def _claim(
+    session: AsyncSession,
+    subscription: WebhookSubscription,
+    txn_id: int,
+    *,
+    now: datetime,
+) -> bool:
+    """Take one transaction for this pass, or report that someone else has it.
+
+    The ledger's primary key is the claim: an insert conflicting with a live row
+    updates nothing and returns nothing, so the racing replica moves on. A row
+    that exists but is out of backoff is re-taken by extending its lease.
+    """
     result = await session.exec(
         text(
-            "UPDATE webhook_subscriptions SET next_attempt_at = :lease "
-            "WHERE id = :id AND (next_attempt_at IS NULL OR next_attempt_at <= :now) "
-            "RETURNING id"
-        ).bindparams(lease=lease, id=subscription.id, now=now)
+            "INSERT INTO webhook_deliveries "
+            "  (subscription_id, txn_id, attempts, next_attempt_at) "
+            "VALUES (:sid, :txn, 0, :lease) "
+            "ON CONFLICT (subscription_id, txn_id) DO UPDATE "
+            "  SET next_attempt_at = :lease "
+            "  WHERE webhook_deliveries.delivered_at IS NULL "
+            "    AND (webhook_deliveries.next_attempt_at IS NULL "
+            "         OR webhook_deliveries.next_attempt_at <= :now) "
+            "RETURNING attempts"
+        ).bindparams(
+            sid=subscription.id,
+            txn=txn_id,
+            lease=now + timedelta(seconds=LEASE_SECONDS),
+            now=now,
+        )
     )
     claimed = result.first() is not None
     await session.commit()
-    if not claimed:
-        return None
-    # The claim was raw SQL, so the in-memory instance still holds what it was
-    # loaded with — including a cursor another replica may have advanced between
-    # the load and the claim. Re-read before trusting any of its state.
-    await session.refresh(subscription)
-    return lease
+    return claimed
 
 
-async def _readable_window(
-    session: AsyncSession, cursor: int
-) -> tuple[list[EventOutbox], int | None]:
-    """Rows safe to deliver now, and the id to advance to.
+async def _settle(
+    session: AsyncSession,
+    subscription: WebhookSubscription,
+    txn_id: int,
+    *,
+    now: datetime,
+    accepted: bool,
+) -> None:
+    """Record the outcome.
 
-    Completeness is read from the database, never inferred from a windowed list
-    of rows. Ids come from a sequence at insert time, so a transaction's rows
-    interleave with other transactions' and can sit either side of any cut we
-    make. A list that has been shortened — by a row limit, or by stopping at an
-    in-flight row — makes the transactions inside it *look* finished, and
-    treating that as truth splits one across two passes. Both halves then derive
-    the same event_id from (subscription_id, txn_id), so a receiver deduping on
-    it takes the first and discards the rest.
-
-    So: ask Postgres for each undelivered transaction's first and last id, take
-    only transactions that end below the first in-flight row, and stop at a
-    point no remaining transaction spans.
+    ``delivered_at IS NULL`` in the predicate keeps a pass whose lease lapsed
+    mid-flight from reopening a batch another pass has already completed.
     """
-    xmin = await session.scalar(
-        text("SELECT pg_snapshot_xmin(pg_current_snapshot())::text::bigint")
-    )
-
-    # A transaction still in flight is a hard barrier: it may yet insert rows
-    # below any watermark we pick, and those would fall beneath the cursor.
-    barrier = await session.scalar(
-        select(func.min(EventOutbox.id))
-        .where(EventOutbox.id > cursor)
-        .where(EventOutbox.txn_id >= xmin)
-    )
-
-    spans = list(
-        await session.exec(
-            select(
-                EventOutbox.txn_id,
-                func.min(EventOutbox.id).label("first_id"),
-                func.max(EventOutbox.id).label("last_id"),
-            )
-            .where(EventOutbox.id > cursor)
-            .where(EventOutbox.txn_id < xmin)
-            .group_by(EventOutbox.txn_id)
-            .order_by(func.min(EventOutbox.id).asc())
+    if accepted:
+        statement = text(
+            "UPDATE webhook_deliveries "
+            "SET delivered_at = :now, next_attempt_at = NULL "
+            "WHERE subscription_id = :sid AND txn_id = :txn AND delivered_at IS NULL"
+        ).bindparams(now=now, sid=subscription.id, txn=txn_id)
+    else:
+        statement = text(
+            "UPDATE webhook_deliveries "
+            "SET attempts = attempts + 1, "
+            "    next_attempt_at = :now + make_interval(secs => :backoff) "
+            "WHERE subscription_id = :sid AND txn_id = :txn AND delivered_at IS NULL"
+        ).bindparams(
+            now=now,
+            backoff=_backoff(1).total_seconds(),
+            sid=subscription.id,
+            txn=txn_id,
         )
-    )
-    if barrier is not None:
-        spans = [span for span in spans if span.last_id < barrier]
-    if not spans:
-        return [], None
-
-    watermark = _safe_watermark(spans)
-    if watermark is None:
-        return [], None
-
-    rows = list(
-        await session.exec(
-            select(EventOutbox)
-            .where(EventOutbox.id > cursor, EventOutbox.id <= watermark)
-            .order_by(EventOutbox.id.asc())
-        )
-    )
-    return rows, watermark
-
-
-def _safe_watermark(spans: list[Any]) -> int | None:
-    """The highest id no remaining transaction straddles.
-
-    ``spans`` are (txn_id, first_id, last_id) ordered by first_id. Walking them
-    while tracking the furthest last_id seen gives the points where every
-    transaction opened so far has also closed — the only ids a single-number
-    cursor may stop on. Bounded by BATCH_LIMIT transactions so one pass cannot
-    take an unbounded backlog; whatever is left is simply still pending.
-    """
-    watermark: int | None = None
-    reach = 0
-    for index, span in enumerate(spans):
-        reach = max(reach, span.last_id)
-        if index + 1 >= len(spans) or spans[index + 1].first_id > reach:
-            watermark = reach
-            if index + 1 >= BATCH_LIMIT:
-                break
-    return watermark
+    await session.exec(statement)
+    await session.commit()
 
 
 async def _drain_subscription(
@@ -257,15 +237,14 @@ async def _drain_subscription(
     subscription: WebhookSubscription,
     *,
     now: datetime,
-    lease: datetime,
 ) -> None:
-    """Deliver one subscription's pending events, as its owner.
+    """Deliver one subscription's pending transactions, as its owner.
 
     The session is routed to the subscription's guild with the OWNER's user id,
-    so the outbox read is gated by that owner's access. ``satisfied_providers``
+    so every outbox read is gated by that owner's access. ``satisfied_providers``
     is the system sentinel: a background pass has no login to satisfy a guild's
-    auth policy with, and that leg is about how a person authenticated, not
-    about what this owner may reach. Every other gate applies unchanged.
+    auth policy with, and that leg is about how a person authenticated, not about
+    what this owner may reach. Every other gate applies unchanged.
     """
     await set_rls_context(
         session,
@@ -274,155 +253,35 @@ async def _drain_subscription(
         satisfied_providers="system",
     )
 
-    rows, watermark = await _readable_window(session, subscription.cursor_event_id)
-    if watermark is None:
-        # Nothing settled to send. Release the lease without touching failure
-        # state — no delivery was attempted, so nothing was proven either way.
-        await _release(session, subscription, lease=lease)
-        return
+    for txn_id in await _pending_transactions(session, subscription, now=now):
+        if not await _claim(session, subscription, txn_id, now=now):
+            continue
 
-    # Group by transaction id, not by adjacency: concurrent commits interleave
-    # ids, so one transaction's rows are not necessarily contiguous.
-    grouped: dict[int, list[EventOutbox]] = {}
-    for row in rows:
-        if _matches(row, subscription):
-            grouped.setdefault(row.txn_id, []).append(row)
-
-    if not grouped:
-        # The window held nothing for this subscription. Skip past it so a
-        # narrow filter doesn't re-read the same rows forever — but this is not
-        # a delivery, so failure state is left alone.
-        await _advance(
-            session, subscription, watermark, now=now, outcome=None, lease=lease
+        rows = list(
+            await session.exec(
+                select(EventOutbox)
+                .where(EventOutbox.txn_id == txn_id)
+                .order_by(EventOutbox.id.asc())
+            )
         )
-        return
+        batch = [row for row in rows if _matches(row, subscription)]
+        if not batch:
+            # Nothing in this transaction was for this subscriber. Record it so
+            # it is not reconsidered every pass; no request was made, so nothing
+            # is claimed about the target.
+            await _settle(session, subscription, txn_id, now=now, accepted=True)
+            continue
 
-    # Oldest transaction first, so a receiver sees changes in the order they
-    # were committed.
-    for txn_id in sorted(grouped):
-        batch = grouped[txn_id]
-        ok = await deliver(
+        accepted = await deliver(
             target_url=subscription.target_url,
             secret=subscription.hmac_secret,
             envelope=_envelope(subscription, txn_id, batch),
         )
-        if not ok:
-            # Hold the cursor beneath this transaction so it and everything
-            # after it retry in order.
-            await _advance(
-                session,
-                subscription,
-                batch[0].id - 1,
-                now=now,
-                outcome=False,
-                lease=lease,
-            )
+        await _settle(session, subscription, txn_id, now=now, accepted=accepted)
+        if not accepted:
+            # Deliver in order: hold the rest of this subscription's backlog
+            # until the refused batch gets through.
             return
-
-    await _advance(session, subscription, watermark, now=now, outcome=True, lease=lease)
-
-
-def _next_retry_state(
-    failure_count: int, *, outcome: bool | None, now: datetime
-) -> tuple[int, datetime | None]:
-    """The retry state an attempt leaves behind.
-
-    ``outcome`` None means no request was made — a window that held nothing this
-    subscriber wanted. That is not evidence about the target, so it must leave
-    the failure count alone; treating it as success would let unrelated traffic
-    clear a failing target's backoff.
-    """
-    if outcome is True:
-        return 0, None
-    if outcome is False:
-        failed = failure_count + 1
-        return failed, now + _backoff(failed)
-    return failure_count, None
-
-
-async def _release(
-    session: AsyncSession, subscription: WebhookSubscription, *, lease: datetime
-) -> None:
-    """Drop the lease, leaving cursor and failure state untouched."""
-    await _settle(session, subscription, lease=lease)
-
-
-async def _advance(
-    session: AsyncSession,
-    subscription: WebhookSubscription,
-    cursor: int,
-    *,
-    now: datetime,
-    outcome: bool | None,
-    lease: datetime,
-) -> None:
-    """Move the cursor and settle the lease.
-
-    ``outcome`` is the result of an actual delivery attempt — True for accepted,
-    False for refused, and None when no request was made. Only a real attempt
-    moves failure state: a window that merely contained nothing this subscriber
-    wanted must not clear a failing target's backoff.
-    """
-    failure_count, next_attempt = _next_retry_state(
-        subscription.failure_count, outcome=outcome, now=now
-    )
-    await _settle(
-        session,
-        subscription,
-        lease=lease,
-        cursor=cursor,
-        failure_count=failure_count,
-        next_attempt=next_attempt,
-    )
-
-
-async def _settle(
-    session: AsyncSession,
-    subscription: WebhookSubscription,
-    *,
-    lease: datetime,
-    cursor: int | None = None,
-    failure_count: int | None = None,
-    next_attempt: datetime | None = None,
-) -> None:
-    """Write final state, but only while this pass still holds the lease.
-
-    A drain that overran its lease has already been taken over by another
-    replica, and writing here would undo whatever that replica settled —
-    regressing a cursor into events it already delivered, or clearing a backoff
-    it just set. The ``next_attempt_at = :lease`` predicate is what makes this
-    write a no-op in that case. GREATEST keeps the cursor monotonic even when
-    two passes race legitimately.
-    """
-    result = await session.exec(
-        text(
-            "UPDATE webhook_subscriptions SET "
-            "  cursor_event_id = GREATEST(cursor_event_id, :cursor), "
-            "  failure_count = COALESCE(:failure_count, failure_count), "
-            "  next_attempt_at = :next_attempt "
-            "WHERE id = :id AND next_attempt_at = :lease "
-            "RETURNING cursor_event_id"
-        ).bindparams(
-            cursor=cursor if cursor is not None else subscription.cursor_event_id,
-            failure_count=failure_count,
-            next_attempt=next_attempt,
-            id=subscription.id,
-            lease=lease,
-        )
-    )
-    row = result.first()
-    await session.commit()
-    if row is None:
-        logger.warning(
-            "outbox settle skipped — lease no longer held: subscription=%s",
-            subscription.id,
-        )
-        return
-    # Keep the in-memory instance in step with what actually landed.
-    subscription.cursor_event_id = row[0]
-    if failure_count is not None:
-        subscription.failure_count = failure_count
-    subscription.next_attempt_at = next_attempt
 
 
 async def _drain_guild(session: AsyncSession, guild_id: int, *, now: datetime) -> None:
@@ -431,11 +290,8 @@ async def _drain_guild(session: AsyncSession, guild_id: int, *, now: datetime) -
     # them may then SEE is decided per subscription in _drain_subscription,
     # under its own owner's context.
     await set_rls_context(session, guild_id=guild_id, guild_role="admin")
-    # Ids, not instances. Each pass ends by expunging the identity map — ids
-    # repeat across guild schemas, so instances must not survive the reroute —
-    # and an instance held across that is detached, which makes the refresh
-    # inside _claim raise. Holding the roster as instances therefore drained the
-    # first subscription and failed every one after it.
+    # Ids, not instances: each pass ends by expunging the identity map (ids
+    # repeat across guild schemas), and an instance held across that is detached.
     subscription_ids = list(
         await session.exec(
             select(WebhookSubscription.id)
@@ -448,10 +304,7 @@ async def _drain_guild(session: AsyncSession, guild_id: int, *, now: datetime) -
             subscription = await session.get(WebhookSubscription, subscription_id)
             if subscription is None or not subscription.active:
                 continue
-            lease = await _claim(session, subscription, now=now)
-            if lease is None:
-                continue
-            await _drain_subscription(session, subscription, now=now, lease=lease)
+            await _drain_subscription(session, subscription, now=now)
         except Exception:
             logger.exception(
                 "outbox drain failed: guild=%s subscription=%s",
@@ -485,11 +338,12 @@ async def process_outbox_deliveries() -> None:
 
 
 async def process_outbox_retention() -> None:
-    """Drop outbox history past the retention window.
+    """Drop outbox history, and the ledger rows referencing it, past the window.
 
-    Age-based rather than cursor-based on purpose: a subscription that is weeks
-    behind is broken, and holding the log open for it would grow the table
-    without bound on every instance that never configures a target at all.
+    Age-based on purpose: a subscription weeks behind is broken, and holding the
+    log open for it would grow the table without bound on every instance that
+    never configures a target at all. Ledger rows go with the events they
+    describe, so the pair stays the same size.
     """
     cutoff = datetime.now(timezone.utc) - timedelta(
         days=settings.WEBHOOK_OUTBOX_RETENTION_DAYS
@@ -503,10 +357,16 @@ async def process_outbox_retention() -> None:
                     select(EventOutbox).where(EventOutbox.occurred_at < cutoff)
                 )
             )
+            if not stale:
+                await session.commit()
+                continue
+            txn_ids = sorted({row.txn_id for row in stale})
             for row in stale:
                 await session.delete(row)
-            if stale:
-                logger.info(
-                    "outbox retention: guild=%s removed=%s", guild_id, len(stale)
-                )
+            await session.exec(
+                text(
+                    "DELETE FROM webhook_deliveries WHERE txn_id = ANY(:txn_ids)"
+                ).bindparams(txn_ids=txn_ids)
+            )
+            logger.info("outbox retention: guild=%s removed=%s", guild_id, len(stale))
             await session.commit()
