@@ -217,12 +217,19 @@ async def _readable_window(
     # transactions' rows lets it place a watermark above rows it was never shown
     # — which is the same "cursor skipped something beneath it" loss the prefix
     # walk exists to prevent.
+    # The ceiling is a subquery, not a value read in an earlier statement. Under
+    # READ COMMITTED each statement takes its own snapshot, so a separately
+    # computed ceiling can be stale by the time the rows are read: a transaction
+    # that commits in between adds rows above it and gets cut there. That split
+    # is worse than it sounds, because both halves derive the same event_id from
+    # (subscription_id, txn_id) — a receiver deduping on it would accept the
+    # first half and silently drop the rest. One statement, one snapshot.
     txn_ids = {row.txn_id for row in settled}
-    ceiling = await session.scalar(
-        select(func.max(EventOutbox.id)).where(EventOutbox.txn_id.in_(txn_ids))
+    ceiling = (
+        select(func.max(EventOutbox.id))
+        .where(EventOutbox.txn_id.in_(txn_ids))
+        .scalar_subquery()
     )
-    if ceiling is None:
-        return [], None
     whole = list(
         await session.exec(
             select(EventOutbox)
@@ -230,6 +237,8 @@ async def _readable_window(
             .order_by(EventOutbox.id.asc())
         )
     )
+    if not whole:
+        return [], None
     prefix, watermark = _complete_prefix(whole, truncated=False)
     return (prefix, watermark) if prefix else ([], None)
 
@@ -462,15 +471,23 @@ async def _drain_guild(session: AsyncSession, guild_id: int, *, now: datetime) -
     # them may then SEE is decided per subscription in _drain_subscription,
     # under its own owner's context.
     await set_rls_context(session, guild_id=guild_id, guild_role="admin")
-    subscriptions = list(
+    # Ids, not instances. Each pass ends by expunging the identity map — ids
+    # repeat across guild schemas, so instances must not survive the reroute —
+    # and an instance held across that is detached, which makes the refresh
+    # inside _claim raise. Holding the roster as instances therefore drained the
+    # first subscription and failed every one after it.
+    subscription_ids = list(
         await session.exec(
-            select(WebhookSubscription)
+            select(WebhookSubscription.id)
             .where(WebhookSubscription.active.is_(True))
             .order_by(WebhookSubscription.id.asc())
         )
     )
-    for subscription in subscriptions:
+    for subscription_id in subscription_ids:
         try:
+            subscription = await session.get(WebhookSubscription, subscription_id)
+            if subscription is None or not subscription.active:
+                continue
             lease = await _claim(session, subscription, now=now)
             if lease is None:
                 continue
@@ -479,12 +496,10 @@ async def _drain_guild(session: AsyncSession, guild_id: int, *, now: datetime) -
             logger.exception(
                 "outbox drain failed: guild=%s subscription=%s",
                 guild_id,
-                subscription.id,
+                subscription_id,
             )
             await session.rollback()
         finally:
-            # ids repeat across guild schemas, and the next subscription
-            # re-routes the session.
             session.expunge_all()
             await set_rls_context(session, guild_id=guild_id, guild_role="admin")
 

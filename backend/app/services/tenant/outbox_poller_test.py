@@ -204,3 +204,49 @@ def test_prefix_over_a_filtered_subset_would_skip_unseen_rows():
         "reports a watermark above rows it never saw, so callers must widen "
         "the range instead"
     )
+
+
+async def test_every_subscription_in_a_guild_is_drained(
+    session, acting_user, monkeypatch
+):
+    """Each pass expunges the identity map, so the roster is held as ids and
+    each subscription is re-loaded. Held as instances, the second and later ones
+    are detached and every one after the first fails."""
+    from app.models.platform.guild import GuildRole
+    from app.services.tenant import outbox_poller as poller
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+
+    for index in range(3):
+        session.add(
+            WebhookSubscription(
+                guild_id=a.guild.id,
+                initiative_id=None,
+                created_by_user_id=a.user.id,
+                target_url=f"https://example.test/hook-{index}",
+                hmac_secret=f"secret-{index}",
+                event_types=["tasks.created"],
+                active=True,
+                cursor_event_id=0,
+                failure_count=0,
+                next_attempt_at=None,
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            )
+        )
+    await session.commit()
+
+    drained: list[int] = []
+
+    async def _record(session_, subscription, *, now, lease):
+        drained.append(subscription.id)
+
+    monkeypatch.setattr(poller, "_drain_subscription", _record)
+
+    now = datetime.now(timezone.utc)
+    await poller._drain_guild(session, a.guild.id, now=now)
+
+    assert len(drained) == 3, (
+        f"only {len(drained)} of 3 subscriptions drained — the rest were "
+        "detached by the per-pass expunge and never delivered to"
+    )
