@@ -130,10 +130,6 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # guild-wide config, no initiative scope. The api_key ciphertext is never
         # returned by the API (reads expose only has_key).
         "webhook_deliveries",  # per-subscription delivery ledger, no initiative of its own
-        "webhook_subscriptions",  # own-row (below): a target URL is a credential
-        # — receivers routinely carry their secret in the path, query or
-        # userinfo — so the row must not be readable by the rest of the guild,
-        # the same reasoning guild_app_subjects carries.
         "tags",  # tags are guild-level, shared across initiatives (purge-guarded)
         "uploads",  # guild blob store: no FK to any initiative entity (documents
         # reference blobs by file_url string, and a blob can be pinned by
@@ -198,7 +194,6 @@ OWN_ROW_TABLES: dict[str, str] = {
     "guild_app_user_connections": "user_id",
     "guild_app_user_delegations": "user_id",
     "guild_app_subjects": "user_id",
-    "webhook_subscriptions": "created_by_user_id",
 }
 
 # --- Guild-scoped (derived) -------------------------------------------------

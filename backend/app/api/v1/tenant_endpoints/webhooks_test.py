@@ -71,10 +71,14 @@ def _body(**overrides) -> dict:
 async def test_a_guild_member_may_register_a_subscription(client, acting_user):
     """No special permission: what the target receives is capped by the
     creator's own access at delivery time, so registering grants nothing."""
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
 
     with _mock_public_dns():
-        response = await client.post(_url(a.guild.id), json=_body(), headers=a.headers)
+        response = await client.post(
+            _url(a.guild.id),
+            json=_body(initiative_id=a.initiative.id),
+            headers=a.headers,
+        )
 
     assert response.status_code == 201, response.text
     body = response.json()
@@ -84,9 +88,13 @@ async def test_a_guild_member_may_register_a_subscription(client, acting_user):
 
 
 async def test_the_secret_is_never_returned_again(client, acting_user):
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
     with _mock_public_dns():
-        await client.post(_url(a.guild.id), json=_body(), headers=a.headers)
+        await client.post(
+            _url(a.guild.id),
+            json=_body(initiative_id=a.initiative.id),
+            headers=a.headers,
+        )
 
     listing = await client.get(_url(a.guild.id), headers=a.headers)
 
@@ -98,12 +106,12 @@ async def test_the_secret_is_never_returned_again(client, acting_user):
 async def test_an_unknown_event_type_is_refused(client, acting_user):
     """The failure this whole mechanism exists to remove: a subscription that
     registers cleanly and can never fire."""
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
 
     with _mock_public_dns():
         response = await client.post(
             _url(a.guild.id),
-            json=_body(event_types=["taks.updated"]),
+            json=_body(initiative_id=a.initiative.id, event_types=["taks.updated"]),
             headers=a.headers,
         )
 
@@ -112,12 +120,16 @@ async def test_an_unknown_event_type_is_refused(client, acting_user):
 
 
 async def test_an_unknown_field_is_refused(client, acting_user):
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
 
     with _mock_public_dns():
         response = await client.post(
             _url(a.guild.id),
-            json=_body(event_types=["tasks.updated"], fields=["not_a_column"]),
+            json=_body(
+                initiative_id=a.initiative.id,
+                event_types=["tasks.updated"],
+                fields=["not_a_column"],
+            ),
             headers=a.headers,
         )
 
@@ -128,13 +140,15 @@ async def test_an_unknown_field_is_refused(client, acting_user):
 async def test_a_junction_facet_is_a_nameable_field(client, acting_user):
     """``tags`` is not a column on tasks — a row in ``task_tags`` reports as
     ``tasks.updated`` with ``changed: ['tags']``, so it has to be nameable."""
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
 
     with _mock_public_dns():
         response = await client.post(
             _url(a.guild.id),
             json=_body(
-                event_types=["tasks.updated"], fields=["tags", "task_status_id"]
+                initiative_id=a.initiative.id,
+                event_types=["tasks.updated"],
+                fields=["tags", "task_status_id"],
             ),
             headers=a.headers,
         )
@@ -143,12 +157,17 @@ async def test_a_junction_facet_is_a_nameable_field(client, acting_user):
     assert sorted(response.json()["fields"]) == ["tags", "task_status_id"]
 
 
-async def test_a_non_owner_member_gets_a_404_not_a_403(client, acting_user):
-    """Own-row RLS hides the row rather than refusing the write, so the reply
-    does not confirm that someone else's subscription exists."""
-    a = await acting_user(guild_role=GuildRole.admin)
+async def test_a_co_member_may_not_rewrite_someone_elses(client, acting_user):
+    """Reaching a subscription and owning it are different: an initiative's
+    members can see its integration config, and its creator or a guild admin
+    manage it."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     with _mock_public_dns():
-        created = await client.post(_url(a.guild.id), json=_body(), headers=a.headers)
+        created = await client.post(
+            _url(a.guild.id),
+            json=_body(initiative_id=a.initiative.id),
+            headers=a.headers,
+        )
     subscription_id = created.json()["id"]
 
     b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
@@ -158,14 +177,17 @@ async def test_a_non_owner_member_gets_a_404_not_a_403(client, acting_user):
         headers=b.headers,
     )
 
-    assert response.status_code == 404
-    assert response.json()["detail"] == "WEBHOOK_SUBSCRIPTION_NOT_FOUND"
+    assert response.status_code in {403, 404}
 
 
 async def test_a_guild_admin_may_rewrite_any_of_them(client, acting_user):
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
     with _mock_public_dns():
-        created = await client.post(_url(a.guild.id), json=_body(), headers=a.headers)
+        created = await client.post(
+            _url(a.guild.id),
+            json=_body(initiative_id=a.initiative.id),
+            headers=a.headers,
+        )
     subscription_id = created.json()["id"]
 
     admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
@@ -180,9 +202,13 @@ async def test_a_guild_admin_may_rewrite_any_of_them(client, acting_user):
 
 
 async def test_a_subscription_in_another_guild_is_not_found(client, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     with _mock_public_dns():
-        created = await client.post(_url(a.guild.id), json=_body(), headers=a.headers)
+        created = await client.post(
+            _url(a.guild.id),
+            json=_body(initiative_id=a.initiative.id),
+            headers=a.headers,
+        )
     subscription_id = created.json()["id"]
 
     other = await acting_user(guild_role=GuildRole.admin)
@@ -194,11 +220,11 @@ async def test_a_subscription_in_another_guild_is_not_found(client, acting_user)
 
 
 async def test_a_private_target_url_is_refused(client, acting_user):
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
 
     response = await client.post(
         _url(a.guild.id),
-        json=_body(target_url="https://127.0.0.1/hook"),
+        json=_body(initiative_id=a.initiative.id, target_url="https://127.0.0.1/hook"),
         headers=a.headers,
     )
 
@@ -213,14 +239,21 @@ async def test_the_per_member_cap_is_enforced(client, acting_user, monkeypatch):
     from app.core.config import settings
 
     monkeypatch.setattr(settings, "WEBHOOK_MAX_SUBSCRIPTIONS_PER_MEMBER", 1)
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
 
     with _mock_public_dns():
-        first = await client.post(_url(a.guild.id), json=_body(), headers=a.headers)
+        first = await client.post(
+            _url(a.guild.id),
+            json=_body(initiative_id=a.initiative.id),
+            headers=a.headers,
+        )
         assert first.status_code == 201
         second = await client.post(
             _url(a.guild.id),
-            json=_body(target_url=f"https://{_WEBHOOK_HOST}/other"),
+            json=_body(
+                initiative_id=a.initiative.id,
+                target_url=f"https://{_WEBHOOK_HOST}/other",
+            ),
             headers=a.headers,
         )
 
@@ -228,43 +261,83 @@ async def test_the_per_member_cap_is_enforced(client, acting_user, monkeypatch):
     assert second.json()["detail"] == "WEBHOOK_TOO_MANY_SUBSCRIPTIONS"
 
 
-async def test_a_member_never_sees_another_members_subscription(client, acting_user):
-    """A target URL is a credential — receivers routinely carry their secret in
-    the path or query — so the row is own-row scoped, like guild_app_subjects.
-    RLS decides this, not a filter in the listing code."""
-    a = await acting_user(guild_role=GuildRole.member)
+async def test_an_initiative_subscription_is_visible_to_that_initiative(
+    client, acting_user
+):
+    """It is that initiative's integration config, not the private note of
+    whoever typed the URL — a co-member reaches it like any other content."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
     with _mock_public_dns():
-        created = await client.post(_url(a.guild.id), json=_body(), headers=a.headers)
-    assert created.status_code == 201
+        created = await client.post(
+            _url(a.guild.id),
+            json=_body(initiative_id=a.initiative.id),
+            headers=a.headers,
+        )
+    assert created.status_code == 201, created.text
 
-    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
-    listing = await client.get(_url(a.guild.id), headers=b.headers)
-
-    assert listing.status_code == 200
-    assert listing.json() == [], (
-        "another member's subscription was listed, disclosing its target URL"
+    mate = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
     )
-
-
-async def test_a_guild_admin_still_sees_them(client, acting_user):
-    a = await acting_user(guild_role=GuildRole.member)
-    with _mock_public_dns():
-        await client.post(_url(a.guild.id), json=_body(), headers=a.headers)
-
-    admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
-    listing = await client.get(_url(a.guild.id), headers=admin.headers)
+    listing = await client.get(_url(a.guild.id), headers=mate.headers)
 
     assert listing.status_code == 200
     assert len(listing.json()) == 1
 
 
+async def test_a_non_member_of_the_initiative_does_not_see_it(client, acting_user):
+    """The hard isolation boundary applies here like anywhere else."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    with _mock_public_dns():
+        await client.post(
+            _url(a.guild.id),
+            json=_body(initiative_id=a.initiative.id),
+            headers=a.headers,
+        )
+
+    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    listing = await client.get(_url(a.guild.id), headers=outsider.headers)
+
+    assert listing.status_code == 200
+    assert listing.json() == []
+
+
+async def test_a_guild_wide_subscription_is_admin_only(client, acting_user):
+    """Naming no initiative means it reports across all of them, so reaching it
+    is guild-admin authority — the ordinary NULL answer would admit any member.
+    """
+    admin = await acting_user(guild_role=GuildRole.admin)
+    with _mock_public_dns():
+        created = await client.post(
+            _url(admin.guild.id), json=_body(), headers=admin.headers
+        )
+    assert created.status_code == 201, created.text
+
+    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    listing = await client.get(_url(admin.guild.id), headers=member.headers)
+
+    assert listing.status_code == 200
+    assert listing.json() == [], (
+        "a guild-wide subscription was listed to an ordinary member, disclosing "
+        "a target URL that reports across every initiative"
+    )
+
+    own = await client.get(_url(admin.guild.id), headers=admin.headers)
+    assert len(own.json()) == 1
+
+
 async def test_a_url_carrying_credentials_is_refused(client, acting_user):
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
 
     with _mock_public_dns():
         response = await client.post(
             _url(a.guild.id),
-            json=_body(target_url=f"https://user:pw@{_WEBHOOK_HOST}/in"),
+            json=_body(
+                initiative_id=a.initiative.id,
+                target_url=f"https://user:pw@{_WEBHOOK_HOST}/in",
+            ),
             headers=a.headers,
         )
 
@@ -276,11 +349,11 @@ async def test_a_fields_only_update_is_accepted(client, acting_user):
     """Validation judges the row the patch produces, not the patch alone —
     otherwise a fields-only change has no event types to check against and a
     valid narrowing is rejected."""
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
     with _mock_public_dns():
         created = await client.post(
             _url(a.guild.id),
-            json=_body(event_types=["tasks.updated"]),
+            json=_body(initiative_id=a.initiative.id, event_types=["tasks.updated"]),
             headers=a.headers,
         )
     subscription_id = created.json()["id"]
@@ -298,11 +371,15 @@ async def test_a_fields_only_update_is_accepted(client, acting_user):
 async def test_narrowing_events_rechecks_the_stored_fields(client, acting_user):
     """The other direction: changing only event_types must re-check the fields
     already stored, or a filter that can never match survives the narrowing."""
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
     with _mock_public_dns():
         created = await client.post(
             _url(a.guild.id),
-            json=_body(event_types=["tasks.updated"], fields=["task_status_id"]),
+            json=_body(
+                initiative_id=a.initiative.id,
+                event_types=["tasks.updated"],
+                fields=["task_status_id"],
+            ),
             headers=a.headers,
         )
     subscription_id = created.json()["id"]

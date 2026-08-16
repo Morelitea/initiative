@@ -54,6 +54,10 @@ class InitiativePath:
     initiative_expr: RowLocator
 
 
+#: The routed guild-admin leg, for rows that span every initiative in a guild.
+_GUILD_ADMIN = "current_setting('app.current_guild_role'::text, true) = 'admin'::text"
+
+
 def _access(initiative_expr: str, write: bool) -> str:
     return f"public.initiative_access({initiative_expr}, {_UID}, {'true' if write else 'false'})"
 
@@ -185,6 +189,30 @@ def comments_path() -> InitiativePath:
 RECENT_ENTITY_TABLES: dict[str, str] = {t.value: t.plural for t in RECENTABLE_TOOLS}
 
 
+def webhook_subscription_path() -> InitiativePath:
+    """A subscription is reached by whoever can reach what it watches.
+
+    Naming an initiative makes it that initiative's integration config, seen and
+    managed by its members exactly like the content it reports on — the same gate
+    as everything else in a guild, not a private note belonging to whoever typed
+    the URL.
+
+    Naming NO initiative is the guild-wide case, and there the ordinary
+    ``initiative_access`` answer is wrong: a NULL means "the initiative gate has
+    nothing to decide", which admits any member. A guild-wide subscription
+    reports across every initiative, so reaching it is guild-admin authority —
+    the one role that already spans them.
+    """
+    return InitiativePath(
+        predicate=lambda t, w: (
+            f"(CASE WHEN {t}.initiative_id IS NULL "
+            f"THEN {_GUILD_ADMIN} "
+            f"ELSE {_access(f'{t}.initiative_id', w)} END)"
+        ),
+        initiative_expr=lambda r: f"{r}.initiative_id",
+    )
+
+
 def recent_views_path() -> InitiativePath:
     def build(t: str, w: bool) -> str:
         legs = [
@@ -246,6 +274,8 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     # The change log itself. Scoped like the rows it describes, which is what
     # lets the poller read it AS the subscriber (see EVENTED_TABLES below).
     "event_outbox": direct(),
+    # Integration config, reached by whoever can reach what it watches.
+    "webhook_subscriptions": webhook_subscription_path(),
     # One hop -> projects
     "tasks": via("projects", "project_id"),
     "task_statuses": via("projects", "project_id"),
@@ -325,6 +355,8 @@ NON_EVENTED_TABLES: frozenset[str] = frozenset(
         "project_favorites",
         "task_assignment_digest_items",
         "event_reminder_dispatches",
+        # Integration config — it has no changes of its own to report.
+        "webhook_subscriptions",
     }
 )
 
