@@ -171,7 +171,10 @@ async def get_provisioning_bundle() -> ProvisioningBundle:
     async with _bundle_lock:
         if _bundle is not None:
             return _bundle
-        from app.db.event_capture import render_guild_capture_ddl
+        from app.db.event_capture import (
+            CAPTURE_FUNCTION_SQL,
+            render_guild_capture_ddl,
+        )
         from app.db.guild_ddl import render_guild_rls_ddl, render_guild_schema_ddl
 
         schema_ddl = await render_guild_schema_ddl(db_session.provisioning_engine)
@@ -181,6 +184,7 @@ async def get_provisioning_bundle() -> ProvisioningBundle:
         digest.update(schema_ddl.encode())
         digest.update(rls_ddl.encode())
         digest.update(capture_ddl.encode())
+        digest.update(CAPTURE_FUNCTION_SQL.encode())
         digest.update(
             "\n".join(
                 _grant_statements(
@@ -254,8 +258,18 @@ async def apply_guild_capture(conn: AsyncConnection, schema: str) -> None:
     policies' EXISTS joins do. Requires ``public.capture_change`` to exist
     (created by migration 20260815_0184).
     """
+    from app.db.event_capture import CAPTURE_FUNCTION_SQL
+
     ddl = (await get_provisioning_bundle()).capture_ddl
     raw = await conn.get_raw_connection()
+    # Re-assert the shared function before the triggers that call it. A migration
+    # creates it, but a migration freezes the body it was written with — the
+    # registry is the current truth, so re-rendering here is what lets a change
+    # to the capture rule reach existing installs on the next boot rather than
+    # needing a migration per edit. Idempotent CREATE OR REPLACE.
+    await raw.driver_connection.execute(
+        "SET check_function_bodies = false;\n" + CAPTURE_FUNCTION_SQL
+    )
     await raw.driver_connection.execute(
         f'SET search_path TO "{schema}", public;\n{ddl}\nSET search_path TO public;'
     )

@@ -269,8 +269,6 @@
   "EXPORT_JOB_NOT_FOUND": "Exportación no encontrada.",
   "EXPORT_NOT_READY": "Esta exportación aún no está lista para descargar.",
   "EXPORT_ADMIN_REQUIRED": "Solo los administradores del gremio pueden exportar todo el gremio.",
-  "AUTOMATION_DELEGATE_NOT_CONFIGURED": "No hay ningún servicio de automatización configurado en esta instalación, por lo que la entrega de eventos no está disponible.",
-  "AUTOMATION_DELEGATE_REQUIRED": "Las suscripciones a eventos solo puede gestionarlas el servicio de automatización.",
   "AI_INVALID_BASE_URL": "La URL base no está permitida. Use un nombre de host público.",
   "AI_PROVIDER_NOT_ALLOWED": "Ollama solo se puede configurar a nivel de plataforma.",
   "fallback": "Algo salió mal. Por favor intenta de nuevo.",
@@ -454,5 +452,7 @@
   "APP_SERVICE_UNAVAILABLE": "La aplicación no responde en este momento. Inténtalo de nuevo en un rato.",
   "APP_DATA_RESPONSE_TOO_LARGE": "La aplicación devolvió más datos de los que puede mostrar un widget.",
   "APP_DATA_BUSY": "Esta aplicación tiene demasiadas peticiones en curso. Inténtalo de nuevo en un rato.",
-  "APP_DATA_RATE_LIMITED": "Se ha consultado esta aplicación demasiadas veces en poco tiempo. Inténtalo de nuevo en un rato."
+  "APP_DATA_RATE_LIMITED": "Se ha consultado esta aplicación demasiadas veces en poco tiempo. Inténtalo de nuevo en un rato.",
+  "WEBHOOK_UNKNOWN_EVENT_TYPE": "Ese tipo de evento no existe. Consulta la lista de eventos disponibles.",
+  "WEBHOOK_UNKNOWN_FIELD": "Ese campo no existe en los eventos que seleccionaste."
 }

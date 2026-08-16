@@ -18,7 +18,7 @@ from app.api.v1.tenant_endpoints import (
     ai_settings,
     app_data,
     attachments,
-    auto_subscriptions,
+    webhooks,
     calendar_entries,
     calendar_events,
     calendars,
@@ -142,7 +142,7 @@ api_router.include_router(
 # fails at startup (missing path param) — a useful guard.
 # ---------------------------------------------------------------------------
 guild_router = APIRouter(prefix="/g/{guild_id}")
-guild_router.include_router(auto_subscriptions.router, prefix="/auto", tags=["auto"])
+guild_router.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])
 guild_router.include_router(projects.router, prefix="/projects", tags=["projects"])
 guild_router.include_router(task_statuses.router, tags=["task-statuses"])
 guild_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])

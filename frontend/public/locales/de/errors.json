@@ -283,8 +283,6 @@
   "EXPORT_JOB_NOT_FOUND": "Export nicht gefunden.",
   "EXPORT_NOT_READY": "Dieser Export ist noch nicht zum Herunterladen bereit.",
   "EXPORT_ADMIN_REQUIRED": "Nur Gilden-Administratoren können die gesamte Gilde exportieren.",
-  "AUTOMATION_DELEGATE_NOT_CONFIGURED": "Für diese Bereitstellung ist kein Automatisierungsdienst konfiguriert, daher ist die Ereigniszustellung nicht verfügbar.",
-  "AUTOMATION_DELEGATE_REQUIRED": "Ereignis-Abonnements können nur vom Automatisierungsdienst verwaltet werden.",
   "AI_INVALID_BASE_URL": "Die Basis-URL ist nicht zulässig. Verwende einen öffentlichen Hostnamen.",
   "AI_PROVIDER_NOT_ALLOWED": "Ollama kann nur auf Plattformebene konfiguriert werden.",
   "fallback": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
@@ -454,5 +452,7 @@
   "APP_SERVICE_UNAVAILABLE": "Die App antwortet gerade nicht. Versuch es gleich noch einmal.",
   "APP_DATA_RESPONSE_TOO_LARGE": "Die App hat mehr Daten geschickt, als ein Widget anzeigen kann.",
   "APP_DATA_BUSY": "Diese App hat zu viele laufende Anfragen. Versuch es gleich noch einmal.",
-  "APP_DATA_RATE_LIMITED": "Diese App wurde zu oft in kurzer Zeit abgefragt. Versuch es gleich noch einmal."
+  "APP_DATA_RATE_LIMITED": "Diese App wurde zu oft in kurzer Zeit abgefragt. Versuch es gleich noch einmal.",
+  "WEBHOOK_UNKNOWN_EVENT_TYPE": "Dieser Ereignistyp existiert nicht. Prüfe die Liste der verfügbaren Ereignisse.",
+  "WEBHOOK_UNKNOWN_FIELD": "Dieses Feld existiert bei den ausgewählten Ereignissen nicht."
 }

@@ -1,31 +1,29 @@
-"""Webhook subscription endpoints for initiative-auto.
+"""Outbound webhook subscriptions for a guild.
 
-Delivery targets belong to the deployment's automation delegate: apps and
-users emit events, the delegate owns where they are delivered. Every route
-here therefore goes through ``require_auto_delegate`` — the caller must have
-authenticated over the delegation credential (RS256, public key verifier), and
-a deployment with no delegate configured refuses outright (503) rather than
-letting anyone register a target. The acting user is still a real user (the
-workflow owner the delegation names), so the per-row ownership rules below
-still mean something.
+Register a URL and the change events it should receive; the delivery worker
+POSTs signed, content-free envelopes to it (see
+``app.services.tenant.outbox_poller``).
 
-Tenant isolation is by RLS on the table; the endpoint adds an explicit
-``guild_id`` filter on every query as defense-in-depth.
+**A subscription never sees more than the member who created it.** Delivery
+reads the change log *as that member*, so RLS decides which events reach the
+target and keeps deciding as access changes — leaving an initiative or losing a
+PAM grant stops the matching deliveries with no edit here. That is why these
+routes need no permission of their own: a subscription's reach is its owner's
+reach, and an app acting for a member acts at exactly that member's level.
 
-Auto's flow:
+``initiative_id`` narrows a subscription to one initiative. Omitting it means
+"everything in this guild I can reach" — which for a guild admin is the guild,
+and for a member is their initiatives.
 
-  POST /api/v1/auto/subscriptions
-    body: {target_url, event_types, initiative_id?}
+  POST   /api/v1/g/{guild_id}/webhooks/subscriptions
+    body: {target_url, event_types, fields?, initiative_id?}
     → returns subscription + plaintext hmac_secret (one-time)
-  GET  /api/v1/auto/subscriptions
-  DELETE /api/v1/auto/subscriptions/{id}
-  PATCH  /api/v1/auto/subscriptions/{id}
+  GET    /api/v1/g/{guild_id}/webhooks/subscriptions
+  PATCH  /api/v1/g/{guild_id}/webhooks/subscriptions/{id}
+  DELETE /api/v1/g/{guild_id}/webhooks/subscriptions/{id}
 
-All four are guild-scoped via the active session's ``guild_id``.
-Mutation routes (PATCH/DELETE) additionally require the acting user to be
-either the subscription's creator or a guild admin — the delegate gate says
-*which service* may manage targets at all, and this says which of that
-service's users may rewrite a given one.
+Mutation routes require the acting user to be the subscription's creator or a
+guild admin — ordinary ownership, the same rule any other guild resource uses.
 """
 
 from __future__ import annotations
@@ -38,10 +36,9 @@ from app.api.deps import (
     GuildContext,
     RLSSessionDep,
     get_current_active_user,
-    require_auto_delegate,
+    get_guild_membership,
 )
 from app.core.messages import WebhookSubscriptionMessages
-from app.models.platform.guild import GuildRole
 from app.models.platform.user import User
 from app.schemas.tenant.webhook_subscription import (
     WebhookSubscriptionCreate,
@@ -52,7 +49,7 @@ from app.schemas.tenant.webhook_subscription import (
 from app.services.tenant import webhook_subscriptions as subscriptions_service
 from app.services.tenant.webhook_subscriptions import (
     WebhookSubscriptionNotFoundError,
-    WebhookSubscriptionOwnershipError,
+    WebhookSubscriptionVocabularyError,
 )
 from app.services.webhook_target_url import (
     WebhookTargetUrlError,
@@ -62,9 +59,7 @@ from app.services.webhook_target_url import (
 
 router = APIRouter()
 
-# Guild context AND the delegate gate in one dependency: an endpoint here can't
-# take its guild scoping without also passing the gate.
-AutoDelegateGuildDep = Annotated[GuildContext, Depends(require_auto_delegate)]
+GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 async def _validate_target_url(url: str) -> None:
@@ -97,32 +92,34 @@ async def create_subscription(
     payload: WebhookSubscriptionCreate,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: AutoDelegateGuildDep,
+    guild_context: GuildContextDep,
 ) -> WebhookSubscriptionCreated:
     """Register a new webhook subscription.
 
-    The HMAC secret is included in the response *only here*; subsequent
-    reads omit it. The receiver must persist it from this response or
-    rotate the subscription if they lose it.
+    The HMAC secret is included in the response *only here*; subsequent reads
+    omit it. The receiver must persist it from this response or rotate the
+    subscription if they lose it.
 
-    Authorization: the automation delegate's credential (503 when no
-    delegate is configured, 403 for any other caller), then tenant
-    isolation enforced by the table's RLS policy plus the explicit
-    ``guild_id`` filter in the service layer. The caller's guild comes
-    from ``GuildContext`` — the body never carries it.
+    Any member of the guild may register one, because doing so grants no access:
+    delivery reads the change log as this creator, so the target receives
+    exactly what they can see and nothing more.
 
-    Target policy: ``target_url`` must be https and resolve to a public
-    unicast address; private, loopback and link-local addresses are
-    rejected.
+    Target policy: ``target_url`` must be https and resolve to a public unicast
+    address; private, loopback and link-local addresses are rejected.
     """
     await _validate_target_url(str(payload.target_url))
 
-    subscription, secret = await subscriptions_service.create_subscription(
-        session,
-        payload=payload,
-        created_by_user_id=current_user.id,
-        guild_id=guild_context.guild_id,
-    )
+    try:
+        subscription, secret = await subscriptions_service.create_subscription(
+            session,
+            payload=payload,
+            created_by_user_id=current_user.id,
+            guild_id=guild_context.guild_id,
+        )
+    except WebhookSubscriptionVocabularyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
+        ) from exc
 
     return WebhookSubscriptionCreated(
         id=subscription.id,
@@ -131,6 +128,7 @@ async def create_subscription(
         created_by_user_id=subscription.created_by_user_id,
         target_url=subscription.target_url,
         event_types=subscription.event_types,
+        fields=subscription.fields,
         active=subscription.active,
         created_at=subscription.created_at,
         updated_at=subscription.updated_at,
@@ -142,10 +140,10 @@ async def create_subscription(
 async def list_subscriptions(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: AutoDelegateGuildDep,
+    guild_context: GuildContextDep,
 ) -> list[WebhookSubscriptionRead]:
     """List subscriptions in the caller's guild. ``hmac_secret`` is
-    intentionally absent from the response."""
+    intentionally absent from the response — it is returned once, on create."""
     rows = await subscriptions_service.list_subscriptions(
         session, guild_id=guild_context.guild_id
     )
@@ -161,7 +159,7 @@ async def update_subscription(
     payload: WebhookSubscriptionUpdate,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: AutoDelegateGuildDep,
+    guild_context: GuildContextDep,
 ) -> WebhookSubscriptionRead:
     """Partial-update target_url, event_types, or active flag.
 
@@ -171,14 +169,11 @@ async def update_subscription(
     if payload.target_url is not None:
         await _validate_target_url(str(payload.target_url))
 
-    is_admin = guild_context.role == GuildRole.admin
     try:
         row = await subscriptions_service.update_subscription(
             session,
             subscription_id=subscription_id,
             guild_id=guild_context.guild_id,
-            acting_user_id=current_user.id,
-            is_guild_admin=is_admin,
             payload=payload,
         )
     except WebhookSubscriptionNotFoundError as exc:
@@ -186,10 +181,9 @@ async def update_subscription(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=WebhookSubscriptionMessages.NOT_FOUND,
         ) from exc
-    except WebhookSubscriptionOwnershipError as exc:
+    except WebhookSubscriptionVocabularyError as exc:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=WebhookSubscriptionMessages.NOT_OWNER,
+            status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
         ) from exc
     return WebhookSubscriptionRead.model_validate(row)
 
@@ -203,26 +197,18 @@ async def delete_subscription(
     subscription_id: int,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: AutoDelegateGuildDep,
+    guild_context: GuildContextDep,
 ) -> None:
     """Hard-delete a subscription. Cross-guild lookups 404; non-owner
     non-admin attempts 403."""
-    is_admin = guild_context.role == GuildRole.admin
     try:
         await subscriptions_service.delete_subscription(
             session,
             subscription_id=subscription_id,
             guild_id=guild_context.guild_id,
-            acting_user_id=current_user.id,
-            is_guild_admin=is_admin,
         )
     except WebhookSubscriptionNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=WebhookSubscriptionMessages.NOT_FOUND,
-        ) from exc
-    except WebhookSubscriptionOwnershipError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=WebhookSubscriptionMessages.NOT_OWNER,
         ) from exc

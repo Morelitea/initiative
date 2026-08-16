@@ -54,6 +54,10 @@ class InitiativePath:
     initiative_expr: RowLocator
 
 
+#: The routed guild-admin leg, for rows that span every initiative in a guild.
+_GUILD_ADMIN = "current_setting('app.current_guild_role'::text, true) = 'admin'::text"
+
+
 def _access(initiative_expr: str, write: bool) -> str:
     return f"public.initiative_access({initiative_expr}, {_UID}, {'true' if write else 'false'})"
 
@@ -185,6 +189,30 @@ def comments_path() -> InitiativePath:
 RECENT_ENTITY_TABLES: dict[str, str] = {t.value: t.plural for t in RECENTABLE_TOOLS}
 
 
+def webhook_subscription_path() -> InitiativePath:
+    """A subscription is reached by whoever can reach what it watches.
+
+    Naming an initiative makes it that initiative's integration config, seen and
+    managed by its members exactly like the content it reports on — the same gate
+    as everything else in a guild, not a private note belonging to whoever typed
+    the URL.
+
+    Naming NO initiative is the guild-wide case, and there the ordinary
+    ``initiative_access`` answer is wrong: a NULL means "the initiative gate has
+    nothing to decide", which admits any member. A guild-wide subscription
+    reports across every initiative, so reaching it is guild-admin authority —
+    the one role that already spans them.
+    """
+    return InitiativePath(
+        predicate=lambda t, w: (
+            f"(CASE WHEN {t}.initiative_id IS NULL "
+            f"THEN {_GUILD_ADMIN} "
+            f"ELSE {_access(f'{t}.initiative_id', w)} END)"
+        ),
+        initiative_expr=lambda r: f"{r}.initiative_id",
+    )
+
+
 def recent_views_path() -> InitiativePath:
     def build(t: str, w: bool) -> str:
         legs = [
@@ -246,6 +274,8 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     # The change log itself. Scoped like the rows it describes, which is what
     # lets the poller read it AS the subscriber (see EVENTED_TABLES below).
     "event_outbox": direct(),
+    # Integration config, reached by whoever can reach what it watches.
+    "webhook_subscriptions": webhook_subscription_path(),
     # One hop -> projects
     "tasks": via("projects", "project_id"),
     "task_statuses": via("projects", "project_id"),
@@ -325,9 +355,74 @@ NON_EVENTED_TABLES: frozenset[str] = frozenset(
         "project_favorites",
         "task_assignment_digest_items",
         "event_reminder_dispatches",
+        # Integration config — it has no changes of its own to report.
+        "webhook_subscriptions",
     }
 )
 
-# The tables the capture trigger is installed on. Derived, so it follows
-# INITIATIVE_PATHS automatically.
-EVENTED_TABLES: frozenset[str] = INITIATIVE_SCOPED_TABLES - NON_EVENTED_TABLES
+# Tables that EMIT events but do not carry initiative-member RLS, mapped to how
+# an event about one resolves its initiative.
+#
+# Emitting and being initiative-scoped are different questions, and deriving the
+# first from the second is a mistake: the structural initiative tables are
+# deliberately exempt from the RLS (a membership table cannot be gated by the
+# membership check it backs without the policy recursing), and that exemption
+# must not also mean "invisible to every automation". Creating an initiative,
+# adding a member, changing a role are all things a subscriber can act on.
+#
+# These get a capture trigger and nothing else — no policies are rendered from
+# this registry. The resulting outbox row carries a real initiative_id, so RLS on
+# ``event_outbox`` scopes the EVENT normally even though the source table is not
+# scoped: members of that initiative, and guild admins, see it.
+GUILD_LEVEL_EVENTED: dict[str, RowLocator] = {
+    # An event about an initiative belongs to that initiative.
+    "initiatives": lambda r: f"{r}.id",
+    "initiative_members": lambda r: f"{r}.initiative_id",
+    "initiative_roles": lambda r: f"{r}.initiative_id",
+    "initiative_role_permissions": lambda r: (
+        f"(SELECT initiative_roles.initiative_id FROM initiative_roles "  # noqa: S608
+        f"WHERE initiative_roles.id = {r}.initiative_role_id)"
+    ),
+}
+
+# Tables that emit with NO initiative at all — the row carries a NULL
+# initiative_id, which the access function treats as "the initiative gate has
+# nothing to decide" and admits for any guild member.
+#
+# That is the correct disclosure here, not a weakening: these rows are already
+# readable by every member of the guild (they are guild-level precisely because
+# they belong to no initiative), so an event naming one reveals nothing its
+# subscriber could not read directly. The envelope carries ids and column names
+# only, never values.
+#
+# The trigger is told a NULL is expected for these, so an unresolvable initiative
+# on an initiative-scoped table still means "skip" rather than "broadcast".
+GUILD_WIDE_EVENTED: frozenset[str] = frozenset(
+    {
+        # Tags run through most flows and are shared across initiatives, so an
+        # automation that cannot see them is missing an ordinary trigger.
+        "tags",
+    }
+)
+
+# Guild-level tables that emit NOTHING, and why — recorded so the absence is a
+# decision rather than a silent gap.
+SILENT_GUILD_TABLES: frozenset[str] = frozenset(
+    {
+        # Safe to emit by the same reasoning as tags (the row is guild-readable;
+        # blob CONTENT is gated at the document layer, and no content rides in an
+        # envelope). Left out on volume, not disclosure: uploads churn on every
+        # attachment and avatar write, and every subscription would pay for them.
+        # Cheap to add if someone wants it.
+        "uploads",
+    }
+)
+
+# The tables the capture trigger is installed on: initiative-scoped content
+# (minus the deliberate exclusions) plus the guild-level tables that resolve an
+# initiative for their events.
+EVENTED_TABLES: frozenset[str] = (
+    (INITIATIVE_SCOPED_TABLES - NON_EVENTED_TABLES)
+    | frozenset(GUILD_LEVEL_EVENTED)
+    | GUILD_WIDE_EVENTED
+)

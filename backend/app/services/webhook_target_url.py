@@ -105,6 +105,12 @@ def _parse_host(url: str, *, allow_private: bool = False) -> tuple[str, str]:
         raise WebhookTargetUrlError(
             f"unsupported scheme: {parsed.scheme!r} ({want} required)"
         )
+    # Credentials must not ride in the URL. A stored target is read back by its
+    # owner and by guild admins, and userinfo turns the address itself into a
+    # secret — receivers that need one should be given the HMAC signature or a
+    # header, both of which stay out of the stored string.
+    if parsed.username or parsed.password:
+        raise WebhookTargetUrlError("target URL must not embed credentials")
     if not parsed.hostname:
         raise WebhookTargetUrlError("missing hostname")
     return parsed.scheme, parsed.hostname
