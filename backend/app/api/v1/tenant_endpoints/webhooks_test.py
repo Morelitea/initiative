@@ -143,7 +143,9 @@ async def test_a_junction_facet_is_a_nameable_field(client, acting_user):
     assert sorted(response.json()["fields"]) == ["tags", "task_status_id"]
 
 
-async def test_a_non_owner_member_may_not_rewrite_someone_elses(client, acting_user):
+async def test_a_non_owner_member_gets_a_404_not_a_403(client, acting_user):
+    """Own-row RLS hides the row rather than refusing the write, so the reply
+    does not confirm that someone else's subscription exists."""
     a = await acting_user(guild_role=GuildRole.admin)
     with _mock_public_dns():
         created = await client.post(_url(a.guild.id), json=_body(), headers=a.headers)
@@ -156,8 +158,8 @@ async def test_a_non_owner_member_may_not_rewrite_someone_elses(client, acting_u
         headers=b.headers,
     )
 
-    assert response.status_code == 403
-    assert response.json()["detail"] == "WEBHOOK_SUBSCRIPTION_NOT_OWNER"
+    assert response.status_code == 404
+    assert response.json()["detail"] == "WEBHOOK_SUBSCRIPTION_NOT_FOUND"
 
 
 async def test_a_guild_admin_may_rewrite_any_of_them(client, acting_user):
@@ -207,10 +209,10 @@ async def test_a_private_target_url_is_refused(client, acting_user):
     }
 
 
-async def test_the_per_guild_cap_is_enforced(client, acting_user, monkeypatch):
+async def test_the_per_member_cap_is_enforced(client, acting_user, monkeypatch):
     from app.core.config import settings
 
-    monkeypatch.setattr(settings, "WEBHOOK_MAX_SUBSCRIPTIONS_PER_GUILD", 1)
+    monkeypatch.setattr(settings, "WEBHOOK_MAX_SUBSCRIPTIONS_PER_MEMBER", 1)
     a = await acting_user(guild_role=GuildRole.member)
 
     with _mock_public_dns():
@@ -224,3 +226,92 @@ async def test_the_per_guild_cap_is_enforced(client, acting_user, monkeypatch):
 
     assert second.status_code == 409
     assert second.json()["detail"] == "WEBHOOK_TOO_MANY_SUBSCRIPTIONS"
+
+
+async def test_a_member_never_sees_another_members_subscription(client, acting_user):
+    """A target URL is a credential — receivers routinely carry their secret in
+    the path or query — so the row is own-row scoped, like guild_app_subjects.
+    RLS decides this, not a filter in the listing code."""
+    a = await acting_user(guild_role=GuildRole.member)
+    with _mock_public_dns():
+        created = await client.post(_url(a.guild.id), json=_body(), headers=a.headers)
+    assert created.status_code == 201
+
+    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    listing = await client.get(_url(a.guild.id), headers=b.headers)
+
+    assert listing.status_code == 200
+    assert listing.json() == [], (
+        "another member's subscription was listed, disclosing its target URL"
+    )
+
+
+async def test_a_guild_admin_still_sees_them(client, acting_user):
+    a = await acting_user(guild_role=GuildRole.member)
+    with _mock_public_dns():
+        await client.post(_url(a.guild.id), json=_body(), headers=a.headers)
+
+    admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
+    listing = await client.get(_url(a.guild.id), headers=admin.headers)
+
+    assert listing.status_code == 200
+    assert len(listing.json()) == 1
+
+
+async def test_a_url_carrying_credentials_is_refused(client, acting_user):
+    a = await acting_user(guild_role=GuildRole.member)
+
+    with _mock_public_dns():
+        response = await client.post(
+            _url(a.guild.id),
+            json=_body(target_url=f"https://user:pw@{_WEBHOOK_HOST}/in"),
+            headers=a.headers,
+        )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "WEBHOOK_INVALID_TARGET_URL"
+
+
+async def test_a_fields_only_update_is_accepted(client, acting_user):
+    """Validation judges the row the patch produces, not the patch alone —
+    otherwise a fields-only change has no event types to check against and a
+    valid narrowing is rejected."""
+    a = await acting_user(guild_role=GuildRole.member)
+    with _mock_public_dns():
+        created = await client.post(
+            _url(a.guild.id),
+            json=_body(event_types=["tasks.updated"]),
+            headers=a.headers,
+        )
+    subscription_id = created.json()["id"]
+
+    response = await client.patch(
+        _url(a.guild.id, f"/{subscription_id}"),
+        json={"fields": ["task_status_id"]},
+        headers=a.headers,
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["fields"] == ["task_status_id"]
+
+
+async def test_narrowing_events_rechecks_the_stored_fields(client, acting_user):
+    """The other direction: changing only event_types must re-check the fields
+    already stored, or a filter that can never match survives the narrowing."""
+    a = await acting_user(guild_role=GuildRole.member)
+    with _mock_public_dns():
+        created = await client.post(
+            _url(a.guild.id),
+            json=_body(event_types=["tasks.updated"], fields=["task_status_id"]),
+            headers=a.headers,
+        )
+    subscription_id = created.json()["id"]
+
+    response = await client.patch(
+        _url(a.guild.id, f"/{subscription_id}"),
+        json={"event_types": ["documents.updated"]},
+        headers=a.headers,
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "WEBHOOK_UNKNOWN_FIELD"

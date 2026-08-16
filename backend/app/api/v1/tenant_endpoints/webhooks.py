@@ -39,7 +39,6 @@ from app.api.deps import (
     get_guild_membership,
 )
 from app.core import webhook_events
-from app.core.config import settings
 from app.core.messages import WebhookSubscriptionMessages
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import User
@@ -51,6 +50,7 @@ from app.schemas.tenant.webhook_subscription import (
 )
 from app.services.tenant import webhook_subscriptions as subscriptions_service
 from app.services.tenant.webhook_subscriptions import (
+    WebhookSubscriptionLimitError,
     WebhookSubscriptionNotFoundError,
     WebhookSubscriptionOwnershipError,
 )
@@ -70,9 +70,16 @@ def _validate_vocabulary(
 ) -> None:
     """Reject event types and field names that could never fire.
 
+    Callers pass the values the row will END UP with, never just the ones a
+    request supplied: a partial update that changes only ``fields`` still has to
+    be checked against the stored event types, and one that changes only
+    ``event_types`` has to re-check the stored fields against them. Judging a
+    patch in isolation both rejects valid changes and lets a filter that can
+    never match survive a narrowing.
+
     Both vocabularies derive from the capture registry, so this is what turns a
-    typo into a 400 at registration instead of a subscription that looks healthy
-    and silently never delivers.
+    typo into a 400 rather than a subscription that looks healthy and silently
+    never delivers.
     """
     if event_types:
         unknown = webhook_events.unknown_event_types(event_types)
@@ -138,21 +145,18 @@ async def create_subscription(
     _validate_vocabulary(list(payload.event_types), payload.fields)
     await _validate_target_url(str(payload.target_url))
 
-    existing = await subscriptions_service.list_subscriptions(
-        session, guild_id=guild_context.guild_id
-    )
-    if len(existing) >= settings.WEBHOOK_MAX_SUBSCRIPTIONS_PER_GUILD:
+    try:
+        subscription, secret = await subscriptions_service.create_subscription(
+            session,
+            payload=payload,
+            created_by_user_id=current_user.id,
+            guild_id=guild_context.guild_id,
+        )
+    except WebhookSubscriptionLimitError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=WebhookSubscriptionMessages.TOO_MANY_SUBSCRIPTIONS,
-        )
-
-    subscription, secret = await subscriptions_service.create_subscription(
-        session,
-        payload=payload,
-        created_by_user_id=current_user.id,
-        guild_id=guild_context.guild_id,
-    )
+        ) from exc
 
     return WebhookSubscriptionCreated(
         id=subscription.id,
@@ -199,7 +203,24 @@ async def update_subscription(
     Only the acting user who created it, or a guild admin, may mutate.
     ``target_url`` (when provided) is re-validated against the SSRF allowlist.
     """
-    _validate_vocabulary(payload.event_types, payload.fields)
+    try:
+        existing = await subscriptions_service.get_subscription(
+            session, subscription_id=subscription_id, guild_id=guild_context.guild_id
+        )
+    except WebhookSubscriptionNotFoundError as exc:
+        # Own-row RLS hides another member's row, so this is a 404 rather than a
+        # 403 — the reply does not confirm the subscription exists.
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=WebhookSubscriptionMessages.NOT_FOUND,
+        ) from exc
+
+    _validate_vocabulary(
+        payload.event_types
+        if payload.event_types is not None
+        else existing.event_types,
+        payload.fields if payload.fields is not None else existing.fields,
+    )
     if payload.target_url is not None:
         await _validate_target_url(str(payload.target_url))
 

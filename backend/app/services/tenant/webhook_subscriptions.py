@@ -5,9 +5,11 @@ from __future__ import annotations
 import secrets
 from datetime import datetime, timezone
 
+from sqlalchemy import func, text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import settings
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.schemas.tenant.webhook_subscription import (
     WebhookSubscriptionCreate,
@@ -18,6 +20,10 @@ from app.schemas.tenant.webhook_subscription import (
 class WebhookSubscriptionNotFoundError(Exception):
     """Raised when the requested subscription doesn't exist under the
     caller's scope."""
+
+
+class WebhookSubscriptionLimitError(Exception):
+    """This member already holds as many subscriptions as the operator allows."""
 
 
 class WebhookSubscriptionOwnershipError(Exception):
@@ -88,6 +94,24 @@ async def create_subscription(
     for HMAC signing on dispatch — there's no way around that — but
     we never expose it on subsequent reads.
     """
+    # Count and insert under one lock, or two concurrent creates each see a
+    # count below the cap and both land. Advisory locks are transaction-scoped
+    # and keyed per (guild, member), so this serializes one member's own creates
+    # and nothing else.
+    await session.exec(
+        text("SELECT pg_advisory_xact_lock(:guild, :user)").bindparams(
+            guild=guild_id, user=created_by_user_id
+        )
+    )
+    mine = await session.scalar(
+        select(func.count())
+        .select_from(WebhookSubscription)
+        .where(WebhookSubscription.guild_id == guild_id)
+        .where(WebhookSubscription.created_by_user_id == created_by_user_id)
+    )
+    if (mine or 0) >= settings.WEBHOOK_MAX_SUBSCRIPTIONS_PER_MEMBER:
+        raise WebhookSubscriptionLimitError
+
     secret = _generate_hmac_secret()
     now = datetime.now(timezone.utc)
 
