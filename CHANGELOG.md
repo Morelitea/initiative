@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Webhooks are now available to every guild.** Register a URL under a guild's settings and Initiative will POST a signed message whenever content changes — pick the events you care about, and optionally narrow updates to particular fields, so "tell me when a task's status or due date moves" no longer means "tell me about every task edit". Each message says what changed and which resource it happened to, and your integration reads the current state back through the API. A subscription never sees more than the person who created it: delivery is checked against their access every time, so it stops on its own if they leave an initiative.
+
 ## [0.62.6] - 2026-08-14
 
 ### Added

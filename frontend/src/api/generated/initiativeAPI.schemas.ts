@@ -4605,6 +4605,7 @@ export interface WebhookSubscriptionCreate {
   target_url: string;
   /** @minItems 1 */
   event_types: string[];
+  fields?: string[] | null;
   initiative_id?: number | null;
 }
 
@@ -4619,6 +4620,7 @@ export interface WebhookSubscriptionCreated {
   created_by_user_id: number;
   target_url: string;
   event_types: string[];
+  fields: string[] | null;
   active: boolean;
   created_at: string;
   updated_at: string;
@@ -4637,6 +4639,7 @@ export interface WebhookSubscriptionRead {
   created_by_user_id: number;
   target_url: string;
   event_types: string[];
+  fields: string[] | null;
   active: boolean;
   created_at: string;
   updated_at: string;
@@ -4645,6 +4648,7 @@ export interface WebhookSubscriptionRead {
 export interface WebhookSubscriptionUpdate {
   target_url?: string | null;
   event_types?: string[] | null;
+  fields?: string[] | null;
   active?: boolean | null;
 }
 

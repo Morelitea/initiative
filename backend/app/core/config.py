@@ -751,6 +751,11 @@ class Settings(BaseSettings):
     # than this has stopped consuming and resumes from the current head.
     WEBHOOK_OUTBOX_RETENTION_DAYS: int = 7
 
+    # How many webhook subscriptions one guild may register. Registering is
+    # self-serve and grants no access — a subscription only ever receives what
+    # its creator can see — so this bounds outbound request volume, not reach.
+    WEBHOOK_MAX_SUBSCRIPTIONS_PER_GUILD: int = 50
+
     BEHIND_PROXY: bool = (
         False  # Set True when behind nginx/load balancer to trust X-Forwarded-For
     )

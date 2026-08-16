@@ -789,13 +789,9 @@ class WebhookSubscriptionMessages:
     PRIVATE_TARGET_URL = "WEBHOOK_PRIVATE_TARGET_URL"
     NOT_FOUND = "WEBHOOK_SUBSCRIPTION_NOT_FOUND"
     NOT_OWNER = "WEBHOOK_SUBSCRIPTION_NOT_OWNER"
-    # Delivery targets are owned by the configured automation delegate.
-    # No delegate is configured on this deployment, so there is nothing that
-    # may own one (503 — a configuration state, not a caller fault).
-    DELEGATE_NOT_CONFIGURED = "AUTOMATION_DELEGATE_NOT_CONFIGURED"
-    # The request authenticated as an ordinary user or API key rather than
-    # over the delegation credential.
-    DELEGATE_REQUIRED = "AUTOMATION_DELEGATE_REQUIRED"
+    UNKNOWN_EVENT_TYPE = "WEBHOOK_UNKNOWN_EVENT_TYPE"
+    UNKNOWN_FIELD = "WEBHOOK_UNKNOWN_FIELD"
+    TOO_MANY_SUBSCRIPTIONS = "WEBHOOK_TOO_MANY_SUBSCRIPTIONS"
 
 
 class AIMessages:

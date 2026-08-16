@@ -246,6 +246,12 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     # The change log itself. Scoped like the rows it describes, which is what
     # lets the poller read it AS the subscriber (see EVENTED_TABLES below).
     "event_outbox": direct(),
+    # A subscription is initiative-scoped when it names one. With a NULL
+    # initiative_id the gate abstains (initiative_access treats NULL as "nothing
+    # to decide"), which is the guild-wide case — and correct, because what such
+    # a subscription actually receives is still capped by its owner's access at
+    # delivery time.
+    "webhook_subscriptions": direct(),
     # One hop -> projects
     "tasks": via("projects", "project_id"),
     "task_statuses": via("projects", "project_id"),
@@ -325,6 +331,8 @@ NON_EVENTED_TABLES: frozenset[str] = frozenset(
         "project_favorites",
         "task_assignment_digest_items",
         "event_reminder_dispatches",
+        # Integration config, not content — and it has no rows to report.
+        "webhook_subscriptions",
     }
 )
 

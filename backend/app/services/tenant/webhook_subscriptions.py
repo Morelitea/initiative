@@ -98,6 +98,7 @@ async def create_subscription(
         target_url=str(payload.target_url),
         hmac_secret=secret,
         event_types=list(payload.event_types),
+        fields=list(payload.fields) if payload.fields else None,
         active=True,
         created_at=now,
         updated_at=now,

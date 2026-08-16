@@ -129,7 +129,6 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         "guild_ai_connections",  # guild admin's AI connections (guild config mode);
         # guild-wide config, no initiative scope. The api_key ciphertext is never
         # returned by the API (reads expose only has_key).
-        "webhook_subscriptions",  # guild integration config; initiative_id nullable
         "webhook_deliveries",  # per-subscription delivery ledger, no initiative of its own
         "tags",  # tags are guild-level, shared across initiatives (purge-guarded)
         "uploads",  # guild blob store: no FK to any initiative entity (documents

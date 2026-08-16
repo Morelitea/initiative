@@ -283,8 +283,6 @@
   "EXPORT_JOB_NOT_FOUND": "Export not found.",
   "EXPORT_NOT_READY": "This export isn't ready to download yet.",
   "EXPORT_ADMIN_REQUIRED": "Only guild admins can export the whole guild.",
-  "AUTOMATION_DELEGATE_NOT_CONFIGURED": "No automation service is configured for this deployment, so event delivery is unavailable.",
-  "AUTOMATION_DELEGATE_REQUIRED": "Event subscriptions can only be managed by the automation service.",
   "AI_INVALID_BASE_URL": "Base URL is not allowed. Use a public hostname.",
   "AI_PROVIDER_NOT_ALLOWED": "Ollama can only be configured at the platform level.",
   "fallback": "Something went wrong. Please try again.",
@@ -454,5 +452,8 @@
   "APP_SERVICE_UNAVAILABLE": "The app isn't responding right now. Try again shortly.",
   "APP_DATA_RESPONSE_TOO_LARGE": "The app sent back more data than a widget can show.",
   "APP_DATA_BUSY": "This app has too many requests in flight. Try again shortly.",
-  "APP_DATA_RATE_LIMITED": "This app has been asked for too much too quickly. Try again shortly."
+  "APP_DATA_RATE_LIMITED": "This app has been asked for too much too quickly. Try again shortly.",
+  "WEBHOOK_UNKNOWN_EVENT_TYPE": "That event type doesn't exist. Check the list of available events.",
+  "WEBHOOK_UNKNOWN_FIELD": "That field doesn't exist on the events you selected.",
+  "WEBHOOK_TOO_MANY_SUBSCRIPTIONS": "This guild has reached its limit of webhooks."
 }

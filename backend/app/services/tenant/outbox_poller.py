@@ -94,7 +94,12 @@ def _event_type(row: EventOutbox) -> str:
 
 
 def _matches(row: EventOutbox, subscription: WebhookSubscription) -> bool:
-    """Whether one change-item belongs in this subscription's batch."""
+    """Whether one change-item belongs in this subscription's batch.
+
+    Applied per item BEFORE the batch is assembled, so a column filter costs a
+    set intersection and no request, and grouping by transaction never widens
+    what a subscription receives.
+    """
     if _event_type(row) not in subscription.event_types:
         return False
     if (
@@ -102,6 +107,11 @@ def _matches(row: EventOutbox, subscription: WebhookSubscription) -> bool:
         and row.initiative_id != subscription.initiative_id
     ):
         return False
+    if subscription.fields and row.action == "updated":
+        # created/deleted report no columns — the whole row came or went — so a
+        # column filter has nothing to say about them and does not apply.
+        if not set(row.changed) & set(subscription.fields):
+            return False
     return True
 
 

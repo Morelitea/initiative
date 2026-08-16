@@ -60,6 +60,14 @@ class WebhookSubscription(SQLModel, table=True):
         sa_column=Column(ARRAY(String(length=100)), nullable=False),
     )
 
+    # Column names this subscription cares about. NULL means any change to a
+    # named event type. An update is delivered when the changed set intersects
+    # this one; created/deleted always are, since neither names columns.
+    fields: Optional[list[str]] = Field(
+        default=None,
+        sa_column=Column(ARRAY(String(length=63)), nullable=True),
+    )
+
     active: bool = Field(
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
