@@ -67,14 +67,18 @@ def _sign(secret: str, timestamp: str, body: bytes) -> str:
     return f"sha256={mac.hexdigest()}"
 
 
-async def _deliver(
+async def deliver(
     *,
     target_url: str,
     secret: str,
     envelope: dict[str, Any],
-) -> None:
-    """POST one envelope to one target. Logs and swallows any error so
-    one bad subscriber can't break the rest of the dispatch.
+) -> bool:
+    """POST one envelope to one target. Returns whether it was accepted.
+
+    Logs and swallows any error so one bad subscriber can't break the rest of
+    the dispatch. The boolean is what the poller advances a cursor on: a row is
+    only considered drained once its target answered 2xx, so a failed delivery
+    is retried on a later pass instead of being lost.
 
     Delivery goes through :func:`request_public_target`, which resolves
     the target host once and connects to that validated address. The
@@ -107,23 +111,30 @@ async def _deliver(
             target_url,
             exc,
         )
-        return
+        return False
     except Exception as exc:  # noqa: BLE001 — best-effort delivery
         logger.warning(
             "webhook delivery failed: target=%s event=%s err=%s",
             target_url,
-            envelope["event_type"],
+            envelope.get("event_id"),
             exc,
         )
-        return
+        return False
 
-    if response.status_code >= 400:
+    # Accepted means 2xx and nothing else. A redirect is not a delivery — the
+    # request is pinned to a validated address and not followed, so treating 3xx
+    # as success would drop the batch from retry without a receiver ever having
+    # seen it.
+    if not 200 <= response.status_code < 300:
         logger.warning(
-            "webhook delivery non-2xx: target=%s event=%s status=%s",
+            "webhook delivery not accepted: target=%s event=%s status=%s",
             target_url,
-            envelope["event_type"],
+            envelope.get("event_id"),
             response.status_code,
         )
+        return False
+
+    return True
 
 
 async def dispatch_event(
@@ -199,19 +210,18 @@ async def dispatch_event(
     # ``event_id`` so a receiver dedup-ing on that header doesn't drop
     # legitimate fan-out to multiple subscriptions of the same logical
     # event, and so future per-target retry logic can dedup retries
-    # without colliding across subscriptions. ``subscription_id`` and
-    # ``workflow_id`` are included for the receiver's routing.
+    # without colliding across subscriptions. ``subscription_id`` is included
+    # for the receiver's routing.
     deliveries: list[asyncio.Task] = []
     for sub in rows:
         envelope = {
             **envelope_base,
             "event_id": str(uuid.uuid4()),
             "subscription_id": sub.id,
-            "workflow_id": sub.workflow_id,
         }
         deliveries.append(
             asyncio.create_task(
-                _deliver(
+                deliver(
                     target_url=sub.target_url,
                     secret=sub.hmac_secret,
                     envelope=envelope,

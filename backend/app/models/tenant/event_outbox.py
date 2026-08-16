@@ -26,7 +26,6 @@ from sqlalchemy import (
     BigInteger,
     Column,
     DateTime,
-    ForeignKey,
     Integer,
     String,
 )
@@ -60,22 +59,24 @@ class EventOutbox(SQLModel, table=True):
         sa_column=Column(DateTime(timezone=True), nullable=False, index=True),
     )
 
-    # The user whose request caused the change, from the request GUC. NULL for a
-    # system-attributed write (background jobs, migrations).
+    # Both of these are WEAK references — plain ints, no FK.
+    #
+    # The trigger fires while a row is being deleted, including when that
+    # deletion is the cascade from removing the initiative or user the event
+    # names. A foreign key would make the log's own insert fail that delete, so
+    # purging an initiative would error instead of purging. Weak refs let the
+    # log outlive what it describes; retention sweeps the orphans, and RLS still
+    # resolves initiative_id through initiative_access (an initiative that no
+    # longer exists resolves to guild-admin-only).
+    #
+    # actor_user_id is NULL for a system-attributed write (background jobs).
     actor_user_id: Optional[int] = Field(
         default=None,
-        sa_column=Column(
-            Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-        ),
+        sa_column=Column(Integer, nullable=True),
     )
 
     initiative_id: int = Field(
-        sa_column=Column(
-            Integer,
-            ForeignKey("initiatives.id", ondelete="CASCADE"),
-            nullable=False,
-            index=True,
-        )
+        sa_column=Column(Integer, nullable=False, index=True),
     )
 
     # The table the change happened to, and its primary key.

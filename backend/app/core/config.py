@@ -745,6 +745,12 @@ class Settings(BaseSettings):
     # resolved address regardless of this setting.
     WEBHOOK_ALLOW_PRIVATE_TARGETS: bool = False
 
+    # How long delivered change events are kept in each guild's outbox before
+    # the retention sweep drops them. An instance that never registers a target
+    # still accumulates the log, so this bounds it; a subscriber further behind
+    # than this has stopped consuming and resumes from the current head.
+    WEBHOOK_OUTBOX_RETENTION_DAYS: int = 7
+
     BEHIND_PROXY: bool = (
         False  # Set True when behind nginx/load balancer to trust X-Forwarded-For
     )

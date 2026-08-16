@@ -13,7 +13,6 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import (
-    BigInteger,
     Boolean,
     Column,
     DateTime,
@@ -46,14 +45,6 @@ class WebhookSubscription(SQLModel, table=True):
             nullable=True,
         ),
     )
-    # Soft pointer back to the auto-side workflow this subscription was
-    # created for. Not enforced by FK because the source of truth lives
-    # in initiative-auto's DB.
-    workflow_id: Optional[int] = Field(
-        default=None,
-        sa_column=Column(Integer, nullable=True),
-    )
-
     created_by_user_id: int = Field(
         sa_column=Column(
             Integer,
@@ -72,15 +63,6 @@ class WebhookSubscription(SQLModel, table=True):
     active: bool = Field(
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
-    )
-
-    # This subscription's position in ``event_outbox``. The poller reads rows
-    # with a greater id, delivers them, and only then advances — so a delivery
-    # that fails is retried on the next cycle rather than lost. One log, one
-    # cursor per subscriber, no per-subscription delivery rows.
-    cursor_event_id: int = Field(
-        default=0,
-        sa_column=Column(BigInteger, nullable=False, server_default="0"),
     )
 
     # TZ-aware columns to match the migration.

@@ -77,7 +77,6 @@ from app.schemas.ai_generation import (
 from app.schemas.tenant.tag import TagSetRequest
 from app.schemas.tenant.property import PropertyValuesSetRequest
 from app.services.realtime import broadcast_event
-from app.services.tenant import webhook_dispatcher
 from app.services import notifications as notifications_service
 from app.services import permissions as permissions_service
 from app.services.tenant.recurrence import get_next_due_date
@@ -631,10 +630,6 @@ async def _broadcast_task_refresh(
     await _broadcast_task(
         session, guild_id, task.project_id, "updated", task_id=task.id
     )
-
-
-def _task_payload(task: Task) -> dict:
-    return TaskRead.model_validate(task).model_dump(mode="json")
 
 
 async def _broadcast_task(
@@ -1964,17 +1959,6 @@ async def create_task(
         )
     await _broadcast_task(
         session, guild_context.guild_id, task.project_id, "created", task_id=task.id
-    )
-    # Outbound webhook dispatch — fire-and-log; failures don't block the
-    # user's write. Only one event source for now (PR2.2 scope); other
-    # mutators get the same one-liner in follow-up PRs once the contract
-    # has shaken out under real load.
-    await webhook_dispatcher.dispatch_event(
-        session,
-        event_type="task.created",
-        guild_id=guild_context.guild_id,
-        initiative_id=task.project.initiative_id if task.project else None,
-        payload=_task_payload(task),
     )
     return task
 

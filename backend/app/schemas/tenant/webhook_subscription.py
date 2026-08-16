@@ -14,14 +14,12 @@ class WebhookSubscriptionCreate(SanitizedBaseModel):
 
     Initiative-id and guild-id are NOT taken from the body — they
     come from the caller's delegation token (guild) and an optional
-    delegation initiative_id claim. ``workflow_id`` is opaque to us;
-    we just store it so dispatched events can reference it.
+    delegation initiative_id claim.
     """
 
     target_url: HttpUrl
     event_types: list[str] = Field(min_length=1)
     initiative_id: int | None = None
-    workflow_id: int | None = None
 
 
 class WebhookSubscriptionUpdate(SanitizedBaseModel):
@@ -42,7 +40,6 @@ class WebhookSubscriptionRead(SanitizedBaseModel):
     id: int
     guild_id: int
     initiative_id: int | None
-    workflow_id: int | None
     created_by_user_id: int
     target_url: str
     event_types: list[str]
