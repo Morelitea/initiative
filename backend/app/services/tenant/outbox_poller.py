@@ -16,12 +16,13 @@ Three properties this has to actually hold, not merely intend:
 
 **A transaction is never split.** Rows carry the ``txid_current()`` that wrote
 them, and one transaction's rows go out as one envelope. Ids alone don't give
-that: concurrent commits interleave them, and a fixed window can cut a
-transaction in half. So the window stops at the first row belonging to a
-transaction that is still in flight (``txn_id >= xmin``), and grouping is by
-``txn_id``, not by adjacency. An open transaction holds the cursor rather than
-being skipped — which is also what keeps a slow writer's events from being lost
-to a later reader that raced past their ids.
+that: they come from a sequence at insert time, so concurrent transactions
+interleave and one transaction's rows sit either side of another's. Which
+transactions have finished is therefore asked of the database — first and last
+id per transaction — never inferred from a list of rows that some limit or
+barrier has already shortened. A transaction still in flight bars the cursor
+rather than being stepped over, which is what keeps a slow writer's events from
+being lost to a reader that raced past their ids.
 
 **One replica drains a subscription at a time.** Every replica runs this loop, so
 a subscription is claimed with a conditional update before it is drained, and the
@@ -63,8 +64,8 @@ OUTBOX_POLL_SECONDS = 5
 #: How often drained history is swept.
 OUTBOX_RETENTION_POLL_SECONDS = 3600
 
-#: Rows examined per subscription per pass. The window may return slightly more
-#: than this so a transaction is never cut in half.
+#: Transactions a subscription may take in one pass. Bounds a single pass, not
+#: what stays visible: whatever is not taken is simply still pending next time.
 BATCH_LIMIT = 500
 
 #: How long a claim on a subscription is held. Long enough to cover a full
@@ -174,122 +175,81 @@ async def _readable_window(
 ) -> tuple[list[EventOutbox], int | None]:
     """Rows safe to deliver now, and the id to advance to.
 
-    Stops at the first row whose transaction is still in flight. Everything
-    before it belongs to a committed transaction, so no later insert can appear
-    beneath the returned watermark and be skipped.
+    Completeness is read from the database, never inferred from a windowed list
+    of rows. Ids come from a sequence at insert time, so a transaction's rows
+    interleave with other transactions' and can sit either side of any cut we
+    make. A list that has been shortened — by a row limit, or by stopping at an
+    in-flight row — makes the transactions inside it *look* finished, and
+    treating that as truth splits one across two passes. Both halves then derive
+    the same event_id from (subscription_id, txn_id), so a receiver deduping on
+    it takes the first and discards the rest.
+
+    So: ask Postgres for each undelivered transaction's first and last id, take
+    only transactions that end below the first in-flight row, and stop at a
+    point no remaining transaction spans.
     """
     xmin = await session.scalar(
         text("SELECT pg_snapshot_xmin(pg_current_snapshot())::text::bigint")
     )
+
+    # A transaction still in flight is a hard barrier: it may yet insert rows
+    # below any watermark we pick, and those would fall beneath the cursor.
+    barrier = await session.scalar(
+        select(func.min(EventOutbox.id))
+        .where(EventOutbox.id > cursor)
+        .where(EventOutbox.txn_id >= xmin)
+    )
+
+    spans = list(
+        await session.exec(
+            select(
+                EventOutbox.txn_id,
+                func.min(EventOutbox.id).label("first_id"),
+                func.max(EventOutbox.id).label("last_id"),
+            )
+            .where(EventOutbox.id > cursor)
+            .where(EventOutbox.txn_id < xmin)
+            .group_by(EventOutbox.txn_id)
+            .order_by(func.min(EventOutbox.id).asc())
+        )
+    )
+    if barrier is not None:
+        spans = [span for span in spans if span.last_id < barrier]
+    if not spans:
+        return [], None
+
+    watermark = _safe_watermark(spans)
+    if watermark is None:
+        return [], None
+
     rows = list(
         await session.exec(
             select(EventOutbox)
-            .where(EventOutbox.id > cursor)
-            .order_by(EventOutbox.id.asc())
-            .limit(BATCH_LIMIT)
-        )
-    )
-    settled: list[EventOutbox] = []
-    for row in rows:
-        if xmin is not None and row.txn_id >= xmin:
-            # This transaction has not finished. Stop here: delivering past it
-            # would let its rows fall below the cursor once it commits.
-            break
-        settled.append(row)
-    if not settled:
-        return [], None
-
-    truncated = len(rows) == BATCH_LIMIT and settled[-1] is rows[-1]
-    prefix, watermark = _complete_prefix(settled, truncated=truncated)
-    if prefix:
-        return prefix, watermark
-
-    if not truncated:
-        # Nothing was withheld for length reasons, so the prefix is empty only
-        # if the settled rows are themselves incomplete — wait for them.
-        return [], None
-
-    # No transaction closed inside the window: everything visible belongs to
-    # transactions that continue past it. Widen the window until they close.
-    #
-    # Widen the RANGE, never filter it to those transactions. _complete_prefix
-    # reasons about a contiguous stretch of the log, so handing it only some
-    # transactions' rows lets it place a watermark above rows it was never shown
-    # — which is the same "cursor skipped something beneath it" loss the prefix
-    # walk exists to prevent.
-    # The ceiling is a subquery, not a value read in an earlier statement. Under
-    # READ COMMITTED each statement takes its own snapshot, so a separately
-    # computed ceiling can be stale by the time the rows are read: a transaction
-    # that commits in between adds rows above it and gets cut there. That split
-    # is worse than it sounds, because both halves derive the same event_id from
-    # (subscription_id, txn_id) — a receiver deduping on it would accept the
-    # first half and silently drop the rest. One statement, one snapshot.
-    txn_ids = {row.txn_id for row in settled}
-    ceiling = (
-        select(func.max(EventOutbox.id))
-        .where(EventOutbox.txn_id.in_(txn_ids))
-        .scalar_subquery()
-    )
-    whole = list(
-        await session.exec(
-            select(EventOutbox)
-            .where(EventOutbox.id > cursor, EventOutbox.id <= ceiling)
+            .where(EventOutbox.id > cursor, EventOutbox.id <= watermark)
             .order_by(EventOutbox.id.asc())
         )
     )
-    if not whole:
-        return [], None
-    prefix, watermark = _complete_prefix(whole, truncated=False)
-    return (prefix, watermark) if prefix else ([], None)
+    return rows, watermark
 
 
-def _complete_prefix(
-    rows: list[EventOutbox], *, truncated: bool
-) -> tuple[list[EventOutbox], int | None]:
-    """The longest run of rows containing only whole transactions.
+def _safe_watermark(spans: list[Any]) -> int | None:
+    """The highest id no remaining transaction straddles.
 
-    Ids come from a sequence at insert time, so concurrent transactions
-    interleave: one transaction's rows can sit either side of another's. A
-    cursor is a single number, so the only safe place to stop is a point where
-    every transaction that started below it has also finished below it —
-    otherwise advancing skips a withheld row that lies beneath the watermark,
-    and that row is never read again.
-
-    ``truncated`` marks a window cut at the row limit, where the last
-    transaction may continue past what we can see; it is treated as unfinished.
-
-    **``rows`` must be every row in a contiguous stretch of the log above the
-    cursor.** The walk decides that a position is safe by having seen everything
-    beneath it; given a filtered subset it will place the watermark above rows it
-    was never shown, and those rows are then unreachable forever. Widen the
-    range when more is needed — never narrow it to particular transactions.
+    ``spans`` are (txn_id, first_id, last_id) ordered by first_id. Walking them
+    while tracking the furthest last_id seen gives the points where every
+    transaction opened so far has also closed — the only ids a single-number
+    cursor may stop on. Bounded by BATCH_LIMIT transactions so one pass cannot
+    take an unbounded backlog; whatever is left is simply still pending.
     """
-    if not rows:
-        return [], None
-
-    # Rows come from a SELECT, so every id is populated; the model types it
-    # optional only because an unsaved instance has none.
-    last_id_of: dict[int, int] = {
-        row.txn_id: row.id for row in rows if row.id is not None
-    }
-    tail_txn = rows[-1].txn_id
-
-    open_txns: set[int] = set()
     watermark: int | None = None
-    cut = 0
-    for index, row in enumerate(rows):
-        open_txns.add(row.txn_id)
-        if row.id == last_id_of[row.txn_id] and not (
-            truncated and row.txn_id == tail_txn
-        ):
-            open_txns.discard(row.txn_id)
-        if not open_txns:
-            watermark = row.id
-            cut = index + 1
-
-    if watermark is None:
-        return [], None
-    return rows[:cut], watermark
+    reach = 0
+    for index, span in enumerate(spans):
+        reach = max(reach, span.last_id)
+        if index + 1 >= len(spans) or spans[index + 1].first_id > reach:
+            watermark = reach
+            if index + 1 >= BATCH_LIMIT:
+                break
+    return watermark
 
 
 async def _drain_subscription(

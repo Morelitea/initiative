@@ -129,83 +129,6 @@ def test_backoff_grows_and_is_bounded():
     assert schedule[-1] == outbox_poller._BACKOFF_SECONDS[-1]
 
 
-def test_window_trim_never_splits_a_transaction_at_the_limit():
-    """The row limit must not cut a transaction in half.
-
-    Mirrors _readable_window's trim: when the window ends exactly at the limit,
-    the last transaction may continue past it, so its rows wait for the next
-    pass rather than going out as a partial envelope.
-    """
-    limit = 4
-    rows = [_row(1, 500), _row(2, 500), _row(3, 501), _row(4, 501)]
-
-    tail_txn = rows[-1].txn_id
-    trimmed = [r for r in rows if r.txn_id != tail_txn]
-
-    assert [r.id for r in trimmed] == [1, 2]
-    assert len(rows) == limit
-    # Transaction 501 is held back whole rather than delivered as rows 3 of 4.
-    assert all(r.txn_id != 501 for r in trimmed)
-
-
-def test_interleaved_window_never_advances_past_a_withheld_row():
-    """The cursor is one number, so it may only stop where every transaction
-    that started below it also finished below it.
-
-    Trimming the tail transaction by id alone loses events: with rows
-    1(A) 2(B) 3(A) 4(B), dropping B leaves [1, 3] and a watermark of 3 — but
-    row 2 is B's and sits *below* 3, so it would never be read again.
-    """
-    rows = [_row(1, 500), _row(2, 501), _row(3, 500), _row(4, 501)]
-
-    prefix, watermark = outbox_poller._complete_prefix(rows, truncated=True)
-
-    assert watermark is None or watermark < 2, (
-        f"watermark {watermark} skips row 2, which was withheld with its "
-        "transaction — those events are unreachable on every later pass"
-    )
-    assert all(r.id <= (watermark or 0) for r in prefix)
-
-
-def test_complete_prefix_stops_before_an_unfinished_transaction():
-    """Transaction 500 closes at row 2; 501 is still open at the window edge."""
-    rows = [_row(1, 500), _row(2, 500), _row(3, 501)]
-
-    prefix, watermark = outbox_poller._complete_prefix(rows, truncated=True)
-
-    assert watermark == 2
-    assert [r.id for r in prefix] == [1, 2]
-
-
-def test_complete_prefix_takes_everything_when_nothing_is_open():
-    rows = [_row(1, 500), _row(2, 500), _row(3, 501)]
-
-    prefix, watermark = outbox_poller._complete_prefix(rows, truncated=False)
-
-    assert watermark == 3
-    assert [r.id for r in prefix] == [1, 2, 3]
-
-
-def test_prefix_over_a_filtered_subset_would_skip_unseen_rows():
-    """Why _complete_prefix must be given a contiguous range, not a subset.
-
-    Rows 1(A) 2(B) 3(A) 5(A) are what a re-read filtered to transactions {A, B}
-    returns; row 4 belongs to some transaction C and is invisible to it. The
-    walk closes A at 5 and reports a watermark of 5 — above row 4, which it was
-    never shown. The fallback therefore widens the id RANGE rather than
-    filtering to particular transactions.
-    """
-    subset = [_row(1, 500), _row(2, 501), _row(3, 500), _row(5, 500)]
-
-    _prefix, watermark = outbox_poller._complete_prefix(subset, truncated=False)
-
-    assert watermark == 5, (
-        "guarding the documented contract: fed a filtered subset the walk "
-        "reports a watermark above rows it never saw, so callers must widen "
-        "the range instead"
-    )
-
-
 async def test_every_subscription_in_a_guild_is_drained(
     session, acting_user, monkeypatch
 ):
@@ -250,3 +173,46 @@ async def test_every_subscription_in_a_guild_is_drained(
         f"only {len(drained)} of 3 subscriptions drained — the rest were "
         "detached by the per-pass expunge and never delivered to"
     )
+
+
+class _Span:
+    """A (txn_id, first_id, last_id) row as the spans query returns it."""
+
+    def __init__(self, txn_id: int, first_id: int, last_id: int) -> None:
+        self.txn_id = txn_id
+        self.first_id = first_id
+        self.last_id = last_id
+
+
+def test_watermark_never_lands_inside_a_transaction():
+    """A stops at 5 but opened at 1, and B sits entirely inside that span.
+    Stopping at B's end would cut A, so the only safe stop is A's end."""
+    spans = [_Span(500, 1, 5), _Span(501, 2, 3)]
+
+    assert outbox_poller._safe_watermark(spans) == 5
+
+
+def test_watermark_stops_where_every_open_transaction_has_closed():
+    spans = [_Span(500, 1, 2), _Span(501, 3, 4)]
+
+    assert outbox_poller._safe_watermark(spans) == 4
+
+
+def test_a_transaction_hidden_beyond_a_barrier_is_not_treated_as_finished():
+    """The regression that produced duplicate-id envelopes.
+
+    A wrote rows 1, 3 and 5; an in-flight transaction holds row 4. Reading rows
+    and stopping at row 4 makes A look finished at 3 — it ships as [1, 3], then
+    row 5 ships later under the SAME event_id and a deduping receiver drops it.
+    Spans come from the database and A's last_id is 5, so the barrier at 4
+    excludes A entirely rather than truncating it.
+    """
+    spans = [_Span(500, 1, 5)]
+    barrier = 4
+
+    eligible = [s for s in spans if s.last_id < barrier]
+
+    assert eligible == [], (
+        "transaction A ends past the barrier, so no part of it may go out yet"
+    )
+    assert outbox_poller._safe_watermark(eligible) is None
