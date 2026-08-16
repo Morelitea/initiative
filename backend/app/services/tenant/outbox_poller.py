@@ -44,7 +44,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import text
+from sqlalchemy import func, text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -209,14 +209,24 @@ async def _readable_window(
         # if the settled rows are themselves incomplete — wait for them.
         return [], None
 
-    # No transaction closed inside the window: the rows we can see all belong to
-    # transactions that continue past it. Re-read those transactions in full so
-    # the cursor can move at all.
+    # No transaction closed inside the window: everything visible belongs to
+    # transactions that continue past it. Widen the window until they close.
+    #
+    # Widen the RANGE, never filter it to those transactions. _complete_prefix
+    # reasons about a contiguous stretch of the log, so handing it only some
+    # transactions' rows lets it place a watermark above rows it was never shown
+    # — which is the same "cursor skipped something beneath it" loss the prefix
+    # walk exists to prevent.
     txn_ids = {row.txn_id for row in settled}
+    ceiling = await session.scalar(
+        select(func.max(EventOutbox.id)).where(EventOutbox.txn_id.in_(txn_ids))
+    )
+    if ceiling is None:
+        return [], None
     whole = list(
         await session.exec(
             select(EventOutbox)
-            .where(EventOutbox.id > cursor, EventOutbox.txn_id.in_(txn_ids))
+            .where(EventOutbox.id > cursor, EventOutbox.id <= ceiling)
             .order_by(EventOutbox.id.asc())
         )
     )
@@ -238,6 +248,12 @@ def _complete_prefix(
 
     ``truncated`` marks a window cut at the row limit, where the last
     transaction may continue past what we can see; it is treated as unfinished.
+
+    **``rows`` must be every row in a contiguous stretch of the log above the
+    cursor.** The walk decides that a position is safe by having seen everything
+    beneath it; given a filtered subset it will place the watermark above rows it
+    was never shown, and those rows are then unreachable forever. Widen the
+    range when more is needed — never narrow it to particular transactions.
     """
     if not rows:
         return [], None

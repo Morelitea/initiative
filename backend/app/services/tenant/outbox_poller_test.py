@@ -184,3 +184,23 @@ def test_complete_prefix_takes_everything_when_nothing_is_open():
 
     assert watermark == 3
     assert [r.id for r in prefix] == [1, 2, 3]
+
+
+def test_prefix_over_a_filtered_subset_would_skip_unseen_rows():
+    """Why _complete_prefix must be given a contiguous range, not a subset.
+
+    Rows 1(A) 2(B) 3(A) 5(A) are what a re-read filtered to transactions {A, B}
+    returns; row 4 belongs to some transaction C and is invisible to it. The
+    walk closes A at 5 and reports a watermark of 5 — above row 4, which it was
+    never shown. The fallback therefore widens the id RANGE rather than
+    filtering to particular transactions.
+    """
+    subset = [_row(1, 500), _row(2, 501), _row(3, 500), _row(5, 500)]
+
+    _prefix, watermark = outbox_poller._complete_prefix(subset, truncated=False)
+
+    assert watermark == 5, (
+        "guarding the documented contract: fed a filtered subset the walk "
+        "reports a watermark above rows it never saw, so callers must widen "
+        "the range instead"
+    )

@@ -121,9 +121,13 @@ async def deliver(
         )
         return False
 
-    if response.status_code >= 400:
+    # Accepted means 2xx and nothing else. A redirect is not a delivery — the
+    # request is pinned to a validated address and not followed, so treating 3xx
+    # as success would drop the batch from retry without a receiver ever having
+    # seen it.
+    if not 200 <= response.status_code < 300:
         logger.warning(
-            "webhook delivery non-2xx: target=%s event=%s status=%s",
+            "webhook delivery not accepted: target=%s event=%s status=%s",
             target_url,
             envelope.get("event_id"),
             response.status_code,
