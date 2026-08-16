@@ -372,3 +372,44 @@ async def test_narrowing_events_rechecks_the_stored_fields(client, acting_user):
 
     assert response.status_code == 400
     assert response.json()["detail"] == "WEBHOOK_UNKNOWN_FIELD"
+
+
+async def test_complementary_patches_cannot_commit_an_impossible_pair(
+    client, acting_user
+):
+    """event_types and fields are checked together, so a patch touching one has
+    to be judged against the other as it will be *after* the write.
+
+    Two patches, each valid against the row it read, can otherwise land a pair
+    that matches nothing: narrow the events to documents while widening the
+    fields to a task column, and the subscription can never fire again. The row
+    is locked for the check, so the second re-reads what the first wrote.
+    """
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    with _mock_public_dns():
+        created = await client.post(
+            _url(a.guild.id),
+            json=_body(
+                initiative_id=a.initiative.id,
+                event_types=["tasks.updated"],
+                fields=["title"],
+            ),
+            headers=a.headers,
+        )
+    subscription_id = created.json()["id"]
+    path = _url(a.guild.id, f"/{subscription_id}")
+
+    first = await client.patch(
+        path, json={"event_types": ["documents.updated"]}, headers=a.headers
+    )
+    assert first.status_code == 200, first.text
+
+    second = await client.patch(
+        path, json={"fields": ["task_status_id"]}, headers=a.headers
+    )
+
+    assert second.status_code == 400, (
+        "a task column was accepted onto a documents-only subscription — the "
+        "second patch was judged against the events it replaced"
+    )
+    assert second.json()["detail"] == "WEBHOOK_UNKNOWN_FIELD"

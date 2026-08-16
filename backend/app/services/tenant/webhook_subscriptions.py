@@ -8,11 +8,43 @@ from datetime import datetime, timezone
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import webhook_events
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.schemas.tenant.webhook_subscription import (
     WebhookSubscriptionCreate,
     WebhookSubscriptionUpdate,
 )
+
+
+class WebhookSubscriptionVocabularyError(Exception):
+    """A subscription named an event type or field that could never fire.
+
+    Carries the message code the endpoint answers with, so the check has one
+    home rather than one per caller.
+    """
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+
+def assert_vocabulary(event_types: list[str] | None, fields: list[str] | None) -> None:
+    """Reject event types and field names that could never fire.
+
+    Callers pass the values the row will END UP with. Both vocabularies derive
+    from the capture registry, so this is what turns a typo into a 400 rather
+    than a subscription that looks healthy and never delivers.
+    """
+    from app.core.messages import WebhookSubscriptionMessages
+
+    if event_types and webhook_events.unknown_event_types(event_types):
+        raise WebhookSubscriptionVocabularyError(
+            WebhookSubscriptionMessages.UNKNOWN_EVENT_TYPE
+        )
+    if fields and webhook_events.unknown_fields(fields, event_types or []):
+        raise WebhookSubscriptionVocabularyError(
+            WebhookSubscriptionMessages.UNKNOWN_FIELD
+        )
 
 
 class WebhookSubscriptionNotFoundError(Exception):
@@ -51,14 +83,21 @@ async def get_subscription(
     *,
     subscription_id: int,
     guild_id: int,
+    for_update: bool = False,
 ) -> WebhookSubscription:
     """Fetch by id, scoped to the caller's guild. Raises
     :class:`WebhookSubscriptionNotFoundError` so cross-guild lookups
-    leak "not found" rather than "forbidden"."""
+    leak "not found" rather than "forbidden".
+
+    ``for_update`` locks the row for the rest of the transaction, for callers
+    that read it, decide something from it, and write it back.
+    """
     statement = select(WebhookSubscription).where(
         WebhookSubscription.id == subscription_id,
         WebhookSubscription.guild_id == guild_id,
     )
+    if for_update:
+        statement = statement.with_for_update()
     row = (await session.exec(statement)).one_or_none()
     if row is None:
         raise WebhookSubscriptionNotFoundError(
@@ -81,6 +120,8 @@ async def create_subscription(
     for HMAC signing on dispatch — there's no way around that — but
     we never expose it on subsequent reads.
     """
+    assert_vocabulary(list(payload.event_types), payload.fields)
+
     secret = _generate_hmac_secret()
     now = datetime.now(timezone.utc)
 
@@ -115,9 +156,22 @@ async def update_subscription(
     the same ``initiative_access(..., need_write=true)`` that governs the content
     the subscription watches, so someone who can edit an initiative's tasks can
     edit its webhooks. Authorship is not a gate in this app.
+
+    The row is locked before the merged values are checked, because the check
+    spans two columns a patch may touch separately. Validating against a row read
+    outside the write lets two complementary patches — one narrowing the events,
+    one widening the fields — each pass against state the other is about to
+    replace, and commit a pair that matches nothing. Locking makes the second
+    re-read what the first wrote.
     """
     subscription = await get_subscription(
-        session, subscription_id=subscription_id, guild_id=guild_id
+        session, subscription_id=subscription_id, guild_id=guild_id, for_update=True
+    )
+    assert_vocabulary(
+        payload.event_types
+        if payload.event_types is not None
+        else subscription.event_types,
+        payload.fields if payload.fields is not None else subscription.fields,
     )
 
     data = payload.model_dump(exclude_unset=True)

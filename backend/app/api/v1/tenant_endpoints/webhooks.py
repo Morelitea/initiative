@@ -38,7 +38,6 @@ from app.api.deps import (
     get_current_active_user,
     get_guild_membership,
 )
-from app.core import webhook_events
 from app.core.messages import WebhookSubscriptionMessages
 from app.models.platform.user import User
 from app.schemas.tenant.webhook_subscription import (
@@ -50,6 +49,7 @@ from app.schemas.tenant.webhook_subscription import (
 from app.services.tenant import webhook_subscriptions as subscriptions_service
 from app.services.tenant.webhook_subscriptions import (
     WebhookSubscriptionNotFoundError,
+    WebhookSubscriptionVocabularyError,
 )
 from app.services.webhook_target_url import (
     WebhookTargetUrlError,
@@ -60,38 +60,6 @@ from app.services.webhook_target_url import (
 router = APIRouter()
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
-
-
-def _validate_vocabulary(
-    event_types: list[str] | None, fields: list[str] | None
-) -> None:
-    """Reject event types and field names that could never fire.
-
-    Callers pass the values the row will END UP with, never just the ones a
-    request supplied: a partial update that changes only ``fields`` still has to
-    be checked against the stored event types, and one that changes only
-    ``event_types`` has to re-check the stored fields against them. Judging a
-    patch in isolation both rejects valid changes and lets a filter that can
-    never match survive a narrowing.
-
-    Both vocabularies derive from the capture registry, so this is what turns a
-    typo into a 400 rather than a subscription that looks healthy and silently
-    never delivers.
-    """
-    if event_types:
-        unknown = webhook_events.unknown_event_types(event_types)
-        if unknown:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=WebhookSubscriptionMessages.UNKNOWN_EVENT_TYPE,
-            )
-    if fields:
-        unknown = webhook_events.unknown_fields(fields, event_types or [])
-        if unknown:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=WebhookSubscriptionMessages.UNKNOWN_FIELD,
-            )
 
 
 async def _validate_target_url(url: str) -> None:
@@ -139,15 +107,19 @@ async def create_subscription(
     Target policy: ``target_url`` must be https and resolve to a public unicast
     address; private, loopback and link-local addresses are rejected.
     """
-    _validate_vocabulary(list(payload.event_types), payload.fields)
     await _validate_target_url(str(payload.target_url))
 
-    subscription, secret = await subscriptions_service.create_subscription(
-        session,
-        payload=payload,
-        created_by_user_id=current_user.id,
-        guild_id=guild_context.guild_id,
-    )
+    try:
+        subscription, secret = await subscriptions_service.create_subscription(
+            session,
+            payload=payload,
+            created_by_user_id=current_user.id,
+            guild_id=guild_context.guild_id,
+        )
+    except WebhookSubscriptionVocabularyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
+        ) from exc
 
     return WebhookSubscriptionCreated(
         id=subscription.id,
@@ -194,24 +166,6 @@ async def update_subscription(
     Only the acting user who created it, or a guild admin, may mutate.
     ``target_url`` (when provided) is re-validated against the SSRF allowlist.
     """
-    try:
-        existing = await subscriptions_service.get_subscription(
-            session, subscription_id=subscription_id, guild_id=guild_context.guild_id
-        )
-    except WebhookSubscriptionNotFoundError as exc:
-        # Own-row RLS hides another member's row, so this is a 404 rather than a
-        # 403 — the reply does not confirm the subscription exists.
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=WebhookSubscriptionMessages.NOT_FOUND,
-        ) from exc
-
-    _validate_vocabulary(
-        payload.event_types
-        if payload.event_types is not None
-        else existing.event_types,
-        payload.fields if payload.fields is not None else existing.fields,
-    )
     if payload.target_url is not None:
         await _validate_target_url(str(payload.target_url))
 
@@ -226,6 +180,10 @@ async def update_subscription(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=WebhookSubscriptionMessages.NOT_FOUND,
+        ) from exc
+    except WebhookSubscriptionVocabularyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
         ) from exc
     return WebhookSubscriptionRead.model_validate(row)
 
