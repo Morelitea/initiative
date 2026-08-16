@@ -37,7 +37,11 @@ from typing import Any
 from sqlalchemy import Column
 from sqlmodel import SQLModel
 
-from app.db.initiative_rls import EVENTED_TABLES, INITIATIVE_PATHS
+from app.db.initiative_rls import (
+    EVENTED_TABLES,
+    GUILD_LEVEL_EVENTED,
+    INITIATIVE_PATHS,
+)
 
 #: The function name every per-table trigger calls. Created once in ``public``
 #: (not per guild schema): the body names content tables unqualified, so it
@@ -251,11 +255,24 @@ def _housekeeping_literal(table_name: str) -> str:
     return f"'{{{inner}}}'"
 
 
+def _initiative_locator(table: str):
+    """How ``table`` resolves the initiative an event about it belongs to.
+
+    Two sources, one question: initiative-scoped content gets it from the same
+    entry that renders its RLS, and a guild-level table that still emits gets it
+    from GUILD_LEVEL_EVENTED. Being scoped and being evented are separate
+    decisions (see that registry).
+    """
+    path = INITIATIVE_PATHS.get(table)
+    if path is not None:
+        return path.initiative_expr
+    return GUILD_LEVEL_EVENTED[table]
+
+
 def _trigger_block(spec: CaptureSpec) -> str:
-    path = INITIATIVE_PATHS[spec.table]
     # The row reaches the expression as $1 in a dynamic EXECUTE, so the locator
     # renders against ($1) instead of NEW/OLD.
-    initiative_expr = path.initiative_expr("($1)").replace("'", "''")
+    initiative_expr = _initiative_locator(spec.table)("($1)").replace("'", "''")
     facet = spec.facet or ""
     return "\n".join(
         [

@@ -336,6 +336,46 @@ NON_EVENTED_TABLES: frozenset[str] = frozenset(
     }
 )
 
-# The tables the capture trigger is installed on. Derived, so it follows
-# INITIATIVE_PATHS automatically.
-EVENTED_TABLES: frozenset[str] = INITIATIVE_SCOPED_TABLES - NON_EVENTED_TABLES
+# Tables that EMIT events but do not carry initiative-member RLS, mapped to how
+# an event about one resolves its initiative.
+#
+# Emitting and being initiative-scoped are different questions, and deriving the
+# first from the second is a mistake: the structural initiative tables are
+# deliberately exempt from the RLS (a membership table cannot be gated by the
+# membership check it backs without the policy recursing), and that exemption
+# must not also mean "invisible to every automation". Creating an initiative,
+# adding a member, changing a role are all things a subscriber can act on.
+#
+# These get a capture trigger and nothing else — no policies are rendered from
+# this registry. The resulting outbox row carries a real initiative_id, so RLS on
+# ``event_outbox`` scopes the EVENT normally even though the source table is not
+# scoped: members of that initiative, and guild admins, see it.
+GUILD_LEVEL_EVENTED: dict[str, RowLocator] = {
+    # An event about an initiative belongs to that initiative.
+    "initiatives": lambda r: f"{r}.id",
+    "initiative_members": lambda r: f"{r}.initiative_id",
+    "initiative_roles": lambda r: f"{r}.initiative_id",
+    "initiative_role_permissions": lambda r: (
+        f"(SELECT initiative_roles.initiative_id FROM initiative_roles "  # noqa: S608
+        f"WHERE initiative_roles.id = {r}.initiative_role_id)"
+    ),
+}
+
+# Guild-level tables that emit NOTHING, and why. Stated so the absence is a
+# recorded decision rather than a silent gap — the failure this whole mechanism
+# exists to remove. Both are guild-wide with no initiative to resolve, so an
+# event about one could only carry a NULL initiative_id, which the access
+# function treats as "nothing to decide" and admits for any guild member.
+SILENT_GUILD_TABLES: frozenset[str] = frozenset(
+    {
+        "tags",  # guild-wide by design; revisit if a subscriber asks for them
+        "uploads",  # no initiative, and the wrong thing to broadcast guild-wide
+    }
+)
+
+# The tables the capture trigger is installed on: initiative-scoped content
+# (minus the deliberate exclusions) plus the guild-level tables that resolve an
+# initiative for their events.
+EVENTED_TABLES: frozenset[str] = (
+    INITIATIVE_SCOPED_TABLES - NON_EVENTED_TABLES
+) | frozenset(GUILD_LEVEL_EVENTED)

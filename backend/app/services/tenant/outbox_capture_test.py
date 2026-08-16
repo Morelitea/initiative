@@ -103,3 +103,46 @@ async def test_tagging_a_task_is_reported_against_the_task(session, acting_user)
     assert junction, f"tagging produced no task-scoped row; got {new_rows}"
     assert junction[-1].resource_id == task.id
     assert junction[-1].changed == ["tags"]
+
+
+async def test_creating_an_initiative_is_captured(session, acting_user):
+    """Guild-level structural tables emit too.
+
+    ``initiatives`` carries no initiative-member RLS — a membership table cannot
+    be gated by the check it backs — but that exemption must not also mean an
+    automation can never see an initiative being created.
+    """
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+
+    rows = [
+        r
+        for r in await _outbox(session, a.guild.id)
+        if r.resource_type == "initiatives" and r.resource_id == a.initiative.id
+    ]
+    assert rows, "creating an initiative produced no outbox row"
+    assert rows[0].action == "created"
+    # The event is scoped to the initiative it is about, so RLS on the outbox
+    # shows it to that initiative's members and to guild admins.
+    assert rows[0].initiative_id == a.initiative.id
+
+
+async def test_adding_a_member_reports_against_the_initiative(session, acting_user):
+    """A membership row has no id of its own, so it reports its owner — which
+    is also the change a subscriber can act on."""
+    from app.testing import create_initiative_member, create_user
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    before = len(await _outbox(session, a.guild.id))
+
+    joiner = await create_user(session)
+    await create_initiative_member(session, a.initiative, joiner)
+    await session.commit()
+
+    new_rows = (await _outbox(session, a.guild.id))[before:]
+    membership = [
+        r
+        for r in new_rows
+        if r.resource_type == "initiatives" and "members" in r.changed
+    ]
+    assert membership, f"adding a member produced no initiative row; got {new_rows}"
+    assert membership[-1].resource_id == a.initiative.id
