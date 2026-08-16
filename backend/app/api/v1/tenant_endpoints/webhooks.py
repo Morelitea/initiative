@@ -40,7 +40,6 @@ from app.api.deps import (
 )
 from app.core import webhook_events
 from app.core.messages import WebhookSubscriptionMessages
-from app.models.platform.guild import GuildRole
 from app.models.platform.user import User
 from app.schemas.tenant.webhook_subscription import (
     WebhookSubscriptionCreate,
@@ -52,7 +51,6 @@ from app.services.tenant import webhook_subscriptions as subscriptions_service
 from app.services.tenant.webhook_subscriptions import (
     WebhookSubscriptionLimitError,
     WebhookSubscriptionNotFoundError,
-    WebhookSubscriptionOwnershipError,
 )
 from app.services.webhook_target_url import (
     WebhookTargetUrlError,
@@ -224,25 +222,17 @@ async def update_subscription(
     if payload.target_url is not None:
         await _validate_target_url(str(payload.target_url))
 
-    is_admin = guild_context.role == GuildRole.admin
     try:
         row = await subscriptions_service.update_subscription(
             session,
             subscription_id=subscription_id,
             guild_id=guild_context.guild_id,
-            acting_user_id=current_user.id,
-            is_guild_admin=is_admin,
             payload=payload,
         )
     except WebhookSubscriptionNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=WebhookSubscriptionMessages.NOT_FOUND,
-        ) from exc
-    except WebhookSubscriptionOwnershipError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=WebhookSubscriptionMessages.NOT_OWNER,
         ) from exc
     return WebhookSubscriptionRead.model_validate(row)
 
@@ -260,22 +250,14 @@ async def delete_subscription(
 ) -> None:
     """Hard-delete a subscription. Cross-guild lookups 404; non-owner
     non-admin attempts 403."""
-    is_admin = guild_context.role == GuildRole.admin
     try:
         await subscriptions_service.delete_subscription(
             session,
             subscription_id=subscription_id,
             guild_id=guild_context.guild_id,
-            acting_user_id=current_user.id,
-            is_guild_admin=is_admin,
         )
     except WebhookSubscriptionNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=WebhookSubscriptionMessages.NOT_FOUND,
-        ) from exc
-    except WebhookSubscriptionOwnershipError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=WebhookSubscriptionMessages.NOT_OWNER,
         ) from exc

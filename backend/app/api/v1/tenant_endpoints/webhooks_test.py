@@ -157,10 +157,10 @@ async def test_a_junction_facet_is_a_nameable_field(client, acting_user):
     assert sorted(response.json()["fields"]) == ["tags", "task_status_id"]
 
 
-async def test_a_co_member_may_not_rewrite_someone_elses(client, acting_user):
-    """Reaching a subscription and owning it are different: an initiative's
-    members can see its integration config, and its creator or a guild admin
-    manage it."""
+async def test_a_co_member_with_write_access_may_rewrite_it(client, acting_user):
+    """Authorship is not a gate in this app. Someone who can edit an
+    initiative's tasks can edit its webhooks — the UPDATE policy is the same
+    initiative_access(..., need_write=true) that governs the content."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     with _mock_public_dns():
         created = await client.post(
@@ -170,14 +170,20 @@ async def test_a_co_member_may_not_rewrite_someone_elses(client, acting_user):
         )
     subscription_id = created.json()["id"]
 
-    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
     response = await client.patch(
         _url(a.guild.id, f"/{subscription_id}"),
         json={"active": False},
         headers=b.headers,
     )
 
-    assert response.status_code in {403, 404}
+    assert response.status_code == 200, response.text
+    assert response.json()["active"] is False
 
 
 async def test_a_guild_admin_may_rewrite_any_of_them(client, acting_user):
