@@ -71,14 +71,17 @@ LEASE_SECONDS = 300
 #: Backoff schedule, in seconds, indexed by consecutive failures on a batch.
 _BACKOFF_SECONDS = (5, 30, 120, 600, 1800, 3600)
 
+#: The same schedule as a SQL array. The interval has to be chosen in the same
+#: statement that increments ``attempts`` — computing it in Python would mean
+#: reading the count, deciding, then writing, and two passes racing there would
+#: each pick a step from a stale count. Postgres arrays are 1-indexed and
+#: ``attempts`` in a SET expression is the pre-update value, so ``attempts + 1``
+#: selects the step for the failure being recorded.
+_BACKOFF_SQL_ARRAY = "(ARRAY[" + ",".join(str(s) for s in _BACKOFF_SECONDS) + "])"
+
 #: Namespace for deterministic envelope ids. Fixed forever: changing it would
 #: make every in-flight batch look new to a receiver deduping on event_id.
 _EVENT_ID_NAMESPACE = uuid.UUID("6f9619ff-8b86-d011-b42d-00c04fc964ff")
-
-
-def _backoff(attempts: int) -> timedelta:
-    index = min(max(attempts, 1), len(_BACKOFF_SECONDS)) - 1
-    return timedelta(seconds=_BACKOFF_SECONDS[index])
 
 
 def _event_id(subscription_id: int, txn_id: int) -> str:
@@ -220,14 +223,11 @@ async def _settle(
         statement = text(
             "UPDATE webhook_deliveries "
             "SET attempts = attempts + 1, "
-            "    next_attempt_at = :now + make_interval(secs => :backoff) "
+            "    next_attempt_at = :now + make_interval(secs => "
+            f"      {_BACKOFF_SQL_ARRAY}[LEAST(attempts + 1, {len(_BACKOFF_SECONDS)})]"
+            "    ) "
             "WHERE subscription_id = :sid AND txn_id = :txn AND delivered_at IS NULL"
-        ).bindparams(
-            now=now,
-            backoff=_backoff(1).total_seconds(),
-            sid=subscription.id,
-            txn=txn_id,
-        )
+        ).bindparams(now=now, sid=subscription.id, txn=txn_id)
     await session.exec(statement)
     await session.commit()
 
