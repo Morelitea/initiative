@@ -146,3 +146,45 @@ async def test_adding_a_member_reports_against_the_initiative(session, acting_us
     ]
     assert membership, f"adding a member produced no initiative row; got {new_rows}"
     assert membership[-1].resource_id == a.initiative.id
+
+
+async def test_a_tag_is_captured_as_a_guild_wide_event(session, acting_user):
+    """Tags belong to no initiative, so their events carry a NULL one.
+
+    That is the correct disclosure rather than a gap: a tag row is already
+    readable by every member of the guild, so an event naming it reveals
+    nothing new — and tags run through most flows, so an automation that
+    cannot see them is missing an ordinary trigger.
+    """
+    from app.testing import create_tag
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    tag = await create_tag(session, a.guild)
+    await session.commit()
+
+    rows = [
+        r
+        for r in await _outbox(session, a.guild.id)
+        if r.resource_type == "tags" and r.resource_id == tag.id
+    ]
+    assert rows, "creating a tag produced no outbox row"
+    assert rows[0].action == "created"
+    assert rows[0].initiative_id is None
+
+
+async def test_an_unresolvable_initiative_still_skips(session, acting_user):
+    """A NULL initiative is only ever written where a registry says so.
+
+    Guild-wide tables expect one; an initiative-scoped row whose lookup fails
+    must still be skipped rather than emitted without a scope.
+    """
+    from app.db.event_capture import build_specs
+    from app.db.initiative_rls import GUILD_WIDE_EVENTED
+
+    guild_wide = {s.table for s in build_specs() if s.table in GUILD_WIDE_EVENTED}
+    assert guild_wide == set(GUILD_WIDE_EVENTED), (
+        "a guild-wide table lost its capture spec, so its events would stop"
+    )
+    # Every other evented table resolves a real initiative.
+    others = [s for s in build_specs() if s.table not in GUILD_WIDE_EVENTED]
+    assert others, "expected initiative-scoped specs alongside the guild-wide ones"

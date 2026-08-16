@@ -361,15 +361,36 @@ GUILD_LEVEL_EVENTED: dict[str, RowLocator] = {
     ),
 }
 
-# Guild-level tables that emit NOTHING, and why. Stated so the absence is a
-# recorded decision rather than a silent gap — the failure this whole mechanism
-# exists to remove. Both are guild-wide with no initiative to resolve, so an
-# event about one could only carry a NULL initiative_id, which the access
-# function treats as "nothing to decide" and admits for any guild member.
+# Tables that emit with NO initiative at all — the row carries a NULL
+# initiative_id, which the access function treats as "the initiative gate has
+# nothing to decide" and admits for any guild member.
+#
+# That is the correct disclosure here, not a weakening: these rows are already
+# readable by every member of the guild (they are guild-level precisely because
+# they belong to no initiative), so an event naming one reveals nothing its
+# subscriber could not read directly. The envelope carries ids and column names
+# only, never values.
+#
+# The trigger is told a NULL is expected for these, so an unresolvable initiative
+# on an initiative-scoped table still means "skip" rather than "broadcast".
+GUILD_WIDE_EVENTED: frozenset[str] = frozenset(
+    {
+        # Tags run through most flows and are shared across initiatives, so an
+        # automation that cannot see them is missing an ordinary trigger.
+        "tags",
+    }
+)
+
+# Guild-level tables that emit NOTHING, and why — recorded so the absence is a
+# decision rather than a silent gap.
 SILENT_GUILD_TABLES: frozenset[str] = frozenset(
     {
-        "tags",  # guild-wide by design; revisit if a subscriber asks for them
-        "uploads",  # no initiative, and the wrong thing to broadcast guild-wide
+        # Safe to emit by the same reasoning as tags (the row is guild-readable;
+        # blob CONTENT is gated at the document layer, and no content rides in an
+        # envelope). Left out on volume, not disclosure: uploads churn on every
+        # attachment and avatar write, and every subscription would pay for them.
+        # Cheap to add if someone wants it.
+        "uploads",
     }
 )
 
@@ -377,5 +398,7 @@ SILENT_GUILD_TABLES: frozenset[str] = frozenset(
 # (minus the deliberate exclusions) plus the guild-level tables that resolve an
 # initiative for their events.
 EVENTED_TABLES: frozenset[str] = (
-    INITIATIVE_SCOPED_TABLES - NON_EVENTED_TABLES
-) | frozenset(GUILD_LEVEL_EVENTED)
+    (INITIATIVE_SCOPED_TABLES - NON_EVENTED_TABLES)
+    | frozenset(GUILD_LEVEL_EVENTED)
+    | GUILD_WIDE_EVENTED
+)

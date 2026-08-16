@@ -75,8 +75,15 @@ class EventOutbox(SQLModel, table=True):
         sa_column=Column(Integer, nullable=True),
     )
 
-    initiative_id: int = Field(
-        sa_column=Column(Integer, nullable=False, index=True),
+    # NULL for a guild-wide event (a tag, say) — a row that belongs to no
+    # initiative. The access function reads that as "the initiative gate has
+    # nothing to decide" and admits any guild member, which is the right
+    # disclosure for a row every member can already read. The trigger only
+    # writes NULL where a registry says to; an initiative-scoped row whose
+    # lookup fails is skipped instead.
+    initiative_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, nullable=True, index=True),
     )
 
     # The table the change happened to, and its primary key.

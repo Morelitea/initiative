@@ -40,6 +40,7 @@ from sqlmodel import SQLModel
 from app.db.initiative_rls import (
     EVENTED_TABLES,
     GUILD_LEVEL_EVENTED,
+    GUILD_WIDE_EVENTED,
     INITIATIVE_PATHS,
 )
 
@@ -148,6 +149,7 @@ def build_specs() -> list[CaptureSpec]:
 #:   2 — column on the row holding that resource's id
 #:   3 — junction facet label, or '' when the table is its own resource
 #:   4 — array literal of column names excluded from ``changed``
+#:   5 — 'guild' when this table has no initiative and a NULL is expected
 CAPTURE_FUNCTION_SQL = f"""
 CREATE OR REPLACE FUNCTION {CAPTURE_FUNCTION}() RETURNS trigger
     LANGUAGE plpgsql AS $capture$
@@ -168,11 +170,13 @@ BEGIN
         v_row := NEW;
     END IF;
 
-    -- Which initiative this row belongs to, per its INITIATIVE_PATHS entry.
-    -- A row whose initiative no longer resolves is skipped: that is an orphaned
-    -- child during a parent cascade, and the parent emits its own delete.
+    -- Which initiative this row belongs to, per its registry entry. A NULL is
+    -- expected for a guild-wide table and means exactly that; anywhere else it
+    -- means the initiative no longer resolves — an orphaned child during a
+    -- parent cascade, whose parent emits its own delete — so the row is skipped
+    -- rather than broadcast without a scope.
     EXECUTE 'SELECT ' || TG_ARGV[0] INTO v_initiative USING v_row;
-    IF v_initiative IS NULL THEN
+    IF v_initiative IS NULL AND TG_ARGV[5] <> 'guild' THEN
         RETURN NULL;
     END IF;
 
@@ -258,14 +262,16 @@ def _housekeeping_literal(table_name: str) -> str:
 def _initiative_locator(table: str):
     """How ``table`` resolves the initiative an event about it belongs to.
 
-    Two sources, one question: initiative-scoped content gets it from the same
-    entry that renders its RLS, and a guild-level table that still emits gets it
-    from GUILD_LEVEL_EVENTED. Being scoped and being evented are separate
-    decisions (see that registry).
+    Three sources, one question: initiative-scoped content gets it from the same
+    entry that renders its RLS, a guild-level table that still emits gets it from
+    GUILD_LEVEL_EVENTED, and a guild-wide table has no initiative at all. Being
+    scoped and being evented are separate decisions (see those registries).
     """
     path = INITIATIVE_PATHS.get(table)
     if path is not None:
         return path.initiative_expr
+    if table in GUILD_WIDE_EVENTED:
+        return lambda _row: "NULL::integer"
     return GUILD_LEVEL_EVENTED[table]
 
 
@@ -284,7 +290,8 @@ def _trigger_block(spec: CaptureSpec) -> str:
             f"    '{spec.resource_type}',",
             f"    '{spec.resource_id_column}',",
             f"    '{facet}',",
-            f"    {_housekeeping_literal(spec.table)}",
+            f"    {_housekeeping_literal(spec.table)},",
+            f"    '{'guild' if spec.table in GUILD_WIDE_EVENTED else ''}'",
             "  );",
         ]
     )
