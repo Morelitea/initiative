@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.62.7] - 2026-08-18
+
 ### Added
 
 - **An app's page now matches your theme.** An embedded app is told your light or dark mode and your colors — color theme and guild accent included — when it opens, and again the moment you switch, so it can recolor in place instead of staying bright white inside a dark Initiative. Apps pick this up as they add support; one that hasn't yet simply keeps its own colors.
