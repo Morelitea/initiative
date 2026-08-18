@@ -334,13 +334,17 @@ async def test_notify_initiative_membership_carries_guild_context(
     assert f"guild_id={guild.id}" in data["smart_link"]
 
 
-async def _overdue_task_in_new_guild(session: AsyncSession, user: User, *, label: str):
+async def _overdue_task_in_new_guild(
+    session: AsyncSession, user: User, *, label: str, is_template: bool = False
+):
     """Give ``user`` an overdue task assigned to them in a brand-new guild, so a
     user in several guilds has overdue work spread across guild schemas."""
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
     initiative = await create_initiative(session, guild, user, name=label)
-    project = await create_project(session, initiative, user, name=f"{label} Project")
+    project = await create_project(
+        session, initiative, user, name=f"{label} Project", is_template=is_template
+    )
     status = TaskStatus(
         guild_id=guild.id,
         project_id=project.id,
@@ -528,6 +532,39 @@ async def test_overdue_digest_skips_push_when_opted_out(
     await _run_overdue_pass(session, now=datetime.now(timezone.utc))
 
     assert pushes == []
+
+
+@pytest.mark.integration
+async def test_overdue_digest_skips_template_projects(
+    session: AsyncSession, monkeypatch
+):
+    """Tasks living in a template project are blueprints, not work — their due
+    dates must never reach the digest (email or push)."""
+    user = await create_user(
+        session,
+        email="template-overdue@example.com",
+        email_overdue_tasks=True,
+        push_overdue_tasks=True,
+        overdue_notification_time="00:00",
+        timezone="UTC",
+    )
+    await _overdue_task_in_new_guild(session, user, label="Real")
+    await _overdue_task_in_new_guild(session, user, label="Template", is_template=True)
+
+    captured: dict = {}
+
+    async def _capture_email(sess, recipient, tasks):
+        captured["titles"] = {t["title"] for t in tasks}
+
+    monkeypatch.setattr(email_service, "send_overdue_tasks_email", _capture_email)
+    pushes = _capture_push(monkeypatch)
+
+    await set_rls_context(session)
+    await _run_overdue_pass(session, now=datetime.now(timezone.utc))
+
+    assert captured.get("titles") == {"Real overdue"}
+    assert len(pushes) == 1
+    assert "Template overdue" not in pushes[0]["body"]
 
 
 async def _assignment_item_in_new_guild(
