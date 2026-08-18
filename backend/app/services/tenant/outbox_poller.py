@@ -30,9 +30,13 @@ What follows from that:
   ``(subscription_id, txn_id)``, so a batch redelivered after a lapsed claim
   carries the id a receiver already saw.
 
-Only settled transactions are eligible (``txn_id < xmin``). That is about batch
-completeness, not cursor safety: half a transaction is not a batch. Skipping one
-costs nothing, because it is simply still pending next pass.
+Only committed transactions are eligible — ``pg_visible_in_snapshot`` asks
+exactly that, per transaction. Not the snapshot's xmin floor: xmin is the oldest
+transaction still running ANYWHERE in the database, so comparing against it
+holds every delivery hostage to one long-lived transaction that has nothing to
+do with the outbox. This is about batch completeness, not cursor safety: half a
+transaction is not a batch, and one skipped this pass is simply still pending
+next pass.
 """
 
 from __future__ import annotations
@@ -149,9 +153,12 @@ async def _pending_transactions(
     """Settled transactions this subscription still owes, oldest first.
 
     Ordered by the first outbox id each transaction wrote, so batches arrive
-    roughly in the order they were created. Eligibility is "no ledger row yet"
-    or "a row that failed and is out of backoff" — there is no position to
-    maintain, so a transaction missed by one pass is simply still pending.
+    roughly in the order they were created. Settled means the writing
+    transaction is committed in our snapshot — checked per transaction, never
+    against the snapshot's xmin floor, which an unrelated long-running
+    transaction pins. Eligibility is "no ledger row yet" or "a row that failed
+    and is out of backoff" — there is no position to maintain, so a transaction
+    missed by one pass is simply still pending.
 
     The outbox read runs under the SUBSCRIPTION OWNER's context, so RLS has
     already removed transactions holding nothing that owner may see.
@@ -160,7 +167,7 @@ async def _pending_transactions(
         text(
             "SELECT o.txn_id "
             "FROM event_outbox o "
-            "WHERE o.txn_id < pg_snapshot_xmin(pg_current_snapshot())::text::bigint "
+            "WHERE pg_visible_in_snapshot(o.txn_id::text::xid8, pg_current_snapshot()) "
             "  AND NOT EXISTS ("
             "    SELECT 1 FROM webhook_deliveries d "
             "    WHERE d.subscription_id = :sid AND d.txn_id = o.txn_id "
