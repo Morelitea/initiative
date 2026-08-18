@@ -88,15 +88,8 @@ import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import type { SmartLinkContent } from "@/components/documents/SmartLinkDocumentViewer";
 import type { SpreadsheetContent } from "@/components/documents/SpreadsheetDocumentEditor";
 import type { WhiteboardScene } from "@/components/documents/WhiteboardDocumentEditor";
+import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Badge } from "@/components/ui/badge";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1044,25 +1037,11 @@ export const DocumentDetailPage = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Breadcrumb>
-          <BreadcrumbList>
-            {document.initiative && (
-              <>
-                <BreadcrumbItem>
-                  <BreadcrumbLink asChild>
-                    <Link to={gp(`/initiatives/${document.initiative.id}`)}>
-                      {document.initiative.name}
-                    </Link>
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-              </>
-            )}
-            <BreadcrumbItem>
-              <BreadcrumbPage>{document.title}</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
+        <ToolBreadcrumb
+          tool={Tool.document}
+          initiativeId={document.initiative_id}
+          trail={[{ label: document.title }]}
+        />
         <div className="flex items-center gap-2">
           <DocumentExportMenu
             documentId={document.id}
