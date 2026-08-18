@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Webhooks are now available to every guild.** Register a URL under a guild's settings and Initiative will POST a signed message whenever content changes — pick the events you care about, and optionally narrow updates to particular fields, so "tell me when a task's status or due date moves" no longer means "tell me about every task edit". Initiatives and tags count too — an integration can react to one being created, to someone joining or leaving, or to a tag changing. Each message says what changed and which resource it happened to, and your integration reads the current state back through the API. A subscription never sees more than the person who created it: delivery is checked against their access every time, so it stops on its own if they leave an initiative.
 
+### Fixed
+
+- **The overdue digest no longer counts tasks in template projects.** Templates hold blueprint tasks whose due dates were never real deadlines, so anyone with a dated template project got emails and push notifications about work that did not exist. Only tasks in real projects are counted now.
+
 ## [0.62.6] - 2026-08-14
 
 ### Added
