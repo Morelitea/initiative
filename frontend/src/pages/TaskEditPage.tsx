@@ -1,4 +1,4 @@
-import { Link, useBlocker, useParams, useRouter } from "@tanstack/react-router";
+import { useBlocker, useParams, useRouter } from "@tanstack/react-router";
 import { format } from "date-fns";
 import {
   AlertCircle,
@@ -27,6 +27,7 @@ import type {
   TaskRead,
   TaskRecurrenceOutput,
 } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey } from "@/api/generated/tasks/tasks";
 import { invalidateProject, invalidateProjectTaskStatuses } from "@/api/query-keys";
 import { CommentSection } from "@/components/comments/CommentSection";
@@ -36,16 +37,9 @@ import { StatusMessage } from "@/components/StatusMessage";
 import { MoveTaskDialog } from "@/components/tasks/MoveTaskDialog";
 import { TaskChecklist } from "@/components/tasks/TaskChecklist";
 import { serializeTaskFormValue, TaskForm, type TaskFormValue } from "@/components/tasks/TaskForm";
+import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -686,35 +680,14 @@ export const TaskEditPage = () => {
 
   return (
     <div className="space-y-6">
-      <Breadcrumb>
-        <BreadcrumbList>
-          {project?.initiative && (
-            <>
-              <BreadcrumbItem>
-                <BreadcrumbLink asChild>
-                  <Link to={gp(`/initiatives/${project.initiative.id}`)}>
-                    {project.initiative.name}
-                  </Link>
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-            </>
-          )}
-          {project && (
-            <>
-              <BreadcrumbItem>
-                <BreadcrumbLink asChild>
-                  <Link to={gp(`/projects/${project.id}`)}>{project.name}</Link>
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-            </>
-          )}
-          <BreadcrumbItem>
-            <BreadcrumbPage>{title || task?.title}</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
+      <ToolBreadcrumb
+        tool={Tool.project}
+        initiativeId={project?.initiative_id}
+        trail={[
+          ...(project ? [{ label: project.name, to: `/projects/${project.id}` }] : []),
+          { label: title || task?.title },
+        ]}
+      />
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-semibold text-3xl tracking-tight">{title || task?.title}</h1>

@@ -16,19 +16,11 @@ import { QueueTimeline } from "@/components/initiativeTools/queues/QueueTimeline
 import { QueueViewToggle } from "@/components/initiativeTools/queues/QueueViewToggle";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { StatusMessage } from "@/components/StatusMessage";
+import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Badge } from "@/components/ui/badge";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { useInitiatives } from "@/hooks/useInitiatives";
 import {
   useAdvanceTurn,
   useHoldCurrent,
@@ -80,14 +72,6 @@ export function QueueDetailPage() {
 
   // Connect WebSocket for live updates
   useQueueRealtime(Number.isFinite(parsedId) ? parsedId : null);
-
-  // Get initiative name for breadcrumb
-  const initiativesQuery = useInitiatives();
-  const initiativeName = useMemo(() => {
-    if (!queue) return null;
-    const initiative = initiativesQuery.data?.find((i) => i.id === queue.initiative_id);
-    return initiative?.name ?? null;
-  }, [queue, initiativesQuery.data]);
 
   // Queue name editing
   const [editingName, setEditingName] = useState(false);
@@ -202,29 +186,11 @@ export function QueueDetailPage() {
     <div className="space-y-6">
       {/* Breadcrumb header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Breadcrumb>
-          <BreadcrumbList>
-            {initiativeName && (
-              <>
-                <BreadcrumbItem>
-                  <BreadcrumbLink asChild>
-                    <Link to={gp(`/initiatives/${queue.initiative_id}`)}>{initiativeName}</Link>
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-              </>
-            )}
-            <BreadcrumbItem>
-              <BreadcrumbLink asChild>
-                <Link to={gp("/queues")}>{t("title")}</Link>
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>{queue.name}</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
+        <ToolBreadcrumb
+          tool={Tool.queue}
+          initiativeId={queue.initiative_id}
+          trail={[{ label: queue.name }]}
+        />
 
         <div className="flex items-center gap-2">
           <Badge variant={queue.is_active ? "default" : "secondary"}>

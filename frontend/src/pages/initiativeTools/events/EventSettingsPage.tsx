@@ -8,6 +8,7 @@ import type {
   PropertySummary,
   TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   datesAreValid,
   endTimeOptionsFor,
@@ -21,14 +22,7 @@ import {
 import { MemberMultiSelect } from "@/components/members/MemberSearchSelect";
 import { AddPropertyButton, PropertyList } from "@/components/properties";
 import { TagPicker } from "@/components/tags";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
+import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -253,25 +247,14 @@ export function EventSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink asChild>
-              <Link to={gp("/calendars")}>{t("title")}</Link>
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbLink asChild>
-              <Link to={gp(`/calendar-events/${eventId}`)}>{event.title}</Link>
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage>{t("settings")}</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
+      <ToolBreadcrumb
+        tool={Tool.calendar}
+        initiativeId={event.initiative_id}
+        trail={[
+          { label: event.title, to: `/calendar-events/${eventId}` },
+          { label: t("common:toolSettings.title") },
+        ]}
+      />
 
       {/* Details */}
       <Card>

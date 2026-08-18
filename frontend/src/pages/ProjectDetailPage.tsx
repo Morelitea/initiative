@@ -15,14 +15,7 @@ import { ProjectOverviewCard } from "@/components/projects/ProjectOverviewCard";
 import { ProjectTasksSection } from "@/components/projects/ProjectTasksSection";
 import { StatusMessage } from "@/components/StatusMessage";
 import { clearLastUsedProject } from "@/components/tasks/CreateTaskWizard";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
+import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Button } from "@/components/ui/button";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useProject, useProjectTaskStatuses } from "@/hooks/useProjects";
@@ -180,25 +173,11 @@ export const ProjectDetailPage = () => {
     <PullToRefresh onRefresh={handleRefresh}>
       <div className="space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Breadcrumb>
-            <BreadcrumbList>
-              {project.initiative && (
-                <>
-                  <BreadcrumbItem>
-                    <BreadcrumbLink asChild>
-                      <Link to={gp(`/initiatives/${project.initiative.id}`)}>
-                        {project.initiative.name}
-                      </Link>
-                    </BreadcrumbLink>
-                  </BreadcrumbItem>
-                  <BreadcrumbSeparator />
-                </>
-              )}
-              <BreadcrumbItem>
-                <BreadcrumbPage>{project.name}</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
+          <ToolBreadcrumb
+            tool={Tool.project}
+            initiativeId={project.initiative_id}
+            trail={[{ label: project.name }]}
+          />
           {canManageSettings ? (
             <Button
               asChild

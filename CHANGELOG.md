@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Webhooks are now available to every guild.** Register a URL under a guild's settings and Initiative will POST a signed message whenever content changes — pick the events you care about, and optionally narrow updates to particular fields, so "tell me when a task's status or due date moves" no longer means "tell me about every task edit". Initiatives and tags count too — an integration can react to one being created, to someone joining or leaving, or to a tag changing. Each message says what changed and which resource it happened to, and your integration reads the current state back through the API. A subscription never sees more than the person who created it: delivery is checked against their access every time, so it stops on its own if they leave an initiative.
 
+### Fixed
+
+- **Breadcrumbs are now consistent everywhere.** Every project, document, queue, counter group, calendar, and dashboard page — and each one's settings page — now shows the same trail back to its initiative. Settings pages had dropped the initiative from the trail, and a counter group's page had no breadcrumb at all; both now match the rest.
+
 ## [0.62.6] - 2026-08-14
 
 ### Added

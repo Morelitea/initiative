@@ -1,4 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { InitiativeCreate, InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
@@ -68,6 +69,21 @@ export const useInitiative = (initiativeId: number | null, options?: QueryOpts<I
     enabled: initiativeId !== null && Number.isFinite(initiativeId) && userEnabled,
     ...rest,
   });
+};
+
+/**
+ * An initiative's display name, resolved from the cached initiatives list —
+ * the one lookup every tool breadcrumb uses, since most tool read schemas
+ * carry only `initiative_id`, not a nested initiative object. Returns
+ * undefined until the id is set and the list has loaded (or for a guild-level
+ * entity with no initiative_id, forever — callers treat that as "no crumb").
+ */
+export const useInitiativeName = (initiativeId: number | null | undefined): string | undefined => {
+  const initiativesQuery = useInitiatives({ enabled: initiativeId != null });
+  return useMemo(
+    () => initiativesQuery.data?.find((initiative) => initiative.id === initiativeId)?.name,
+    [initiativesQuery.data, initiativeId]
+  );
 };
 
 // ── Mutations ───────────────────────────────────────────────────────────────
