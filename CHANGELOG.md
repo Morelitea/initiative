@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Breadcrumbs are now consistent everywhere.** Every project, document, queue, counter group, calendar, and dashboard page — and each one's settings page — now shows the same trail back to its initiative. Settings pages had dropped the initiative from the trail, and a counter group's page had no breadcrumb at all; both now match the rest.
+- **The overdue digest no longer counts tasks in template projects.** Templates hold blueprint tasks whose due dates were never real deadlines, so anyone with a dated template project got emails and push notifications about work that did not exist. Only tasks in real projects are counted now.
 
 ## [0.62.6] - 2026-08-14
 
