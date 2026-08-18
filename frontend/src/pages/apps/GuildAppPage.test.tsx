@@ -133,6 +133,27 @@ describe("GuildAppPage", () => {
     await announceReady();
   });
 
+  it("sends the reader's appearance with the token", async () => {
+    // The embed opens already wearing this page's theme: the resolved mode and
+    // the effective palette ride the handoff, since an iframe on another
+    // origin cannot read this document's custom properties.
+    mint.mockImplementation((surfaceId: string) => Promise.resolve(handoff(surfaceId)));
+    const { GuildAppPage } = await import("./GuildAppPage");
+    renderPage(() => <GuildAppPage appId={1} viewer={ADMIN} />);
+
+    await screen.findByTitle("Automations");
+    await announceReady();
+
+    const message = postSpy.mock.calls
+      .map(([sent]) => sent as { type: string; theme?: string; theme_colors?: unknown })
+      .find((sent) => sent.type === "initiative-app:handoff");
+    expect(message?.theme).toBe("light");
+    expect(message?.theme_colors).toMatchObject({
+      "--background": expect.stringMatching(/^oklch\(/),
+      "--foreground": expect.stringMatching(/^oklch\(/),
+    });
+  });
+
   it("ignores an announcement from a window it did not mount", async () => {
     // An app may hold more than one window at its own address, so the page
     // matches an announcement to the frame it mounted rather than to the

@@ -6,8 +6,9 @@ gone:
 * **Who may register one** — any guild member, because registering grants no
   access: delivery reads the change log as the creator, so a subscription's
   reach is its owner's reach.
-* **Who may rewrite one** — its creator or a guild admin, the ordinary
-  ownership rule.
+* **Who may rewrite one** — the gates, same as the content it watches: the
+  UPDATE policy is ``initiative_access(..., need_write=true)``, and authorship
+  is not a gate in this app.
 * **What a subscription may name** — event types and field names are checked
   against the capture vocabulary, so a typo is a 400 here rather than a
   subscription that looks healthy and never fires.
