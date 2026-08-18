@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.62.7] - 2026-08-18
+
+### Added
+
+- **An app's page now matches your theme.** An embedded app is told your light or dark mode and your colors — color theme and guild accent included — when it opens, and again the moment you switch, so it can recolor in place instead of staying bright white inside a dark Initiative. Apps pick this up as they add support; one that hasn't yet simply keeps its own colors.
+- **Outbound webhooks (API-only for now).** Register a URL via the API and Initiative POSTs a signed notification when content changes, filterable by event type and field. A subscription only ever delivers what its creator can access.
+
+### Fixed
+
+- **Breadcrumbs are now consistent everywhere.** Every project, document, queue, counter group, calendar, and dashboard page — and each one's settings page — now shows the same trail back to its initiative. Settings pages had dropped the initiative from the trail, and a counter group's page had no breadcrumb at all; both now match the rest.
+- **The overdue digest no longer counts tasks in template projects.** Templates hold blueprint tasks whose due dates were never real deadlines, so anyone with a dated template project got emails and push notifications about work that did not exist. Only tasks in real projects are counted now.
+
 ## [0.62.6] - 2026-08-14
 
 ### Added

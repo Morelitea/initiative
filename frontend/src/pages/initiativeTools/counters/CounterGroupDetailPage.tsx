@@ -33,6 +33,7 @@ import { TOOL_EXPORT_FORMATS } from "@/components/exports/formats";
 import { CounterFormDialog } from "@/components/initiativeTools/counters/CounterFormDialog";
 import { type CounterLayout, CounterRow } from "@/components/initiativeTools/counters/CounterRow";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
+import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
@@ -192,14 +193,14 @@ export function CounterGroupDetailPage() {
 
   return (
     <div className="space-y-6">
+      <ToolBreadcrumb
+        tool={Tool.counter_group}
+        initiativeId={group.initiative_id}
+        trail={[{ label: group.name }]}
+      />
+
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <Button variant="ghost" size="sm" asChild className="mb-2 -ml-3">
-            <Link to={gp("/counter-groups")}>
-              <ArrowLeft className="h-4 w-4" />
-              {t("backToGroups")}
-            </Link>
-          </Button>
           <h1 className="font-semibold text-3xl tracking-tight">{group.name}</h1>
           {group.description && (
             <p className="mt-1 max-w-2xl text-muted-foreground text-sm">{group.description}</p>

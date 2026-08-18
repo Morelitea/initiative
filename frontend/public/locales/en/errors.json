@@ -283,8 +283,6 @@
   "EXPORT_JOB_NOT_FOUND": "Export not found.",
   "EXPORT_NOT_READY": "This export isn't ready to download yet.",
   "EXPORT_ADMIN_REQUIRED": "Only guild admins can export the whole guild.",
-  "AUTOMATION_DELEGATE_NOT_CONFIGURED": "No automation service is configured for this deployment, so event delivery is unavailable.",
-  "AUTOMATION_DELEGATE_REQUIRED": "Event subscriptions can only be managed by the automation service.",
   "AI_INVALID_BASE_URL": "Base URL is not allowed. Use a public hostname.",
   "AI_PROVIDER_NOT_ALLOWED": "Ollama can only be configured at the platform level.",
   "fallback": "Something went wrong. Please try again.",
@@ -365,6 +363,7 @@
   "BILLING_PORTAL_SIGNING_NOT_CONFIGURED": "The billing portal is not fully configured yet. Contact your administrator.",
   "BILLING_PORTAL_GRANT_UNAVAILABLE": "Could not obtain access to this guild's billing. Check whether you have an access request still pending for it.",
   "MARKETPLACE_LISTING_NOT_FOUND": "That marketplace listing no longer exists.",
+  "MARKETPLACE_LISTING_NEEDS_APP": "This dashboard comes with an app your guild has not installed. Install the app first, then add the dashboard.",
   "MARKETPLACE_LISTING_UNAVAILABLE": "This listing has been withdrawn and can no longer be installed.",
   "MARKETPLACE_LISTING_VERSION_INCOMPATIBLE": "This listing needs a newer version of the app. Ask an administrator to update, then try again.",
   "MARKETPLACE_NOT_INSTALLED_FROM_LISTING": "This was built here rather than installed, so there is no listing to update it from.",
@@ -453,5 +452,7 @@
   "APP_SERVICE_UNAVAILABLE": "The app isn't responding right now. Try again shortly.",
   "APP_DATA_RESPONSE_TOO_LARGE": "The app sent back more data than a widget can show.",
   "APP_DATA_BUSY": "This app has too many requests in flight. Try again shortly.",
-  "APP_DATA_RATE_LIMITED": "This app has been asked for too much too quickly. Try again shortly."
+  "APP_DATA_RATE_LIMITED": "This app has been asked for too much too quickly. Try again shortly.",
+  "WEBHOOK_UNKNOWN_EVENT_TYPE": "That event type doesn't exist. Check the list of available events.",
+  "WEBHOOK_UNKNOWN_FIELD": "That field doesn't exist on the events you selected."
 }

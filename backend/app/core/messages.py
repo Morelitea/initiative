@@ -472,6 +472,10 @@ class MarketplaceMessages:
     #: by its publisher, or its only versions need a newer app.
     LISTING_UNAVAILABLE = "MARKETPLACE_LISTING_UNAVAILABLE"
     LISTING_VERSION_INCOMPATIBLE = "MARKETPLACE_LISTING_VERSION_INCOMPATIBLE"
+    #: A dashboard that ships with an app, asked for by a guild that does not
+    #: have that app installed. Its tiles draw that app's widgets, so there
+    #: would be nothing behind any of them.
+    LISTING_NEEDS_APP = "MARKETPLACE_LISTING_NEEDS_APP"
     #: An upgrade was asked for on a dashboard that was authored here, not
     #: installed — there is no listing to re-pin it to.
     NOT_INSTALLED_FROM_LISTING = "MARKETPLACE_NOT_INSTALLED_FROM_LISTING"
@@ -784,14 +788,8 @@ class WebhookSubscriptionMessages:
     INVALID_TARGET_URL = "WEBHOOK_INVALID_TARGET_URL"
     PRIVATE_TARGET_URL = "WEBHOOK_PRIVATE_TARGET_URL"
     NOT_FOUND = "WEBHOOK_SUBSCRIPTION_NOT_FOUND"
-    NOT_OWNER = "WEBHOOK_SUBSCRIPTION_NOT_OWNER"
-    # Delivery targets are owned by the configured automation delegate.
-    # No delegate is configured on this deployment, so there is nothing that
-    # may own one (503 — a configuration state, not a caller fault).
-    DELEGATE_NOT_CONFIGURED = "AUTOMATION_DELEGATE_NOT_CONFIGURED"
-    # The request authenticated as an ordinary user or API key rather than
-    # over the delegation credential.
-    DELEGATE_REQUIRED = "AUTOMATION_DELEGATE_REQUIRED"
+    UNKNOWN_EVENT_TYPE = "WEBHOOK_UNKNOWN_EVENT_TYPE"
+    UNKNOWN_FIELD = "WEBHOOK_UNKNOWN_FIELD"
 
 
 class AIMessages:

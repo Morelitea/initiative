@@ -1,6 +1,6 @@
 import { Link, useParams } from "@tanstack/react-router";
 import { SearchX, Settings, ShieldAlert } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -9,19 +9,11 @@ import { DashboardUpdateBadge } from "@/components/initiativeTools/dashboards/Da
 import { WidgetConfigDialog } from "@/components/initiativeTools/dashboards/WidgetConfigDialog";
 import { WidgetPicker } from "@/components/initiativeTools/dashboards/WidgetPicker";
 import { StatusMessage } from "@/components/StatusMessage";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
+import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDashboardEditor } from "@/hooks/useDashboardEditor";
 import { useDashboard, useWidgetCatalog } from "@/hooks/useDashboards";
-import { useInitiatives } from "@/hooks/useInitiatives";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -57,15 +49,6 @@ export function DashboardDetailPage() {
   const [configuringId, setConfiguringId] = useState<string | null>(null);
   const configuring =
     editor.definition.widgets.find((widget) => widget.id === configuringId) ?? null;
-
-  const initiativesQuery = useInitiatives();
-  const initiativeName = useMemo(
-    () =>
-      dashboard
-        ? (initiativesQuery.data?.find((init) => init.id === dashboard.initiative_id)?.name ?? null)
-        : null,
-    [dashboard, initiativesQuery.data]
-  );
 
   if (!Number.isFinite(parsedId)) {
     return <p className="text-destructive">{t("notFound")}</p>;
@@ -104,33 +87,11 @@ export function DashboardDetailPage() {
   // is what made an ordinary load look like a reload.
   return (
     <div className="space-y-6">
-      <Breadcrumb>
-        <BreadcrumbList>
-          {initiativeName && dashboard && (
-            <>
-              <BreadcrumbItem>
-                <BreadcrumbLink asChild>
-                  <Link to={gp(`/initiatives/${dashboard.initiative_id}`)}>{initiativeName}</Link>
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-            </>
-          )}
-          <BreadcrumbItem>
-            <BreadcrumbLink asChild>
-              <Link to={gp("/dashboards")}>{t("title")}</Link>
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            {dashboard ? (
-              <BreadcrumbPage>{dashboard.name}</BreadcrumbPage>
-            ) : (
-              <Skeleton className="h-4 w-32" />
-            )}
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
+      <ToolBreadcrumb
+        tool={Tool.dashboard}
+        initiativeId={dashboard?.initiative_id}
+        trail={[{ label: dashboard ? dashboard.name : <Skeleton className="h-4 w-32" /> }]}
+      />
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">

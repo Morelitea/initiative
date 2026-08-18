@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import webhook_events
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.schemas.tenant.webhook_subscription import (
     WebhookSubscriptionCreate,
@@ -15,16 +16,40 @@ from app.schemas.tenant.webhook_subscription import (
 )
 
 
+class WebhookSubscriptionVocabularyError(Exception):
+    """A subscription named an event type or field that could never fire.
+
+    Carries the message code the endpoint answers with, so the check has one
+    home rather than one per caller.
+    """
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+
+def assert_vocabulary(event_types: list[str] | None, fields: list[str] | None) -> None:
+    """Reject event types and field names that could never fire.
+
+    Callers pass the values the row will END UP with. Both vocabularies derive
+    from the capture registry, so this is what turns a typo into a 400 rather
+    than a subscription that looks healthy and never delivers.
+    """
+    from app.core.messages import WebhookSubscriptionMessages
+
+    if event_types and webhook_events.unknown_event_types(event_types):
+        raise WebhookSubscriptionVocabularyError(
+            WebhookSubscriptionMessages.UNKNOWN_EVENT_TYPE
+        )
+    if fields and webhook_events.unknown_fields(fields, event_types or []):
+        raise WebhookSubscriptionVocabularyError(
+            WebhookSubscriptionMessages.UNKNOWN_FIELD
+        )
+
+
 class WebhookSubscriptionNotFoundError(Exception):
     """Raised when the requested subscription doesn't exist under the
     caller's scope."""
-
-
-class WebhookSubscriptionOwnershipError(Exception):
-    """Raised when a non-creator non-admin tries to mutate or delete a
-    subscription owned by another guild member. We surface this as 403
-    rather than 404 because the caller already knows the row exists in
-    their guild — only their *authority* is the question."""
 
 
 def _generate_hmac_secret() -> str:
@@ -58,14 +83,21 @@ async def get_subscription(
     *,
     subscription_id: int,
     guild_id: int,
+    for_update: bool = False,
 ) -> WebhookSubscription:
     """Fetch by id, scoped to the caller's guild. Raises
     :class:`WebhookSubscriptionNotFoundError` so cross-guild lookups
-    leak "not found" rather than "forbidden"."""
+    leak "not found" rather than "forbidden".
+
+    ``for_update`` locks the row for the rest of the transaction, for callers
+    that read it, decide something from it, and write it back.
+    """
     statement = select(WebhookSubscription).where(
         WebhookSubscription.id == subscription_id,
         WebhookSubscription.guild_id == guild_id,
     )
+    if for_update:
+        statement = statement.with_for_update()
     row = (await session.exec(statement)).one_or_none()
     if row is None:
         raise WebhookSubscriptionNotFoundError(
@@ -88,17 +120,19 @@ async def create_subscription(
     for HMAC signing on dispatch — there's no way around that — but
     we never expose it on subsequent reads.
     """
+    assert_vocabulary(list(payload.event_types), payload.fields)
+
     secret = _generate_hmac_secret()
     now = datetime.now(timezone.utc)
 
     subscription = WebhookSubscription(
         guild_id=guild_id,
         initiative_id=payload.initiative_id,
-        workflow_id=payload.workflow_id,
         created_by_user_id=created_by_user_id,
         target_url=str(payload.target_url),
         hmac_secret=secret,
         event_types=list(payload.event_types),
+        fields=list(payload.fields) if payload.fields else None,
         active=True,
         created_at=now,
         updated_at=now,
@@ -109,40 +143,35 @@ async def create_subscription(
     return subscription, secret
 
 
-def _assert_can_mutate(
-    subscription: WebhookSubscription,
-    *,
-    acting_user_id: int,
-    is_guild_admin: bool,
-) -> None:
-    """Only the creator or a guild admin may mutate or delete a
-    subscription. RLS keeps subscriptions inside the guild boundary; this
-    decides which member within it owns a given delivery target."""
-    if is_guild_admin or subscription.created_by_user_id == acting_user_id:
-        return
-    raise WebhookSubscriptionOwnershipError(
-        f"user {acting_user_id} cannot mutate subscription {subscription.id}"
-    )
-
-
 async def update_subscription(
     session: AsyncSession,
     *,
     subscription_id: int,
     guild_id: int,
-    acting_user_id: int,
-    is_guild_admin: bool,
     payload: WebhookSubscriptionUpdate,
 ) -> WebhookSubscription:
-    """Apply partial update to an existing subscription. Raises
-    :class:`WebhookSubscriptionNotFoundError` on cross-guild lookups and
-    :class:`WebhookSubscriptionOwnershipError` when a non-owner non-admin
-    tries to mutate."""
+    """Apply a partial update to an existing subscription.
+
+    Who may rewrite one is decided by the gates, not here: the UPDATE policy is
+    the same ``initiative_access(..., need_write=true)`` that governs the content
+    the subscription watches, so someone who can edit an initiative's tasks can
+    edit its webhooks. Authorship is not a gate in this app.
+
+    The row is locked before the merged values are checked, because the check
+    spans two columns a patch may touch separately. Validating against a row read
+    outside the write lets two complementary patches — one narrowing the events,
+    one widening the fields — each pass against state the other is about to
+    replace, and commit a pair that matches nothing. Locking makes the second
+    re-read what the first wrote.
+    """
     subscription = await get_subscription(
-        session, subscription_id=subscription_id, guild_id=guild_id
+        session, subscription_id=subscription_id, guild_id=guild_id, for_update=True
     )
-    _assert_can_mutate(
-        subscription, acting_user_id=acting_user_id, is_guild_admin=is_guild_admin
+    assert_vocabulary(
+        payload.event_types
+        if payload.event_types is not None
+        else subscription.event_types,
+        payload.fields if payload.fields is not None else subscription.fields,
     )
 
     data = payload.model_dump(exclude_unset=True)
@@ -164,16 +193,12 @@ async def delete_subscription(
     *,
     subscription_id: int,
     guild_id: int,
-    acting_user_id: int,
-    is_guild_admin: bool,
 ) -> None:
     """Hard-delete a subscription. Cross-guild lookups raise; non-owner
-    non-admin attempts raise :class:`WebhookSubscriptionOwnershipError`."""
+    who may delete one is the DELETE policy — the same gates that govern the
+    content it watches."""
     subscription = await get_subscription(
         session, subscription_id=subscription_id, guild_id=guild_id
-    )
-    _assert_can_mutate(
-        subscription, acting_user_id=acting_user_id, is_guild_admin=is_guild_admin
     )
     await session.delete(subscription)
     await session.commit()

@@ -36,6 +36,12 @@ def start_background_tasks() -> list[asyncio.Task]:
         OIDC_SYNC_POLL_SECONDS,
     )
     from app.services.tenant.trash_purge import process_trash_purges, PURGE_POLL_SECONDS
+    from app.services.tenant.outbox_poller import (
+        OUTBOX_POLL_SECONDS,
+        OUTBOX_RETENTION_POLL_SECONDS,
+        process_outbox_deliveries,
+        process_outbox_retention,
+    )
     from app.services.platform.user_tokens import (
         process_expired_token_purge,
         TOKEN_PURGE_POLL_SECONDS,
@@ -96,6 +102,18 @@ def start_background_tasks() -> list[asyncio.Task]:
         ),
         asyncio.create_task(
             _loop_worker(process_trash_purges, PURGE_POLL_SECONDS, "trash-purge")
+        ),
+        asyncio.create_task(
+            _loop_worker(
+                process_outbox_deliveries, OUTBOX_POLL_SECONDS, "outbox-deliveries"
+            )
+        ),
+        asyncio.create_task(
+            _loop_worker(
+                process_outbox_retention,
+                OUTBOX_RETENTION_POLL_SECONDS,
+                "outbox-retention",
+            )
         ),
         asyncio.create_task(
             _loop_worker(

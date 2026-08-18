@@ -27,8 +27,12 @@ import {
 import type { GuildAppHandoff } from "@/api/generated/initiativeAPI.schemas";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useAuth } from "@/hooks/useAuth";
+import { effectiveThemeColors } from "@/hooks/useColorTheme";
 import { useGuildAppDetail } from "@/hooks/useGuildAppDetail";
+import { useTheme } from "@/hooks/useTheme";
 import { appEmbeds, embedAllow, type SurfaceViewer } from "@/lib/appSurfaces";
+import { DEFAULT_THEME } from "@/lib/themes";
 import { cn } from "@/lib/utils";
 import { localized } from "@/lib/widgets/widgetMeta";
 
@@ -37,6 +41,7 @@ const READY = "initiative-app:ready";
 const HANDOFF = "initiative-app:handoff";
 const ERROR = "initiative-app:error";
 const LOCALE = "initiative-app:locale";
+const THEME = "initiative-app:theme";
 
 export interface GuildAppPageProps {
   appId: number;
@@ -131,12 +136,29 @@ export function GuildAppPage({ appId, initiativeId, viewer }: GuildAppPageProps)
     [handoff?.allowed_origins]
   );
 
+  // The reader's appearance travels with the token so the embed opens already
+  // wearing it: the resolved mode ("system" is resolved on this side — the
+  // embed should follow this page, not re-derive the OS preference), and the
+  // effective palette, since an iframe on another origin cannot read this
+  // document's custom properties.
+  const { resolvedTheme } = useTheme();
+  const { user } = useAuth();
+  const colorThemeId = user?.color_theme ?? DEFAULT_THEME;
+  const themeColors = useMemo(
+    () => effectiveThemeColors(colorThemeId, resolvedTheme),
+    [colorThemeId, resolvedTheme]
+  );
+
   // Hold the translator in a ref so a language change cannot re-attach the
-  // listener mid-exchange.
+  // listener mid-exchange. Same for the theme.
   const tRef = useRef(t);
   tRef.current = t;
   const localeRef = useRef(i18n.language);
   localeRef.current = i18n.language;
+  const themeRef = useRef(resolvedTheme);
+  themeRef.current = resolvedTheme;
+  const themeColorsRef = useRef(themeColors);
+  themeColorsRef.current = themeColors;
 
   useEffect(() => {
     if (!origin || !handoff) return;
@@ -157,6 +179,8 @@ export function GuildAppPage({ appId, initiativeId, viewer }: GuildAppPageProps)
           audience: token.audience,
           surface_id: token.surface_id,
           locale: localeRef.current,
+          theme: themeRef.current,
+          theme_colors: themeColorsRef.current,
         },
         // Never "*": that would hand the token to whatever happens to be
         // loaded in the frame.
@@ -211,6 +235,15 @@ export function GuildAppPage({ appId, initiativeId, viewer }: GuildAppPageProps)
     if (!target) return;
     target.postMessage({ type: LOCALE, locale: i18n.language }, origin);
   }, [origin, i18n.language]);
+
+  // And with an appearance change — flipping light/dark (or the color theme)
+  // recolors the embed in place.
+  useEffect(() => {
+    if (!origin) return;
+    const target = iframeRef.current?.contentWindow;
+    if (!target) return;
+    target.postMessage({ type: THEME, theme: resolvedTheme, colors: themeColors }, origin);
+  }, [origin, resolvedTheme, themeColors]);
 
   if (detail.isLoading) {
     return (

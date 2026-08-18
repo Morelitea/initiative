@@ -12,19 +12,12 @@ import {
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { RSVPStatus } from "@/api/generated/initiativeAPI.schemas";
+import { type RSVPStatus, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { PropertyValueCell } from "@/components/properties/PropertyValueCell";
 import { iconForPropertyType } from "@/components/properties/propertyTypeIcons";
 import { StatusMessage } from "@/components/StatusMessage";
+import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Badge } from "@/components/ui/badge";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -41,7 +34,6 @@ import {
   useDeleteCalendarEvent,
   useUpdateEventRSVP,
 } from "@/hooks/useCalendarEvents";
-import { useInitiatives } from "@/hooks/useInitiatives";
 import { toast } from "@/lib/chesterToast";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -151,14 +143,6 @@ export function EventDetailPage() {
   const eventQuery = useCalendarEvent(Number.isFinite(parsedId) ? parsedId : null);
   const event = eventQuery.data;
 
-  // Get initiative name for breadcrumb
-  const initiativesQuery = useInitiatives();
-  const initiativeName = useMemo(() => {
-    if (!event) return null;
-    const initiative = initiativesQuery.data?.find((i) => i.id === event.initiative_id);
-    return initiative?.name ?? null;
-  }, [event, initiativesQuery.data]);
-
   // Delete event
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const deleteEvent = useDeleteCalendarEvent({
@@ -230,29 +214,11 @@ export function EventDetailPage() {
     <div className="space-y-6">
       {/* Breadcrumb header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Breadcrumb>
-          <BreadcrumbList>
-            {initiativeName && (
-              <>
-                <BreadcrumbItem>
-                  <BreadcrumbLink asChild>
-                    <Link to={gp(`/initiatives/${event.initiative_id}`)}>{initiativeName}</Link>
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-              </>
-            )}
-            <BreadcrumbItem>
-              <BreadcrumbLink asChild>
-                <Link to={gp("/calendars")}>{t("title")}</Link>
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>{event.title}</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
+        <ToolBreadcrumb
+          tool={Tool.calendar}
+          initiativeId={event.initiative_id}
+          trail={[{ label: event.title }]}
+        />
 
         <div className="flex items-center gap-2">
           {event.all_day && <Badge variant="secondary">{t("allDay")}</Badge>}

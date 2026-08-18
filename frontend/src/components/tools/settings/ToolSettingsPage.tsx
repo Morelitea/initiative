@@ -12,7 +12,7 @@
  * for every tool.
  */
 
-import { Link, useRouter } from "@tanstack/react-router";
+import { useRouter } from "@tanstack/react-router";
 import { Loader2, Trash2 } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -20,14 +20,7 @@ import { useTranslation } from "react-i18next";
 import type { ResourceGrantSchema, TagSummary, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ShareControl } from "@/components/access/ShareControl";
 import { TagPicker } from "@/components/tags";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
+import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -39,7 +32,7 @@ import { useSetToolTags } from "@/hooks/useToolTags";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
-import { toolDetailRoute, toolListRoute, toolNavLabelKey } from "@/lib/tools";
+import { toolDetailRoute, toolListRoute } from "@/lib/tools";
 
 /**
  * The slice of a tool's read schema this page needs. Queues, counter groups,
@@ -156,25 +149,14 @@ export const ToolSettingsPage = ({
 
   return (
     <div className="space-y-6">
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink asChild>
-              <Link to={gp(toolListRoute(tool))}>{t(toolNavLabelKey(tool), { ns: "nav" })}</Link>
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbLink asChild>
-              <Link to={gp(toolDetailRoute(tool, entity.id))}>{entity.name}</Link>
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage>{t("common:toolSettings.title")}</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
+      <ToolBreadcrumb
+        tool={tool}
+        initiativeId={entity.initiative_id}
+        trail={[
+          { label: entity.name, to: toolDetailRoute(tool, entity.id) },
+          { label: t("common:toolSettings.title") },
+        ]}
+      />
 
       <div className="space-y-1">
         <h1 className="font-semibold text-3xl tracking-tight">{t("common:toolSettings.title")}</h1>

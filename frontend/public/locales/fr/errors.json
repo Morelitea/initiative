@@ -269,8 +269,6 @@
   "EXPORT_JOB_NOT_FOUND": "Export introuvable.",
   "EXPORT_NOT_READY": "Cet export n’est pas encore prêt à être téléchargé.",
   "EXPORT_ADMIN_REQUIRED": "Seuls les administrateurs de guilde peuvent exporter toute la guilde.",
-  "AUTOMATION_DELEGATE_NOT_CONFIGURED": "Aucun service d’automatisation n’est configuré sur cette installation, la diffusion des événements est donc indisponible.",
-  "AUTOMATION_DELEGATE_REQUIRED": "Les abonnements aux événements ne peuvent être gérés que par le service d’automatisation.",
   "AI_INVALID_BASE_URL": "L'URL de base n'est pas autorisée. Utilisez un nom d'hôte public.",
   "AI_PROVIDER_NOT_ALLOWED": "Ollama ne peut être configuré qu'au niveau de la plateforme.",
   "fallback": "Une erreur s'est produite. Veuillez réessayer.",
@@ -365,6 +363,7 @@
   "BILLING_PORTAL_SIGNING_NOT_CONFIGURED": "Le portail de facturation n'est pas encore entièrement configuré. Contacte ton administration.",
   "BILLING_PORTAL_GRANT_UNAVAILABLE": "Impossible d'obtenir l'accès à la facturation de cette guilde. Vérifie si une demande d'accès est encore en attente.",
   "MARKETPLACE_LISTING_NOT_FOUND": "Cette fiche du catalogue n'existe plus.",
+  "MARKETPLACE_LISTING_NEEDS_APP": "Ce tableau de bord accompagne une application que votre guilde n'a pas installée. Installez d'abord l'application, puis ajoutez le tableau de bord.",
   "MARKETPLACE_LISTING_UNAVAILABLE": "Cette fiche a été retirée et ne peut plus être installée.",
   "MARKETPLACE_LISTING_VERSION_INCOMPATIBLE": "Cette fiche nécessite une version plus récente de l'application. Demandez à une administratrice ou un administrateur de la mettre à jour, puis réessayez.",
   "MARKETPLACE_NOT_INSTALLED_FROM_LISTING": "Ceci a été créé ici plutôt qu'installé : il n'y a donc aucune fiche depuis laquelle le mettre à jour.",
@@ -453,5 +452,7 @@
   "APP_SERVICE_UNAVAILABLE": "L'application ne répond pas pour le moment. Réessayez dans un instant.",
   "APP_DATA_RESPONSE_TOO_LARGE": "L'application a renvoyé plus de données qu'un widget ne peut afficher.",
   "APP_DATA_BUSY": "Cette application a trop de requêtes en cours. Réessayez dans un instant.",
-  "APP_DATA_RATE_LIMITED": "Cette application a été sollicitée trop souvent en peu de temps. Réessayez dans un instant."
+  "APP_DATA_RATE_LIMITED": "Cette application a été sollicitée trop souvent en peu de temps. Réessayez dans un instant.",
+  "WEBHOOK_UNKNOWN_EVENT_TYPE": "Ce type d'événement n'existe pas. Consultez la liste des événements disponibles.",
+  "WEBHOOK_UNKNOWN_FIELD": "Ce champ n'existe pas pour les événements sélectionnés."
 }

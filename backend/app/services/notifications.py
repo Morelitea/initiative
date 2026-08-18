@@ -1452,6 +1452,8 @@ async def _overdue_tasks_for_user(session: AsyncSession, user_id: int) -> list[d
 
     Run once per guild via ``gather_across_guilds`` (the session is routed into
     each of the user's guilds in turn), so it only ever sees one guild's rows.
+    Template projects are excluded: their tasks are blueprints, not work, so a
+    due date on one is never actually overdue.
     """
     stmt = (
         select(Task, Project.name, Project.id, Initiative.guild_id)
@@ -1461,6 +1463,7 @@ async def _overdue_tasks_for_user(session: AsyncSession, user_id: int) -> list[d
         .join(TaskStatus, Task.task_status_id == TaskStatus.id)
         .where(
             TaskAssignee.user_id == user_id,
+            Project.is_template.is_(False),
             Task.due_date.is_not(None),
             Task.due_date < datetime.now(timezone.utc),
             TaskStatus.category != TaskStatusCategory.done,

@@ -123,7 +123,6 @@ async def _make_subscription(
     sub = WebhookSubscription(
         guild_id=guild.id,
         initiative_id=initiative_id,
-        workflow_id=None,
         created_by_user_id=user.id,
         target_url=target_url,
         hmac_secret="test-secret",
@@ -148,7 +147,7 @@ async def test_dispatch_skips_when_no_subscribers(session):
     # guild-scoped); mirror that — no tenant write here routes it implicitly.
     await route_session_to_guild(session, guild.id)
     with patch(
-        "app.services.tenant.webhook_dispatcher._deliver", new=AsyncMock()
+        "app.services.tenant.webhook_dispatcher.deliver", new=AsyncMock()
     ) as mock_deliver:
         await dispatch_event(
             session,
@@ -186,10 +185,11 @@ async def test_dispatch_matches_only_active_subscriptions(session):
 
     delivered_to: list[str] = []
 
-    async def fake_deliver(*, target_url: str, secret: str, envelope: dict) -> None:
+    async def fake_deliver(*, target_url: str, secret: str, envelope: dict) -> bool:
         delivered_to.append(target_url)
+        return True
 
-    with patch("app.services.tenant.webhook_dispatcher._deliver", new=fake_deliver):
+    with patch("app.services.tenant.webhook_dispatcher.deliver", new=fake_deliver):
         await dispatch_event(
             session,
             event_type="task.created",
@@ -216,7 +216,7 @@ async def test_dispatch_filters_by_event_type(session):
     )
 
     with patch(
-        "app.services.tenant.webhook_dispatcher._deliver", new=AsyncMock()
+        "app.services.tenant.webhook_dispatcher.deliver", new=AsyncMock()
     ) as mock_deliver:
         await dispatch_event(
             session,
@@ -267,10 +267,11 @@ async def test_dispatch_initiative_scope_matches_correctly(session):
 
     delivered_to: list[str] = []
 
-    async def fake_deliver(*, target_url: str, secret: str, envelope: dict) -> None:
+    async def fake_deliver(*, target_url: str, secret: str, envelope: dict) -> bool:
         delivered_to.append(target_url)
+        return True
 
-    with patch("app.services.tenant.webhook_dispatcher._deliver", new=fake_deliver):
+    with patch("app.services.tenant.webhook_dispatcher.deliver", new=fake_deliver):
         await dispatch_event(
             session,
             event_type="task.created",
@@ -313,10 +314,11 @@ async def test_each_subscription_gets_unique_event_id(session):
 
     seen_event_ids: list[str] = []
 
-    async def fake_deliver(*, target_url: str, secret: str, envelope: dict) -> None:
+    async def fake_deliver(*, target_url: str, secret: str, envelope: dict) -> bool:
         seen_event_ids.append(envelope["event_id"])
+        return True
 
-    with patch("app.services.tenant.webhook_dispatcher._deliver", new=fake_deliver):
+    with patch("app.services.tenant.webhook_dispatcher.deliver", new=fake_deliver):
         await dispatch_event(
             session,
             event_type="task.created",
@@ -346,7 +348,7 @@ async def test_dispatch_does_not_cross_guilds(session):
     )
 
     with patch(
-        "app.services.tenant.webhook_dispatcher._deliver", new=AsyncMock()
+        "app.services.tenant.webhook_dispatcher.deliver", new=AsyncMock()
     ) as mock_deliver:
         await dispatch_event(
             session,
@@ -389,10 +391,11 @@ async def test_dispatch_delivers_when_a_delegate_is_configured(session):
 
     delivered_to: list[str] = []
 
-    async def fake_deliver(*, target_url: str, secret: str, envelope: dict) -> None:
+    async def fake_deliver(*, target_url: str, secret: str, envelope: dict) -> bool:
         delivered_to.append(target_url)
+        return True
 
-    with patch("app.services.tenant.webhook_dispatcher._deliver", new=fake_deliver):
+    with patch("app.services.tenant.webhook_dispatcher.deliver", new=fake_deliver):
         await dispatch_event(
             session,
             event_type="task.created",
@@ -430,7 +433,7 @@ async def test_dispatch_is_inert_without_a_delegate(session, monkeypatch):
     monkeypatch.setattr(webhook_dispatcher, "_inert_logged", False)
 
     with patch(
-        "app.services.tenant.webhook_dispatcher._deliver", new=AsyncMock()
+        "app.services.tenant.webhook_dispatcher.deliver", new=AsyncMock()
     ) as mock_deliver:
         await dispatch_event(
             session,

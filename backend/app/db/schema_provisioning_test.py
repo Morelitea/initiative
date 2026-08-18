@@ -465,15 +465,23 @@ async def test_guild_schema_matches_guild_template(engine):
             async def trig(ns, t):  # guild_id denorm triggers (functions stay shared)
                 r = await conn.execute(
                     text(
-                        "SELECT pg_get_triggerdef(tg.oid) d FROM pg_trigger tg "
+                        "SELECT tg.tgname n, pg_get_triggerdef(tg.oid) d "
+                        "FROM pg_trigger tg "
                         "JOIN pg_class cl ON cl.oid=tg.tgrelid "
                         "WHERE cl.oid=(:ns||'.'||:t)::regclass AND NOT tg.tgisinternal"
                     ),
                     {"ns": ns, "t": t},
                 )
                 return sorted(
-                    re.sub(r"\bON \w+\.", "ON ", x.d) for x in r
-                )  # strip table schema
+                    re.sub(r"\bON \w+\.", "ON ", x.d)  # strip table schema
+                    for x in r
+                    # Change-capture triggers are rendered from the registry at
+                    # provisioning time, not owned by Alembic — the same
+                    # treatment RLS policies get here, and for the same reason:
+                    # comparing them would assert the template carries a frozen
+                    # snapshot of whatever the registry said.
+                    if not x.n.startswith("capture_")
+                )
 
             drift = []
             for t in sorted(GUILD_SCOPED_TABLES):

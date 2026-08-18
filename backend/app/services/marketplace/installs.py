@@ -14,6 +14,7 @@ response.
 
 from __future__ import annotations
 
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import MarketplaceMessages
@@ -21,6 +22,7 @@ from app.models.platform.marketplace import (
     MarketplaceListing,
     MarketplaceListingVersion,
 )
+from app.models.tenant.guild_app import GuildApp
 from app.services.marketplace import catalog as catalog_service
 
 __all__ = ["ListingInstallError", "resolve_listing_install"]
@@ -51,13 +53,22 @@ async def resolve_listing_install(
     catalog to someone guessing at it.
 
     The lookup runs on the session the request already has, which holds read
-    access to the catalog.
+    access to the catalog. For a dashboard an app ships with itself, that
+    session is also routed into the guild, which is what lets the check below
+    ask whether the guild has the app.
     """
     listing = await catalog_service.get_listing_by_uid(session, listing_uid)
     if listing is None or listing.kind != kind:
         raise ListingInstallError(MarketplaceMessages.LISTING_NOT_FOUND, not_found=True)
     if not listing.available:
         raise ListingInstallError(MarketplaceMessages.LISTING_UNAVAILABLE)
+    if listing.bundled_with_uid is not None and not await _app_is_installed(
+        session, listing.bundled_with_uid
+    ):
+        # Browse only offers this where the app is installed. Deciding it again
+        # here is the point at which it means anything: a uid read in one guild
+        # is otherwise just as installable in the next.
+        raise ListingInstallError(MarketplaceMessages.LISTING_NEEDS_APP)
     version = await catalog_service.resolve_installable_version(session, listing)
     if version is None:
         # Either it has published nothing, or its current version needs a newer
@@ -65,3 +76,19 @@ async def resolve_listing_install(
         # get something other than what the listing page showed them.
         raise ListingInstallError(MarketplaceMessages.LISTING_VERSION_INCOMPATIBLE)
     return listing, version
+
+
+async def _app_is_installed(session: AsyncSession, app_uid: str) -> bool:
+    """Whether the guild this session is routed to has that app, switched on.
+
+    Reads the guild's own install row, so the schema boundary is what answers —
+    there is no guild id to pass and no chance of asking about the wrong one.
+    """
+    return (
+        await session.exec(
+            select(GuildApp.id).where(
+                GuildApp.listing_uid == app_uid,
+                GuildApp.enabled.is_(True),
+            )
+        )
+    ).first() is not None

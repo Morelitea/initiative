@@ -12,7 +12,14 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+)
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlmodel import Field, SQLModel
 
@@ -38,14 +45,6 @@ class WebhookSubscription(SQLModel, table=True):
             nullable=True,
         ),
     )
-    # Soft pointer back to the auto-side workflow this subscription was
-    # created for. Not enforced by FK because the source of truth lives
-    # in initiative-auto's DB.
-    workflow_id: Optional[int] = Field(
-        default=None,
-        sa_column=Column(Integer, nullable=True),
-    )
-
     created_by_user_id: int = Field(
         sa_column=Column(
             Integer,
@@ -59,6 +58,14 @@ class WebhookSubscription(SQLModel, table=True):
     hmac_secret: str = Field(sa_column=Column(String(length=128), nullable=False))
     event_types: list[str] = Field(
         sa_column=Column(ARRAY(String(length=100)), nullable=False),
+    )
+
+    # Column names this subscription cares about. NULL means any change to a
+    # named event type. An update is delivered when the changed set intersects
+    # this one; created/deleted always are, since neither names columns.
+    fields: Optional[list[str]] = Field(
+        default=None,
+        sa_column=Column(ARRAY(String(length=63)), nullable=True),
     )
 
     active: bool = Field(

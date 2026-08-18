@@ -44,6 +44,7 @@ from app.models.tenant.calendar_event import (
     CalendarEventTag,
     CalendarEventDocument,
 )
+from app.models.tenant.event_outbox import EventOutbox
 from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
 from app.models.tenant.dashboard import Dashboard, DashboardTag
 from app.models.tenant.counter import (
@@ -64,6 +65,7 @@ from app.models.platform.push_token import PushToken
 from app.models.platform.auto_delegation_jti import AutoDelegationJti
 from app.models.platform.billing import BillingEventLog, BillingJti
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
+from app.models.tenant.webhook_delivery import WebhookDelivery
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.export_job import ExportJob
@@ -132,6 +134,7 @@ __all__ = [
     "CalendarEventAttendee",
     "CalendarEventTag",
     "CalendarEventDocument",
+    "EventOutbox",
     "EventReminderDispatch",
     "Dashboard",
     "DashboardTag",
@@ -145,6 +148,7 @@ __all__ = [
     "BillingEventLog",
     "BillingJti",
     "TaskAssignmentDigestItem",
+    "WebhookDelivery",
     "WebhookSubscription",
     "AppServiceRegistration",
     "AppServiceNonce",
