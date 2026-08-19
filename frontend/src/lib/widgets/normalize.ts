@@ -274,6 +274,8 @@ export const emptyDataFor = (source: WidgetData["source"]): WidgetData => {
       return { source: "counter_group", name: "", counters: [] };
     case "sheet_range":
       return { source: "sheet_range", range: { columns: [], rows: [] } };
+    case "projects":
+      return { source: "projects", rows: [], tasks: [] };
     default:
       return { source, rows: [] } as WidgetData;
   }

@@ -138,5 +138,12 @@
     "needsBinding": "Was genau angezeigt wird, legst du nach dem Hinzufügen fest.",
     "add": "{{widget}} hinzufügen"
   },
-  "browseMarketplace": "Marktplatz durchsuchen"
+  "browseMarketplace": "Marktplatz durchsuchen",
+  "timeline": {
+    "collapse": "{{name}} zuklappen",
+    "expand": "{{name}} aufklappen",
+    "label": "Zeitachse",
+    "quarter": "Q{{quarter}}",
+    "today": "Heute"
+  }
 }

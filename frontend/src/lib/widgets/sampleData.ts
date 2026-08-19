@@ -9,7 +9,7 @@
  * clock, so a preview renders identically every time.
  */
 
-import type { WidgetData, WidgetSource } from "./dataShapes";
+import type { TaskRow, WidgetData, WidgetSource } from "./dataShapes";
 import { emptyDataFor } from "./normalize";
 
 const DAY = 86_400_000;
@@ -37,6 +37,12 @@ export interface WidgetSample {
   variants?: Record<string, WidgetData>;
 }
 
+/**
+ * Enough tasks to show the shapes a Gantt has to draw: work across more than
+ * one project, work with only a due date (a milestone), work finished late
+ * (a bar that overran its baseline), and work already overdue. A sparser set
+ * would preview as a tidy ladder and hide every one of them.
+ */
 const tasks: WidgetSample = {
   source: "tasks",
   data: {
@@ -45,12 +51,12 @@ const tasks: WidgetSample = {
       {
         id: 1,
         title: "Draft the spec",
-        status: "In review",
-        statusCategory: "in_progress",
+        status: "Done",
+        statusCategory: "done",
         priority: "high",
-        startDate: T0,
-        dueDate: T0 + 5 * DAY,
-        completedAt: null,
+        startDate: T0 - 18 * DAY,
+        dueDate: T0 - 10 * DAY,
+        completedAt: T0 - 12 * DAY,
         projectId: 10,
         projectName: "Apollo",
         assignees: ["Ada"],
@@ -61,57 +67,153 @@ const tasks: WidgetSample = {
         status: "Done",
         statusCategory: "done",
         priority: "medium",
-        startDate: T0 + 2 * DAY,
-        dueDate: T0 + 6 * DAY,
-        completedAt: T0 + 6 * DAY,
+        startDate: T0 - 9 * DAY,
+        dueDate: T0 - 3 * DAY,
+        // Finished four days past the date it was planned for — the case the
+        // baseline ghost exists to make visible.
+        completedAt: T0 + DAY,
         projectId: 10,
         projectName: "Apollo",
         assignees: ["Grace", "Ada"],
       },
       {
         id: 3,
+        title: "Migrate the search index",
+        status: "In progress",
+        statusCategory: "in_progress",
+        priority: "high",
+        startDate: T0 - 2 * DAY,
+        dueDate: T0 + 9 * DAY,
+        completedAt: null,
+        projectId: 10,
+        projectName: "Apollo",
+        assignees: ["Grace"],
+      },
+      {
+        id: 4,
+        title: "Beta sign-off",
+        status: "To do",
+        statusCategory: "todo",
+        priority: "high",
+        // A due date and nothing else: a dated instant, drawn as a diamond.
+        startDate: null,
+        dueDate: T0 + 14 * DAY,
+        completedAt: null,
+        projectId: 10,
+        projectName: "Apollo",
+        assignees: ["Ada"],
+      },
+      {
+        id: 5,
+        title: "Rewrite the onboarding copy",
+        status: "In progress",
+        statusCategory: "in_progress",
+        priority: "medium",
+        startDate: T0 - 4 * DAY,
+        dueDate: T0 + 20 * DAY,
+        completedAt: null,
+        projectId: 11,
+        projectName: "Borealis",
+        assignees: ["Lin"],
+      },
+      {
+        id: 6,
+        title: "Localize the emails",
+        status: "To do",
+        statusCategory: "todo",
+        priority: "low",
+        startDate: T0 + 6 * DAY,
+        dueDate: T0 + 24 * DAY,
+        completedAt: null,
+        projectId: 11,
+        projectName: "Borealis",
+        assignees: ["Lin", "Ada"],
+      },
+      {
+        id: 7,
+        title: "Audit the tracking plan",
+        status: "Done",
+        statusCategory: "done",
+        priority: "low",
+        startDate: T0 - 6 * DAY,
+        dueDate: T0 + 2 * DAY,
+        completedAt: T0 - DAY,
+        projectId: 11,
+        projectName: "Borealis",
+        assignees: ["Grace"],
+      },
+      {
+        id: 8,
         title: "Chase the vendor",
         status: "Blocked",
         statusCategory: "todo",
         priority: null,
-        startDate: null,
-        dueDate: T0 + 1 * DAY,
+        // Past its date and still open — the overdue tone.
+        startDate: T0 - 8 * DAY,
+        dueDate: T0 - 2 * DAY,
         completedAt: null,
         projectId: null,
         projectName: null,
         assignees: [],
+      },
+      {
+        id: 9,
+        title: "Book the launch venue",
+        status: "To do",
+        statusCategory: "todo",
+        priority: "medium",
+        startDate: T0 + 11 * DAY,
+        dueDate: T0 + 13 * DAY,
+        completedAt: null,
+        projectId: null,
+        projectName: null,
+        assignees: ["Lin"],
       },
     ],
   },
   empty: { source: "tasks", rows: [] },
 };
 
+const projectRows = [
+  {
+    id: 10,
+    name: "Apollo",
+    startDate: T0 - 20 * DAY,
+    endDate: T0 + 16 * DAY,
+    progress: 0.5,
+    taskCount: 4,
+    doneCount: 2,
+  },
+  {
+    id: 11,
+    name: "Borealis",
+    startDate: T0 - 6 * DAY,
+    endDate: T0 + 26 * DAY,
+    progress: 1 / 3,
+    taskCount: 3,
+    doneCount: 1,
+  },
+  {
+    id: 12,
+    name: "Cygnus",
+    startDate: T0 - 30 * DAY,
+    endDate: T0 - 4 * DAY,
+    progress: 1,
+    taskCount: 5,
+    doneCount: 5,
+  },
+];
+
+/** The same rows the tasks sample carries — a project's own work is what it
+ *  folds open to, so the two samples have to agree on `projectId`. */
 const projects: WidgetSample = {
   source: "projects",
   data: {
     source: "projects",
-    rows: [
-      {
-        id: 10,
-        name: "Apollo",
-        startDate: T0,
-        endDate: T0 + 30 * DAY,
-        progress: 0.4,
-        taskCount: 20,
-        doneCount: 8,
-      },
-      {
-        id: 11,
-        name: "Borealis",
-        startDate: T0 + 10 * DAY,
-        endDate: T0 + 45 * DAY,
-        progress: 1,
-        taskCount: 12,
-        doneCount: 12,
-      },
-    ],
+    rows: projectRows,
+    tasks: (tasks.data as { rows: TaskRow[] }).rows,
   },
-  empty: { source: "projects", rows: [] },
+  empty: { source: "projects", rows: [], tasks: [] },
 };
 
 const calendarEntries: WidgetSample = {
