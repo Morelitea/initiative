@@ -19,30 +19,55 @@ const meta = {
     es: "Recuentos por etapa, de la más amplia a la más estrecha, con la conversión entre cada una.",
     fr: "Des effectifs par étape, du plus large au plus étroit, avec la conversion entre chaque étape.",
   },
+  options: {
+    order: {
+      label: {
+        en: "Stage order",
+        de: "Reihenfolge der Stufen",
+        es: "Orden de etapas",
+        fr: "Ordre des étapes",
+      },
+      values: {
+        source: {
+          en: "As the data comes",
+          de: "Wie die Daten kommen",
+          es: "Según llegan los datos",
+          fr: "Dans l'ordre des données",
+        },
+        descending: {
+          en: "Largest first",
+          de: "Größte zuerst",
+          es: "Mayor primero",
+          fr: "Le plus grand d'abord",
+        },
+      },
+    },
+  },
 };
 
 /**
- * Built-in: funnel — staged counts, widest first.
+ * Built-in: funnel — staged counts, and what falls out between them.
+ *
+ * Stages are *ordered*, which is why they carry no per-stage color: an ordered
+ * scale takes one hue that deepens along the sequence, and the renderer derives
+ * that from position. Handing each stage a categorical color would say the
+ * stages are unrelated identities, which is the opposite of what a funnel means.
+ *
+ * The order matters too: a workflow's own sequence is usually the point, so
+ * sorting is opt-in rather than the default.
  *
  * @param {import("../dataShapes").WidgetData} data
  * @param {import("../dataShapes").WidgetConfig} config
  */
 function render(data, config) {
+  const sorted = config.order === "descending";
+
   const empty = (message) => ({ v: 1, scene: { kind: "empty", message } });
 
   const funnel = (stages) => {
-    if (!stages.length) return empty("No stages to show");
-    // A funnel is read top-down as narrowing, so the widest stage leads
-    // regardless of the order the source happened to return.
-    const ordered = [...stages].sort((a, b) => b.value - a.value);
-    return {
-      v: 1,
-      scene: {
-        kind: "funnel",
-        stages: ordered,
-        format: config.format || undefined,
-      },
-    };
+    if (!stages.length) return empty("Nothing to stage");
+    const ordered = sorted ? stages.slice().sort((a, b) => b.value - a.value) : stages;
+    return { v: 1, scene: { kind: "funnel", stages: ordered } };
   };
 
   switch (data.source) {
@@ -54,8 +79,10 @@ function render(data, config) {
 
     case "sheet_range": {
       const range = data.range;
-      if (!range?.rows.length) return empty("Range is empty");
-      const [firstRow] = range.rows;
+      if (!range || !range.rows.length) return empty("Range is empty");
+      // A label column and a number column: the first of each, so a two-column
+      // range reads without configuration.
+      const firstRow = range.rows[0];
       const labelIndex = firstRow.findIndex((cell) => typeof cell !== "number");
       const valueIndex = firstRow.findIndex((cell) => typeof cell === "number");
       if (valueIndex < 0) return empty("No numeric values in range");

@@ -36,6 +36,7 @@ import {
   type CountBucket,
   countTasks,
   countTasksByProject,
+  type DayField,
   emptyDataFor,
   normalizeCalendarEntries,
   normalizeCounter,
@@ -62,6 +63,8 @@ export interface WidgetBinding {
   sheet?: string | null;
   range?: string | null;
   bucket?: CountBucket | null;
+  /** Which date a `day` bucket counts on. */
+  day_field?: DayField | null;
   /** Days back from today for time-windowed sources. */
   window_days?: number | null;
   /** `app` source: which installed app, which of its sources, and the arguments
@@ -292,7 +295,8 @@ export function useWidgetData(
       case "task_counts": {
         const rows = countTasks(
           normalizeTasks(tasksQuery.data?.items ?? []),
-          binding.bucket ?? undefined
+          binding.bucket ?? undefined,
+          binding.day_field ?? undefined
         );
         return {
           data: { source, rows, meta: taskMeta },
@@ -471,6 +475,7 @@ export function useWidgetData(
     source,
     initiativeId,
     binding.bucket,
+    binding.day_field,
     binding.calendar_id,
     binding.counter_group_id,
     binding.counter_id,

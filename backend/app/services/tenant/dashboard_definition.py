@@ -137,7 +137,17 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
         default_w=3,
         default_h=2,
         sources=frozenset({"counter", "task_counts", "sheet_range"}),
-        options={"format": _option("plain", "percent", "currency", "duration")},
+        options={
+            "format": _option("plain", "percent", "currency", "duration"),
+            # Which count the number reports when its source is several
+            # buckets rather than one value.
+            "pick": _option("total", "largest", "first"),
+            # A trend line under the number, and what its direction means. A
+            # falling cycle time is good; falling revenue is not, so the widget
+            # is told rather than guessing.
+            "trend": _option("off", "on"),
+            "direction": _option("up_good", "down_good"),
+        },
     ),
     # A series drawn as bars/lines/area/slices.
     "chart": WidgetSpec(
@@ -149,6 +159,19 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
         options={
             "mark": _option("bar", "line", "area", "pie"),
             "stacked": _option("false", "true"),
+            "sort": _option("source", "value_desc", "value_asc", "label"),
+            # A ceiling on categories, with the tail folded into one "Other"
+            # entry. The alternative — more colors — is the thing a categorical
+            # palette cannot do past its slot count.
+            "limit": _option("all", "5", "8", "12"),
+            # Horizontal bars give long category names room to be read.
+            "orientation": _option("columns", "bars"),
+            # Direct labels, always selective: the extremes or the end of a
+            # line, never a number on every point.
+            "values": _option("none", "extremes", "end"),
+            # One series in color and the rest in gray — the honest form when
+            # the story is a single series and the others are context.
+            "emphasis": _option("none", "largest", "last"),
         },
     ),
     # Staged counts, widest bucket first.
@@ -158,6 +181,11 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
         default_w=6,
         default_h=5,
         sources=frozenset({"task_counts", "sheet_range"}),
+        options={
+            # Stages are usually a workflow, so the order the source gave them
+            # is meaningful; sorting is for when it is not.
+            "order": _option("source", "descending"),
+        },
     ),
     # A completion bar — a counter against its own min/max, or a done ratio.
     "progress": WidgetSpec(
@@ -166,6 +194,11 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
         default_w=4,
         default_h=2,
         sources=frozenset({"counter", "task_counts", "projects"}),
+        options={
+            # One bar for the whole binding, or one per project/bucket.
+            "breakdown": _option("total", "each"),
+            "format": _option("percent", "plain"),
+        },
     ),
     # Density over a calendar grid. Task counts bucketed by day is what it draws
     # at launch; nothing about the widget is specific to that source.
@@ -175,6 +208,7 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
         default_w=8,
         default_h=3,
         sources=frozenset({"task_counts"}),
+        options={"tone": _option("accent", "positive", "warning")},
     ),
     # A plain read-only table. Display only, like every widget: no row actions,
     # no inline editing — that is a project view's job, not a dashboard's.
@@ -184,6 +218,15 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
         default_w=12,
         default_h=5,
         sources=frozenset({"tasks", "projects", "sheet_range", "calendar_entries"}),
+        options={
+            # How many of a row's fields to show. The envelope carries tags,
+            # assignees, checklist progress and comment counts; "standard" is
+            # the four columns that fit a half-width tile.
+            "columns": _option("standard", "detailed"),
+            # Mark rows that need attention, in the negative tone.
+            "highlight": _option("off", "overdue"),
+            "totals": _option("off", "on"),
+        },
     ),
 }
 

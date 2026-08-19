@@ -359,7 +359,7 @@ function ParamControl({
     case "enum":
       return (
         <section className="space-y-2">
-          <Label>{t("dashboards:config.groupBy")}</Label>
+          <Label>{t(`dashboards:bindingParam.${key}` as const, { defaultValue: key })}</Label>
           <Select
             value={(binding[param.key] as string) ?? param.fallback}
             onValueChange={(next) => onChange({ [param.key]: next } as Partial<WidgetBinding>)}
@@ -370,7 +370,7 @@ function ParamControl({
             <SelectContent>
               {param.values.map((value) => (
                 <SelectItem key={value} value={value}>
-                  {t(`dashboards:config.bucket.${value}` as const, { defaultValue: value })}
+                  {t(`dashboards:paramValue.${value}` as const, { defaultValue: value })}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -381,7 +381,9 @@ function ParamControl({
     case "window":
       return (
         <section className="space-y-2">
-          <Label htmlFor={`param-${key}`}>{t("dashboards:config.window")}</Label>
+          <Label htmlFor={`param-${key}`}>
+            {t(`dashboards:bindingParam.${key}` as const, { defaultValue: key })}
+          </Label>
           <Input
             id={`param-${key}`}
             type="number"

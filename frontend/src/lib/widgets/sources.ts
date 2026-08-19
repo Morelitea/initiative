@@ -84,6 +84,11 @@ export interface SourceDescriptor {
 
 /** Count buckets the `task_counts` source understands. Only `day` has a
  *  calendar shape, which is what a heatmap needs. */
+/** Which of a task's dates a day-bucketed count places it on. Completion is
+ *  the historical record, creation is intake, due is the plan — three genuinely
+ *  different questions, and until now only the first was reachable. */
+export const DAY_FIELDS = ["completed", "created", "due"] as const;
+
 export const COUNT_BUCKETS = [
   "status_category",
   "status",
@@ -108,6 +113,7 @@ export const SOURCES: Record<WidgetSource, SourceDescriptor> = {
     params: [
       { kind: "entity", key: "project_id", entity: "project" },
       { kind: "enum", key: "bucket", values: COUNT_BUCKETS, fallback: "status_category" },
+      { kind: "enum", key: "day_field", values: DAY_FIELDS, fallback: "completed" },
       { kind: "filters", key: "conditions" },
     ],
   },

@@ -294,6 +294,20 @@
     "sheet": "Sheet",
     "range": "Range",
     "app_uid": "App",
-    "source_id": "App data source"
+    "source_id": "App data source",
+    "bucket": "Group counts by",
+    "day_field": "Count each task on its",
+    "window_days": "Time window (days)"
+  },
+  "paramValue": {
+    "status_category": "Status category",
+    "status": "Status",
+    "priority": "Priority",
+    "project": "Project",
+    "assignee": "Assignee",
+    "day": "Day",
+    "completed": "Completion date",
+    "created": "Creation date",
+    "due": "Due date"
   }
 }

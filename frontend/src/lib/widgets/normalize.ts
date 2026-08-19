@@ -165,14 +165,25 @@ const DEFAULT_BUCKET: CountBucket = "status_category";
  * endpoint. Two widgets on one canvas bound to the same tasks therefore share a
  * single query and disagree about nothing.
  */
-export const countTasks = (tasks: TaskRow[], bucket: CountBucket = DEFAULT_BUCKET): CountRow[] => {
+/** Which date a day-bucketed count places a task on. */
+export type DayField = "completed" | "created" | "due";
+
+const dayValue = (task: TaskRow, field: DayField): number | null =>
+  field === "created" ? task.createdAt : field === "due" ? task.dueDate : task.completedAt;
+
+export const countTasks = (
+  tasks: TaskRow[],
+  bucket: CountBucket = DEFAULT_BUCKET,
+  dayField: DayField = "completed"
+): CountRow[] => {
   if (bucket === "day") {
-    // Completion is the only per-day event a task carries; an incomplete task
-    // has no day to sit on, so it is absent rather than placed arbitrarily.
+    // A task with no date for the chosen field has no day to sit on, so it is
+    // absent rather than placed arbitrarily.
     const byDay = new Map<number, number>();
     for (const task of tasks) {
-      if (task.completedAt === null) continue;
-      const day = startOfUtcDay(task.completedAt);
+      const at = dayValue(task, dayField);
+      if (at === null) continue;
+      const day = startOfUtcDay(at);
       byDay.set(day, (byDay.get(day) ?? 0) + 1);
     }
     return [...byDay.entries()]
