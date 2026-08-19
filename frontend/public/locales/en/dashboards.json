@@ -141,7 +141,12 @@
     "sectionGeneral": "General",
     "rowNoun": "One row per {{noun}}",
     "window": "Time window",
-    "windowDays": "{{count}} days either side of today"
+    "windowDays": "{{count}} days either side of today",
+    "all_project": "All projects",
+    "all_calendar": "All calendars",
+    "all_counter_group": "All counter groups",
+    "all_counter": "All counters",
+    "all_document": "All spreadsheets"
   },
   "picker": {
     "title": "Add a widget",
@@ -269,5 +274,26 @@
     "stage": "Stage",
     "label": "Label",
     "column": "Column"
+  },
+  "filterOp": {
+    "eq": "is",
+    "in_": "is any of",
+    "lt": "before",
+    "lte": "on or before",
+    "gt": "after",
+    "gte": "on or after",
+    "ilike": "contains",
+    "is_null": "is empty"
+  },
+  "bindingParam": {
+    "project": "Project",
+    "calendar": "Calendar",
+    "counter_group": "Counter group",
+    "counter": "Counter",
+    "document": "Spreadsheet",
+    "sheet": "Sheet",
+    "range": "Range",
+    "app_uid": "App",
+    "source_id": "App data source"
   }
 }

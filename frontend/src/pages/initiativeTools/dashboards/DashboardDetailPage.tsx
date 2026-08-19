@@ -151,6 +151,7 @@ export function DashboardDetailPage() {
           widget={configuring}
           catalog={catalogQuery.data}
           initiativeId={dashboard.initiative_id}
+          dashboardId={dashboard.id}
           open={configuring !== null}
           onOpenChange={(next) => !next && setConfiguringId(null)}
           onSave={(patch) => configuringId && editor.updateWidget(configuringId, patch)}

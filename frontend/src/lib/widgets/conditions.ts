@@ -90,7 +90,7 @@ export interface FilterFieldSpec {
  * fields; the rest are `Task` columns. `initiative_ids` is deliberately absent —
  * a dashboard reads its own initiative and a binding cannot say otherwise.
  */
-export const TASK_FILTER_FIELDS: readonly FilterFieldSpec[] = [
+export const TASK_FILTER_FIELDS = [
   { field: "status_category", kind: "status_category", ops: ["in_"], multiple: true },
   { field: "task_status_id", kind: "task_status", ops: ["in_"], multiple: true },
   { field: "priority", kind: "priority", ops: ["in_"], multiple: true },
@@ -103,7 +103,11 @@ export const TASK_FILTER_FIELDS: readonly FilterFieldSpec[] = [
   { field: "created_at", kind: "date", ops: ["lt", "lte", "gt", "gte"] },
   { field: "is_archived", kind: "boolean", ops: ["eq"] },
   { field: "title", kind: "text", ops: ["ilike"] },
-] as const;
+] as const satisfies readonly FilterFieldSpec[];
+
+/** The field names, as literals — so the labels that name them stay checked
+ *  against the locale file rather than falling back to a default. */
+export type TaskFilterField = (typeof TASK_FILTER_FIELDS)[number]["field"];
 
 export const fieldSpec = (field: string): FilterFieldSpec | undefined =>
   TASK_FILTER_FIELDS.find((candidate) => candidate.field === field);
