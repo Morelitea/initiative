@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Leaving a guild works again.** If you belonged to any of the guild's initiatives, leaving it failed outright with a permission error, and so did stepping out of an initiative you managed. Both go through now, and the change is still reported to any webhook watching.
 - **The overdue digest no longer counts tasks you have set aside.** It swept up tasks in archived projects, and tasks you had archived yourself, so people were chased about work they had already cleared off their plate. The daily email and push now count only live tasks in live projects, matching what My Tasks has always shown.
 
 ## [0.62.7] - 2026-08-18
