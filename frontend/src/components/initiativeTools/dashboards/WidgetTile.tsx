@@ -19,6 +19,7 @@ import { builtinWidgetSource } from "@/lib/widgets/registry";
 import { renderWidget, type WidgetRenderOutcome } from "@/lib/widgets/runtime/host";
 
 import { SceneRenderer } from "./scene/SceneRenderer";
+import { SceneTableView } from "./scene/SceneTableView";
 
 export interface WidgetTileProps {
   /** Widget primitive from the definition — the key into the module registry. */
@@ -45,6 +46,11 @@ export interface WidgetTileProps {
    *  the samples' own anchor here, so a clock-reading widget draws the same
    *  picture every time; live tiles omit it and get the real minute. */
   now?: number;
+  /** Draw the scene, or the same scene's numbers as a table. The widget runs
+   *  identically either way — the table is derived from what it returned, not
+   *  requested from it — so nothing about a widget changes when a reader
+   *  switches, and a widget cannot tell which one it is being read in. */
+  view?: "scene" | "table";
 }
 
 type State = { status: "loading" } | { status: "done"; outcome: WidgetRenderOutcome };
@@ -60,6 +66,7 @@ export function WidgetTile({
   isLoading,
   chromeless,
   now,
+  view = "scene",
 }: WidgetTileProps) {
   const [state, setState] = useState<State>({ status: "loading" });
 
@@ -104,7 +111,11 @@ export function WidgetTile({
     isLoading || state.status === "loading" ? (
       <Skeleton className="h-full w-full" />
     ) : state.outcome.ok ? (
-      <SceneRenderer node={state.outcome.spec.scene} />
+      view === "table" ? (
+        <SceneTableView node={state.outcome.spec.scene} />
+      ) : (
+        <SceneRenderer node={state.outcome.spec.scene} />
+      )
     ) : (
       <WidgetError code={state.outcome.code} detail={state.outcome.detail} />
     );

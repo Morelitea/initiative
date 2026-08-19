@@ -111,27 +111,12 @@ export const appWidgetParts = (
   return listingUid && widgetId ? { listingUid, widgetId } : undefined;
 };
 
-/** Slots a widget still needs filled before it can draw anything. */
-export const unboundSlots = (binding: WidgetBinding): string[] => {
-  switch (binding.source) {
-    case "app":
-      // A listing may ship an app widget without naming the source, leaving the
-      // install to point it at one — the same "config fills the slot" shape a
-      // counter binding has.
-      return [...(binding.app_uid ? [] : ["app_uid"]), ...(binding.source_id ? [] : ["source_id"])];
-    case "counter":
-      return [
-        ...(binding.counter_group_id ? [] : ["counter_group_id"]),
-        ...(binding.counter_id ? [] : ["counter_id"]),
-      ];
-    case "counter_group":
-      return binding.counter_group_id ? [] : ["counter_group_id"];
-    case "sheet_range":
-      return [...(binding.document_id ? [] : ["document_id"]), ...(binding.range ? [] : ["range"])];
-    default:
-      return [];
-  }
-};
+/** Slots a widget still needs filled before it can draw anything.
+ *
+ *  Re-exported from the source registry, which derives it from each
+ *  parameter's own `required` flag — this used to be a second `switch` over the
+ *  same knowledge. */
+export { unboundSlots } from "@/lib/widgets/sources";
 
 // --- editing ----------------------------------------------------------------
 
