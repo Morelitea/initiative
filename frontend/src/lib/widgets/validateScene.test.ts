@@ -167,6 +167,89 @@ describe("validateScene — the trust boundary", () => {
     expectCode(wrap({ kind: "table", columns: [{ key: "name" }], rows }), SceneErrorCode.TOO_LARGE);
   });
 
+  describe("timeline lanes nest", () => {
+    it("keeps a lane tree, and the fields a Gantt row is made of", () => {
+      const result = validateScene(
+        wrap({
+          kind: "timeline",
+          now: 500,
+          lanes: [
+            {
+              label: "Apollo",
+              caption: "2/4",
+              tone: "accent",
+              collapsed: true,
+              spans: [{ kind: "summary", start: 0, end: 100, progress: 0.5 }],
+              children: [
+                {
+                  label: "Spec",
+                  spans: [
+                    {
+                      kind: "bar",
+                      start: 0,
+                      end: 40,
+                      caption: "Ada",
+                      baseline: { start: 0, end: 30 },
+                    },
+                  ],
+                },
+                { label: "Sign-off", spans: [{ kind: "milestone", start: 90, end: 90 }] },
+              ],
+            },
+          ],
+        })
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const scene = result.spec.scene as Extract<typeof result.spec.scene, { kind: "timeline" }>;
+      expect(scene.now).toBe(500);
+      expect(scene.lanes[0].collapsed).toBe(true);
+      expect(scene.lanes[0].children).toHaveLength(2);
+      expect(scene.lanes[0].children?.[0].spans[0].baseline).toEqual({ start: 0, end: 30 });
+      expect(scene.lanes[0].children?.[1].spans[0].kind).toBe("milestone");
+    });
+
+    it("rejects a span shape the renderer has no mark for", () => {
+      expectCode(
+        wrap({ kind: "timeline", lanes: [{ spans: [{ kind: "spiral", start: 0, end: 1 }] }] }),
+        SceneErrorCode.ENUM_INVALID
+      );
+    });
+
+    it("counts lanes across the whole tree, not per level", () => {
+      // A chain, not a list: each level holds one lane, so no single array is
+      // near the cap while the total is well past it.
+      let deep: unknown = { spans: [] };
+      for (let index = 0; index < SCENE_LIMITS.maxLanes; index++) {
+        deep = { spans: [], children: [deep] };
+      }
+      const result = validateScene(wrap({ kind: "timeline", lanes: [deep] }));
+      expect(result.ok).toBe(false);
+    });
+
+    it("caps how deeply lanes nest", () => {
+      let deep: unknown = { spans: [] };
+      for (let index = 0; index <= SCENE_LIMITS.maxLaneDepth; index++) {
+        deep = { spans: [], children: [deep] };
+      }
+      expectCode(wrap({ kind: "timeline", lanes: [deep] }), SceneErrorCode.TOO_DEEP);
+    });
+
+    it("drops a key a lane never declared", () => {
+      const result = validateScene(
+        wrap({
+          kind: "timeline",
+          lanes: [{ spans: [{ start: 0, end: 1, onClick: "alert(1)" }], href: "javascript:0" }],
+        })
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const scene = result.spec.scene as Extract<typeof result.spec.scene, { kind: "timeline" }>;
+      expect(scene.lanes[0]).not.toHaveProperty("href");
+      expect(scene.lanes[0].spans[0]).not.toHaveProperty("onClick");
+    });
+  });
+
   it("never throws, whatever it is handed", () => {
     const hostile: unknown[] = [
       undefined,

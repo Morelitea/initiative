@@ -78,6 +78,12 @@ def install_soft_delete_filter() -> None:
             return
         if state.execution_options.get("include_deleted", False):
             return
+        # Request-scoped opt-out: a handler reading a resource back after a
+        # deleted event flags its session (see api.deps.IncludeDeletedDep) so
+        # every load it performs — helpers and DAC loaders included — can see
+        # the trashed row without threading a parameter through each one.
+        if state.session is not None and state.session.info.get("include_deleted"):
+            return
         for model_cls in SOFT_DELETE_MODELS:
             state.statement = state.statement.options(
                 with_loader_criteria(

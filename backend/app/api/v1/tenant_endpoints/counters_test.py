@@ -829,3 +829,48 @@ async def test_counter_group_counts_by_initiative(
     )
     assert response.status_code == 200
     assert response.json()["counts"] == {str(admin.initiative.id): 1}
+
+
+async def test_a_counter_resolves_by_its_own_id(client, session, acting_user):
+    """An envelope names ``(counters, id)`` and no parent, so the id has to be
+    the whole address."""
+    from app.models.platform.guild import GuildRole
+    from app.testing import create_counter, create_counter_group
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    group = await create_counter_group(session, a.initiative, a.user)
+    counter = await create_counter(session, group)
+    await session.commit()
+
+    response = await client.get(a.g(f"/counters/{counter.id}"), headers=a.headers)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["id"] == counter.id
+
+
+async def test_a_deleted_counter_reads_back(client, session, acting_user):
+    """The read-back a ``counters.deleted`` event depends on. A hand-written
+    deleted check used to refuse this even when the request asked for it."""
+    from datetime import datetime, timezone
+
+    from app.models.platform.guild import GuildRole
+    from app.testing import create_counter, create_counter_group
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    group = await create_counter_group(session, a.initiative, a.user)
+    counter = await create_counter(session, group)
+    counter_id = counter.id
+    counter.deleted_at = datetime.now(timezone.utc)
+    session.add(counter)
+    await session.commit()
+
+    hidden = await client.get(a.g(f"/counters/{counter_id}"), headers=a.headers)
+    assert hidden.status_code == 404
+
+    found = await client.get(
+        a.g(f"/counters/{counter_id}"),
+        params={"include_deleted": "true"},
+        headers=a.headers,
+    )
+    assert found.status_code == 200, found.text
+    assert found.json()["id"] == counter_id

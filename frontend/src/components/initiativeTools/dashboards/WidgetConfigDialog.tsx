@@ -335,7 +335,7 @@ export function WidgetConfigDialog({
                 {localized(meta?.options?.[option.key]?.label, i18n.language) ?? option.key}
               </Label>
               <Select
-                value={options[option.key] ?? option.values[0]}
+                value={options[option.key] ?? option.default}
                 onValueChange={(next) =>
                   setOptions((current) => ({ ...current, [option.key]: next }))
                 }

@@ -15,11 +15,10 @@ DAC — feature gate only).
 from dataclasses import dataclass
 from typing import Annotated, Any, Awaitable, Callable, Optional
 
-from fastapi import Depends, HTTPException, Path, status
+from fastapi import Depends, HTTPException, status
 
 from app.api.deps import (
     GuildContext,
-    RLSSessionDep,
     get_current_active_user,
     get_guild_membership,
 )
@@ -193,31 +192,6 @@ async def load_authorized(
         guild_role=guild_context.role,
     )
     return row
-
-
-def resource_dependency(
-    kind: Tool, access: str = "read", *, require_owner: bool = False
-) -> Callable[..., Awaitable[Any]]:
-    """FastAPI dependency injecting a pre-authorized resource (check before body)."""
-    cfg = RESOURCE_ACCESS[kind]
-
-    async def dependency(
-        session: RLSSessionDep,
-        current_user: CurrentUserDep,
-        guild_context: GuildContextDep,
-        resource_id: Annotated[int, Path(alias=cfg.path_param)],
-    ) -> Any:
-        return await load_authorized(
-            session,
-            kind,
-            resource_id,
-            current_user,
-            guild_context,
-            access=access,
-            require_owner=require_owner,
-        )
-
-    return dependency
 
 
 def my_permission_level(

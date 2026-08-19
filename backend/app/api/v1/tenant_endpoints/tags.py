@@ -8,6 +8,7 @@ from sqlmodel import select
 
 from app.api import resource_access
 from app.api.deps import (
+    IncludeDeletedDep,
     GuildContext,
     RLSSessionDep,
     SessionDep,
@@ -231,6 +232,7 @@ async def get_tag(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
+    include_deleted: IncludeDeletedDep = False,
 ) -> Tag:
     """Get a specific tag by ID."""
     return await _get_tag_or_404(session, tag_id, guild_context.guild_id)

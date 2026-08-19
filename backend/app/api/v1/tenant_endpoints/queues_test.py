@@ -989,3 +989,20 @@ async def test_queue_counts_by_initiative(
     )
     assert response.status_code == 200
     assert response.json()["counts"] == {str(admin.initiative.id): 1}
+
+
+async def test_a_queue_item_resolves_by_its_own_id(client, session, acting_user):
+    """An envelope names ``(queue_items, id)`` and no parent queue, so the id
+    has to be the whole address."""
+    from app.models.platform.guild import GuildRole
+    from app.testing import create_queue, create_queue_item
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    queue = await create_queue(session, a.initiative, a.user)
+    item = await create_queue_item(session, queue)
+    await session.commit()
+
+    response = await client.get(a.g(f"/queue-items/{item.id}"), headers=a.headers)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["id"] == item.id

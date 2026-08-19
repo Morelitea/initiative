@@ -6,13 +6,16 @@ resolves its initiative* for ``public.initiative_access(...)``. From that one
 declaration we derive:
 
 - ``INITIATIVE_SCOPED_TABLES`` (``app.db.tenancy`` re-exports it and folds it
-  into ``GUILD_SCOPED_TABLES``), and
+  into ``GUILD_SCOPED_TABLES``),
 - the rendered RLS DDL (``app.db.guild_ddl`` stamps the
-  uniform policy boilerplate around each path).
+  uniform policy boilerplate around each path), and
+- change capture: the table emits events, scoped by that same path and naming
+  itself, unless ``EVENT_SOURCES`` (below) says otherwise.
 
 So a new initiative-scoped table is added in ONE place — add a path here — and
-both the classification and the generated policies follow. ``tenancy_test.py``
-and ``guild_rls_test.py`` enforce that nothing drifts.
+the classification, the generated policies, and its event stream all follow.
+``tenancy_test.py``, ``guild_rls_test.py`` and ``event_readback_test.py``
+enforce that nothing drifts.
 
 This module is intentionally dependency-free (no models, no SQLAlchemy) so it can
 be imported by ``tenancy`` and by the build-time generator alike.
@@ -23,7 +26,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
-from app.core.tools import RECENTABLE_TOOLS
+from app.core.tools import RECENTABLE_TOOLS, Tool
 
 # The request-GUC user id, NULLIF-guarded so an unset/PAM context yields NULL
 # (no membership) rather than faulting the cast for every row.
@@ -272,7 +275,9 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "property_definitions": direct(),
     "resource_grants": direct(),
     # The change log itself. Scoped like the rows it describes, which is what
-    # lets the poller read it AS the subscriber (see EVENTED_TABLES below).
+    # lets the poller read it AS the subscriber (see EVENT_SOURCES below).
+    # Reading is the question this path answers; writing is the capture
+    # trigger's alone (app.db.guild_ddl._TRIGGER_WRITTEN_INSERT).
     "event_outbox": direct(),
     # Integration config, reached by whoever can reach what it watches.
     "webhook_subscriptions": webhook_subscription_path(),
@@ -336,93 +341,200 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
 INITIATIVE_SCOPED_TABLES: frozenset[str] = frozenset(INITIATIVE_PATHS)
 
 
-# Tables that get NO change-capture trigger, and why. Stated as an EXCLUSION so
-# the default is "a new content table is evented": a new entry in
-# INITIATIVE_PATHS starts emitting with no second edit, and anything that should
-# stay silent has to say so here deliberately. An inclusion list would instead
-# let a new table ship emitting nothing, which is the failure this whole
-# mechanism exists to remove.
-NON_EVENTED_TABLES: frozenset[str] = frozenset(
-    {
-        # The log cannot log itself.
-        "event_outbox",
-        # Per-user viewing/ordering state and internal dispatch bookkeeping.
-        # These record what one member did with their own UI, not a change to
-        # the initiative's content, so emitting them is pure noise on every
-        # subscription.
-        "recent_views",
-        "project_orders",
-        "project_favorites",
-        "task_assignment_digest_items",
-        "event_reminder_dispatches",
-        # Integration config — it has no changes of its own to report.
-        "webhook_subscriptions",
-    }
-)
+# ---------------------------------------------------------------------------
+# Change capture: what emits, and as what
+# ---------------------------------------------------------------------------
+#
+# One registry, holding only DEVIATIONS from the default. The default is derived:
+# a table in INITIATIVE_PATHS emits, scoped by that same path, naming itself.
+# So an ordinary new content table needs no entry here at all — which is the
+# whole point, and why the deviations are stated rather than the members.
 
-# Tables that EMIT events but do not carry initiative-member RLS, mapped to how
-# an event about one resolves its initiative.
-#
-# Emitting and being initiative-scoped are different questions, and deriving the
-# first from the second is a mistake: the structural initiative tables are
-# deliberately exempt from the RLS (a membership table cannot be gated by the
-# membership check it backs without the policy recursing), and that exemption
-# must not also mean "invisible to every automation". Creating an initiative,
-# adding a member, changing a role are all things a subscriber can act on.
-#
-# These get a capture trigger and nothing else — no policies are rendered from
-# this registry. The resulting outbox row carries a real initiative_id, so RLS on
-# ``event_outbox`` scopes the EVENT normally even though the source table is not
-# scoped: members of that initiative, and guild admins, see it.
-GUILD_LEVEL_EVENTED: dict[str, RowLocator] = {
-    # An event about an initiative belongs to that initiative.
-    "initiatives": lambda r: f"{r}.id",
-    "initiative_members": lambda r: f"{r}.initiative_id",
-    "initiative_roles": lambda r: f"{r}.initiative_id",
-    "initiative_role_permissions": lambda r: (
+
+@dataclass(frozen=True)
+class ReportsAs:
+    """Report a table's changes as an update to a DIFFERENT resource.
+
+    Some tables have an id of their own without being something a subscriber
+    fetches on its own: a project's statuses, a document's version history, an
+    initiative's roles, a resource's sharing. Each is a facet of the thing it
+    belongs to, and saying so is what keeps every event's id resolvable — the
+    parent already has a detail route, so adding one of these owes no new API
+    surface.
+
+    Junctions get this shape for free (``task_tags`` -> ``tasks.updated`` with
+    ``changed = ['tags']``, derived from the composite key). This is the explicit
+    form, for tables whose own primary key would otherwise make them look
+    independently addressable.
+    """
+
+    #: Resource types an event from this table can name. Usually one; a grant
+    #: names whichever tool it is on, so the vocabulary needs the whole set.
+    resource_types: frozenset[str]
+    #: Row expression yielding that resource's id.
+    id_expr: RowLocator
+    #: Label reported in ``changed``.
+    facet: str
+    #: Row expression yielding the resource TYPE, for the polymorphic case.
+    #: ``None`` when ``resource_types`` holds the single constant answer.
+    type_expr: RowLocator | None = None
+
+
+def reports_as(parent: str, fk: str, facet: str) -> ReportsAs:
+    """Facet of one fixed parent, reached by a foreign key on the row."""
+    return ReportsAs(
+        resource_types=frozenset({parent}),
+        id_expr=lambda r: f'{r}."{fk}"',
+        facet=facet,
+    )
+
+
+def grants_report_on_their_resource() -> ReportsAs:
+    """A grant is sharing ON something — report it against that something.
+
+    ``resource_type`` holds the Tool value and ``resource_id`` its id, so the
+    event lands on the project (or document, queue, …) whose access changed.
+    That is both what a subscriber wants to hear and already resolvable, where
+    the grant row's own id resolves nowhere.
+
+    An unrecognized ``resource_type`` yields NULL from the CASE and the row is
+    skipped, so the vocabulary below and what the trigger can emit stay the same
+    set.
+    """
+    arms = " ".join(f"WHEN '{t.value}' THEN '{t.plural}'" for t in Tool)
+    return ReportsAs(
+        resource_types=frozenset(t.plural for t in Tool),
+        id_expr=lambda r: f"{r}.resource_id",
+        facet="sharing",
+        type_expr=lambda r: f"(CASE {r}.resource_type {arms} END)",
+    )
+
+
+def _role_initiative(r: str) -> str:
+    """The initiative a row's ``initiative_role_id`` belongs to."""
+    return (
         f"(SELECT initiative_roles.initiative_id FROM initiative_roles "  # noqa: S608
         f"WHERE initiative_roles.id = {r}.initiative_role_id)"
+    )
+
+
+@dataclass(frozen=True)
+class Silent:
+    """This table gets no capture trigger, and why not."""
+
+    reason: str
+
+
+@dataclass(frozen=True)
+class Emit:
+    """This table emits, deviating from the derived default in some respect."""
+
+    #: How a row resolves its initiative, when INITIATIVE_PATHS has no entry —
+    #: i.e. the table emits but carries no initiative-member RLS.
+    initiative: RowLocator | None = None
+    #: The row belongs to no initiative at all and a NULL is EXPECTED. Only ever
+    #: correct for a table every guild member can already read.
+    guild_wide: bool = False
+    #: Report against a parent resource instead of naming this table.
+    reports_as: ReportsAs | None = None
+
+
+#: table -> how it deviates. Anything absent takes the derived default.
+EVENT_SOURCES: dict[str, Emit | Silent] = {
+    # -- Silent ------------------------------------------------------------
+    "event_outbox": Silent("the log cannot log itself"),
+    # What one member did with their own UI, not a change to the initiative's
+    # content, so every subscription would pay for pure noise.
+    "recent_views": Silent("one member's own viewing state"),
+    "project_orders": Silent("one member's own ordering state"),
+    "project_favorites": Silent("one member's own pinning state"),
+    "task_assignment_digest_items": Silent("internal digest bookkeeping"),
+    "event_reminder_dispatches": Silent("internal reminder bookkeeping"),
+    "webhook_subscriptions": Silent(
+        "integration config; it reports on content, not on itself"
     ),
+    # Guild-level, and kept out on disclosure: an upload row is reachable from
+    # more than one place, so the initiative gate is not the whole answer for it
+    # the way it is for tags. Gate it properly or leave it silent — silent.
+    "uploads": Silent("reached through several parents; not gated by one of them"),
+    # -- Guild-level tables that emit ---------------------------------------
+    # The structural initiative tables are deliberately exempt from
+    # initiative-member RLS (a membership table gated by the membership check it
+    # backs would recurse), and that exemption must not also mean "invisible to
+    # every automation" — creating an initiative, adding a member, changing a
+    # role are all things a subscriber acts on. They get a capture trigger and
+    # nothing else; no policy is rendered from this registry. The outbox row
+    # carries a real initiative_id, so RLS scopes the EVENT normally.
+    "initiatives": Emit(initiative=lambda r: f"{r}.id"),
+    "initiative_members": Emit(initiative=lambda r: f"{r}.initiative_id"),
+    "initiative_roles": Emit(
+        initiative=lambda r: f"{r}.initiative_id",
+        reports_as=reports_as("initiatives", "initiative_id", "roles"),
+    ),
+    "initiative_role_permissions": Emit(
+        initiative=_role_initiative,
+        # The resource IS the initiative, so its id is the same lookup.
+        reports_as=ReportsAs(
+            resource_types=frozenset({"initiatives"}),
+            id_expr=_role_initiative,
+            facet="roles",
+        ),
+    ),
+    # -- Guild-wide: no initiative at all -----------------------------------
+    # The row carries a NULL initiative_id, which the access function reads as
+    # "the initiative gate has nothing to decide" and admits for any guild
+    # member. Correct here rather than weakening: tags are already readable by
+    # every member of the guild, run through most flows, and an automation that
+    # cannot see them is missing an ordinary trigger. The envelope carries ids
+    # and column names only, never values.
+    #
+    # The trigger is told a NULL is expected here specifically, so an
+    # initiative-scoped row whose lookup fails still means "skip".
+    "tags": Emit(guild_wide=True),
+    # -- Facets of their parent ---------------------------------------------
+    "task_statuses": Emit(reports_as=reports_as("projects", "project_id", "statuses")),
+    "document_file_versions": Emit(
+        reports_as=reports_as("documents", "document_id", "versions")
+    ),
+    "resource_grants": Emit(reports_as=grants_report_on_their_resource()),
 }
 
-# Tables that emit with NO initiative at all — the row carries a NULL
-# initiative_id, which the access function treats as "the initiative gate has
-# nothing to decide" and admits for any guild member.
-#
-# That is the correct disclosure here, not a weakening: these rows are already
-# readable by every member of the guild (they are guild-level precisely because
-# they belong to no initiative), so an event naming one reveals nothing its
-# subscriber could not read directly. The envelope carries ids and column names
-# only, never values.
-#
-# The trigger is told a NULL is expected for these, so an unresolvable initiative
-# on an initiative-scoped table still means "skip" rather than "broadcast".
-GUILD_WIDE_EVENTED: frozenset[str] = frozenset(
-    {
-        # Tags run through most flows and are shared across initiatives, so an
-        # automation that cannot see them is missing an ordinary trigger.
-        "tags",
-    }
+_SILENT: frozenset[str] = frozenset(
+    t for t, source in EVENT_SOURCES.items() if isinstance(source, Silent)
 )
 
-# Guild-level tables that emit NOTHING, and why — recorded so the absence is a
-# decision rather than a silent gap.
-SILENT_GUILD_TABLES: frozenset[str] = frozenset(
-    {
-        # Safe to emit by the same reasoning as tags (the row is guild-readable;
-        # blob CONTENT is gated at the document layer, and no content rides in an
-        # envelope). Left out on volume, not disclosure: uploads churn on every
-        # attachment and avatar write, and every subscription would pay for them.
-        # Cheap to add if someone wants it.
-        "uploads",
-    }
-)
-
-# The tables the capture trigger is installed on: initiative-scoped content
-# (minus the deliberate exclusions) plus the guild-level tables that resolve an
-# initiative for their events.
+# The tables the capture trigger is installed on: initiative-scoped content,
+# plus the guild-level tables that declared themselves emitters, minus whatever
+# declared itself silent.
 EVENTED_TABLES: frozenset[str] = (
-    (INITIATIVE_SCOPED_TABLES - NON_EVENTED_TABLES)
-    | frozenset(GUILD_LEVEL_EVENTED)
-    | GUILD_WIDE_EVENTED
-)
+    INITIATIVE_SCOPED_TABLES
+    | frozenset(t for t, source in EVENT_SOURCES.items() if isinstance(source, Emit))
+) - _SILENT
+
+
+def event_source(table: str) -> Emit:
+    """How ``table`` emits — its declared deviations, or the derived default."""
+    source = EVENT_SOURCES.get(table)
+    return source if isinstance(source, Emit) else Emit()
+
+
+def initiative_locator(table: str) -> RowLocator:
+    """Row expression yielding the initiative an event about ``table`` belongs to.
+
+    One question, answered from the registry that already knows: an
+    initiative-scoped table reuses the very path that renders its RLS, so a row
+    can never be gated by one initiative and have its events attributed to
+    another. Guild-level emitters say so themselves.
+    """
+    source = event_source(table)
+    if source.guild_wide:
+        return lambda _row: "NULL::integer"
+    if source.initiative is not None:
+        return source.initiative
+    path = INITIATIVE_PATHS.get(table)
+    if path is None:
+        raise RuntimeError(
+            f"{table} emits events but nothing resolves the initiative they "
+            "belong to — add an INITIATIVE_PATHS entry, or an Emit(initiative=…)"
+        )
+    return path.initiative_expr

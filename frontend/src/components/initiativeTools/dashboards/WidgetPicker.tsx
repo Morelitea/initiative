@@ -281,7 +281,9 @@ function WidgetDetail({
             <legend className="font-medium text-sm">{optionLabel(option, meta, language)}</legend>
             <div className="flex flex-wrap gap-1.5">
               {option.values.map((value) => {
-                const active = options[option.key] === value;
+                // The catalog's default is what the widget draws when the
+                // picker pins nothing, so it shows as chosen from the start.
+                const active = (options[option.key] ?? option.default) === value;
                 return (
                   <Button
                     key={value}

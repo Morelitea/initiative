@@ -253,13 +253,17 @@ def serialize_document(
     document: "Document",
     *,
     my_permission_level: Optional[str] = None,
+    include_content: bool = True,
 ) -> DocumentRead:
+    """The full document. ``include_content=False`` leaves the body out — every
+    other field is unchanged, including the smart-link URL that is derived from
+    it."""
     summary = serialize_document_summary(
         document, my_permission_level=my_permission_level
     )
     return DocumentRead(
         **summary.model_dump(),
-        content=document.content or {},
+        content=(document.content or {}) if include_content else {},
     )
 
 

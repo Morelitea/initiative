@@ -87,3 +87,37 @@ async def test_mention_search_unknown_initiative_404(
         params={"entity_type": "user", "initiative_id": 999999},
     )
     assert response.status_code == 404
+
+
+async def test_a_trashed_resource_reads_back_for_its_deleted_event(
+    client, session, acting_user
+):
+    """A ``deleted`` event is unactionable unless its id still resolves.
+
+    The row survives in the trash until retention, so a read-back may ask for
+    it — access checked exactly as for a live one. That is what makes the
+    ``deleted`` half of the bus actionable: the id still resolves.
+    """
+    from datetime import datetime, timezone
+
+    from app.models.platform.guild import GuildRole
+    from app.testing import create_task
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    task = await create_task(session, a.project)
+    task_id = task.id
+
+    task.deleted_at = datetime.now(timezone.utc)
+    session.add(task)
+    await session.commit()
+
+    gone = await client.get(a.g(f"/tasks/{task_id}"), headers=a.headers)
+    assert gone.status_code == 404, "a trashed task should be hidden by default"
+
+    found = await client.get(
+        a.g(f"/tasks/{task_id}"), params={"include_deleted": "true"}, headers=a.headers
+    )
+    assert found.status_code == 200, found.text
+    assert found.json()["id"] == task_id
+    # The event already said it was deleted; what the read-back supplies is the
+    # content to act on. Read payloads do not carry deleted_at today.

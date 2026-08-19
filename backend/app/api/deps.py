@@ -875,6 +875,36 @@ async def establish_guild_access(
 RLSSessionDep = Annotated[AsyncSession, Depends(get_guild_session)]
 
 
+async def _include_deleted_flag(
+    session: RLSSessionDep,
+    include_deleted: Annotated[
+        bool,
+        Query(
+            description=(
+                "Also return the resource if it is in the trash. For reading a "
+                "resource back after a deleted event — the row still exists "
+                "until retention purges it, and access is checked exactly as "
+                "for a live one."
+            )
+        ),
+    ] = False,
+) -> bool:
+    """Opt a detail GET into seeing trashed rows.
+
+    Flips the request session's soft-delete filter off (``session.info`` —
+    see ``app.db.soft_delete_filter``) so every load in the handler, including
+    the DAC loaders, can resolve a trashed row. Discloses nothing new: RLS and
+    the per-resource access checks run unchanged, and the trash surface already
+    shows these rows to the same audience.
+    """
+    if include_deleted:
+        session.info["include_deleted"] = True
+    return include_deleted
+
+
+IncludeDeletedDep = Annotated[bool, Depends(_include_deleted_flag)]
+
+
 async def get_user_session(
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],

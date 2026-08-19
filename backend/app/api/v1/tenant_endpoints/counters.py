@@ -22,6 +22,7 @@ from sqlmodel import select
 
 from app.core.auth_context import satisfied_provider_ids
 from app.api.deps import (
+    IncludeDeletedDep,
     RLSSessionDep,
     establish_guild_access,
     get_current_active_user,
@@ -74,6 +75,13 @@ from app.schemas.tenant.recent_view import RecentViewWrite
 
 
 router = APIRouter()
+
+#: Flat read-back route, mounted at the guild root like ``subtasks``. An event
+#: envelope names ``(resource_type, id)`` and nothing else, so the resource has
+#: to be addressable by its own id — a nested path would need a parent the
+#: envelope never carries. Writes stay nested under their group, where the
+#: caller is already working inside one.
+counters_router = APIRouter()
 logger = logging.getLogger(__name__)
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
@@ -336,14 +344,15 @@ async def get_counter_group_counts_by_initiative(
 
 @router.get("/{group_id}", response_model=CounterGroupRead)
 async def read_counter_group(
+    group_id: int,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-    group: Annotated[
-        CounterGroup,
-        Depends(resource_access.resource_dependency(Tool.counter_group, "read")),
-    ],
+    include_deleted: IncludeDeletedDep = False,
 ) -> CounterGroupRead:
-    """Access enforced by resource_dependency before the body runs."""
+    group = await resource_access.load_authorized(
+        session, Tool.counter_group, group_id, current_user, guild_context
+    )
     return serialize_counter_group(
         group,
         my_permission_level=_compute_my_permission(group, current_user, guild_context),
@@ -736,6 +745,32 @@ async def _commit_and_broadcast_count(
         session, group_id, "count_changed", result.model_dump(mode="json")
     )
     return result
+
+
+@counters_router.get("/counters/{counter_id}", response_model=CounterRead)
+async def read_counter(
+    counter_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    include_deleted: IncludeDeletedDep = False,
+) -> CounterRead:
+    """One counter by id — the read-back for a ``counters.*`` event.
+
+    Gated by read access on the group it belongs to, like reading the group.
+    The counter's own id is the whole address, so there is no parent to
+    mismatch — and no hand-written deleted check to contradict the request,
+    which is what a read-back after a delete depends on.
+    """
+    counter = await counters_service.get_counter(session, counter_id)
+    if not counter:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=CounterMessages.NOT_FOUND
+        )
+    await _get_counter_group_with_access(
+        session, counter.counter_group_id, current_user, guild_context, access="read"
+    )
+    return serialize_counter(counter)
 
 
 @router.post("/{group_id}/counters/{counter_id}/set", response_model=CounterRead)

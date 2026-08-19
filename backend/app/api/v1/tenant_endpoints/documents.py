@@ -22,6 +22,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import (
+    IncludeDeletedDep,
     RLSSessionDep,
     SessionDep,
     UploadUserDep,
@@ -1404,6 +1405,18 @@ async def read_document(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
+    include_deleted: IncludeDeletedDep = False,
+    include_content: Annotated[
+        bool,
+        Query(
+            description=(
+                "Include the document body. Pass false for the metadata alone —"
+                " a document's body is the largest thing this API returns, and a"
+                " caller reacting to a change (a title, a tag, a property) does"
+                " not need it. Everything else is unchanged."
+            )
+        ),
+    ] = True,
 ) -> DocumentRead:
     document = await _get_document_or_404(
         session, document_id=document_id, guild_id=guild_context.guild_id
@@ -1415,6 +1428,7 @@ async def read_document(
             document,
             current_user.id,
         ),
+        include_content=include_content,
     )
 
 

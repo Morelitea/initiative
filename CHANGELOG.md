@@ -7,12 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.62.8] - 2026-08-19
+
+### Changed
+
+- **Webhook events now always name something you can fetch.** A project's statuses, a document's file versions, an initiative's roles, and a change to who a project (or document, queue, counter group, calendar, or dashboard) is shared with used to arrive naming an id with no endpoint behind it. Each now arrives as an update to the thing it belongs to — `projects.updated` with `statuses`, `documents.updated` with `versions`, `initiatives.updated` with `roles`, `projects.updated` with `sharing` — the same way a task's tags have always been reported. Every id in an event resolves to a resource you can read back.
+- Document reads accept `?include_content=false` to return everything except the body. A document's body is by far the largest thing the API returns and usually isn't what changed, so a subscription reacting to an edit no longer has to fetch it.
+- **Gantt widgets are now a proper project timeline.** The chart draws a line on today's date, so you can see at a glance what is behind and what is still ahead. Rows fold: bind one to Projects and each project is a single bar you can open to reveal its tasks, and a bar's fill is how much of the work under it is finished — a project that is halfway through its tasks is a half-filled bar, with the count beside its name. Bound to Tasks, you can group rows by project, status, priority, or assignee instead, and a total row across the top sums up everything shown.
+
+### Fixed
+
+- **Leaving a guild works again.** If you belonged to any of the guild's initiatives, leaving it failed outright with a permission error, and so did stepping out of an initiative you managed. Both go through now, and the change is still reported to any webhook watching.
+- **The overdue digest no longer counts tasks you have set aside.** It swept up tasks in archived projects, and tasks you had archived yourself, so people were chased about work they had already cleared off their plate. The daily email and push now count only live tasks in live projects, matching what My Tasks has always shown.
+
 ## [0.62.7] - 2026-08-18
 
 ### Added
 
 - **An app's page now matches your theme.** An embedded app is told your light or dark mode and your colors — color theme and guild accent included — when it opens, and again the moment you switch, so it can recolor in place instead of staying bright white inside a dark Initiative. Apps pick this up as they add support; one that hasn't yet simply keeps its own colors.
 - **Outbound webhooks (API-only for now).** Register a URL via the API and Initiative POSTs a signed notification when content changes, filterable by event type and field. A subscription only ever delivers what its creator can access.
+- Comments, subtasks, queue items and counters can now be fetched individually by id, and any resource can be fetched after it's been deleted with `?include_deleted=true` while it's still in the trash.
 
 ### Fixed
 

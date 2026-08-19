@@ -138,5 +138,12 @@
     "needsBinding": "You'll choose exactly what this shows after adding it.",
     "add": "Add {{widget}}"
   },
-  "browseMarketplace": "Browse the marketplace"
+  "browseMarketplace": "Browse the marketplace",
+  "timeline": {
+    "collapse": "Collapse {{name}}",
+    "expand": "Expand {{name}}",
+    "label": "Timeline",
+    "quarter": "Q{{quarter}}",
+    "today": "Today"
+  }
 }

@@ -383,6 +383,13 @@ async def test_widget_catalog_projects_the_registry(
         )
         assert set(entry["sources"]) == set(spec.sources)
         assert {option["key"] for option in entry["options"]} == set(spec.options)
+        for option in entry["options"]:
+            declared = spec.options[option["key"]]
+            # Served in declared order, not sorted: a time scale reads
+            # day -> quarter, and the default is stated rather than taken from
+            # whichever value happens to sort first.
+            assert option["values"] == list(declared.values)
+            assert option["default"] == declared.default
 
 
 async def test_widget_catalog_presets_resolve_to_primitives(
