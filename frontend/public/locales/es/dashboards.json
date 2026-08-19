@@ -63,7 +63,8 @@
     "WIDGET_THREW": "Este widget encontró un error al dibujarse.",
     "WIDGET_TIMEOUT": "Este widget tardó demasiado y se detuvo.",
     "WIDGET_TYPE_UNSUPPORTED": "Este widget necesita una versión más reciente de la aplicación.",
-    "default": "No se pudo mostrar este widget."
+    "default": "No se pudo mostrar este widget.",
+    "WIDGET_DATA_UNAVAILABLE": "No se han podido cargar los datos de este widget. Inténtalo de nuevo."
   },
   "bindingSource": {
     "app": "Datos de la app",

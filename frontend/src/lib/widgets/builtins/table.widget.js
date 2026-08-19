@@ -75,6 +75,76 @@ const meta = {
 };
 
 /**
+ * This widget's own output, in every language it speaks.
+ *
+ * Beside `meta` and for the same reason: a column heading and an empty-state
+ * line are the widget's words, and there is no app locale file a marketplace
+ * widget could add itself to. The host hands `render` the viewer's language
+ * tag; `say` picks from here. Formatting numbers and dates is still the host's
+ * job — the sandbox has no locale data and no timezone.
+ */
+const strings = {
+  noTasks: {
+    en: "No tasks match",
+    de: "Keine Aufgaben passen",
+    es: "Ninguna tarea coincide",
+    fr: "Aucune tâche ne correspond",
+  },
+  noProjects: {
+    en: "No projects match",
+    de: "Keine Projekte passen",
+    es: "Ningún proyecto coincide",
+    fr: "Aucun projet ne correspond",
+  },
+  nothingScheduled: {
+    en: "Nothing scheduled",
+    de: "Nichts geplant",
+    es: "Nada programado",
+    fr: "Rien de planifié",
+  },
+  rangeEmpty: {
+    en: "Range is empty",
+    de: "Bereich ist leer",
+    es: "El rango está vacío",
+    fr: "La plage est vide",
+  },
+  nothingToShow: {
+    en: "Nothing to show",
+    de: "Nichts anzuzeigen",
+    es: "Nada que mostrar",
+    fr: "Rien à afficher",
+  },
+  cannotDraw: {
+    en: "This widget cannot draw ",
+    de: "Dieses Widget kann das nicht zeichnen: ",
+    es: "Este widget no puede dibujar ",
+    fr: "Ce widget ne peut pas dessiner ",
+  },
+  task: { en: "Task", de: "Aufgabe", es: "Tarea", fr: "Tâche" },
+  project: { en: "Project", de: "Projekt", es: "Proyecto", fr: "Projet" },
+  status: { en: "Status", de: "Status", es: "Estado", fr: "Statut" },
+  due: { en: "Due", de: "Fällig", es: "Vence", fr: "Échéance" },
+  assignees: { en: "Assignees", de: "Zuständig", es: "Responsables", fr: "Responsables" },
+  priority: { en: "Priority", de: "Priorität", es: "Prioridad", fr: "Priorité" },
+  tags: { en: "Tags", de: "Tags", es: "Etiquetas", fr: "Étiquettes" },
+  checklist: { en: "Checklist", de: "Checkliste", es: "Lista", fr: "Liste" },
+  comments: { en: "Comments", de: "Kommentare", es: "Comentarios", fr: "Commentaires" },
+  tasks: { en: "Tasks", de: "Aufgaben", es: "Tareas", fr: "Tâches" },
+  done: { en: "Done", de: "Erledigt", es: "Hecho", fr: "Terminé" },
+  progress: { en: "Progress", de: "Fortschritt", es: "Progreso", fr: "Avancement" },
+  owner: { en: "Owner", de: "Eigentümer", es: "Propietario", fr: "Propriétaire" },
+  ends: { en: "Ends", de: "Endet", es: "Termina", fr: "Fin" },
+  starts: { en: "Starts", de: "Beginnt", es: "Empieza", fr: "Début" },
+  event: { en: "Event", de: "Termin", es: "Evento", fr: "Événement" },
+  calendar: { en: "Calendar", de: "Kalender", es: "Calendario", fr: "Calendrier" },
+  location: { en: "Location", de: "Ort", es: "Ubicación", fr: "Lieu" },
+  who: { en: "Who", de: "Wer", es: "Quién", fr: "Qui" },
+  total: { en: "Total", de: "Gesamt", es: "Total", fr: "Total" },
+  column: { en: "Column", de: "Spalte", es: "Columna", fr: "Colonne" },
+  projects: { en: "projects", de: "Projekte", es: "proyectos", fr: "projets" },
+};
+
+/**
  * Built-in: table — a read-only grid over whatever the binding returns.
  *
  * Display only, and pointedly so: no row actions, no inline editing, no
@@ -89,7 +159,14 @@ const meta = {
  * @param {import("../dataShapes").WidgetData} data
  * @param {import("../dataShapes").WidgetConfig} config
  */
-function render(data, config) {
+function render(data, config, context) {
+  // The viewer's language, and this module's own words in it. An older host
+  // that passes no context leaves this at English rather than failing.
+  const lang = (context && context.locale) || "en";
+  const say = (key) => {
+    const entry = strings[key] || {};
+    return entry[lang] || entry[lang.split("-")[0]] || entry.en || key;
+  };
   const detailed = config.columns === "detailed";
   const markOverdue = config.highlight === "overdue";
   const wantTotals = config.totals === "on";
@@ -99,7 +176,7 @@ function render(data, config) {
   const empty = (message) => ({ v: 1, scene: { kind: "empty", message } });
 
   const table = (columns, rows) => {
-    if (!rows.length) return empty("Nothing to show");
+    if (!rows.length) return empty(say("nothingToShow"));
     return { v: 1, scene: { kind: "table", columns: columns, rows: rows } };
   };
 
@@ -117,21 +194,21 @@ function render(data, config) {
   switch (data.source) {
     case "tasks": {
       const rows = data.rows || [];
-      if (!rows.length) return empty("No tasks match");
+      if (!rows.length) return empty(say("noTasks"));
 
       const columns = [
-        { key: "title", label: "Task" },
-        { key: "project", label: "Project" },
-        { key: "status", label: "Status" },
-        dateColumn("due", "Due"),
+        { key: "title", label: say("task") },
+        { key: "project", label: say("project") },
+        { key: "status", label: say("status") },
+        dateColumn("due", say("due")),
       ];
       if (detailed) {
-        columns.splice(3, 0, { key: "assignees", label: "Assignees" });
+        columns.splice(3, 0, { key: "assignees", label: say("assignees") });
         columns.push(
-          { key: "priority", label: "Priority" },
-          { key: "tags", label: "Tags" },
-          { key: "checklist", label: "Checklist", align: "end" },
-          numberColumn("comments", "Comments")
+          { key: "priority", label: say("priority") },
+          { key: "tags", label: say("tags") },
+          { key: "checklist", label: say("checklist"), align: "end" },
+          numberColumn("comments", say("comments"))
         );
       }
 
@@ -158,7 +235,7 @@ function render(data, config) {
         let comments = 0;
         for (const task of rows) comments += task.commentCount;
         body.push({
-          title: rows.length + " tasks",
+          title: rows.length + " " + say("tasks"),
           project: null,
           status: null,
           due: null,
@@ -174,17 +251,17 @@ function render(data, config) {
 
     case "projects": {
       const rows = data.rows || [];
-      if (!rows.length) return empty("No projects match");
+      if (!rows.length) return empty(say("noProjects"));
 
       const columns = [
-        { key: "name", label: "Project" },
-        numberColumn("tasks", "Tasks"),
-        numberColumn("done", "Done"),
-        { key: "progress", label: "Progress", align: "end", format: "percent" },
+        { key: "name", label: say("project") },
+        numberColumn("tasks", say("tasks")),
+        numberColumn("done", say("done")),
+        { key: "progress", label: say("progress"), align: "end", format: "percent" },
       ];
       if (detailed) {
-        columns.splice(1, 0, { key: "owner", label: "Owner" });
-        columns.push(dateColumn("end", "Ends"), { key: "tags", label: "Tags" });
+        columns.splice(1, 0, { key: "owner", label: say("owner") });
+        columns.push(dateColumn("end", say("ends")), { key: "tags", label: say("tags") });
       }
 
       const body = rows.map((project) => {
@@ -214,7 +291,7 @@ function render(data, config) {
           done += project.doneCount;
         }
         body.push({
-          name: rows.length + " projects",
+          name: rows.length + " " + say("projects"),
           owner: null,
           tasks: tasks,
           done: done,
@@ -228,16 +305,19 @@ function render(data, config) {
 
     case "calendar_entries": {
       const rows = data.rows || [];
-      if (!rows.length) return empty("Nothing scheduled");
+      if (!rows.length) return empty(say("nothingScheduled"));
 
       const columns = [
-        { key: "title", label: "Event" },
-        { key: "calendar", label: "Calendar" },
-        dateColumn("start", "Starts"),
-        dateColumn("end", "Ends"),
+        { key: "title", label: say("event") },
+        { key: "calendar", label: say("calendar") },
+        dateColumn("start", say("starts")),
+        dateColumn("end", say("ends")),
       ];
       if (detailed) {
-        columns.push({ key: "location", label: "Location" }, { key: "attendees", label: "Who" });
+        columns.push(
+          { key: "location", label: say("location") },
+          { key: "attendees", label: say("who") }
+        );
       }
 
       return table(
@@ -260,12 +340,12 @@ function render(data, config) {
 
     case "sheet_range": {
       const range = data.range;
-      if (!range || !range.rows.length) return empty("Range is empty");
+      if (!range || !range.rows.length) return empty(say("rangeEmpty"));
       // A sheet's own header row names the columns; keys are positional so a
       // duplicated or blank header can't collapse two columns into one.
       const columns = range.columns.slice(0, 12).map((label, index) => ({
         key: "c" + index,
-        label: label || "Column " + (index + 1),
+        label: label || say("column") + " " + (index + 1),
         align: typeof range.rows[0][index] === "number" ? "end" : "start",
       }));
       const body = range.rows.map((row) => {
@@ -280,7 +360,7 @@ function render(data, config) {
         const totals = {};
         for (let index = 0; index < columns.length; index++) {
           if (columns[index].align !== "end") {
-            totals[columns[index].key] = index === 0 ? "Total" : null;
+            totals[columns[index].key] = index === 0 ? say("total") : null;
             continue;
           }
           let sum = 0;
@@ -295,6 +375,6 @@ function render(data, config) {
     }
 
     default:
-      return empty("This widget cannot draw " + data.source);
+      return empty(say("cannotDraw") + data.source);
   }
 }

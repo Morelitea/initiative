@@ -62,6 +62,17 @@ export interface RenderRequest {
    *  is what lets the host memoize a render. */
   seed?: number;
   now?: number;
+  /** The viewer's language tag, handed to `render` as its third argument.
+   *
+   *  A widget's *own* output has to be readable — a table's column headings are
+   *  the widget's words, not ours, and there is no app locale file a
+   *  marketplace widget could add itself to. So the module carries its strings
+   *  the way it already carries its name, and this says which set to use.
+   *
+   *  A tag, never `Intl`: the sandbox still has no locale data and no timezone,
+   *  and formatting a number or a date stays the host's job. A render is
+   *  therefore still a pure function of its inputs, now including this one. */
+  locale?: string;
 }
 
 /**
@@ -117,7 +128,7 @@ delete globalThis.SharedArrayBuffer;
 const INVOKE = `
 (function () {
   if (typeof render !== "function") return "e:no-render";
-  var out = render(JSON.parse(__data__), JSON.parse(__config__));
+  var out = render(JSON.parse(__data__), JSON.parse(__config__), { locale: __locale__ });
   try {
     return "v:" + JSON.stringify(out === undefined ? null : out);
   } catch (err) {
@@ -205,6 +216,7 @@ async function evaluateModule(request: RenderRequest, invoke: string): Promise<S
     for (const [name, value] of [
       ["__data__", JSON.stringify(request.data ?? null)],
       ["__config__", JSON.stringify(request.config ?? {})],
+      ["__locale__", request.locale ?? "en"],
     ] as const) {
       const handle = context.newString(value);
       context.setProp(context.global, name, handle);

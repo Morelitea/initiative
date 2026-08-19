@@ -58,6 +58,51 @@ const meta = {
 };
 
 /**
+ * This widget's own output, in every language it speaks.
+ *
+ * Beside `meta` and for the same reason: a column heading and an empty-state
+ * line are the widget's words, and there is no app locale file a marketplace
+ * widget could add itself to. The host hands `render` the viewer's language
+ * tag; `say` picks from here. Formatting numbers and dates is still the host's
+ * job — the sandbox has no locale data and no timezone.
+ */
+const strings = {
+  noTasks: {
+    en: "No tasks match",
+    de: "Keine Aufgaben passen",
+    es: "Ninguna tarea coincide",
+    fr: "Aucune tâche ne correspond",
+  },
+  noProjects: {
+    en: "No projects match",
+    de: "Keine Projekte passen",
+    es: "Ningún proyecto coincide",
+    fr: "Aucun projet ne correspond",
+  },
+  noCounter: {
+    en: "No counter selected",
+    de: "Kein Zähler ausgewählt",
+    es: "Ningún contador seleccionado",
+    fr: "Aucun compteur sélectionné",
+  },
+  nothingToMeasure: {
+    en: "Nothing to measure",
+    de: "Nichts zu messen",
+    es: "Nada que medir",
+    fr: "Rien à mesurer",
+  },
+  cannotDraw: {
+    en: "This widget cannot draw ",
+    de: "Dieses Widget kann das nicht zeichnen: ",
+    es: "Este widget no puede dibujar ",
+    fr: "Ce widget ne peut pas dessiner ",
+  },
+  done: { en: "Done", de: "Erledigt", es: "Hecho", fr: "Terminé" },
+  of: { en: "of", de: "von", es: "de", fr: "sur" },
+  projects: { en: "projects", de: "Projekte", es: "proyectos", fr: "projets" },
+};
+
+/**
  * Built-in: progress — a meter, or a column of them.
  *
  * A meter answers "how far along, against what?", which needs both ends of the
@@ -69,7 +114,14 @@ const meta = {
  * @param {import("../dataShapes").WidgetData} data
  * @param {import("../dataShapes").WidgetConfig} config
  */
-function render(data, config) {
+function render(data, config, context) {
+  // The viewer's language, and this module's own words in it. An older host
+  // that passes no context leaves this at English rather than failing.
+  const lang = (context && context.locale) || "en";
+  const say = (key) => {
+    const entry = strings[key] || {};
+    return entry[lang] || entry[lang.split("-")[0]] || entry.en || key;
+  };
   const each = config.breakdown === "each";
   const format = config.format === "plain" ? "plain" : "percent";
   const today = Date.now();
@@ -94,7 +146,7 @@ function render(data, config) {
   /** Several meters stacked. One is drawn on its own — a stack of one is a
    *  wrapper with nothing to compose. */
   const column = (nodes) => {
-    if (!nodes.length) return empty("Nothing to measure");
+    if (!nodes.length) return empty(say("nothingToMeasure"));
     if (nodes.length === 1) return { v: 1, scene: nodes[0] };
     return {
       v: 1,
@@ -110,10 +162,11 @@ function render(data, config) {
   switch (data.source) {
     case "counter": {
       const counter = data.counter;
-      if (!counter) return empty("No counter selected");
+      if (!counter) return empty(say("noCounter"));
       const min = counter.min === null || counter.min === undefined ? 0 : counter.min;
       const max = counter.max === null || counter.max === undefined ? counter.value : counter.max;
-      const caption = counter.value + " of " + max + (counter.unit ? " " + counter.unit : "");
+      const caption =
+        counter.value + " " + say("of") + " " + max + (counter.unit ? " " + counter.unit : "");
       return {
         v: 1,
         scene: meter(counter.name, counter.value, min, max, caption, "accent"),
@@ -122,7 +175,7 @@ function render(data, config) {
 
     case "task_counts": {
       const rows = data.rows || [];
-      if (!rows.length) return empty("No tasks match");
+      if (!rows.length) return empty(say("noTasks"));
 
       let total = 0;
       for (const row of rows) total += row.count;
@@ -130,7 +183,14 @@ function render(data, config) {
       if (each) {
         return column(
           rows.map((row) =>
-            meter(row.bucket, row.count, 0, total, row.count + " of " + total, "accent")
+            meter(
+              row.bucket,
+              row.count,
+              0,
+              total,
+              row.count + " " + say("of") + " " + total,
+              "accent"
+            )
           )
         );
       }
@@ -142,13 +202,20 @@ function render(data, config) {
       }
       return {
         v: 1,
-        scene: meter("Done", done, 0, total, done + " of " + total, shareTone(done, total, false)),
+        scene: meter(
+          say("done"),
+          done,
+          0,
+          total,
+          done + " " + say("of") + " " + total,
+          shareTone(done, total, false)
+        ),
       };
     }
 
     case "projects": {
       const rows = data.rows || [];
-      if (!rows.length) return empty("No projects match");
+      if (!rows.length) return empty(say("noProjects"));
 
       if (each) {
         return column(
@@ -162,7 +229,7 @@ function render(data, config) {
               project.doneCount,
               0,
               project.taskCount || 1,
-              project.doneCount + " of " + project.taskCount,
+              project.doneCount + " " + say("of") + " " + project.taskCount,
               shareTone(project.doneCount, project.taskCount, late)
             );
           })
@@ -186,17 +253,17 @@ function render(data, config) {
       return {
         v: 1,
         scene: meter(
-          rows.length + " projects",
+          rows.length + " " + say("projects"),
           done,
           0,
           tasks || 1,
-          done + " of " + tasks,
+          done + " " + say("of") + " " + tasks,
           shareTone(done, tasks, late)
         ),
       };
     }
 
     default:
-      return empty("This widget cannot draw " + data.source);
+      return empty(say("cannotDraw") + data.source);
   }
 }

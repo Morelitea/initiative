@@ -95,6 +95,7 @@ describe("the widget sandbox", () => {
       "WeakSet",
       "__config__",
       "__data__",
+      "__locale__",
       "decodeURI",
       "decodeURIComponent",
       "encodeURI",

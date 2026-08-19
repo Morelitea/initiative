@@ -68,6 +68,7 @@ export function WidgetTile({
   now,
   view = "scene",
 }: WidgetTileProps) {
+  const { i18n } = useTranslation();
   const [state, setState] = useState<State>({ status: "loading" });
 
   useEffect(() => {
@@ -98,14 +99,23 @@ export function WidgetTile({
     // blanking to a skeleton every time the data changes makes a live tile
     // flicker on each refetch. The scene already on screen stays until the new
     // one is ready.
-    renderWidget({ source: moduleSource, data, config: config ?? {}, now }).then((outcome) => {
+    // The viewer's language goes in with the data: a widget's column headings
+    // and empty states are its own words, so it is the only thing that can put
+    // them in the right language.
+    renderWidget({
+      source: moduleSource,
+      data,
+      config: config ?? {},
+      now,
+      locale: i18n.language,
+    }).then((outcome) => {
       if (!cancelled) setState({ status: "done", outcome });
     });
 
     return () => {
       cancelled = true;
     };
-  }, [type, data, config, source, now, errorCode, isLoading]);
+  }, [type, data, config, source, now, errorCode, isLoading, i18n.language]);
 
   const body =
     isLoading || state.status === "loading" ? (

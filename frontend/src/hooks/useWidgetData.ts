@@ -257,13 +257,20 @@ export function useWidgetData(
       refetch,
     });
 
-    /** Resolved, and the target is not there. Says nothing about *which*
-     *  target — the tile renders absence and no more. */
-    const restricted = (isLoading: boolean): WidgetDataResult => ({
+    /**
+     * The binding named a target and the fetch came back without it.
+     *
+     * Three outcomes, and they must not be collapsed: still in flight; the
+     * request failed, which says nothing at all about what this viewer may
+     * see; or it succeeded and the target genuinely is not there for them.
+     * Only the third is an access outcome, and only it says so.
+     */
+    const absent = (query: { isLoading: boolean; isError: boolean }): WidgetDataResult => ({
       data: emptyDataFor(source),
-      isLoading,
+      isLoading: query.isLoading,
       isUnbound: false,
-      isRestricted: !isLoading,
+      isRestricted: !query.isLoading && !query.isError,
+      errorCode: query.isError ? WidgetErrorCode.DATA_UNAVAILABLE : undefined,
       refetch,
     });
 
@@ -363,7 +370,7 @@ export function useWidgetData(
             : undefined;
         const counter = group?.counters?.find((candidate) => candidate.id === binding.counter_id);
         // Resolved but absent: the counter was deleted, or the gates hid it.
-        if (!counter) return restricted(counterGroupQuery.isLoading);
+        if (!counter) return absent(counterGroupQuery);
         return {
           data: { source, counter: normalizeCounter(counter) },
           isLoading: counterGroupQuery.isLoading,
@@ -376,7 +383,7 @@ export function useWidgetData(
       case "counter_group": {
         if (!binding.counter_group_id) return unbound();
         if (!counterGroupQuery.data || counterGroupQuery.data.initiative_id !== initiativeId) {
-          return restricted(counterGroupQuery.isLoading);
+          return absent(counterGroupQuery);
         }
         const { name, counters } = normalizeCounterGroup(counterGroupQuery.data);
         return {
@@ -396,7 +403,7 @@ export function useWidgetData(
         const document =
           documentQuery.data?.initiative_id === initiativeId ? documentQuery.data : undefined;
         const range = document ? normalizeSheetRange(document, binding.sheet, binding.range) : null;
-        if (!range) return restricted(documentQuery.isLoading);
+        if (!range) return absent(documentQuery);
         const meta: DataMeta = { total: range.rows.length, truncated: false };
         return {
           data: { source, range, meta },
@@ -440,7 +447,9 @@ export function useWidgetData(
         // The app is not installed in this guild, or its pinned version stopped
         // offering this source. Same rendering as a deleted counter: absent, not
         // broken — nothing here is the app's fault.
-        if (!appBinding) return restricted(false);
+        // Not installed, or the pinned version stopped offering this source —
+        // the catalog answered, so this is absence rather than a failure.
+        if (!appBinding) return absent({ isLoading: false, isError: false });
         // An app that stopped answering does not blank a tile that already has
         // rows: React Query keeps the last good body for this key, and showing
         // it is more useful than showing nothing. The error tile is for when

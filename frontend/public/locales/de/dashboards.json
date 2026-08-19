@@ -63,7 +63,8 @@
     "WIDGET_THREW": "Beim Zeichnen dieses Widgets ist ein Fehler aufgetreten.",
     "WIDGET_TIMEOUT": "Dieses Widget hat zu lange gebraucht und wurde gestoppt.",
     "WIDGET_TYPE_UNSUPPORTED": "Dieses Widget benötigt eine neuere Version der App.",
-    "default": "Dieses Widget konnte nicht angezeigt werden."
+    "default": "Dieses Widget konnte nicht angezeigt werden.",
+    "WIDGET_DATA_UNAVAILABLE": "Die Daten dieses Widgets konnten nicht geladen werden. Versuche es erneut."
   },
   "bindingSource": {
     "app": "App-Daten",

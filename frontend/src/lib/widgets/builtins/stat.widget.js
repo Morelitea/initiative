@@ -130,6 +130,51 @@ const meta = {
 };
 
 /**
+ * This widget's own output, in every language it speaks.
+ *
+ * Beside `meta` and for the same reason: a column heading and an empty-state
+ * line are the widget's words, and there is no app locale file a marketplace
+ * widget could add itself to. The host hands `render` the viewer's language
+ * tag; `say` picks from here. Formatting numbers and dates is still the host's
+ * job — the sandbox has no locale data and no timezone.
+ */
+const strings = {
+  noTasks: {
+    en: "No tasks match",
+    de: "Keine Aufgaben passen",
+    es: "Ninguna tarea coincide",
+    fr: "Aucune tâche ne correspond",
+  },
+  noCounter: {
+    en: "No counter selected",
+    de: "Kein Zähler ausgewählt",
+    es: "Ningún contador seleccionado",
+    fr: "Aucun compteur sélectionné",
+  },
+  rangeEmpty: {
+    en: "Range is empty",
+    de: "Bereich ist leer",
+    es: "El rango está vacío",
+    fr: "La plage est vide",
+  },
+  noNumeric: {
+    en: "No numeric values in range",
+    de: "Keine Zahlenwerte im Bereich",
+    es: "No hay valores numéricos en el rango",
+    fr: "Aucune valeur numérique dans la plage",
+  },
+  cannotDraw: {
+    en: "This widget cannot draw ",
+    de: "Dieses Widget kann das nicht zeichnen: ",
+    es: "Este widget no puede dibujar ",
+    fr: "Ce widget ne peut pas dessiner ",
+  },
+  total: { en: "Total", de: "Gesamt", es: "Total", fr: "Total" },
+  of: { en: "of", de: "von", es: "de", fr: "sur" },
+  days: { en: "days", de: "Tage", es: "días", fr: "jours" },
+};
+
+/**
  * Built-in: Stat — one big number, and what it is doing.
  *
  * Like every built-in, this is an ordinary widget module: it runs in the same
@@ -145,7 +190,14 @@ const meta = {
  * @param {import("../dataShapes").WidgetData} data
  * @param {import("../dataShapes").WidgetConfig} config
  */
-function render(data, config) {
+function render(data, config, context) {
+  // The viewer's language, and this module's own words in it. An older host
+  // that passes no context leaves this at English rather than failing.
+  const lang = (context && context.locale) || "en";
+  const say = (key) => {
+    const entry = strings[key] || {};
+    return entry[lang] || entry[lang.split("-")[0]] || entry.en || key;
+  };
   const format = config.format || "plain";
   const pick = config.pick || "total";
   const wantTrend = config.trend === "on";
@@ -209,10 +261,10 @@ function render(data, config) {
   switch (data.source) {
     case "counter": {
       const counter = data.counter;
-      if (!counter) return empty("No counter selected");
+      if (!counter) return empty(say("noCounter"));
       const caption =
         counter.max !== null && counter.max !== undefined
-          ? "of " + counter.max + (counter.unit ? " " + counter.unit : "")
+          ? say("of") + " " + counter.max + (counter.unit ? " " + counter.unit : "")
           : counter.unit || undefined;
       // A counter is a current value with no history, so there is nothing
       // honest to draw a trend from.
@@ -221,7 +273,7 @@ function render(data, config) {
 
     case "task_counts": {
       const rows = data.rows || [];
-      if (!rows.length) return empty("No tasks match");
+      if (!rows.length) return empty(say("noTasks"));
 
       const total = rows.reduce((sum, row) => sum + row.count, 0);
       const dated = rows.filter((row) => typeof row.date === "number");
@@ -234,7 +286,7 @@ function render(data, config) {
         const node = metric(
           total,
           undefined,
-          ordered.length + " days",
+          ordered.length + " " + say("days"),
           change === null ? undefined : { delta: change, deltaGood: deltaGood }
         );
         return withSparkline(
@@ -246,21 +298,21 @@ function render(data, config) {
       if (pick === "largest") {
         let best = rows[0];
         for (const row of rows) if (row.count > best.count) best = row;
-        return scene(metric(best.count, best.bucket, "of " + total));
+        return scene(metric(best.count, best.bucket, say("of") + " " + total));
       }
       if (pick === "first") {
-        return scene(metric(rows[0].count, rows[0].bucket, "of " + total));
+        return scene(metric(rows[0].count, rows[0].bucket, say("of") + " " + total));
       }
-      return scene(metric(total, "Total"));
+      return scene(metric(total, say("total")));
     }
 
     case "sheet_range": {
       const range = data.range;
-      if (!range || !range.rows.length) return empty("Range is empty");
+      if (!range || !range.rows.length) return empty(say("rangeEmpty"));
       // Sum the first column that holds numbers, so a range like A1:B6 reads
       // as its values rather than its headers.
       const columnIndex = range.rows[0].findIndex((cell) => typeof cell === "number");
-      if (columnIndex < 0) return empty("No numeric values in range");
+      if (columnIndex < 0) return empty(say("noNumeric"));
       const values = [];
       for (const row of range.rows) {
         if (typeof row[columnIndex] === "number") values.push(row[columnIndex]);
@@ -280,6 +332,6 @@ function render(data, config) {
     }
 
     default:
-      return empty("This widget cannot draw " + data.source);
+      return empty(say("cannotDraw") + data.source);
   }
 }

@@ -201,6 +201,60 @@ const meta = {
 };
 
 /**
+ * This widget's own output, in every language it speaks.
+ *
+ * Beside `meta` and for the same reason: a column heading and an empty-state
+ * line are the widget's words, and there is no app locale file a marketplace
+ * widget could add itself to. The host hands `render` the viewer's language
+ * tag; `say` picks from here. Formatting numbers and dates is still the host's
+ * job — the sandbox has no locale data and no timezone.
+ */
+const strings = {
+  noTasks: {
+    en: "No tasks match",
+    de: "Keine Aufgaben passen",
+    es: "Ninguna tarea coincide",
+    fr: "Aucune tâche ne correspond",
+  },
+  noProjects: {
+    en: "No projects match",
+    de: "Keine Projekte passen",
+    es: "Ningún proyecto coincide",
+    fr: "Aucun projet ne correspond",
+  },
+  noCountersInGroup: {
+    en: "No counters in this group",
+    de: "Keine Zähler in dieser Gruppe",
+    es: "No hay contadores en este grupo",
+    fr: "Aucun compteur dans ce groupe",
+  },
+  rangeEmpty: {
+    en: "Range is empty",
+    de: "Bereich ist leer",
+    es: "El rango está vacío",
+    fr: "La plage est vide",
+  },
+  noNumeric: {
+    en: "No numeric values in range",
+    de: "Keine Zahlenwerte im Bereich",
+    es: "No hay valores numéricos en el rango",
+    fr: "Aucune valeur numérique dans la plage",
+  },
+  cannotDraw: {
+    en: "This widget cannot draw ",
+    de: "Dieses Widget kann das nicht zeichnen: ",
+    es: "Este widget no puede dibujar ",
+    fr: "Ce widget ne peut pas dessiner ",
+  },
+  done: { en: "Done", de: "Erledigt", es: "Hecho", fr: "Terminé" },
+  remaining: { en: "Remaining", de: "Verbleibend", es: "Pendiente", fr: "Restant" },
+  other: { en: "Other", de: "Sonstige", es: "Otros", fr: "Autres" },
+  tasks: { en: "Tasks", de: "Aufgaben", es: "Tareas", fr: "Tâches" },
+  counters: { en: "Counters", de: "Zähler", es: "Contadores", fr: "Compteurs" },
+  series: { en: "Series", de: "Reihe", es: "Serie", fr: "Série" },
+};
+
+/**
  * Built-in: chart — a series drawn as bars, lines, an area, or slices.
  *
  * The workhorse: the `bar_chart`/`line_chart`/`area_chart`/`pie_chart`/
@@ -216,7 +270,14 @@ const meta = {
  * @param {import("../dataShapes").WidgetData} data
  * @param {import("../dataShapes").WidgetConfig} config
  */
-function render(data, config) {
+function render(data, config, context) {
+  // The viewer's language, and this module's own words in it. An older host
+  // that passes no context leaves this at English rather than failing.
+  const lang = (context && context.locale) || "en";
+  const say = (key) => {
+    const entry = strings[key] || {};
+    return entry[lang] || entry[lang.split("-")[0]] || entry.en || key;
+  };
   const mark = config.mark || "bar";
   const stacked = config.stacked === "true";
   const sort = config.sort || "source";
@@ -226,6 +287,9 @@ function render(data, config) {
   const emphasis = config.emphasis || "none";
 
   const empty = (message) => ({ v: 1, scene: { kind: "empty", message } });
+
+  /** What the folded tail is called. */
+  const OTHER_LABEL = say("other");
 
   /** Which series gets to keep its color when the rest go gray. */
   const emphasisIndex = (series) => {
@@ -262,59 +326,106 @@ function render(data, config) {
   };
 
   /**
-   * Order the points, then cap how many categories are drawn.
+   * Order the categories and cap how many are drawn — once, across every
+   * series.
+   *
+   * Arranging each series on its own looks equivalent and is not: two series
+   * sorted by their own values disagree about the order, and two series capped
+   * on their own keep *different* categories, so the merged chart silently
+   * drops the halves that did not survive on both sides. The cut is therefore
+   * made on each category's total across all series, and every series is then
+   * mapped onto that one shared order.
    *
    * Pie slices always read as a share of a whole, so the largest belongs first
    * whatever the chosen order says; everything else keeps the order asked for,
    * and "source" is meaningful more often than not (a day sequence, a workflow
    * order).
    */
-  const arrange = (points) => {
-    let ordered = points;
-    if (sort === "value_desc" || mark === "pie") {
-      ordered = points.slice().sort((a, b) => b.y - a.y);
-    } else if (sort === "value_asc") {
-      ordered = points.slice().sort((a, b) => a.y - b.y);
-    } else if (sort === "label") {
-      ordered = points.slice().sort((a, b) => String(a.x).localeCompare(String(b.x)));
+  const arrangeAll = (list) => {
+    const totals = new Map();
+    const seen = [];
+    for (const series of list) {
+      for (const point of series.points) {
+        const key = String(point.x);
+        let entry = totals.get(key);
+        if (!entry) {
+          entry = { x: point.x, total: 0 };
+          totals.set(key, entry);
+          seen.push(entry);
+        }
+        entry.total += point.y;
+      }
     }
 
-    if (!limit || ordered.length <= limit) return ordered;
-    // The tail becomes one entry rather than more colors. Ordered by value
-    // first, so "Other" is genuinely the small remainder.
-    const byValue = ordered.slice().sort((a, b) => b.y - a.y);
-    const kept = byValue.slice(0, limit);
-    let rest = 0;
-    for (let index = limit; index < byValue.length; index++) rest += byValue[index].y;
-    const keptKeys = {};
-    for (const point of kept) keptKeys[String(point.x)] = true;
-    const inOrder = ordered.filter((point) => keptKeys[String(point.x)]);
-    inOrder.push({ x: "Other", y: rest });
-    return inOrder;
+    let order = seen;
+    if (sort === "value_desc" || mark === "pie") {
+      order = seen.slice().sort((a, b) => b.total - a.total);
+    } else if (sort === "value_asc") {
+      order = seen.slice().sort((a, b) => a.total - b.total);
+    } else if (sort === "label") {
+      order = seen.slice().sort((a, b) => String(a.x).localeCompare(String(b.x)));
+    }
+
+    // The tail becomes one category rather than more colors, chosen by total so
+    // "Other" is genuinely the small remainder.
+    let kept = order;
+    let keptKeys = null;
+    if (limit && order.length > limit) {
+      const byValue = order.slice().sort((a, b) => b.total - a.total);
+      keptKeys = {};
+      for (let index = 0; index < limit; index++) keptKeys[String(byValue[index].x)] = true;
+      kept = order.filter((entry) => keptKeys[String(entry.x)]);
+    }
+
+    return list.map((series) => {
+      const byX = new Map();
+      for (const point of series.points) byX.set(String(point.x), point.y);
+
+      const points = [];
+      for (const entry of kept) {
+        const y = byX.get(String(entry.x));
+        // A category this series never had stays absent rather than becoming a
+        // zero it never reported; the renderer merges on x and leaves the gap.
+        if (y !== undefined) points.push({ x: entry.x, y: y });
+      }
+      if (keptKeys) {
+        // Every series folds its own tail, so the "Other" bar is whole rather
+        // than one series' share of it. Zero is the true value for a series
+        // with nothing in the tail.
+        let rest = 0;
+        for (const point of series.points) {
+          if (!keptKeys[String(point.x)]) rest += point.y;
+        }
+        points.push({ x: OTHER_LABEL, y: rest });
+      }
+
+      const arranged = { name: series.name, points: points };
+      if (series.tone) arranged.tone = series.tone;
+      return arranged;
+    });
   };
 
   switch (data.source) {
     case "task_counts": {
       const rows = data.rows || [];
-      if (!rows.length) return empty("No tasks match");
-      return chart([
-        {
-          name: "Tasks",
-          points: arrange(rows.map((row) => ({ x: row.bucket, y: row.count }))),
-        },
-      ]);
+      if (!rows.length) return empty(say("noTasks"));
+      return chart(
+        arrangeAll([
+          { name: say("tasks"), points: rows.map((row) => ({ x: row.bucket, y: row.count })) },
+        ])
+      );
     }
 
     case "counter_group": {
       const counters = data.counters || [];
-      if (!counters.length) return empty("No counters in this group");
+      if (!counters.length) return empty(say("noCountersInGroup"));
       return chart(
-        [
+        arrangeAll([
           {
-            name: data.name || "Counters",
-            points: arrange(counters.map((counter) => ({ x: counter.name, y: counter.value }))),
+            name: data.name || say("counters"),
+            points: counters.map((counter) => ({ x: counter.name, y: counter.value })),
           },
-        ],
+        ]),
         undefined,
         counters[0].unit || undefined
       );
@@ -322,29 +433,32 @@ function render(data, config) {
 
     case "projects": {
       const rows = data.rows || [];
-      if (!rows.length) return empty("No projects match");
+      if (!rows.length) return empty(say("noProjects"));
       // Done against outstanding reads as a stack; separately it reads as two
-      // comparable series. Either way the same two series serve — and they are
-      // ordered together, so the two halves of a bar stay on the same project.
-      const done = arrange(rows.map((row) => ({ x: row.name, y: row.doneCount })));
-      const order = {};
-      done.forEach((point, index) => {
-        order[String(point.x)] = index;
-      });
-      const remaining = rows
-        .map((row) => ({ x: row.name, y: Math.max(0, row.taskCount - row.doneCount) }))
-        .filter((point) => order[String(point.x)] !== undefined)
-        .sort((a, b) => order[String(a.x)] - order[String(b.x)]);
-
-      return chart([
-        { name: "Done", points: done, tone: "positive" },
-        { name: "Remaining", points: remaining, tone: "muted" },
-      ]);
+      // comparable series. Arranged together, so a folded project contributes
+      // to both halves of the "Other" bar rather than only to the first.
+      return chart(
+        arrangeAll([
+          {
+            name: say("done"),
+            points: rows.map((row) => ({ x: row.name, y: row.doneCount })),
+            tone: "positive",
+          },
+          {
+            name: say("remaining"),
+            points: rows.map((row) => ({
+              x: row.name,
+              y: Math.max(0, row.taskCount - row.doneCount),
+            })),
+            tone: "muted",
+          },
+        ])
+      );
     }
 
     case "sheet_range": {
       const range = data.range;
-      if (!range || !range.rows.length) return empty("Range is empty");
+      if (!range || !range.rows.length) return empty(say("rangeEmpty"));
       const firstRow = range.rows[0];
       // First non-numeric column labels the axis; every numeric column becomes
       // a series. A range with no labels falls back to row ordinals.
@@ -353,21 +467,19 @@ function render(data, config) {
       firstRow.forEach((cell, index) => {
         if (typeof cell === "number") valueIndexes.push(index);
       });
-      if (!valueIndexes.length) return empty("No numeric values in range");
+      if (!valueIndexes.length) return empty(say("noNumeric"));
 
       const series = valueIndexes.slice(0, 12).map((index) => ({
-        name: range.columns[index] || "Series " + (index + 1),
-        points: arrange(
-          range.rows.map((row, rowIndex) => ({
-            x: labelIndex >= 0 && row[labelIndex] !== null ? String(row[labelIndex]) : rowIndex + 1,
-            y: typeof row[index] === "number" ? row[index] : 0,
-          }))
-        ),
+        name: range.columns[index] || say("series") + " " + (index + 1),
+        points: range.rows.map((row, rowIndex) => ({
+          x: labelIndex >= 0 && row[labelIndex] !== null ? String(row[labelIndex]) : rowIndex + 1,
+          y: typeof row[index] === "number" ? row[index] : 0,
+        })),
       }));
-      return chart(series, labelIndex >= 0 ? range.columns[labelIndex] : undefined);
+      return chart(arrangeAll(series), labelIndex >= 0 ? range.columns[labelIndex] : undefined);
     }
 
     default:
-      return empty("This widget cannot draw " + data.source);
+      return empty(say("cannotDraw") + data.source);
   }
 }

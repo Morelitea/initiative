@@ -63,7 +63,8 @@
     "WIDGET_THREW": "Ce widget a rencontré une erreur lors de son affichage.",
     "WIDGET_TIMEOUT": "Ce widget a mis trop de temps et a été arrêté.",
     "WIDGET_TYPE_UNSUPPORTED": "Ce widget nécessite une version plus récente de l'application.",
-    "default": "Ce widget n'a pas pu être affiché."
+    "default": "Ce widget n'a pas pu être affiché.",
+    "WIDGET_DATA_UNAVAILABLE": "Les données de ce widget n'ont pas pu être chargées. Réessayez."
   },
   "bindingSource": {
     "app": "Données de l'app",
