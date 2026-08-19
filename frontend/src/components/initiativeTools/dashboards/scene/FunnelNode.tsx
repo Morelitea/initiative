@@ -1,6 +1,6 @@
 import { formatValue } from "@/lib/widgets/format";
 import type { SceneNode } from "@/lib/widgets/sceneSpec";
-import { seriesColor } from "@/lib/widgets/tone";
+import { toneColor } from "@/lib/widgets/tone";
 
 type Node = Extract<SceneNode, { kind: "funnel" }>;
 
@@ -10,6 +10,11 @@ type Node = Extract<SceneNode, { kind: "funnel" }>;
  * Drawn with plain divs rather than a chart library: a funnel is a list of
  * proportional widths, and the conversion percentages are the part people
  * actually read.
+ *
+ * Stages take an *ordered* scale, not categorical colors — one hue deepening
+ * along the sequence. Funnel stages are steps of one process, and giving each
+ * its own hue would claim they are unrelated identities. A stage that names its
+ * own tone still gets it; that is how a widget marks one step as the problem.
  */
 export function FunnelNode({ node }: { node: Node }) {
   const top = node.stages[0]?.value ?? 0;
@@ -40,7 +45,12 @@ export function FunnelNode({ node }: { node: Node }) {
               className="h-4 rounded-sm transition-[width]"
               style={{
                 width: `${width * 100}%`,
-                backgroundColor: seriesColor(index, stage.tone),
+                backgroundColor: toneColor(stage.tone ?? "accent"),
+                // The ramp: each step a little deeper than the one above it,
+                // floored so the last stage never fades to nothing.
+                opacity: stage.tone
+                  ? 1
+                  : Math.max(0.45, 1 - index * (0.55 / Math.max(1, node.stages.length - 1))),
               }}
             />
           </div>

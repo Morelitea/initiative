@@ -66,24 +66,40 @@ export const normalizeTasks = (tasks: TaskListRead[]): TaskRow[] =>
     projectId: task.project_id ?? null,
     projectName: task.project_name ?? null,
     assignees: (task.assignees ?? []).map((assignee) => assignee.full_name ?? "").filter(Boolean),
+    createdAt: toEpoch(task.created_at) ?? 0,
+    updatedAt: toEpoch(task.updated_at) ?? 0,
+    tags: (task.tags ?? []).map((tag) => tag.name),
+    subtaskDone: task.subtask_progress?.completed ?? 0,
+    subtaskTotal: task.subtask_progress?.total ?? 0,
+    commentCount: task.comment_count ?? 0,
   }));
 
 export const normalizeProjects = (
   projects: ProjectRead[],
-  /** Task counts per project, when a task query is in play. Absent means the
-   *  progress columns read as zero rather than as a guess. */
+  /** Task counts per project, counted from a task query when one is in play.
+   *
+   *  Only used where the project row carries no summary of its own: the list
+   *  endpoint already returns authoritative per-project totals, and those are
+   *  counted over *every* task rather than over the page a widget happened to
+   *  fetch — so a project with more tasks than the fetch window still reports
+   *  its real progress. */
   taskCounts?: Map<number, { total: number; done: number }>
 ): ProjectRow[] =>
   projects.map((project) => {
-    const counts = taskCounts?.get(project.id) ?? { total: 0, done: 0 };
+    const summary = project.task_summary;
+    const counted = taskCounts?.get(project.id);
+    const total = summary?.total ?? counted?.total ?? 0;
+    const done = summary?.completed ?? counted?.done ?? 0;
     return {
       id: project.id,
       name: project.name,
       startDate: toEpoch(project.start_date),
       endDate: toEpoch(project.end_date),
-      progress: counts.total > 0 ? counts.done / counts.total : 0,
-      taskCount: counts.total,
-      doneCount: counts.done,
+      progress: total > 0 ? done / total : 0,
+      taskCount: total,
+      doneCount: done,
+      ownerName: project.owner?.full_name ?? null,
+      tags: (project.tags ?? []).map((tag) => tag.name),
     };
   });
 
@@ -108,6 +124,9 @@ export const normalizeCalendarEntries = (
         end: toEpoch(event.end_at) ?? start + 3_600_000,
         calendarName: calendarNames?.get(event.calendar_id) ?? null,
         allDay: Boolean(event.all_day),
+        location: event.location ?? null,
+        attendees: event.attendee_names ?? [],
+        tags: (event.tags ?? []).map((tag) => tag.name),
       },
     ];
   });
@@ -146,14 +165,25 @@ const DEFAULT_BUCKET: CountBucket = "status_category";
  * endpoint. Two widgets on one canvas bound to the same tasks therefore share a
  * single query and disagree about nothing.
  */
-export const countTasks = (tasks: TaskRow[], bucket: CountBucket = DEFAULT_BUCKET): CountRow[] => {
+/** Which date a day-bucketed count places a task on. */
+export type DayField = "completed" | "created" | "due";
+
+const dayValue = (task: TaskRow, field: DayField): number | null =>
+  field === "created" ? task.createdAt : field === "due" ? task.dueDate : task.completedAt;
+
+export const countTasks = (
+  tasks: TaskRow[],
+  bucket: CountBucket = DEFAULT_BUCKET,
+  dayField: DayField = "completed"
+): CountRow[] => {
   if (bucket === "day") {
-    // Completion is the only per-day event a task carries; an incomplete task
-    // has no day to sit on, so it is absent rather than placed arbitrarily.
+    // A task with no date for the chosen field has no day to sit on, so it is
+    // absent rather than placed arbitrarily.
     const byDay = new Map<number, number>();
     for (const task of tasks) {
-      if (task.completedAt === null) continue;
-      const day = startOfUtcDay(task.completedAt);
+      const at = dayValue(task, dayField);
+      if (at === null) continue;
+      const day = startOfUtcDay(at);
       byDay.set(day, (byDay.get(day) ?? 0) + 1);
     }
     return [...byDay.entries()]

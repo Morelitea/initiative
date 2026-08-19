@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Every widget says where its data comes from.** A line under the title names the source, what it's narrowed to, and how many rows came back; click it for every filter in plain words, the display options, and a refresh. Names only ever resolve to what *you* can see.
+- **Widgets can be filtered.** Status, priority, assignee, tag, project, any of the four dates, archived state, and title, with an optional "any of these" group. Dates can be relative ("due in the next 30 days"), so a dashboard never goes stale on the date it was saved.
+- **Configuring a widget previews it.** The dialog runs the real widget against your own data while you choose.
+- **Any widget can be read as a table** — a control in its header swaps the picture for the numbers.
+- **The widgets do much more.** Stat shows a trend and a sparkline; chart gained ordering, a category cap, horizontal bars, a target line and highlighting; table shows assignees, tags, checklist progress and comment counts, marks overdue rows and totals columns; progress draws a meter per project; heatmap labels months and can count by creation or due date.
+- **Charts read more cleanly** — lighter marks, room between bars, and a tooltip that leads with the value.
+- **Widgets speak your language.** Their column headings and empty states were always English; marketplace widgets can now ship translations too.
+
+### Fixed
+
+- **A table bound to a spreadsheet range showed nothing.** Its columns were built without keys, so every cell landed in the same place.
+- **Project progress was counted from a partial list.** Widgets read a fixed number of tasks at a time, so a larger project reported the wrong percentage. It now comes from the server's totals, and a widget drawing a partial list says so.
+- **A widget whose data you can't see no longer tells you to configure it.** That prompt was shown both to authors who hadn't finished and to viewers whose access didn't cover the data; a failed load now reads differently again.
+
 ## [0.62.8] - 2026-08-19
 
 ### Changed

@@ -8,10 +8,20 @@
  * like the frame around it.
  */
 
-import { GripVertical, MoreVertical, Settings2, Trash2 } from "lucide-react";
+import {
+  BarChart3,
+  EyeOff,
+  GripVertical,
+  MoreVertical,
+  Settings2,
+  Table2,
+  Trash2,
+} from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { appWidgetSample, appWidgetSource } from "@/api/appData";
+import { WidgetProvenance } from "@/components/initiativeTools/dashboards/WidgetProvenance";
 import { WidgetTile } from "@/components/initiativeTools/dashboards/WidgetTile";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAppWidgetCatalog } from "@/hooks/useAppData";
+import { useBindingLabels } from "@/hooks/useBindingLabels";
 import { useWidgetData, type WidgetBinding } from "@/hooks/useWidgetData";
 import { useWidgetMeta } from "@/hooks/useWidgetMeta";
 import { cn } from "@/lib/utils";
@@ -74,7 +85,7 @@ export function DashboardWidget({
   // Named from its own module, like every widget: an app names its widgets in
   // the manifest, so a marketplace tile has a real title without a locale edit
   // here. Falls back to the type id until the sandbox read resolves.
-  const { name } = useWidgetMeta(widget.type, moduleSource);
+  const { name, meta } = useWidgetMeta(widget.type, moduleSource);
 
   // In sample mode the hook still runs (hooks are unconditional) but is handed
   // no initiative, which fail-closes every query — a preview issues no
@@ -85,6 +96,12 @@ export function DashboardWidget({
     sampleData ? undefined : dashboardId
   );
 
+  // Names for the ids this binding mentions, resolved against the viewer's own
+  // reads — never against the definition. Off entirely in sample mode, which
+  // fetches nothing at all.
+  const labels = useBindingLabels(binding, initiativeId, !sampleData);
+  const [view, setView] = useState<"scene" | "table">("scene");
+
   const appSampleRows = appWidgetSample(appCatalogQuery.data, widget.type, binding.source_id);
   const data = sampleData
     ? isAppWidget
@@ -92,20 +109,24 @@ export function DashboardWidget({
       : sampleFor(binding.source, widget.type)
     : live.data;
   const isLoading = sampleData ? false : live.isLoading;
-  const isUnbound = sampleData ? false : live.isUnbound;
   const errorCode = sampleData ? undefined : live.errorCode;
 
   const title = widget.title || name;
-  const missing = unboundSlots(binding);
+  // Three states that used to be one. "Nothing chosen yet" asks the author to
+  // finish the job; "you can't see this" is not addressed to them at all, and
+  // showing them a Configure button would invite repointing a binding that was
+  // never wrong.
+  const unconfigured = !sampleData && live.isUnbound && unboundSlots(binding).length > 0;
+  const restricted = !sampleData && live.isRestricted;
 
   return (
     <section
-      className="flex h-full w-full flex-col overflow-hidden rounded-lg border bg-card text-card-foreground"
+      className="group/widget flex h-full w-full flex-col overflow-hidden rounded-lg border bg-card text-card-foreground"
       aria-label={title}
     >
       <header
         className={cn(
-          "flex shrink-0 items-center gap-1 border-b px-2 py-1.5",
+          "flex shrink-0 items-start gap-1 border-b px-2 py-1.5",
           canEdit && "cursor-grab active:cursor-grabbing"
         )}
         // The whole header is the drag handle, so a widget's own content never
@@ -113,9 +134,37 @@ export function DashboardWidget({
         {...(canEdit ? { "data-widget-handle": true } : {})}
       >
         {canEdit && (
-          <GripVertical className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+          <GripVertical className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
         )}
-        <h3 className="min-w-0 flex-1 truncate font-semibold text-sm">{title}</h3>
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate font-semibold text-sm">{title}</h3>
+          {!sampleData && (
+            <WidgetProvenance
+              binding={binding}
+              labels={labels}
+              meta={live.meta}
+              options={widget.options}
+              widgetMeta={meta}
+              onRefresh={live.refetch}
+            />
+          )}
+        </div>
+        {!unconfigured && !restricted && (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-6 w-6 shrink-0 opacity-0 focus-visible:opacity-100 group-hover/widget:opacity-100"
+            aria-label={t(view === "scene" ? "canvas.tableView" : "canvas.chartView")}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={() => setView(view === "scene" ? "table" : "scene")}
+          >
+            {view === "scene" ? (
+              <Table2 className="h-3.5 w-3.5" />
+            ) : (
+              <BarChart3 className="h-3.5 w-3.5" />
+            )}
+          </Button>
+        )}
         {canEdit && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -145,8 +194,10 @@ export function DashboardWidget({
       </header>
 
       <div className="min-h-0 flex-1 p-2">
-        {isUnbound && missing.length ? (
-          <UnboundNotice canEdit={canEdit} onConfigure={() => onConfigure?.(widget.id)} />
+        {unconfigured ? (
+          <UnconfiguredNotice canEdit={canEdit} onConfigure={() => onConfigure?.(widget.id)} />
+        ) : restricted ? (
+          <RestrictedNotice />
         ) : (
           <WidgetTile
             type={widget.type}
@@ -156,6 +207,7 @@ export function DashboardWidget({
             errorCode={errorCode}
             isLoading={isLoading || (isAppWidget && appCatalogQuery.isLoading)}
             now={sampleData ? SAMPLE_NOW : undefined}
+            view={view}
             chromeless
           />
         )}
@@ -164,18 +216,42 @@ export function DashboardWidget({
   );
 }
 
-/** A widget whose binding still has empty slots — an installed listing before
- *  someone points it at this guild's counter. Not an error, a next step. */
-function UnboundNotice({ canEdit, onConfigure }: { canEdit: boolean; onConfigure: () => void }) {
+/** A binding with empty slots — an installed listing before someone points it
+ *  at this guild's counter. Not an error, a next step, and one only an author
+ *  can take. */
+function UnconfiguredNotice({
+  canEdit,
+  onConfigure,
+}: {
+  canEdit: boolean;
+  onConfigure: () => void;
+}) {
   const { t } = useTranslation("dashboards");
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-3 text-center">
-      <p className="text-muted-foreground text-sm">{t("canvas.unbound")}</p>
+      <p className="text-muted-foreground text-sm">{t("canvas.unconfigured")}</p>
+      <p className="text-muted-foreground/80 text-xs">{t("canvas.unconfiguredHint")}</p>
       {canEdit && (
         <Button size="sm" variant="outline" onClick={onConfigure}>
           {t("canvas.configure")}
         </Button>
       )}
+    </div>
+  );
+}
+
+/** The binding resolved and its target is not there for this viewer.
+ *
+ * Deliberately says nothing about what the target was — not its name, not its
+ * id, not its kind beyond the source already on the provenance line. And
+ * deliberately offers no Configure button: nothing here is misconfigured. */
+function RestrictedNotice() {
+  const { t } = useTranslation("dashboards");
+  return (
+    <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 p-3 text-center">
+      <EyeOff className="h-4 w-4 text-muted-foreground" aria-hidden />
+      <p className="text-muted-foreground text-sm">{t("canvas.restricted")}</p>
+      <p className="text-muted-foreground/80 text-xs">{t("canvas.restrictedHint")}</p>
     </div>
   );
 }

@@ -15,10 +15,6 @@
  * **All timestamps are epoch milliseconds, UTC.** The sandbox has a frozen
  * clock and no timezone, deliberately: rendering a timestamp for a human is the
  * renderer's job, not the widget's.
- *
- * The fetchers that produce these land with the canvas (Phase 2b). This module
- * is the contract they will satisfy, and what `fixtures.ts` mirrors so the
- * widgets are testable now.
  */
 
 export interface TaskRow {
@@ -34,6 +30,16 @@ export interface TaskRow {
   projectId: number | null;
   projectName: string | null;
   assignees: string[];
+  /** When the task was opened. Paired with `completedAt` this is what makes
+   *  throughput, cycle time, and a created-vs-completed burn-up expressible —
+   *  the whole flow-metrics family lives or dies on this one field. */
+  createdAt: number;
+  updatedAt: number;
+  tags: string[];
+  /** Checklist progress. Both zero for a task with no subtasks. */
+  subtaskDone: number;
+  subtaskTotal: number;
+  commentCount: number;
 }
 
 export interface ProjectRow {
@@ -45,6 +51,8 @@ export interface ProjectRow {
   progress: number;
   taskCount: number;
   doneCount: number;
+  ownerName: string | null;
+  tags: string[];
 }
 
 /**
@@ -69,6 +77,9 @@ export interface CalendarEntryRow {
   end: number;
   calendarName: string | null;
   allDay: boolean;
+  location: string | null;
+  attendees: string[];
+  tags: string[];
 }
 
 /** A pre-aggregated count, whatever the binding grouped by (status category,
@@ -110,7 +121,24 @@ export interface AppRows {
   rows: unknown[];
 }
 
-export type WidgetData =
+/**
+ * What the host knows about the rows that the rows themselves cannot say.
+ *
+ * `total` is the count the viewer's own query matched; `rows` may be a leading
+ * slice of it, because the list endpoints answer within a fixed window. A
+ * widget that reports a number computed from a slice is reporting a wrong
+ * number, so the slice is stated rather than implied — the tile draws it as a
+ * chip, and a widget can read it and caption accordingly.
+ *
+ * Counts here are always *this viewer's*: what the six gates let their session
+ * see, never the author's total.
+ */
+export interface DataMeta {
+  total?: number;
+  truncated?: boolean;
+}
+
+export type WidgetData = (
   | { source: "tasks"; rows: TaskRow[] }
   | ProjectsData
   | { source: "calendar_entries"; rows: CalendarEntryRow[] }
@@ -118,7 +146,8 @@ export type WidgetData =
   | { source: "counter"; counter: CounterValue }
   | { source: "counter_group"; name: string; counters: CounterValue[] }
   | { source: "sheet_range"; range: SheetRange }
-  | AppRows;
+  | AppRows
+) & { meta?: DataMeta };
 
 export type WidgetSource = WidgetData["source"];
 

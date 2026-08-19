@@ -15,7 +15,7 @@
  * dense canvas from becoming a request storm.
  */
 
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 
 import { resolveAppBinding } from "@/api/appData";
 import type {
@@ -29,12 +29,14 @@ import { useCounterGroup } from "@/hooks/useCounters";
 import { useDocument } from "@/hooks/useDocuments";
 import { useProjects } from "@/hooks/useProjects";
 import { useTasks } from "@/hooks/useTasks";
-import type { WidgetData, WidgetSource } from "@/lib/widgets/dataShapes";
+import { expandConditions, readConditions } from "@/lib/widgets/conditions";
+import type { DataMeta, WidgetData, WidgetSource } from "@/lib/widgets/dataShapes";
 import { WidgetErrorCode } from "@/lib/widgets/errors";
 import {
   type CountBucket,
   countTasks,
   countTasksByProject,
+  type DayField,
   emptyDataFor,
   normalizeCalendarEntries,
   normalizeCounter,
@@ -61,6 +63,8 @@ export interface WidgetBinding {
   sheet?: string | null;
   range?: string | null;
   bucket?: CountBucket | null;
+  /** Which date a `day` bucket counts on. */
+  day_field?: DayField | null;
   /** Days back from today for time-windowed sources. */
   window_days?: number | null;
   /** `app` source: which installed app, which of its sources, and the arguments
@@ -78,6 +82,23 @@ export interface WidgetDataResult {
   /** A binding whose ids the instance config has not filled in yet — the widget
    *  renders its own empty state rather than an error. */
   isUnbound: boolean;
+  /** The binding names a target, the fetch resolved, and the target is not
+   *  there: deleted, or hidden from this viewer by the gates.
+   *
+   *  Deliberately distinct from {@link isUnbound}, which these two used to
+   *  share. They are opposite instructions — one asks the author to finish
+   *  configuring a widget, the other says this viewer is not the person who can
+   *  see the answer — and telling a reader to "configure this" invites them to
+   *  repoint a binding that was never wrong. What the tile may *say* about it
+   *  is bounded: absence, never the name or id of the thing that is absent. */
+  isRestricted: boolean;
+  /** Rows this viewer's own query matched, and whether the rows in `data` are a
+   *  leading slice of them. Mirrors `data.meta`, hoisted for the tile chrome. */
+  meta?: DataMeta;
+  /** Re-run this binding's own queries. Lives here because this is the only
+   *  place that knows which ones a source uses — a caller refetching by query
+   *  key would be maintaining that list twice. */
+  refetch: () => void;
   /** Set when the tile should draw an error instead of running the widget. Only
    *  the `app` source produces one: our own sources fail closed to empty, but an
    *  external service being down is worth saying out loud. */
@@ -139,12 +160,13 @@ export function useWidgetData(
     if (binding.project_id) {
       conditions.push({ field: "project_id", op: "eq", value: binding.project_id });
     }
-    // The binding's own pass through verbatim — the parser owns its limits, and
-    // mirroring them here would mean maintaining them twice. A definition may
-    // carry either a list or a single group; the endpoint wants a list.
-    const own = binding.conditions;
-    if (Array.isArray(own)) conditions.push(...own);
-    else if (own && typeof own === "object") conditions.push(own);
+    // The binding's own, with relative dates resolved against this instant. The
+    // parser owns its limits, and mirroring them here would mean maintaining
+    // them twice; what does happen here is the one translation the endpoint
+    // cannot do, because it never learns the relative form — a definition that
+    // asks for "due within 30 days" must keep asking that as the days pass,
+    // rather than freezing the date it was saved on.
+    conditions.push(...expandConditions(readConditions(binding.conditions), Date.now()));
 
     const params: Record<string, unknown> = { page_size: 0 };
     if (conditions.length) params.conditions = JSON.stringify(conditions);
@@ -204,28 +226,93 @@ export function useWidgetData(
     enabled: scoped && isApp,
   });
 
+  const refetch = useCallback(() => {
+    if (TASK_BACKED.includes(source)) void tasksQuery.refetch();
+    if (source === "projects") void projectsQuery.refetch();
+    if (source === "calendar_entries") {
+      void entriesQuery.refetch();
+      void calendarsQuery.refetch();
+    }
+    if (source === "counter" || source === "counter_group") void counterGroupQuery.refetch();
+    if (source === "sheet_range") void documentQuery.refetch();
+    if (isApp) void appQuery.refetch();
+  }, [
+    source,
+    isApp,
+    tasksQuery.refetch,
+    projectsQuery.refetch,
+    entriesQuery.refetch,
+    calendarsQuery.refetch,
+    counterGroupQuery.refetch,
+    documentQuery.refetch,
+    appQuery.refetch,
+  ]);
+
   return useMemo<WidgetDataResult>(() => {
     const unbound = (): WidgetDataResult => ({
       data: emptyDataFor(source),
       isLoading: false,
       isUnbound: true,
+      isRestricted: false,
+      refetch,
+    });
+
+    /**
+     * The binding named a target and the fetch came back without it.
+     *
+     * Three outcomes, and they must not be collapsed: still in flight; the
+     * request failed, which says nothing at all about what this viewer may
+     * see; or it succeeded and the target genuinely is not there for them.
+     * Only the third is an access outcome, and only it says so.
+     */
+    const absent = (query: { isLoading: boolean; isError: boolean }): WidgetDataResult => ({
+      data: emptyDataFor(source),
+      isLoading: query.isLoading,
+      isUnbound: false,
+      isRestricted: !query.isLoading && !query.isError,
+      errorCode: query.isError ? WidgetErrorCode.DATA_UNAVAILABLE : undefined,
+      refetch,
     });
 
     // No initiative, no data — fail closed rather than fan out.
     if (!scoped) return unbound();
 
+    // What the viewer's own task query matched, against what it returned. The
+    // list endpoints answer within a fixed window, so a widget on a busy
+    // initiative can be handed a leading slice — which is only honest if the
+    // slice is stated.
+    const taskMeta: DataMeta = {
+      total: tasksQuery.data?.total_count,
+      truncated: Boolean(tasksQuery.data?.has_next),
+    };
+
     switch (source) {
       case "tasks": {
         const rows = normalizeTasks(tasksQuery.data?.items ?? []);
-        return { data: { source, rows }, isLoading: tasksQuery.isLoading, isUnbound: false };
+        return {
+          data: { source, rows, meta: taskMeta },
+          isLoading: tasksQuery.isLoading,
+          isUnbound: false,
+          isRestricted: false,
+          refetch,
+          meta: taskMeta,
+        };
       }
 
       case "task_counts": {
         const rows = countTasks(
           normalizeTasks(tasksQuery.data?.items ?? []),
-          binding.bucket ?? undefined
+          binding.bucket ?? undefined,
+          binding.day_field ?? undefined
         );
-        return { data: { source, rows }, isLoading: tasksQuery.isLoading, isUnbound: false };
+        return {
+          data: { source, rows, meta: taskMeta },
+          isLoading: tasksQuery.isLoading,
+          isUnbound: false,
+          isRestricted: false,
+          refetch,
+          meta: taskMeta,
+        };
       }
 
       case "projects": {
@@ -238,10 +325,19 @@ export function useWidgetData(
         // The tasks ride along rather than being counted and thrown away: they
         // are already here, already the viewer's own, and a widget that folds a
         // project open needs exactly them.
+        const meta: DataMeta = {
+          total: visible.length,
+          // The projects themselves are whole; the tasks riding along may be a
+          // slice, and a widget that folds a project open is drawing them.
+          truncated: taskMeta.truncated,
+        };
         return {
-          data: { source, rows, tasks },
+          data: { source, rows, tasks, meta },
           isLoading: projectsQuery.isLoading || tasksQuery.isLoading,
           isUnbound: false,
+          isRestricted: false,
+          refetch,
+          meta,
         };
       }
 
@@ -252,10 +348,15 @@ export function useWidgetData(
         const events = (entriesQuery.data?.events ?? []).filter(
           (event) => !binding.calendar_id || event.calendar_id === binding.calendar_id
         );
+        const rows = normalizeCalendarEntries(events, names);
+        const meta: DataMeta = { total: rows.length, truncated: false };
         return {
-          data: { source, rows: normalizeCalendarEntries(events, names) },
+          data: { source, rows, meta },
           isLoading: entriesQuery.isLoading,
           isUnbound: false,
+          isRestricted: false,
+          refetch,
+          meta,
         };
       }
 
@@ -268,35 +369,30 @@ export function useWidgetData(
             ? counterGroupQuery.data
             : undefined;
         const counter = group?.counters?.find((candidate) => candidate.id === binding.counter_id);
-        if (!counter) {
-          return {
-            data: emptyDataFor(source),
-            isLoading: counterGroupQuery.isLoading,
-            // Resolved but absent: the counter was deleted, or RLS hid it.
-            isUnbound: !counterGroupQuery.isLoading,
-          };
-        }
+        // Resolved but absent: the counter was deleted, or the gates hid it.
+        if (!counter) return absent(counterGroupQuery);
         return {
           data: { source, counter: normalizeCounter(counter) },
           isLoading: counterGroupQuery.isLoading,
           isUnbound: false,
+          isRestricted: false,
+          refetch,
         };
       }
 
       case "counter_group": {
         if (!binding.counter_group_id) return unbound();
         if (!counterGroupQuery.data || counterGroupQuery.data.initiative_id !== initiativeId) {
-          return {
-            data: emptyDataFor(source),
-            isLoading: counterGroupQuery.isLoading,
-            isUnbound: !counterGroupQuery.isLoading,
-          };
+          return absent(counterGroupQuery);
         }
         const { name, counters } = normalizeCounterGroup(counterGroupQuery.data);
         return {
-          data: { source, name, counters },
+          data: { source, name, counters, meta: { total: counters.length } },
           isLoading: counterGroupQuery.isLoading,
           isUnbound: false,
+          isRestricted: false,
+          refetch,
+          meta: { total: counters.length },
         };
       }
 
@@ -307,14 +403,16 @@ export function useWidgetData(
         const document =
           documentQuery.data?.initiative_id === initiativeId ? documentQuery.data : undefined;
         const range = document ? normalizeSheetRange(document, binding.sheet, binding.range) : null;
-        if (!range) {
-          return {
-            data: emptyDataFor(source),
-            isLoading: documentQuery.isLoading,
-            isUnbound: !documentQuery.isLoading,
-          };
-        }
-        return { data: { source, range }, isLoading: false, isUnbound: false };
+        if (!range) return absent(documentQuery);
+        const meta: DataMeta = { total: range.rows.length, truncated: false };
+        return {
+          data: { source, range, meta },
+          isLoading: false,
+          isUnbound: false,
+          isRestricted: false,
+          refetch,
+          meta,
+        };
       }
 
       case "app": {
@@ -324,7 +422,13 @@ export function useWidgetData(
           return unbound();
         }
         if (appCatalogQuery.isLoading) {
-          return { data: emptyDataFor(source), isLoading: true, isUnbound: false };
+          return {
+            data: emptyDataFor(source),
+            isLoading: true,
+            isUnbound: false,
+            isRestricted: false,
+            refetch,
+          };
         }
         // A catalog that failed to load says nothing about whether this app is
         // installed, so it must not be read as "not installed" — that would
@@ -335,15 +439,17 @@ export function useWidgetData(
             data: emptyDataFor(source),
             isLoading: false,
             isUnbound: false,
+            isRestricted: false,
+            refetch,
             errorCode: WidgetErrorCode.APP_UNAVAILABLE,
           };
         }
         // The app is not installed in this guild, or its pinned version stopped
         // offering this source. Same rendering as a deleted counter: absent, not
         // broken — nothing here is the app's fault.
-        if (!appBinding) {
-          return { data: emptyDataFor(source), isLoading: false, isUnbound: true };
-        }
+        // Not installed, or the pinned version stopped offering this source —
+        // the catalog answered, so this is absence rather than a failure.
+        if (!appBinding) return absent({ isLoading: false, isError: false });
         // An app that stopped answering does not blank a tile that already has
         // rows: React Query keeps the last good body for this key, and showing
         // it is more useful than showing nothing. The error tile is for when
@@ -353,15 +459,21 @@ export function useWidgetData(
             data: emptyDataFor(source),
             isLoading: false,
             isUnbound: false,
+            isRestricted: false,
+            refetch,
             errorCode: WidgetErrorCode.APP_UNAVAILABLE,
           };
         }
+        const rows = appQuery.data?.rows ?? [];
         return {
           // Verbatim. Nothing on this side reads inside an app's rows; the
           // sandbox is handed them as values.
-          data: { source, rows: appQuery.data?.rows ?? [] },
+          data: { source, rows, meta: { total: rows.length } },
           isLoading: appQuery.isLoading,
           isUnbound: false,
+          isRestricted: false,
+          refetch,
+          meta: { total: rows.length },
         };
       }
 
@@ -372,6 +484,7 @@ export function useWidgetData(
     source,
     initiativeId,
     binding.bucket,
+    binding.day_field,
     binding.calendar_id,
     binding.counter_group_id,
     binding.counter_id,
@@ -398,6 +511,7 @@ export function useWidgetData(
     appCatalogQuery.isError,
     appQuery.data,
     appQuery.isLoading,
+    refetch,
     appQuery.isError,
   ]);
 }

@@ -120,7 +120,13 @@ describe("DashboardWidget with an app source", () => {
     const call = renderWidget.mock.calls.at(-1)?.[0];
     // The seam: the module comes from the pinned definition, not the registry.
     expect(call.source).toBe(MODULE);
-    expect(call.data).toEqual({ source: "app", rows: [{ day: "mon", total: 9 }] });
+    // Rows verbatim, plus the host's own count of them — nothing on this side
+    // reads inside an app's rows.
+    expect(call.data).toEqual({
+      source: "app",
+      rows: [{ day: "mon", total: 9 }],
+      meta: { total: 1 },
+    });
   });
 
   it("asks the proxy for the dashboard the widget sits on", async () => {

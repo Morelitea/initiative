@@ -27,7 +27,9 @@ export function MetricNode({ node }: { node: Node }) {
           {node.label}
         </p>
       )}
-      <p className={cn("truncate font-bold text-3xl tabular-nums", toneTextClass(node.tone))}>
+      {/* Proportional figures, not tabular: equal-width digits make a number
+          like 121 look loose at display size. Tabular belongs in columns. */}
+      <p className={cn("truncate font-bold text-3xl", toneTextClass(node.tone))}>
         {formatValue(node.value, node.format)}
       </p>
       <div className="flex items-center gap-2">

@@ -22,6 +22,12 @@ export const WidgetErrorCode = {
    *  proxy will not pass on. One tile says so; the rest of the canvas is
    *  unaffected, and the last good rows keep showing for their stale window. */
   APP_UNAVAILABLE: "WIDGET_APP_UNAVAILABLE",
+  /** This widget's own fetch failed — the network, or the server. Deliberately
+   *  distinct from the tile's "you can't see this" state: a request that never
+   *  completed says nothing about what the viewer is allowed to see, and
+   *  reporting it as an access outcome would be a claim we have not
+   *  established. */
+  DATA_UNAVAILABLE: "WIDGET_DATA_UNAVAILABLE",
 } as const;
 
 export type WidgetErrorCode = (typeof WidgetErrorCode)[keyof typeof WidgetErrorCode];
