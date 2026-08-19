@@ -913,12 +913,14 @@ async def verify_engine_identities() -> None:
     so residual pool state can never skew the answer.
     """
     async with db_session.engine.connect() as conn:
-        app_login, app_db, app_bypasses = (
+        app_login, app_db, app_bypasses, app_temp = (
             await conn.execute(
                 text(
                     "SELECT session_user, current_database(), "
                     "(SELECT rolsuper OR rolbypassrls FROM pg_roles "
-                    " WHERE rolname = session_user)"
+                    " WHERE rolname = session_user), "
+                    "has_database_privilege("
+                    "  session_user, current_database(), 'TEMP')"
                 )
             )
         ).one()
@@ -967,6 +969,25 @@ async def verify_engine_identities() -> None:
             "%s",
             bar,
             app_login,
+            bar,
+        )
+
+    if app_temp:
+        logger.warning(
+            "\n%s\n"
+            "PRIVILEGE DRIFT: the request login %r holds TEMPORARY on database\n"
+            "%r. The app creates no temporary objects, so this grant is unused;\n"
+            "fresh installs revoke it from PUBLIC at database init. Deployments\n"
+            "created before that still carry it. To align, run as the database\n"
+            "owner:\n"
+            "  REVOKE TEMPORARY ON DATABASE %s FROM PUBLIC;\n"
+            "or re-run backend/scripts/create-provisioner.sql, which does this\n"
+            "and verifies it took effect.\n"
+            "%s",
+            bar,
+            app_login,
+            app_db,
+            app_db,
             bar,
         )
 

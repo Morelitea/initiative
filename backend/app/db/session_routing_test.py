@@ -9,10 +9,11 @@ import pytest
 
 from app.db.schema_provisioning import (
     guild_readonly_role_name,
+    guild_schema_name,
     guild_role_name,
     guild_support_role_name,
 )
-from app.db.session import _render_context_bind_params
+from app.db.session import CONNECTION_RESET_SQL, _render_context_bind_params
 
 pytestmark = pytest.mark.unit
 
@@ -84,3 +85,58 @@ def test_member_and_break_glass_keep_full_role():
         _params(guild_id=3, guild_role="admin", pam_guild_id=3, pam_write=True)
     )
     assert bg["role"] == guild_role_name(3)
+
+
+class TestSearchPathNamesEverySchema:
+    """The routed path names every schema it resolves against, in priority
+    order, ending at ``pg_temp`` (see ``_search_path``). Guild content resolves
+    in the guild schema first; the platform and billing routes resolve in
+    ``public``."""
+
+    def test_guild_route_names_guild_schema_then_public(self):
+        out = _render_context_bind_params(_params(guild_id=3, guild_role="member"))
+        assert out["sp"] == f"{guild_schema_name(3)}, public, pg_temp"
+
+    def test_platform_route_names_public(self):
+        out = _render_context_bind_params(_params(platform_role="member"))
+        assert out["sp"] == "public, pg_temp"
+
+    def test_billing_route_names_public(self):
+        out = _render_context_bind_params(_params(billing_guild_id=5))
+        assert out["sp"] == "public, pg_temp"
+
+    @pytest.mark.parametrize(
+        "overrides",
+        [
+            {"guild_id": 3, "guild_role": "member"},
+            {"guild_id": 3, "guild_role": "admin", "read_only": True},
+            {"pam_guild_id": 4, "pam_read": True},
+            {"pam_guild_id": 4, "pam_write": True},
+            {"platform_role": "owner"},
+            {"billing_guild_id": 5},
+            {},
+        ],
+        ids=[
+            "member",
+            "read-only-admin",
+            "pam-read",
+            "pam-write",
+            "platform",
+            "billing",
+            "unrouted",
+        ],
+    )
+    def test_every_route_ends_at_pg_temp(self, overrides):
+        """One helper renders them all, so no route can drift off the pattern."""
+        out = _render_context_bind_params(_params(**overrides))
+        assert out["sp"].endswith(", pg_temp")
+
+
+class TestConnectionReset:
+    def test_reset_clears_role_and_names_the_same_path(self):
+        """Entry points that build their own session share one reset with the
+        routed platform path, rather than spelling it out again."""
+        assert "set_config('role', 'none', false)" in CONNECTION_RESET_SQL
+        assert "set_config('search_path', 'public, pg_temp', false)" in (
+            CONNECTION_RESET_SQL
+        )
