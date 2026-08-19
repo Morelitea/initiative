@@ -75,6 +75,13 @@ from app.schemas.tenant.recent_view import RecentViewWrite
 
 
 router = APIRouter()
+
+#: Flat read-back route, mounted at the guild root like ``subtasks``. An event
+#: envelope names ``(resource_type, id)`` and nothing else, so the resource has
+#: to be addressable by its own id — a nested path would need a parent the
+#: envelope never carries. Writes stay nested under their group, where the
+#: caller is already working inside one.
+counters_router = APIRouter()
 logger = logging.getLogger(__name__)
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
@@ -740,27 +747,30 @@ async def _commit_and_broadcast_count(
     return result
 
 
-@router.get("/{group_id}/counters/{counter_id}", response_model=CounterRead)
+@counters_router.get("/counters/{counter_id}", response_model=CounterRead)
 async def read_counter(
-    group_id: int,
     counter_id: int,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     include_deleted: IncludeDeletedDep = False,
 ) -> CounterRead:
-    """One counter by id — the read-back for a ``counters.*`` event. Requires
-    read access on the group, like reading the group."""
-    await _get_counter_group_with_access(
-        session, group_id, current_user, guild_context, access="read"
-    )
-    counter = await _get_counter_for_group(session, group_id, counter_id)
-    hydrated = await counters_service.get_counter(session, counter.id)
-    if not hydrated:
+    """One counter by id — the read-back for a ``counters.*`` event.
+
+    Gated by read access on the group it belongs to, like reading the group.
+    The counter's own id is the whole address, so there is no parent to
+    mismatch — and no hand-written deleted check to contradict the request,
+    which is what a read-back after a delete depends on.
+    """
+    counter = await counters_service.get_counter(session, counter_id)
+    if not counter:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=CounterMessages.NOT_FOUND
         )
-    return serialize_counter(hydrated)
+    await _get_counter_group_with_access(
+        session, counter.counter_group_id, current_user, guild_context, access="read"
+    )
+    return serialize_counter(counter)
 
 
 @router.post("/{group_id}/counters/{counter_id}/set", response_model=CounterRead)

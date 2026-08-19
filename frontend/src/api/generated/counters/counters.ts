@@ -34,7 +34,7 @@ import type {
   HTTPValidationError,
   InitiativeGroupedCountsResponse,
   ListCounterGroupsApiV1GGuildIdCounterGroupsGetParams,
-  ReadCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGetParams,
+  ReadCounterApiV1GGuildIdCountersCounterIdGetParams,
   ReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetParams,
   RecentViewWrite,
   ResourceGrantSchema,
@@ -1367,253 +1367,6 @@ export const useDeleteCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdD
   );
 };
 /**
- * One counter by id — the read-back for a ``counters.*`` event. Requires
- * read access on the group, like reading the group.
- * @summary Read Counter
- */
-export const readCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGet = (
-  guildId: number,
-  groupId: number,
-  counterId: number,
-  params?: ReadCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGetParams,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<CounterRead>(
-    {
-      url: `/api/v1/g/${guildId}/counter-groups/${groupId}/counters/${counterId}`,
-      method: "GET",
-      params,
-      signal,
-    },
-    options
-  );
-};
-
-export const getReadCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGetQueryKey = (
-  guildId: number,
-  groupId: number,
-  counterId: number,
-  params?: ReadCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGetParams
-) => {
-  return [
-    `/api/v1/g/${guildId}/counter-groups/${groupId}/counters/${counterId}`,
-    ...(params ? [params] : []),
-  ] as const;
-};
-
-export const getReadCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGetQueryOptions = <
-  TData = Awaited<
-    ReturnType<typeof readCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGet>
-  >,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  groupId: number,
-  counterId: number,
-  params?: ReadCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<typeof readCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGet>
-        >,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }
-) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey =
-    queryOptions?.queryKey ??
-    getReadCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGetQueryKey(
-      guildId,
-      groupId,
-      counterId,
-      params
-    );
-
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGet>>
-  > = ({ signal }) =>
-    readCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGet(
-      guildId,
-      groupId,
-      counterId,
-      params,
-      requestOptions,
-      signal
-    );
-
-  return {
-    queryKey,
-    queryFn,
-    enabled:
-      guildId !== null &&
-      guildId !== undefined &&
-      groupId !== null &&
-      groupId !== undefined &&
-      counterId !== null &&
-      counterId !== undefined,
-    ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof readCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type ReadCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGetQueryResult =
-  NonNullable<
-    Awaited<ReturnType<typeof readCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGet>>
-  >;
-export type ReadCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGetQueryError =
-  ErrorType<HTTPValidationError>;
-
-export function useReadCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGet<
-  TData = Awaited<
-    ReturnType<typeof readCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGet>
-  >,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  groupId: number,
-  counterId: number,
-  params: undefined | ReadCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGetParams,
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<typeof readCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGet>
-        >,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<
-            ReturnType<typeof readCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGet>
-          >,
-          TError,
-          Awaited<
-            ReturnType<typeof readCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGet>
-          >
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGet<
-  TData = Awaited<
-    ReturnType<typeof readCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGet>
-  >,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  groupId: number,
-  counterId: number,
-  params?: ReadCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<typeof readCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGet>
-        >,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<
-            ReturnType<typeof readCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGet>
-          >,
-          TError,
-          Awaited<
-            ReturnType<typeof readCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGet>
-          >
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGet<
-  TData = Awaited<
-    ReturnType<typeof readCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGet>
-  >,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  groupId: number,
-  counterId: number,
-  params?: ReadCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<typeof readCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGet>
-        >,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary Read Counter
- */
-
-export function useReadCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGet<
-  TData = Awaited<
-    ReturnType<typeof readCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGet>
-  >,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  groupId: number,
-  counterId: number,
-  params?: ReadCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<typeof readCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGet>
-        >,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions =
-    getReadCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGetQueryOptions(
-      guildId,
-      groupId,
-      counterId,
-      params,
-      options
-    );
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-/**
  * @summary Set Counter Count
  */
 export const setCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSetPost = (
@@ -2575,3 +2328,195 @@ export const useClearCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewDelete
     queryClient
   );
 };
+/**
+ * One counter by id — the read-back for a ``counters.*`` event.
+ *
+ * Gated by read access on the group it belongs to, like reading the group.
+ * The counter's own id is the whole address, so there is no parent to
+ * mismatch — and no hand-written deleted check to contradict the request,
+ * which is what a read-back after a delete depends on.
+ * @summary Read Counter
+ */
+export const readCounterApiV1GGuildIdCountersCounterIdGet = (
+  guildId: number,
+  counterId: number,
+  params?: ReadCounterApiV1GGuildIdCountersCounterIdGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<CounterRead>(
+    { url: `/api/v1/g/${guildId}/counters/${counterId}`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getReadCounterApiV1GGuildIdCountersCounterIdGetQueryKey = (
+  guildId: number,
+  counterId: number,
+  params?: ReadCounterApiV1GGuildIdCountersCounterIdGetParams
+) => {
+  return [`/api/v1/g/${guildId}/counters/${counterId}`, ...(params ? [params] : [])] as const;
+};
+
+export const getReadCounterApiV1GGuildIdCountersCounterIdGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  counterId: number,
+  params?: ReadCounterApiV1GGuildIdCountersCounterIdGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getReadCounterApiV1GGuildIdCountersCounterIdGetQueryKey(guildId, counterId, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>
+  > = ({ signal }) =>
+    readCounterApiV1GGuildIdCountersCounterIdGet(
+      guildId,
+      counterId,
+      params,
+      requestOptions,
+      signal
+    );
+
+  return {
+    queryKey,
+    queryFn,
+    enabled:
+      guildId !== null && guildId !== undefined && counterId !== null && counterId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadCounterApiV1GGuildIdCountersCounterIdGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>
+>;
+export type ReadCounterApiV1GGuildIdCountersCounterIdGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useReadCounterApiV1GGuildIdCountersCounterIdGet<
+  TData = Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  counterId: number,
+  params: undefined | ReadCounterApiV1GGuildIdCountersCounterIdGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>,
+          TError,
+          Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadCounterApiV1GGuildIdCountersCounterIdGet<
+  TData = Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  counterId: number,
+  params?: ReadCounterApiV1GGuildIdCountersCounterIdGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>,
+          TError,
+          Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadCounterApiV1GGuildIdCountersCounterIdGet<
+  TData = Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  counterId: number,
+  params?: ReadCounterApiV1GGuildIdCountersCounterIdGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read Counter
+ */
+
+export function useReadCounterApiV1GGuildIdCountersCounterIdGet<
+  TData = Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  counterId: number,
+  params?: ReadCounterApiV1GGuildIdCountersCounterIdGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readCounterApiV1GGuildIdCountersCounterIdGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadCounterApiV1GGuildIdCountersCounterIdGetQueryOptions(
+    guildId,
+    counterId,
+    params,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}

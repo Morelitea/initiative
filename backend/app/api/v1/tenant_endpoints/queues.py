@@ -76,6 +76,15 @@ from app.services.platform.ws_auth import authenticate_ws_token
 
 
 router = APIRouter()
+
+#: Flat read-back route, mounted at the guild root like ``subtasks``. An event
+#: envelope names ``(resource_type, id)`` and nothing else, so the resource has
+#: to be addressable by its own id — a nested path would need a parent the
+#: envelope never carries. Writes stay nested under their queue, where the
+#: caller is already working inside one.
+items_router = APIRouter()
+
+
 logger = logging.getLogger(__name__)
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
@@ -215,6 +224,31 @@ async def _refetch_queue(
 # ---------------------------------------------------------------------------
 # Queue CRUD
 # ---------------------------------------------------------------------------
+
+
+@items_router.get("/queue-items/{item_id}", response_model=QueueItemRead)
+async def read_queue_item(
+    item_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    include_deleted: IncludeDeletedDep = False,
+) -> QueueItemRead:
+    """One queue item by id — the read-back for a ``queue_items.*`` event.
+
+    Gated by read access on the queue it belongs to, like listing it. The item's
+    own id is the whole address, so there is no parent to mismatch.
+    """
+    item = await queues_service.get_queue_item(session, item_id)
+    if not item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=QueueMessages.ITEM_NOT_FOUND,
+        )
+    await _get_queue_with_access(
+        session, item.queue_id, current_user, guild_context, access="read"
+    )
+    return serialize_queue_item(item)
 
 
 @router.get("/", response_model=QueueListResponse)
@@ -581,30 +615,6 @@ async def add_queue_item(
     result = serialize_queue_item(hydrated_item)
     await _emit_queue(session, queue_id, "item_added", result.model_dump(mode="json"))
     return result
-
-
-@router.get("/{queue_id}/items/{item_id}", response_model=QueueItemRead)
-async def read_queue_item(
-    queue_id: int,
-    item_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-    include_deleted: IncludeDeletedDep = False,
-) -> QueueItemRead:
-    """One queue item by id — the read-back for a ``queue_items.*`` event.
-    Requires read access on the queue, like listing it."""
-    await _get_queue_with_access(
-        session, queue_id, current_user, guild_context, access="read"
-    )
-    item = await _get_item_for_queue(session, queue_id, item_id)
-    hydrated = await queues_service.get_queue_item(session, item.id)
-    if not hydrated:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=QueueMessages.ITEM_NOT_FOUND,
-        )
-    return serialize_queue_item(hydrated)
 
 
 @router.patch("/{queue_id}/items/{item_id}", response_model=QueueItemRead)

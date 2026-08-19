@@ -5420,7 +5420,7 @@ export type ReadQueueApiV1GGuildIdQueuesQueueIdGetParams = {
   include_deleted?: boolean;
 };
 
-export type ReadQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdGetParams = {
+export type ReadQueueItemApiV1GGuildIdQueueItemsItemIdGetParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
@@ -5447,7 +5447,7 @@ export type ReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetParams = {
   include_deleted?: boolean;
 };
 
-export type ReadCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdGetParams = {
+export type ReadCounterApiV1GGuildIdCountersCounterIdGetParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
