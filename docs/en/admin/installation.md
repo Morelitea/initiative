@@ -53,7 +53,7 @@ Initiative connects to PostgreSQL with **three** connection strings, and it won'
 | `DATABASE_URL_APP` | `app_user` | The everyday, security-enforced connection for normal requests. |
 | `DATABASE_URL_ADMIN` | `app_admin` | Migrations and background jobs. |
 
-The provisioning URL bootstraps the roles; the password you put in each `APP`/`ADMIN` URL becomes that role's password. (Upgrading an existing install? Run `backend/scripts/create-provisioner.sql` once to create `app_provisioner`, or keep your current superuser URL — the app logs a reminder at startup.) The example compose file wires all three together with matching credentials, so the default path just works. If you write your own compose file or use `docker run`, you must set all three.
+The provisioning URL bootstraps the roles; the password you put in each `APP`/`ADMIN` URL becomes that role's password. (Upgrading an existing install? Run `backend/scripts/create-provisioner.sql` once to create `app_provisioner`, or keep your current superuser URL — the app logs a reminder at startup. Re-running it later is safe: it also brings database-level grants in line with what a fresh install gets, and tells you if it could not, so connect as the database owner.) The example compose file wires all three together with matching credentials, so the default path just works. If you write your own compose file or use `docker run`, you must set all three.
 
 ## Running as a specific user (PUID / PGID)
 

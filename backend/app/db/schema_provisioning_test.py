@@ -1077,6 +1077,19 @@ async def test_engine_identities_warn_on_privileged_app_login(
         await swapped_app.dispose()
 
 
+async def test_engine_identities_flag_an_unused_temporary_grant(caplog):
+    """The request login needs no TEMPORARY on the database. Only the database
+    owner can revoke it, so the app reports the drift and names the command
+    rather than trying to change it."""
+    with caplog.at_level("WARNING", logger="app.db.schema_provisioning"):
+        await schema_provisioning.verify_engine_identities()
+    joined = "\n".join(r.getMessage() for r in caplog.records)
+    # The test database keeps the default grant, so the notice is expected here.
+    assert "PRIVILEGE DRIFT" in joined
+    assert "REVOKE TEMPORARY ON DATABASE" in joined
+    assert "create-provisioner.sql" in joined
+
+
 async def test_effective_grants_pass_for_privileged_logins(engine, monkeypatch):
     import app.db.session as db_session
 
