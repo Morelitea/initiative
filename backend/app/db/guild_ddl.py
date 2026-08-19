@@ -150,13 +150,11 @@ _COMMANDS = (
 # Tables written only by a trigger, never by hand: their INSERT policy admits the
 # capture trigger instead of re-deciding the writer's access.
 #
-# ``event_outbox`` is the one. A row lands there because a content write already
-# cleared that table's own gate, so re-asking the same question at insert time
-# adds nothing — and gets the wrong answer for the change that ENDS the writer's
-# access: removing an initiative_members row (leaving a guild, or a manager
-# removing themselves) deletes the very membership the check reads, so the event
-# recording it would be refused. Who may READ the log is still the initiative
-# gate; the other three policies are unchanged.
+# ``event_outbox`` is the one. A row lands there as a consequence of a content
+# write that already cleared its own table's gate, so the log RECORDS what
+# happened rather than deciding it a second time — including a change that ends
+# the writer's own access, which it must still be able to record. Who may READ
+# the log is unchanged: the initiative gate, via the other three policies.
 _TRIGGER_WRITTEN_INSERT: dict[str, str] = {"event_outbox": "pg_trigger_depth() > 0"}
 
 

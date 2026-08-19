@@ -343,10 +343,9 @@ async def test_a_member_removing_themselves_is_captured(
 ):
     """The log records the change that ends the writer's own access.
 
-    Leaving a guild — or a manager stepping out of an initiative — deletes the
-    membership row that ``initiative_access`` reads. Run as the real request
-    role, so the outbox write is the one the leaver's own session performs
-    rather than a superuser's.
+    Leaving a guild, or a manager stepping out of an initiative, is still an
+    event a subscriber acts on. Run as the real request role, so the outbox
+    write is the one the leaver's own session performs, not a superuser's.
     """
     from sqlalchemy import text
 
