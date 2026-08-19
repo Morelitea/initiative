@@ -336,3 +336,70 @@ async def test_a_trash_row_removed_outright_is_still_silent(session, acting_user
     assert not [r for r in new_rows if r.action == "deleted"], (
         f"a hard delete on a trash-lifecycle table surfaced; got {new_rows}"
     )
+
+
+async def test_a_member_removing_themselves_is_captured(
+    session, acting_user, role_session
+):
+    """The log records the change that ends the writer's own access.
+
+    Leaving a guild — or a manager stepping out of an initiative — deletes the
+    membership row that ``initiative_access`` reads. Run as the real request
+    role, so the outbox write is the one the leaver's own session performs
+    rather than a superuser's.
+    """
+    from sqlalchemy import text
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    before = len(await _outbox(session, a.guild.id))
+
+    s = await role_session("app_user")
+    await set_rls_context(
+        s,
+        user_id=a.user.id,
+        guild_id=a.guild.id,
+        guild_role=GuildRole.member.value,
+    )
+    await s.exec(
+        text(
+            "DELETE FROM initiative_members WHERE initiative_id = :i AND user_id = :u"
+        ),
+        params={"i": a.initiative.id, "u": a.user.id},
+    )
+    await s.commit()
+
+    new_rows = (await _outbox(session, a.guild.id))[before:]
+    assert [
+        r
+        for r in new_rows
+        if r.resource_type == "initiatives" and r.resource_id == a.initiative.id
+    ], f"a member removing themselves produced no event; got {new_rows}"
+
+
+async def test_the_log_is_written_only_by_the_trigger(
+    session, acting_user, role_session
+):
+    """A member may read their initiative's events, never author one: the
+    outbox insert policy admits the capture trigger and nothing else."""
+    from sqlalchemy import text
+    from sqlalchemy.exc import ProgrammingError
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+
+    s = await role_session("app_user")
+    await set_rls_context(
+        s,
+        user_id=a.user.id,
+        guild_id=a.guild.id,
+        guild_role=GuildRole.member.value,
+    )
+    with pytest.raises(ProgrammingError, match="row-level security"):
+        await s.exec(
+            text(
+                "INSERT INTO event_outbox "
+                "(txn_id, occurred_at, actor_user_id, initiative_id, "
+                " resource_type, resource_id, action, changed) "
+                "VALUES (txid_current(), now(), :u, :i, 'tasks', 1, 'created', '{}')"
+            ),
+            params={"i": a.initiative.id, "u": a.user.id},
+        )

@@ -92,6 +92,10 @@ _HEADER = """\
 -- rendered policies automatically (the provisioning stamp includes this
 -- rendering, so a registry change triggers the one-time sweep).
 --
+-- One table deviates on INSERT: the change log (event_outbox) is written by the
+-- capture trigger and by nothing else, so its insert policy admits the trigger
+-- rather than re-deciding the writer's access — see _TRIGGER_WRITTEN_INSERT.
+--
 -- Soft-delete tables additionally carry a RESTRICTIVE FOR DELETE policy
 -- (soft_delete_admin_purge): hard delete = purge, and only a routed guild admin
 -- may. It is RESTRICTIVE, so it AND-combines with the PERMISSIVE delete policy
@@ -143,6 +147,18 @@ _COMMANDS = (
     ("delete", "DELETE", "USING", True),
 )
 
+# Tables written only by a trigger, never by hand: their INSERT policy admits the
+# capture trigger instead of re-deciding the writer's access.
+#
+# ``event_outbox`` is the one. A row lands there because a content write already
+# cleared that table's own gate, so re-asking the same question at insert time
+# adds nothing — and gets the wrong answer for the change that ENDS the writer's
+# access: removing an initiative_members row (leaving a guild, or a manager
+# removing themselves) deletes the very membership the check reads, so the event
+# recording it would be refused. Who may READ the log is still the initiative
+# gate; the other three policies are unchanged.
+_TRIGGER_WRITTEN_INSERT: dict[str, str] = {"event_outbox": "pg_trigger_depth() > 0"}
+
 
 def _table_block(table: str, path: InitiativePath) -> str:
     lines = [
@@ -151,6 +167,8 @@ def _table_block(table: str, path: InitiativePath) -> str:
     ]
     for suffix, command, clause, write in _COMMANDS:
         pred = path.predicate(table, write)
+        if command == "INSERT" and table in _TRIGGER_WRITTEN_INSERT:
+            pred = _TRIGGER_WRITTEN_INSERT[table]
         name = f"initiative_member_{suffix}"
         lines.append(f"DROP POLICY IF EXISTS {name} ON {table};")
         lines.append(f"CREATE POLICY {name} ON {table} AS PERMISSIVE FOR {command}")

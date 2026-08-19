@@ -276,6 +276,8 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "resource_grants": direct(),
     # The change log itself. Scoped like the rows it describes, which is what
     # lets the poller read it AS the subscriber (see EVENT_SOURCES below).
+    # Reading is the question this path answers; writing is the capture
+    # trigger's alone (app.db.guild_ddl._TRIGGER_WRITTEN_INSERT).
     "event_outbox": direct(),
     # Integration config, reached by whoever can reach what it watches.
     "webhook_subscriptions": webhook_subscription_path(),
