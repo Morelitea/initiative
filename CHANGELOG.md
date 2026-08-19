@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **An app's page now matches your theme.** An embedded app is told your light or dark mode and your colors — color theme and guild accent included — when it opens, and again the moment you switch, so it can recolor in place instead of staying bright white inside a dark Initiative. Apps pick this up as they add support; one that hasn't yet simply keeps its own colors.
 - **Outbound webhooks (API-only for now).** Register a URL via the API and Initiative POSTs a signed notification when content changes, filterable by event type and field. A subscription only ever delivers what its creator can access.
+- Comments, subtasks, queue items and counters can now be fetched individually by id, and any resource can be fetched after it's been deleted with `?include_deleted=true` while it's still in the trash.
 
 ### Fixed
 

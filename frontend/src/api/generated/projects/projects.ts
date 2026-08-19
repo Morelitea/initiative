@@ -34,6 +34,7 @@ import type {
   ProjectRead,
   ProjectReorderRequest,
   ProjectUpdate,
+  ReadProjectApiV1GGuildIdProjectsProjectIdGetParams,
   RecentViewWrite,
   ResourceGrantSchema,
   SearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetParams,
@@ -1710,20 +1711,22 @@ export function useProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet<
 export const readProjectApiV1GGuildIdProjectsProjectIdGet = (
   guildId: number,
   projectId: number,
+  params?: ReadProjectApiV1GGuildIdProjectsProjectIdGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<ProjectRead>(
-    { url: `/api/v1/g/${guildId}/projects/${projectId}`, method: "GET", signal },
+    { url: `/api/v1/g/${guildId}/projects/${projectId}`, method: "GET", params, signal },
     options
   );
 };
 
 export const getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey = (
   guildId: number,
-  projectId: number
+  projectId: number,
+  params?: ReadProjectApiV1GGuildIdProjectsProjectIdGetParams
 ) => {
-  return [`/api/v1/g/${guildId}/projects/${projectId}`] as const;
+  return [`/api/v1/g/${guildId}/projects/${projectId}`, ...(params ? [params] : [])] as const;
 };
 
 export const getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryOptions = <
@@ -1732,6 +1735,7 @@ export const getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryOptions = <
 >(
   guildId: number,
   projectId: number,
+  params?: ReadProjectApiV1GGuildIdProjectsProjectIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1747,12 +1751,18 @@ export const getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryOptions = <
 
   const queryKey =
     queryOptions?.queryKey ??
-    getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey(guildId, projectId);
+    getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey(guildId, projectId, params);
 
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof readProjectApiV1GGuildIdProjectsProjectIdGet>>
   > = ({ signal }) =>
-    readProjectApiV1GGuildIdProjectsProjectIdGet(guildId, projectId, requestOptions, signal);
+    readProjectApiV1GGuildIdProjectsProjectIdGet(
+      guildId,
+      projectId,
+      params,
+      requestOptions,
+      signal
+    );
 
   return {
     queryKey,
@@ -1778,6 +1788,7 @@ export function useReadProjectApiV1GGuildIdProjectsProjectIdGet<
 >(
   guildId: number,
   projectId: number,
+  params: undefined | ReadProjectApiV1GGuildIdProjectsProjectIdGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -1804,6 +1815,7 @@ export function useReadProjectApiV1GGuildIdProjectsProjectIdGet<
 >(
   guildId: number,
   projectId: number,
+  params?: ReadProjectApiV1GGuildIdProjectsProjectIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1830,6 +1842,7 @@ export function useReadProjectApiV1GGuildIdProjectsProjectIdGet<
 >(
   guildId: number,
   projectId: number,
+  params?: ReadProjectApiV1GGuildIdProjectsProjectIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1852,6 +1865,7 @@ export function useReadProjectApiV1GGuildIdProjectsProjectIdGet<
 >(
   guildId: number,
   projectId: number,
+  params?: ReadProjectApiV1GGuildIdProjectsProjectIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1867,6 +1881,7 @@ export function useReadProjectApiV1GGuildIdProjectsProjectIdGet<
   const queryOptions = getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryOptions(
     guildId,
     projectId,
+    params,
     options
   );
 

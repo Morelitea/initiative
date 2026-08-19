@@ -22,6 +22,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import (
+    IncludeDeletedDep,
     RLSSessionDep,
     SessionDep,
     UploadUserDep,
@@ -1404,6 +1405,7 @@ async def read_document(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
+    include_deleted: IncludeDeletedDep = False,
 ) -> DocumentRead:
     document = await _get_document_or_404(
         session, document_id=document_id, guild_id=guild_context.guild_id

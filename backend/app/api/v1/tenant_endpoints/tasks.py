@@ -26,6 +26,7 @@ from app.schemas.query import FilterOp, SortDir
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import (
+    IncludeDeletedDep,
     RLSSessionDep,
     SessionDep,
     UserSessionDep,
@@ -1969,6 +1970,7 @@ async def read_task(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
+    include_deleted: IncludeDeletedDep = False,
 ) -> Task:
     task = await _fetch_task(session, task_id, guild_context.guild_id)
     if not task:
@@ -2766,6 +2768,35 @@ async def reorder_subtasks(
     await session.commit()
     await _broadcast_task_refresh(session, task.id, guild_context.guild_id)
     return await _list_subtasks_for_task(session, task.id)
+
+
+@subtasks_router.get("/subtasks/{subtask_id}", response_model=SubtaskRead)
+async def read_subtask(
+    subtask_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> Subtask:
+    """One subtask by id — the read-back for a ``subtasks.*`` event. Gated by
+    read access on the parent task's project, like reading the task."""
+    subtask = await session.get(Subtask, subtask_id)
+    if not subtask:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=SubtaskMessages.NOT_FOUND
+        )
+    task = await _fetch_task(session, subtask.task_id, guild_context.guild_id)
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
+        )
+    await _get_project_with_access(
+        session,
+        task.project_id,
+        current_user,
+        guild_id=guild_context.guild_id,
+        access="read",
+    )
+    return subtask
 
 
 @subtasks_router.patch("/subtasks/{subtask_id}", response_model=SubtaskRead)

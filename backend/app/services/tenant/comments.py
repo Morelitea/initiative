@@ -162,6 +162,58 @@ async def _get_comment(
     return result.one_or_none()
 
 
+async def get_comment(
+    session: AsyncSession,
+    *,
+    comment_id: int,
+    user: User,
+    guild_id: int,
+    guild_role: GuildRole,
+) -> Comment:
+    """One comment, gated exactly like listing its parent's thread.
+
+    The read-back half of the event contract: a ``comments.*`` event names an
+    id, and this is what resolves it. Access is the parent's — read on the task's
+    project or on the document — same as ``list_comments``.
+    """
+    stmt = (
+        select(Comment)
+        .where(Comment.id == comment_id)
+        .options(selectinload(Comment.author))
+    )
+    comment = (await session.exec(stmt)).one_or_none()
+    if not comment:
+        raise CommentNotFoundError(CommentMessages.NOT_FOUND)
+
+    if comment.task_id is not None:
+        context = await _get_task_context(
+            session, task_id=comment.task_id, guild_id=guild_id
+        )
+        if not context:
+            raise CommentNotFoundError(CommentMessages.TASK_NOT_FOUND)
+        await _ensure_task_access(
+            session,
+            project=context.project,
+            user=user,
+            access="read",
+            is_guild_admin=guild_role == GuildRole.admin,
+        )
+    else:
+        document = await documents_service.get_document(
+            session, document_id=comment.document_id, guild_id=guild_id
+        )
+        if not document:
+            raise CommentNotFoundError(CommentMessages.DOCUMENT_NOT_FOUND)
+        await _ensure_document_access(
+            session,
+            document=document,
+            user=user,
+            access="read",
+            is_guild_admin=guild_role == GuildRole.admin,
+        )
+    return comment
+
+
 async def create_comment(
     session: AsyncSession,
     *,

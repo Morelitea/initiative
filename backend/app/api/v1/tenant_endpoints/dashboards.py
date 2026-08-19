@@ -24,6 +24,7 @@ from sqlmodel import select
 
 from app.api import resource_access
 from app.api.deps import (
+    IncludeDeletedDep,
     GuildContext,
     RLSSessionDep,
     get_current_active_user,
@@ -364,6 +365,7 @@ async def read_dashboard(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
+    include_deleted: IncludeDeletedDep = False,
 ) -> DashboardRead:
     dashboard = await resource_access.load_authorized(
         session, Tool.dashboard, dashboard_id, current_user, guild_context

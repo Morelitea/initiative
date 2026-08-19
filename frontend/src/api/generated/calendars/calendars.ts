@@ -29,6 +29,7 @@ import type {
   InitiativeGroupedCountsResponse,
   ListCalendarsApiV1GGuildIdCalendarsGetParams,
   ListMyCalendarsApiV1MeCalendarsGetParams,
+  ReadCalendarApiV1GGuildIdCalendarsCalendarIdGetParams,
   RecentViewWrite,
   ResourceGrantSchema,
 } from "../initiativeAPI.schemas";
@@ -554,20 +555,22 @@ export function useGetCalendarCountsByInitiativeApiV1GGuildIdCalendarsCountsByIn
 export const readCalendarApiV1GGuildIdCalendarsCalendarIdGet = (
   guildId: number,
   calendarId: number,
+  params?: ReadCalendarApiV1GGuildIdCalendarsCalendarIdGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<CalendarRead>(
-    { url: `/api/v1/g/${guildId}/calendars/${calendarId}`, method: "GET", signal },
+    { url: `/api/v1/g/${guildId}/calendars/${calendarId}`, method: "GET", params, signal },
     options
   );
 };
 
 export const getReadCalendarApiV1GGuildIdCalendarsCalendarIdGetQueryKey = (
   guildId: number,
-  calendarId: number
+  calendarId: number,
+  params?: ReadCalendarApiV1GGuildIdCalendarsCalendarIdGetParams
 ) => {
-  return [`/api/v1/g/${guildId}/calendars/${calendarId}`] as const;
+  return [`/api/v1/g/${guildId}/calendars/${calendarId}`, ...(params ? [params] : [])] as const;
 };
 
 export const getReadCalendarApiV1GGuildIdCalendarsCalendarIdGetQueryOptions = <
@@ -576,6 +579,7 @@ export const getReadCalendarApiV1GGuildIdCalendarsCalendarIdGetQueryOptions = <
 >(
   guildId: number,
   calendarId: number,
+  params?: ReadCalendarApiV1GGuildIdCalendarsCalendarIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -591,12 +595,18 @@ export const getReadCalendarApiV1GGuildIdCalendarsCalendarIdGetQueryOptions = <
 
   const queryKey =
     queryOptions?.queryKey ??
-    getReadCalendarApiV1GGuildIdCalendarsCalendarIdGetQueryKey(guildId, calendarId);
+    getReadCalendarApiV1GGuildIdCalendarsCalendarIdGetQueryKey(guildId, calendarId, params);
 
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof readCalendarApiV1GGuildIdCalendarsCalendarIdGet>>
   > = ({ signal }) =>
-    readCalendarApiV1GGuildIdCalendarsCalendarIdGet(guildId, calendarId, requestOptions, signal);
+    readCalendarApiV1GGuildIdCalendarsCalendarIdGet(
+      guildId,
+      calendarId,
+      params,
+      requestOptions,
+      signal
+    );
 
   return {
     queryKey,
@@ -623,6 +633,7 @@ export function useReadCalendarApiV1GGuildIdCalendarsCalendarIdGet<
 >(
   guildId: number,
   calendarId: number,
+  params: undefined | ReadCalendarApiV1GGuildIdCalendarsCalendarIdGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -649,6 +660,7 @@ export function useReadCalendarApiV1GGuildIdCalendarsCalendarIdGet<
 >(
   guildId: number,
   calendarId: number,
+  params?: ReadCalendarApiV1GGuildIdCalendarsCalendarIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -675,6 +687,7 @@ export function useReadCalendarApiV1GGuildIdCalendarsCalendarIdGet<
 >(
   guildId: number,
   calendarId: number,
+  params?: ReadCalendarApiV1GGuildIdCalendarsCalendarIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -697,6 +710,7 @@ export function useReadCalendarApiV1GGuildIdCalendarsCalendarIdGet<
 >(
   guildId: number,
   calendarId: number,
+  params?: ReadCalendarApiV1GGuildIdCalendarsCalendarIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -712,6 +726,7 @@ export function useReadCalendarApiV1GGuildIdCalendarsCalendarIdGet<
   const queryOptions = getReadCalendarApiV1GGuildIdCalendarsCalendarIdGetQueryOptions(
     guildId,
     calendarId,
+    params,
     options
   );
 

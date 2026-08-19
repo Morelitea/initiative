@@ -6,6 +6,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.api.deps import (
+    IncludeDeletedDep,
     GuildContext,
     RLSSessionDep,
     get_current_active_user,
@@ -251,6 +252,34 @@ async def list_comments(
         ) from exc
 
     return [CommentRead.model_validate(comment) for comment in comments]
+
+
+@router.get("/{comment_id}", response_model=CommentRead)
+async def read_comment(
+    comment_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    include_deleted: IncludeDeletedDep = False,
+) -> CommentRead:
+    """One comment by id — the read-back for a ``comments.*`` event."""
+    try:
+        comment = await comments_service.get_comment(
+            session,
+            comment_id=comment_id,
+            user=current_user,
+            guild_id=guild_context.guild_id,
+            guild_role=guild_context.role,
+        )
+    except comments_service.CommentNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
+    except comments_service.CommentPermissionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+        ) from exc
+    return CommentRead.model_validate(comment)
 
 
 @router.patch("/{comment_id}", response_model=CommentRead)

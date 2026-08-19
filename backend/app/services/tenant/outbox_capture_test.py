@@ -188,3 +188,82 @@ async def test_an_unresolvable_initiative_still_skips(session, acting_user):
     # Every other evented table resolves a real initiative.
     others = [s for s in build_specs() if s.table not in GUILD_WIDE_EVENTED]
     assert others, "expected initiative-scoped specs alongside the guild-wide ones"
+
+
+async def test_a_hard_delete_on_a_trash_table_never_surfaces(session, acting_user):
+    """Deleting a task is soft — it moves to the trash, and that is the event.
+    The hard delete that follows is retention clearing it out, which must stay
+    silent: a repeat of an announced delete, naming an id nothing can resolve."""
+    from datetime import datetime, timezone
+
+    from app.services.tenant.trash_purge import hard_purge_entity
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    task = await create_task(session, a.project)
+
+    task.deleted_at = datetime.now(timezone.utc)
+    session.add(task)
+    await session.commit()
+
+    deletes_after_soft = [
+        r
+        for r in await _outbox(session, a.guild.id)
+        if r.resource_id == task.id and r.action == "deleted"
+    ]
+    assert len(deletes_after_soft) == 1, "the soft delete should announce once"
+
+    await set_rls_context(session, guild_id=a.guild.id, guild_role="admin")
+    await hard_purge_entity(session, task)
+    await session.commit()
+
+    deletes_after_purge = [
+        r
+        for r in await _outbox(session, a.guild.id)
+        if r.resource_id == task.id and r.action == "deleted"
+    ]
+    assert len(deletes_after_purge) == 1, (
+        f"purge announced the delete again ({len(deletes_after_purge)} events) — "
+        "a subscriber would see a delete for a row it was already told about"
+    )
+
+
+async def test_a_hard_delete_that_was_never_trashed_still_announces(
+    session, acting_user
+):
+    """The guard keys on having been trashed, not on the table having the
+    column: a row removed outright is still a delete a subscriber must hear."""
+    from app.testing import create_initiative_member, create_user
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    joiner = await create_user(session)
+    membership = await create_initiative_member(session, a.initiative, joiner)
+    await session.commit()
+
+    before = len(await _outbox(session, a.guild.id))
+    await set_rls_context(session, guild_id=a.guild.id, guild_role="admin")
+    await session.delete(membership)
+    await session.commit()
+
+    new_rows = (await _outbox(session, a.guild.id))[before:]
+    assert [r for r in new_rows if r.resource_type == "initiatives"], (
+        f"removing a member produced no event; got {new_rows}"
+    )
+
+
+async def test_a_trash_row_removed_outright_is_still_silent(session, acting_user):
+    """The rule keys on the table's lifecycle, not on the row's history. A
+    soft-deletable row hard-deleted without ever reaching the trash — a cascade
+    from its purged parent — still says nothing, because the parent's own
+    delete is the event a subscriber acts on."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    task = await create_task(session, a.project)
+
+    before = len(await _outbox(session, a.guild.id))
+    await set_rls_context(session, guild_id=a.guild.id, guild_role="admin")
+    await session.delete(task)
+    await session.commit()
+
+    new_rows = (await _outbox(session, a.guild.id))[before:]
+    assert not [r for r in new_rows if r.action == "deleted"], (
+        f"a hard delete on a trash-lifecycle table surfaced; got {new_rows}"
+    )

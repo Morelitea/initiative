@@ -21,6 +21,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  GetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetParams,
   HTTPValidationError,
   InitiativeCreate,
   InitiativeMemberAdd,
@@ -311,20 +312,22 @@ export const useCreateInitiativeApiV1GGuildIdInitiativesPost = <
 export const getInitiativeApiV1GGuildIdInitiativesInitiativeIdGet = (
   guildId: number,
   initiativeId: number,
+  params?: GetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<InitiativeRead>(
-    { url: `/api/v1/g/${guildId}/initiatives/${initiativeId}`, method: "GET", signal },
+    { url: `/api/v1/g/${guildId}/initiatives/${initiativeId}`, method: "GET", params, signal },
     options
   );
 };
 
 export const getGetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetQueryKey = (
   guildId: number,
-  initiativeId: number
+  initiativeId: number,
+  params?: GetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetParams
 ) => {
-  return [`/api/v1/g/${guildId}/initiatives/${initiativeId}`] as const;
+  return [`/api/v1/g/${guildId}/initiatives/${initiativeId}`, ...(params ? [params] : [])] as const;
 };
 
 export const getGetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetQueryOptions = <
@@ -333,6 +336,7 @@ export const getGetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetQueryOptions
 >(
   guildId: number,
   initiativeId: number,
+  params?: GetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -348,7 +352,7 @@ export const getGetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetQueryOptions
 
   const queryKey =
     queryOptions?.queryKey ??
-    getGetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetQueryKey(guildId, initiativeId);
+    getGetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetQueryKey(guildId, initiativeId, params);
 
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof getInitiativeApiV1GGuildIdInitiativesInitiativeIdGet>>
@@ -356,6 +360,7 @@ export const getGetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetQueryOptions
     getInitiativeApiV1GGuildIdInitiativesInitiativeIdGet(
       guildId,
       initiativeId,
+      params,
       requestOptions,
       signal
     );
@@ -388,6 +393,7 @@ export function useGetInitiativeApiV1GGuildIdInitiativesInitiativeIdGet<
 >(
   guildId: number,
   initiativeId: number,
+  params: undefined | GetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -414,6 +420,7 @@ export function useGetInitiativeApiV1GGuildIdInitiativesInitiativeIdGet<
 >(
   guildId: number,
   initiativeId: number,
+  params?: GetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -440,6 +447,7 @@ export function useGetInitiativeApiV1GGuildIdInitiativesInitiativeIdGet<
 >(
   guildId: number,
   initiativeId: number,
+  params?: GetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -462,6 +470,7 @@ export function useGetInitiativeApiV1GGuildIdInitiativesInitiativeIdGet<
 >(
   guildId: number,
   initiativeId: number,
+  params?: GetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -477,6 +486,7 @@ export function useGetInitiativeApiV1GGuildIdInitiativesInitiativeIdGet<
   const queryOptions = getGetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetQueryOptions(
     guildId,
     initiativeId,
+    params,
     options
   );
 

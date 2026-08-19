@@ -188,6 +188,22 @@ BEGIN
     IF TG_OP = 'INSERT' THEN
         v_action := 'created';
     ELSIF TG_OP = 'DELETE' THEN
+        -- On a table with the trash lifecycle, deleting is soft: the row moves
+        -- to the trash, which is the event a subscriber acts on, and this hard
+        -- delete is retention clearing it out afterwards. Never surface that —
+        -- it is a repeat of an announced delete, and by now nothing can resolve
+        -- the id anyway, not even a read-back asking for trashed rows.
+        --
+        -- Carrying no deleted_at means the table has no other kind of delete,
+        -- so that one IS the event: a junction row going away is how a task
+        -- loses a tag.
+        --
+        -- Tested for through jsonb rather than as OLD.deleted_at, because most
+        -- evented tables have no such column and naming one that is absent
+        -- raises at runtime.
+        IF to_jsonb(OLD) ? 'deleted_at' THEN
+            RETURN NULL;
+        END IF;
         v_action := 'deleted';
     ELSE
         v_new := to_jsonb(NEW);

@@ -25,6 +25,7 @@ from sqlmodel import select
 
 from app.core.auth_context import satisfied_provider_ids
 from app.api.deps import (
+    IncludeDeletedDep,
     RLSSessionDep,
     establish_guild_access,
     get_current_active_user,
@@ -336,13 +337,15 @@ async def get_queue_counts_by_initiative(
 
 @router.get("/{queue_id}", response_model=QueueRead)
 async def read_queue(
+    queue_id: int,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-    queue: Annotated[
-        Queue, Depends(resource_access.resource_dependency(Tool.queue, "read"))
-    ],
+    include_deleted: IncludeDeletedDep = False,
 ) -> QueueRead:
-    """Get a queue; access enforced by resource_dependency before the body runs."""
+    queue = await resource_access.load_authorized(
+        session, Tool.queue, queue_id, current_user, guild_context
+    )
     return serialize_queue(
         queue,
         my_permission_level=_compute_my_permission(queue, current_user, guild_context),
@@ -578,6 +581,30 @@ async def add_queue_item(
     result = serialize_queue_item(hydrated_item)
     await _emit_queue(session, queue_id, "item_added", result.model_dump(mode="json"))
     return result
+
+
+@router.get("/{queue_id}/items/{item_id}", response_model=QueueItemRead)
+async def read_queue_item(
+    queue_id: int,
+    item_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    include_deleted: IncludeDeletedDep = False,
+) -> QueueItemRead:
+    """One queue item by id — the read-back for a ``queue_items.*`` event.
+    Requires read access on the queue, like listing it."""
+    await _get_queue_with_access(
+        session, queue_id, current_user, guild_context, access="read"
+    )
+    item = await _get_item_for_queue(session, queue_id, item_id)
+    hydrated = await queues_service.get_queue_item(session, item.id)
+    if not hydrated:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=QueueMessages.ITEM_NOT_FOUND,
+        )
+    return serialize_queue_item(hydrated)
 
 
 @router.patch("/{queue_id}/items/{item_id}", response_model=QueueItemRead)

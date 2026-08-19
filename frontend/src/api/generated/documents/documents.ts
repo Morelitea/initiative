@@ -42,6 +42,7 @@ import type {
   ListDocumentsApiV1GGuildIdDocumentsGetParams,
   ListMyDocumentsApiV1MeDocumentsGetParams,
   PropertyValuesSetRequest,
+  ReadDocumentApiV1GGuildIdDocumentsDocumentIdGetParams,
   RecentViewWrite,
   ResourceGrantSchema,
 } from "../initiativeAPI.schemas";
@@ -1488,20 +1489,22 @@ export const useDeleteDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsVer
 export const readDocumentApiV1GGuildIdDocumentsDocumentIdGet = (
   guildId: number,
   documentId: number,
+  params?: ReadDocumentApiV1GGuildIdDocumentsDocumentIdGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<DocumentRead>(
-    { url: `/api/v1/g/${guildId}/documents/${documentId}`, method: "GET", signal },
+    { url: `/api/v1/g/${guildId}/documents/${documentId}`, method: "GET", params, signal },
     options
   );
 };
 
 export const getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryKey = (
   guildId: number,
-  documentId: number
+  documentId: number,
+  params?: ReadDocumentApiV1GGuildIdDocumentsDocumentIdGetParams
 ) => {
-  return [`/api/v1/g/${guildId}/documents/${documentId}`] as const;
+  return [`/api/v1/g/${guildId}/documents/${documentId}`, ...(params ? [params] : [])] as const;
 };
 
 export const getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryOptions = <
@@ -1510,6 +1513,7 @@ export const getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryOptions = <
 >(
   guildId: number,
   documentId: number,
+  params?: ReadDocumentApiV1GGuildIdDocumentsDocumentIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1525,12 +1529,18 @@ export const getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryOptions = <
 
   const queryKey =
     queryOptions?.queryKey ??
-    getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryKey(guildId, documentId);
+    getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryKey(guildId, documentId, params);
 
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof readDocumentApiV1GGuildIdDocumentsDocumentIdGet>>
   > = ({ signal }) =>
-    readDocumentApiV1GGuildIdDocumentsDocumentIdGet(guildId, documentId, requestOptions, signal);
+    readDocumentApiV1GGuildIdDocumentsDocumentIdGet(
+      guildId,
+      documentId,
+      params,
+      requestOptions,
+      signal
+    );
 
   return {
     queryKey,
@@ -1557,6 +1567,7 @@ export function useReadDocumentApiV1GGuildIdDocumentsDocumentIdGet<
 >(
   guildId: number,
   documentId: number,
+  params: undefined | ReadDocumentApiV1GGuildIdDocumentsDocumentIdGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -1583,6 +1594,7 @@ export function useReadDocumentApiV1GGuildIdDocumentsDocumentIdGet<
 >(
   guildId: number,
   documentId: number,
+  params?: ReadDocumentApiV1GGuildIdDocumentsDocumentIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1609,6 +1621,7 @@ export function useReadDocumentApiV1GGuildIdDocumentsDocumentIdGet<
 >(
   guildId: number,
   documentId: number,
+  params?: ReadDocumentApiV1GGuildIdDocumentsDocumentIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1631,6 +1644,7 @@ export function useReadDocumentApiV1GGuildIdDocumentsDocumentIdGet<
 >(
   guildId: number,
   documentId: number,
+  params?: ReadDocumentApiV1GGuildIdDocumentsDocumentIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1646,6 +1660,7 @@ export function useReadDocumentApiV1GGuildIdDocumentsDocumentIdGet<
   const queryOptions = getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryOptions(
     guildId,
     documentId,
+    params,
     options
   );
 

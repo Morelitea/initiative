@@ -35,6 +35,7 @@ import type {
   ListCalendarEventsApiV1GGuildIdCalendarEventsGetParams,
   ListMyCalendarEventsApiV1MeCalendarEventsGetParams,
   PropertyValuesSetRequest,
+  ReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGetParams,
   TagSetRequest,
 } from "../initiativeAPI.schemas";
 
@@ -521,20 +522,22 @@ export const useCreateCalendarEventApiV1GGuildIdCalendarEventsPost = <
 export const readCalendarEventApiV1GGuildIdCalendarEventsEventIdGet = (
   guildId: number,
   eventId: number,
+  params?: ReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<CalendarEventRead>(
-    { url: `/api/v1/g/${guildId}/calendar-events/${eventId}`, method: "GET", signal },
+    { url: `/api/v1/g/${guildId}/calendar-events/${eventId}`, method: "GET", params, signal },
     options
   );
 };
 
 export const getReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGetQueryKey = (
   guildId: number,
-  eventId: number
+  eventId: number,
+  params?: ReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGetParams
 ) => {
-  return [`/api/v1/g/${guildId}/calendar-events/${eventId}`] as const;
+  return [`/api/v1/g/${guildId}/calendar-events/${eventId}`, ...(params ? [params] : [])] as const;
 };
 
 export const getReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGetQueryOptions = <
@@ -543,6 +546,7 @@ export const getReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGetQueryOptio
 >(
   guildId: number,
   eventId: number,
+  params?: ReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -558,7 +562,7 @@ export const getReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGetQueryOptio
 
   const queryKey =
     queryOptions?.queryKey ??
-    getReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGetQueryKey(guildId, eventId);
+    getReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGetQueryKey(guildId, eventId, params);
 
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof readCalendarEventApiV1GGuildIdCalendarEventsEventIdGet>>
@@ -566,6 +570,7 @@ export const getReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGetQueryOptio
     readCalendarEventApiV1GGuildIdCalendarEventsEventIdGet(
       guildId,
       eventId,
+      params,
       requestOptions,
       signal
     );
@@ -594,6 +599,7 @@ export function useReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGet<
 >(
   guildId: number,
   eventId: number,
+  params: undefined | ReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -620,6 +626,7 @@ export function useReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGet<
 >(
   guildId: number,
   eventId: number,
+  params?: ReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -646,6 +653,7 @@ export function useReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGet<
 >(
   guildId: number,
   eventId: number,
+  params?: ReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -668,6 +676,7 @@ export function useReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGet<
 >(
   guildId: number,
   eventId: number,
+  params?: ReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -683,6 +692,7 @@ export function useReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGet<
   const queryOptions = getReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGetQueryOptions(
     guildId,
     eventId,
+    params,
     options
   );
 

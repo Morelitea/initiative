@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.api.deps import (
+    IncludeDeletedDep,
     RLSSessionDep,
     get_current_active_user,
     get_guild_membership,
@@ -572,6 +573,7 @@ async def read_calendar_event(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
+    include_deleted: IncludeDeletedDep = False,
 ) -> CalendarEventRead:
     event = await _get_event_or_404(session, event_id, current_user, guild_context)
     return serialize_calendar_event(event, user_id=current_user.id)

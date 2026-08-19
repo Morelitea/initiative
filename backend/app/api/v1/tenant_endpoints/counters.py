@@ -22,6 +22,7 @@ from sqlmodel import select
 
 from app.core.auth_context import satisfied_provider_ids
 from app.api.deps import (
+    IncludeDeletedDep,
     RLSSessionDep,
     establish_guild_access,
     get_current_active_user,
@@ -336,14 +337,15 @@ async def get_counter_group_counts_by_initiative(
 
 @router.get("/{group_id}", response_model=CounterGroupRead)
 async def read_counter_group(
+    group_id: int,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-    group: Annotated[
-        CounterGroup,
-        Depends(resource_access.resource_dependency(Tool.counter_group, "read")),
-    ],
+    include_deleted: IncludeDeletedDep = False,
 ) -> CounterGroupRead:
-    """Access enforced by resource_dependency before the body runs."""
+    group = await resource_access.load_authorized(
+        session, Tool.counter_group, group_id, current_user, guild_context
+    )
     return serialize_counter_group(
         group,
         my_permission_level=_compute_my_permission(group, current_user, guild_context),
@@ -736,6 +738,29 @@ async def _commit_and_broadcast_count(
         session, group_id, "count_changed", result.model_dump(mode="json")
     )
     return result
+
+
+@router.get("/{group_id}/counters/{counter_id}", response_model=CounterRead)
+async def read_counter(
+    group_id: int,
+    counter_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    include_deleted: IncludeDeletedDep = False,
+) -> CounterRead:
+    """One counter by id — the read-back for a ``counters.*`` event. Requires
+    read access on the group, like reading the group."""
+    await _get_counter_group_with_access(
+        session, group_id, current_user, guild_context, access="read"
+    )
+    counter = await _get_counter_for_group(session, group_id, counter_id)
+    hydrated = await counters_service.get_counter(session, counter.id)
+    if not hydrated:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=CounterMessages.NOT_FOUND
+        )
+    return serialize_counter(hydrated)
 
 
 @router.post("/{group_id}/counters/{counter_id}/set", response_model=CounterRead)
