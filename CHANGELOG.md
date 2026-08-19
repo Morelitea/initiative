@@ -7,13 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.62.8] - 2026-08-19
-
 ### Changed
 
-- **Webhook events now always name something you can fetch.** A project's statuses, a document's file versions, an initiative's roles, and a change to who a project (or document, queue, counter group, calendar, or dashboard) is shared with used to arrive naming an id with no endpoint behind it. Each now arrives as an update to the thing it belongs to — `projects.updated` with `statuses`, `documents.updated` with `versions`, `initiatives.updated` with `roles`, `projects.updated` with `sharing` — the same way a task's tags have always been reported. Every id in an event resolves to a resource you can read back.
-- Document reads accept `?include_content=false` to return everything except the body. A document's body is by far the largest thing the API returns and usually isn't what changed, so a subscription reacting to an edit no longer has to fetch it.
-- **Gantt widgets are now a proper project timeline.** The chart draws a line on today's date, so you can see at a glance what is behind and what is still ahead. Rows fold: bind one to Projects and each project is a single bar you can open to reveal its tasks, and a bar's fill is how much of the work under it is finished — a project that is halfway through its tasks is a half-filled bar, with the count beside its name. Bound to Tasks, you can group rows by project, status, priority, or assignee instead, and a total row across the top sums up everything shown.
 - **Every widget now says where its data comes from.** Under each widget's title is a line naming its source, what it's narrowed to, and how many rows came back — click it for the full breakdown, including every filter in plain words, the display options (visible to everyone now, not just people who can edit), and a refresh button. Names only ever resolve to what *you* can see, so a widget pointed at a project you don't have access to says so instead of naming it.
 - **Widgets can be filtered.** A widget bound to tasks used to show every task in the initiative with no way to narrow it. You can now filter by status, priority, assignee, tag, project, any of the four dates, archived state, and title — with an optional "any of these" group. Dates can be relative ("due in the next 30 days"), so a dashboard keeps asking the same question instead of going stale on the date it was saved.
 - **Setting up a widget shows you the result while you choose.** The configure dialog is now two panes, with the real widget running against your own data on the right.
@@ -28,6 +23,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Project progress in widgets was counted from a partial list.** Widgets read a fixed number of tasks at a time, and a project with more than that reported a completion percentage based only on the ones that fit. Progress now comes from the server's own totals, and a widget still drawing a partial list now says so.
 - **A widget whose data you can't see no longer says it needs configuring.** That prompt was shown both to authors who hadn't finished setting a widget up and to viewers whose access simply didn't cover its data; the two now read differently. A widget whose data simply failed to load says that instead of blaming your access.
 - **A chart that folds small categories into "Other" now counts them all.** With more than one series on the chart — a project's finished work against its outstanding work — only the first series' share reached the "Other" bar, so it under-reported. The two halves also no longer disagree about which categories survived the cut.
+
+## [0.62.8] - 2026-08-19
+
+### Changed
+
+- **Webhook events now always name something you can fetch.** A project's statuses, a document's file versions, an initiative's roles, and a change to who a project (or document, queue, counter group, calendar, or dashboard) is shared with used to arrive naming an id with no endpoint behind it. Each now arrives as an update to the thing it belongs to — `projects.updated` with `statuses`, `documents.updated` with `versions`, `initiatives.updated` with `roles`, `projects.updated` with `sharing` — the same way a task's tags have always been reported. Every id in an event resolves to a resource you can read back.
+- Document reads accept `?include_content=false` to return everything except the body. A document's body is by far the largest thing the API returns and usually isn't what changed, so a subscription reacting to an edit no longer has to fetch it.
+- **Gantt widgets are now a proper project timeline.** The chart draws a line on today's date, so you can see at a glance what is behind and what is still ahead. Rows fold: bind one to Projects and each project is a single bar you can open to reveal its tasks, and a bar's fill is how much of the work under it is finished — a project that is halfway through its tasks is a half-filled bar, with the count beside its name. Bound to Tasks, you can group rows by project, status, priority, or assignee instead, and a total row across the top sums up everything shown.
 
 ### Fixed
 

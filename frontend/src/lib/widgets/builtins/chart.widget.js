@@ -374,6 +374,14 @@ function render(data, config, context) {
       const byValue = order.slice().sort((a, b) => b.total - a.total);
       keptKeys = {};
       for (let index = 0; index < limit; index++) keptKeys[String(byValue[index].x)] = true;
+      // A category genuinely called "Other" joins the fold instead of sitting
+      // beside it. A chart has one bar per label and the renderer merges points
+      // by label, so two of them would not draw as two — one would quietly
+      // replace the other. Folding the collider keeps every value counted, and
+      // it is reachable in practice: the label is translated, so a project
+      // named "Sonstige" collides for a German reader and not for an English
+      // one.
+      delete keptKeys[OTHER_LABEL];
       kept = order.filter((entry) => keptKeys[String(entry.x)]);
     }
 

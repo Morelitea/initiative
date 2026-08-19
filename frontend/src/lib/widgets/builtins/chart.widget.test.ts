@@ -147,6 +147,56 @@ describe("the category cap", () => {
   });
 });
 
+describe("a category that shares the fold's name", () => {
+  /** The biggest project by far, and called exactly what the fold is called. */
+  const withOther: WidgetData = {
+    source: "projects",
+    rows: [
+      project("Other", 100, 90),
+      project("Boreas", 9, 6),
+      project("Cronos", 8, 5),
+      project("Delos", 7, 4),
+      project("Eos", 6, 3),
+      project("Fates", 5, 1),
+    ],
+    tasks: [],
+  };
+
+  it("draws one bar for it, not two", async () => {
+    // Two points sharing an x do not draw as two bars: the renderer merges on
+    // x, so one silently replaces the other and its value leaves the chart.
+    const scene = await draw(withOther, { limit: "5" });
+    const others = scene.series[0].points.filter((point) => point.x === "Other");
+    expect(others).toHaveLength(1);
+  });
+
+  it("still counts everything it folded", async () => {
+    const scene = await draw(withOther, { limit: "5" });
+    const [done, remaining] = scene.series;
+    const other = (series: (typeof scene.series)[number]) =>
+      series.points.find((point) => point.x === "Other");
+
+    // The real "Other" project (90 done, 10 outstanding) plus Fates (1, 4).
+    expect(other(done)?.y).toBe(91);
+    expect(other(remaining)?.y).toBe(14);
+  });
+
+  it("keeps the chart's totals equal to the source's", async () => {
+    const scene = await draw(withOther, { limit: "5" });
+    const sum = (index: number) =>
+      scene.series[index].points.reduce((total, point) => total + point.y, 0);
+    expect(sum(0)).toBe(90 + 6 + 5 + 4 + 3 + 1);
+    expect(sum(1)).toBe(10 + 3 + 3 + 3 + 3 + 4);
+  });
+
+  it("leaves it alone when nothing is being folded", async () => {
+    const scene = await draw(withOther, { limit: "all" });
+    expect(scene.series[0].points.map((point) => point.x)).toContain("Other");
+    expect(scene.series[0].points.filter((point) => point.x === "Other")).toHaveLength(1);
+    expect(scene.series[0].points.find((point) => point.x === "Other")?.y).toBe(90);
+  });
+});
+
 describe("emphasis", () => {
   it("names no series when the scene asks for none", async () => {
     const scene = await draw(projects, { emphasis: "none" });

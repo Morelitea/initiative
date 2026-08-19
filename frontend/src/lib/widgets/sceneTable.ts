@@ -92,7 +92,9 @@ export function sceneToTables(node: SceneNode, t: SceneTableT): TableScene[] {
             byX.set(point.x, row);
             order.push(point.x);
           }
-          row[`s${index}`] = point.y;
+          // First value wins for a given (series, x), matching the chart — the
+          // table and the picture must not disagree about which one is real.
+          if (row[`s${index}`] === undefined) row[`s${index}`] = point.y;
         }
       });
       const columns: TableColumn[] = [

@@ -47,7 +47,12 @@ type Node = Extract<SceneNode, { kind: "series" }>;
 
 /** Recharts wants one row per x with a column per series; a scene carries one
  *  list of points per series. Merging on x keeps series aligned even when they
- *  don't cover the same categories. */
+ *  don't cover the same categories.
+ *
+ *  Within *one* series an x appears once — two points sharing it are two values
+ *  for one mark, which a chart cannot draw. The first is kept rather than the
+ *  last, so a widget that emits a duplicate cannot replace a value it already
+ *  reported; the extra is dropped, which the table view shows identically. */
 const toRows = (node: Node) => {
   const byX = new Map<string | number, Record<string, string | number>>();
   const order: (string | number)[] = [];
@@ -61,7 +66,7 @@ const toRows = (node: Node) => {
         byX.set(point.x, row);
         order.push(point.x);
       }
-      row[key] = point.y;
+      if (row[key] === undefined) row[key] = point.y;
     }
   });
 
