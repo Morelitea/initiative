@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Document reads accept `?include_content=false` to return everything except the body. A document's body is by far the largest thing the API returns and usually isn't what changed, so a subscription reacting to an edit no longer has to fetch it.
 - **Gantt widgets are now a proper project timeline.** The chart draws a line on today's date, so you can see at a glance what is behind and what is still ahead. Rows fold: bind one to Projects and each project is a single bar you can open to reveal its tasks, and a bar's fill is how much of the work under it is finished — a project that is halfway through its tasks is a half-filled bar, with the count beside its name. Bound to Tasks, you can group rows by project, status, priority, or assignee instead, and a total row across the top sums up everything shown.
 
+### Fixed
+
+- **The overdue digest no longer counts tasks you have set aside.** It swept up tasks in archived projects, and tasks you had archived yourself, so people were chased about work they had already cleared off their plate. The daily email and push now count only live tasks in live projects, matching what My Tasks has always shown.
+
 ## [0.62.7] - 2026-08-18
 
 ### Added

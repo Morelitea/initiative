@@ -1453,7 +1453,11 @@ async def _overdue_tasks_for_user(session: AsyncSession, user_id: int) -> list[d
     Run once per guild via ``gather_across_guilds`` (the session is routed into
     each of the user's guilds in turn), so it only ever sees one guild's rows.
     Template projects are excluded: their tasks are blueprints, not work, so a
-    due date on one is never actually overdue.
+    due date on one is never actually overdue. Archived projects and archived
+    tasks are excluded for the same reason — archiving is how a user says the
+    work is off their plate, so a past due date on one is not a deadline the
+    digest should still be chasing. This matches the filters the cross-guild My
+    Tasks list already applies.
     """
     stmt = (
         select(Task, Project.name, Project.id, Initiative.guild_id)
@@ -1464,6 +1468,8 @@ async def _overdue_tasks_for_user(session: AsyncSession, user_id: int) -> list[d
         .where(
             TaskAssignee.user_id == user_id,
             Project.is_template.is_(False),
+            Project.is_archived.is_(False),
+            Task.is_archived.is_(False),
             Task.due_date.is_not(None),
             Task.due_date < datetime.now(timezone.utc),
             TaskStatus.category != TaskStatusCategory.done,
