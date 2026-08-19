@@ -5,11 +5,11 @@ which columns it cares about (``status_id``). Both are checked here so a typo is
 a 400 at registration rather than a target that silently never fires — the
 failure that started this whole line of work.
 
-Nothing is enumerated by hand. Resources are the evented tables, actions are
-what the capture trigger emits, and the field vocabulary comes from the mapped
-columns plus the facet labels junctions report under. A new content table
-therefore becomes subscribable the moment it joins the registry, with no edit
-here.
+Nothing is enumerated by hand. Resources are what the capture specs name,
+actions are what the capture trigger emits, and the field vocabulary comes from
+the mapped columns plus the facet labels sub-resources report under. A new
+content table therefore becomes subscribable the moment it joins the registry,
+with no edit here.
 """
 
 from __future__ import annotations
@@ -34,17 +34,20 @@ def _vocabulary() -> dict[str, frozenset[str]]:
     """Resource -> the field names events for it can report.
 
     A resource's own columns, minus the housekeeping ones the trigger already
-    excludes, plus the facet label of every junction that reports against it —
-    a row in ``task_tags`` arrives as ``tasks.updated`` with ``changed:
+    excludes, plus the facet label of every sub-resource that reports against it
+    — a row in ``task_tags`` arrives as ``tasks.updated`` with ``changed:
     ['tags']``, so ``tags`` has to be nameable even though no such column
     exists.
     """
     fields: dict[str, set[str]] = {}
     for spec in build_specs():
-        bucket = fields.setdefault(spec.resource_type, set())
         if spec.facet is not None:
-            bucket.add(spec.facet)
+            # A polymorphic facet reports against any of several parents, and
+            # every one of them can name the label.
+            for resource in spec.resource_types:
+                fields.setdefault(resource, set()).add(spec.facet)
             continue
+        bucket = fields.setdefault(spec.static_resource_type, set())
         table = SQLModel.metadata.tables[spec.table]
         bucket.update(
             column.name

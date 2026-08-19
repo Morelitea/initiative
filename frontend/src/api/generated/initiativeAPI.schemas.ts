@@ -5155,6 +5155,10 @@ export type AutocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGetParams = {
 
 export type ReadDocumentApiV1GGuildIdDocumentsDocumentIdGetParams = {
   /**
+   * Include the document body. Pass false for the metadata alone — a document's body is the largest thing this API returns, and a caller reacting to a change (a title, a tag, a property) does not need it. Everything else is unchanged.
+   */
+  include_content?: boolean;
+  /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;

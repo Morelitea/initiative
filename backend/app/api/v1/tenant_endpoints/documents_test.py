@@ -1145,3 +1145,33 @@ async def test_document_counts_by_initiative(
     )
     assert response.status_code == 200
     assert response.json()["counts"] == {str(admin.initiative.id): 2}
+
+
+async def test_reading_a_document_can_leave_the_body_out(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A document's body is the largest thing this API returns, and a caller
+    reacting to a change usually does not need it. Everything else is
+    unchanged, so one request still answers "what is this document now"."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    document = await create_document(session, a.initiative, a.user)
+    document.content = {"root": {"children": [{"type": "paragraph"}]}}
+    session.add(document)
+    await session.commit()
+    document_id = document.id
+
+    full = await client.get(a.g(f"/documents/{document_id}"), headers=a.headers)
+    assert full.status_code == 200, full.text
+    assert full.json()["content"] == {"root": {"children": [{"type": "paragraph"}]}}
+
+    slim = await client.get(
+        a.g(f"/documents/{document_id}"),
+        params={"include_content": "false"},
+        headers=a.headers,
+    )
+    assert slim.status_code == 200, slim.text
+    body = slim.json()
+    assert body["content"] == {}
+    assert body["id"] == document_id
+    assert body["title"] == full.json()["title"]
+    assert body["updated_at"] == full.json()["updated_at"]

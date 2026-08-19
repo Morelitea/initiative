@@ -2,8 +2,8 @@
 
 These assert the seam between the DB-level trigger and the delivery layer: that
 ordinary writes land in the outbox at all, that the row names the right resource
-and initiative, and that the two shapes the design turns on — junctions
-reporting their owner, and soft deletes reporting as deletes — hold against a
+and initiative, and that the two shapes the design turns on — sub-resources
+reporting their parent, and soft deletes reporting as deletes — hold against a
 real Postgres rather than against the rendering code.
 """
 
@@ -105,6 +105,72 @@ async def test_tagging_a_task_is_reported_against_the_task(session, acting_user)
     assert junction[-1].changed == ["tags"]
 
 
+async def test_a_task_status_is_reported_against_its_project(session, acting_user):
+    """A sub-resource with an id of its own is still a facet of its parent.
+
+    A project's statuses are part of the project, and the project is what a
+    subscriber can fetch — so the event names the project, the way a junction
+    does, rather than an id with no route behind it.
+    """
+    from app.models.tenant.task import TaskStatus, TaskStatusCategory
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+
+    before = len(await _outbox(session, a.guild.id))
+    session.add(
+        TaskStatus(
+            guild_id=a.guild.id,
+            project_id=a.project.id,
+            name="Blocked",
+            position=99,
+            category=TaskStatusCategory.todo,
+        )
+    )
+    await session.commit()
+
+    new_rows = (await _outbox(session, a.guild.id))[before:]
+    reported = [r for r in new_rows if r.resource_type == "projects"]
+    assert reported, f"adding a status produced no project-scoped row; got {new_rows}"
+    assert reported[-1].resource_id == a.project.id
+    assert reported[-1].changed == ["statuses"]
+    assert reported[-1].initiative_id == a.initiative.id
+
+
+async def test_a_grant_is_reported_against_the_resource_it_shares(session, acting_user):
+    """Sharing is polymorphic: the event lands on whichever tool was shared.
+
+    ``resource_grants`` rows have their own ids and no route, so a grant reports
+    against the project (or document, queue, …) named in the row — which the
+    subscriber can fetch, and which is the thing that actually changed.
+    """
+    from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+
+    before = len(await _outbox(session, a.guild.id))
+    session.add(
+        ResourceGrant(
+            guild_id=a.guild.id,
+            initiative_id=a.initiative.id,
+            resource_type="project",
+            resource_id=a.project.id,
+            user_id=b.user.id,
+            level=ResourceAccessLevel.read,
+        )
+    )
+    await session.commit()
+
+    new_rows = (await _outbox(session, a.guild.id))[before:]
+    reported = [
+        r
+        for r in new_rows
+        if r.resource_type == "projects" and r.resource_id == a.project.id
+    ]
+    assert reported, f"granting access produced no project-scoped row; got {new_rows}"
+    assert reported[-1].changed == ["sharing"]
+
+
 async def test_creating_an_initiative_is_captured(session, acting_user):
     """Guild-level structural tables emit too.
 
@@ -179,14 +245,17 @@ async def test_an_unresolvable_initiative_still_skips(session, acting_user):
     must still be skipped rather than emitted without a scope.
     """
     from app.db.event_capture import build_specs
-    from app.db.initiative_rls import GUILD_WIDE_EVENTED
+    from app.db.initiative_rls import EVENT_SOURCES, Emit, event_source
 
-    guild_wide = {s.table for s in build_specs() if s.table in GUILD_WIDE_EVENTED}
-    assert guild_wide == set(GUILD_WIDE_EVENTED), (
+    declared = {
+        t for t, s in EVENT_SOURCES.items() if isinstance(s, Emit) and s.guild_wide
+    }
+    captured = {s.table for s in build_specs() if event_source(s.table).guild_wide}
+    assert captured == declared, (
         "a guild-wide table lost its capture spec, so its events would stop"
     )
     # Every other evented table resolves a real initiative.
-    others = [s for s in build_specs() if s.table not in GUILD_WIDE_EVENTED]
+    others = [s for s in build_specs() if not event_source(s.table).guild_wide]
     assert others, "expected initiative-scoped specs alongside the guild-wide ones"
 
 
