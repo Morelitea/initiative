@@ -34,7 +34,11 @@ from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import GuildAccessError, establish_guild_access
-from app.db.session import RLS_CONTEXT_MAX_AGE_SECONDS, AsyncSessionLocal
+from app.db.session import (
+    CONNECTION_RESET_SQL,
+    RLS_CONTEXT_MAX_AGE_SECONDS,
+    AsyncSessionLocal,
+)
 from app.models.platform.user import User
 
 logger = logging.getLogger(__name__)
@@ -193,12 +197,7 @@ class StreamAuthority:
             async with AsyncSessionLocal() as session:
                 # AsyncSessionLocal skips get_session's per-request reset; clear
                 # any stale pooled-connection GUCs before establishing context.
-                await session.exec(
-                    text(
-                        "SELECT set_config('role', 'none', false), "
-                        "set_config('search_path', 'public', false)"
-                    )
-                )
+                await session.exec(text(CONNECTION_RESET_SQL))
                 try:
                     await establish_guild_access(
                         session,

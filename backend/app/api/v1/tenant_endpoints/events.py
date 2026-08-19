@@ -10,7 +10,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import establish_guild_access, GuildAccessError
 from app.core.security import SESSION_COOKIE_NAME
-from app.db.session import AsyncSessionLocal
+from app.db.session import CONNECTION_RESET_SQL, AsyncSessionLocal
 from app.models.tenant.initiative import Initiative
 from app.models.platform.user import User
 from app.services.membership import initiative_scope_clause
@@ -109,11 +109,7 @@ async def websocket_updates(websocket: WebSocket, guild_id: int):
         # Reset any stale GUCs the pooled connection may carry (e.g. a SET ROLE to
         # a since-dropped guild role would make every query error) before the auth
         # query — AsyncSessionLocal doesn't run get_session's per-request reset.
-        await session.exec(
-            text(
-                "SELECT set_config('role', 'none', false), set_config('search_path', 'public', false)"
-            )
-        )
+        await session.exec(text(CONNECTION_RESET_SQL))
         user = await _user_from_token(token, session)
         if user is None:
             logger.warning("Events WebSocket: Auth failed")

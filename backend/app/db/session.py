@@ -118,6 +118,28 @@ class StaleAuthorizationContext(RuntimeError):
 
 _ROLE_RESET_SQL = "SELECT set_config('role', 'none', true)"
 
+
+def _search_path(*schemas: str) -> str:
+    """The schemas a request resolves unqualified names against, in priority order.
+
+    ``pg_temp`` is named explicitly, and last. Postgres searches it FIRST for
+    relation names when it is left off the path, and the shared functions in
+    ``public`` (``initiative_access``, ``capture_change``) resolve guild tables
+    through whatever path their caller carries — that is what lets one
+    definition serve every guild schema. Naming every schema here keeps their
+    resolution a property of the route rather than of the connection.
+    """
+    return ", ".join((*schemas, "pg_temp"))
+
+
+#: Clears the role and path a pooled connection may still carry. For entry
+#: points that build their own session (websockets, background re-auth) instead
+#: of going through ``get_session``, which resets per request.
+CONNECTION_RESET_SQL = (
+    "SELECT set_config('role', 'none', false), "
+    f"set_config('search_path', '{_search_path('public')}', false)"
+)
+
 _CONTEXT_SQL = (
     "SELECT set_config('app.current_user_id', :uid, true), "
     "set_config('app.current_guild_id', :gid, true), "
@@ -163,7 +185,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
             "pw": "false",
             "satp": "",
             "bgid": str(int(billing_guild_id)),
-            "sp": "public",
+            "sp": _search_path("public"),
             "role": billing_role_name(),
         }
 
@@ -190,12 +212,12 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         # Public/platform path: assume the caller's platform-tier role when
         # one is supplied so the request is role-scoped (fail-closed);
         # 'none' (the login role) only for unauthenticated/unrouted contexts.
-        sp = "public"
+        sp = _search_path("public")
         role_target = (
             platform_role_name(platform_role) if platform_role is not None else "none"
         )
     else:
-        sp = f"{guild_schema_name(route_guild)}, public"
+        sp = _search_path(guild_schema_name(route_guild), "public")
         # Pick the guild role by how access was granted:
         # - read grant, or a read_only-status member (guild_id set + read_only):
         #   the SELECT-only guild_<id>_ro role — writes denied at the role level.
