@@ -9,20 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Every widget now says where its data comes from.** Under each widget's title is a line naming its source, what it's narrowed to, and how many rows came back — click it for the full breakdown, including every filter in plain words, the display options (visible to everyone now, not just people who can edit), and a refresh button. Names only ever resolve to what *you* can see, so a widget pointed at a project you don't have access to says so instead of naming it.
-- **Widgets can be filtered.** A widget bound to tasks used to show every task in the initiative with no way to narrow it. You can now filter by status, priority, assignee, tag, project, any of the four dates, archived state, and title — with an optional "any of these" group. Dates can be relative ("due in the next 30 days"), so a dashboard keeps asking the same question instead of going stale on the date it was saved.
-- **Setting up a widget shows you the result while you choose.** The configure dialog is now two panes, with the real widget running against your own data on the right.
-- **Every widget can be read as a table.** A control in each widget's header swaps the picture for the same numbers in a grid.
-- **The widgets themselves are far more capable.** Stat delivers the trend it always promised — a change against the previous period and a sparkline. Chart gained ordering, a cap on categories with the tail folded into "Other", horizontal bars for long names, a target line, selective value labels, and the ability to highlight one series and gray the rest. Table can show everything a row carries — assignees, tags, checklist progress, comment counts — mark overdue rows, and total its columns. Progress draws one meter per project or counter. Funnel can sort its stages. Heatmap labels its months and can count tasks by when they were created or are due, not only when they were finished.
-- **Charts read more cleanly.** Solid gridlines instead of dashed, bars that leave room to breathe, a gap between stacked segments, lighter area fills, and a tooltip that leads with the value and lists every series at once.
-- **Widgets speak your language.** Column headings, empty states, and labels like "Other" and "Unassigned" come from the widget itself and were always English. Widgets are now told which language you read and answer in it — including widgets installed from the marketplace, which can now ship their own translations.
+- **Every widget says where its data comes from.** A line under the title names the source, what it's narrowed to, and how many rows came back; click it for every filter in plain words, the display options, and a refresh. Names only ever resolve to what *you* can see.
+- **Widgets can be filtered.** Status, priority, assignee, tag, project, any of the four dates, archived state, and title, with an optional "any of these" group. Dates can be relative ("due in the next 30 days"), so a dashboard never goes stale on the date it was saved.
+- **Configuring a widget previews it.** The dialog runs the real widget against your own data while you choose.
+- **Any widget can be read as a table** — a control in its header swaps the picture for the numbers.
+- **The widgets do much more.** Stat shows a trend and a sparkline; chart gained ordering, a category cap, horizontal bars, a target line and highlighting; table shows assignees, tags, checklist progress and comment counts, marks overdue rows and totals columns; progress draws a meter per project; heatmap labels months and can count by creation or due date.
+- **Charts read more cleanly** — lighter marks, room between bars, and a tooltip that leads with the value.
+- **Widgets speak your language.** Their column headings and empty states were always English; marketplace widgets can now ship translations too.
 
 ### Fixed
 
-- **A table widget bound to a spreadsheet range showed nothing.** Its columns were built without keys, so every cell landed in the same place and the table came out empty.
-- **Project progress in widgets was counted from a partial list.** Widgets read a fixed number of tasks at a time, and a project with more than that reported a completion percentage based only on the ones that fit. Progress now comes from the server's own totals, and a widget still drawing a partial list now says so.
-- **A widget whose data you can't see no longer says it needs configuring.** That prompt was shown both to authors who hadn't finished setting a widget up and to viewers whose access simply didn't cover its data; the two now read differently. A widget whose data simply failed to load says that instead of blaming your access.
-- **A chart that folds small categories into "Other" now counts them all.** With more than one series on the chart — a project's finished work against its outstanding work — only the first series' share reached the "Other" bar, so it under-reported. The two halves also no longer disagree about which categories survived the cut.
+- **A table bound to a spreadsheet range showed nothing.** Its columns were built without keys, so every cell landed in the same place.
+- **Project progress was counted from a partial list.** Widgets read a fixed number of tasks at a time, so a larger project reported the wrong percentage. It now comes from the server's totals, and a widget drawing a partial list says so.
+- **A widget whose data you can't see no longer tells you to configure it.** That prompt was shown both to authors who hadn't finished and to viewers whose access didn't cover the data; a failed load now reads differently again.
 
 ## [0.62.8] - 2026-08-19
 
