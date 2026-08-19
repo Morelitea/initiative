@@ -95,8 +95,8 @@ async def test_a_trashed_resource_reads_back_for_its_deleted_event(
     """A ``deleted`` event is unactionable unless its id still resolves.
 
     The row survives in the trash until retention, so a read-back may ask for
-    it — access checked exactly as for a live one. Without this the whole
-    ``deleted`` half of the bus names ids that answer 404.
+    it — access checked exactly as for a live one. That is what makes the
+    ``deleted`` half of the bus actionable: the id still resolves.
     """
     from datetime import datetime, timezone
 
