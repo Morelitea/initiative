@@ -1,12 +1,19 @@
 import { cn } from "@/lib/utils";
 import { formatValue } from "@/lib/widgets/format";
-import type { SceneNode, TableCell, TableColumn } from "@/lib/widgets/sceneSpec";
+import type { SceneNode, TableCell, TableColumn, Tone } from "@/lib/widgets/sceneSpec";
+import { toneTextClass } from "@/lib/widgets/tone";
 
 type Node = Extract<SceneNode, { kind: "table" }>;
 
-/** Cells are scalars by construction (the validator drops anything else), so
- *  this only has to decide how each scalar reads. */
-const renderCell = (value: TableCell, column: TableColumn): string => {
+/** A cell is a scalar, or a scalar carrying a tone (the validator drops
+ *  anything else), so this only has to decide how each scalar reads and which
+ *  ink it wears. */
+const readCell = (cell: TableCell): { value: Exclude<TableCell, object>; tone?: Tone } =>
+  cell !== null && typeof cell === "object"
+    ? { value: cell.value, tone: cell.tone }
+    : { value: cell };
+
+const renderCell = (value: Exclude<TableCell, object>, column: TableColumn): string => {
   if (value === null) return "—";
   if (typeof value === "boolean") return value ? "Yes" : "No";
   if (typeof value === "number") return formatValue(value, column.format);
@@ -44,17 +51,23 @@ export function TableNode({ node }: { node: Node }) {
               key={index}
               className="border-border/50 border-b last:border-0"
             >
-              {node.columns.map((column) => (
-                <td
-                  key={column.key}
-                  className={cn(
-                    "max-w-[16rem] truncate px-2 py-1.5",
-                    column.align === "end" ? "text-right tabular-nums" : "text-left"
-                  )}
-                >
-                  {renderCell(row[column.key] ?? null, column)}
-                </td>
-              ))}
+              {node.columns.map((column) => {
+                const cell = readCell(row[column.key] ?? null);
+                return (
+                  <td
+                    key={column.key}
+                    className={cn(
+                      "max-w-[16rem] truncate px-2 py-1.5",
+                      column.align === "end" ? "text-right tabular-nums" : "text-left",
+                      // A toned cell wears a text token, never the raw color —
+                      // a light categorical hue is illegible as text.
+                      cell.tone && toneTextClass(cell.tone)
+                    )}
+                  >
+                    {renderCell(cell.value, column)}
+                  </td>
+                );
+              })}
             </tr>
           ))}
         </tbody>
