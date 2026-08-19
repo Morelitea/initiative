@@ -229,13 +229,17 @@ export function useWidgetData(
       }
 
       case "projects": {
-        const counts = countTasksByProject(normalizeTasks(tasksQuery.data?.items ?? []));
+        const tasks = normalizeTasks(tasksQuery.data?.items ?? []);
+        const counts = countTasksByProject(tasks);
         const visible = (projectsQuery.data?.items ?? []).filter(
           (project) => !initiativeId || project.initiative_id === initiativeId
         );
         const rows = normalizeProjects(visible, counts);
+        // The tasks ride along rather than being counted and thrown away: they
+        // are already here, already the viewer's own, and a widget that folds a
+        // project open needs exactly them.
         return {
-          data: { source, rows },
+          data: { source, rows, tasks },
           isLoading: projectsQuery.isLoading || tasksQuery.isLoading,
           isUnbound: false,
         };

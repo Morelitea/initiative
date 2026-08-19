@@ -162,9 +162,14 @@ guild_router.include_router(
 guild_router.include_router(exports.router, prefix="/exports", tags=["exports"])
 guild_router.include_router(imports.router, prefix="/imports", tags=["imports"])
 guild_router.include_router(queues.router, prefix="/queues", tags=["queues"])
+# Flat read-back routes, at the guild root: an event envelope names a
+# resource by its own id, so every evented resource must resolve from one.
+guild_router.include_router(queues.items_router, tags=["queue-items"])
+
 guild_router.include_router(
     counters.router, prefix="/counter-groups", tags=["counters"]
 )
+guild_router.include_router(counters.counters_router, tags=["counters"])
 guild_router.include_router(calendars.router, prefix="/calendars", tags=["calendars"])
 guild_router.include_router(
     dashboards.router, prefix="/dashboards", tags=["dashboards"]

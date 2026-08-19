@@ -132,7 +132,13 @@ class WidgetOption(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     key: str
+    #: In the order the palette should offer them, not sorted — a time scale
+    #: reads day → quarter, and alphabetical ordering would scatter it.
     values: List[str]
+    #: What the widget draws when a definition names no value for this option.
+    #: Served rather than guessed at, so the editor's pre-selected entry is the
+    #: one that will actually be drawn.
+    default: str
 
 
 class WidgetCatalogEntry(SanitizedBaseModel):
@@ -177,8 +183,10 @@ def build_widget_catalog() -> WidgetCatalog:
                 default_h=spec.default_h,
                 sources=sorted(spec.sources),
                 options=[
-                    WidgetOption(key=key, values=sorted(values))
-                    for key, values in sorted(spec.options.items())
+                    WidgetOption(
+                        key=key, values=list(option.values), default=option.default
+                    )
+                    for key, option in spec.options.items()
                 ],
             )
             for name, spec in sorted(WIDGET_SPECS.items())

@@ -60,9 +60,14 @@ export const SCENE_LIMITS = {
   /** Series per `series` node, and points per series. */
   maxSeries: 24,
   maxPoints: 10_000,
-  /** Lanes per `timeline`, and spans per lane. */
+  /** Lanes per `timeline` — counted across the whole tree, not per level, and
+   *  spans per lane. */
   maxLanes: 2_000,
   maxSpansPerLane: 2_000,
+  /** How deeply lanes may nest. A work breakdown is a few levels
+   *  (portfolio → project → task → subtask); past that a lane label has no room
+   *  left to indent into. */
+  maxLaneDepth: 4,
   /** `matrix` cells (a decade of daily activity is ~3,700). */
   maxCells: 10_000,
   /** `table` shape. */
@@ -166,6 +171,25 @@ export interface SeriesNode {
   showLegend?: boolean;
 }
 
+/** How a span is drawn.
+ *
+ *  - `bar` — ordinary work, a block from start to end.
+ *  - `summary` — a rolled-up parent, drawn as a bracket spanning what is nested
+ *    under it, so a folded group still reads as "everything below me".
+ *  - `milestone` — a dated instant with no duration (a due date with no start,
+ *    a launch), drawn as a diamond at `start`.
+ */
+export const TIMELINE_SPAN_KINDS = ["bar", "summary", "milestone"] as const;
+export type TimelineSpanKind = (typeof TIMELINE_SPAN_KINDS)[number];
+
+/** What was originally planned, when the bar shows what actually happened.
+ *  Drawn as a thin ghost beneath the bar so the two can be read against each
+ *  other — the slip is the offset between them. */
+export interface TimelineBaseline {
+  start: number;
+  end: number;
+}
+
 /** A time span on a lane — the Gantt bar. Times are epoch milliseconds; the
  *  renderer owns formatting them, because the sandbox has no timezone. */
 export interface TimelineSpan {
@@ -173,13 +197,32 @@ export interface TimelineSpan {
   start: number;
   end: number;
   tone?: Tone;
-  /** 0..1, drawn as a fill inside the bar. */
+  /** 0..1, drawn as a fill inside the bar — the share of this span's work that
+   *  is finished, not the share of its time that has elapsed. */
   progress?: number;
+  kind?: TimelineSpanKind;
+  baseline?: TimelineBaseline;
+  /** A short read-out drawn beside the bar ("8/20"). Text, so a widget can say
+   *  what its own denominator means rather than every renderer guessing. */
+  caption?: string;
 }
 
+/** A row, and everything grouped under it.
+ *
+ *  Nesting is what makes a Gantt readable at more than a few dozen rows: a lane
+ *  with children folds to a single summary bar, and opens to the work it stands
+ *  for. Depth is capped by `maxLaneDepth`, and the total lane count by
+ *  `maxLanes` across the whole tree. */
 export interface TimelineLane {
   label?: string;
   spans: TimelineSpan[];
+  children?: TimelineLane[];
+  /** Whether the lane starts folded. Only a starting state — which lanes are
+   *  open afterwards belongs to the viewer, not to the widget. */
+  collapsed?: boolean;
+  /** Read-out beside the label — a count, a percentage, an owner. */
+  caption?: string;
+  tone?: Tone;
 }
 
 export interface TimelineNode {
@@ -190,6 +233,13 @@ export interface TimelineNode {
   end?: number;
   /** Tick density hint. The renderer may coarsen it to fit the tile. */
   scale?: "day" | "week" | "month" | "quarter";
+  /** The instant to mark with the "today" line, as the widget saw it.
+   *
+   *  Carried on the scene rather than read from the renderer's own clock so a
+   *  preview over frozen sample rows keeps a frozen marker: the host hands the
+   *  sandbox the minute it should treat as now, and this is that same minute
+   *  arriving back. Omitted means "draw no marker". */
+  now?: number;
 }
 
 export interface FunnelStage {

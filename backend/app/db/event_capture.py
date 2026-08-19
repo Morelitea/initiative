@@ -1,32 +1,39 @@
 """Change capture — one trigger function, every evented content table.
 
 The capture rule lives in ONE place, ``public.capture_change()``. Per-table
-knowledge reaches it as trigger arguments rendered from the registries that
-already describe these tables, so installing capture on a new table needs no new
+knowledge reaches it as trigger arguments rendered from the registry that already
+describes these tables, so installing capture on a new table needs no new
 declaration:
 
-* **which initiative a row belongs to** — ``INITIATIVE_PATHS`` (the same entry
-  that renders the table's RLS policies), so an event is scoped exactly like the
-  row it describes;
-* **which resource the event names** — the table's own primary key, or for a
-  junction its owner (below), read off the SQLModel metadata.
+* **which initiative a row belongs to** — the ``INITIATIVE_PATHS`` entry that
+  renders the table's RLS policies, so an event is scoped exactly like the row it
+  describes;
+* **which resource the event names** — the table's own primary key, or the parent
+  it reports against (below).
 
 What lands in ``event_outbox`` is identifiers, an action, and the **names** of
 the columns that changed. Never a value: a consumer reads current state back
 through the REST API, where the six gates apply to the read.
 
-Junctions report their owner
-----------------------------
+Sub-resources report their parent
+---------------------------------
 Over half these tables are junctions with a composite primary key
 (``task_tags``, ``task_assignees``, ``document_property_values``, …) and no id
 of their own. Their first primary-key column is always the FK to the resource
 that owns them, so a row appearing in ``task_tags`` is reported as
-``task.updated`` with ``changed = ['tags']``.
+``tasks.updated`` with ``changed = ['tags']``.
 
 That is also the semantics a subscriber wants: "this task was tagged", not "a
 row appeared in a junction table". The owner and the label are both derived —
 the owner from the FK, the label by stripping the owner's singular stem from the
 junction's name — so a new junction is covered by construction.
+
+The same shape covers sub-resources that DO have an id of their own but are
+still a facet of something else (a project's statuses, a document's versions, an
+initiative's roles, a resource's sharing). Derivation cannot see that, so those
+say it once in ``EVENT_SOURCES`` as a ``ReportsAs``. Either way the resource an
+event names is one that already has a detail route, which is what keeps every
+id in the outbox resolvable without owing new API surface per table.
 """
 
 from __future__ import annotations
@@ -39,10 +46,13 @@ from sqlmodel import SQLModel
 
 from app.db.initiative_rls import (
     EVENTED_TABLES,
-    GUILD_LEVEL_EVENTED,
-    GUILD_WIDE_EVENTED,
-    INITIATIVE_PATHS,
+    event_source,
+    initiative_locator,
 )
+
+#: How a row reaches the trigger's dynamic lookups: as ``$1`` in an EXECUTE, so
+#: every registry expression is rendered against this rather than NEW/OLD.
+ROW = "($1)"
 
 #: The function name every per-table trigger calls. Created once in ``public``
 #: (not per guild schema): the body names content tables unqualified, so it
@@ -67,17 +77,29 @@ class CaptureSpec:
 
     #: The table the trigger is installed on.
     table: str
-    #: The resource an event names — the table itself, or a junction's owner.
-    resource_type: str
-    #: Column on the changed row holding ``resource_type``'s id.
-    resource_id_column: str
-    #: For a junction, the label reported in ``changed`` (e.g. ``tags``).
-    #: ``None`` when the table is its own resource and real column names apply.
+    #: The resource types an event from this table can name — the table itself,
+    #: or the parent it reports against. More than one only for a polymorphic
+    #: facet (a grant names whichever tool it is on).
+    resource_types: frozenset[str]
+    #: Row expression yielding that resource's id.
+    resource_id_expr: str
+    #: When the table reports against a parent, the label used in ``changed``
+    #: (e.g. ``tags``). ``None`` when the table is its own resource and real
+    #: column names apply.
     facet: str | None
+    #: Row expression yielding the resource type, for the polymorphic case.
+    #: ``None`` when ``resource_types`` holds the single constant answer.
+    resource_type_expr: str | None = None
 
     @property
     def trigger_name(self) -> str:
         return f"capture_{self.table}"
+
+    @property
+    def static_resource_type(self) -> str:
+        """The one type this names, for the ordinary non-polymorphic case."""
+        (resource_type,) = self.resource_types
+        return resource_type
 
 
 def _singular(table: str) -> str:
@@ -93,12 +115,14 @@ def _owner_of(column: Column[Any]) -> str | None:
 
 
 def build_specs() -> list[CaptureSpec]:
-    """One spec per evented table, derived from the model metadata.
+    """One spec per evented table.
 
-    Raises when a table can be neither addressed by its own primary key nor
-    resolved to an owner — capture would otherwise install a trigger that emits
-    rows naming no resource, and a silently unaddressable event is worse than a
-    failed boot.
+    Three sources, tried in order: a declared ``ReportsAs`` (the explicit facet),
+    a composite primary key (the derived facet), or the table's own primary key.
+
+    Raises when a table can be reported none of those ways — capture would
+    otherwise install a trigger that emits rows naming no resource, and a
+    silently unaddressable event is worse than a failed boot.
     """
     specs: list[CaptureSpec] = []
     for table_name in sorted(EVENTED_TABLES):
@@ -107,13 +131,31 @@ def build_specs() -> list[CaptureSpec]:
             raise RuntimeError(
                 f"{table_name} is in EVENTED_TABLES but has no mapped model"
             )
+
+        declared = event_source(table_name).reports_as
+        if declared is not None:
+            specs.append(
+                CaptureSpec(
+                    table=table_name,
+                    resource_types=declared.resource_types,
+                    resource_id_expr=declared.id_expr(ROW),
+                    facet=declared.facet,
+                    resource_type_expr=(
+                        declared.type_expr(ROW)
+                        if declared.type_expr is not None
+                        else None
+                    ),
+                )
+            )
+            continue
+
         pk = list(table.primary_key.columns)
         if len(pk) == 1:
             specs.append(
                 CaptureSpec(
                     table=table_name,
-                    resource_type=table_name,
-                    resource_id_column=pk[0].name,
+                    resource_types=frozenset({table_name}),
+                    resource_id_expr=f'{ROW}."{pk[0].name}"',
                     facet=None,
                 )
             )
@@ -127,13 +169,12 @@ def build_specs() -> list[CaptureSpec]:
                 f"({owner_column.name}) is not a foreign key, so its events "
                 "cannot name an owning resource"
             )
-        facet = table_name.removeprefix(f"{_singular(owner)}_")
         specs.append(
             CaptureSpec(
                 table=table_name,
-                resource_type=owner,
-                resource_id_column=owner_column.name,
-                facet=facet,
+                resource_types=frozenset({owner}),
+                resource_id_expr=f'{ROW}."{owner_column.name}"',
+                facet=table_name.removeprefix(f"{_singular(owner)}_"),
             )
         )
     return specs
@@ -143,13 +184,15 @@ def build_specs() -> list[CaptureSpec]:
 # The capture function
 # ---------------------------------------------------------------------------
 
-#: Rendered once into ``public``. Per-table knowledge arrives as TG_ARGV:
-#:   0 — SQL expression resolving the row's initiative id, over ``($1)``
+#: Rendered once into ``public``. Per-table knowledge arrives as TG_ARGV, where
+#: every "expression" is SQL text evaluated with the changed row as ``$1``:
+#:   0 — expression resolving the row's initiative id
 #:   1 — resource type the event names
-#:   2 — column on the row holding that resource's id
-#:   3 — junction facet label, or '' when the table is its own resource
+#:   2 — expression resolving that resource's id
+#:   3 — facet label, or '' when the table is its own resource
 #:   4 — array literal of column names excluded from ``changed``
 #:   5 — 'guild' when this table has no initiative and a NULL is expected
+#:   6 — expression resolving the resource TYPE, or '' when arg 1 is the answer
 CAPTURE_FUNCTION_SQL = f"""
 CREATE OR REPLACE FUNCTION {CAPTURE_FUNCTION}() RETURNS trigger
     LANGUAGE plpgsql AS $capture$
@@ -159,6 +202,7 @@ DECLARE
     v_action     text;
     v_changed    text[] := '{{}}';
     v_resource   integer;
+    v_type       text := TG_ARGV[1];
     v_actor      integer;
     v_new        jsonb;
     v_old        jsonb;
@@ -180,14 +224,41 @@ BEGIN
         RETURN NULL;
     END IF;
 
-    EXECUTE format('SELECT ($1).%I', TG_ARGV[2]) INTO v_resource USING v_row;
+    EXECUTE 'SELECT ' || TG_ARGV[2] INTO v_resource USING v_row;
     IF v_resource IS NULL THEN
         RETURN NULL;
+    END IF;
+
+    -- A polymorphic facet names its parent's type per row (a grant reports
+    -- against whichever tool it shares). An unrecognized value resolves to NULL
+    -- and the row is skipped, so what a subscription may name and what can be
+    -- emitted stay the same set.
+    IF TG_ARGV[6] <> '' THEN
+        EXECUTE 'SELECT ' || TG_ARGV[6] INTO v_type USING v_row;
+        IF v_type IS NULL THEN
+            RETURN NULL;
+        END IF;
     END IF;
 
     IF TG_OP = 'INSERT' THEN
         v_action := 'created';
     ELSIF TG_OP = 'DELETE' THEN
+        -- On a table with the trash lifecycle, deleting is soft: the row moves
+        -- to the trash, which is the event a subscriber acts on, and this hard
+        -- delete is retention clearing it out afterwards. Never surface that —
+        -- it is a repeat of an announced delete, and by now nothing can resolve
+        -- the id anyway, not even a read-back asking for trashed rows.
+        --
+        -- Carrying no deleted_at means the table has no other kind of delete,
+        -- so that one IS the event: a junction row going away is how a task
+        -- loses a tag.
+        --
+        -- Tested for through jsonb rather than as OLD.deleted_at, because most
+        -- evented tables have no such column and naming one that is absent
+        -- raises at runtime.
+        IF to_jsonb(OLD) ? 'deleted_at' THEN
+            RETURN NULL;
+        END IF;
         v_action := 'deleted';
     ELSE
         v_new := to_jsonb(NEW);
@@ -218,8 +289,8 @@ BEGIN
         END IF;
     END IF;
 
-    -- A junction has no columns of its own worth naming; report the change as
-    -- the owning resource being updated in one respect.
+    -- A facet has no columns of its own worth naming; report the change as the
+    -- owning resource being updated in one respect.
     IF v_facet <> '' THEN
         v_changed := ARRAY[v_facet];
         IF v_action <> 'updated' THEN
@@ -239,7 +310,7 @@ BEGIN
         '  resource_type, resource_id, action, changed'
         ') VALUES (txid_current(), now(), $1, $2, $3, $4, $5, $6)',
         TG_TABLE_SCHEMA
-    ) USING v_actor, v_initiative, TG_ARGV[1], v_resource, v_action, v_changed;
+    ) USING v_actor, v_initiative, v_type, v_resource, v_action, v_changed;
 
     RETURN NULL;
 END
@@ -259,39 +330,31 @@ def _housekeeping_literal(table_name: str) -> str:
     return f"'{{{inner}}}'"
 
 
-def _initiative_locator(table: str):
-    """How ``table`` resolves the initiative an event about it belongs to.
-
-    Three sources, one question: initiative-scoped content gets it from the same
-    entry that renders its RLS, a guild-level table that still emits gets it from
-    GUILD_LEVEL_EVENTED, and a guild-wide table has no initiative at all. Being
-    scoped and being evented are separate decisions (see those registries).
-    """
-    path = INITIATIVE_PATHS.get(table)
-    if path is not None:
-        return path.initiative_expr
-    if table in GUILD_WIDE_EVENTED:
-        return lambda _row: "NULL::integer"
-    return GUILD_LEVEL_EVENTED[table]
+def _quoted(expr: str) -> str:
+    """A SQL expression as a trigger-argument string literal."""
+    return "'" + expr.replace("'", "''") + "'"
 
 
 def _trigger_block(spec: CaptureSpec) -> str:
-    # The row reaches the expression as $1 in a dynamic EXECUTE, so the locator
-    # renders against ($1) instead of NEW/OLD.
-    initiative_expr = _initiative_locator(spec.table)("($1)").replace("'", "''")
-    facet = spec.facet or ""
+    source = event_source(spec.table)
+    # A polymorphic facet resolves its type per row; everything else names one
+    # constant, and passing that as a literal keeps the extra EXECUTE off the
+    # write path of every other table.
+    type_expr = spec.resource_type_expr
+    static_type = "" if type_expr is not None else spec.static_resource_type
     return "\n".join(
         [
             f"DROP TRIGGER IF EXISTS {spec.trigger_name} ON {spec.table};",
             f"CREATE TRIGGER {spec.trigger_name}",
             f"  AFTER INSERT OR UPDATE OR DELETE ON {spec.table}",
             f"  FOR EACH ROW EXECUTE FUNCTION {CAPTURE_FUNCTION}(",
-            f"    '{initiative_expr}',",
-            f"    '{spec.resource_type}',",
-            f"    '{spec.resource_id_column}',",
-            f"    '{facet}',",
+            f"    {_quoted(initiative_locator(spec.table)(ROW))},",
+            f"    '{static_type}',",
+            f"    {_quoted(spec.resource_id_expr)},",
+            f"    '{spec.facet or ''}',",
             f"    {_housekeeping_literal(spec.table)},",
-            f"    '{'guild' if spec.table in GUILD_WIDE_EVENTED else ''}'",
+            f"    '{'guild' if source.guild_wide else ''}',",
+            f"    {_quoted(type_expr or '')}",
             "  );",
         ]
     )
@@ -304,9 +367,9 @@ _HEADER = """\
 --
 -- One trigger per evented content table, all calling public.capture_change().
 -- Per-table knowledge is passed as trigger arguments derived from
--- INITIATIVE_PATHS (which initiative a row belongs to) and the model metadata
--- (which resource an event names), so a new content table is captured without
--- a second declaration.
+-- INITIATIVE_PATHS (which initiative a row belongs to), the model metadata
+-- (which resource an event names), and EVENT_SOURCES (the deviations from
+-- those), so a new content table is captured without a second declaration.
 --
 -- The outbox carries identifiers and changed column NAMES only. Values are read
 -- back through the REST API, where the six gates apply to the read.

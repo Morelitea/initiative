@@ -74,6 +74,30 @@ def _fail(code: str) -> None:
 
 
 @dataclass(frozen=True)
+class WidgetOptionSpec:
+    """One display option: the values it may take, in the order the palette
+    offers them, and the one a widget falls back to when a definition names
+    none.
+
+    Order is declared rather than sorted so a scale reads day → quarter instead
+    of alphabetically, and the default is stated rather than implied by that
+    order, so the two can differ (weeks are the useful default; days are the
+    natural first entry). Serving both is what keeps the editor's pre-selected
+    value equal to what the widget will actually draw.
+    """
+
+    values: tuple[str, ...]
+    default: str
+
+    def __contains__(self, value: object) -> bool:
+        return value in self.values
+
+
+def _option(*values: str, default: str | None = None) -> WidgetOptionSpec:
+    return WidgetOptionSpec(values=values, default=default if default else values[0])
+
+
+@dataclass(frozen=True)
 class WidgetSpec:
     min_w: int
     min_h: int
@@ -82,7 +106,7 @@ class WidgetSpec:
     sources: frozenset[str]
     # Widget-level options this primitive accepts, each with its allowed values.
     # A preset's params and a definition's own options are checked against this.
-    options: Mapping[str, frozenset[str]] = field(default_factory=dict)
+    options: Mapping[str, WidgetOptionSpec] = field(default_factory=dict)
 
 
 WIDGET_SPECS: dict[str, WidgetSpec] = {
@@ -93,7 +117,18 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
         default_w=12,
         default_h=6,
         sources=frozenset({"tasks", "projects", "calendar_entries"}),
-        options={"scale": frozenset({"day", "week", "month", "quarter"})},
+        options={
+            "scale": _option("day", "week", "month", "quarter", default="week"),
+            # How rows are grouped into foldable summaries. What each key means
+            # is the widget's business — a calendar entry has no priority, so it
+            # reads anything but "none" as "the calendar it sits on".
+            "group": _option("project", "status", "priority", "assignee", "none"),
+            # The total row above everything shown.
+            "rollup": _option("on", "off"),
+            # Whether groups arrive open or folded. A starting state only; which
+            # rows are open afterwards belongs to whoever is reading.
+            "start": _option("open", "folded"),
+        },
     ),
     # One big number.
     "stat": WidgetSpec(
@@ -102,7 +137,7 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
         default_w=3,
         default_h=2,
         sources=frozenset({"counter", "task_counts", "sheet_range"}),
-        options={"format": frozenset({"plain", "percent", "currency", "duration"})},
+        options={"format": _option("plain", "percent", "currency", "duration")},
     ),
     # A series drawn as bars/lines/area/slices.
     "chart": WidgetSpec(
@@ -112,8 +147,8 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
         default_h=4,
         sources=frozenset({"task_counts", "counter_group", "sheet_range", "projects"}),
         options={
-            "mark": frozenset({"bar", "line", "area", "pie"}),
-            "stacked": frozenset({"true", "false"}),
+            "mark": _option("bar", "line", "area", "pie"),
+            "stacked": _option("false", "true"),
         },
     ),
     # Staged counts, widest bucket first.
@@ -321,10 +356,14 @@ for _name, _preset in WIDGET_PRESETS.items():
         raise RuntimeError(f"preset {_name!r} names unknown primitive")
     _allowed = WIDGET_SPECS[_preset.primitive].options
     for _key, _value in _preset.options.items():
-        if _key not in _allowed or _value not in _allowed[_key]:
+        if _key not in _allowed or _value not in _allowed[_key].values:
             raise RuntimeError(f"preset {_name!r} sets invalid option {_key}={_value}")
 if WIDGET_SPECS.keys() & WIDGET_PRESETS.keys():
     raise RuntimeError("a preset may not shadow a primitive name")
+for _name, _spec in WIDGET_SPECS.items():
+    for _key, _declared in _spec.options.items():
+        if _declared.default not in _declared.values:
+            raise RuntimeError(f"{_name}.{_key} defaults to a value it does not allow")
 
 
 # --- normalization ---------------------------------------------------------
@@ -419,7 +458,7 @@ def _normalize_options(raw: Any, spec: WidgetSpec, preset: WidgetPreset | None) 
         # Booleans are accepted for flag-shaped options and stored as strings so
         # the option vocabulary stays a flat set of literals.
         candidate = str(value).lower() if isinstance(value, bool) else value
-        if not isinstance(candidate, str) or candidate not in allowed:
+        if not isinstance(candidate, str) or candidate not in allowed.values:
             _fail(DashboardMessages.WIDGET_OPTION_INVALID)
         options[key] = candidate
     if preset is not None:

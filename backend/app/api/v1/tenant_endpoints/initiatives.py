@@ -6,6 +6,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select, delete
 
 from app.api.deps import (
+    IncludeDeletedDep,
     RLSSessionDep,
     SessionDep,
     get_current_active_user,
@@ -221,6 +222,7 @@ async def get_initiative(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+    include_deleted: IncludeDeletedDep = False,
 ) -> InitiativeRead:
     statement = (
         select(Initiative)

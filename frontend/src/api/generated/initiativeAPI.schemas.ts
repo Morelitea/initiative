@@ -4670,6 +4670,7 @@ export const WidgetType = {
 export interface WidgetOption {
   key: string;
   values: string[];
+  default: string;
 }
 
 export interface WidgetCatalogEntry {
@@ -4938,6 +4939,13 @@ export type ProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetParams =
   page_size?: number;
 };
 
+export type ReadProjectApiV1GGuildIdProjectsProjectIdGetParams = {
+  /**
+   * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
+   */
+  include_deleted?: boolean;
+};
+
 export type SearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGetParams = {
   /**
    * Case-insensitive substring match on the member's name.
@@ -4996,6 +5004,13 @@ export type AutocompleteTasksApiV1GGuildIdTasksAutocompleteGetParams = {
   limit?: number;
 };
 
+export type ReadTaskApiV1GGuildIdTasksTaskIdGetParams = {
+  /**
+   * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
+   */
+  include_deleted?: boolean;
+};
+
 export type ArchiveDoneTasksApiV1GGuildIdTasksArchiveDonePostParams = {
   /**
    * Project to archive done tasks from
@@ -5020,6 +5035,13 @@ export type RecentCommentsApiV1GGuildIdCommentsRecentGetParams = {
   limit?: number;
 };
 
+export type ReadCommentApiV1GGuildIdCommentsCommentIdGetParams = {
+  /**
+   * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
+   */
+  include_deleted?: boolean;
+};
+
 export type SearchMentionablesApiV1GGuildIdCommentsMentionsSearchGetParams = {
   entity_type: MentionEntityType;
   /**
@@ -5039,6 +5061,13 @@ export type SearchMentionablesApiV1GGuildIdCommentsMentionsSearchGetParams = {
    * @maximum 100
    */
   page_size?: number;
+};
+
+export type GetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetParams = {
+  /**
+   * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
+   */
+  include_deleted?: boolean;
 };
 
 export type SearchInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersSearchGetParams = {
@@ -5122,6 +5151,17 @@ export type AutocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGetParams = {
    * @maximum 20
    */
   limit?: number;
+};
+
+export type ReadDocumentApiV1GGuildIdDocumentsDocumentIdGetParams = {
+  /**
+   * Include the document body. Pass false for the metadata alone — a document's body is the largest thing this API returns, and a caller reacting to a change (a title, a tag, a property) does not need it. Everything else is unchanged.
+   */
+  include_content?: boolean;
+  /**
+   * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
+   */
+  include_deleted?: boolean;
 };
 
 export type ExportTasksApiV1GGuildIdExportsTasksGetParams = {
@@ -5377,6 +5417,20 @@ export type ListQueuesApiV1GGuildIdQueuesGetParams = {
   page_size?: number;
 };
 
+export type ReadQueueApiV1GGuildIdQueuesQueueIdGetParams = {
+  /**
+   * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
+   */
+  include_deleted?: boolean;
+};
+
+export type ReadQueueItemApiV1GGuildIdQueueItemsItemIdGetParams = {
+  /**
+   * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
+   */
+  include_deleted?: boolean;
+};
+
 export type ListCounterGroupsApiV1GGuildIdCounterGroupsGetParams = {
   initiative_id?: number | null;
   /**
@@ -5388,6 +5442,20 @@ export type ListCounterGroupsApiV1GGuildIdCounterGroupsGetParams = {
    * @maximum 100
    */
   page_size?: number;
+};
+
+export type ReadCounterGroupApiV1GGuildIdCounterGroupsGroupIdGetParams = {
+  /**
+   * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
+   */
+  include_deleted?: boolean;
+};
+
+export type ReadCounterApiV1GGuildIdCountersCounterIdGetParams = {
+  /**
+   * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
+   */
+  include_deleted?: boolean;
 };
 
 export type ListCalendarsApiV1GGuildIdCalendarsGetParams = {
@@ -5403,6 +5471,13 @@ export type ListCalendarsApiV1GGuildIdCalendarsGetParams = {
   page_size?: number;
 };
 
+export type ReadCalendarApiV1GGuildIdCalendarsCalendarIdGetParams = {
+  /**
+   * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
+   */
+  include_deleted?: boolean;
+};
+
 export type ListDashboardsApiV1GGuildIdDashboardsGetParams = {
   initiative_id?: number | null;
   /**
@@ -5414,6 +5489,13 @@ export type ListDashboardsApiV1GGuildIdDashboardsGetParams = {
    * @maximum 200
    */
   page_size?: number;
+};
+
+export type ReadDashboardApiV1GGuildIdDashboardsDashboardIdGetParams = {
+  /**
+   * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
+   */
+  include_deleted?: boolean;
 };
 
 export type ReadAppDataApiV1GGuildIdAppsAppIdDataSourceIdGetParams = {
@@ -5444,6 +5526,13 @@ export type ListCalendarEventsApiV1GGuildIdCalendarEventsGetParams = {
   page_size?: number;
 };
 
+export type ReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGetParams = {
+  /**
+   * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
+   */
+  include_deleted?: boolean;
+};
+
 export type ListCalendarEntriesApiV1GGuildIdCalendarEntriesGetParams = {
   initiative_id?: number | null;
   calendar_ids?: number[] | null;
@@ -5457,6 +5546,13 @@ export type ListCalendarEntriesApiV1GGuildIdCalendarEntriesGetParams = {
   tz?: string | null;
   include_events?: boolean;
   include_tasks?: boolean;
+};
+
+export type GetTagApiV1GGuildIdTagsTagIdGetParams = {
+  /**
+   * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
+   */
+  include_deleted?: boolean;
 };
 
 export type ListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGetParams = {

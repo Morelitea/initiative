@@ -17,6 +17,7 @@ from sqlmodel import select
 
 from app.api import resource_access
 from app.api.deps import (
+    IncludeDeletedDep,
     GuildContext,
     RLSSessionDep,
     get_current_active_user,
@@ -233,6 +234,7 @@ async def read_calendar(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
+    include_deleted: IncludeDeletedDep = False,
 ) -> CalendarRead:
     calendar = await resource_access.load_authorized(
         session, Tool.calendar, calendar_id, current_user, guild_context

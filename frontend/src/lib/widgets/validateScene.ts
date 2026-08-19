@@ -28,6 +28,8 @@ import {
   type TableCell,
   type TableColumn,
   TEXT_VARIANTS,
+  TIMELINE_SPAN_KINDS,
+  type TimelineBaseline,
   type TimelineLane,
   type TimelineSpan,
   TONES,
@@ -154,6 +156,12 @@ const parseSeries = (raw: unknown): Series => {
   });
 };
 
+const parseBaseline = (raw: unknown): TimelineBaseline | undefined => {
+  if (raw === undefined || raw === null) return undefined;
+  if (!isPlainObject(raw)) fail(SceneErrorCode.NODE_INVALID);
+  return { start: num(raw.start), end: num(raw.end) };
+};
+
 const parseSpan = (raw: unknown): TimelineSpan => {
   if (!isPlainObject(raw)) fail(SceneErrorCode.NODE_INVALID);
   return compact({
@@ -162,14 +170,35 @@ const parseSpan = (raw: unknown): TimelineSpan => {
     end: num(raw.end),
     tone: optTone(raw.tone),
     progress: optNum(raw.progress),
+    kind: oneOf(raw.kind, TIMELINE_SPAN_KINDS),
+    baseline: parseBaseline(raw.baseline),
+    caption: optText(raw.caption),
   });
 };
 
-const parseLane = (raw: unknown): TimelineLane => {
+/**
+ * A lane and everything nested under it.
+ *
+ * Lanes are counted against one budget shared by the whole tree rather than a
+ * cap per level: a chain of 2,000 single-child lanes is exactly as much drawing
+ * as a flat 2,000, so only the total is worth bounding. Depth is capped
+ * separately because it bounds *structure*, which no amount of data grows —
+ * the same split the node budget makes.
+ */
+const parseLane = (raw: unknown, depth: number, budget: LaneBudget): TimelineLane => {
+  if (depth > SCENE_LIMITS.maxLaneDepth) fail(SceneErrorCode.TOO_DEEP);
+  if (++budget.lanes > SCENE_LIMITS.maxLanes) fail(SceneErrorCode.TOO_LARGE);
   if (!isPlainObject(raw)) fail(SceneErrorCode.NODE_INVALID);
   return compact({
     label: optText(raw.label),
     spans: arrayOf(raw.spans, SCENE_LIMITS.maxSpansPerLane).map(parseSpan),
+    children:
+      raw.children === undefined || raw.children === null
+        ? undefined
+        : asList(raw.children).map((child) => parseLane(child, depth + 1, budget)),
+    collapsed: optBool(raw.collapsed),
+    caption: optText(raw.caption),
+    tone: optTone(raw.tone),
   });
 };
 
@@ -220,6 +249,10 @@ interface Budget {
   nodes: number;
 }
 
+interface LaneBudget {
+  lanes: number;
+}
+
 const parseNode = (raw: unknown, depth: number, budget: Budget): SceneNode => {
   if (depth > SCENE_LIMITS.maxDepth) fail(SceneErrorCode.TOO_DEEP);
   if (++budget.nodes > SCENE_LIMITS.maxNodes) fail(SceneErrorCode.TOO_MANY_NODES);
@@ -251,14 +284,17 @@ const parseNode = (raw: unknown, depth: number, budget: Budget): SceneNode => {
         showLegend: optBool(node.showLegend),
       });
 
-    case "timeline":
+    case "timeline": {
+      const lanes: LaneBudget = { lanes: 0 };
       return compact({
         kind: "timeline" as const,
-        lanes: arrayOf(node.lanes, SCENE_LIMITS.maxLanes).map(parseLane),
+        lanes: asList(node.lanes).map((lane) => parseLane(lane, 0, lanes)),
         start: optNum(node.start),
         end: optNum(node.end),
         scale: oneOf(node.scale, ["day", "week", "month", "quarter"] as const),
+        now: optNum(node.now),
       });
+    }
 
     case "funnel":
       return compact({

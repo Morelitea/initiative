@@ -47,6 +47,21 @@ export interface ProjectRow {
   doneCount: number;
 }
 
+/**
+ * The `projects` envelope.
+ *
+ * `tasks` is the same shape the `tasks` source hands over, and it is here
+ * because the host already has it: the progress columns above are counted from
+ * those very rows, so a widget that draws a project as a foldable group of its
+ * work needs no second binding and no second request. Rows carry `projectId`,
+ * which is what joins the two halves.
+ */
+export interface ProjectsData {
+  source: "projects";
+  rows: ProjectRow[];
+  tasks: TaskRow[];
+}
+
 export interface CalendarEntryRow {
   id: number;
   title: string;
@@ -97,7 +112,7 @@ export interface AppRows {
 
 export type WidgetData =
   | { source: "tasks"; rows: TaskRow[] }
-  | { source: "projects"; rows: ProjectRow[] }
+  | ProjectsData
   | { source: "calendar_entries"; rows: CalendarEntryRow[] }
   | { source: "task_counts"; rows: CountRow[] }
   | { source: "counter"; counter: CounterValue }

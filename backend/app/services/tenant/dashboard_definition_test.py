@@ -46,6 +46,20 @@ def test_presets_resolve_to_a_primitive_and_never_shadow_one():
 
 
 @pytest.mark.unit
+def test_every_option_defaults_to_a_value_it_allows():
+    """The default is what a widget draws when a definition names no value, and
+    what the palette shows as chosen. One that is not in its own list would put
+    the editor and the render out of step."""
+    for widget_type, spec in WIDGET_SPECS.items():
+        for key, option in spec.options.items():
+            assert option.values, f"{widget_type}.{key} allows nothing"
+            assert option.default in option.values, f"{widget_type}.{key} bad default"
+            assert len(set(option.values)) == len(option.values), (
+                f"{widget_type}.{key} repeats a value"
+            )
+
+
+@pytest.mark.unit
 def test_preset_is_stored_resolved():
     """What lands in the row is always a primitive, with the preset name kept
     only as a label."""

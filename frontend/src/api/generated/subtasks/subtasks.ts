@@ -4,12 +4,20 @@
  * Initiative API
  * OpenAPI spec version: 0.62.7
  */
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  DataTag,
+  DefinedInitialDataOptions,
+  DefinedUseQueryResult,
   MutationFunction,
   QueryClient,
+  QueryFunction,
+  QueryKey,
+  UndefinedInitialDataOptions,
   UseMutationOptions,
   UseMutationResult,
+  UseQueryOptions,
+  UseQueryResult,
 } from "@tanstack/react-query";
 
 import type { HTTPValidationError, SubtaskRead, SubtaskUpdate } from "../initiativeAPI.schemas";
@@ -18,6 +26,196 @@ import { apiMutator } from "../../mutator";
 import type { ErrorType, BodyType } from "../../mutator";
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKey: K } => {
+  const result = { queryKey } as T & { queryKey: K };
+  for (const key of Object.keys(query)) {
+    // The explicit queryKey always wins, matching the previous
+    // `{ ...query, queryKey }` spread where it was set last.
+    if (key === "queryKey") continue;
+    Object.defineProperty(result, key, {
+      enumerable: true,
+      configurable: true,
+      get: () => (query as Record<string, unknown>)[key],
+    });
+  }
+  return result;
+};
+
+/**
+ * One subtask by id — the read-back for a ``subtasks.*`` event. Gated by
+ * read access on the parent task's project, like reading the task.
+ * @summary Read Subtask
+ */
+export const readSubtaskApiV1GGuildIdSubtasksSubtaskIdGet = (
+  guildId: number,
+  subtaskId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<SubtaskRead>(
+    { url: `/api/v1/g/${guildId}/subtasks/${subtaskId}`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadSubtaskApiV1GGuildIdSubtasksSubtaskIdGetQueryKey = (
+  guildId: number,
+  subtaskId: number
+) => {
+  return [`/api/v1/g/${guildId}/subtasks/${subtaskId}`] as const;
+};
+
+export const getReadSubtaskApiV1GGuildIdSubtasksSubtaskIdGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readSubtaskApiV1GGuildIdSubtasksSubtaskIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  subtaskId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readSubtaskApiV1GGuildIdSubtasksSubtaskIdGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getReadSubtaskApiV1GGuildIdSubtasksSubtaskIdGetQueryKey(guildId, subtaskId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof readSubtaskApiV1GGuildIdSubtasksSubtaskIdGet>>
+  > = ({ signal }) =>
+    readSubtaskApiV1GGuildIdSubtasksSubtaskIdGet(guildId, subtaskId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled:
+      guildId !== null && guildId !== undefined && subtaskId !== null && subtaskId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof readSubtaskApiV1GGuildIdSubtasksSubtaskIdGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadSubtaskApiV1GGuildIdSubtasksSubtaskIdGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readSubtaskApiV1GGuildIdSubtasksSubtaskIdGet>>
+>;
+export type ReadSubtaskApiV1GGuildIdSubtasksSubtaskIdGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useReadSubtaskApiV1GGuildIdSubtasksSubtaskIdGet<
+  TData = Awaited<ReturnType<typeof readSubtaskApiV1GGuildIdSubtasksSubtaskIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  subtaskId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readSubtaskApiV1GGuildIdSubtasksSubtaskIdGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readSubtaskApiV1GGuildIdSubtasksSubtaskIdGet>>,
+          TError,
+          Awaited<ReturnType<typeof readSubtaskApiV1GGuildIdSubtasksSubtaskIdGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadSubtaskApiV1GGuildIdSubtasksSubtaskIdGet<
+  TData = Awaited<ReturnType<typeof readSubtaskApiV1GGuildIdSubtasksSubtaskIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  subtaskId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readSubtaskApiV1GGuildIdSubtasksSubtaskIdGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readSubtaskApiV1GGuildIdSubtasksSubtaskIdGet>>,
+          TError,
+          Awaited<ReturnType<typeof readSubtaskApiV1GGuildIdSubtasksSubtaskIdGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadSubtaskApiV1GGuildIdSubtasksSubtaskIdGet<
+  TData = Awaited<ReturnType<typeof readSubtaskApiV1GGuildIdSubtasksSubtaskIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  subtaskId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readSubtaskApiV1GGuildIdSubtasksSubtaskIdGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read Subtask
+ */
+
+export function useReadSubtaskApiV1GGuildIdSubtasksSubtaskIdGet<
+  TData = Awaited<ReturnType<typeof readSubtaskApiV1GGuildIdSubtasksSubtaskIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  subtaskId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readSubtaskApiV1GGuildIdSubtasksSubtaskIdGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadSubtaskApiV1GGuildIdSubtasksSubtaskIdGetQueryOptions(
+    guildId,
+    subtaskId,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
 
 /**
  * @summary Update Subtask
