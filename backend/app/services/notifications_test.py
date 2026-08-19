@@ -335,7 +335,13 @@ async def test_notify_initiative_membership_carries_guild_context(
 
 
 async def _overdue_task_in_new_guild(
-    session: AsyncSession, user: User, *, label: str, is_template: bool = False
+    session: AsyncSession,
+    user: User,
+    *,
+    label: str,
+    is_template: bool = False,
+    project_archived: bool = False,
+    task_archived: bool = False,
 ):
     """Give ``user`` an overdue task assigned to them in a brand-new guild, so a
     user in several guilds has overdue work spread across guild schemas."""
@@ -343,7 +349,12 @@ async def _overdue_task_in_new_guild(
     await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
     initiative = await create_initiative(session, guild, user, name=label)
     project = await create_project(
-        session, initiative, user, name=f"{label} Project", is_template=is_template
+        session,
+        initiative,
+        user,
+        name=f"{label} Project",
+        is_template=is_template,
+        is_archived=project_archived,
     )
     status = TaskStatus(
         guild_id=guild.id,
@@ -363,6 +374,7 @@ async def _overdue_task_in_new_guild(
         title=f"{label} overdue",
         priority=TaskPriority.medium,
         due_date=datetime.now(timezone.utc) - timedelta(days=1),
+        is_archived=task_archived,
     )
     session.add(task)
     await session.commit()
@@ -565,6 +577,46 @@ async def test_overdue_digest_skips_template_projects(
     assert captured.get("titles") == {"Real overdue"}
     assert len(pushes) == 1
     assert "Template overdue" not in pushes[0]["body"]
+
+
+@pytest.mark.integration
+async def test_overdue_digest_skips_archived_projects_and_tasks(
+    session: AsyncSession, monkeypatch
+):
+    """Archiving is how a user says work is off their plate — an archived
+    project, or an archived task in a live project, is not a deadline the
+    digest should still be chasing."""
+    user = await create_user(
+        session,
+        email="archived-overdue@example.com",
+        email_overdue_tasks=True,
+        push_overdue_tasks=True,
+        overdue_notification_time="00:00",
+        timezone="UTC",
+    )
+    await _overdue_task_in_new_guild(session, user, label="Live")
+    await _overdue_task_in_new_guild(
+        session, user, label="ArchivedProject", project_archived=True
+    )
+    await _overdue_task_in_new_guild(
+        session, user, label="ArchivedTask", task_archived=True
+    )
+
+    captured: dict = {}
+
+    async def _capture_email(sess, recipient, tasks):
+        captured["titles"] = {t["title"] for t in tasks}
+
+    monkeypatch.setattr(email_service, "send_overdue_tasks_email", _capture_email)
+    pushes = _capture_push(monkeypatch)
+
+    await set_rls_context(session)
+    await _run_overdue_pass(session, now=datetime.now(timezone.utc))
+
+    assert captured.get("titles") == {"Live overdue"}
+    assert len(pushes) == 1
+    assert "ArchivedProject overdue" not in pushes[0]["body"]
+    assert "ArchivedTask overdue" not in pushes[0]["body"]
 
 
 async def _assignment_item_in_new_guild(

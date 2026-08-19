@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.62.8] - 2026-08-19
+
 ### Changed
 
 - **Webhook events now always name something you can fetch.** A project's statuses, a document's file versions, an initiative's roles, and a change to who a project (or document, queue, counter group, calendar, or dashboard) is shared with used to arrive naming an id with no endpoint behind it. Each now arrives as an update to the thing it belongs to — `projects.updated` with `statuses`, `documents.updated` with `versions`, `initiatives.updated` with `roles`, `projects.updated` with `sharing` — the same way a task's tags have always been reported. Every id in an event resolves to a resource you can read back.
@@ -26,6 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Project progress in widgets was counted from a partial list.** Widgets read a fixed number of tasks at a time, and a project with more than that reported a completion percentage based only on the ones that fit. Progress now comes from the server's own totals, and a widget still drawing a partial list now says so.
 - **A widget whose data you can't see no longer says it needs configuring.** That prompt was shown both to authors who hadn't finished setting a widget up and to viewers whose access simply didn't cover its data; the two now read differently. A widget whose data simply failed to load says that instead of blaming your access.
 - **A chart that folds small categories into "Other" now counts them all.** With more than one series on the chart — a project's finished work against its outstanding work — only the first series' share reached the "Other" bar, so it under-reported. The two halves also no longer disagree about which categories survived the cut.
+
+### Fixed
+
+- **Leaving a guild works again.** If you belonged to any of the guild's initiatives, leaving it failed outright with a permission error, and so did stepping out of an initiative you managed. Both go through now, and the change is still reported to any webhook watching.
+- **The overdue digest no longer counts tasks you have set aside.** It swept up tasks in archived projects, and tasks you had archived yourself, so people were chased about work they had already cleared off their plate. The daily email and push now count only live tasks in live projects, matching what My Tasks has always shown.
 
 ## [0.62.7] - 2026-08-18
 
