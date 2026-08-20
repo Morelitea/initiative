@@ -15,7 +15,6 @@ from app.models.tenant.comment import Comment
 from app.models.tenant.document import (
     Document,
     DocumentLink,
-    DocumentPermissionLevel,
     DocumentType,
     ProjectDocument,
 )
@@ -462,93 +461,6 @@ async def duplicate_document(
 
     await session.commit()
     return duplicated
-
-
-async def handle_owner_removal(
-    session: AsyncSession,
-    *,
-    initiative_id: int,
-    user_id: int,
-) -> None:
-    """Handle documents when their owner is removed from an initiative.
-
-    When a user is removed from an initiative, any documents they own become
-    "orphaned". This function removes the owner's permission and grants owner
-    access to all initiative PMs so they can fully manage the document.
-    """
-    # Find documents where user is owner (via their resource_grants row)
-    stmt = (
-        select(Document)
-        .join(
-            ResourceGrant,
-            (ResourceGrant.resource_type == "document")
-            & (ResourceGrant.resource_id == Document.id),
-        )
-        .where(
-            Document.initiative_id == initiative_id,
-            ResourceGrant.user_id == user_id,
-            ResourceGrant.level == DocumentPermissionLevel.owner,
-        )
-        .options(selectinload(Document.grants))
-    )
-    result = await session.exec(stmt)
-    documents = result.unique().all()
-
-    if not documents:
-        return
-
-    # Get all initiative PMs (users with is_manager role)
-    pm_result = await session.exec(
-        select(InitiativeMember)
-        .join(InitiativeRoleModel, InitiativeRoleModel.id == InitiativeMember.role_id)
-        .where(
-            InitiativeMember.initiative_id == initiative_id,
-            InitiativeRoleModel.is_manager.is_(True),
-        )
-    )
-    pm_user_ids = {pm.user_id for pm in pm_result.all()}
-
-    for doc in documents:
-        user_grants = [g for g in (doc.grants or []) if g.user_id is not None]
-        # Remove owner's permission
-        owner_permission = next(
-            (
-                g
-                for g in user_grants
-                if g.user_id == user_id and g.level == DocumentPermissionLevel.owner
-            ),
-            None,
-        )
-        if owner_permission:
-            await session.delete(owner_permission)
-
-        # Grant owner access to every PM. PMs who already have a row
-        # (e.g. as "write" / "read") get upgraded — without that, an
-        # initiative where every PM was previously listed at a lower
-        # level would end up with no owner at all once the original
-        # owner's row is dropped.
-        existing_by_user = {g.user_id: g for g in user_grants if g.user_id != user_id}
-        for pm_user_id in pm_user_ids:
-            if pm_user_id == user_id:
-                continue
-            existing = existing_by_user.get(pm_user_id)
-            if existing is None:
-                session.add(
-                    ResourceGrant(
-                        resource_type="document",
-                        resource_id=doc.id,
-                        user_id=pm_user_id,
-                        role_id=None,
-                        level=ResourceAccessLevel.owner,
-                        guild_id=doc.guild_id,
-                        initiative_id=doc.initiative_id,
-                    )
-                )
-            elif existing.level != DocumentPermissionLevel.owner:
-                existing.level = ResourceAccessLevel.owner
-                session.add(existing)
-
-    await session.flush()
 
 
 async def annotate_comment_counts(

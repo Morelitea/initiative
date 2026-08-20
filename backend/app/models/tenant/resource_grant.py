@@ -27,6 +27,7 @@ from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     UniqueConstraint,
@@ -61,6 +62,16 @@ class ResourceGrant(CreatedByMixin, table=True):
             "(user_id IS NOT NULL)::int + (role_id IS NOT NULL)::int "
             "+ (all_initiative_members)::int = 1",
             name="resource_grants_one_grantee",
+        ),
+        # A resource has one owner or none. Nothing else in the schema said so,
+        # and the re-homing paths that used to upgrade every initiative manager
+        # at once left resources with several.
+        Index(
+            "ix_resource_grants_single_owner",
+            "resource_type",
+            "resource_id",
+            unique=True,
+            postgresql_where=text("level = 'owner'"),
         ),
         # NULLS NOT DISTINCT so the unused grantee column (NULL) compares equal —
         # otherwise two identical user grants (role_id NULL) wouldn't collide.

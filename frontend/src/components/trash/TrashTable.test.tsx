@@ -100,43 +100,6 @@ describe("TrashTable", () => {
     await waitFor(() => expect(toast.success as ReturnType<typeof vi.fn>).toHaveBeenCalled());
   });
 
-  it("opens the reassignment dialog when restore returns 409 + needs_reassignment", async () => {
-    server.use(
-      http.get(myTrashEndpoint, () =>
-        HttpResponse.json(
-          buildTrashListResponse([
-            buildTrashItem({ entity_type: "task", entity_id: 42, name: "Owner-checked" }),
-          ])
-        )
-      ),
-      // The 409 now carries the eligible owners inline (id + name), so the
-      // dialog renders them directly without fetching the guild roster.
-      guildHttp.post(restoreEndpoint, () =>
-        HttpResponse.json(
-          {
-            needs_reassignment: true,
-            valid_owner_ids: [11, 12],
-            valid_owners: [
-              { id: 11, full_name: "Alice" },
-              { id: 12, full_name: "Bob" },
-            ],
-            detail: "TRASH_NEEDS_REASSIGNMENT",
-          },
-          { status: 409 }
-        )
-      )
-    );
-
-    renderWithProviders(<TrashTable variant="user" showPurgeAction={false} />);
-
-    await screen.findByText("Owner-checked");
-    await userEvent.click(screen.getByRole("button", { name: /Restore/i }));
-
-    // The reassignment dialog should appear.
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText(/Pick a new owner/i)).toBeInTheDocument();
-  });
-
   it("clicking Delete now opens a destructive confirmation and DELETEs on confirm", async () => {
     const { toast } = await import("@/lib/chesterToast");
     const purgeCalls: string[] = [];

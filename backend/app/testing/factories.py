@@ -455,8 +455,11 @@ async def create_project(
         "name": f"Test Project {datetime.now(timezone.utc).timestamp()}",
         "description": "A test project",
         "initiative_id": initiative.id,
-        "owner_id": owner.id,
         "guild_id": initiative.guild_id,
+        # Author and owner are different facts that happen to be the same person
+        # for a freshly made project: the column below records who made it, the
+        # grant further down records who administers it.
+        "created_by": owner.id,
     }
 
     project_data = {**defaults, **overrides}
@@ -467,7 +470,7 @@ async def create_project(
         await session.commit()
         await session.refresh(project)
 
-        # Owner grant so the project is visible via DAC.
+        # The owner grant IS the ownership — projects carry no owner column.
         session.add(
             ResourceGrant(
                 resource_type="project",

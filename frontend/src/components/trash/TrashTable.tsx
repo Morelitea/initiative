@@ -1,11 +1,7 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
-  EntityType,
-  RestoreOwnerCandidate,
-  TrashItem,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { EntityType, TrashItem } from "@/api/generated/initiativeAPI.schemas";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -26,8 +22,6 @@ import {
 } from "@/hooks/useTrash";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-
-import { ReassignOwnerDialog } from "./ReassignOwnerDialog";
 
 /**
  * `user` — the viewer's own deletions across every guild (personal settings).
@@ -51,17 +45,6 @@ export const TrashTable = ({ variant, showPurgeAction }: TrashTableProps) => {
   const guildTrash = useGuildTrashList({ enabled: variant === "guild" });
   const { data, isLoading } = variant === "user" ? myTrash : guildTrash;
 
-  const [reassignState, setReassignState] = useState<
-    | { open: false }
-    | {
-        open: true;
-        guildId: number;
-        entityType: EntityType;
-        entityId: number;
-        validOwners: RestoreOwnerCandidate[];
-      }
-  >({ open: false });
-
   const [purgeConfirm, setPurgeConfirm] = useState<
     | { open: false }
     | {
@@ -74,19 +57,8 @@ export const TrashTable = ({ variant, showPurgeAction }: TrashTableProps) => {
   >({ open: false });
 
   const restoreMutation = useRestoreTrashEntity({
-    onSuccess: (data, variables) => {
-      if ("restored" in data) {
-        toast.success(t("restoreSuccess"));
-        setReassignState({ open: false });
-      } else if ("needs_reassignment" in data) {
-        setReassignState({
-          open: true,
-          guildId: variables.guildId,
-          entityType: variables.entityType,
-          entityId: variables.entityId,
-          validOwners: data.valid_owners ?? [],
-        });
-      }
+    onSuccess: () => {
+      toast.success(t("restoreSuccess"));
     },
     onError: (err) => {
       toast.error(getErrorMessage(err, "trash:restoreError"));
@@ -122,16 +94,6 @@ export const TrashTable = ({ variant, showPurgeAction }: TrashTableProps) => {
       guildId: item.guild_id,
       entityType: item.entity_type,
       entityId: item.entity_id,
-    });
-  };
-
-  const handleReassignConfirm = (newOwnerId: number) => {
-    if (!reassignState.open) return;
-    restoreMutation.mutate({
-      guildId: reassignState.guildId,
-      entityType: reassignState.entityType,
-      entityId: reassignState.entityId,
-      body: { new_owner_id: newOwnerId },
     });
   };
 
@@ -211,17 +173,6 @@ export const TrashTable = ({ variant, showPurgeAction }: TrashTableProps) => {
           </TableBody>
         </Table>
       </div>
-
-      {reassignState.open && (
-        <ReassignOwnerDialog
-          open={reassignState.open}
-          onOpenChange={(open) => !open && setReassignState({ open: false })}
-          entityType={reassignState.entityType}
-          validOwners={reassignState.validOwners}
-          onConfirm={handleReassignConfirm}
-          isPending={restoreMutation.isPending}
-        />
-      )}
 
       {purgeConfirm.open && (
         <ConfirmDialog

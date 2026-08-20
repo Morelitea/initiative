@@ -8,7 +8,7 @@ from app.schemas.base import SanitizedBaseModel
 
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import UserRole
-from app.schemas.platform.user import ProjectBasic, UserPublic
+from app.schemas.platform.user import UserPublic
 
 
 class PlatformRoleUpdate(SanitizedBaseModel):
@@ -62,10 +62,7 @@ class AdminDeletionEligibilityResponse(SanitizedBaseModel):
 
     can_delete: bool
     blockers: List[str] = Field(default_factory=list)
-    warnings: List[str] = Field(default_factory=list)
-    owned_projects: List[ProjectBasic] = Field(default_factory=list)
     guild_blockers: List[GuildBlockerInfo] = Field(default_factory=list)
-    initiative_blockers: List[InitiativeBlockerInfo] = Field(default_factory=list)
 
 
 class AdminGuildRoleUpdate(SanitizedBaseModel):

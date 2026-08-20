@@ -25,7 +25,6 @@ from app.schemas.platform.admin import (
     AdminGuildRoleUpdate,
     AdminInitiativeRoleUpdate,
     GuildBlockerInfo,
-    InitiativeBlockerInfo,
 )
 from app.core.encryption import hash_email
 from app.core.messages import AdminMessages, GuildMessages, SettingsMessages
@@ -324,8 +323,10 @@ async def check_user_deletion_eligibility(
 ) -> AdminDeletionEligibilityResponse:
     """Check if a user can be deleted (admin only).
 
-    Returns blockers, warnings, owned projects, and detailed blocker info
-    with lists of members who could be promoted to resolve blockers.
+    Returns the blockers and, for each, the members who could be promoted to
+    resolve it. Being the last admin of a guild is the only one: owning content
+    does not stop a deletion, because ownership is released on the way out and
+    the content is left unowned for a guild admin to claim.
     """
     if user_id == current_user.id:
         raise HTTPException(
@@ -341,12 +342,7 @@ async def check_user_deletion_eligibility(
             status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
         )
 
-    (
-        can_delete,
-        blockers,
-        warnings,
-        owned_projects,
-    ) = await users_service.check_deletion_eligibility(
+    can_delete, blockers = await users_service.check_deletion_eligibility(
         session, user_id, admin_context=True
     )
 
@@ -360,19 +356,13 @@ async def check_user_deletion_eligibility(
             )
             can_delete = False
 
-    # Get detailed blocker info for guild and initiative blockers
     guild_blocker_details = await users_service.get_guild_blocker_details(
-        session, user_id
-    )
-    initiative_blocker_details = await users_service.get_initiative_blocker_details(
         session, user_id
     )
 
     return AdminDeletionEligibilityResponse(
         can_delete=can_delete,
         blockers=blockers,
-        warnings=warnings,
-        owned_projects=owned_projects,
         guild_blockers=[
             GuildBlockerInfo(
                 guild_id=gb["guild_id"],
@@ -389,24 +379,6 @@ async def check_user_deletion_eligibility(
                 ],
             )
             for gb in guild_blocker_details
-        ],
-        initiative_blockers=[
-            InitiativeBlockerInfo(
-                initiative_id=ib["initiative_id"],
-                initiative_name=ib["initiative_name"],
-                guild_id=ib["guild_id"],
-                other_members=[
-                    UserPublic(
-                        id=m.id,
-                        email=m.email,
-                        full_name=m.full_name,
-                        avatar_base64=m.avatar_base64,
-                        avatar_url=m.avatar_url,
-                    )
-                    for m in ib["other_members"]
-                ],
-            )
-            for ib in initiative_blocker_details
         ],
     )
 
@@ -457,16 +429,12 @@ async def delete_user(
                 detail=AdminMessages.CANNOT_DELETE_LAST_OWNER,
             )
 
-    # Check deletion eligibility
-    (
-        can_delete,
-        blockers,
-        _,
-        owned_projects,
-    ) = await users_service.check_deletion_eligibility(
+    # Being the last admin of a guild is the only blocker. Content the user owns
+    # is released as their memberships go and left unowned for a guild admin to
+    # claim, so there is nothing for this endpoint to collect first.
+    can_delete, blockers = await users_service.check_deletion_eligibility(
         session, user_id, admin_context=True
     )
-
     if not can_delete:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -485,54 +453,6 @@ async def delete_user(
             detail=AdminMessages.ALREADY_ANONYMIZED,
         )
 
-    # Project transfers are required for every action when the user owns
-    # projects. Even pure deactivation strands the projects until the user
-    # is reactivated — only owners can act on them — so we always force
-    # transfer up-front. ``hard_delete_user`` performs the transfers
-    # itself; the other two actions need an explicit pre-transfer.
-    if owned_projects:
-        if not payload.project_transfers:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=AdminMessages.PROJECT_TRANSFERS_REQUIRED,
-            )
-
-        # Keys are "guild_id:project_id" — a bare project id repeats across
-        # per-guild schemas, so two distinct projects could otherwise share one
-        # mapping and both transfer to the same recipient.
-        owned_keys = {f"{p.guild_id}:{p.id}" for p in owned_projects}
-        transfer_keys = set(payload.project_transfers.keys())
-
-        missing = sorted(owned_keys - transfer_keys)
-        if missing:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Missing transfer recipients for projects: {missing}",
-            )
-
-        # Reject surplus entries — anything in the transfer map that
-        # isn't actually owned by the target user. Without this guard,
-        # an admin POSTing extra IDs (deliberately or by client bug)
-        # would silently transfer ownership of unrelated projects.
-        extra = sorted(transfer_keys - owned_keys)
-        if extra:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"project_transfers contains projects not owned by user: {extra}",
-            )
-
-        if payload.action in ("deactivate", "soft_delete"):
-            try:
-                # Routed per guild — projects live in per-guild schemas.
-                await users_service.transfer_owned_projects(
-                    session, user_id, payload.project_transfers
-                )
-            except users_service.InvalidTransferRecipient:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=AdminMessages.INVALID_TRANSFER_RECIPIENT,
-                )
-
     if payload.action == "deactivate":
         await users_service.deactivate_user(session, user_id)
         return AccountDeletionResponse(
@@ -549,17 +469,10 @@ async def delete_user(
             message=f"User {user.email} has been anonymized",
         )
 
-    # hard_delete: the service performs project transfers internally,
-    # so the recipient-validity check happens there too.
-    try:
-        await users_service.hard_delete_user(
-            session, user_id, payload.project_transfers or {}
-        )
-    except users_service.InvalidTransferRecipient:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AdminMessages.INVALID_TRANSFER_RECIPIENT,
-        )
+    # hard_delete: ownership is released as the memberships go, and the
+    # authorship columns are re-pointed at the system user because the row they
+    # named is about to stop existing.
+    await users_service.hard_delete_user(session, user_id)
     return AccountDeletionResponse(
         success=True,
         action="hard_delete",

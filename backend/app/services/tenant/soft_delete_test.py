@@ -21,7 +21,6 @@ from app.services.tenant.soft_delete import (
 from app.testing.factories import (
     create_guild,
     create_initiative,
-    create_initiative_member,
     create_project,
     create_user,
 )
@@ -135,8 +134,7 @@ async def test_restore_project_unstamps_only_matching_descendants(
     await session.commit()
 
     # 3. Restore the project.
-    result = await restore_entity(session, project)
-    assert not result.needs_reassignment
+    await restore_entity(session, project)
     await session.commit()
 
     refreshed_indep = (
@@ -154,86 +152,6 @@ async def test_restore_project_unstamps_only_matching_descendants(
 
 # ---------------------------------------------------------------------------
 # Restore needs-reassignment
-# ---------------------------------------------------------------------------
-
-
-async def test_restore_returns_needs_reassignment_when_owner_left_initiative(
-    session: AsyncSession,
-):
-    """When the owner of a trashed task is no longer an active initiative
-    member, restore must refuse and return the candidate-owner list rather
-    than restoring under a stale owner."""
-    pm = await create_user(session, email="pm@example.com")
-    departed = await create_user(session, email="departed@example.com")
-    guild = await create_guild(session, creator=pm)
-    initiative = await create_initiative(session, guild, pm)
-    await create_initiative_member(session, initiative=initiative, user=departed)
-    project = await create_project(session, initiative, departed)
-    task = await _create_task(session, project, title="Owner-checked")
-
-    await soft_delete_entity(
-        session, task, deleted_by_user_id=departed.id, retention_days=30
-    )
-    await session.commit()
-
-    # Simulate "owner left the initiative": delete the membership row.
-    from sqlmodel import select
-
-    from app.models.tenant.initiative import InitiativeMember
-
-    membership = (
-        await session.exec(
-            select(InitiativeMember).where(
-                InitiativeMember.initiative_id == initiative.id,
-                InitiativeMember.user_id == departed.id,
-            )
-        )
-    ).one()
-    await session.delete(membership)
-    await session.commit()
-
-    result = await restore_entity(session, task)
-
-    assert result.needs_reassignment is True
-    assert result.valid_owner_ids == [pm.id]
-    # The reassign picker renders these directly (no roster fetch): id + name.
-    assert result.valid_owners is not None
-    assert [(c.id, c.full_name) for c in result.valid_owners] == [(pm.id, pm.full_name)]
-
-    # Resubmit with the valid owner.
-    refreshed_task = (
-        await session.exec(select_including_deleted(Task).where(Task.id == task.id))
-    ).one()
-    result2 = await restore_entity(session, refreshed_task, new_owner_id=pm.id)
-    await session.commit()
-    assert not result2.needs_reassignment
-    refreshed_again = (
-        await session.exec(select_including_deleted(Task).where(Task.id == task.id))
-    ).one()
-    assert refreshed_again.deleted_at is None
-    assert refreshed_again.created_by == pm.id
-
-
-async def test_restore_rejects_invalid_new_owner(session: AsyncSession):
-    """Passing a new_owner_id that isn't an active initiative member is a
-    400 (TRASH_INVALID_OWNER), not a silent reassign-and-restore."""
-    pm = await create_user(session)
-    bystander = await create_user(session)
-    guild = await create_guild(session, creator=pm)
-    initiative = await create_initiative(session, guild, pm)
-    project = await create_project(session, initiative, pm)
-
-    await soft_delete_entity(
-        session, project, deleted_by_user_id=pm.id, retention_days=30
-    )
-    await session.commit()
-
-    with pytest.raises(ValueError, match="TRASH_INVALID_OWNER"):
-        await restore_entity(session, project, new_owner_id=bystander.id)
-
-
-# ---------------------------------------------------------------------------
-# RLS DELETE deny — policy presence
 # ---------------------------------------------------------------------------
 
 

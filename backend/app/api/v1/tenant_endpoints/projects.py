@@ -48,6 +48,7 @@ from app.api import resource_access
 from app.core.tools import Tool
 from app.services import notifications as notifications_service
 from app.services.tenant import initiatives as initiatives_service
+from app.services.tenant import ownership as ownership_service
 from app.services.tenant import documents as documents_service
 from app.services import permissions as permissions_service
 from app.services import rls as rls_service
@@ -79,7 +80,7 @@ from app.schemas.tenant.project import (
     ProjectActivityResponse,
 )
 from app.schemas.tenant.task_status import TaskStatusRead
-from app.schemas.platform.user import UserSummary, UserSummaryListResponse
+from app.schemas.platform.user import UserPublic, UserSummary, UserSummaryListResponse
 from app.schemas.tenant.comment import CommentAuthor
 from app.schemas.tenant.initiative import (
     InitiativeGroupedCountsResponse,
@@ -191,8 +192,9 @@ async def _get_project_or_404(
         select(Project)
         .where(Project.id == project_id)
         .options(
-            selectinload(Project.grants).selectinload(ResourceGrant.role),
-            selectinload(Project.owner),
+            selectinload(Project.grants).options(
+                selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
+            ),
             selectinload(Project.initiative)
             .selectinload(Initiative.memberships)
             .options(
@@ -473,8 +475,9 @@ def _full_project_load_options() -> list:
     """Eager loads for a fully-serialized ``ProjectRead`` (owner, nested
     initiative + memberships, linked documents with their DAC, tags, grants)."""
     return [
-        selectinload(Project.grants).selectinload(ResourceGrant.role),
-        selectinload(Project.owner),
+        selectinload(Project.grants).options(
+            selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
+        ),
         selectinload(Project.initiative)
         .selectinload(Initiative.memberships)
         .options(
@@ -641,7 +644,7 @@ def _slim_project_reads(projects: List[Project], user_id: int) -> List[ProjectRe
                 name=project.name,
                 description=None,
                 icon=project.icon,
-                owner_id=project.owner_id,
+                owner_id=ownership_service.owner_id_of(project),
                 initiative_id=project.initiative_id,
                 created_at=project.created_at,
                 updated_at=project.updated_at,
@@ -740,8 +743,9 @@ async def _projects_by_ids(
             Initiative.guild_id == guild_id,
         )
         .options(
-            selectinload(Project.grants).selectinload(ResourceGrant.role),
-            selectinload(Project.owner),
+            selectinload(Project.grants).options(
+                selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
+            ),
             selectinload(Project.initiative)
             .selectinload(Initiative.memberships)
             .options(
@@ -780,6 +784,23 @@ def _project_task_statuses(project: Project) -> List[TaskStatusRead]:
     return [TaskStatusRead.model_validate(status) for status in statuses]
 
 
+def _project_owner(project: Project) -> Optional[UserPublic]:
+    """The user holding the project's owner grant, or None when it is unowned.
+
+    Read off the eagerly-loaded grants rather than a column on the project:
+    ``resource_grants`` is where ownership is recorded, so there is nothing to
+    keep in step.
+    """
+    for grant in project.grants or []:
+        if (
+            grant.user_id is not None
+            and grant.level == ResourceAccessLevel.owner
+            and grant.user is not None
+        ):
+            return UserPublic.model_validate(grant.user)
+    return None
+
+
 def _build_project_payload(
     project: Project,
     *,
@@ -807,6 +828,8 @@ def _build_project_payload(
             "tags": tags_service.tag_summaries(project.tag_links),
             "grants": permissions_service.serialize_grants(project),
             "my_permission_level": my_permission_level,
+            "owner_id": ownership_service.owner_id_of(project),
+            "owner": _project_owner(project),
         }
     )
 
@@ -949,8 +972,9 @@ async def _list_global_projects(
             select(Project)
             .where(*conditions)
             .options(
-                selectinload(Project.grants).selectinload(ResourceGrant.role),
-                selectinload(Project.owner),
+                selectinload(Project.grants).options(
+                    selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
+                ),
                 selectinload(Project.initiative)
                 .selectinload(Initiative.memberships)
                 .options(
@@ -1229,7 +1253,6 @@ async def create_project(
         name=project_in.name,
         icon=icon_value,
         description=description_value,
-        owner_id=owner_id,
         initiative_id=initiative_id,
         is_template=project_in.is_template,
         guild_id=guild_context.guild_id,
@@ -1395,7 +1418,6 @@ async def duplicate_project(
         name=new_name,
         icon=source_project.icon,
         description=source_project.description,
-        owner_id=owner_id,
         initiative_id=initiative_id,
         is_template=False,
         guild_id=guild_context.guild_id,
