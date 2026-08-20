@@ -1459,6 +1459,7 @@ async def get_backlinks(
             id=doc.id,
             title=doc.title,
             updated_at=doc.updated_at,
+            initiative_id=doc.initiative_id,
         )
         for doc in backlinks
     ]

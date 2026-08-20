@@ -40,6 +40,9 @@ async def test_record_and_list_recent_project(
     assert items[0]["entity_type"] == "project"
     assert items[0]["entity_id"] == project.id
     assert items[0]["name"] == "P1"
+    # The tabs bar builds /g/{guild}/i/{initiative}/projects/{id} from this —
+    # without the initiative it can't address the entity at all.
+    assert items[0]["initiative_id"] == a.initiative.id
 
 
 @pytest.mark.integration
@@ -250,3 +253,27 @@ async def test_record_and_list_recent_calendar(
     assert r.status_code == 204
     r = await client.get("/api/v1/recents/", headers=a.headers)
     assert all(i["entity_type"] != "calendar" for i in r.json())
+
+
+@pytest.mark.integration
+async def test_recent_guild_level_calendar_has_no_initiative(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A guild-level calendar reports ``initiative_id: None`` — the tabs bar
+    reads that as "address me at the guild route", not as missing data."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a.initiative.calendars_enabled = True
+    session.add(a.initiative)
+    await session.commit()
+    calendar = await create_calendar(session, a.initiative, a.user, name="GuildCal")
+    calendar.initiative_id = None
+    session.add(calendar)
+    await session.commit()
+
+    r = await client.post(a.g(f"/calendars/{calendar.id}/view"), headers=a.headers)
+    assert r.status_code == 200, r.text
+
+    r = await client.get("/api/v1/recents/", headers=a.headers)
+    assert r.status_code == 200
+    row = next(i for i in r.json() if i["entity_id"] == calendar.id)
+    assert row["initiative_id"] is None

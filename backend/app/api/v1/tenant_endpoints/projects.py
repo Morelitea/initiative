@@ -512,16 +512,20 @@ def _visible_project_conditions(
     archived: Optional[bool],
     template: Optional[bool],
     search: Optional[str] = None,
+    initiative_id: Optional[int] = None,
 ) -> list:
     """WHERE clauses for the guild's DAC-visible projects.
 
-    ``archived``/``template``/``search`` are pushed into SQL (mirroring the old
-    ``_matches_filters``: ``None`` means "exclude" for the boolean flags). DAC
-    scoping is preserved exactly — a guild admin or a live PAM grant sees every
-    project in the guild; otherwise the set is narrowed to the user's
-    explicit/role-granted projects via ``visible_project_ids_subquery``.
+    ``archived``/``template``/``search``/``initiative_id`` are pushed into SQL
+    (mirroring the old ``_matches_filters``: ``None`` means "exclude" for the
+    boolean flags, and "every initiative" for the initiative). DAC scoping is
+    preserved exactly — a guild admin or a live PAM grant sees every project in
+    the guild; otherwise the set is narrowed to the user's explicit/role-granted
+    projects via ``visible_project_ids_subquery``.
     """
     conditions = [Initiative.guild_id == guild_id]
+    if initiative_id is not None:
+        conditions.append(Project.initiative_id == initiative_id)
     if not has_active_grant(
         guild_id
     ) and not permissions_service.is_request_guild_admin(guild_id):
@@ -994,6 +998,13 @@ async def list_projects(
     search: Optional[str] = Query(
         default=None, description="Case-insensitive substring match on name."
     ),
+    initiative_id: Optional[int] = Query(
+        default=None,
+        description=(
+            "Only projects in this initiative. Omit for every initiative the "
+            "caller can see."
+        ),
+    ),
     slim: bool = Query(
         default=False,
         description=(
@@ -1007,7 +1018,7 @@ async def list_projects(
 ) -> ProjectListResponse:
     # Filtering, ordering, and pagination all happen in SQL: the DAC scope
     # (guild admin / PAM see all, else visible-project-ids) plus archived/
-    # template/search go into the WHERE, and the per-user manual order
+    # template/search/initiative go into the WHERE, and the per-user manual order
     # (project_orders, NULLS last) drives ORDER BY so LIMIT/OFFSET can page the
     # rows instead of loading the whole visible graph.
     conditions = _visible_project_conditions(
@@ -1016,6 +1027,7 @@ async def list_projects(
         archived=archived,
         template=template,
         search=search,
+        initiative_id=initiative_id,
     )
 
     count_stmt = (

@@ -85,6 +85,9 @@ class RecentActivityEntry(SanitizedBaseModel):
     document_title: Optional[str] = None
     project_id: Optional[int] = None
     project_name: Optional[str] = None
+    # The initiative the commented-on entity lives in, so the row can link at
+    # its real address. None when the parent is gone or unreadable.
+    initiative_id: Optional[int] = None
 
 
 class MentionSuggestion(SanitizedBaseModel):
