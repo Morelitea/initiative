@@ -5,7 +5,7 @@ from typing import List, Optional, TYPE_CHECKING
 from sqlalchemy import Column, Date, DateTime, Text
 from sqlmodel import Field, Relationship
 
-from app.models.tenant._mixins import SoftDeleteMixin
+from app.models.tenant._mixins import AuthorshipMixin, SoftDeleteMixin
 
 
 if TYPE_CHECKING:  # pragma: no cover - imported lazily for type checking only
@@ -20,7 +20,7 @@ if TYPE_CHECKING:  # pragma: no cover - imported lazily for type checking only
     from app.models.tenant.resource_grant import ResourceGrant
 
 
-class Project(SoftDeleteMixin, table=True):
+class Project(AuthorshipMixin, SoftDeleteMixin, table=True):
     __tablename__ = "projects"
     _owner_field = "owner_id"
 
@@ -62,7 +62,10 @@ class Project(SoftDeleteMixin, table=True):
         sa_column=Column(DateTime(timezone=True), nullable=True),
     )
 
-    owner: Optional["User"] = Relationship(back_populates="projects_owned")
+    owner: Optional["User"] = Relationship(
+        back_populates="projects_owned",
+        sa_relationship_kwargs={"foreign_keys": "[Project.owner_id]"},
+    )
     initiative: Optional["Initiative"] = Relationship(back_populates="projects")
     guild: Optional["Guild"] = Relationship()
     tasks: List["Task"] = Relationship(

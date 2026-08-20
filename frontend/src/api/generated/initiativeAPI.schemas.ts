@@ -1269,7 +1269,7 @@ export interface CommentCreate {
 export interface CommentRead {
   content: string;
   id: number;
-  author_id: number;
+  created_by_id: number;
   task_id: number | null;
   document_id: number | null;
   parent_comment_id: number | null;
@@ -1658,7 +1658,7 @@ export interface DocumentFileVersionRead {
   file_content_type: string | null;
   file_size: number | null;
   original_filename: string | null;
-  uploaded_by_id: number;
+  created_by_id: number;
   created_at: string;
   is_current: boolean;
 }
@@ -2092,7 +2092,7 @@ export interface GuildAppDetail {
   mandatory: boolean;
   available: boolean;
   delegates: boolean;
-  installed_by_id: number;
+  created_by_id: number;
   created_at: string;
   updated_at: string;
   connections: GuildAppConnectionRead[];
@@ -2151,7 +2151,7 @@ export interface GuildAppRead {
   mandatory: boolean;
   available: boolean;
   delegates: boolean;
-  installed_by_id: number;
+  created_by_id: number;
   created_at: string;
   updated_at: string;
 }
@@ -4617,7 +4617,7 @@ export interface WebhookSubscriptionCreated {
   id: number;
   guild_id: number;
   initiative_id: number | null;
-  created_by_user_id: number;
+  created_by_id: number;
   target_url: string;
   event_types: string[];
   fields: string[] | null;
@@ -4636,7 +4636,7 @@ export interface WebhookSubscriptionRead {
   id: number;
   guild_id: number;
   initiative_id: number | null;
-  created_by_user_id: number;
+  created_by_id: number;
   target_url: string;
   event_types: string[];
   fields: string[] | null;

@@ -181,7 +181,7 @@ class TestBackfill:
         assert [app.listing_uid for app in apps] == [PROVIDED_UID]
         # Recorded against a guild admin: an app they did not choose is still
         # one they are responsible for.
-        assert apps[0].installed_by_id == creator.id
+        assert apps[0].created_by_id == creator.id
 
     async def test_several_guilds_each_get_their_own(
         self, session: AsyncSession, mandatory_registration

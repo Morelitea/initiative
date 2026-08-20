@@ -2,14 +2,16 @@ from datetime import datetime, timezone
 from typing import Optional, TYPE_CHECKING
 
 from sqlalchemy import Column, DateTime, Integer
-from sqlmodel import Field, SQLModel, Relationship
+from sqlmodel import Field, Relationship
 from pydantic import ConfigDict
+
+from app.models.tenant._mixins import AuthorshipMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.platform.guild import Guild
 
 
-class GuildSetting(SQLModel, table=True):
+class GuildSetting(AuthorshipMixin, table=True):
     __tablename__ = "guild_settings"
     __allow_unmapped__ = True
     model_config = ConfigDict(arbitrary_types_allowed=True)

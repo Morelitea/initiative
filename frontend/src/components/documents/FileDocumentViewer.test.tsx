@@ -39,7 +39,7 @@ const buildVersion = (overrides: Partial<DocumentFileVersionRead>): DocumentFile
   file_content_type: "application/pdf",
   file_size: 100,
   original_filename: "doc.pdf",
-  uploaded_by_id: 1,
+  created_by_id: 1,
   created_at: "2026-05-28T00:00:00Z",
   is_current: false,
   ...overrides,

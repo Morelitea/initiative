@@ -6,7 +6,7 @@ from pydantic import ConfigDict
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, Text
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
-from app.models.tenant._mixins import SoftDeleteMixin
+from app.models.tenant._mixins import AuthorshipMixin, SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.calendar import Calendar
@@ -16,7 +16,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.document import Document
 
 
-class CalendarEvent(SoftDeleteMixin, table=True):
+class CalendarEvent(AuthorshipMixin, SoftDeleteMixin, table=True):
     """Event inside a calendar (Google Calendar-like).
 
     Events carry no grants of their own: access derives entirely from the
@@ -60,7 +60,9 @@ class CalendarEvent(SoftDeleteMixin, table=True):
     )
 
     calendar: Optional["Calendar"] = Relationship(back_populates="events")
-    creator: Optional["User"] = Relationship()
+    creator: Optional["User"] = Relationship(
+        sa_relationship_kwargs={"foreign_keys": "[CalendarEvent.created_by_id]"},
+    )
     attendees: List["CalendarEventAttendee"] = Relationship(
         back_populates="calendar_event",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},

@@ -989,7 +989,7 @@ async def create_guild_app(
             "app_kind": definition.get("app_kind", "service"),
             "name": name,
             "definition": definition,
-            "installed_by_id": creator.id,
+            "created_by_id": creator.id,
             **overrides,
         }
     )
@@ -1352,7 +1352,7 @@ async def create_comment(
     defaults = {
         "guild_id": parent.guild_id,
         "content": content,
-        "author_id": author.id,
+        "created_by_id": author.id,
         "task_id": task.id if task else None,
         "document_id": document.id if document else None,
     }
@@ -1527,7 +1527,7 @@ async def create_upload(
 
     defaults = {
         "guild_id": guild.id,
-        "uploader_user_id": uploader.id,
+        "created_by_id": uploader.id,
         "filename": filename or f"file-{datetime.now(timezone.utc).timestamp()}.txt",
         "size_bytes": 1,
     }

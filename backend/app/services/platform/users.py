@@ -17,11 +17,11 @@ from app.db.session import set_rls_context
 from app.models.platform.user import User, UserRole, UserStatus
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.services.auth import identity as identity_service
+from app.models.tenant._mixins import authorship_models
 from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceGrant, ResourceAccessLevel
 from app.models.tenant.task import TaskAssignee
-from app.models.tenant.document import Document, ProjectDocument
-from app.models.tenant.comment import Comment
+from app.models.tenant.document import ProjectDocument
 from app.models.platform.notification import Notification
 from app.models.tenant.project_order import ProjectOrder
 from app.models.tenant.project_activity import ProjectFavorite
@@ -878,70 +878,39 @@ async def reassign_user_content(
     user_id: int,
     system_user_id: int,
 ) -> None:
-    """Reassign shared content authored by the user to the system user.
+    """Re-point authorship in the routed guild schema at the system user.
 
-    Hard delete vaporises the user row, but content the rest of the team
-    can still see (documents, comments, uploaded files) must outlive the
-    deletion. Reassign the authorship pointer to the dedicated system
-    user so those rows remain valid.
+    Hard delete vaporises the user row, but the content the rest of the guild
+    can still see — documents, comments, uploaded files, everything else they
+    wrote — has to outlive it. The two authorship columns are the same pair on
+    every table that has them, so this sweeps the registry rather than a list
+    that has to be remembered: a new authored table is covered as soon as it
+    declares ``AuthorshipMixin``.
+
+    Ownership is a different thing and moves separately; this only rewrites who
+    the row records as its author.
+
+    The caller routes the session into one guild schema before calling, and
+    calls again per guild.
     """
-    from app.models.tenant.document import DocumentFileVersion
-    from app.models.tenant.upload import Upload
+    for model in authorship_models():
+        await session.exec(
+            update(model)
+            .where(model.created_by_id == user_id)
+            .values(created_by_id=system_user_id)
+        )
+        await session.exec(
+            update(model)
+            .where(model.updated_by_id == user_id)
+            .values(updated_by_id=system_user_id)
+        )
 
-    # Update documents created_by
-    await session.exec(
-        update(Document)
-        .where(Document.created_by_id == user_id)
-        .values(created_by_id=system_user_id)
-    )
-
-    # Update documents updated_by
-    await session.exec(
-        update(Document)
-        .where(Document.updated_by_id == user_id)
-        .values(updated_by_id=system_user_id)
-    )
-
-    # File-document version history (uploaded_by_id is NOT NULL with a RESTRICT
-    # FK) — reassign so the version row, and the document blob it backs, survive.
-    await session.exec(
-        update(DocumentFileVersion)
-        .where(DocumentFileVersion.uploaded_by_id == user_id)
-        .values(uploaded_by_id=system_user_id)
-    )
-
-    # Update comments author
-    await session.exec(
-        update(Comment)
-        .where(Comment.author_id == user_id)
-        .values(author_id=system_user_id)
-    )
-
-    # Update project documents attached_by (nullable)
+    # Junction rows name who attached the link rather than who authored a row,
+    # so they sit outside the mixin and are swept by hand.
     await session.exec(
         update(ProjectDocument)
         .where(ProjectDocument.attached_by_id == user_id)
         .values(attached_by_id=system_user_id)
-    )
-
-    # Uploads (e.g. document images shared with other initiative members).
-    # Reassign rather than delete so shared content keeps working.
-    await session.exec(
-        update(Upload)
-        .where(Upload.uploader_user_id == user_id)
-        .values(uploader_user_id=system_user_id)
-    )
-
-    # Queues created by the user (created_by_id is NOT NULL) get reassigned
-    # to the system user so the queue itself survives. Items inside the
-    # queue that point at the user (assigned-to) are nullable so we just
-    # clear the pointer below in hard_delete_user.
-    from app.models.tenant.queue import Queue
-
-    await session.exec(
-        update(Queue)
-        .where(Queue.created_by_id == user_id)
-        .values(created_by_id=system_user_id)
     )
 
     await session.flush()

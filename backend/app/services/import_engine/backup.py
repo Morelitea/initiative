@@ -537,7 +537,7 @@ async def _restore_assets(
             Upload(
                 filename=asset.storage_key,
                 guild_id=guild_id,
-                uploader_user_id=user.id,
+                created_by_id=user.id,
                 size_bytes=len(data),
                 content_type=asset.content_type,
                 content_hash=compute_content_hash(data),

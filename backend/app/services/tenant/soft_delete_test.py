@@ -293,7 +293,7 @@ async def test_soft_delete_document_preserves_uploads(session: AsyncSession):
     upload = Upload(
         filename="abc123.png",
         guild_id=guild.id,
-        uploader_user_id=user.id,
+        created_by_id=user.id,
         size_bytes=1234,
     )
     session.add(upload)
@@ -347,7 +347,7 @@ async def test_purge_document_uploads_escapes_like_wildcards(session: AsyncSessi
     upload = Upload(
         filename="file_v2.png",
         guild_id=guild.id,
-        uploader_user_id=user.id,
+        created_by_id=user.id,
         size_bytes=1234,
     )
     session.add(upload)
@@ -424,7 +424,7 @@ async def test_trash_listing_dedupes_nested_comment_replies(
     parent = Comment(
         guild_id=guild.id,
         task_id=task.id,
-        author_id=user.id,
+        created_by_id=user.id,
         content="Top-level",
     )
     session.add(parent)
@@ -434,7 +434,7 @@ async def test_trash_listing_dedupes_nested_comment_replies(
     reply = Comment(
         guild_id=guild.id,
         task_id=task.id,
-        author_id=user.id,
+        created_by_id=user.id,
         content="Reply",
         parent_comment_id=parent.id,
     )
@@ -479,7 +479,7 @@ async def test_purge_document_uploads_removes_all_version_blobs(session: AsyncSe
             Upload(
                 filename=name,
                 guild_id=guild.id,
-                uploader_user_id=user.id,
+                created_by_id=user.id,
                 size_bytes=10,
             )
         )
@@ -508,7 +508,7 @@ async def test_purge_document_uploads_removes_all_version_blobs(session: AsyncSe
                 file_content_type="application/pdf",
                 file_size=10,
                 original_filename=old_name,
-                uploaded_by_id=user.id,
+                created_by_id=user.id,
             ),
             DocumentFileVersion(
                 document_id=doomed.id,
@@ -518,7 +518,7 @@ async def test_purge_document_uploads_removes_all_version_blobs(session: AsyncSe
                 file_content_type="application/pdf",
                 file_size=10,
                 original_filename=current_name,
-                uploaded_by_id=user.id,
+                created_by_id=user.id,
             ),
         ]
     )

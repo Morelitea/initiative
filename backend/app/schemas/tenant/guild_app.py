@@ -163,7 +163,7 @@ class GuildAppRead(SanitizedBaseModel):
     #: each of them to authorize. An app that never carries anyone's name does
     #: not ask the question.
     delegates: bool = False
-    installed_by_id: int
+    created_by_id: int
     created_at: datetime
     updated_at: datetime
 
@@ -359,7 +359,7 @@ def serialize_guild_app(
         mandatory=service_state.mandatory,
         available=service_state.available,
         delegates=service_state.delegates,
-        installed_by_id=app.installed_by_id,
+        created_by_id=app.created_by_id,
         created_at=app.created_at,
         updated_at=app.updated_at,
     )

@@ -43,6 +43,7 @@ __all__ = [
     "SHARED_TABLES",
     "GUILD_LEVEL_TABLES",
     "OWN_ROW_TABLES",
+    "AUTHORSHIP_EXEMPT_TABLES",
     "INITIATIVE_SCOPED_TABLES",
     "GUILD_SCOPED_TABLES",
     "ALL_CLASSIFIED_TABLES",
@@ -195,6 +196,59 @@ OWN_ROW_TABLES: dict[str, str] = {
     "guild_app_user_delegations": "user_id",
     "guild_app_subjects": "user_id",
 }
+
+# --- Authorship overlay on guild-schema tables --------------------------------
+# Every guild-schema table that models something a person wrote carries
+# ``created_by_id`` + ``updated_by_id`` by subclassing
+# ``app.models.tenant._mixins.AuthorshipMixin``. Membership is therefore
+# declared by the model, not copied into a list here; what IS declared here is
+# the opposite — the tables that deliberately do NOT carry the pair, each with
+# the reason it does not need one. ``authorship_test.py`` fails CI when a guild
+# table is in neither bucket, so a new table forces the decision.
+AUTHORSHIP_EXEMPT_TABLES: frozenset[str] = frozenset(
+    {
+        # Junctions and link rows. Each already carries its own matched pair
+        # naming the relation rather than a row author — ``attached_by_id`` /
+        # ``attached_at`` on the document links, ``created_at`` on the tag
+        # links — and the thing that was authored is the entity at either end.
+        "calendar_event_documents",
+        "calendar_event_tags",
+        "calendar_tags",
+        "counter_group_tags",
+        "dashboard_tags",
+        "document_tags",
+        "project_documents",
+        "project_tags",
+        "queue_item_documents",
+        "queue_item_tags",
+        "queue_item_tasks",
+        "queue_tags",
+        "task_tags",
+        # Roster rows: the membership IS the fact, and ``user_id`` already names
+        # whose it is.
+        "calendar_event_attendees",
+        "initiative_members",
+        "initiative_role_permissions",
+        "task_assignees",
+        # Per-user state, keyed by the user it belongs to. ``user_id`` is both
+        # the author and the subject, so a second copy of it says nothing.
+        "guild_ai_member_keys",
+        "guild_ai_member_prefs",
+        "guild_app_subjects",
+        "guild_app_user_connections",
+        "guild_app_user_delegations",
+        "project_favorites",
+        "project_orders",
+        "recent_views",
+        # Machinery. Written by a trigger, a poller or a scheduler rather than
+        # by a person; each already records the actor it needs (the outbox
+        # carries ``actor_user_id``) or has none to record.
+        "event_outbox",
+        "event_reminder_dispatches",
+        "task_assignment_digest_items",
+        "webhook_deliveries",
+    }
+)
 
 # --- Guild-scoped (derived) -------------------------------------------------
 # Everything that moves into a ``guild_<id>`` schema = the initiative-scoped

@@ -113,7 +113,7 @@ async def create_subscription(
         subscription, secret = await subscriptions_service.create_subscription(
             session,
             payload=payload,
-            created_by_user_id=current_user.id,
+            created_by_id=current_user.id,
             guild_id=guild_context.guild_id,
         )
     except WebhookSubscriptionVocabularyError as exc:
@@ -125,7 +125,7 @@ async def create_subscription(
         id=subscription.id,
         guild_id=subscription.guild_id,
         initiative_id=subscription.initiative_id,
-        created_by_user_id=subscription.created_by_user_id,
+        created_by_id=subscription.created_by_id,
         target_url=subscription.target_url,
         event_types=subscription.event_types,
         fields=subscription.fields,

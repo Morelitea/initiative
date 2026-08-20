@@ -200,7 +200,7 @@ class TestInstalls:
         assert items[0]["enabled"] is True
         # Nothing about who is in the guild travels with an install summary.
         assert "members" not in items[0]
-        assert "installed_by_id" not in items[0]
+        assert "created_by_id" not in items[0]
 
     async def test_another_apps_install_is_not_listed(
         self, client: AsyncClient, session: AsyncSession

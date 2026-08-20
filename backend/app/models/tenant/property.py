@@ -16,7 +16,9 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
+from sqlmodel import Enum as SQLEnum, Field, Relationship
+
+from app.models.tenant._mixins import AuthorshipMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.calendar_event import CalendarEvent
@@ -40,7 +42,7 @@ class PropertyType(str, Enum):
     user_reference = "user_reference"
 
 
-class PropertyDefinition(SQLModel, table=True):
+class PropertyDefinition(AuthorshipMixin, table=True):
     """Initiative-scoped custom property definition.
 
     Definitions live on a single initiative; values live on entity-specific
@@ -117,7 +119,7 @@ class PropertyDefinition(SQLModel, table=True):
     )
 
 
-class DocumentPropertyValue(SQLModel, table=True):
+class DocumentPropertyValue(AuthorshipMixin, table=True):
     """Typed property value attached to a document."""
 
     __tablename__ = "document_property_values"
@@ -181,10 +183,14 @@ class DocumentPropertyValue(SQLModel, table=True):
     property_definition: Optional[PropertyDefinition] = Relationship(
         back_populates="document_values"
     )
-    value_user: Optional["User"] = Relationship()
+    value_user: Optional["User"] = Relationship(
+        sa_relationship_kwargs={
+            "foreign_keys": "[DocumentPropertyValue.value_user_id]"
+        },
+    )
 
 
-class TaskPropertyValue(SQLModel, table=True):
+class TaskPropertyValue(AuthorshipMixin, table=True):
     """Typed property value attached to a task."""
 
     __tablename__ = "task_property_values"
@@ -248,10 +254,12 @@ class TaskPropertyValue(SQLModel, table=True):
     property_definition: Optional[PropertyDefinition] = Relationship(
         back_populates="task_values"
     )
-    value_user: Optional["User"] = Relationship()
+    value_user: Optional["User"] = Relationship(
+        sa_relationship_kwargs={"foreign_keys": "[TaskPropertyValue.value_user_id]"},
+    )
 
 
-class CalendarEventPropertyValue(SQLModel, table=True):
+class CalendarEventPropertyValue(AuthorshipMixin, table=True):
     """Typed property value attached to a calendar event."""
 
     __tablename__ = "calendar_event_property_values"
@@ -317,4 +325,8 @@ class CalendarEventPropertyValue(SQLModel, table=True):
     property_definition: Optional[PropertyDefinition] = Relationship(
         back_populates="event_values"
     )
-    value_user: Optional["User"] = Relationship()
+    value_user: Optional["User"] = Relationship(
+        sa_relationship_kwargs={
+            "foreign_keys": "[CalendarEventPropertyValue.value_user_id]"
+        },
+    )

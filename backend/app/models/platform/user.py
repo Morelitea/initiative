@@ -220,7 +220,10 @@ class User(SQLModel, table=True):
     # explicitly, routed into each guild's schema (Phase 1).
     projects_owned: List["Project"] = Relationship(
         back_populates="owner",
-        sa_relationship_kwargs={"passive_deletes": "all"},
+        sa_relationship_kwargs={
+            "passive_deletes": "all",
+            "foreign_keys": "[Project.owner_id]",
+        },
     )
     tasks_assigned: List["Task"] = Relationship(
         back_populates="assignees",

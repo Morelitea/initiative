@@ -17,7 +17,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
-from app.models.tenant._mixins import SoftDeleteMixin
+from app.models.tenant._mixins import AuthorshipMixin, SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.initiative import Initiative
@@ -39,7 +39,7 @@ class DocumentType(str, Enum):
     spreadsheet = "spreadsheet"  # Sparse cell map; collaborative via yjs
 
 
-class Document(SoftDeleteMixin, table=True):
+class Document(AuthorshipMixin, SoftDeleteMixin, table=True):
     __tablename__ = "documents"
     _owner_field = "created_by_id"
     _display_field = "title"
@@ -149,7 +149,7 @@ class Document(SoftDeleteMixin, table=True):
     )
 
 
-class DocumentFileVersion(SQLModel, table=True):
+class DocumentFileVersion(AuthorshipMixin, table=True):
     """A single uploaded version of a file-type document.
 
     Every file document has at least one row here; the ``documents`` row
@@ -191,7 +191,7 @@ class DocumentFileVersion(SQLModel, table=True):
         default=None,
         sa_column=Column(String(length=255), nullable=True),
     )
-    uploaded_by_id: int = Field(foreign_key="users.id", nullable=False)
+    created_by_id: int = Field(foreign_key="users.id", nullable=False)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -226,7 +226,7 @@ class DocumentPermissionLevel(str, Enum):
     read = "read"
 
 
-class DocumentLink(SQLModel, table=True):
+class DocumentLink(AuthorshipMixin, table=True):
     """Tracks wikilinks between documents for backlinks queries."""
 
     __tablename__ = "document_links"

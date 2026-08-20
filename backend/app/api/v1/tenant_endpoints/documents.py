@@ -1065,7 +1065,7 @@ async def upload_document_file(
     upload_record = Upload(
         filename=file_url.split("/")[-1],
         guild_id=guild_context.guild_id,
-        uploader_user_id=current_user.id,
+        created_by_id=current_user.id,
         size_bytes=len(contents),
         content_type=mime_type,
         content_hash=attachments_service.compute_content_hash(contents),
@@ -1109,7 +1109,7 @@ async def upload_document_file(
         file_content_type=mime_type,
         file_size=len(contents),
         original_filename=file.filename,
-        uploaded_by_id=current_user.id,
+        created_by_id=current_user.id,
     )
     # Auto-set featured image for image uploads (before commit so we avoid expired attrs)
     if mime_type and mime_type.startswith("image/"):
@@ -1231,7 +1231,7 @@ async def upload_document_version(
     upload_record = Upload(
         filename=file_url.split("/")[-1],
         guild_id=guild_context.guild_id,
-        uploader_user_id=current_user.id,
+        created_by_id=current_user.id,
         size_bytes=len(contents),
         content_type=mime_type,
         content_hash=attachments_service.compute_content_hash(contents),
@@ -1253,7 +1253,7 @@ async def upload_document_version(
         file_content_type=mime_type,
         file_size=len(contents),
         original_filename=file.filename,
-        uploaded_by_id=current_user.id,
+        created_by_id=current_user.id,
     )
     session.add(version)
 

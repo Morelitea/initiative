@@ -91,7 +91,7 @@ export interface GuildAppDetail {
   /** Whether this app is one that acts as members, and so has something for
    *  each of them to authorize. */
   delegates: boolean;
-  installed_by_id: number;
+  created_by_id: number;
   created_at: string;
   updated_at: string;
   connections: AppConnection[];

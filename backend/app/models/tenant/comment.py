@@ -4,11 +4,11 @@ from typing import Optional
 from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, Integer, Text
 from sqlmodel import Field, Relationship
 
-from app.models.tenant._mixins import SoftDeleteMixin
+from app.models.tenant._mixins import AuthorshipMixin, SoftDeleteMixin
 from app.models.platform.user import User
 
 
-class Comment(SoftDeleteMixin, table=True):
+class Comment(AuthorshipMixin, SoftDeleteMixin, table=True):
     __tablename__ = "comments"
     _display_field = "content"
     __table_args__ = (
@@ -18,7 +18,7 @@ class Comment(SoftDeleteMixin, table=True):
         ),
     )
     # Comment authorship is intentionally NOT reassignable on restore.
-    # Comments are first-person speech; transferring author_id to someone
+    # Comments are first-person speech; transferring created_by_id to someone
     # else would let admins put words in another user's mouth. If the
     # original author has left, the restore goes through and the comment
     # renders as "Deleted user #N" via the existing user-display helpers.
@@ -29,7 +29,7 @@ class Comment(SoftDeleteMixin, table=True):
         sa_column=Column(Integer, ForeignKey("guilds.id"), nullable=True),
     )
     content: str = Field(sa_column=Column(Text, nullable=False))
-    author_id: int = Field(
+    created_by_id: int = Field(
         sa_column=Column(
             Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
         ),
@@ -60,4 +60,9 @@ class Comment(SoftDeleteMixin, table=True):
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True),
     )
-    author: User = Relationship()
+    # The API calls this the author; the column is the schema-wide
+    # ``created_by_id``. ``foreign_keys`` is explicit because
+    # ``updated_by_id`` also relates Comment->User.
+    author: User = Relationship(
+        sa_relationship_kwargs={"foreign_keys": "[Comment.created_by_id]"},
+    )

@@ -246,7 +246,7 @@ async def create_comment(
             raise CommentValidationError(CommentMessages.PARENT_MISMATCH)
         comment = Comment(
             content=content,
-            author_id=cast(int, author.id),
+            created_by_id=cast(int, author.id),
             task_id=context.task.id,
             parent_comment_id=parent_comment_id,
         )
@@ -272,7 +272,7 @@ async def create_comment(
             raise CommentValidationError(CommentMessages.PARENT_MISMATCH)
         comment = Comment(
             content=content,
-            author_id=cast(int, author.id),
+            created_by_id=cast(int, author.id),
             document_id=document.id,
             parent_comment_id=parent_comment_id,
         )
@@ -357,8 +357,8 @@ async def _process_comment_notifications(
         context_title = document.title
 
     # 1. Reply to comment → notify parent comment author
-    if parent_comment and parent_comment.author_id != author.id:
-        parent_author = await _load_user(session, parent_comment.author_id)
+    if parent_comment and parent_comment.created_by_id != author.id:
+        parent_author = await _load_user(session, parent_comment.created_by_id)
         if parent_author:
             await notifications.notify_comment_reply(
                 session,
@@ -370,7 +370,7 @@ async def _process_comment_notifications(
                 context_title=context_title,
                 guild_id=guild_id,
             )
-            notified_user_ids.add(parent_comment.author_id)
+            notified_user_ids.add(parent_comment.created_by_id)
 
     # 2. Process @user mentions
     mentioned_user_ids = extract_mentioned_user_ids(content)
@@ -572,7 +572,7 @@ async def delete_comment(
     else:
         raise CommentValidationError(CommentMessages.NOT_LINKED)
 
-    is_author = comment.author_id == user.id
+    is_author = comment.created_by_id == user.id
     is_guild_admin = guild_role == GuildRole.admin
     is_initiative_manager = False
     if not is_author and not is_guild_admin and initiative_id is not None:
@@ -612,7 +612,7 @@ async def update_comment(
         raise CommentNotFoundError(CommentMessages.NOT_FOUND)
 
     # Only the author can edit their own comment
-    if comment.author_id != user.id:
+    if comment.created_by_id != user.id:
         raise CommentPermissionError(CommentMessages.AUTHOR_ONLY_EDIT)
 
     # Verify access to the linked entity (same checks as delete_comment)

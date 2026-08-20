@@ -62,3 +62,59 @@ class SoftDeleteMixin(SQLModel):
     @classmethod
     def display_field(cls) -> str:
         return cls._display_field
+
+
+class AuthorshipMixin(SQLModel):
+    """Mixin that adds the two authorship columns to a guild-schema table.
+
+    Every content table in a ``guild_<id>`` schema records who wrote the row
+    (``created_by_id``) and who last changed it (``updated_by_id``), under
+    those names and no other. The columns exist whether or not the API
+    surfaces them, so anything that needs a row's author — the trash can,
+    ownership transfer, account erasure — resolves one column name for every
+    table instead of a per-table lookup. That is what the old spellings
+    (``author_id``, ``uploader_user_id``, ``uploaded_by_id``,
+    ``installed_by_id``, ``created_by_user_id``) cost, and why they are gone.
+
+    Both are nullable: authorship is a historical fact about a row, not a
+    dependency of it, so a row can predate the columns or outlive knowing who
+    wrote it. Tables that already required an author keep ``NOT NULL`` by
+    redeclaring ``created_by_id`` — the mixin is the floor, not a ceiling.
+
+    ``foreign_key`` here is ORM metadata — it is what lets relationships like
+    ``Task.creator`` resolve their join — not a constraint in the guild
+    schemas. Guild content lives in a per-guild schema and ``users`` in
+    ``public``, and the guild DDL carries a cross-schema user FK on only a
+    handful of tables, so no delete rule is declared for a rule the database
+    would not hold. Erasure is enforced in the app instead:
+    ``app.services.platform.users.reassign_user_content`` sweeps every table
+    carrying this mixin, so a new one is covered the moment it is declared.
+
+    ``authorship_test.py`` fails CI if a guild-schema table carries neither
+    this mixin nor an entry in ``tenancy.AUTHORSHIP_EXEMPT_TABLES``.
+    """
+
+    created_by_id: Optional[int] = Field(
+        default=None, foreign_key="users.id", nullable=True
+    )
+    updated_by_id: Optional[int] = Field(
+        default=None, foreign_key="users.id", nullable=True
+    )
+
+
+def authorship_models() -> list[type[AuthorshipMixin]]:
+    """Every mapped model carrying :class:`AuthorshipMixin`, by table name.
+
+    The single source for "which tables record an author" — the erasure sweep
+    (``reassign_user_content``) and the completeness test both read it, so a
+    new authored table joins both the moment it declares the mixin.
+    """
+    found: dict[str, type[AuthorshipMixin]] = {}
+    stack = list(AuthorshipMixin.__subclasses__())
+    while stack:
+        cls = stack.pop()
+        stack.extend(cls.__subclasses__())
+        table = getattr(cls, "__tablename__", None)
+        if table and getattr(cls, "__table__", None) is not None:
+            found[str(table)] = cls
+    return [found[name] for name in sorted(found)]

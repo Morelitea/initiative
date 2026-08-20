@@ -21,10 +21,12 @@ from sqlalchemy import (
     String,
 )
 from sqlalchemy.dialects.postgresql import ARRAY
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field
+
+from app.models.tenant._mixins import AuthorshipMixin
 
 
-class WebhookSubscription(SQLModel, table=True):
+class WebhookSubscription(AuthorshipMixin, table=True):
     __tablename__ = "webhook_subscriptions"
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -45,7 +47,7 @@ class WebhookSubscription(SQLModel, table=True):
             nullable=True,
         ),
     )
-    created_by_user_id: int = Field(
+    created_by_id: int = Field(
         sa_column=Column(
             Integer,
             ForeignKey("users.id", ondelete="CASCADE"),

@@ -584,7 +584,7 @@ async def create_guild_connection(
     await _validate_connection_base_url(payload.provider, base_url, "guild")
     row = GuildAIConnection(
         guild_id=guild_id,
-        created_by_user_id=user_id,
+        created_by_id=user_id,
         label=payload.label.strip(),
         provider=payload.provider.value,
         base_url=base_url,

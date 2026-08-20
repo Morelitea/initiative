@@ -160,7 +160,7 @@ class DocumentFileVersionRead(SanitizedBaseModel):
     file_content_type: Optional[str] = None
     file_size: Optional[int] = None
     original_filename: Optional[str] = None
-    uploaded_by_id: int
+    created_by_id: int
     created_at: datetime
     is_current: bool = False
 
@@ -278,7 +278,7 @@ def serialize_document_file_version(
         file_content_type=version.file_content_type,
         file_size=version.file_size,
         original_filename=version.original_filename,
-        uploaded_by_id=version.uploaded_by_id,
+        created_by_id=version.created_by_id,
         created_at=version.created_at,
         is_current=is_current,
     )

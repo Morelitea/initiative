@@ -498,7 +498,7 @@ async def seed_guild_content(
         # listing or registration is doing.
         async with session.begin_nested():
             await mandatory_apps_service.install_mandatory_apps(
-                session, guild_id=guild_id, installed_by_id=owner.id
+                session, guild_id=guild_id, created_by_id=owner.id
             )
     except Exception:
         logger.exception(

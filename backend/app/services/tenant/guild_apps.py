@@ -241,7 +241,7 @@ async def install_app(
     listing_version: str,
     definition: dict,
     guild_id: int,
-    installed_by_id: int,
+    created_by_id: int,
     name: str,
 ) -> GuildApp:
     """Create the install row, and whatever the app mounts alongside it.
@@ -256,7 +256,7 @@ async def install_app(
         session,
         definition=definition,
         guild_id=guild_id,
-        created_by_id=installed_by_id,
+        created_by_id=created_by_id,
         name=name,
     )
     app = GuildApp(
@@ -269,7 +269,7 @@ async def install_app(
         config={},
         config_secrets={},
         artifacts=artifacts,
-        installed_by_id=installed_by_id,
+        created_by_id=created_by_id,
     )
     session.add(app)
     await session.flush()

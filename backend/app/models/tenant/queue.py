@@ -15,7 +15,7 @@ from sqlalchemy import (
 )
 from sqlmodel import Field, Relationship, SQLModel
 
-from app.models.tenant._mixins import SoftDeleteMixin
+from app.models.tenant._mixins import AuthorshipMixin, SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.initiative import Initiative
@@ -26,7 +26,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.resource_grant import ResourceGrant
 
 
-class Queue(SoftDeleteMixin, table=True):
+class Queue(AuthorshipMixin, SoftDeleteMixin, table=True):
     """Initiative-scoped queue for turn/priority tracking."""
 
     __tablename__ = "queues"
@@ -86,7 +86,7 @@ class Queue(SoftDeleteMixin, table=True):
     )
 
 
-class QueueItem(SoftDeleteMixin, table=True):
+class QueueItem(AuthorshipMixin, SoftDeleteMixin, table=True):
     """Standalone entry in a queue (character, creature, etc.)."""
 
     __tablename__ = "queue_items"
@@ -145,7 +145,9 @@ class QueueItem(SoftDeleteMixin, table=True):
         back_populates="items",
         sa_relationship_kwargs={"foreign_keys": "[QueueItem.queue_id]"},
     )
-    user: Optional["User"] = Relationship()
+    user: Optional["User"] = Relationship(
+        sa_relationship_kwargs={"foreign_keys": "[QueueItem.user_id]"},
+    )
     tag_links: List["QueueItemTag"] = Relationship(
         back_populates="queue_item",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},

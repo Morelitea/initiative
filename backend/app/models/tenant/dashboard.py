@@ -6,7 +6,7 @@ from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Relationship, SQLModel
 
-from app.models.tenant._mixins import SoftDeleteMixin
+from app.models.tenant._mixins import AuthorshipMixin, SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.initiative import Initiative
@@ -15,7 +15,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.platform.user import User
 
 
-class Dashboard(SoftDeleteMixin, table=True):
+class Dashboard(AuthorshipMixin, SoftDeleteMixin, table=True):
     """An initiative's dashboard: a canvas of widgets over existing data.
 
     ``definition`` is the validated, declarative body — layout plus widgets and
