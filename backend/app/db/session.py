@@ -13,7 +13,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.db import base  # noqa: F401  # ensure models are imported for Alembic
-from app.models.tenant._mixins import AuthorshipMixin
+from app.models.tenant._mixins import RowAuditMixin
 
 # Primary engine: non-superuser (DATABASE_URL_APP) for RLS-enforced queries.
 engine = create_async_engine(settings.DATABASE_URL_APP, echo=False)
@@ -268,16 +268,16 @@ def _replay_rls_context(session: SyncSession, transaction, connection) -> None:
 event.listen(SyncSession, "after_begin", _replay_rls_context, propagate=True)
 
 
-def _stamp_authorship(session: SyncSession, flush_context, instances) -> None:
-    """before_flush hook: record who wrote and who last changed a guild row.
+def _stamp_row_audit(session: SyncSession, flush_context, instances) -> None:
+    """before_flush hook: record who created and who last changed a guild row.
 
     Every guild-content table carries ``created_by_id``/``updated_by_id``
-    (``app.models.tenant._mixins.AuthorshipMixin``). Stamping them here rather
+    (``app.models.tenant._mixins.RowAuditMixin``). Stamping them here rather
     than at each call site is what keeps them true: the ORM flush already
     knows who the request belongs to, where the alternative is remembering to
     set two columns everywhere a row is written.
 
-    Only NULLs are filled, so a caller that sets an author explicitly — the
+    Only NULLs are filled, so a caller that names an actor explicitly — the
     backup importer restoring original authorship, say — keeps it. A session
     with no user in its context (background jobs, seeding, migrations) stamps
     nothing, because there is no one to name.
@@ -285,7 +285,7 @@ def _stamp_authorship(session: SyncSession, flush_context, instances) -> None:
     This covers ORM writes. A bulk ``update()``/``insert()`` statement never
     reaches a flush, so a service that writes that way sets the columns itself
     or leaves them alone deliberately (``reassign_user_content`` does the
-    latter — it is rewriting authorship, not performing it).
+    latter — it is rewriting attribution, not performing it).
     """
     params = session.info.get(_RLS_PARAMS_INFO_KEY)
     user_id = params.get("user_id") if params else None
@@ -293,7 +293,7 @@ def _stamp_authorship(session: SyncSession, flush_context, instances) -> None:
         return
 
     for obj in session.new:
-        if not isinstance(obj, AuthorshipMixin):
+        if not isinstance(obj, RowAuditMixin):
             continue
         if obj.created_by_id is None:
             obj.created_by_id = user_id
@@ -301,7 +301,7 @@ def _stamp_authorship(session: SyncSession, flush_context, instances) -> None:
             obj.updated_by_id = user_id
 
     for obj in session.dirty:
-        if not isinstance(obj, AuthorshipMixin):
+        if not isinstance(obj, RowAuditMixin):
             continue
         if not session.is_modified(obj, include_collections=False):
             continue
@@ -311,7 +311,7 @@ def _stamp_authorship(session: SyncSession, flush_context, instances) -> None:
         obj.updated_by_id = user_id
 
 
-event.listen(SyncSession, "before_flush", _stamp_authorship, propagate=True)
+event.listen(SyncSession, "before_flush", _stamp_row_audit, propagate=True)
 
 
 async def set_rls_context(

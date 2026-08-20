@@ -5,13 +5,13 @@ from sqlalchemy import Column, DateTime, Integer
 from sqlmodel import Field, Relationship
 from pydantic import ConfigDict
 
-from app.models.tenant._mixins import AuthorshipMixin
+from app.models.tenant._mixins import RowAuditMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.platform.guild import Guild
 
 
-class GuildSetting(AuthorshipMixin, table=True):
+class GuildSetting(RowAuditMixin, table=True):
     __tablename__ = "guild_settings"
     __allow_unmapped__ = True
     model_config = ConfigDict(arbitrary_types_allowed=True)

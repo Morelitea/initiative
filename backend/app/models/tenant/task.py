@@ -5,7 +5,7 @@ from typing import List, Optional, TYPE_CHECKING
 from sqlalchemy import Boolean, Column, DateTime, Integer, JSON, Numeric, String, Text
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
-from app.models.tenant._mixins import AuthorshipMixin, SoftDeleteMixin
+from app.models.tenant._mixins import RowAuditMixin, SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.project import Project
@@ -29,7 +29,7 @@ class TaskPriority(str, Enum):
     urgent = "urgent"
 
 
-class TaskStatus(AuthorshipMixin, table=True):
+class TaskStatus(RowAuditMixin, table=True):
     __tablename__ = "task_statuses"
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -78,7 +78,7 @@ class TaskAssignee(SQLModel, table=True):
     )
 
 
-class Subtask(AuthorshipMixin, table=True):
+class Subtask(RowAuditMixin, table=True):
     __tablename__ = "subtasks"
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -107,7 +107,7 @@ class Subtask(AuthorshipMixin, table=True):
     task: Optional["Task"] = Relationship(back_populates="subtasks")
 
 
-class Task(AuthorshipMixin, SoftDeleteMixin, table=True):
+class Task(RowAuditMixin, SoftDeleteMixin, table=True):
     __tablename__ = "tasks"
     _owner_field = "created_by_id"
     _display_field = "title"

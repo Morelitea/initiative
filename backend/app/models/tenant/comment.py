@@ -4,11 +4,11 @@ from typing import Optional
 from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, Integer, Text
 from sqlmodel import Field, Relationship
 
-from app.models.tenant._mixins import AuthorshipMixin, SoftDeleteMixin
+from app.models.tenant._mixins import RowAuditMixin, SoftDeleteMixin
 from app.models.platform.user import User
 
 
-class Comment(AuthorshipMixin, SoftDeleteMixin, table=True):
+class Comment(RowAuditMixin, SoftDeleteMixin, table=True):
     __tablename__ = "comments"
     _display_field = "content"
     __table_args__ = (

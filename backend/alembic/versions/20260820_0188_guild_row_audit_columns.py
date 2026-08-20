@@ -1,10 +1,10 @@
-"""One spelling for authorship across the guild schema
+"""One spelling for row attribution across the guild schema
 
 Guild-content migration.
 
-Every guild-schema table that models something a person wrote now records who
-wrote it and who last changed it under one pair of names — ``created_by_id``
-and ``updated_by_id`` — supplied by ``AuthorshipMixin``. Six tables spelled the
+Every guild-schema table that models something a person made now records who
+made it and who last changed it under one pair of names — ``created_by_id``
+and ``updated_by_id`` — supplied by ``RowAuditMixin``. Six tables spelled the
 first half differently (``author_id``, ``uploader_user_id``, ``uploaded_by_id``,
 ``installed_by_id``, ``created_by_user_id``); those columns are renamed, not
 recreated, so the data they hold survives.
@@ -17,8 +17,8 @@ alone; ``app.db.tenancy.AUTHORSHIP_EXEMPT_TABLES`` lists them with the reason.
 
 The backfill fills ``created_by_id`` on child rows from the parent that holds
 one — a subtask from its task, a property value from its entity. That is a
-reasonable default, not a record: whoever wrote the parent is usually but not
-always whoever wrote the child. Rows with no such parent stay NULL rather than
+reasonable default, not a record: whoever made the parent is usually but not
+always whoever made the child. Rows with no such parent stay NULL rather than
 being guessed at.
 
 Revision ID: 20260820_0188
@@ -39,7 +39,7 @@ branch_labels = None
 depends_on = None
 
 
-#: table -> (old authorship column, new name). Renamed in place; the values
+#: table -> (old attribution column, new name). Renamed in place; the values
 #: they hold are the same fact under a different word.
 _RENAMES: tuple[tuple[str, str], ...] = (
     ("comments", "author_id"),
@@ -74,7 +74,7 @@ _RENAMED_OBJECTS: tuple[tuple[str, str], ...] = (
     ),
 )
 
-#: Tables gaining ``created_by_id`` (they had no authorship column at all).
+#: Tables gaining ``created_by_id`` (they had no attribution column at all).
 _NEW_CREATED_BY: tuple[str, ...] = (
     "calendar_event_property_values",
     "counters",
@@ -176,7 +176,7 @@ def _backfill_children_from_parents() -> None:
             ).scalar()
             if remaining:
                 raise RuntimeError(
-                    f"{remaining} {child} rows kept no author after the backfill "
+                    f"{remaining} {child} rows kept no creator after the backfill "
                     f"from {parent}"
                 )
     finally:

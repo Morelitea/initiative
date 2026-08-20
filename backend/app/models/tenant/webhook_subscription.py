@@ -23,10 +23,10 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlmodel import Field
 
-from app.models.tenant._mixins import AuthorshipMixin
+from app.models.tenant._mixins import RowAuditMixin
 
 
-class WebhookSubscription(AuthorshipMixin, table=True):
+class WebhookSubscription(RowAuditMixin, table=True):
     __tablename__ = "webhook_subscriptions"
 
     id: Optional[int] = Field(default=None, primary_key=True)

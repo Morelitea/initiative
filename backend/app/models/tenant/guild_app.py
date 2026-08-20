@@ -36,10 +36,10 @@ from sqlalchemy import Boolean, Column, DateTime, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field
 
-from app.models.tenant._mixins import AuthorshipMixin
+from app.models.tenant._mixins import RowAuditMixin
 
 
-class GuildApp(AuthorshipMixin, table=True):
+class GuildApp(RowAuditMixin, table=True):
     __tablename__ = "guild_apps"
     __allow_unmapped__ = True
     model_config = ConfigDict(arbitrary_types_allowed=True)

@@ -17,7 +17,7 @@ from app.db.session import set_rls_context
 from app.models.platform.user import User, UserRole, UserStatus
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.services.auth import identity as identity_service
-from app.models.tenant._mixins import authorship_models
+from app.models.tenant._mixins import row_audit_models
 from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceGrant, ResourceAccessLevel
 from app.models.tenant.task import TaskAssignee
@@ -878,22 +878,22 @@ async def reassign_user_content(
     user_id: int,
     system_user_id: int,
 ) -> None:
-    """Re-point authorship in the routed guild schema at the system user.
+    """Re-point row attribution in the routed guild schema at the system user.
 
     Hard delete vaporises the user row, but the content the rest of the guild
     can still see — documents, comments, uploaded files, everything else they
-    wrote — has to outlive it. The two authorship columns are the same pair on
+    made — has to outlive it. The two attribution columns are the same pair on
     every table that has them, so this sweeps the registry rather than a list
-    that has to be remembered: a new authored table is covered as soon as it
-    declares ``AuthorshipMixin``.
+    that has to be remembered: a new table is covered as soon as it declares
+    ``RowAuditMixin``.
 
     Ownership is a different thing and moves separately; this only rewrites who
-    the row records as its author.
+    the row records as its actor.
 
     The caller routes the session into one guild schema before calling, and
     calls again per guild.
     """
-    for model in authorship_models():
+    for model in row_audit_models():
         await session.exec(
             update(model)
             .where(model.created_by_id == user_id)

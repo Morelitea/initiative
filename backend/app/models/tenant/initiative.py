@@ -15,7 +15,7 @@ from sqlalchemy import (
 from sqlmodel import Field, Relationship, SQLModel
 
 from app.core.tools import CORE_TOOLS, TOGGLEABLE_TOOLS, Tool
-from app.models.tenant._mixins import AuthorshipMixin, SoftDeleteMixin
+from app.models.tenant._mixins import RowAuditMixin, SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.project import Project
@@ -59,7 +59,7 @@ BUILTIN_ROLE_PERMISSIONS = {
 }
 
 
-class InitiativeRoleModel(AuthorshipMixin, table=True):
+class InitiativeRoleModel(RowAuditMixin, table=True):
     """Defines roles available per initiative."""
 
     __tablename__ = "initiative_roles"
@@ -180,7 +180,7 @@ _InitiativeToolSwitchColumns = type(
 
 
 class Initiative(
-    _InitiativeToolSwitchColumns, AuthorshipMixin, SoftDeleteMixin, table=True
+    _InitiativeToolSwitchColumns, RowAuditMixin, SoftDeleteMixin, table=True
 ):
     __tablename__ = "initiatives"
 

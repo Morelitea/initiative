@@ -43,7 +43,7 @@ __all__ = [
     "SHARED_TABLES",
     "GUILD_LEVEL_TABLES",
     "OWN_ROW_TABLES",
-    "AUTHORSHIP_EXEMPT_TABLES",
+    "ROW_AUDIT_EXEMPT_TABLES",
     "INITIATIVE_SCOPED_TABLES",
     "GUILD_SCOPED_TABLES",
     "ALL_CLASSIFIED_TABLES",
@@ -197,15 +197,15 @@ OWN_ROW_TABLES: dict[str, str] = {
     "guild_app_subjects": "user_id",
 }
 
-# --- Authorship overlay on guild-schema tables --------------------------------
-# Every guild-schema table that models something a person wrote carries
+# --- Row-attribution overlay on guild-schema tables ---------------------------
+# Every guild-schema table that models something a person made carries
 # ``created_by_id`` + ``updated_by_id`` by subclassing
-# ``app.models.tenant._mixins.AuthorshipMixin``. Membership is therefore
+# ``app.models.tenant._mixins.RowAuditMixin``. Membership is therefore
 # declared by the model, not copied into a list here; what IS declared here is
 # the opposite — the tables that deliberately do NOT carry the pair, each with
-# the reason it does not need one. ``authorship_test.py`` fails CI when a guild
+# the reason it does not need one. ``row_audit_test.py`` fails CI when a guild
 # table is in neither bucket, so a new table forces the decision.
-AUTHORSHIP_EXEMPT_TABLES: frozenset[str] = frozenset(
+ROW_AUDIT_EXEMPT_TABLES: frozenset[str] = frozenset(
     {
         # Junctions and link rows. Each already carries its own matched pair
         # naming the relation rather than a row author — ``attached_by_id`` /

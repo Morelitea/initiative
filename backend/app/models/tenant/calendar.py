@@ -5,7 +5,7 @@ from pydantic import ConfigDict
 from sqlalchemy import Column, DateTime, String, Text
 from sqlmodel import Field, Relationship, SQLModel
 
-from app.models.tenant._mixins import AuthorshipMixin, SoftDeleteMixin
+from app.models.tenant._mixins import RowAuditMixin, SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.calendar_event import CalendarEvent
@@ -18,7 +18,7 @@ if TYPE_CHECKING:  # pragma: no cover
 DEFAULT_CALENDAR_COLOR = "#6366f1"
 
 
-class Calendar(AuthorshipMixin, SoftDeleteMixin, table=True):
+class Calendar(RowAuditMixin, SoftDeleteMixin, table=True):
     """Initiative-scoped calendar — the shareable container for events.
 
     A calendar is to events what a project is to tasks: DAC grants attach to

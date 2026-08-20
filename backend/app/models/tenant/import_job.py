@@ -25,7 +25,7 @@ from sqlalchemy import Column, DateTime, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field
 
-from app.models.tenant._mixins import AuthorshipMixin
+from app.models.tenant._mixins import RowAuditMixin
 
 
 class ImportJobStatus(str, Enum):
@@ -41,7 +41,7 @@ class ImportJobStatus(str, Enum):
     expired = "expired"
 
 
-class ImportJob(AuthorshipMixin, table=True):
+class ImportJob(RowAuditMixin, table=True):
     __tablename__ = "import_jobs"
 
     id: Optional[int] = Field(default=None, primary_key=True)

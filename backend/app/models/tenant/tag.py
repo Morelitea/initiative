@@ -5,7 +5,7 @@ from sqlalchemy import Column, DateTime, String
 from sqlmodel import Field, Relationship, SQLModel
 from pydantic import ConfigDict
 
-from app.models.tenant._mixins import AuthorshipMixin, SoftDeleteMixin
+from app.models.tenant._mixins import RowAuditMixin, SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.platform.guild import Guild
@@ -19,7 +19,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.counter import CounterGroupTag
 
 
-class Tag(AuthorshipMixin, SoftDeleteMixin, table=True):
+class Tag(RowAuditMixin, SoftDeleteMixin, table=True):
     """Guild-scoped tag for categorizing tasks, projects, and documents.
 
     Supports nested tag naming via "/" convention (e.g., "books/fiction").

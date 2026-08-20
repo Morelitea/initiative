@@ -15,7 +15,7 @@ from sqlalchemy import (
 )
 from sqlmodel import Field, Relationship, SQLModel
 
-from app.models.tenant._mixins import AuthorshipMixin, SoftDeleteMixin
+from app.models.tenant._mixins import RowAuditMixin, SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.initiative import Initiative
@@ -26,7 +26,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.resource_grant import ResourceGrant
 
 
-class Queue(AuthorshipMixin, SoftDeleteMixin, table=True):
+class Queue(RowAuditMixin, SoftDeleteMixin, table=True):
     """Initiative-scoped queue for turn/priority tracking."""
 
     __tablename__ = "queues"
@@ -86,7 +86,7 @@ class Queue(AuthorshipMixin, SoftDeleteMixin, table=True):
     )
 
 
-class QueueItem(AuthorshipMixin, SoftDeleteMixin, table=True):
+class QueueItem(RowAuditMixin, SoftDeleteMixin, table=True):
     """Standalone entry in a queue (character, creature, etc.)."""
 
     __tablename__ = "queue_items"

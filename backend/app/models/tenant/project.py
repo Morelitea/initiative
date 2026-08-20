@@ -5,7 +5,7 @@ from typing import List, Optional, TYPE_CHECKING
 from sqlalchemy import Column, Date, DateTime, Text
 from sqlmodel import Field, Relationship
 
-from app.models.tenant._mixins import AuthorshipMixin, SoftDeleteMixin
+from app.models.tenant._mixins import RowAuditMixin, SoftDeleteMixin
 
 
 if TYPE_CHECKING:  # pragma: no cover - imported lazily for type checking only
@@ -20,7 +20,7 @@ if TYPE_CHECKING:  # pragma: no cover - imported lazily for type checking only
     from app.models.tenant.resource_grant import ResourceGrant
 
 
-class Project(AuthorshipMixin, SoftDeleteMixin, table=True):
+class Project(RowAuditMixin, SoftDeleteMixin, table=True):
     __tablename__ = "projects"
     _owner_field = "owner_id"
 

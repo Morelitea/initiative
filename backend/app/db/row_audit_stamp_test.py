@@ -1,6 +1,6 @@
-"""The write path fills in who wrote a row and who last changed it.
+"""The write path fills in who created a row and who last changed it.
 
-``AuthorshipMixin`` puts ``created_by_id``/``updated_by_id`` on every guild
+``RowAuditMixin`` puts ``created_by_id``/``updated_by_id`` on every guild
 content table; the ``before_flush`` hook in ``app.db.session`` is what keeps
 them true, since the alternative is stamping them at every call site.
 """

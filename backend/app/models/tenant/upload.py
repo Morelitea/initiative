@@ -6,10 +6,10 @@ from typing import Optional
 from sqlalchemy import Column, DateTime, String
 from sqlmodel import Field
 
-from app.models.tenant._mixins import AuthorshipMixin
+from app.models.tenant._mixins import RowAuditMixin
 
 
-class Upload(AuthorshipMixin, table=True):
+class Upload(RowAuditMixin, table=True):
     __tablename__ = "uploads"
 
     id: Optional[int] = Field(default=None, primary_key=True)
