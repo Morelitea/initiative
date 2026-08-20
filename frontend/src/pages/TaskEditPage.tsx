@@ -68,6 +68,7 @@ import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
 import { queryClient } from "@/lib/queryClient";
+import { taskRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
 import {
   getAvatarSrc,
   getInitialsForUser,
@@ -137,7 +138,18 @@ type MoveTaskVariables = {
 };
 
 export const TaskEditPage = () => {
-  const { taskId } = useParams({ strict: false }) as { taskId: string };
+  const {
+    taskId,
+    projectId: projectIdParam,
+    initiativeId: initiativeIdParam,
+  } = useParams({ strict: false }) as {
+    taskId: string;
+    projectId?: string;
+    initiativeId?: string;
+  };
+  // Both come from the path, so the back-links resolve before the task loads
+  // and still work if it fails to.
+  const initiativeId = initiativeIdParam ? Number(initiativeIdParam) : null;
   const parsedTaskId = Number(taskId);
   const router = useRouter();
   const guildId = useActiveGuildId();
@@ -189,7 +201,7 @@ export const TaskEditPage = () => {
 
   const taskQuery = useTask(parsedTaskId);
 
-  const projectId = taskQuery.data?.project_id;
+  const projectId = projectIdParam ? Number(projectIdParam) : taskQuery.data?.project_id;
   const projectQuery = useProject(projectId ?? null);
 
   const taskStatusesQuery = useProjectTaskStatuses(projectId ?? null);
@@ -272,7 +284,9 @@ export const TaskEditPage = () => {
     onSuccess: (newTask) => {
       toast.success(t("edit.taskDuplicated"));
       bypassGuardRef.current = true;
-      router.navigate({ to: gp(`/tasks/${newTask.id}`) });
+      router.navigate({
+        to: gp(taskRoute(initiativeId, newTask.project_id, newTask.id)),
+      });
     },
   });
 
@@ -280,7 +294,9 @@ export const TaskEditPage = () => {
     onSuccess: () => {
       toast.success(t("edit.taskDeleted"));
       bypassGuardRef.current = true;
-      router.navigate({ to: gp(`/projects/${projectId}`) });
+      router.navigate({
+        to: gp(toolListRoute(Tool.project, initiativeId)),
+      });
     },
   });
 
@@ -538,7 +554,7 @@ export const TaskEditPage = () => {
           icon={<SearchX />}
           title={t("edit.notFound")}
           description={t("edit.notFoundDescription")}
-          backTo={gp("/projects")}
+          backTo={gp(toolListRoute(Tool.project, initiativeId))}
           backLabel={t("edit.backToProjects")}
         />
       );
@@ -549,7 +565,7 @@ export const TaskEditPage = () => {
           icon={<ShieldAlert />}
           title={t("edit.noAccess")}
           description={t("edit.noAccessDescription")}
-          backTo={gp("/projects")}
+          backTo={gp(toolListRoute(Tool.project, initiativeId))}
           backLabel={t("edit.backToProjects")}
         />
       );
@@ -558,7 +574,7 @@ export const TaskEditPage = () => {
       <StatusMessage
         icon={<AlertCircle />}
         title={t("edit.loadError")}
-        backTo={gp("/projects")}
+        backTo={gp(toolListRoute(Tool.project, initiativeId))}
         backLabel={t("edit.backToProjects")}
       />
     );
@@ -569,7 +585,7 @@ export const TaskEditPage = () => {
       <StatusMessage
         icon={<AlertCircle />}
         title={t("edit.loadProjectError")}
-        backTo={gp("/projects")}
+        backTo={gp(toolListRoute(Tool.project, initiativeId))}
         backLabel={t("edit.backToProjects")}
       />
     );
@@ -682,9 +698,16 @@ export const TaskEditPage = () => {
     <div className="space-y-6">
       <ToolBreadcrumb
         tool={Tool.project}
-        initiativeId={project?.initiative_id}
+        initiativeId={initiativeId}
         trail={[
-          ...(project ? [{ label: project.name, to: `/projects/${project.id}` }] : []),
+          ...(project
+            ? [
+                {
+                  label: project.name,
+                  to: toolDetailRoute(Tool.project, initiativeId, project.id),
+                },
+              ]
+            : []),
           { label: title || task?.title },
         ]}
       />
@@ -768,7 +791,11 @@ export const TaskEditPage = () => {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => router.navigate({ to: gp(`/projects/${projectId}`) })}
+                  onClick={() =>
+                    router.navigate({
+                      to: gp(toolDetailRoute(Tool.project, initiativeId, projectId as number)),
+                    })
+                  }
                 >
                   <X className="h-4 w-4" />
                   {t("common:cancel")}

@@ -23,13 +23,22 @@ import { useRecordRecentView } from "@/hooks/useRecents";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
+import { taskRoute, toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 export const ProjectDetailPage = () => {
   const { t } = useTranslation("projects");
-  const { guildId, projectId } = useParams({ strict: false }) as {
+  const {
+    guildId,
+    projectId,
+    initiativeId: initiativeIdParam,
+  } = useParams({ strict: false }) as {
     guildId: string;
     projectId: string;
+    initiativeId?: string;
   };
+  // The initiative comes from the path so the back-links still work when the
+  // entity itself failed to load.
+  const initiativeId = initiativeIdParam ? Number(initiativeIdParam) : null;
   const router = useRouter();
   const { permissionsFor } = useInitiativeAccess();
   const gp = useGuildPath();
@@ -93,7 +102,9 @@ export const ProjectDetailPage = () => {
       <div className="space-y-4">
         <p className="text-destructive">{t("detail.invalidProjectId")}</p>
         <Button asChild variant="link" className="px-0">
-          <Link to={gp("/projects")}>{t("detail.backToProjects")}</Link>
+          <Link to={gp(toolListRoute(Tool.project, initiativeId))}>
+            {t("detail.backToProjects")}
+          </Link>
         </Button>
       </div>
     );
@@ -105,7 +116,7 @@ export const ProjectDetailPage = () => {
 
   if (projectQuery.isError || taskStatusesQuery.isError || !project) {
     const status = getHttpStatus(projectQuery.error) ?? getHttpStatus(taskStatusesQuery.error);
-    const backTo = gp("/projects");
+    const backTo = gp(toolListRoute(Tool.project, initiativeId));
     const backLabel = t("detail.backToProjects");
 
     if (status === 404 || status === 403) {
@@ -166,7 +177,7 @@ export const ProjectDetailPage = () => {
     if (!canViewTaskDetails) {
       return;
     }
-    router.navigate({ to: gp(`/tasks/${taskId}`) });
+    router.navigate({ to: gp(taskRoute(initiativeId, parsedProjectId, taskId)) });
   };
 
   return (
@@ -185,7 +196,7 @@ export const ProjectDetailPage = () => {
               size="sm"
               aria-label={t("detail.openProjectSettings")}
             >
-              <Link to={gp(`/projects/${project.id}/settings`)}>
+              <Link to={gp(toolSettingsRoute(Tool.project, initiativeId, project.id))}>
                 <Settings className="h-5 w-5" /> {t("detail.projectSettings")}
               </Link>
             </Button>

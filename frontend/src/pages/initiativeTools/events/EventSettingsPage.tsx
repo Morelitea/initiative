@@ -47,13 +47,25 @@ import {
 } from "@/hooks/useCalendarEvents";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
+import { eventRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
 
 export function EventSettingsPage() {
   const { t } = useTranslation(["calendars", "common", "access"]);
   const router = useRouter();
   const gp = useGuildPath();
-  const { eventId: eventIdParam } = useParams({ strict: false });
+  const {
+    eventId: eventIdParam,
+    calendarId: calendarIdParam,
+    initiativeId: initiativeIdParam,
+  } = useParams({ strict: false }) as {
+    eventId?: string;
+    calendarId?: string;
+    initiativeId?: string;
+  };
   const eventId = Number(eventIdParam);
+  // From the path: absent `initiativeId` means a guild-level calendar.
+  const initiativeId = initiativeIdParam ? Number(initiativeIdParam) : null;
+  const calendarId = calendarIdParam ? Number(calendarIdParam) : null;
 
   const { data: event, isLoading } = useCalendarEvent(Number.isFinite(eventId) ? eventId : null);
 
@@ -200,7 +212,13 @@ export function EventSettingsPage() {
   const deleteEvent = useDeleteCalendarEvent({
     onSuccess: () => {
       toast.success(t("eventDeleted"));
-      void router.navigate({ to: gp("/calendars") });
+      void router.navigate({
+        to: gp(
+          calendarId == null
+            ? toolListRoute(Tool.calendar, initiativeId)
+            : toolDetailRoute(Tool.calendar, initiativeId, calendarId)
+        ),
+      });
     },
   });
 
@@ -239,7 +257,7 @@ export function EventSettingsPage() {
       <div className="p-8 text-center">
         <p className="text-muted-foreground">{t("notFound")}</p>
         <Button variant="link" asChild className="mt-2">
-          <Link to={gp("/calendars")}>{t("backToEvents")}</Link>
+          <Link to={gp(toolListRoute(Tool.calendar, initiativeId))}>{t("backToEvents")}</Link>
         </Button>
       </div>
     );
@@ -249,9 +267,9 @@ export function EventSettingsPage() {
     <div className="space-y-6">
       <ToolBreadcrumb
         tool={Tool.calendar}
-        initiativeId={event.initiative_id}
+        initiativeId={initiativeId}
         trail={[
-          { label: event.title, to: `/calendar-events/${eventId}` },
+          { label: event.title, to: eventRoute(initiativeId, event.calendar_id, eventId) },
           { label: t("common:toolSettings.title") },
         ]}
       />

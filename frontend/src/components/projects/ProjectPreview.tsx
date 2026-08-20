@@ -3,7 +3,12 @@ import { GripVertical } from "lucide-react";
 import type { HTMLAttributes } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { GuildRole, InitiativeRead, ProjectRead } from "@/api/generated/initiativeAPI.schemas";
+import {
+  type GuildRole,
+  type InitiativeRead,
+  type ProjectRead,
+  Tool,
+} from "@/api/generated/initiativeAPI.schemas";
 import { FavoriteProjectButton } from "@/components/projects/FavoriteProjectButton";
 import { PinProjectButton } from "@/components/projects/PinProjectButton";
 import { TagBadge } from "@/components/tags/TagBadge";
@@ -13,6 +18,7 @@ import { ProgressCircle } from "@/components/ui/progress-circle";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useGuildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot, resolveInitiativeColor } from "@/lib/initiativeColors";
+import { initiativeRoute, toolDetailRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 interface ProjectLinkProps {
@@ -78,7 +84,10 @@ export const ProjectCardLink = ({ project, dragHandleProps, userId }: ProjectLin
           </button>
         ) : null}
       </div>
-      <Link to={gp(`/projects/${project.id}`)} className="block">
+      <Link
+        to={gp(toolDetailRoute(Tool.project, project.initiative_id, project.id))}
+        className="block"
+      >
         <Card className="overflow-hidden shadow-sm">
           {initiativeColor ? (
             <div
@@ -162,7 +171,10 @@ export const ProjectRowLink = ({ project, dragHandleProps, userId }: ProjectLink
           />
         </div>
       </div>
-      <Link to={gp(`/projects/${project.id}`)} className="block">
+      <Link
+        to={gp(toolDetailRoute(Tool.project, project.initiative_id, project.id))}
+        className="block"
+      >
         <Card
           className={`p-4 pr-16 shadow-sm ${initiativeColor ? "border-l-4" : ""}`}
           style={initiativeColor ? { borderLeftColor: initiativeColor } : undefined}
@@ -227,7 +239,7 @@ export const InitiativeLabel = ({
   if (!initiative) {
     return null;
   }
-  const to = gp(`/initiatives/${initiative.id}`);
+  const to = gp(initiativeRoute(initiative.id));
   const className = "flex items-center gap-2 font-medium text-muted-foreground text-xs";
 
   if (nested) {

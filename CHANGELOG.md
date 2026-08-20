@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Projects, documents, queues, counters, calendars and dashboards now live inside the initiative they belong to.** Their addresses say so — a project reads as its guild, its initiative, then the project — and so do the tasks, events and counters beneath them. Because a list can only ever be one initiative's, the "filter by initiative" dropdown is gone from every one of them; the initiative you are in is the one you picked. A tool's tab is part of the address too, so you can link someone straight to an initiative's documents, reload onto the same tab, and use the back button through them.
+- **Links you already have keep working.** A notification, a mention, or a queue item's linked entity resolves to wherever that thing now lives. Bookmarks and pasted links from before this change do not — the old addresses are gone rather than forwarded.
 - **Every widget says where its data comes from.** A line under the title names the source, what it's narrowed to, and how many rows came back; click it for every filter in plain words, the display options, and a refresh. Names only ever resolve to what *you* can see.
 - **Widgets can be filtered.** Status, priority, assignee, tag, project, any of the four dates, archived state, and title, with an optional "any of these" group. Dates can be relative ("due in the next 30 days"), so a dashboard never goes stale on the date it was saved.
 - **Configuring a widget previews it.** The dialog runs the real widget against your own data while you choose.

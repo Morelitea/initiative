@@ -61,7 +61,7 @@ import { useGuildPath } from "@/lib/guildUrl";
 import { getProjectColor } from "@/lib/projectColor";
 import { PRIORITY_ORDER } from "@/lib/sorting";
 import { getItem, setItem } from "@/lib/storage";
-import { toolExportEndpoint } from "@/lib/tools";
+import { eventRoute, taskRoute, toolExportEndpoint, toolSettingsRoute } from "@/lib/tools";
 
 const STORAGE_KEY = "initiative-calendars-prefs";
 const VISIBILITY_KEY = "initiative-calendar-visibility";
@@ -159,8 +159,12 @@ export const CalendarsView = ({
   const gp = useGuildPath();
   const guildId = useActiveGuildId();
   const searchParams = useSearch({ strict: false }) as {
-    initiativeId?: string;
     create?: string;
+  };
+  // The focus route addresses its calendar inside an initiative, so the path
+  // is the fallback when this view isn't mounted as an initiative tab.
+  const { initiativeId: initiativeIdParam } = useParams({ strict: false }) as {
+    initiativeId?: string;
   };
 
   const weekStartsOn = (user?.week_starts_on ?? 0) as 0 | 1 | 2 | 3 | 4 | 5 | 6;
@@ -171,7 +175,7 @@ export const CalendarsView = ({
   // to no initiative, so none applies.
   const initiativeId = solo
     ? null
-    : (fixedInitiativeId ?? (searchParams.initiativeId ? Number(searchParams.initiativeId) : null));
+    : (fixedInitiativeId ?? (initiativeIdParam ? Number(initiativeIdParam) : null));
 
   const searchParamsRef = useRef(searchParams);
   searchParamsRef.current = searchParams;
@@ -392,7 +396,7 @@ export const CalendarsView = ({
         properties: event.property_values,
         tags: event.tags,
         draggable: event.my_permission_level === "write" || event.my_permission_level === "owner",
-        meta: { type: "event", eventId: event.id },
+        meta: { type: "event", eventId: event.id, calendarId: event.calendar_id },
       });
     }
 
@@ -437,8 +441,10 @@ export const CalendarsView = ({
         : null
   );
 
-  const handleEventCreated = (event: { id: number }) => {
-    void router.navigate({ to: gp(`/calendar-events/${event.id}`) });
+  const handleEventCreated = (event: { id: number; calendar_id: number }) => {
+    void router.navigate({
+      to: gp(eventRoute(initiativeId, event.calendar_id, event.id)),
+    });
   };
 
   const handleSlotClick = (date: Date) => {
@@ -448,12 +454,20 @@ export const CalendarsView = ({
   };
 
   const handleEntryClick = (entry: CalendarEntry) => {
-    const meta = entry.meta as { type: string; taskId?: number; eventId?: number } | undefined;
+    const meta = entry.meta as
+      | {
+          type: string;
+          taskId?: number;
+          projectId?: number;
+          eventId?: number;
+          calendarId?: number;
+        }
+      | undefined;
     if (!meta) return;
-    if (meta.type === "event" && meta.eventId) {
-      void router.navigate({ to: gp(`/calendar-events/${meta.eventId}`) });
-    } else if (meta.type === "task" && meta.taskId) {
-      void router.navigate({ to: gp(`/tasks/${meta.taskId}`) });
+    if (meta.type === "event" && meta.eventId && meta.calendarId) {
+      void router.navigate({ to: gp(eventRoute(initiativeId, meta.calendarId, meta.eventId)) });
+    } else if (meta.type === "task" && meta.taskId && meta.projectId) {
+      void router.navigate({ to: gp(taskRoute(initiativeId, meta.projectId, meta.taskId)) });
     }
   };
 
@@ -573,7 +587,9 @@ export const CalendarsView = ({
                   onToggleProject={(project) =>
                     setHiddenProjectIds((prev) => toggleInSet(prev, project.projectId))
                   }
-                  settingsPathFor={(calendar) => gp(`/calendars/${calendar.id}/settings`)}
+                  settingsPathFor={(calendar) =>
+                    gp(toolSettingsRoute(Tool.calendar, calendar.initiative_id, calendar.id))
+                  }
                   canCreate={canCreateCalendars}
                   onCreate={() => setCreateCalendarOpen(true)}
                 />

@@ -162,7 +162,7 @@ const strings = {
 function render(data, config, context) {
   // The viewer's language, and this module's own words in it. An older host
   // that passes no context leaves this at English rather than failing.
-  const lang = (context && context.locale) || "en";
+  const lang = context?.locale || "en";
   const say = (key) => {
     const entry = strings[key] || {};
     return entry[lang] || entry[lang.split("-")[0]] || entry.en || key;
@@ -189,7 +189,7 @@ function render(data, config, context) {
   const overdue = (value, isLate) =>
     markOverdue && isLate ? { value: value, tone: "negative" } : value;
 
-  const join = (list) => (list && list.length ? list.join(", ") : null);
+  const join = (list) => (list?.length ? list.join(", ") : null);
 
   switch (data.source) {
     case "tasks": {
@@ -340,7 +340,7 @@ function render(data, config, context) {
 
     case "sheet_range": {
       const range = data.range;
-      if (!range || !range.rows.length) return empty(say("rangeEmpty"));
+      if (!range?.rows.length) return empty(say("rangeEmpty"));
       // A sheet's own header row names the columns; keys are positional so a
       // duplicated or blank header can't collapse two columns into one.
       const columns = range.columns.slice(0, 12).map((label, index) => ({

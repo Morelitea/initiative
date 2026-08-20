@@ -160,9 +160,9 @@ describe("initiativeAppPath", () => {
 
   it("gives a manager a row inside their initiative", () => {
     const declaration = app([embed("runs", ["initiative"], "initiative_manager")]);
-    expect(initiativeAppPath(declaration, 4, MANAGER)).toBe("/initiatives/4/apps/7");
+    expect(initiativeAppPath(declaration, 4, MANAGER)).toBe("/i/4/apps/7");
     expect(initiativeAppPath(declaration, 4, MEMBER)).toBeNull();
-    expect(initiativeAppPath(declaration, 4, ADMIN)).toBe("/initiatives/4/apps/7");
+    expect(initiativeAppPath(declaration, 4, ADMIN)).toBe("/i/4/apps/7");
   });
 
   it("gives no row to an app with only a guild-wide surface", () => {
@@ -208,7 +208,7 @@ describe("placedIn", () => {
         embeds: [{ id: "runs", path: "/embed", name: { en: "Runs" }, scopes: ["initiative"] }],
       },
     };
-    expect(initiativeAppPath(app, 9, ADMIN)).toBe("/initiatives/9/apps/7");
+    expect(initiativeAppPath(app, 9, ADMIN)).toBe("/i/9/apps/7");
     expect(initiativeAppPath(app, 4, ADMIN)).toBeNull();
     expect(initiativeAppPath(app, 4, MANAGER)).toBeNull();
   });

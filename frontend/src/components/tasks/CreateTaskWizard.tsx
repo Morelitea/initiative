@@ -3,6 +3,7 @@ import { ChevronLeft, ListTodo, Loader2, Search, Zap } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { GuildAvatar } from "@/components/guilds/GuildSidebar";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +23,7 @@ import { guildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { hasWriteAccess } from "@/lib/permissions";
 import { getItem, removeItem, setItem } from "@/lib/storage";
+import { toolDetailRoute } from "@/lib/tools";
 
 // ── Module-level opener (same pattern as CommandCenter) ─────────────────────
 
@@ -248,7 +250,7 @@ export const CreateTaskWizard = () => {
       });
       setOpen(false);
       void router.navigate({
-        to: guildPath(gId, `/projects/${projectId}`),
+        to: guildPath(gId, toolDetailRoute(Tool.project, iId, projectId)),
         search: { create: "true" },
       });
     },

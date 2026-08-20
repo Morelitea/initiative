@@ -17,13 +17,20 @@ import { RelativeTime } from "@/components/ui/relative-time";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuilds } from "@/hooks/useGuilds";
 import { guildPath } from "@/lib/guildUrl";
+import { taskRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 interface ProjectActivitySidebarProps {
   projectId: number | null;
+  /** The initiative the open project belongs to — a task's URL names it, and
+   *  the feed rows carry only ids. */
+  initiativeId: number | null;
 }
 
-export const ProjectActivitySidebar = ({ projectId }: ProjectActivitySidebarProps) => {
+export const ProjectActivitySidebar = ({
+  projectId,
+  initiativeId,
+}: ProjectActivitySidebarProps) => {
   const { activeGuildId } = useGuilds();
   const guildId = useActiveGuildId();
   const { t } = useTranslation(["projects", "common"]);
@@ -136,7 +143,7 @@ export const ProjectActivitySidebar = ({ projectId }: ProjectActivitySidebarProp
                       <p className="text-foreground text-sm">
                         {t("activitySidebar.commentedOn")}{" "}
                         <Link
-                          to={gp(`/tasks/${entry.task_id}`)}
+                          to={gp(taskRoute(initiativeId, projectId as number, entry.task_id))}
                           className="font-medium hover:underline"
                         >
                           {entry.task_title}

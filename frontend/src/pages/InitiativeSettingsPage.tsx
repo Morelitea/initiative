@@ -34,7 +34,13 @@ import { useDeleteInitiative, useInitiatives, useUpdateInitiative } from "@/hook
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
-import { isToolEnabled, TOGGLEABLE_TOOLS, toolViewPermission } from "@/lib/tools";
+import {
+  INITIATIVES_ROUTE,
+  initiativeRoute,
+  isToolEnabled,
+  TOGGLEABLE_TOOLS,
+  toolViewPermission,
+} from "@/lib/tools";
 
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
@@ -117,7 +123,7 @@ export const InitiativeSettingsPage = () => {
   const deleteInitiative = useDeleteInitiative({
     onSuccess: () => {
       toast.success(t("settings.deleted"));
-      router.navigate({ to: gp("/initiatives") });
+      router.navigate({ to: gp(INITIATIVES_ROUTE) });
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "initiatives:settings.deleteError"));
@@ -173,7 +179,7 @@ export const InitiativeSettingsPage = () => {
   };
 
   if (!hasValidInitiativeId) {
-    return <Navigate to={gp("/initiatives")} replace />;
+    return <Navigate to={gp(INITIATIVES_ROUTE)} replace />;
   }
 
   if (initiativesQuery.isLoading || !initiativesQuery.data) {
@@ -189,7 +195,7 @@ export const InitiativeSettingsPage = () => {
     return (
       <div className="space-y-4">
         <Button variant="link" size="sm" asChild className="px-0">
-          <Link to={gp("/initiatives")}>{t("settings.backToInitiatives")}</Link>
+          <Link to={gp(INITIATIVES_ROUTE)}>{t("settings.backToInitiatives")}</Link>
         </Button>
         <div className="rounded-lg border p-6">
           <h1 className="font-semibold text-3xl tracking-tight">{t("settings.notFound")}</h1>
@@ -203,7 +209,7 @@ export const InitiativeSettingsPage = () => {
     return (
       <div className="space-y-4">
         <Button variant="link" size="sm" asChild className="px-0">
-          <Link to={gp(`/initiatives/${initiative.id}`)}>{t("settings.backToInitiative")}</Link>
+          <Link to={gp(initiativeRoute(initiative.id))}>{t("settings.backToInitiative")}</Link>
         </Button>
         <Card>
           <CardHeader>
@@ -221,7 +227,7 @@ export const InitiativeSettingsPage = () => {
         <BreadcrumbList>
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
-              <Link to={gp(`/initiatives/${initiative.id}`)}>{initiative.name}</Link>
+              <Link to={gp(initiativeRoute(initiative.id))}>{initiative.name}</Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />

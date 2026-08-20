@@ -18,6 +18,7 @@
  */
 
 import type { LocalizedText } from "@/api/appConnections";
+import { initiativeRoute } from "@/lib/tools";
 
 export interface AppEmbed {
   id: string;
@@ -138,6 +139,9 @@ export const guildAppPath = (
 ): string | null => {
   if (app.tool === "calendar") {
     const calendar = (app.artifacts ?? []).find((artifact) => artifact.type === "calendar");
+    // No `/i/` prefix on purpose: an app is installed per guild, and the
+    // calendar it mounts belongs to no initiative — the guild route is its
+    // real address, not a leftover.
     return calendar ? `/calendars/${calendar.id}` : null;
   }
   return appEmbeds(app.definition, "guild", viewer).length ? `/apps/${app.id}` : null;
@@ -157,6 +161,6 @@ export const initiativeAppPath = (
 ): string | null => {
   if (app.tool || !placedIn(app, initiativeId)) return null;
   return appEmbeds(app.definition, "initiative", viewer).length
-    ? `/initiatives/${initiativeId}/apps/${app.id}`
+    ? `${initiativeRoute(initiativeId)}/apps/${app.id}`
     : null;
 };

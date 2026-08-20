@@ -37,6 +37,7 @@ import {
 import { toast } from "@/lib/chesterToast";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
+import { eventSettingsRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
 
 const RSVP_LABEL_KEYS: Record<
   string,
@@ -134,7 +135,19 @@ const rsvpBadgeVariant = (
 
 export function EventDetailPage() {
   const { t } = useTranslation(["calendars", "common"]);
-  const { eventId } = useParams({ strict: false }) as { eventId: string };
+  const {
+    eventId,
+    calendarId: calendarIdParam,
+    initiativeId: initiativeIdParam,
+  } = useParams({ strict: false }) as {
+    eventId: string;
+    calendarId?: string;
+    initiativeId?: string;
+  };
+  // Both come from the path. `initiativeId` is absent on the guild-level
+  // calendar route, which is what makes those events resolve to a guild URL.
+  const initiativeId = initiativeIdParam ? Number(initiativeIdParam) : null;
+  const calendarId = calendarIdParam ? Number(calendarIdParam) : null;
   const parsedId = Number(eventId);
   const navigate = useNavigate();
   const gp = useGuildPath();
@@ -148,7 +161,13 @@ export function EventDetailPage() {
   const deleteEvent = useDeleteCalendarEvent({
     onSuccess: () => {
       toast.success(t("eventDeleted"));
-      void navigate({ to: gp("/calendars") });
+      void navigate({
+        to: gp(
+          calendarId == null
+            ? toolListRoute(Tool.calendar, initiativeId)
+            : toolDetailRoute(Tool.calendar, initiativeId, calendarId)
+        ),
+      });
     },
   });
 
@@ -185,7 +204,11 @@ export function EventDetailPage() {
 
   if (eventQuery.isError || !event) {
     const status = getHttpStatus(eventQuery.error);
-    const backTo = gp("/calendars");
+    const backTo = gp(
+      calendarId == null
+        ? toolListRoute(Tool.calendar, initiativeId)
+        : toolDetailRoute(Tool.calendar, initiativeId, calendarId)
+    );
     const backLabel = t("backToEvents");
 
     if (status === 403) {
@@ -216,14 +239,14 @@ export function EventDetailPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <ToolBreadcrumb
           tool={Tool.calendar}
-          initiativeId={event.initiative_id}
+          initiativeId={initiativeId}
           trail={[{ label: event.title }]}
         />
 
         <div className="flex items-center gap-2">
           {event.all_day && <Badge variant="secondary">{t("allDay")}</Badge>}
           <Button variant="ghost" size="sm" asChild>
-            <Link to={gp(`/calendar-events/${event.id}/settings`)}>
+            <Link to={gp(eventSettingsRoute(initiativeId, event.calendar_id, event.id))}>
               <Settings className="h-4 w-4" />
             </Link>
           </Button>

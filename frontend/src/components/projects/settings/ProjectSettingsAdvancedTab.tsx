@@ -2,7 +2,7 @@ import { Link, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
+import { type ProjectRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ProjectExportCard } from "@/components/projects/settings/ProjectExportCard";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +20,7 @@ import {
   useUpdateProject,
 } from "@/hooks/useProjects";
 import { useGuildPath } from "@/lib/guildUrl";
+import { toolDetailRoute, toolListRoute } from "@/lib/tools";
 
 interface ProjectSettingsAdvancedTabProps {
   project: ProjectRead;
@@ -52,7 +53,7 @@ export const ProjectSettingsAdvancedTab = ({
   const duplicateProject = useDuplicateProject({
     onSuccess: (data) => {
       setDuplicateMessage(t("settings.duplicate.duplicated"));
-      router.navigate({ to: gp(`/projects/${data.id}`) });
+      router.navigate({ to: gp(toolDetailRoute(Tool.project, data.initiative_id, data.id)) });
     },
   });
 
@@ -98,7 +99,9 @@ export const ProjectSettingsAdvancedTab = ({
             )}
             {project.is_template ? (
               <Button asChild variant="link" className="px-0">
-                <Link to={gp("/projects")}>{t("settings.templateStatus.viewAllTemplates")}</Link>
+                <Link to={gp(toolListRoute(Tool.project, project.initiative_id))}>
+                  {t("settings.templateStatus.viewAllTemplates")}
+                </Link>
               </Button>
             ) : null}
           </CardFooter>

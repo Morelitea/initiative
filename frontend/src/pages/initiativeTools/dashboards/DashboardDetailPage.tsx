@@ -18,14 +18,22 @@ import { useRecordRecentView } from "@/hooks/useRecents";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
-import { toolSettingsRoute } from "@/lib/tools";
+import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 export function DashboardDetailPage() {
   const { t } = useTranslation(["dashboards", "common"]);
-  const { guildId, dashboardId } = useParams({ strict: false }) as {
+  const {
+    guildId,
+    dashboardId,
+    initiativeId: initiativeIdParam,
+  } = useParams({ strict: false }) as {
     guildId: string;
     dashboardId: string;
+    initiativeId?: string;
   };
+  // The initiative comes from the path so the back-links still work when the
+  // entity itself failed to load.
+  const initiativeId = initiativeIdParam ? Number(initiativeIdParam) : null;
   const parsedId = Number(dashboardId);
   const gp = useGuildPath();
 
@@ -56,7 +64,7 @@ export function DashboardDetailPage() {
 
   if (dashboardQuery.isError) {
     const status = getHttpStatus(dashboardQuery.error);
-    const backTo = gp("/dashboards");
+    const backTo = gp(toolListRoute(Tool.dashboard, initiativeId));
     const backLabel = t("backToDashboards");
 
     if (status === 403) {
@@ -120,7 +128,7 @@ export function DashboardDetailPage() {
               {dashboard && (
                 <Button variant="outline" size="sm" asChild>
                   <Link
-                    to={gp(toolSettingsRoute(Tool.dashboard, dashboard.id))}
+                    to={gp(toolSettingsRoute(Tool.dashboard, initiativeId, dashboard.id))}
                     className="inline-flex items-center gap-2"
                   >
                     <Settings className="h-4 w-4" />

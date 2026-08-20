@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
+import { normalizeLegacyTarget } from "@/lib/entityResolver";
 import { guildPath, isGuildScopedPath } from "@/lib/guildUrl";
 
 const normalizeTarget = (raw: string): string => {
@@ -13,7 +14,10 @@ const normalizeTarget = (raw: string): string => {
   if (!decoded) {
     return "/";
   }
-  return decoded.startsWith("/") ? decoded : `/${decoded}`;
+  const path = decoded.startsWith("/") ? decoded : `/${decoded}`;
+  // Smart links minted before tools were addressed inside their initiative are
+  // still arriving from stored notification rows; map them onto the resolver.
+  return normalizeLegacyTarget(path);
 };
 
 export const NavigatePage = () => {

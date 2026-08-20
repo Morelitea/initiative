@@ -1,6 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
-import type { MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -17,7 +16,7 @@ import { toolCreateLabelKey, toolCreateTarget } from "@/lib/tools";
  */
 export function useToolCreate(tool: Tool, initiativeId: number) {
   const gp = useGuildPath();
-  const navigate = useNavigate();
+  const _navigate = useNavigate();
   const { t } = useTranslation("nav");
 
   const target = toolCreateTarget(tool, initiativeId);

@@ -90,12 +90,15 @@ export const useProjectCountsByInitiative = (
   });
 };
 
-export const useTemplateProjects = () => {
-  return useProjects({ template: true });
+/** Templates in one initiative, or across every one the caller can see. The
+ *  Templates and Archive tabs sit on an initiative-scoped page, so they narrow
+ *  the same way the active list does. */
+export const useTemplateProjects = (initiativeId?: number | null) => {
+  return useProjects({ template: true, ...(initiativeId ? { initiative_id: initiativeId } : {}) });
 };
 
-export const useArchivedProjects = () => {
-  return useProjects({ archived: true });
+export const useArchivedProjects = (initiativeId?: number | null) => {
+  return useProjects({ archived: true, ...(initiativeId ? { initiative_id: initiativeId } : {}) });
 };
 
 export const useProject = (projectId: number | null, options?: QueryOpts<ProjectRead>) => {

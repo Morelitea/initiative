@@ -25,7 +25,7 @@ import { RelativeTime } from "@/components/ui/relative-time";
 import type { GuildToolRow } from "@/hooks/useGuildToolRows";
 import { useGuildPath } from "@/lib/guildUrl";
 import type { AppColumnDef } from "@/lib/table";
-import { toolCamelPlural } from "@/lib/tools";
+import { initiativeRoute, toolCamelPlural } from "@/lib/tools";
 
 /** The leaf keys under `guildHome.columns.detail` — one per tool. */
 type DetailColumnKey = Extract<ParseKeys<"guildHome">, `columns.detail.${string}`>;
@@ -65,7 +65,7 @@ const InitiativeCell = ({
     return <span className="text-muted-foreground text-sm">—</span>;
   }
   return (
-    <Link to={gp(`/initiatives/${initiative.id}`)} className="text-sm hover:underline">
+    <Link to={gp(initiativeRoute(initiative.id))} className="text-sm hover:underline">
       {initiative.name}
     </Link>
   );

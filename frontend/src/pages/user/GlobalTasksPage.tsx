@@ -28,6 +28,7 @@ import { useProperties } from "@/hooks/useProperties";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { guildPath, useGuildPath } from "@/lib/guildUrl";
 import { getProjectColor } from "@/lib/projectColor";
+import { entityRefRoute, taskRoute } from "@/lib/tools";
 import type { TranslateFn } from "@/types/i18n";
 
 export type GlobalTasksPageProps = {
@@ -153,9 +154,16 @@ export const GlobalTasksPage = ({
   }, [table.displayTasks]);
 
   const handleEntryClick = (entry: CalendarEntry) => {
-    const meta = entry.meta as { taskId?: number; guildId?: number } | undefined;
+    const meta = entry.meta as
+      | { taskId?: number; projectId?: number; initiativeId?: number | null; guildId?: number }
+      | undefined;
     if (!meta?.taskId) return;
-    const path = `/tasks/${meta.taskId}`;
+    // A task's URL names its project and initiative. This page spans guilds, so
+    // a row that didn't carry them resolves through `/go` instead of guessing.
+    const path =
+      meta.projectId != null && meta.initiativeId != null
+        ? taskRoute(meta.initiativeId, meta.projectId, meta.taskId)
+        : entityRefRoute("task", meta.taskId);
     void navigate({ to: meta.guildId ? guildPath(meta.guildId, path) : gp(path) });
   };
 

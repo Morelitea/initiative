@@ -15,8 +15,11 @@ import { Download, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { MarketplaceListingDetail, Tool } from "@/api/generated/initiativeAPI.schemas";
-import { Tool as ToolEnum } from "@/api/generated/initiativeAPI.schemas";
+import {
+  type MarketplaceListingDetail,
+  Tool,
+  Tool as ToolEnum,
+} from "@/api/generated/initiativeAPI.schemas";
 import { ListingProvenance } from "@/components/marketplace/ListingProvenance";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,6 +44,7 @@ import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
+import { toolDetailRoute } from "@/lib/tools";
 import type { DialogProps } from "@/types/dialog";
 
 export interface InstallListingDialogProps extends DialogProps {
@@ -84,7 +88,9 @@ export function InstallListingDialog({
         onSuccess: (dashboard) => {
           toast.success(t("marketplace:install.done", { name: dashboard.name }));
           onOpenChange(false);
-          navigate({ to: gp(`/dashboards/${dashboard.id}`) });
+          navigate({
+            to: gp(toolDetailRoute(Tool.dashboard, dashboard.initiative_id, dashboard.id)),
+          });
         },
         onError: (error) => {
           toast.error(getErrorMessage(error, "marketplace:install.failed"));

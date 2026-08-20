@@ -41,11 +41,22 @@ import { getHttpStatus } from "@/lib/errorMessage";
 import { exportFilenameStem } from "@/lib/exportDownload";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
-import { toolExportEndpoint } from "@/lib/tools";
+import { toolExportEndpoint, toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 export function QueueDetailPage() {
   const { t } = useTranslation(["queues", "common"]);
-  const { guildId, queueId } = useParams({ strict: false }) as { guildId: string; queueId: string };
+  const {
+    guildId,
+    queueId,
+    initiativeId: initiativeIdParam,
+  } = useParams({ strict: false }) as {
+    guildId: string;
+    queueId: string;
+    initiativeId?: string;
+  };
+  // The initiative comes from the path so the back-links still work when the
+  // entity itself failed to load.
+  const initiativeId = initiativeIdParam ? Number(initiativeIdParam) : null;
   const parsedId = Number(queueId);
   const gp = useGuildPath();
 
@@ -155,7 +166,7 @@ export function QueueDetailPage() {
 
   if (queueQuery.isError || !queue) {
     const status = getHttpStatus(queueQuery.error);
-    const backTo = gp("/queues");
+    const backTo = gp(toolListRoute(Tool.queue, initiativeId));
     const backLabel = t("backToQueues");
 
     if (status === 403) {
@@ -205,7 +216,7 @@ export function QueueDetailPage() {
           {canEdit && (
             <Button variant="outline" size="sm" asChild>
               <Link
-                to={gp(`/queues/${queue.id}/settings`)}
+                to={gp(toolSettingsRoute(Tool.queue, initiativeId, queue.id))}
                 className="inline-flex items-center gap-2"
               >
                 <Settings className="h-4 w-4" />
