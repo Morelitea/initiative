@@ -9,6 +9,7 @@ import json
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
@@ -30,6 +31,11 @@ async def _create_task(session, project, title="Test Task", *, created_by_id=Non
     the content RLS regardless of who ``created_by_id`` is — the test may attribute
     a task to a non-member or to nobody (legacy), which the actor's write access,
     not the attributee's, governs.
+
+    ``created_by_id=None`` means "a row from before the column existed". The
+    ORM write path stamps the routed user onto anything unattributed, so such a
+    row has to be made the way the real ones survive: with a statement that
+    never reaches a flush.
     """
     from app.db.session import set_rls_context
     from app.services.tenant import task_statuses as task_statuses_service
@@ -51,6 +57,11 @@ async def _create_task(session, project, title="Test Task", *, created_by_id=Non
     )
     session.add(task)
     await session.commit()
+    if created_by_id is None:
+        await session.exec(
+            update(Task).where(Task.id == task.id).values(created_by_id=None)
+        )
+        await session.commit()
     await session.refresh(task)
     return task
 
