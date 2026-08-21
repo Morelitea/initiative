@@ -83,7 +83,13 @@ describe("initiative route resolution", () => {
     "/g/1/dashboards",
     "/g/1/counter-groups",
     "/g/1/calendars",
-  ])("no longer serves the guild-wide list %s", (path) => {
+    // Sub-entities moved under their parent tool in the same change.
+    "/g/1/tasks/4",
+    "/g/1/calendar-events/8",
+    // The initiatives tree answers at /i now.
+    "/g/1/initiatives",
+    "/g/1/initiatives/5",
+  ])("no longer serves %s", (path) => {
     expect(resolvedRouteId(path)).toBe(GUILD);
   });
 });
