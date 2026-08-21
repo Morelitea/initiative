@@ -49,6 +49,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useAuth } from "@/hooks/useAuth";
+import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useComments } from "@/hooks/useComments";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuilds } from "@/hooks/useGuilds";
@@ -138,18 +139,10 @@ type MoveTaskVariables = {
 };
 
 export const TaskEditPage = () => {
-  const {
-    taskId,
-    projectId: projectIdParam,
-    initiativeId: initiativeIdParam,
-  } = useParams({ strict: false }) as {
+  const { taskId, projectId: projectIdParam } = useParams({ strict: false }) as {
     taskId: string;
     projectId?: string;
-    initiativeId?: string;
   };
-  // Both come from the path, so the back-links resolve before the task loads
-  // and still work if it fails to.
-  const initiativeId = initiativeIdParam ? Number(initiativeIdParam) : null;
   const parsedTaskId = Number(taskId);
   const router = useRouter();
   const guildId = useActiveGuildId();
@@ -395,6 +388,9 @@ export const TaskEditPage = () => {
   };
 
   const project = projectQuery.data;
+  // A task's initiative is its project's. The path supplies it while that
+  // loads, and a URL naming a different one is corrected in place.
+  const initiativeId = useCanonicalInitiativeId(project?.initiative_id);
 
   // Creator metadata for the inline "Created by …" chip in the title row.
   // The creator summary rides the task read payload; fall back to

@@ -17,6 +17,7 @@ import { StatusMessage } from "@/components/StatusMessage";
 import { clearLastUsedProject } from "@/components/tasks/CreateTaskWizard";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Button } from "@/components/ui/button";
+import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useProject, useProjectTaskStatuses } from "@/hooks/useProjects";
 import { useRecordRecentView } from "@/hooks/useRecents";
@@ -27,18 +28,10 @@ import { taskRoute, toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 export const ProjectDetailPage = () => {
   const { t } = useTranslation("projects");
-  const {
-    guildId,
-    projectId,
-    initiativeId: initiativeIdParam,
-  } = useParams({ strict: false }) as {
+  const { guildId, projectId } = useParams({ strict: false }) as {
     guildId: string;
     projectId: string;
-    initiativeId?: string;
   };
-  // The initiative comes from the path so the back-links still work when the
-  // entity itself failed to load.
-  const initiativeId = initiativeIdParam ? Number(initiativeIdParam) : null;
   const router = useRouter();
   const { permissionsFor } = useInitiativeAccess();
   const gp = useGuildPath();
@@ -85,6 +78,10 @@ export const ProjectDetailPage = () => {
   }, [viewedProjectId, recordViewMutation.mutate]);
 
   const project = projectQuery.data;
+  // The path supplies the initiative while this loads, but the entity is the
+  // authority once it arrives — a URL naming a different one is corrected
+  // rather than left to build links into an initiative it isn't in.
+  const initiativeId = useCanonicalInitiativeId(project?.initiative_id);
   const projectName = project?.name;
   useEffect(() => {
     if (typeof document === "undefined" || !projectName) {

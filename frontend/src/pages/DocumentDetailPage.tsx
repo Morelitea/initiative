@@ -98,6 +98,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useAuth } from "@/hooks/useAuth";
+import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useCollaboration } from "@/hooks/useCollaboration";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
@@ -127,18 +128,10 @@ const AttachedProjectTime = ({ attachedAt }: { attachedAt: string }) => {
 
 export const DocumentDetailPage = () => {
   const { t } = useTranslation(["documents", "properties", "common"]);
-  const {
-    guildId: guildIdParam,
-    documentId,
-    initiativeId: initiativeIdParam,
-  } = useParams({ strict: false }) as {
+  const { guildId: guildIdParam, documentId } = useParams({ strict: false }) as {
     guildId: string;
     documentId: string;
-    initiativeId?: string;
   };
-  // The initiative comes from the path so the back-links still work when the
-  // entity itself failed to load.
-  const initiativeId = initiativeIdParam ? Number(initiativeIdParam) : null;
   const parsedId = Number(documentId);
   const navigate = useNavigate();
   const setDocumentCache = useSetDocumentCache();
@@ -248,6 +241,10 @@ export const DocumentDetailPage = () => {
   });
 
   const document = documentQuery.data;
+  // The path supplies the initiative while this loads, but the entity is the
+  // authority once it arrives — a URL naming a different one is corrected
+  // rather than left to build links into an initiative it isn't in.
+  const initiativeId = useCanonicalInitiativeId(document?.initiative_id);
   const relativeUpdatedAt = useRelativeTime(document?.updated_at);
 
   // Track recently viewed documents so the layout header tabs bar can surface

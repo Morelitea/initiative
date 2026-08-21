@@ -370,16 +370,11 @@ export const useToggleProjectFavorite = (
     },
     onSuccess: (...args) => {
       const data = args[0];
-      qc.setQueryData<ProjectListResponse>(
-        getListProjectsApiV1GGuildIdProjectsGetQueryKey(guildId),
-        (prev) => updateProjectListFavorite(prev, data)
-      );
-      qc.setQueryData<ProjectListResponse>(
-        getListProjectsApiV1GGuildIdProjectsGetQueryKey(guildId, { template: true }),
-        (prev) => updateProjectListFavorite(prev, data)
-      );
-      qc.setQueryData<ProjectListResponse>(
-        getListProjectsApiV1GGuildIdProjectsGetQueryKey(guildId, { archived: true }),
+      // Every cached project list, whatever it was narrowed by — the keys carry
+      // an initiative and a page now, so naming them one by one silently misses
+      // the list the reader is actually looking at.
+      qc.setQueriesData<ProjectListResponse>(
+        { queryKey: getListProjectsApiV1GGuildIdProjectsGetQueryKey(guildId) },
         (prev) => updateProjectListFavorite(prev, data)
       );
       qc.setQueryData<ProjectRead>(
@@ -427,16 +422,9 @@ export const useToggleProjectPin = (options?: MutationOpts<ProjectRead, TogglePi
     },
     onSuccess: (...args) => {
       const data = args[0];
-      qc.setQueryData<ProjectListResponse>(
-        getListProjectsApiV1GGuildIdProjectsGetQueryKey(guildId),
-        (prev) => replaceProjectInList(prev, data)
-      );
-      qc.setQueryData<ProjectListResponse>(
-        getListProjectsApiV1GGuildIdProjectsGetQueryKey(guildId, { template: true }),
-        (prev) => replaceProjectInList(prev, data)
-      );
-      qc.setQueryData<ProjectListResponse>(
-        getListProjectsApiV1GGuildIdProjectsGetQueryKey(guildId, { archived: true }),
+      // See useToggleProjectFavorite: match the endpoint, not one exact shape.
+      qc.setQueriesData<ProjectListResponse>(
+        { queryKey: getListProjectsApiV1GGuildIdProjectsGetQueryKey(guildId) },
         (prev) => replaceProjectInList(prev, data)
       );
       qc.setQueryData<ProjectRead>(

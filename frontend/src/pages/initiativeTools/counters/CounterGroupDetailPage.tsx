@@ -42,6 +42,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import {
   useCounterGroup,
   useDeleteCounter,
@@ -78,19 +79,11 @@ export function CounterGroupDetailPage() {
   const { t } = useTranslation(["counterGroups", "common"]);
   const router = useRouter();
   const gp = useGuildPath();
-  const {
-    guildId,
-    counterGroupId: groupIdParam,
-    initiativeId: initiativeIdParam,
-  } = useParams({ strict: false }) as {
+  const { guildId, counterGroupId: groupIdParam } = useParams({ strict: false }) as {
     guildId: string;
     counterGroupId?: string;
-    initiativeId?: string;
   };
   const groupId = groupIdParam ? Number(groupIdParam) : null;
-  // The initiative comes from the path so the back-links still work when the
-  // entity itself failed to load.
-  const initiativeId = initiativeIdParam ? Number(initiativeIdParam) : null;
 
   const groupQuery = useCounterGroup(groupId);
   useCounterGroupRealtime(groupId);
@@ -126,6 +119,10 @@ export function CounterGroupDetailPage() {
   };
 
   const group = groupQuery.data;
+  // The path supplies the initiative while this loads, but the entity is the
+  // authority once it arrives — a URL naming a different one is corrected
+  // rather than left to build links into an initiative it isn't in.
+  const initiativeId = useCanonicalInitiativeId(group?.initiative_id);
   const counters = useMemo(() => {
     const list = group?.counters ?? [];
     return [...list].sort((a, b) => Number(a.position) - Number(b.position));

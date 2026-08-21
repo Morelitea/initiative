@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import {
   useAdvanceTurn,
   useHoldCurrent,
@@ -45,23 +46,19 @@ import { toolExportEndpoint, toolListRoute, toolSettingsRoute } from "@/lib/tool
 
 export function QueueDetailPage() {
   const { t } = useTranslation(["queues", "common"]);
-  const {
-    guildId,
-    queueId,
-    initiativeId: initiativeIdParam,
-  } = useParams({ strict: false }) as {
+  const { guildId, queueId } = useParams({ strict: false }) as {
     guildId: string;
     queueId: string;
-    initiativeId?: string;
   };
-  // The initiative comes from the path so the back-links still work when the
-  // entity itself failed to load.
-  const initiativeId = initiativeIdParam ? Number(initiativeIdParam) : null;
   const parsedId = Number(queueId);
   const gp = useGuildPath();
 
   const queueQuery = useQueue(Number.isFinite(parsedId) ? parsedId : null);
   const queue = queueQuery.data;
+  // The path supplies the initiative while this loads, but the entity is the
+  // authority once it arrives — a URL naming a different one is corrected
+  // rather than left to build links into an initiative it isn't in.
+  const initiativeId = useCanonicalInitiativeId(queue?.initiative_id);
 
   // Track recently viewed queues for the layout header tabs bar.
   const recordViewMutation = useRecordRecentView("queue", Number(guildId));

@@ -45,6 +45,7 @@ import {
   useSetEventTags,
   useUpdateCalendarEvent,
 } from "@/hooks/useCalendarEvents";
+import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
 import { eventRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
@@ -53,21 +54,17 @@ export function EventSettingsPage() {
   const { t } = useTranslation(["calendars", "common", "access"]);
   const router = useRouter();
   const gp = useGuildPath();
-  const {
-    eventId: eventIdParam,
-    calendarId: calendarIdParam,
-    initiativeId: initiativeIdParam,
-  } = useParams({ strict: false }) as {
+  const { eventId: eventIdParam, calendarId: calendarIdParam } = useParams({ strict: false }) as {
     eventId?: string;
     calendarId?: string;
-    initiativeId?: string;
   };
   const eventId = Number(eventIdParam);
-  // From the path: absent `initiativeId` means a guild-level calendar.
-  const initiativeId = initiativeIdParam ? Number(initiativeIdParam) : null;
   const calendarId = calendarIdParam ? Number(calendarIdParam) : null;
 
   const { data: event, isLoading } = useCalendarEvent(Number.isFinite(eventId) ? eventId : null);
+  // The path supplies the initiative while this loads; the event is the
+  // authority once it arrives, and null is a guild-level calendar's address.
+  const initiativeId = useCanonicalInitiativeId(event?.initiative_id);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");

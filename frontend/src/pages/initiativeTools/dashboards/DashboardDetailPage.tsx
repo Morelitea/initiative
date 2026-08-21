@@ -12,6 +12,7 @@ import { StatusMessage } from "@/components/StatusMessage";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useDashboardEditor } from "@/hooks/useDashboardEditor";
 import { useDashboard, useWidgetCatalog } from "@/hooks/useDashboards";
 import { useRecordRecentView } from "@/hooks/useRecents";
@@ -22,23 +23,19 @@ import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 export function DashboardDetailPage() {
   const { t } = useTranslation(["dashboards", "common"]);
-  const {
-    guildId,
-    dashboardId,
-    initiativeId: initiativeIdParam,
-  } = useParams({ strict: false }) as {
+  const { guildId, dashboardId } = useParams({ strict: false }) as {
     guildId: string;
     dashboardId: string;
-    initiativeId?: string;
   };
-  // The initiative comes from the path so the back-links still work when the
-  // entity itself failed to load.
-  const initiativeId = initiativeIdParam ? Number(initiativeIdParam) : null;
   const parsedId = Number(dashboardId);
   const gp = useGuildPath();
 
   const dashboardQuery = useDashboard(Number.isFinite(parsedId) ? parsedId : null);
   const dashboard = dashboardQuery.data;
+  // The path supplies the initiative while this loads, but the entity is the
+  // authority once it arrives — a URL naming a different one is corrected
+  // rather than left to build links into an initiative it isn't in.
+  const initiativeId = useCanonicalInitiativeId(dashboard?.initiative_id);
 
   // Track recently viewed dashboards for the layout header tabs bar — only
   // once the read succeeds (access checks passed).

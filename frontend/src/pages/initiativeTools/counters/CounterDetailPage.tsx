@@ -25,6 +25,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import {
   useCounterGroup,
   useResetCounter,
@@ -49,18 +50,15 @@ export function CounterDetailPage() {
     guildId,
     counterGroupId: groupIdParam,
     counterId: counterIdParam,
-    initiativeId: initiativeIdParam,
   } = useParams({
     strict: false,
   }) as {
     guildId?: string;
     counterGroupId?: string;
     counterId?: string;
-    initiativeId?: string;
   };
 
   const groupId = groupIdParam ? Number(groupIdParam) : null;
-  const initiativeId = initiativeIdParam ? Number(initiativeIdParam) : null;
   const counterId = counterIdParam ? Number(counterIdParam) : null;
 
   const groupQuery = useCounterGroup(groupId);
@@ -75,6 +73,9 @@ export function CounterDetailPage() {
   const [touchStartY, setTouchStartY] = useState<number | null>(null);
 
   const group = groupQuery.data;
+  // The path supplies the initiative while this loads; the entity is the
+  // authority once it arrives, and a URL naming a different one is corrected.
+  const initiativeId = useCanonicalInitiativeId(group?.initiative_id);
   const counters = useMemo(() => {
     const list = group?.counters ?? [];
     return [...list].sort((a, b) => Number(a.position) - Number(b.position));

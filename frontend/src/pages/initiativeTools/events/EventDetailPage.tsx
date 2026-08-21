@@ -34,6 +34,7 @@ import {
   useDeleteCalendarEvent,
   useUpdateEventRSVP,
 } from "@/hooks/useCalendarEvents";
+import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { toast } from "@/lib/chesterToast";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -135,18 +136,10 @@ const rsvpBadgeVariant = (
 
 export function EventDetailPage() {
   const { t } = useTranslation(["calendars", "common"]);
-  const {
-    eventId,
-    calendarId: calendarIdParam,
-    initiativeId: initiativeIdParam,
-  } = useParams({ strict: false }) as {
+  const { eventId, calendarId: calendarIdParam } = useParams({ strict: false }) as {
     eventId: string;
     calendarId?: string;
-    initiativeId?: string;
   };
-  // Both come from the path. `initiativeId` is absent on the guild-level
-  // calendar route, which is what makes those events resolve to a guild URL.
-  const initiativeId = initiativeIdParam ? Number(initiativeIdParam) : null;
   const calendarId = calendarIdParam ? Number(calendarIdParam) : null;
   const parsedId = Number(eventId);
   const navigate = useNavigate();
@@ -155,6 +148,9 @@ export function EventDetailPage() {
 
   const eventQuery = useCalendarEvent(Number.isFinite(parsedId) ? parsedId : null);
   const event = eventQuery.data;
+  // The path supplies the initiative while this loads; the entity is the
+  // authority once it arrives, and a URL naming a different one is corrected.
+  const initiativeId = useCanonicalInitiativeId(event?.initiative_id);
 
   // Delete event
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
