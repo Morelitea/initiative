@@ -137,7 +137,7 @@ class QueueSummary(QueueBase):
     id: int
     initiative_id: int
     guild_id: int
-    created_by_id: int
+    created_by: int
     current_round: int
     is_active: bool
     item_count: int = 0
@@ -236,7 +236,7 @@ def serialize_queue_summary(
         description=queue.description,
         initiative_id=queue.initiative_id,
         guild_id=queue.guild_id,
-        created_by_id=queue.created_by_id,
+        created_by=queue.created_by,
         current_round=queue.current_round,
         is_active=queue.is_active,
         item_count=len(items),

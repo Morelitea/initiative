@@ -252,7 +252,7 @@ def _resolve_owner_id(row: Any) -> Optional[int]:
     for g in getattr(row, "grants", None) or []:
         if g.user_id is not None and g.level == ResourceAccessLevel.owner:
             return g.user_id
-    return getattr(row, "owner_id", None) or getattr(row, "created_by_id", None)
+    return getattr(row, "owner_id", None) or getattr(row, "created_by", None)
 
 
 async def set_resource_grants(

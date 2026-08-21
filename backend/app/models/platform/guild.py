@@ -47,7 +47,7 @@ class Guild(SQLModel, table=True):
     icon_base64: Optional[str] = Field(
         default=None, sa_column=Column(Text, nullable=True)
     )
-    created_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    created_by: Optional[int] = Field(default=None, foreign_key="users.id")
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -154,7 +154,7 @@ class GuildInvite(SQLModel, table=True):
     code: str = Field(index=True, unique=True, nullable=False, max_length=64)
     guild_id: int = Field(foreign_key="guilds.id", ondelete="CASCADE", nullable=False)
     # The invite outlives the admin who issued it.
-    created_by_user_id: Optional[int] = Field(
+    created_by: Optional[int] = Field(
         foreign_key="users.id", ondelete="SET NULL", nullable=True
     )
     expires_at: Optional[datetime] = Field(

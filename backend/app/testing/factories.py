@@ -203,7 +203,7 @@ async def create_guild(
     defaults = {
         "name": f"Test Guild {datetime.now(timezone.utc).timestamp()}",
         "description": "A test guild for integration testing",
-        "created_by_user_id": creator.id,
+        "created_by": creator.id,
     }
 
     guild_data = {**defaults, **overrides}
@@ -581,7 +581,7 @@ async def create_queue(
         "description": "A test queue",
         "initiative_id": initiative.id,
         "guild_id": initiative.guild_id,
-        "created_by_id": creator.id,
+        "created_by": creator.id,
     }
 
     queue_data = {**defaults, **overrides}
@@ -865,7 +865,7 @@ async def create_calendar(
     defaults = {
         "guild_id": initiative.guild_id,
         "initiative_id": initiative.id,
-        "created_by_id": creator.id,
+        "created_by": creator.id,
         "name": name or f"Calendar {datetime.now(timezone.utc).timestamp()}",
     }
 
@@ -924,7 +924,7 @@ async def create_guild_calendar(
         **{
             "guild_id": guild.id,
             "initiative_id": None,
-            "created_by_id": creator.id,
+            "created_by": creator.id,
             "name": name or "Guild calendar",
             **overrides,
         }
@@ -989,7 +989,7 @@ async def create_guild_app(
             "app_kind": definition.get("app_kind", "service"),
             "name": name,
             "definition": definition,
-            "installed_by_id": creator.id,
+            "created_by": creator.id,
             **overrides,
         }
     )
@@ -1166,7 +1166,7 @@ async def create_dashboard(
     defaults = {
         "guild_id": initiative.guild_id,
         "initiative_id": initiative.id,
-        "created_by_id": creator.id,
+        "created_by": creator.id,
         "name": name or f"Dashboard {datetime.now(timezone.utc).timestamp()}",
         "definition": definition
         if definition is not None
@@ -1238,7 +1238,7 @@ async def create_calendar_event(
     defaults = {
         "guild_id": calendar.guild_id,
         "calendar_id": calendar.id,
-        "created_by_id": creator.id,
+        "created_by": creator.id,
         "title": title or f"Event {now.timestamp()}",
         "start_at": now,
         "end_at": now + timedelta(hours=1),
@@ -1305,8 +1305,7 @@ async def create_document(
         "initiative_id": initiative.id,
         "title": title or f"Test Document {datetime.now(timezone.utc).timestamp()}",
         "document_type": DocumentType.native,
-        "created_by_id": creator.id,
-        "updated_by_id": creator.id,
+        "created_by": creator.id,
     }
     document = Document(**{**defaults, **overrides})
     session.add(document)
@@ -1352,7 +1351,7 @@ async def create_comment(
     defaults = {
         "guild_id": parent.guild_id,
         "content": content,
-        "author_id": author.id,
+        "created_by": author.id,
         "task_id": task.id if task else None,
         "document_id": document.id if document else None,
     }
@@ -1463,7 +1462,7 @@ async def create_counter_group(
         "guild_id": initiative.guild_id,
         "initiative_id": initiative.id,
         "name": name or f"Test Counters {datetime.now(timezone.utc).timestamp()}",
-        "created_by_id": creator.id,
+        "created_by": creator.id,
     }
     group = CounterGroup(**{**defaults, **overrides})
     session.add(group)
@@ -1527,7 +1526,7 @@ async def create_upload(
 
     defaults = {
         "guild_id": guild.id,
-        "uploader_user_id": uploader.id,
+        "created_by": uploader.id,
         "filename": filename or f"file-{datetime.now(timezone.utc).timestamp()}.txt",
         "size_bytes": 1,
     }

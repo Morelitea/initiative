@@ -70,7 +70,7 @@ async def test_create_calendar(client: AsyncClient, acting_user, session):
     assert data["description"] == "Weekly schedule"
     assert data["color"] == "#7c3aed"
     assert data["initiative_id"] == a.initiative.id
-    assert data["created_by_id"] == a.user.id
+    assert data["created_by"] == a.user.id
     assert data["my_permission_level"] == "owner"
     grant_shapes = {
         (g["level"], g["all_initiative_members"], g["user_id"]) for g in data["grants"]

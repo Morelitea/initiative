@@ -379,7 +379,7 @@ def build_calendar_events(
     content: str,
     calendar_id: int,
     guild_id: int,
-    created_by_id: int,
+    created_by: int,
 ) -> Tuple[List[CalendarEvent], List[str], int]:
     """Parse .ics content and build CalendarEvent model instances attached to
     the target calendar.
@@ -413,7 +413,7 @@ def build_calendar_events(
                 recurrence=json.dumps(data["recurrence"])
                 if data["recurrence"]
                 else None,
-                created_by_id=created_by_id,
+                created_by=created_by,
             )
             events.append(event)
         except Exception as exc:

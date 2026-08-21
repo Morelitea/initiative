@@ -549,7 +549,7 @@ def _task_to_list_read(task: Task) -> TaskListRead:
         completed_at=task.completed_at,
         position=task.position,
         is_archived=task.is_archived,
-        created_by_id=task.created_by_id,
+        created_by=task.created_by,
         assignees=assignees,
         recurrence_occurrence_count=task.recurrence_occurrence_count,
         comment_count=getattr(task, "comment_count", 0),
@@ -864,7 +864,7 @@ async def _advance_recurrence_if_needed(
         recurrence_strategy=strategy,
         position=await _next_position(session, task.project_id),
         recurrence_occurrence_count=task.recurrence_occurrence_count + 1,
-        created_by_id=task.created_by_id,
+        created_by=task.created_by,
     )
     sync_completed_at(new_task, default_status.category, now=now)
     session.add(new_task)
@@ -1166,7 +1166,7 @@ async def _list_global_created_tasks(
     field set as the guild-scoped list), so any Task field filters here too.
     """
     base_conditions = [
-        Task.created_by_id == current_user.id,
+        Task.created_by == current_user.id,
         Project.is_archived.is_(False),
         Project.is_template.is_(False),
     ]
@@ -1904,7 +1904,7 @@ async def create_task(
         **task_data,
         position=position,
         task_status_id=selected_status.id,
-        created_by_id=current_user.id,
+        created_by=current_user.id,
     )
     sync_completed_at(task, selected_status.category, now=datetime.now(timezone.utc))
     session.add(task)
@@ -2282,7 +2282,7 @@ async def duplicate_task(
         recurrence=original_task.recurrence,
         recurrence_strategy=original_task.recurrence_strategy,
         position=position,
-        created_by_id=current_user.id,
+        created_by=current_user.id,
     )
     # The copy keeps the source's status, so a duplicated done task is complete
     # from the moment it exists — stamped now, not inherited: the copy was not

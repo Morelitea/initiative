@@ -369,7 +369,7 @@ async def import_ical_events(
             content=body.ics_content,
             calendar_id=calendar.id,
             guild_id=guild_context.guild_id,
-            created_by_id=current_user.id,
+            created_by=current_user.id,
         )
     except Exception:
         raise HTTPException(
@@ -598,7 +598,7 @@ async def create_calendar_event(
     event = CalendarEvent(
         guild_id=guild_context.guild_id,
         calendar_id=event_in.calendar_id,
-        created_by_id=current_user.id,
+        created_by=current_user.id,
         title=event_in.title.strip(),
         description=event_in.description,
         location=event_in.location,
@@ -872,8 +872,8 @@ async def update_rsvp(
     attendee.rsvp_status = rsvp_in.rsvp_status
     session.add(attendee)
 
-    if event.created_by_id != current_user.id:
-        organizers = await _fetch_users(session, [event.created_by_id])
+    if event.created_by != current_user.id:
+        organizers = await _fetch_users(session, [event.created_by])
         if organizers:
             await notifications_service.notify_event_rsvp(
                 session,

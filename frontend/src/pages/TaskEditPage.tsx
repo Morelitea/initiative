@@ -402,8 +402,8 @@ export const TaskEditPage = () => {
     const anonymized = isAnonymizedUser(creator);
     const displayName = creator
       ? getUserDisplayName(creator)
-      : task.created_by_id != null
-        ? `User #${task.created_by_id}`
+      : task.created_by != null
+        ? `User #${task.created_by}`
         : null;
     const avatarSrc = creator && !anonymized ? getAvatarSrc(creator) : undefined;
     return {
@@ -414,7 +414,7 @@ export const TaskEditPage = () => {
       initials: getInitialsForUser(creator),
       creatorId: creator?.id ?? null,
     };
-  }, [task?.created_at, task?.created_by_id, creator]);
+  }, [task?.created_at, task?.created_by, creator]);
 
   // The relative "N ago" label refreshes in place via the shared clock; the
   // absolute date never changes so it's formatted inline.

@@ -111,7 +111,7 @@ async def test_billing_role_is_confined_to_its_column_and_guild_surface(
     await set_billing_context(s, guild_id=guild_a.id)
     await _denied(s, f"SELECT name FROM guilds WHERE id = {guild_a.id}")
     await _denied(s, f"SELECT description FROM guilds WHERE id = {guild_a.id}")
-    await _denied(s, f"SELECT created_by_user_id FROM guilds WHERE id = {guild_a.id}")
+    await _denied(s, f"SELECT created_by FROM guilds WHERE id = {guild_a.id}")
     await _denied(s, f"UPDATE guilds SET name = 'pwned' WHERE id = {guild_a.id}")
     # The administration row is billing's only where its own three columns are
     # concerned: the sign-in entitlement shares the table and stays out of reach,

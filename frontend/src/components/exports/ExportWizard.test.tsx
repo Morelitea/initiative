@@ -55,7 +55,7 @@ function stubJobLifecycle(capture: (url: URL) => void) {
       return HttpResponse.json({
         id: 77,
         guild_id: 1,
-        created_by_id: 1,
+        created_by: 1,
         source: "guild",
         template_id: "data-table",
         format: "zip",
@@ -181,7 +181,7 @@ describe("ExportWizard", () => {
         return HttpResponse.json({
           id: 88,
           guild_id: 1,
-          created_by_id: 1,
+          created_by: 1,
           source: "guild",
           template_id: "data-table",
           format: "zip",

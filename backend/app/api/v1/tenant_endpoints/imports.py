@@ -503,7 +503,7 @@ async def upload_backup(
 
     job = ImportJob(
         guild_id=guild_id,
-        created_by_id=current_user.id,
+        created_by=current_user.id,
         source="backup",
         params={},
         payload_ref=payload_ref,

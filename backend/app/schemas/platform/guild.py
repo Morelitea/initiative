@@ -95,7 +95,7 @@ class GuildInviteRead(SanitizedBaseModel):
     id: int
     code: str
     guild_id: int
-    created_by_user_id: Optional[int]
+    created_by: Optional[int]
     expires_at: Optional[datetime]
     max_uses: Optional[int]
     uses: int

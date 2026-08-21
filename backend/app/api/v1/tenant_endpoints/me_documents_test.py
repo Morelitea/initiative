@@ -19,7 +19,7 @@ from app.testing import (
 
 
 async def _create_document(client, actor, initiative, title="Test Doc"):
-    """Create a document via the API (sets created_by_id automatically)."""
+    """Create a document via the API (sets created_by automatically)."""
     payload = {
         "title": title,
         "initiative_id": initiative.id,
@@ -58,7 +58,7 @@ async def test_list_global_documents_excludes_others(client: AsyncClient, acting
         initiative_role="member",
     )
 
-    # Admin creates a doc (via API, so created_by_id is set)
+    # Admin creates a doc (via API, so created_by is set)
     admin_doc = await _create_document(client, admin, admin.initiative, "Admin's Doc")
 
     # Other user queries global docs — should not see admin's doc

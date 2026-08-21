@@ -457,7 +457,7 @@ async def _list_global_documents(
     target_guilds = await member_guild_ids(
         session, current_user.id, restrict_to=guild_ids
     )
-    conditions = [Document.created_by_id == current_user.id]
+    conditions = [Document.created_by == current_user.id]
     if search:
         normalized = search.strip().lower()
         if normalized:
@@ -932,8 +932,7 @@ async def create_document(
         guild_id=guild_context.guild_id,
         document_type=requested_type,
         content=normalized_content,
-        created_by_id=current_user.id,
-        updated_by_id=current_user.id,
+        created_by=current_user.id,
         featured_image_url=document_in.featured_image_url,
         is_template=document_in.is_template,
     )
@@ -1065,7 +1064,7 @@ async def upload_document_file(
     upload_record = Upload(
         filename=file_url.split("/")[-1],
         guild_id=guild_context.guild_id,
-        uploader_user_id=current_user.id,
+        created_by=current_user.id,
         size_bytes=len(contents),
         content_type=mime_type,
         content_hash=attachments_service.compute_content_hash(contents),
@@ -1078,8 +1077,7 @@ async def upload_document_file(
         initiative_id=initiative.id,
         guild_id=guild_context.guild_id,
         content={},  # File documents have empty content
-        created_by_id=current_user.id,
-        updated_by_id=current_user.id,
+        created_by=current_user.id,
         document_type=DocumentType.file,
         file_url=file_url,
         file_content_type=mime_type,
@@ -1109,7 +1107,7 @@ async def upload_document_file(
         file_content_type=mime_type,
         file_size=len(contents),
         original_filename=file.filename,
-        uploaded_by_id=current_user.id,
+        created_by=current_user.id,
     )
     # Auto-set featured image for image uploads (before commit so we avoid expired attrs)
     if mime_type and mime_type.startswith("image/"):
@@ -1231,7 +1229,7 @@ async def upload_document_version(
     upload_record = Upload(
         filename=file_url.split("/")[-1],
         guild_id=guild_context.guild_id,
-        uploader_user_id=current_user.id,
+        created_by=current_user.id,
         size_bytes=len(contents),
         content_type=mime_type,
         content_hash=attachments_service.compute_content_hash(contents),
@@ -1253,7 +1251,7 @@ async def upload_document_version(
         file_content_type=mime_type,
         file_size=len(contents),
         original_filename=file.filename,
-        uploaded_by_id=current_user.id,
+        created_by=current_user.id,
     )
     session.add(version)
 
@@ -1263,7 +1261,6 @@ async def upload_document_version(
     document.file_content_type = mime_type
     document.file_size = len(contents)
     document.original_filename = file.filename
-    document.updated_by_id = current_user.id  # ty: ignore[invalid-assignment] — persisted row, id is set
     document.updated_at = datetime.now(timezone.utc)
     if mime_type and mime_type.startswith("image/"):
         document.featured_image_url = file_url
@@ -1384,7 +1381,6 @@ async def delete_document_version(
             document.file_content_type = promoted.file_content_type
             document.file_size = promoted.file_size
             document.original_filename = promoted.original_filename
-            document.updated_by_id = current_user.id  # ty: ignore[invalid-assignment] — persisted row, id is set
             document.updated_at = datetime.now(timezone.utc)
             # Keep featured image coherent when it referenced the deleted blob.
             if document.featured_image_url == deleted_url:
@@ -1547,7 +1543,6 @@ async def update_document(
 
     if updated:
         document.updated_at = datetime.now(timezone.utc)
-        document.updated_by_id = current_user.id  # ty: ignore[invalid-assignment] — persisted row, id is set
         session.add(document)
         # Sync wikilinks if content was updated
         if content_updated:

@@ -6,7 +6,7 @@ from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Relationship, SQLModel
 
-from app.models.tenant._mixins import SoftDeleteMixin
+from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.initiative import Initiative
@@ -15,7 +15,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.platform.user import User
 
 
-class Dashboard(SoftDeleteMixin, table=True):
+class Dashboard(CreatedByMixin, SoftDeleteMixin, table=True):
     """An initiative's dashboard: a canvas of widgets over existing data.
 
     ``definition`` is the validated, declarative body — layout plus widgets and
@@ -33,7 +33,7 @@ class Dashboard(SoftDeleteMixin, table=True):
     """
 
     __tablename__ = "dashboards"
-    _owner_field = "created_by_id"
+    _owner_field = "created_by"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
@@ -66,7 +66,7 @@ class Dashboard(SoftDeleteMixin, table=True):
         default_factory=dict,
         sa_column=Column(JSONB, nullable=False, server_default="{}"),
     )
-    created_by_id: int = Field(foreign_key="users.id", nullable=False)
+    created_by: int = Field(foreign_key="users.id", nullable=False)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -78,7 +78,7 @@ class Dashboard(SoftDeleteMixin, table=True):
 
     initiative: Optional["Initiative"] = Relationship()
     creator: Optional["User"] = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "Dashboard.created_by_id"}
+        sa_relationship_kwargs={"foreign_keys": "Dashboard.created_by"}
     )
     grants: List["ResourceGrant"] = Relationship(
         sa_relationship_kwargs={

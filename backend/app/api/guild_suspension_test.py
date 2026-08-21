@@ -454,7 +454,7 @@ async def _invite_for(session: AsyncSession, guild: Guild, code: str) -> GuildIn
     invite = GuildInvite(
         code=code,
         guild_id=guild.id,
-        created_by_user_id=guild.created_by_user_id,
+        created_by=guild.created_by,
         max_uses=5,
     )
     session.add(invite)

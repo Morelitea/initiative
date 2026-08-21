@@ -86,7 +86,7 @@ class CalendarImporter:
             color=env.color or DEFAULT_CALENDAR_COLOR,
             initiative_id=target_initiative.id,
             guild_id=guild_id,
-            created_by_id=importer.id,
+            created_by=importer.id,
         )
         session.add(calendar)
         await session.flush()
@@ -183,7 +183,7 @@ class CalendarImporter:
             end_at=end_at,
             all_day=item.all_day,
             recurrence=json.dumps(item.recurrence) if item.recurrence else None,
-            created_by_id=importer.id,
+            created_by=importer.id,
         )
         session.add(event)
         await session.flush()

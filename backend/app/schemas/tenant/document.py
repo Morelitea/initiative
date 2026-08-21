@@ -103,8 +103,7 @@ class DocumentSummary(DocumentBase):
     # download, media) by the document's guild rather than ambient context,
     # which matters on cross-guild surfaces like My Documents.
     guild_id: int
-    created_by_id: int
-    updated_by_id: int
+    created_by: int
     created_at: datetime
     updated_at: datetime
     initiative: Optional[InitiativeRead] = None
@@ -166,7 +165,7 @@ class DocumentFileVersionRead(SanitizedBaseModel):
     file_content_type: Optional[str] = None
     file_size: Optional[int] = None
     original_filename: Optional[str] = None
-    uploaded_by_id: int
+    created_by: int
     created_at: datetime
     is_current: bool = False
 
@@ -233,8 +232,7 @@ def serialize_document_summary(
         title=document.title,
         featured_image_url=document.featured_image_url,
         is_template=document.is_template,
-        created_by_id=document.created_by_id,
-        updated_by_id=document.updated_by_id,
+        created_by=document.created_by,
         created_at=document.created_at,
         updated_at=document.updated_at,
         initiative=initiative,
@@ -285,7 +283,7 @@ def serialize_document_file_version(
         file_content_type=version.file_content_type,
         file_size=version.file_size,
         original_filename=version.original_filename,
-        uploaded_by_id=version.uploaded_by_id,
+        created_by=version.created_by,
         created_at=version.created_at,
         is_current=is_current,
     )

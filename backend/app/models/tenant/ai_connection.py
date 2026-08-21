@@ -10,12 +10,14 @@ a guild admin can never persist a private/internal target.
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
-from sqlmodel import Field, SQLModel
+from sqlalchemy import Boolean, Column, DateTime, String
+from sqlmodel import Field
 from pydantic import ConfigDict
 
+from app.models.tenant._mixins import CreatedByMixin
 
-class GuildAIConnection(SQLModel, table=True):
+
+class GuildAIConnection(CreatedByMixin, table=True):
     __tablename__ = "guild_ai_connections"
     __allow_unmapped__ = True
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -48,12 +50,6 @@ class GuildAIConnection(SQLModel, table=True):
     allow_member_keys: bool = Field(
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
-    )
-    created_by_user_id: Optional[int] = Field(
-        default=None,
-        sa_column=Column(
-            Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-        ),
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

@@ -164,7 +164,7 @@ async def start_envelope_import(
     )
     job = ImportJob(
         guild_id=guild_id,
-        created_by_id=user.id,
+        created_by=user.id,
         source=envelope_type,
         params={"initiative_id": initiative.id},
         payload_ref=payload_ref,
@@ -191,7 +191,7 @@ async def count_active_jobs_locked(session: AsyncSession, *, user: User) -> None
             select(func.count())
             .select_from(ImportJob)
             .where(
-                ImportJob.created_by_id == user.id,
+                ImportJob.created_by == user.id,
                 ImportJob.status.in_(_ACTIVE_STATUSES),
             )
         )
