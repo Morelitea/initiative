@@ -103,7 +103,6 @@ async def get_counter_group_for_export(
     from fastapi import HTTPException, status as http_status
 
     from app.core.messages import CounterMessages
-    from app.services.platform import guilds as guilds_service
 
     group = await get_counter_group(session, group_id)
     if group is None:
@@ -116,14 +115,10 @@ async def get_counter_group_for_export(
             status_code=http_status.HTTP_403_FORBIDDEN,
             detail=CounterMessages.FEATURE_DISABLED,
         )
-    membership = await guilds_service.get_membership(
-        session, guild_id=guild_id, user_id=current_user.id
-    )
     require_counter_group_access(
         group,
         current_user,
         access="read",
-        guild_role=membership.role if membership else None,
     )
     return group
 
@@ -136,28 +131,18 @@ async def list_counter_group_ids_for_export(
     initiative_ids: list[int],
 ) -> list[int]:
     """Ids of every counter group the user may export in the given initiatives —
-    DAC-visible to the user (guild admins see all via the membership role),
+    DAC-visible to the user (a request that reaches the whole guild sees all),
     feature-flag respected. Deterministic order for stable backup output."""
-    from app.services.platform import guilds as guilds_service
-    from app.services.rls import is_guild_admin
 
     if not initiative_ids:
         return []
     conditions = [
         CounterGroup.initiative_id.in_(initiative_ids),
         Initiative.counter_groups_enabled == True,  # noqa: E712
+        permissions_service.dac_scope_clause(
+            Tool.counter_group, CounterGroup.id, current_user.id, guild_id=guild_id
+        ),
     ]
-    membership = await guilds_service.get_membership(
-        session, guild_id=guild_id, user_id=current_user.id
-    )
-    if membership is None or not is_guild_admin(membership.role):
-        conditions.append(
-            CounterGroup.id.in_(
-                permissions_service.visible_resource_ids_subquery(
-                    "counter_group", current_user.id
-                )
-            )
-        )
     statement = (
         select(CounterGroup.id)
         .join(Initiative, Initiative.id == CounterGroup.initiative_id)

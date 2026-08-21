@@ -194,7 +194,6 @@ async def get_document_for_export(
     from fastapi import HTTPException, status as http_status
 
     from app.services import permissions as permissions_service
-    from app.services.platform import guilds as guilds_service
 
     document = await get_document(session, document_id=document_id, guild_id=guild_id)
     if document is None:
@@ -202,14 +201,10 @@ async def get_document_for_export(
             status_code=http_status.HTTP_404_NOT_FOUND,
             detail=DocumentMessages.NOT_FOUND,
         )
-    membership = await guilds_service.get_membership(
-        session, guild_id=guild_id, user_id=current_user.id
-    )
     permissions_service.require_document_access(
         document,
         current_user,
         access="read",
-        guild_role=membership.role if membership else None,
     )
     return document
 
@@ -222,28 +217,21 @@ async def list_document_ids_for_export(
     initiative_ids: list[int],
 ) -> list[int]:
     """Ids of every document the user may export in the given initiatives —
-    DAC-visible to the user (guild admins see all via the membership role).
+    DAC-visible to the user (a request that reaches the whole guild sees all).
     Deterministic order for stable backup output."""
     from sqlmodel import select
 
+    from app.core.tools import Tool
     from app.services import permissions as permissions_service
-    from app.services.platform import guilds as guilds_service
-    from app.services.rls import is_guild_admin
 
     if not initiative_ids:
         return []
-    conditions = [Document.initiative_id.in_(initiative_ids)]
-    membership = await guilds_service.get_membership(
-        session, guild_id=guild_id, user_id=current_user.id
-    )
-    if membership is None or not is_guild_admin(membership.role):
-        conditions.append(
-            Document.id.in_(
-                permissions_service.visible_resource_ids_subquery(
-                    "document", current_user.id
-                )
-            )
-        )
+    conditions = [
+        Document.initiative_id.in_(initiative_ids),
+        permissions_service.dac_scope_clause(
+            Tool.document, Document.id, current_user.id, guild_id=guild_id
+        ),
+    ]
     statement = select(Document.id).where(*conditions).order_by(Document.id.asc())
     return list(await session.exec(statement))
 
