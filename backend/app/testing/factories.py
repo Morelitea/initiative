@@ -1341,22 +1341,36 @@ async def create_comment(
     *,
     task: Task | None = None,
     document: Document | None = None,
+    project: Project | None = None,
+    queue: Queue | None = None,
+    counter_group: CounterGroup | None = None,
+    calendar: Calendar | None = None,
+    dashboard: Dashboard | None = None,
     content: str = "A test comment",
     commit: bool = True,
     **overrides: Any,
 ) -> Comment:
-    """Create a comment on exactly one of ``task`` or ``document``."""
-    if (task is None) == (document is None):
-        raise ValueError("pass exactly one of task= or document=")
-    parent = task if task is not None else document
+    """Create a comment on exactly one parent — a task or any tool entity."""
+    parents = {
+        "task_id": task,
+        "document_id": document,
+        "project_id": project,
+        "queue_id": queue,
+        "counter_group_id": counter_group,
+        "calendar_id": calendar,
+        "dashboard_id": dashboard,
+    }
+    provided = {column: row for column, row in parents.items() if row is not None}
+    if len(provided) != 1:
+        raise ValueError("pass exactly one comment parent")
+    column, parent = next(iter(provided.items()))
     await route_session_to_guild(session, parent.guild_id)
 
     defaults = {
         "guild_id": parent.guild_id,
         "content": content,
         "created_by": author.id,
-        "task_id": task.id if task else None,
-        "document_id": document.id if document else None,
+        column: parent.id,
     }
     comment = Comment(**{**defaults, **overrides})
     session.add(comment)

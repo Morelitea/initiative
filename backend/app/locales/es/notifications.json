@@ -46,6 +46,10 @@
       "title": "Nuevo comentario en tu documento",
       "body": "{{actor}} comentó en {{document}}"
     },
+    "onResource": {
+      "title": "Nuevo comentario",
+      "body": "{{actor}} comentó en {{context}}"
+    },
     "reply": {
       "title": "Respuesta a tu comentario",
       "body": "{{actor}} respondió a tu comentario en {{context}}"

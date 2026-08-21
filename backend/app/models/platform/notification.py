@@ -15,6 +15,7 @@ class NotificationType(str, Enum):
     mention = "mention"
     comment_on_task = "comment_on_task"
     comment_on_document = "comment_on_document"
+    comment_on_resource = "comment_on_resource"
     comment_reply = "comment_reply"
     access_grant_requested = "access_grant_requested"
     access_grant_approved = "access_grant_approved"

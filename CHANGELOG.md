@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Every tool has a comment thread.** Comments — previously only on tasks and documents — now live on projects, queues, counter groups, calendars, and dashboards too, guild calendars included. Whoever can see a thing can read and join its discussion, replies and @mentions work everywhere, the guild's recent activity feed carries the new threads, and the thing's creator is notified when someone comments.
+
 ### Changed
 
 - **Projects, documents, queues, counters, calendars and dashboards now live inside the initiative they belong to.** Their addresses say so — a project reads as its guild, its initiative, then the project — and so do the tasks, events and counters beneath them. Because a list can only ever be one initiative's, the "filter by initiative" dropdown is gone from every one of them; the initiative you are in is the one you picked. A tool's tab is part of the address too, so you can link someone straight to an initiative's documents, reload onto the same tab, and use the back button through them.

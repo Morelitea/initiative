@@ -165,24 +165,48 @@ def via_property(
     )
 
 
+# Comment parents: (comment column, FROM clause, tie to the row, initiative
+# column). One declaration per parent — the policy legs and the outbox locator
+# below both render from it, so a comment cannot be gated through one parent
+# and have its events attributed through another. Every Tool appears here plus
+# the task, matching the comment table's single-parent constraint.
+_COMMENT_PARENTS: tuple[tuple[str, str, str, str], ...] = (
+    (
+        "task_id",
+        "tasks tk JOIN projects pr ON pr.id = tk.project_id",
+        "tk.id",
+        "pr.initiative_id",
+    ),
+    ("document_id", "documents d", "d.id", "d.initiative_id"),
+    ("project_id", "projects p", "p.id", "p.initiative_id"),
+    ("queue_id", "queues q", "q.id", "q.initiative_id"),
+    ("counter_group_id", "counter_groups cg", "cg.id", "cg.initiative_id"),
+    ("calendar_id", "calendars cal", "cal.id", "cal.initiative_id"),
+    ("dashboard_id", "dashboards dsh", "dsh.id", "dsh.initiative_id"),
+)
+
+
 def comments_path() -> InitiativePath:
-    """Comments hang off EITHER a task or a document."""
-    return InitiativePath(
-        predicate=lambda t, w: (
-            f"(({t}.task_id IS NOT NULL AND EXISTS ("
-            f"SELECT 1 FROM tasks tk JOIN projects pr ON pr.id = tk.project_id "
-            f"WHERE tk.id = {t}.task_id AND {_access('pr.initiative_id', w)})) "
-            f"OR ({t}.document_id IS NOT NULL AND EXISTS ("
-            f"SELECT 1 FROM documents d WHERE d.id = {t}.document_id "
-            f"AND {_access('d.initiative_id', w)})))"
-        ),
-        initiative_expr=lambda r: (
-            "COALESCE("
-            f"(SELECT pr.initiative_id FROM tasks tk "  # noqa: S608
-            f"JOIN projects pr ON pr.id = tk.project_id WHERE tk.id = {r}.task_id), "
-            f"(SELECT d.initiative_id FROM documents d WHERE d.id = {r}.document_id))"
-        ),
-    )
+    """Comments hang off exactly one parent — a task or any tool entity —
+    declared once in ``_COMMENT_PARENTS`` and rendered here both ways."""
+
+    def build(t: str, w: bool) -> str:
+        legs = [
+            f"({t}.{col} IS NOT NULL AND EXISTS ("
+            f"SELECT 1 FROM {frm} WHERE {tie} = {t}.{col} "
+            f"AND {_access(init, w)}))"
+            for col, frm, tie, init in _COMMENT_PARENTS
+        ]
+        return "(" + " OR ".join(legs) + ")"
+
+    def locate(r: str) -> str:
+        lookups = ", ".join(
+            f"(SELECT {init} FROM {frm} WHERE {tie} = {r}.{col})"  # noqa: S608
+            for col, frm, tie, init in _COMMENT_PARENTS
+        )
+        return f"COALESCE({lookups})"
+
+    return InitiativePath(predicate=build, initiative_expr=locate)
 
 
 # recent_views is polymorphic over (entity_type, entity_id). Every entity it can
