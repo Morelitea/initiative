@@ -24,7 +24,6 @@ class CalendarEvent(CreatedByMixin, SoftDeleteMixin, table=True):
     """
 
     __tablename__ = "calendar_events"
-    _owner_field = "created_by"
     _display_field = "title"
 
     id: Optional[int] = Field(default=None, primary_key=True)

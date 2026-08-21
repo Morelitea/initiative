@@ -5,12 +5,11 @@ Single source of truth for the trash lifecycle on every entity that inherits
 ``CASCADE_CHILDREN`` registry below enumerates which child collections to
 stamp when a parent is soft-deleted, and the inverse on restore.
 
-Restoring an entity whose owning user has since left the relevant scope
-(initiative for Project/Task/Document/Comment/Queue/CalendarEvent) returns
-``RestoreResult(needs_reassignment=True, valid_owner_ids=[...])``. The
-endpoint surfaces this as 409 + the id list; the client opens a picker and
-resubmits with ``new_owner_id=N`` which the service re-validates and applies
-before completing the restore.
+Restore does not ask who should own the entity. Ownership is recorded in
+``resource_grants`` and never sits with someone who has left the guild, so a
+restored row is owned by whoever owns it or by nobody — the same as it was while
+in the trash. The columns restore used to reassign name the *author*, which is a
+historical fact and not reassignable at all.
 
 Hard-purge is admin-only at the DB layer on EVERY soft-delete table: the
 ``soft_delete_admin_purge`` RESTRICTIVE FOR DELETE policy (rendered by
@@ -24,11 +23,9 @@ cleanup runs before the DELETE so blobs on disk and ``Upload`` rows pinned only 
 the doomed documents are also removed.
 """
 
-from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.soft_delete_filter import select_including_deleted
@@ -38,13 +35,11 @@ from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
 from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.document import Document
-from app.models.tenant.initiative import Initiative, InitiativeMember
+from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.counter import Counter, CounterGroup
 from app.models.tenant.queue import Queue, QueueItem
 from app.models.tenant.task import Task
-from app.models.platform.user import User, UserStatus
-from app.schemas.tenant.trash import RestoreOwnerCandidate
 
 
 # parent_model -> list of (child_model, fk_column_name)
@@ -173,35 +168,6 @@ async def soft_delete_entity(
     )
 
 
-@dataclass
-class RestoreResult:
-    needs_reassignment: bool
-    valid_owner_ids: Optional[list[int]] = None
-    valid_owners: Optional[list[RestoreOwnerCandidate]] = None
-
-
-async def _initiative_member_candidates(
-    session: AsyncSession,
-    *,
-    initiative_id: int,
-) -> list[RestoreOwnerCandidate]:
-    """Active members of the initiative, as owner candidates (id + name) so
-    the reassign picker needn't fetch the whole guild roster."""
-    stmt = (
-        select(User.id, User.full_name)
-        .join(InitiativeMember, InitiativeMember.user_id == User.id)
-        .where(InitiativeMember.initiative_id == initiative_id)
-        .where(User.status == UserStatus.active)
-        .order_by(User.full_name, User.id)
-    )
-    result = await session.exec(stmt)
-    return [
-        RestoreOwnerCandidate(id=uid, full_name=full_name)
-        for uid, full_name in result.all()
-        if uid is not None
-    ]
-
-
 async def _resolve_initiative_scope(
     session: AsyncSession,
     entity: SoftDeleteMixin,
@@ -255,44 +221,13 @@ async def _resolve_initiative_scope(
 async def restore_entity(
     session: AsyncSession,
     entity: SoftDeleteMixin,
-    *,
-    new_owner_id: Optional[int] = None,
-) -> RestoreResult:
+) -> None:
     """Restore the entity and its cascaded descendants.
-
-    When ``owner_field()`` is set and the current owner is no longer an
-    active member of the relevant initiative scope, return
-    ``RestoreResult(needs_reassignment=True, valid_owner_ids=...)`` instead
-    of restoring; the endpoint surfaces this as 409 and the client picks a
-    new owner. If ``new_owner_id`` is supplied it must be in the valid set
-    (otherwise ``ValueError("TRASH_INVALID_OWNER")``); the entity's owner
-    column is updated before the restore.
 
     Idempotent on already-active rows. Caller commits.
     """
     if entity.deleted_at is None:
-        return RestoreResult(needs_reassignment=False)
-
-    owner_field = type(entity).owner_field()
-    if owner_field is not None:
-        current_owner_id = getattr(entity, owner_field)
-        scope_initiative_id = await _resolve_initiative_scope(session, entity)
-        if scope_initiative_id is not None:
-            candidates = await _initiative_member_candidates(
-                session, initiative_id=scope_initiative_id
-            )
-            valid_ids = [c.id for c in candidates]
-            valid_id_set = set(valid_ids)
-            if new_owner_id is not None:
-                if new_owner_id not in valid_id_set:
-                    raise ValueError("TRASH_INVALID_OWNER")
-                setattr(entity, owner_field, new_owner_id)
-            elif current_owner_id not in valid_id_set:
-                return RestoreResult(
-                    needs_reassignment=True,
-                    valid_owner_ids=valid_ids,
-                    valid_owners=candidates,
-                )
+        return
 
     matching_deleted_at = entity.deleted_at
     entity.deleted_at = None
@@ -304,7 +239,6 @@ async def restore_entity(
         entity,
         matching_deleted_at=matching_deleted_at,
     )
-    return RestoreResult(needs_reassignment=False)
 
 
 async def _gather_descendants(

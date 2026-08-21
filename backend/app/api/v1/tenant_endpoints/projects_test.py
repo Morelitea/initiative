@@ -886,18 +886,6 @@ async def test_update_project_as_admin(
     )
     project = await create_project(session, admin.initiative, owner.user)
 
-    # Give admin write access to the project (pure DAC requires explicit permission)
-    admin_permission = ResourceGrant(
-        resource_type="project",
-        resource_id=project.id,
-        user_id=admin.user.id,
-        level=ResourceAccessLevel.owner,
-        guild_id=project.guild_id,
-        initiative_id=project.initiative_id,
-    )
-    session.add(admin_permission)
-    await session.commit()
-
     payload = {"name": "Admin Updated"}
 
     response = await client.patch(
@@ -957,18 +945,6 @@ async def test_delete_project_as_admin(
         initiative_role="member",
     )
     project = await create_project(session, admin.initiative, owner.user)
-
-    # Give admin owner access to the project (pure DAC requires explicit permission)
-    admin_permission = ResourceGrant(
-        resource_type="project",
-        resource_id=project.id,
-        user_id=admin.user.id,
-        level=ResourceAccessLevel.owner,
-        guild_id=project.guild_id,
-        initiative_id=project.initiative_id,
-    )
-    session.add(admin_permission)
-    await session.commit()
 
     response = await client.delete(
         admin.g(f"/projects/{project.id}"), headers=admin.headers

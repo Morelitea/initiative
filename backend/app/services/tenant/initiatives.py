@@ -307,66 +307,6 @@ async def ensure_managers_remain(
         raise ValueError(InitiativeMessages.MUST_HAVE_PM)
 
 
-async def initiatives_requiring_new_pm(
-    session: AsyncSession,
-    user_id: int,
-    *,
-    guild_id: int | None = None,
-) -> list[Initiative]:
-    """Find initiatives where user is the sole manager."""
-    # Find initiatives where user has a manager role
-    user_manager_initiatives = (
-        select(InitiativeMember.initiative_id)
-        .join(InitiativeRoleModel, InitiativeRoleModel.id == InitiativeMember.role_id)
-        .where(
-            InitiativeMember.user_id == user_id,
-            InitiativeRoleModel.is_manager.is_(True),
-        )
-    )
-
-    # Count managers per initiative
-    manager_count_subquery = (
-        select(
-            InitiativeMember.initiative_id,
-            func.count().label("manager_count"),
-        )
-        .join(InitiativeRoleModel, InitiativeRoleModel.id == InitiativeMember.role_id)
-        .where(InitiativeRoleModel.is_manager.is_(True))
-        .group_by(InitiativeMember.initiative_id)
-        .subquery()
-    )
-
-    stmt = (
-        select(Initiative)
-        .join(
-            manager_count_subquery,
-            manager_count_subquery.c.initiative_id == Initiative.id,
-        )
-        .where(
-            Initiative.id.in_(user_manager_initiatives),
-            manager_count_subquery.c.manager_count == 1,
-        )
-    )
-    if guild_id is not None:
-        stmt = stmt.where(Initiative.guild_id == guild_id)
-    result = await session.exec(stmt)
-    return list(result.unique().all())
-
-
-async def ensure_user_not_sole_pm(
-    session: AsyncSession,
-    user_id: int,
-    *,
-    guild_id: int | None = None,
-) -> None:
-    initiatives = await initiatives_requiring_new_pm(
-        session, user_id, guild_id=guild_id
-    )
-    if initiatives:
-        names = ", ".join(initiative.name for initiative in initiatives)
-        raise ValueError(f"User is the sole project manager for: {names}")
-
-
 async def clear_user_task_assignments_for_initiative(
     session: AsyncSession,
     *,
@@ -405,15 +345,18 @@ async def remove_user_from_guild_initiatives(
     user_id: int,
 ) -> None:
     """Remove a user from all initiatives in a guild, clearing task assignments
-    and handing any documents they owned over to the initiatives' PMs.
+    and dropping the access grants that came with membership.
 
     Used by every "user leaves the guild for any reason" path: leave-guild,
     deactivate, soft-delete, hard-delete, OIDC-sync revocation, and the
-    guild-admin Remove-from-guild action. The document-ownership transfer
-    mirrors what ``remove_initiative_member`` does for a single-initiative
-    removal, so document orphaning is handled uniformly.
+    guild-admin Remove-from-guild action.
+
+    Content they owned is left **unowned** rather than handed to anyone: nobody
+    inherits privilege they did not ask for, which matters most in a guild with
+    heavy turnover. Guild admins still administer it, and can claim it whenever
+    they choose (``app.services.tenant.ownership``).
     """
-    from app.services.tenant import documents as documents_service
+    from app.services.tenant import ownership as ownership_service
 
     # Find initiatives in this guild where the user is a member
     initiative_ids_result = await session.exec(
@@ -426,24 +369,23 @@ async def remove_user_from_guild_initiatives(
     )
     initiative_ids = list(initiative_ids_result.all())
 
-    # Clear task assignments and re-home owned documents per initiative
-    # before dropping the membership rows.
+    # Ownership goes first, while the user's membership rows are still in place:
+    # dropping an owner grant is a write to guild content, and its initiative-level
+    # RLS is evaluated against the *live* membership this function is about to
+    # delete.
+    await ownership_service.release_owned_content(session, user_id=user_id)
+
+    # Clear task assignments per initiative before dropping the membership rows.
     for init_id in initiative_ids:
         await clear_user_task_assignments_for_initiative(
             session,
             initiative_id=init_id,
             user_id=user_id,
         )
-        await documents_service.handle_owner_removal(
-            session,
-            initiative_id=init_id,
-            user_id=user_id,
-        )
 
-    # Remove the user's remaining document permissions in those initiatives
-    # (one statement for the whole batch). With the DB-level initiative-scope
-    # policies gone (schema-per-guild), a stale row would otherwise remain a
-    # live grant after removal.
+    # Drop their remaining document grants in those initiatives (one statement
+    # for the whole batch) — access that came with the membership goes with it.
+    # The owner grants are already gone, released above.
     if initiative_ids:
         from app.models.tenant.document import Document
         from app.models.tenant.resource_grant import ResourceGrant

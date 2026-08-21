@@ -30,9 +30,10 @@ import type {
   ExportUsersCsvApiV1GGuildIdUsersExportCsvGetParams,
   GetMyInitiativeMembersApiV1UsersMeInitiativeMembersInitiativeIdGetParams,
   GetUserStatsApiV1MeStatsGetParams,
-  GuildRemovalEligibilityResponse,
-  GuildRemovalRequest,
   HTTPValidationError,
+  OwnedContentResponse,
+  OwnershipTransferRequest,
+  OwnershipTransferResponse,
   SearchUsersApiV1GGuildIdUsersSearchGetParams,
   UserCreate,
   UserGuildMember,
@@ -1722,23 +1723,22 @@ export const useUpdateUserApiV1GGuildIdUsersUserIdPatch = <
   );
 };
 /**
+ * Remove a member from this guild.
+ *
+ * Ends their memberships and the access those carried. It does not move
+ * ownership: content they own stays recorded as theirs and stops being
+ * reachable by them, until an admin re-homes it through
+ * ``POST /{user_id}/transfer-ownership``.
  * @summary Delete User
  */
 export const deleteUserApiV1GGuildIdUsersUserIdDelete = (
   guildId: number,
   userId: number,
-  guildRemovalRequestNull?: BodyType<GuildRemovalRequest | null> | null,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    {
-      url: `/api/v1/g/${guildId}/users/${userId}`,
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      data: guildRemovalRequestNull,
-      signal,
-    },
+    { url: `/api/v1/g/${guildId}/users/${userId}`, method: "DELETE", signal },
     options
   );
 };
@@ -1750,14 +1750,14 @@ export const getDeleteUserApiV1GGuildIdUsersUserIdDeleteMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof deleteUserApiV1GGuildIdUsersUserIdDelete>>,
     TError,
-    { guildId: number; userId: number; data?: BodyType<GuildRemovalRequest | null> },
+    { guildId: number; userId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof deleteUserApiV1GGuildIdUsersUserIdDelete>>,
   TError,
-  { guildId: number; userId: number; data?: BodyType<GuildRemovalRequest | null> },
+  { guildId: number; userId: number },
   TContext
 > => {
   const mutationKey = ["deleteUserApiV1GGuildIdUsersUserIdDelete"];
@@ -1769,11 +1769,11 @@ export const getDeleteUserApiV1GGuildIdUsersUserIdDeleteMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof deleteUserApiV1GGuildIdUsersUserIdDelete>>,
-    { guildId: number; userId: number; data?: BodyType<GuildRemovalRequest | null> }
+    { guildId: number; userId: number }
   > = (props) => {
-    const { guildId, userId, data } = props ?? {};
+    const { guildId, userId } = props ?? {};
 
-    return deleteUserApiV1GGuildIdUsersUserIdDelete(guildId, userId, data, requestOptions);
+    return deleteUserApiV1GGuildIdUsersUserIdDelete(guildId, userId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1782,9 +1782,7 @@ export const getDeleteUserApiV1GGuildIdUsersUserIdDeleteMutationOptions = <
 export type DeleteUserApiV1GGuildIdUsersUserIdDeleteMutationResult = NonNullable<
   Awaited<ReturnType<typeof deleteUserApiV1GGuildIdUsersUserIdDelete>>
 >;
-export type DeleteUserApiV1GGuildIdUsersUserIdDeleteMutationBody =
-  | BodyType<GuildRemovalRequest | null>
-  | undefined;
+
 export type DeleteUserApiV1GGuildIdUsersUserIdDeleteMutationError = ErrorType<HTTPValidationError>;
 
 /**
@@ -1798,7 +1796,7 @@ export const useDeleteUserApiV1GGuildIdUsersUserIdDelete = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof deleteUserApiV1GGuildIdUsersUserIdDelete>>,
       TError,
-      { guildId: number; userId: number; data?: BodyType<GuildRemovalRequest | null> },
+      { guildId: number; userId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1807,7 +1805,7 @@ export const useDeleteUserApiV1GGuildIdUsersUserIdDelete = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof deleteUserApiV1GGuildIdUsersUserIdDelete>>,
   TError,
-  { guildId: number; userId: number; data?: BodyType<GuildRemovalRequest | null> },
+  { guildId: number; userId: number },
   TContext
 > => {
   return useMutation(
@@ -1902,146 +1900,92 @@ export const useApproveUserApiV1GGuildIdUsersUserIdApprovePost = <
   );
 };
 /**
- * Pre-flight info for the guild admin's remove-member action.
+ * Everything in this guild that no current member owns.
  *
- * The SPA calls this before opening the confirm dialog so it knows
- * whether to prompt for project-ownership transfers (the same way
- * self-leave does). Without this, the user table's "Remove" button
- * would silently orphan every project the target user owned.
- * @summary Check Guild Removal Eligibility
+ * Both the content released when someone left and anything orphaned before
+ * that — either way nobody who can act on it owns it.
+ * @summary List Unowned Content
  */
-export const checkGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGet = (
+export const listUnownedContentApiV1GGuildIdUsersUnownedContentGet = (
   guildId: number,
-  userId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildRemovalEligibilityResponse>(
-    {
-      url: `/api/v1/g/${guildId}/users/${userId}/guild-removal-eligibility`,
-      method: "GET",
-      signal,
-    },
+  return apiMutator<OwnedContentResponse>(
+    { url: `/api/v1/g/${guildId}/users/unowned-content`, method: "GET", signal },
     options
   );
 };
 
-export const getCheckGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGetQueryKey =
-  (guildId: number, userId: number) => {
-    return [`/api/v1/g/${guildId}/users/${userId}/guild-removal-eligibility`] as const;
-  };
+export const getListUnownedContentApiV1GGuildIdUsersUnownedContentGetQueryKey = (
+  guildId: number
+) => {
+  return [`/api/v1/g/${guildId}/users/unowned-content`] as const;
+};
 
-export const getCheckGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGetQueryOptions =
-  <
-    TData = Awaited<
-      ReturnType<
-        typeof checkGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGet
-      >
-    >,
-    TError = ErrorType<HTTPValidationError>,
-  >(
-    guildId: number,
-    userId: number,
-    options?: {
-      query?: Partial<
-        UseQueryOptions<
-          Awaited<
-            ReturnType<
-              typeof checkGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGet
-            >
-          >,
-          TError,
-          TData
-        >
-      >;
-      request?: SecondParameter<typeof apiMutator>;
-    }
-  ) => {
-    const { query: queryOptions, request: requestOptions } = options ?? {};
-
-    const queryKey =
-      queryOptions?.queryKey ??
-      getCheckGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGetQueryKey(
-        guildId,
-        userId
-      );
-
-    const queryFn: QueryFunction<
-      Awaited<
-        ReturnType<
-          typeof checkGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGet
-        >
-      >
-    > = ({ signal }) =>
-      checkGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGet(
-        guildId,
-        userId,
-        requestOptions,
-        signal
-      );
-
-    return {
-      queryKey,
-      queryFn,
-      enabled: guildId !== null && guildId !== undefined && userId !== null && userId !== undefined,
-      ...queryOptions,
-    } as UseQueryOptions<
-      Awaited<
-        ReturnType<
-          typeof checkGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGet
-        >
-      >,
-      TError,
-      TData
-    > & { queryKey: DataTag<QueryKey, TData, TError> };
-  };
-
-export type CheckGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGetQueryResult =
-  NonNullable<
-    Awaited<
-      ReturnType<
-        typeof checkGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGet
-      >
-    >
-  >;
-export type CheckGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGetQueryError =
-  ErrorType<HTTPValidationError>;
-
-export function useCheckGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGet<
-  TData = Awaited<
-    ReturnType<
-      typeof checkGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGet
-    >
-  >,
+export const getListUnownedContentApiV1GGuildIdUsersUnownedContentGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  userId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getListUnownedContentApiV1GGuildIdUsersUnownedContentGetQueryKey(guildId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>
+  > = ({ signal }) =>
+    listUnownedContentApiV1GGuildIdUsersUnownedContentGet(guildId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListUnownedContentApiV1GGuildIdUsersUnownedContentGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>
+>;
+export type ListUnownedContentApiV1GGuildIdUsersUnownedContentGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useListUnownedContentApiV1GGuildIdUsersUnownedContentGet<
+  TData = Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<
-          ReturnType<
-            typeof checkGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGet
-          >
-        >,
+        Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<
-            ReturnType<
-              typeof checkGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGet
-            >
-          >,
+          Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>,
           TError,
-          Awaited<
-            ReturnType<
-              typeof checkGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGet
-            >
-          >
+          Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>
         >,
         "initialData"
       >;
@@ -2049,41 +1993,24 @@ export function useCheckGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemo
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useCheckGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGet<
-  TData = Awaited<
-    ReturnType<
-      typeof checkGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGet
-    >
-  >,
+export function useListUnownedContentApiV1GGuildIdUsersUnownedContentGet<
+  TData = Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  userId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<
-          ReturnType<
-            typeof checkGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGet
-          >
-        >,
+        Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<
-            ReturnType<
-              typeof checkGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGet
-            >
-          >,
+          Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>,
           TError,
-          Awaited<
-            ReturnType<
-              typeof checkGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGet
-            >
-          >
+          Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>
         >,
         "initialData"
       >;
@@ -2091,24 +2018,15 @@ export function useCheckGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemo
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useCheckGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGet<
-  TData = Awaited<
-    ReturnType<
-      typeof checkGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGet
-    >
-  >,
+export function useListUnownedContentApiV1GGuildIdUsersUnownedContentGet<
+  TData = Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  userId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<
-          ReturnType<
-            typeof checkGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGet
-          >
-        >,
+        Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>,
         TError,
         TData
       >
@@ -2118,27 +2036,18 @@ export function useCheckGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemo
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * @summary Check Guild Removal Eligibility
+ * @summary List Unowned Content
  */
 
-export function useCheckGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGet<
-  TData = Awaited<
-    ReturnType<
-      typeof checkGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGet
-    >
-  >,
+export function useListUnownedContentApiV1GGuildIdUsersUnownedContentGet<
+  TData = Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  userId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<
-          ReturnType<
-            typeof checkGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGet
-          >
-        >,
+        Awaited<ReturnType<typeof listUnownedContentApiV1GGuildIdUsersUnownedContentGet>>,
         TError,
         TData
       >
@@ -2147,12 +2056,10 @@ export function useCheckGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemo
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions =
-    getCheckGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGetQueryOptions(
-      guildId,
-      userId,
-      options
-    );
+  const queryOptions = getListUnownedContentApiV1GGuildIdUsersUnownedContentGetQueryOptions(
+    guildId,
+    options
+  );
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -2161,6 +2068,390 @@ export function useCheckGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemo
   return withQueryKey(query, queryOptions.queryKey);
 }
 
+/**
+ * Give everything nobody owns to one guild admin.
+ * @summary Claim Unowned Content
+ */
+export const claimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPost = (
+  guildId: number,
+  ownershipTransferRequest: BodyType<OwnershipTransferRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<OwnershipTransferResponse>(
+    {
+      url: `/api/v1/g/${guildId}/users/unowned-content/claim`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: ownershipTransferRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getClaimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof claimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPost>>,
+    TError,
+    { guildId: number; data: BodyType<OwnershipTransferRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof claimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPost>>,
+  TError,
+  { guildId: number; data: BodyType<OwnershipTransferRequest> },
+  TContext
+> => {
+  const mutationKey = ["claimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof claimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPost>>,
+    { guildId: number; data: BodyType<OwnershipTransferRequest> }
+  > = (props) => {
+    const { guildId, data } = props ?? {};
+
+    return claimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPost(
+      guildId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClaimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof claimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPost>>
+  >;
+export type ClaimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPostMutationBody =
+  BodyType<OwnershipTransferRequest>;
+export type ClaimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Claim Unowned Content
+ */
+export const useClaimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof claimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPost>>,
+      TError,
+      { guildId: number; data: BodyType<OwnershipTransferRequest> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof claimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPost>>,
+  TError,
+  { guildId: number; data: BodyType<OwnershipTransferRequest> },
+  TContext
+> => {
+  return useMutation(
+    getClaimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * What this user owns in this guild, for the transfer dialog to list.
+ *
+ * Works for anyone the grants still name, member or not — accounts get
+ * abandoned as often as they get closed.
+ * @summary List Owned Content
+ */
+export const listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet = (
+  guildId: number,
+  userId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<OwnedContentResponse>(
+    { url: `/api/v1/g/${guildId}/users/${userId}/owned-content`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGetQueryKey = (
+  guildId: number,
+  userId: number
+) => {
+  return [`/api/v1/g/${guildId}/users/${userId}/owned-content`] as const;
+};
+
+export const getListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  userId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGetQueryKey(guildId, userId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>
+  > = ({ signal }) =>
+    listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet(
+      guildId,
+      userId,
+      requestOptions,
+      signal
+    );
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined && userId !== null && userId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>
+>;
+export type ListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet<
+  TData = Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  userId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>,
+          TError,
+          Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet<
+  TData = Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  userId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>,
+          TError,
+          Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet<
+  TData = Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  userId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Owned Content
+ */
+
+export function useListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet<
+  TData = Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  userId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGetQueryOptions(
+    guildId,
+    userId,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Move everything ``user_id`` owns in this guild to a guild admin.
+ *
+ * The only place ownership is moved by hand, and guild-admin only.
+ * @summary Transfer Ownership
+ */
+export const transferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost = (
+  guildId: number,
+  userId: number,
+  ownershipTransferRequest: BodyType<OwnershipTransferRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<OwnershipTransferResponse>(
+    {
+      url: `/api/v1/g/${guildId}/users/${userId}/transfer-ownership`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: ownershipTransferRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getTransferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof transferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost>>,
+    TError,
+    { guildId: number; userId: number; data: BodyType<OwnershipTransferRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof transferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost>>,
+  TError,
+  { guildId: number; userId: number; data: BodyType<OwnershipTransferRequest> },
+  TContext
+> => {
+  const mutationKey = ["transferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof transferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost>>,
+    { guildId: number; userId: number; data: BodyType<OwnershipTransferRequest> }
+  > = (props) => {
+    const { guildId, userId, data } = props ?? {};
+
+    return transferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost(
+      guildId,
+      userId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type TransferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof transferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost>>
+  >;
+export type TransferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPostMutationBody =
+  BodyType<OwnershipTransferRequest>;
+export type TransferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Transfer Ownership
+ */
+export const useTransferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof transferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost>>,
+      TError,
+      { guildId: number; userId: number; data: BodyType<OwnershipTransferRequest> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof transferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost>>,
+  TError,
+  { guildId: number; userId: number; data: BodyType<OwnershipTransferRequest> },
+  TContext
+> => {
+  return useMutation(
+    getTransferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPostMutationOptions(options),
+    queryClient
+  );
+};
 /**
  * Get comprehensive statistics for the current user.
  * @summary Get User Stats

@@ -109,7 +109,6 @@ class Subtask(CreatedByMixin, table=True):
 
 class Task(CreatedByMixin, SoftDeleteMixin, table=True):
     __tablename__ = "tasks"
-    _owner_field = "created_by"
     _display_field = "title"
 
     id: Optional[int] = Field(default=None, primary_key=True)

@@ -191,8 +191,6 @@ export const AccountDeletionRequestAction = {
   soft_delete: "soft_delete",
 } as const;
 
-export type AccountDeletionRequestProjectTransfers = { [key: string]: number } | null;
-
 /**
  * Request from a user to deactivate or anonymize (soft-delete) their own account.
  *
@@ -203,7 +201,6 @@ export interface AccountDeletionRequest {
   action: AccountDeletionRequestAction;
   password: string;
   confirmation_text: string;
-  project_transfers?: AccountDeletionRequestProjectTransfers;
 }
 
 /**
@@ -213,16 +210,6 @@ export interface AccountDeletionResponse {
   success: boolean;
   action: string;
   message: string;
-}
-
-/**
- * Basic project information for deletion flow
- */
-export interface ProjectBasic {
-  id: number;
-  name: string;
-  initiative_id: number;
-  guild_id: number;
 }
 
 export type UserStatus = (typeof UserStatus)[keyof typeof UserStatus];
@@ -259,25 +246,12 @@ export interface GuildBlockerInfo {
 }
 
 /**
- * Info about an initiative blocking user deletion.
- */
-export interface InitiativeBlockerInfo {
-  initiative_id: number;
-  initiative_name: string;
-  guild_id: number;
-  other_members: UserPublic[];
-}
-
-/**
  * Enhanced eligibility response with actionable blocker details.
  */
 export interface AdminDeletionEligibilityResponse {
   can_delete: boolean;
   blockers: string[];
-  warnings: string[];
-  owned_projects: ProjectBasic[];
   guild_blockers: GuildBlockerInfo[];
-  initiative_blockers: InitiativeBlockerInfo[];
 }
 
 export type GuildRole = (typeof GuildRole)[keyof typeof GuildRole];
@@ -1539,8 +1513,6 @@ export interface DashboardUpdate {
 export interface DeletionEligibilityResponse {
   can_delete: boolean;
   blockers: string[];
-  warnings: string[];
-  owned_projects: ProjectBasic[];
   last_admin_guilds: string[];
 }
 
@@ -2341,58 +2313,6 @@ export interface GuildRead {
   guild_auth_enabled: boolean | null;
 }
 
-/**
- * Per-project payload on ``GuildRemovalEligibilityResponse``.
- *
- * Bundles the candidate transfer recipients next to the project so
- * the SPA can render the picker without a second round-trip. The
- * leave-guild path uses ``GET /users/me/initiative-members/...``
- * instead — but a guild admin removing someone may not themselves
- * be a member of every initiative the target user belongs to, so
- * that endpoint isn't always callable from this flow.
- */
-export interface GuildRemovalProjectInfo {
-  id: number;
-  name: string;
-  initiative_id: number;
-  candidates?: UserPublic[];
-}
-
-/**
- * Pre-flight info for ``DELETE /users/{user_id}`` (guild admin
- * removes a member from their guild).
- *
- * Mirrors the leave-guild eligibility shape for the same reason: the
- * SPA needs to know up-front whether the admin will be prompted to
- * pick replacement owners for projects the target user owns. Without
- * this, the existing one-click "remove member" path silently
- * orphaned every project where the leaving user was sole owner.
- */
-export interface GuildRemovalEligibilityResponse {
-  can_remove: boolean;
-  sole_pm_initiatives: string[];
-  owned_projects: GuildRemovalProjectInfo[];
-}
-
-export type GuildRemovalRequestProjectTransfers = { [key: string]: number };
-
-/**
- * Body for ``DELETE /users/{user_id}``.
- *
- * Every project the target user owns in the active guild must
- * appear in exactly one of ``project_transfers`` (hand it to
- * another active project manager) or ``project_deletions`` (send
- * it to trash so the guild's retention window can purge it). The
- * delete branch exists so an admin can still remove a user from a
- * guild where no other project manager is available — without it,
- * a sole-PM situation would leave the admin with a forever-disabled
- * Remove button.
- */
-export interface GuildRemovalRequest {
-  project_transfers?: GuildRemovalRequestProjectTransfers;
-  project_deletions?: number[];
-}
-
 export interface GuildStorageUsageRead {
   guild_id: number;
   usage_bytes: number;
@@ -2647,38 +2567,13 @@ export interface InterfaceSettingsUpdate {
 /**
  * Response for checking if a user can leave a guild.
  *
- * ``owned_projects`` lists projects in this guild whose ``owner_id``
- * is the current user, with the project-manager candidates the
- * leaving user can hand each project to. Leaving without
- * re-assigning would orphan the project — the user's
- * ``InitiativeMember`` row is dropped on leave, RLS gates the
- * project, and there's no DAC bypass for guild admins. The leave
- * endpoint requires a transfer-or-delete disposition for each entry
- * on this list before it will proceed.
+ * Being the guild's last admin is the only thing that stops them. Content they
+ * own is released on the way out and left unowned for a guild admin to claim,
+ * so there is nothing to hand over first.
  */
 export interface LeaveGuildEligibilityResponse {
   can_leave: boolean;
   is_last_admin: boolean;
-  sole_pm_initiatives: string[];
-  owned_projects: GuildRemovalProjectInfo[];
-}
-
-export type LeaveGuildRequestProjectTransfers = { [key: string]: number };
-
-/**
- * Body for ``DELETE /guilds/{id}/leave``.
- *
- * Every project the leaving user owns in this guild must appear in
- * exactly one of ``project_transfers`` (hand it to another active
- * member of the project's initiative) or ``project_deletions`` (send
- * it to trash so the guild's retention window can purge it later).
- * Empty body is equivalent to ``{}`` — fine when the user owns
- * nothing; rejected by the endpoint with
- * ``CANNOT_LEAVE_OWNS_PROJECTS`` otherwise.
- */
-export interface LeaveGuildRequest {
-  project_transfers?: LeaveGuildRequestProjectTransfers;
-  project_deletions?: number[];
 }
 
 /**
@@ -3051,6 +2946,54 @@ export interface OperatorCatalogScanResult {
   problems: OperatorCatalogProblem[];
 }
 
+export type Tool = (typeof Tool)[keyof typeof Tool];
+
+export const Tool = {
+  project: "project",
+  document: "document",
+  queue: "queue",
+  counter_group: "counter_group",
+  calendar: "calendar",
+  dashboard: "dashboard",
+} as const;
+
+/**
+ * One thing someone owns, or that nobody does.
+ */
+export interface OwnedContentItem {
+  tool: Tool;
+  id: number;
+  name: string;
+}
+
+export type OwnedContentResponseCounts = { [key: string]: number };
+
+/**
+ * What a user owns in this guild, or what no current member owns.
+ *
+ * ``counts`` is per tool, keyed by the ``Tool`` value, so the dialog can say
+ * "3 projects, 1 calendar" without walking the list.
+ */
+export interface OwnedContentResponse {
+  items: OwnedContentItem[];
+  counts: OwnedContentResponseCounts;
+  total: number;
+}
+
+/**
+ * Who should end up owning it. Must be an active admin of this guild.
+ */
+export interface OwnershipTransferRequest {
+  new_owner_id: number;
+}
+
+export type OwnershipTransferResponseCounts = { [key: string]: number };
+
+export interface OwnershipTransferResponse {
+  counts: OwnershipTransferResponseCounts;
+  total: number;
+}
+
 export interface PasswordResetRequest {
   email: string;
 }
@@ -3192,7 +3135,7 @@ export interface ProjectRead {
   start_date: string | null;
   end_date: string | null;
   id: number;
-  owner_id: number;
+  owner_id: number | null;
   initiative_id: number;
   created_at: string;
   updated_at: string;
@@ -3616,17 +3559,6 @@ export interface ResolvedAISettingsResponse {
   source: string;
 }
 
-export type Tool = (typeof Tool)[keyof typeof Tool];
-
-export const Tool = {
-  project: "project",
-  document: "document",
-  queue: "queue",
-  counter_group: "counter_group",
-  calendar: "calendar",
-  dashboard: "dashboard",
-} as const;
-
 /**
  * One tool's full target sharing state in a bulk request — the same ``grants``
  * body the per-resource ``PUT /{id}/grants`` takes, tagged with which tool it
@@ -3673,32 +3605,6 @@ export interface ResourceGrantBulkRequest {
 
 export interface ResourceGrantBulkResponse {
   results: ResourceGrantBulkItemResult[];
-}
-
-/**
- * A user eligible to become the restored entity's owner. Carries the
- * display name so the picker needn't fetch the whole guild roster.
- */
-export interface RestoreOwnerCandidate {
-  id: number;
-  full_name?: string | null;
-}
-
-/**
- * 409 payload when the entity's owner is no longer an active member of
- * the relevant initiative. The client opens a picker seeded with
- * ``valid_owners`` and resubmits with the chosen one. ``valid_owner_ids``
- * is retained as the bare-id form for validation/back-compat.
- */
-export interface RestoreNeedsReassignmentResponse {
-  needs_reassignment?: true;
-  valid_owner_ids: number[];
-  valid_owners?: RestoreOwnerCandidate[];
-  detail?: string;
-}
-
-export interface RestoreRequest {
-  new_owner_id?: number | null;
 }
 
 /**
