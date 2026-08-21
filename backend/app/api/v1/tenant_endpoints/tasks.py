@@ -980,11 +980,10 @@ async def _allowed_project_ids(
     """
     # A guild admin (full guild access) or a live PAM grant sees tasks in every
     # project of the guild — like a member of every initiative — regardless of
-    # any explicit DAC permission row. (The projects list grants the same via
-    # ``visible_project_ids_subquery``'s guild-admin branch; without this leg an
-    # admin who holds no permission row on a project sees "no results" for it.)
-    # Return all of the guild's project ids so the task query stays explicitly
-    # guild-scoped; RLS also scopes to the guild / grant guild.
+    # any explicit DAC permission row. Same decision the project list makes
+    # through ``permissions.dac_scope_clause``; here it returns all of the
+    # guild's project ids so the task query stays explicitly guild-scoped (RLS
+    # also scopes to the guild / grant guild).
     if permissions_service.is_request_guild_admin(guild_id) or has_active_grant(
         guild_id
     ):

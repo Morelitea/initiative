@@ -64,7 +64,6 @@ from app.db.query import (
     page_has_next,
     paginate_sequence,
 )
-from app.core.pam_context import has_active_grant
 from app.services.realtime import broadcast_event
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.project import (
@@ -521,20 +520,18 @@ def _visible_project_conditions(
 
     ``archived``/``template``/``search``/``initiative_id`` are pushed into SQL
     (mirroring the old ``_matches_filters``: ``None`` means "exclude" for the
-    boolean flags, and "every initiative" for the initiative). DAC scoping is
-    preserved exactly — a guild admin or a live PAM grant sees every project in
-    the guild; otherwise the set is narrowed to the user's explicit/role-granted
-    projects via ``visible_project_ids_subquery``.
+    boolean flags, and "every initiative" for the initiative). ``dac_scope_clause``
+    supplies the sharing gate — it resolves to a no-op for a request that reaches
+    the whole guild, so there is nothing to branch on here.
     """
-    conditions = [Initiative.guild_id == guild_id]
+    conditions = [
+        Initiative.guild_id == guild_id,
+        permissions_service.dac_scope_clause(
+            Tool.project, Project.id, user_id, guild_id=guild_id
+        ),
+    ]
     if initiative_id is not None:
         conditions.append(Project.initiative_id == initiative_id)
-    if not has_active_grant(
-        guild_id
-    ) and not permissions_service.is_request_guild_admin(guild_id):
-        conditions.append(
-            Project.id.in_(permissions_service.visible_project_ids_subquery(user_id))
-        )
 
     if template is None:
         conditions.append(Project.is_template.is_(False))
@@ -950,31 +947,35 @@ async def _list_global_projects(
     """List projects across every guild the user belongs to.
 
     Visits each guild's schema in turn (per-schema ids mean a single cross-guild
-    query isn't possible) and merges, filtering through the DAC
-    visible-project-ids subquery for permission checks. Membership is implied by
-    only iterating the user's own guilds.
+    query isn't possible) and merges. Membership is implied by only iterating the
+    user's own guilds.
+
+    The sharing gate is resolved per guild, inside ``_fetch``: the answer depends
+    on the caller's role in that guild, which ``gather_across_guilds`` establishes
+    for each one in turn.
     """
     target_guilds = await member_guild_ids(
         session, current_user.id, restrict_to=guild_ids
     )
 
-    has_permission_subq = permissions_service.visible_project_ids_subquery(
-        current_user.id
-    )
     conditions = [
         Project.is_archived.is_(False),
         Project.is_template.is_(False),
-        Project.id.in_(has_permission_subq),
     ]
     if search:
         conditions.append(
             func.lower(Project.name).contains(search.strip().lower(), autoescape=True)
         )
 
-    async def _fetch(guild_session: AsyncSession, _guild_id: int) -> list[ProjectRead]:
+    async def _fetch(guild_session: AsyncSession, guild_id: int) -> list[ProjectRead]:
         statement = (
             select(Project)
-            .where(*conditions)
+            .where(
+                *conditions,
+                permissions_service.dac_scope_clause(
+                    Tool.project, Project.id, current_user.id, guild_id=guild_id
+                ),
+            )
             .options(
                 selectinload(Project.grants).options(
                     selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
@@ -1143,15 +1144,13 @@ async def get_project_counts_by_initiative(
         Initiative.guild_id == guild_context.guild_id,
         Project.is_archived.is_(False),
         Project.is_template.is_(False),
+        permissions_service.dac_scope_clause(
+            Tool.project,
+            Project.id,
+            current_user.id,
+            guild_id=guild_context.guild_id,
+        ),
     ]
-    if not has_active_grant(
-        guild_context.guild_id
-    ) and not permissions_service.is_request_guild_admin(guild_context.guild_id):
-        conditions.append(
-            Project.id.in_(
-                permissions_service.visible_project_ids_subquery(current_user.id)
-            )
-        )
 
     statement = (
         select(Project.initiative_id, func.count(Project.id))

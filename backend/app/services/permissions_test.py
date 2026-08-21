@@ -17,8 +17,16 @@ from app.core.messages import DocumentMessages, ProjectMessages
 from app.models.tenant.document import DocumentPermissionLevel
 from app.models.tenant.project import ProjectPermissionLevel
 from app.models.platform.user import UserRole
+from app.core.pam_context import set_active_grant
+from app.core.role_context import set_active_role, set_override_sharing_initiatives
+from app.core.tools import Tool
+from app.models.platform.guild import GuildRole
+from app.models.tenant.document import Document
+from app.models.tenant.project import Project
+from app.models.tenant.queue import Queue
 from app.services.permissions import (
     PROJECT_LEVEL_ORDER,
+    dac_scope_clause,
     compute_document_permission,
     compute_project_permission,
     effective_permission_level,
@@ -599,3 +607,79 @@ def test_membership_without_permission_row_still_denied():
     with pytest.raises(HTTPException) as exc_info:
         require_document_access(doc, user, access="read")
     assert exc_info.value.status_code == 403
+
+
+# ── dac_scope_clause: the query-shaped half of the DAC decision ──────────────
+
+
+def _compiled(clause) -> str:
+    return str(clause.compile(compile_kwargs={"literal_binds": True}))
+
+
+def test_dac_scope_clause_is_a_no_op_for_a_guild_wide_request():
+    """A guild admin, or a live PAM grant, reaches the whole guild — so the
+    clause adds nothing and the caller needs no branch around it."""
+    set_active_grant(None, None)
+    set_override_sharing_initiatives(None)
+    try:
+        set_active_role(7, GuildRole.admin.value)
+        assert _compiled(dac_scope_clause(Tool.project, Project.id, 1, guild_id=7)) == (
+            "true"
+        )
+
+        set_active_role(None, None)
+        set_active_grant(7, "read")
+        assert (
+            _compiled(dac_scope_clause(Tool.document, Document.id, 1, guild_id=7))
+            == "true"
+        )
+    finally:
+        set_active_role(None, None)
+        set_active_grant(None, None)
+
+
+def test_dac_scope_clause_narrows_an_ordinary_member():
+    """A member is scoped to the resources granted to them, and the clause names
+    the tool it was asked about."""
+    set_active_grant(None, None)
+    set_override_sharing_initiatives(None)
+    set_active_role(7, GuildRole.member.value)
+    try:
+        sql = _compiled(dac_scope_clause(Tool.queue, Queue.id, 1, guild_id=7))
+        assert "resource_grants" in sql
+        assert "queue" in sql
+        assert sql != "true"
+    finally:
+        set_active_role(None, None)
+
+
+def test_dac_scope_clause_narrows_when_the_role_is_for_another_guild():
+    """Role context is keyed by guild, so being an admin of guild 8 grants
+    nothing in guild 7."""
+    set_active_grant(None, None)
+    set_override_sharing_initiatives(None)
+    set_active_role(8, GuildRole.admin.value)
+    try:
+        assert (
+            _compiled(dac_scope_clause(Tool.project, Project.id, 1, guild_id=7))
+            != "true"
+        )
+        # ...and no guild at all narrows too, rather than opening up.
+        assert (
+            _compiled(dac_scope_clause(Tool.project, Project.id, 1, guild_id=None))
+            != "true"
+        )
+    finally:
+        set_active_role(None, None)
+
+
+@pytest.mark.parametrize("tool", list(Tool))
+def test_every_tool_can_be_scoped(tool):
+    """Every tool in the registry answers the sharing gate. A new tool that adds
+    a listing endpoint cannot quietly skip it."""
+    set_active_role(None, None)
+    set_active_grant(None, None)
+    set_override_sharing_initiatives(None)
+    sql = _compiled(dac_scope_clause(tool, Project.id, 1, guild_id=7))
+    assert "resource_grants" in sql
+    assert tool.value in sql
