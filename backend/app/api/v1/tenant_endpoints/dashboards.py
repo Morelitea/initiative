@@ -235,15 +235,14 @@ async def list_dashboards(
             )
         )
 
-    # DAC: non-admins (and non-PAM) see only dashboards shared with them.
-    if not rls_service.is_guild_admin(guild_context.role) and not guild_context.is_pam:
-        conditions.append(
-            Dashboard.id.in_(
-                permissions_service.visible_resource_ids_subquery(
-                    "dashboard", current_user.id
-                )
-            )
+    conditions.append(
+        permissions_service.dac_scope_clause(
+            Tool.dashboard,
+            Dashboard.id,
+            current_user.id,
+            guild_id=guild_context.guild_id,
         )
+    )
 
     count_subq = select(Dashboard.id).where(*conditions).subquery()
     total_count = (
@@ -293,14 +292,14 @@ async def get_dashboard_counts_by_initiative(
             select(Initiative.id).where(Initiative.dashboards_enabled == True)  # noqa: E712
         ),
     ]
-    if not rls_service.is_guild_admin(guild_context.role) and not guild_context.is_pam:
-        conditions.append(
-            Dashboard.id.in_(
-                permissions_service.visible_resource_ids_subquery(
-                    "dashboard", current_user.id
-                )
-            )
+    conditions.append(
+        permissions_service.dac_scope_clause(
+            Tool.dashboard,
+            Dashboard.id,
+            current_user.id,
+            guild_id=guild_context.guild_id,
         )
+    )
 
     statement = (
         select(Dashboard.initiative_id, func.count(Dashboard.id))

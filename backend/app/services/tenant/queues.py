@@ -44,15 +44,6 @@ from app.models.platform.user import User
 # ---------------------------------------------------------------------------
 
 
-def visible_queue_ids_subquery(user_id: int):
-    """Return a subquery of queue IDs the user can access.
-
-    Delegates to the polymorphic ``ResourceGrant`` engine, combining
-    user-specific and role-based grants for the ``"queue"`` resource type.
-    """
-    return permissions_service.visible_resource_ids_subquery("queue", user_id)
-
-
 # DAC — thin wrappers over the registry engine (the "queue" row of DAC_RESOURCES).
 
 
@@ -161,7 +152,6 @@ async def list_queue_ids_for_export(
     """Ids of every queue the user may export in the given initiatives —
     DAC-visible to the user (guild admins see all via the membership role),
     feature-flag respected. Deterministic order for stable backup output."""
-    from app.services import permissions as permissions_service
     from app.services.platform import guilds as guilds_service
     from app.services.rls import is_guild_admin
 

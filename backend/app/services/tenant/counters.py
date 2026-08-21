@@ -36,11 +36,6 @@ from app.schemas.tenant.counter import CounterSortDirection, CounterSortField
 # ---------------------------------------------------------------------------
 
 
-def visible_counter_group_ids_subquery(user_id: int):
-    """Return a subquery of counter-group IDs the user can access (DAC only)."""
-    return permissions_service.visible_resource_ids_subquery("counter_group", user_id)
-
-
 # DAC — thin wrappers over the registry engine (the "counter_group" row).
 
 
@@ -143,7 +138,6 @@ async def list_counter_group_ids_for_export(
     """Ids of every counter group the user may export in the given initiatives —
     DAC-visible to the user (guild admins see all via the membership role),
     feature-flag respected. Deterministic order for stable backup output."""
-    from app.services import permissions as permissions_service
     from app.services.platform import guilds as guilds_service
     from app.services.rls import is_guild_admin
 

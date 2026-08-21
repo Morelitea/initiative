@@ -287,13 +287,11 @@ async def list_queues(
             )
         )
 
-    # DAC filtering: non-admins only see queues they have permission for.
-    # A PAM grantee has no permission rows; the grant scopes them to this guild
-    # at the RLS layer, so skip the app-layer narrowing (whose permission-table
-    # joins would also fault on the unset guild var).
-    if not rls_service.is_guild_admin(guild_context.role) and not guild_context.is_pam:
-        visible_subq = queues_service.visible_queue_ids_subquery(current_user.id)
-        conditions.append(Queue.id.in_(visible_subq))
+    conditions.append(
+        permissions_service.dac_scope_clause(
+            Tool.queue, Queue.id, current_user.id, guild_id=guild_context.guild_id
+        )
+    )
 
     # Count query
     count_subq = select(Queue.id).where(*conditions).subquery()
@@ -353,10 +351,11 @@ async def get_queue_counts_by_initiative(
             select(Initiative.id).where(Initiative.queues_enabled == True)  # noqa: E712
         ),
     ]
-    if not rls_service.is_guild_admin(guild_context.role) and not guild_context.is_pam:
-        conditions.append(
-            Queue.id.in_(queues_service.visible_queue_ids_subquery(current_user.id))
+    conditions.append(
+        permissions_service.dac_scope_clause(
+            Tool.queue, Queue.id, current_user.id, guild_id=guild_context.guild_id
         )
+    )
 
     statement = (
         select(Queue.initiative_id, func.count(Queue.id))
