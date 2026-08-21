@@ -17,12 +17,15 @@ Routing contract:
     query.
 """
 
-from typing import Collection, Iterable, Optional
+from typing import Any, Collection, Iterable, Optional
 
 from sqlalchemy import ColumnElement, exists, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.pam_context import has_active_grant
+from app.core.role_context import is_request_guild_admin
 from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.user import User
 from app.models.tenant.initiative import InitiativeMember
 
 
@@ -84,6 +87,51 @@ def initiative_scope_clause(
     selects the read vs. write PAM leg.
     """
     return func.initiative_access(initiative_id_col, user_id, need_write)
+
+
+#: Distinguishes "this row has no initiative_id column" from "its initiative_id
+#: is NULL". Only the second means guild scope.
+NO_SCOPE_COLUMN = object()
+
+
+def initiative_scope_ok(
+    entity: Any,
+    user: User,
+    *,
+    guild_role: GuildRole | str | None = None,
+) -> bool:
+    """Sync counterpart of :func:`initiative_scope_clause` for single entities
+    whose ``initiative.memberships`` are already eagerly loaded — gate 2, not
+    the per-resource sharing gate, which is ``permissions.dac_scope_clause``.
+
+    Mirrors the old RESTRICTIVE policy expression: initiative member, OR
+    admin of the entity's guild (guild-level), OR a live PAM/break-glass grant
+    covering the guild (app-level reach, handled separately from the guild role).
+
+    There is no standing ``data.bypass`` leg any more: a platform admin/owner
+    reaches a guild only through an explicit break-glass grant, which surfaces
+    here as ``has_active_grant``.
+    """
+    # A row that names no initiative is guild-level, and the initiative gate has
+    # nothing to decide about it — the same branch `public.initiative_access`
+    # takes, kept in step here because this is its app-layer counterpart. The
+    # guild boundary already applied (the request resolved this guild) and the
+    # row's grants decide the rest.
+    if getattr(entity, "initiative_id", NO_SCOPE_COLUMN) is None:
+        return True
+    initiative = getattr(entity, "initiative", None)
+    memberships = (
+        getattr(initiative, "memberships", None) if initiative is not None else None
+    ) or []
+    if any(m.user_id == user.id for m in memberships):
+        return True
+    guild_id = getattr(entity, "guild_id", None)
+    # App-level reach via an explicit, time-bound grant — kept distinct from the
+    # guild role below.
+    if guild_id is not None and has_active_grant(guild_id):
+        return True
+    # Guild-level: admin of the entity's own guild.
+    return is_request_guild_admin(guild_id, guild_role=guild_role)
 
 
 def member_initiative_ids_select(user_id: int):

@@ -146,7 +146,7 @@ async def _guard_guild_admin_role(
     """Restrict which initiative roles a guild admin may be assigned.
 
     A guild admin already has complete access to every initiative in their
-    guild (see ``permissions.is_request_guild_admin``), so they are implicit
+    guild (see ``role_context.is_request_guild_admin``), so they are implicit
     full-access members. They may *additionally* hold a manager role — purely
     for manager-style features like notifications — but must never be assigned a
     standard member or custom role. This keeps the admin's standing access

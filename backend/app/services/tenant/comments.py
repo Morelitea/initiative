@@ -6,11 +6,13 @@ from collections.abc import Sequence
 from datetime import datetime, timezone
 from typing import Optional, Set, cast
 
+from sqlalchemy import ColumnElement
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import CommentMessages
+from app.core.tools import Tool
 from app.models.tenant.comment import Comment
 from app.models.tenant.document import Document
 from app.models.platform.guild import GuildRole
@@ -76,22 +78,28 @@ async def _get_task_context(
     return _TaskContext(task=task, project=project, initiative=initiative)
 
 
-async def _has_project_permission(
+async def _shares_resource(
     session: AsyncSession,
+    tool: Tool,
+    id_col: ColumnElement[int],
     *,
-    project_id: int,
+    resource_id: int,
     user_id: int,
+    guild_id: int,
+    access: str,
 ) -> bool:
-    # The project is accessible if it appears among the resource ids the user
-    # can reach via a grant (own user grant OR a grant to one of their roles).
-    accessible_ids = permissions_service.visible_resource_ids_subquery(
-        "project", user_id
-    ).subquery()
-    stmt = select(accessible_ids.c.resource_id).where(
-        accessible_ids.c.resource_id == project_id
+    """Whether the sharing gate lets this request reach one resource by id.
+
+    The id is already known, so this asks the gate directly rather than loading
+    the row and its grants to run the engine over them.
+    """
+    stmt = select(id_col).where(
+        id_col == resource_id,
+        permissions_service.dac_scope_clause(
+            tool, id_col, user_id, guild_id=guild_id, access=access
+        ),
     )
-    result = await session.exec(stmt)
-    return result.first() is not None
+    return (await session.exec(stmt)).first() is not None
 
 
 async def _ensure_task_access(
@@ -110,7 +118,15 @@ async def _ensure_task_access(
     """
     if permissions_service.request_bypasses_dac(project.guild_id, access=access):
         return
-    if await _has_project_permission(session, project_id=project.id, user_id=user.id):
+    if await _shares_resource(
+        session,
+        Tool.project,
+        Project.id,
+        resource_id=project.id,
+        user_id=user.id,
+        guild_id=project.guild_id,
+        access=access,
+    ):
         return
     raise CommentPermissionError(CommentMessages.PERMISSION_DENIED)
 
@@ -130,16 +146,15 @@ async def _ensure_document_access(
     """
     if permissions_service.request_bypasses_dac(document.guild_id, access=access):
         return
-    # The document is accessible if it appears among the resource ids the user
-    # can reach via a grant (own user grant OR a grant to one of their roles).
-    accessible_ids = permissions_service.visible_resource_ids_subquery(
-        "document", user.id
-    ).subquery()
-    stmt = select(accessible_ids.c.resource_id).where(
-        accessible_ids.c.resource_id == document.id
-    )
-    result = await session.exec(stmt)
-    if result.first() is not None:
+    if await _shares_resource(
+        session,
+        Tool.document,
+        Document.id,
+        resource_id=document.id,
+        user_id=user.id,
+        guild_id=document.guild_id,
+        access=access,
+    ):
         return
     raise CommentPermissionError(CommentMessages.PERMISSION_DENIED)
 

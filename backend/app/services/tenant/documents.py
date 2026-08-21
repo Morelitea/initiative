@@ -611,24 +611,21 @@ async def get_backlinks(
     *,
     document_id: int,
     user_id: int,
+    guild_id: int,
 ) -> list[Document]:
-    """Get documents that link to the specified document.
-
-    Only returns documents the user has permission to access.
-    """
+    """Documents that link to this one, through the same sharing gate the
+    document list applies."""
+    from app.core.tools import Tool
     from app.services import permissions as permissions_service
-
-    # Subquery: documents where user has explicit or role-based permission
-    has_permission_subq = permissions_service.visible_resource_ids_subquery(
-        "document", user_id
-    )
 
     stmt = (
         select(Document)
         .join(DocumentLink, DocumentLink.source_document_id == Document.id)
         .where(
             DocumentLink.target_document_id == document_id,
-            Document.id.in_(has_permission_subq),
+            permissions_service.dac_scope_clause(
+                Tool.document, Document.id, user_id, guild_id=guild_id
+            ),
         )
         .order_by(Document.updated_at.desc())
     )

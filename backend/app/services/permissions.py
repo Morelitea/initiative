@@ -1,17 +1,23 @@
-"""Discretionary Access Control (DAC) — project and document permissions.
+"""Discretionary Access Control (DAC) — gate 4, per-resource sharing.
 
-This module handles the application-level permission layer for projects
-and documents.  Unlike the mandatory RLS layer (see ``rls.py``) which is
-enforced by PostgreSQL, DAC permissions are filtering tools applied in
-application code to determine what a user can read, write, or own.
+The application-level permission layer for every tool. Unlike the mandatory RLS
+layer (see ``rls.py``), which PostgreSQL enforces, this decides what a request
+may read, write or own from the ``resource_grants`` rows on a resource.
 
-Security layers managed here:
-  - Resource grants — user/role access rows in ``ResourceGrant`` (polymorphic)
-  - Visibility subqueries — reusable UNION subqueries for listing endpoints
-  - Access enforcement — ``require_project_access`` / ``require_document_access``
+Whether a request reaches a resource *regardless* of those rows — a guild admin,
+a live PAM grant, an initiative "Full access" role — is one decision, made in one
+place, and asked in two shapes:
 
-The complementary mandatory access control layer (guild isolation,
-initiative membership, initiative RBAC) lives in ``rls.py``.
+  - :func:`request_bypasses_dac` for a loaded row, behind
+    :func:`require_access` / :func:`compute_permission`
+  - :func:`dac_scope_clause` for a query, appended to a listing's WHERE
+
+The second calls the first, and the grants half (``_granted_resource_ids``) is
+private, so the two halves of the answer are never applied apart.
+
+Gates 1-3 live elsewhere: guild isolation and initiative membership in ``rls.py``
+and Postgres, and the sync initiative-scope check beside its SQL counterpart in
+``membership.py``.
 """
 
 from dataclasses import dataclass
@@ -22,12 +28,13 @@ from fastapi import HTTPException, status
 from sqlalchemy import ColumnElement, and_, or_, true
 from sqlmodel import select
 
-from app.core.pam_context import active_grant_level, grant_satisfies, has_active_grant
+from app.core.pam_context import active_grant_level, grant_satisfies
 from app.core.role_context import (
-    active_guild_role,
     content_read_only_active,
+    is_request_guild_admin,
     request_overrides_sharing,
 )
+from app.services.membership import NO_SCOPE_COLUMN, initiative_scope_ok
 from app.core.tools import Tool
 
 from app.models.platform.guild import GuildMembership, GuildRole
@@ -135,10 +142,15 @@ def lift_level_for_grant(dac_level: str | None, guild_id: int | None) -> str | N
 # RLS, so stale grants in an initiative the user left are already filtered out.
 
 
-def visible_resource_ids_subquery(resource_type: str, user_id: int):
+def _granted_resource_ids(resource_type: str, user_id: int):
     """resource_ids of ``resource_type`` the user can access via a grant — their
     own user grant, a grant to one of their initiative roles, OR an
-    all-initiative-members grant on a resource in an initiative they belong to."""
+    all-initiative-members grant on a resource in an initiative they belong to.
+
+    Grants only: it knows nothing about the requests that reach a whole guild.
+    Private on purpose — :func:`dac_scope_clause` is the way to ask, so the two
+    halves of the answer can never be applied separately.
+    """
     my_roles = select(InitiativeMember.role_id).where(
         InitiativeMember.user_id == user_id
     )
@@ -163,31 +175,6 @@ def visible_resource_ids_subquery(resource_type: str, user_id: int):
             ),
         ),
     )
-
-
-# ── Initiative-scope gate (loaded-data variant) ──────────────────
-
-
-def is_request_guild_admin(
-    guild_id: int | None,
-    *,
-    guild_role: GuildRole | str | None = None,
-) -> bool:
-    """Whether the request acts as a *guild admin* of ``guild_id``.
-
-    Guild roles are strictly guild-scoped — a guild admin has full authority
-    only within their own guild's schema. The role is taken from ``guild_role``
-    when the caller already holds it, otherwise from the request's active-guild
-    role context (``role_context`` is keyed by guild id, so a role recorded for
-    one guild never bleeds into another). This is deliberately independent of
-    app/platform-level roles (``data.bypass``, PAM grants), which reach across
-    guilds through their own separate mechanisms — do not fold those in here.
-    """
-    if guild_id is None:
-        return False
-    role = guild_role if guild_role is not None else active_guild_role(guild_id)
-    role_value = role.value if isinstance(role, GuildRole) else role
-    return role_value == GuildRole.admin.value
 
 
 def request_bypasses_dac(
@@ -227,71 +214,28 @@ def dac_scope_clause(
     user_id: int,
     *,
     guild_id: int | None,
+    access: str = "read",
 ) -> ColumnElement[bool]:
     """The WHERE leg narrowing ``id_col`` to the ``tool`` rows this request may see.
 
-    The query-shaped counterpart of :func:`request_bypasses_dac`: that one asks
-    about a loaded row, this one asks once for a whole statement, and both read
-    the same request context. Returns ``true()`` when the request reaches the
-    guild regardless of grants, so a caller appends it unconditionally rather
+    The query-shaped form of :func:`request_bypasses_dac` — that one asks about a
+    loaded row, this one asks once for a whole statement, and the bypass decision
+    is literally the same call. It returns ``true()`` when the request reaches
+    the guild regardless of grants, so a caller appends it unconditionally rather
     than branching around the narrowing.
 
     ``id_col`` is whichever column names the resource — its own id, or a foreign
-    key to it (``Task.project_id``).
+    key to it (``Task.project_id``). ``access`` is what the caller intends to do:
+    a listing wants the default ``read``, and a grant covers only the level it
+    was issued at.
 
     The initiative "Full access" override is deliberately not folded in: it is
     per-initiative, so it cannot collapse to one guild-wide answer, and no
     listing path applies it today.
     """
-    if guild_id is not None and (
-        has_active_grant(guild_id) or is_request_guild_admin(guild_id)
-    ):
+    if request_bypasses_dac(guild_id, access=access):
         return true()
-    return id_col.in_(visible_resource_ids_subquery(tool, user_id))
-
-
-#: Distinguishes "this row has no initiative_id column" from "its initiative_id
-#: is NULL". Only the second means guild scope.
-_NO_SCOPE_COLUMN = object()
-
-
-def initiative_scope_ok(
-    entity: Any,
-    user: User,
-    *,
-    guild_role: GuildRole | str | None = None,
-) -> bool:
-    """Sync counterpart of ``initiative_scope_clause`` for single entities
-    whose ``initiative.memberships`` are already eagerly loaded.
-
-    Mirrors the old RESTRICTIVE policy expression: initiative member, OR
-    admin of the entity's guild (guild-level), OR a live PAM/break-glass grant
-    covering the guild (app-level reach, handled separately from the guild role).
-
-    There is no standing ``data.bypass`` leg any more: a platform admin/owner
-    reaches a guild only through an explicit break-glass grant, which surfaces
-    here as ``has_active_grant``.
-    """
-    # A row that names no initiative is guild-level, and the initiative gate has
-    # nothing to decide about it — the same branch `public.initiative_access`
-    # takes, kept in step here because this is its app-layer counterpart. The
-    # guild boundary already applied (the request resolved this guild) and the
-    # row's grants decide the rest.
-    if getattr(entity, "initiative_id", _NO_SCOPE_COLUMN) is None:
-        return True
-    initiative = getattr(entity, "initiative", None)
-    memberships = (
-        getattr(initiative, "memberships", None) if initiative is not None else None
-    ) or []
-    if any(m.user_id == user.id for m in memberships):
-        return True
-    guild_id = getattr(entity, "guild_id", None)
-    # App-level reach via an explicit, time-bound grant — kept distinct from the
-    # guild role below.
-    if guild_id is not None and has_active_grant(guild_id):
-        return True
-    # Guild-level: admin of the entity's own guild.
-    return is_request_guild_admin(guild_id, guild_role=guild_role)
+    return id_col.in_(_granted_resource_ids(tool, user_id))
 
 
 # ── Generic DAC engine (registry-driven) ─────────────────────────
@@ -398,7 +342,7 @@ def effective_level(resource: DacResource, row: Any, user_id: int) -> str | None
     # means the guild's. Reading the column through a sentinel rather than
     # `getattr(row, "initiative_id", None)`: a row type that has no such column
     # at all must not be mistaken for one that has it set to NULL.
-    scope = getattr(row, "initiative_id", _NO_SCOPE_COLUMN)
+    scope = getattr(row, "initiative_id", NO_SCOPE_COLUMN)
     is_member = scope is None or any(m.user_id == user_id for m in memberships)
     best: str | None = None
     best_rank = -1

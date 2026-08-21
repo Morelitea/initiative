@@ -43,10 +43,8 @@ async def test_collaboration_guild_admin_gets_full_access(
     """A guild admin must get full collaboration access to a restricted document
     they hold no grant on and aren't an initiative member of — mirroring the REST
     guild-admin bypass. The collaboration paths resolve access straight through
-    the shared DAC engine (``compute_document_permission``), whose
-    ``is_request_guild_admin`` check reads the active guild-role context that
-    ``establish_guild_access`` records. Without that context the admin is wrongly
-    denied — the original "access denied" bug."""
+    the shared DAC engine (``compute_document_permission``), which reads the
+    active guild-role context that ``establish_guild_access`` records."""
     owner = await acting_user(guild_role=GuildRole.member, initiative=True)
     # admin is deliberately NOT a member of this initiative and holds no grant.
     admin = await acting_user(guild_role=GuildRole.admin, guild=owner.guild)

@@ -8,6 +8,7 @@ Tests cover:
 Uses SimpleNamespace mocks to simulate eagerly-loaded ORM objects.
 """
 
+import pathlib
 from types import SimpleNamespace
 
 import pytest
@@ -640,6 +641,38 @@ def test_dac_scope_clause_is_a_no_op_for_a_guild_wide_request():
         set_active_grant(None, None)
 
 
+def test_dac_scope_clause_respects_the_grant_level():
+    """A grant opens the guild only at the level it was issued at, so a read
+    grant is a no-op for a read but not for a write."""
+    set_active_role(None, None)
+    set_override_sharing_initiatives(None)
+    set_active_grant(7, "read")
+    try:
+        assert (
+            _compiled(dac_scope_clause(Tool.project, Project.id, 1, guild_id=7))
+            == "true"
+        )
+        assert (
+            _compiled(
+                dac_scope_clause(
+                    Tool.project, Project.id, 1, guild_id=7, access="write"
+                )
+            )
+            != "true"
+        )
+        set_active_grant(7, "read_write")
+        assert (
+            _compiled(
+                dac_scope_clause(
+                    Tool.project, Project.id, 1, guild_id=7, access="write"
+                )
+            )
+            == "true"
+        )
+    finally:
+        set_active_grant(None, None)
+
+
 def test_dac_scope_clause_narrows_an_ordinary_member():
     """A member is scoped to the resources granted to them, and the clause names
     the tool it was asked about."""
@@ -685,3 +718,26 @@ def test_every_tool_can_be_scoped(tool):
     sql = _compiled(dac_scope_clause(tool, Project.id, 1, guild_id=7))
     assert "resource_grants" in sql
     assert tool.value in sql
+
+
+def test_the_grants_subquery_has_one_caller():
+    """``dac_scope_clause`` is the only way to narrow a listing to what a request
+    may see.
+
+    The grants half of that answer used to be reachable on its own, and callers
+    that took it had to remember to apply the guild-wide half themselves — which
+    they each did differently, or not at all. Keeping ``_granted_resource_ids``
+    private and unreferenced elsewhere means the two halves can only be applied
+    together.
+    """
+    root = pathlib.Path(__file__).resolve().parents[1]
+    offenders = [
+        str(path.relative_to(root))
+        for path in root.rglob("*.py")
+        if path.name not in {"permissions.py", "permissions_test.py"}
+        and "_granted_resource_ids" in path.read_text()
+    ]
+    assert offenders == [], (
+        "these modules reach for the grants subquery directly instead of "
+        f"permissions.dac_scope_clause: {offenders}"
+    )
