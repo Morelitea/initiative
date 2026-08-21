@@ -69,30 +69,47 @@ def _build_smart_link(*, target_path: str, guild_id: int | None) -> str | None:
     return f"{base}/navigate?guild_id={guild_id}&target={encoded}"
 
 
+# A tool entity's URL names its initiative (/i/{initiative}/projects/{id}), and
+# a notifier holds only the entity id — reaching the initiative here would mean
+# an extra load at every call site, and a stored target_path would go stale the
+# moment an entity moved. So these emit an entity REFERENCE and let the client's
+# /go resolver turn it into the canonical address on the way in.
+def _entity_ref_path(ref_type: str, entity_id: int) -> str:
+    return f"/go/{ref_type}/{entity_id}"
+
+
+def _document_target_path(document_id: int | None) -> str:
+    if document_id is None:
+        return "/"
+    return _entity_ref_path("document", document_id)
+
+
 def _task_target_path(task_id: int | None, project_id: int | None) -> str:
     if task_id:
-        return f"/tasks/{task_id}"
+        return _entity_ref_path("task", task_id)
     if project_id:
-        return f"/projects/{project_id}"
-    return "/projects"
+        return _entity_ref_path("project", project_id)
+    # No entity to resolve — the guild home is the only honest landing spot now
+    # that there is no guild-wide project list.
+    return "/"
 
 
 def _project_target_path(project_id: int | None) -> str:
     if project_id is None:
-        return "/projects"
-    return f"/projects/{project_id}"
+        return "/"
+    return _entity_ref_path("project", project_id)
 
 
 def _event_target_path(event_id: int | None) -> str:
     if event_id is None:
-        return "/calendars"
-    return f"/calendar-events/{event_id}"
+        return "/"
+    return _entity_ref_path("event", event_id)
 
 
 def _initiative_target_path(initiative_id: int | None) -> str:
     if initiative_id is None:
-        return "/initiatives"
-    return f"/initiatives/{initiative_id}"
+        return "/i"
+    return f"/i/{initiative_id}"
 
 
 def _recipient_locale(user: User) -> str:
@@ -363,7 +380,7 @@ async def notify_document_mention(
     """Notify a user they were mentioned in a document."""
     if mentioned_user.id == mentioned_by.id:
         return
-    target_path = f"/documents/{document_id}"
+    target_path = _document_target_path(document_id)
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
     mentioned_by_name = mentioned_by.full_name or mentioned_by.email
     locale = _recipient_locale(mentioned_user)
@@ -451,9 +468,9 @@ async def notify_comment_mention(
         return
 
     if task_id:
-        target_path = f"/tasks/{task_id}"
+        target_path = _task_target_path(task_id, None)
     elif document_id:
-        target_path = f"/documents/{document_id}"
+        target_path = _document_target_path(document_id)
     else:
         return
 
@@ -546,9 +563,9 @@ async def notify_task_mentioned_in_comment(
         return
 
     if context_task_id:
-        target_path = f"/tasks/{context_task_id}"
+        target_path = _task_target_path(context_task_id, None)
     elif context_document_id:
-        target_path = f"/documents/{context_document_id}"
+        target_path = _document_target_path(context_document_id)
     else:
         return
 
@@ -640,7 +657,7 @@ async def notify_comment_on_task(
     if assignee.id == commenter.id:
         return
 
-    target_path = f"/tasks/{task_id}"
+    target_path = _task_target_path(task_id, None)
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
     commenter_name = commenter.full_name or commenter.email
     locale = _recipient_locale(assignee)
@@ -720,7 +737,7 @@ async def notify_comment_on_document(
     if author.id == commenter.id:
         return
 
-    target_path = f"/documents/{document_id}"
+    target_path = _document_target_path(document_id)
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
     commenter_name = commenter.full_name or commenter.email
     locale = _recipient_locale(author)
@@ -810,9 +827,9 @@ async def notify_comment_reply(
         return
 
     if task_id:
-        target_path = f"/tasks/{task_id}"
+        target_path = _task_target_path(task_id, None)
     elif document_id:
-        target_path = f"/documents/{document_id}"
+        target_path = _document_target_path(document_id)
     else:
         return
 
@@ -924,7 +941,7 @@ async def _deliver_event_notification(
     In-app is always created; email/push are gated by the caller's resolved
     preference flags. Mirrors the task/comment notifiers' structure.
     """
-    target_path = data.get("target_path", "/calendar")
+    target_path = data.get("target_path", "/")
     guild_id = data.get("guild_id")
     await user_notifications.create_notification(
         session,

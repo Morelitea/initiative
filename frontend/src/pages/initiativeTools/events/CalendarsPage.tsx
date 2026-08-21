@@ -684,10 +684,6 @@ export const CalendarsView = ({
   );
 };
 
-export function CalendarsPage() {
-  return <CalendarsView />;
-}
-
 /** The /calendars/$calendarId deep link (recents tabs, command palette):
  * the same calendar page with that calendar forced visible, recorded as a
  * recent open. */
