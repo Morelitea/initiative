@@ -197,10 +197,8 @@ async def _get_item_for_queue(
     return item
 
 
-def _compute_my_permission(
-    queue: Queue, user: User, guild_context: GuildContext
-) -> str | None:
-    return resource_access.my_permission_level(queue, Tool.queue, user, guild_context)
+def _compute_my_permission(queue: Queue, user: User) -> str | None:
+    return resource_access.my_permission_level(queue, Tool.queue, user)
 
 
 async def _refetch_queue(
@@ -318,7 +316,7 @@ async def list_queues(
     items = [
         serialize_queue_summary(
             q,
-            my_permission_level=_compute_my_permission(q, current_user, guild_context),
+            my_permission_level=_compute_my_permission(q, current_user),
         )
         for q in queues
     ]
@@ -381,7 +379,7 @@ async def read_queue(
     )
     return serialize_queue(
         queue,
-        my_permission_level=_compute_my_permission(queue, current_user, guild_context),
+        my_permission_level=_compute_my_permission(queue, current_user),
     )
 
 
@@ -450,9 +448,7 @@ async def create_queue(
     hydrated = await _refetch_queue(session, queue.id)
     return serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(
-            hydrated, current_user, guild_context
-        ),
+        my_permission_level=_compute_my_permission(hydrated, current_user),
     )
 
 
@@ -486,9 +482,7 @@ async def update_queue(
     hydrated = await _refetch_queue(session, queue.id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(
-            hydrated, current_user, guild_context
-        ),
+        my_permission_level=_compute_my_permission(hydrated, current_user),
     )
     if updated:
         await _emit_queue(
@@ -512,8 +506,7 @@ async def delete_queue(
     queue = await _get_queue_with_access(
         session, queue_id, current_user, guild_context, access="read"
     )
-    if not rls_service.is_guild_admin(guild_context.role):
-        queues_service.require_queue_access(queue, current_user, require_owner=True)
+    queues_service.require_queue_access(queue, current_user, require_owner=True)
     retention_days = await guilds_service.get_guild_retention_days(
         session, guild_context.guild_id
     )
@@ -719,9 +712,7 @@ async def reorder_queue_items(
     hydrated = await _refetch_queue(session, queue.id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(
-            hydrated, current_user, guild_context
-        ),
+        my_permission_level=_compute_my_permission(hydrated, current_user),
     )
     await _emit_queue(
         session, queue_id, "items_reordered", result.model_dump(mode="json")
@@ -751,9 +742,7 @@ async def start_queue(
     hydrated = await _refetch_queue(session, queue.id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(
-            hydrated, current_user, guild_context
-        ),
+        my_permission_level=_compute_my_permission(hydrated, current_user),
     )
     await _emit_queue(
         session, queue_id, "queue_started", result.model_dump(mode="json")
@@ -778,9 +767,7 @@ async def stop_queue(
     hydrated = await _refetch_queue(session, queue.id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(
-            hydrated, current_user, guild_context
-        ),
+        my_permission_level=_compute_my_permission(hydrated, current_user),
     )
     await _emit_queue(
         session, queue_id, "queue_stopped", result.model_dump(mode="json")
@@ -805,9 +792,7 @@ async def advance_turn(
     hydrated = await _refetch_queue(session, queue.id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(
-            hydrated, current_user, guild_context
-        ),
+        my_permission_level=_compute_my_permission(hydrated, current_user),
     )
     await _emit_queue(session, queue_id, "turn_advance", result.model_dump(mode="json"))
     return result
@@ -830,9 +815,7 @@ async def previous_turn(
     hydrated = await _refetch_queue(session, queue.id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(
-            hydrated, current_user, guild_context
-        ),
+        my_permission_level=_compute_my_permission(hydrated, current_user),
     )
     await _emit_queue(
         session, queue_id, "turn_previous", result.model_dump(mode="json")
@@ -858,9 +841,7 @@ async def set_active_item(
     hydrated = await _refetch_queue(session, queue.id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(
-            hydrated, current_user, guild_context
-        ),
+        my_permission_level=_compute_my_permission(hydrated, current_user),
     )
     await _emit_queue(
         session, queue_id, "turn_set_active", result.model_dump(mode="json")
@@ -885,9 +866,7 @@ async def reset_queue(
     hydrated = await _refetch_queue(session, queue.id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(
-            hydrated, current_user, guild_context
-        ),
+        my_permission_level=_compute_my_permission(hydrated, current_user),
     )
     await _emit_queue(session, queue_id, "queue_reset", result.model_dump(mode="json"))
     return result
@@ -915,9 +894,7 @@ async def hold_current_turn(
     hydrated = await _refetch_queue(session, queue.id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(
-            hydrated, current_user, guild_context
-        ),
+        my_permission_level=_compute_my_permission(hydrated, current_user),
     )
     await _emit_queue(session, queue_id, "turn_held", result.model_dump(mode="json"))
     return result
@@ -956,9 +933,7 @@ async def release_held_item(
     hydrated = await _refetch_queue(session, queue.id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(
-            hydrated, current_user, guild_context
-        ),
+        my_permission_level=_compute_my_permission(hydrated, current_user),
     )
     await _emit_queue(
         session, queue_id, "turn_released", result.model_dump(mode="json")
@@ -1115,9 +1090,7 @@ async def set_queue_grants(
     hydrated = await _refetch_queue(session, queue_id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(
-            hydrated, current_user, guild_context
-        ),
+        my_permission_level=_compute_my_permission(hydrated, current_user),
     )
     await _emit_queue(
         session,

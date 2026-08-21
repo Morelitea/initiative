@@ -203,14 +203,8 @@ async def _get_counter_for_group(
     return counter
 
 
-def _compute_my_permission(
-    group: CounterGroup,
-    user: User,
-    guild_context: GuildContext,
-) -> str | None:
-    return resource_access.my_permission_level(
-        group, Tool.counter_group, user, guild_context
-    )
+def _compute_my_permission(group: CounterGroup, user: User) -> str | None:
+    return resource_access.my_permission_level(group, Tool.counter_group, user)
 
 
 async def _refetch_group(session: RLSSessionDep, group_id: int) -> CounterGroup:
@@ -291,7 +285,7 @@ async def list_counter_groups(
     items = [
         serialize_counter_group_summary(
             g,
-            my_permission_level=_compute_my_permission(g, current_user, guild_context),
+            my_permission_level=_compute_my_permission(g, current_user),
         )
         for g in groups
     ]
@@ -357,7 +351,7 @@ async def read_counter_group(
     )
     return serialize_counter_group(
         group,
-        my_permission_level=_compute_my_permission(group, current_user, guild_context),
+        my_permission_level=_compute_my_permission(group, current_user),
     )
 
 
@@ -422,9 +416,7 @@ async def create_counter_group(
     hydrated = await _refetch_group(session, group.id)
     return serialize_counter_group(
         hydrated,
-        my_permission_level=_compute_my_permission(
-            hydrated, current_user, guild_context
-        ),
+        my_permission_level=_compute_my_permission(hydrated, current_user),
     )
 
 
@@ -461,9 +453,7 @@ async def duplicate_counter_group(
     hydrated = await _refetch_group(session, new_group.id)
     return serialize_counter_group(
         hydrated,
-        my_permission_level=_compute_my_permission(
-            hydrated, current_user, guild_context
-        ),
+        my_permission_level=_compute_my_permission(hydrated, current_user),
     )
 
 
@@ -496,9 +486,7 @@ async def update_counter_group(
     hydrated = await _refetch_group(session, group.id)
     result = serialize_counter_group(
         hydrated,
-        my_permission_level=_compute_my_permission(
-            hydrated, current_user, guild_context
-        ),
+        my_permission_level=_compute_my_permission(hydrated, current_user),
     )
     if updated:
         await _emit_counter(
@@ -520,10 +508,9 @@ async def delete_counter_group(
     group = await _get_counter_group_with_access(
         session, group_id, current_user, guild_context, access="read"
     )
-    if not rls_service.is_guild_admin(guild_context.role):
-        counters_service.require_counter_group_access(
-            group, current_user, require_owner=True
-        )
+    counters_service.require_counter_group_access(
+        group, current_user, require_owner=True
+    )
     retention_days = await guilds_service.get_guild_retention_days(
         session, guild_context.guild_id
     )
@@ -856,9 +843,7 @@ async def reset_all_counters(
     hydrated = await _refetch_group(session, group.id)
     result = serialize_counter_group(
         hydrated,
-        my_permission_level=_compute_my_permission(
-            hydrated, current_user, guild_context
-        ),
+        my_permission_level=_compute_my_permission(hydrated, current_user),
     )
     await _emit_counter(
         session, group_id, "counters_reset", result.model_dump(mode="json")
@@ -885,9 +870,7 @@ async def sort_counters(
     hydrated = await _refetch_group(session, group.id)
     result = serialize_counter_group(
         hydrated,
-        my_permission_level=_compute_my_permission(
-            hydrated, current_user, guild_context
-        ),
+        my_permission_level=_compute_my_permission(hydrated, current_user),
     )
     await _emit_counter(
         session, group_id, "counters_reordered", result.model_dump(mode="json")
@@ -921,9 +904,7 @@ async def set_counter_group_grants(
     hydrated = await _refetch_group(session, group_id)
     result = serialize_counter_group(
         hydrated,
-        my_permission_level=_compute_my_permission(
-            hydrated, current_user, guild_context
-        ),
+        my_permission_level=_compute_my_permission(hydrated, current_user),
     )
     await _emit_counter(
         session,

@@ -362,7 +362,7 @@ async def delete_calendar(
         calendar_id,
         current_user,
         guild_context,
-        require_owner=not rls_service.is_guild_admin(guild_context.role),
+        require_owner=True,
     )
     retention_days = await guilds_service.get_guild_retention_days(
         session, guild_context.guild_id

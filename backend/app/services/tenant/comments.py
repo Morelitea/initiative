@@ -11,7 +11,6 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import CommentMessages
-from app.core.pam_context import grant_satisfies
 from app.models.tenant.comment import Comment
 from app.models.tenant.document import Document
 from app.models.platform.guild import GuildRole
@@ -101,18 +100,15 @@ async def _ensure_task_access(
     project: Project,
     user: User,
     access: str = "read",
-    is_guild_admin: bool = False,
 ) -> None:
     """Ensure user can access task for commenting.
 
     Tasks inherit access from their project's permission levels (DAC); any
-    level (owner, write, read) grants comment access. A guild admin has full
-    access to all of their guild's data regardless of DAC. A live PAM grant also
-    satisfies it — read for viewing comments, read_write for posting/editing.
+    level (owner, write, read) grants comment access. A request that reaches the
+    whole guild — a guild admin, or a live PAM grant at the right level — needs
+    no grant row.
     """
-    if is_guild_admin:
-        return
-    if grant_satisfies(project.guild_id, access=access):
+    if permissions_service.request_bypasses_dac(project.guild_id, access=access):
         return
     if await _has_project_permission(session, project_id=project.id, user_id=user.id):
         return
@@ -125,18 +121,14 @@ async def _ensure_document_access(
     document: Document,
     user: User,
     access: str = "read",
-    is_guild_admin: bool = False,
 ) -> None:
     """Ensure user can access document for commenting.
 
     Any permission level (owner, write, read) grants comment access, including
-    role-based permissions. A guild admin has full access to all of their
-    guild's data regardless of DAC. A live PAM grant also satisfies it — read
-    for viewing, read_write for posting/editing.
+    role-based permissions. A request that reaches the whole guild — a guild
+    admin, or a live PAM grant at the right level — needs no grant row.
     """
-    if is_guild_admin:
-        return
-    if grant_satisfies(document.guild_id, access=access):
+    if permissions_service.request_bypasses_dac(document.guild_id, access=access):
         return
     # The document is accessible if it appears among the resource ids the user
     # can reach via a grant (own user grant OR a grant to one of their roles).
@@ -168,7 +160,6 @@ async def get_comment(
     comment_id: int,
     user: User,
     guild_id: int,
-    guild_role: GuildRole,
 ) -> Comment:
     """One comment, gated exactly like listing its parent's thread.
 
@@ -196,7 +187,6 @@ async def get_comment(
             project=context.project,
             user=user,
             access="read",
-            is_guild_admin=guild_role == GuildRole.admin,
         )
     else:
         document = await documents_service.get_document(
@@ -209,7 +199,6 @@ async def get_comment(
             document=document,
             user=user,
             access="read",
-            is_guild_admin=guild_role == GuildRole.admin,
         )
     return comment
 
@@ -219,7 +208,6 @@ async def create_comment(
     *,
     author: User,
     guild_id: int,
-    guild_role: GuildRole,
     content: str,
     task_id: Optional[int] = None,
     document_id: Optional[int] = None,
@@ -240,7 +228,6 @@ async def create_comment(
             project=context.project,
             user=author,
             access="write",
-            is_guild_admin=guild_role == GuildRole.admin,
         )
         if parent_comment and parent_comment.task_id != context.task.id:
             raise CommentValidationError(CommentMessages.PARENT_MISMATCH)
@@ -266,7 +253,6 @@ async def create_comment(
             document=document,
             user=author,
             access="write",
-            is_guild_admin=guild_role == GuildRole.admin,
         )
         if parent_comment and parent_comment.document_id != document.id:
             raise CommentValidationError(CommentMessages.PARENT_MISMATCH)
@@ -471,7 +457,6 @@ async def list_comments(
     *,
     user: User,
     guild_id: int,
-    guild_role: GuildRole,
     task_id: Optional[int] = None,
     document_id: Optional[int] = None,
 ) -> Sequence[Comment]:
@@ -489,7 +474,6 @@ async def list_comments(
             session,
             project=context.project,
             user=user,
-            is_guild_admin=guild_role == GuildRole.admin,
         )
         stmt = (
             select(Comment)
@@ -509,7 +493,6 @@ async def list_comments(
             session,
             document=document,
             user=user,
-            is_guild_admin=guild_role == GuildRole.admin,
         )
         stmt = (
             select(Comment)
@@ -552,7 +535,6 @@ async def delete_comment(
             session,
             project=context.project,
             user=user,
-            is_guild_admin=guild_role == GuildRole.admin,
         )
     elif comment.document_id is not None:
         document = await documents_service.get_document(
@@ -567,7 +549,6 @@ async def delete_comment(
             session,
             document=document,
             user=user,
-            is_guild_admin=guild_role == GuildRole.admin,
         )
     else:
         raise CommentValidationError(CommentMessages.NOT_LINKED)
