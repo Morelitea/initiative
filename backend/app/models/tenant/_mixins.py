@@ -80,6 +80,16 @@ class CreatedByMixin(SQLModel):
     That is what the old spellings (``author_id``, ``uploader_user_id``,
     ``uploaded_by_id``, ``installed_by_id``, ``created_by_user_id``) cost.
 
+    **The database fills it, not the app.** A BEFORE INSERT trigger
+    (``public.fn_set_created_by``, attached per table) reads
+    ``app.current_user_id`` — the GUC the request already sets for RLS — so
+    every insert is covered, including one that never passes through the ORM.
+    Only NULL is filled, so a caller that names an author explicitly keeps it,
+    and a write with no user in context (background jobs, seeding, migrations)
+    leaves NULL because there is nobody to name. One consequence worth knowing:
+    a freshly flushed object holds ``None`` until it is refreshed — the value
+    is on the row, not yet in the identity map.
+
     **There is deliberately no schema-wide ``updated_by``.** Who changed a row,
     and when, is recorded per transaction by ``public.capture_change`` into
     ``event_outbox`` — with the transaction id and the columns that changed,

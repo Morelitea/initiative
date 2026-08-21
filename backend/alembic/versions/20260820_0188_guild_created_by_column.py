@@ -19,6 +19,11 @@ changed, which one mutable column could not hold. ``documents`` keeps its own
 ``updated_by`` because a document's last editor is a product feature; nothing
 else grows one.
 
+A BEFORE INSERT trigger fills the column from ``app.current_user_id``, the GUC
+the request already sets for RLS — the same shape as the ``fn_*_set_guild_id``
+triggers beside it and the actor read in ``public.capture_change``. One shared
+function serves every schema, because the column name is the same everywhere.
+
 Junction rows, roster rows, per-user state and machinery ledgers are left alone;
 ``app.db.tenancy.CREATED_BY_EXEMPT_TABLES`` lists them with the reason.
 
@@ -113,6 +118,37 @@ _NEW_CREATED_BY: tuple[str, ...] = (
     "task_statuses",
 )
 
+#: Every table carrying ``created_by`` after this migration — the renames plus
+#: the additions. Spelled out rather than imported: a revision has to keep doing
+#: to a database exactly what it did when it was written.
+_CREATED_BY_TABLES: tuple[str, ...] = tuple(
+    sorted({table for table, _ in _RENAMES} | set(_NEW_CREATED_BY))
+)
+
+#: Fills ``created_by`` from the request GUC the RLS context already sets. One
+#: shared function in ``public``, like ``capture_change``: the column is named
+#: the same on every table, so there is nothing per-table to know.
+#:
+#: Only NULL is filled, so a caller that names an author explicitly — the backup
+#: importer restoring original authorship — keeps it. A write with no user in
+#: context (background jobs, seeding, migrations) leaves NULL, because there is
+#: nobody to name. INSERT only: an author is a historical fact and is never
+#: revised.
+_STAMP_FUNCTION = """
+CREATE OR REPLACE FUNCTION public.fn_set_created_by() RETURNS trigger
+    LANGUAGE plpgsql AS $stamp$
+BEGIN
+    IF NEW.created_by IS NULL THEN
+        NEW.created_by := NULLIF(
+            current_setting('app.current_user_id', true), ''
+        )::integer;
+    END IF;
+    RETURN NEW;
+END;
+$stamp$;
+"""
+
+
 #: child table -> (parent table, join column on the child, parent key). The
 #: child's author defaults to the parent's where one exists.
 _BACKFILL: tuple[tuple[str, str, str, str], ...] = (
@@ -127,6 +163,9 @@ _BACKFILL: tuple[tuple[str, str, str, str], ...] = (
 
 
 def upgrade() -> None:
+    # Shared, in ``public``, created once — the per-schema loop only attaches
+    # triggers to it (same split as ``public.capture_change``).
+    op.execute(_STAMP_FUNCTION)
     run_for_each_guild_schema(op.get_bind(), _apply_upgrade)
 
 
@@ -140,6 +179,13 @@ def _apply_upgrade() -> None:
 
     for table in _NEW_CREATED_BY:
         op.add_column(table, sa.Column("created_by", sa.Integer(), nullable=True))
+
+    for table in _CREATED_BY_TABLES:
+        op.execute(
+            f"CREATE OR REPLACE TRIGGER tr_{table}_set_created_by "
+            f"BEFORE INSERT ON {table} "
+            f"FOR EACH ROW EXECUTE FUNCTION public.fn_set_created_by()"
+        )
 
     _backfill_children_from_parents()
 
@@ -187,9 +233,14 @@ def _backfill_children_from_parents() -> None:
 
 def downgrade() -> None:
     run_for_each_guild_schema(op.get_bind(), _apply_downgrade)
+    # Reachable only from the triggers just dropped.
+    op.execute("DROP FUNCTION IF EXISTS public.fn_set_created_by()")
 
 
 def _apply_downgrade() -> None:
+    for table in _CREATED_BY_TABLES:
+        op.execute(f"DROP TRIGGER IF EXISTS tr_{table}_set_created_by ON {table}")
+
     for table in _NEW_CREATED_BY:
         op.drop_column(table, "created_by")
 

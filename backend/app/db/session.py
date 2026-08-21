@@ -13,7 +13,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.db import base  # noqa: F401  # ensure models are imported for Alembic
-from app.models.tenant._mixins import CreatedByMixin
 
 # Primary engine: non-superuser (DATABASE_URL_APP) for RLS-enforced queries.
 engine = create_async_engine(settings.DATABASE_URL_APP, echo=False)
@@ -266,42 +265,6 @@ def _replay_rls_context(session: SyncSession, transaction, connection) -> None:
 # sync session under AsyncSession). Sessions without stored params are a
 # no-op, so the global listener is effectively scoped to routed sessions.
 event.listen(SyncSession, "after_begin", _replay_rls_context, propagate=True)
-
-
-def _stamp_created_by(session: SyncSession, flush_context, instances) -> None:
-    """before_flush hook: record who made a guild row.
-
-    Every guild-content table carries ``created_by``
-    (``app.models.tenant._mixins.CreatedByMixin``). Stamping it here rather
-    than at each call site is what keeps it true: the ORM flush already knows
-    who the request belongs to, where the alternative is remembering to set a
-    column everywhere a row is written.
-
-    Inserts only. ``created_by`` is written once and never revised — an author
-    is a historical fact, and who changed a row afterwards is recorded per
-    transaction by ``public.capture_change`` into ``event_outbox``.
-
-    Only NULL is filled, so a caller that names an author explicitly — the
-    backup importer restoring original authorship, say — keeps it. A session
-    with no user in its context (background jobs, seeding, migrations) stamps
-    nothing, because there is no one to name.
-
-    This covers ORM writes. A bulk ``insert()`` statement never reaches a
-    flush, so a service that writes that way sets the column itself or leaves
-    it alone deliberately (``reassign_user_content`` does the latter — it is
-    rewriting authorship, not performing it).
-    """
-    params = session.info.get(_RLS_PARAMS_INFO_KEY)
-    user_id = params.get("user_id") if params else None
-    if user_id is None:
-        return
-
-    for obj in session.new:
-        if isinstance(obj, CreatedByMixin) and obj.created_by is None:
-            obj.created_by = user_id
-
-
-event.listen(SyncSession, "before_flush", _stamp_created_by, propagate=True)
 
 
 async def set_rls_context(
