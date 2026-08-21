@@ -3,8 +3,7 @@
  *
  * It sits under the tool table and stays put while the rail switches tools —
  * the feed is guild-wide, not a view of the selected tool. The endpoint only
- * returns comments on tasks and documents the user may see, so no filtering
- * happens here.
+ * returns comments on entities the user may see, so no filtering happens here.
  */
 
 import { Link } from "@tanstack/react-router";
@@ -20,7 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useRecentComments } from "@/hooks/useComments";
 import { useGuildPath } from "@/lib/guildUrl";
 import { getInitials } from "@/lib/initials";
-import { taskRoute, toolDetailRoute } from "@/lib/tools";
+import { entityRefRoute, TOOLS, taskRoute, toolDetailRoute } from "@/lib/tools";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { getUserDisplayName } from "@/lib/userDisplay";
 
@@ -30,19 +29,35 @@ const CommentEntry = ({ entry }: { entry: RecentActivityEntry }) => {
   const { t } = useTranslation("guildHome");
   const gp = useGuildPath();
 
-  const linkTo = entry.task_id
-    ? gp(taskRoute(entry.initiative_id ?? null, entry.project_id as number, entry.task_id))
-    : entry.document_id
-      ? gp(toolDetailRoute(Tool.document, entry.initiative_id ?? null, entry.document_id))
-      : undefined;
+  // A null initiative names a guild-level address, which the route builders
+  // handle; the task/document columns are the older shape of the same parent.
+  const initiativeId = entry.initiative_id ?? null;
+  const tool = TOOLS.find((candidate) => candidate === entry.entity_type) ?? null;
+  const taskId = entry.entity_type === "task" ? entry.entity_id : entry.task_id;
+
+  let linkTo: string | undefined;
+  if (taskId) {
+    linkTo = gp(
+      entry.project_id != null
+        ? taskRoute(initiativeId, entry.project_id, taskId)
+        : entityRefRoute("task", taskId)
+    );
+  } else if (tool && entry.entity_id) {
+    linkTo = gp(toolDetailRoute(tool, initiativeId, entry.entity_id));
+  } else if (entry.document_id) {
+    linkTo = gp(toolDetailRoute(Tool.document, initiativeId, entry.document_id));
+  }
 
   const contextParts: string[] = [];
   if (entry.task_title) {
     contextParts.push(t("recentComments.onTask", { taskTitle: entry.task_title }));
   } else if (entry.document_name) {
     contextParts.push(t("recentComments.onDocument", { documentTitle: entry.document_name }));
+  } else if (entry.entity_name) {
+    contextParts.push(t("recentComments.onEntity", { entityName: entry.entity_name }));
   }
-  if (entry.project_name) {
+  // A comment on the project itself already names it, so it isn't also "in" it.
+  if (entry.project_name && entry.entity_type !== Tool.project) {
     contextParts.push(t("recentComments.inProject", { projectName: entry.project_name }));
   }
 

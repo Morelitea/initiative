@@ -17,7 +17,7 @@ import {
 import { normalizeLegacyTarget } from "@/lib/entityResolver";
 import { downloadExportArtifact } from "@/lib/exportDownload";
 import { guildPath } from "@/lib/guildUrl";
-import { entityRefRoute, INITIATIVES_ROUTE } from "@/lib/tools";
+import { entityRefRoute, INITIATIVES_ROUTE, TOOLS, toolRefRoute } from "@/lib/tools";
 
 // Build guild-scoped URL directly. Notification rows persist their
 // target_path, so one written before tools moved inside their initiative is
@@ -60,6 +60,21 @@ const resolveSmartLink = (notification: NotificationRead): string | null => {
   return null;
 };
 
+// The `/go` resolver address for a payload that names its parent generically
+// (`entity_type` + `entity_id`), or null when it names nothing recognizable.
+const entityRefFromData = (data: Record<string, unknown>): string | null => {
+  const entityType = typeof data.entity_type === "string" ? data.entity_type : null;
+  const entityId = Number(data.entity_id);
+  if (!entityType || !Number.isFinite(entityId)) {
+    return null;
+  }
+  if (entityType === "task") {
+    return entityRefRoute("task", entityId);
+  }
+  const tool = TOOLS.find((candidate) => candidate === entityType);
+  return tool ? toolRefRoute(tool, entityId) : null;
+};
+
 const notificationLink = (notification: NotificationRead): string | null => {
   const smartLink = resolveSmartLink(notification);
   if (smartLink) {
@@ -96,10 +111,12 @@ const notificationLink = (notification: NotificationRead): string | null => {
     case "user_pending_approval":
       return "/settings";
     case "mention":
+    case "comment_reply":
+    case "comment_on_resource":
       if (typeof data.document_id === "number") {
         return entityRefRoute("document", data.document_id);
       }
-      return null;
+      return entityRefFromData(data);
     case "access_grant_requested":
     case "access_grant_approved":
     case "access_grant_denied":
@@ -180,6 +197,11 @@ const notificationText = (
         commenterName: data.commenter_name ?? "Someone",
         // Notifications stored before the rename still carry `document_title`.
         documentTitle: data.document_name ?? data.document_title ?? "your document",
+      });
+    case "comment_on_resource":
+      return t("notifications.commentOnResource", {
+        commenterName: data.commenter_name ?? "Someone",
+        entityName: data.entity_name ?? "an item",
       });
     case "comment_reply":
       return t("notifications.commentReply", {

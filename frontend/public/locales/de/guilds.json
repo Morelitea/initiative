@@ -190,6 +190,7 @@
     "mentionDocument": "{{mentionedBy}} hat dich in {{documentTitle}} erwähnt.",
     "commentOnTask": "{{commenterName}} hat {{taskTitle}} kommentiert.",
     "commentOnDocument": "{{commenterName}} hat {{documentTitle}} kommentiert.",
+    "commentOnResource": "{{commenterName}} hat {{entityName}} kommentiert.",
     "commentReply": "{{replierName}} hat auf deinen Kommentar zu {{contextTitle}} geantwortet.",
     "accessGrantRequested": "{{requester}} hat {{level}}-Zugriff auf {{guild}} angefragt.",
     "accessGrantRequestedGeneric": "{{requester}} hat Zugriff auf {{guild}} angefragt.",

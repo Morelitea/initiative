@@ -22,6 +22,7 @@ import {
   type CalendarViewMode,
   calendarVisibleRange,
 } from "@/components/calendar";
+import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { ExportButton } from "@/components/exports/ExportButton";
 import { TOOL_EXPORT_FORMATS } from "@/components/exports/formats";
 import { ToolImportAction } from "@/components/imports/ToolImportAction";
@@ -58,6 +59,7 @@ import { useUpdateTask } from "@/hooks/useTasks";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { exportFilenameStem } from "@/lib/exportDownload";
 import { useGuildPath } from "@/lib/guildUrl";
+import { hasWriteAccess } from "@/lib/permissions";
 import { getProjectColor } from "@/lib/projectColor";
 import { PRIORITY_ORDER } from "@/lib/sorting";
 import { getItem, setItem } from "@/lib/storage";
@@ -711,9 +713,17 @@ export function CalendarFocusPage() {
 
   const isGuildCalendar = calendar.initiative_id == null;
   return (
-    <CalendarsView
-      focusCalendarId={calendar.id}
-      soloCalendar={isGuildCalendar ? calendar : undefined}
-    />
+    <div className="space-y-6">
+      <CalendarsView
+        focusCalendarId={calendar.id}
+        soloCalendar={isGuildCalendar ? calendar : undefined}
+      />
+      <ToolCommentsPanel
+        entityType={Tool.calendar}
+        entityId={calendar.id}
+        initiativeId={calendar.initiative_id ?? 0}
+        canModerate={hasWriteAccess(calendar.my_permission_level)}
+      />
+    </div>
   );
 }

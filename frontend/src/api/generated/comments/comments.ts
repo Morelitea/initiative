@@ -317,10 +317,9 @@ export function useListCommentsApiV1GGuildIdCommentsGet<
 /**
  * Return the most recent comments across the guild.
  *
- * Only returns comments on tasks/documents the current user has
- * DAC permission to view (direct user permission or role-based).
- * Initiative-level filtering is handled by RLS on the joined
- * Task/Project/Document tables.
+ * Only returns comments on parents the current user has DAC permission to
+ * view (direct user permission or role-based). Initiative-level filtering is
+ * handled by RLS on the joined parent tables.
  * @summary Recent Comments
  */
 export const recentCommentsApiV1GGuildIdCommentsRecentGet = (

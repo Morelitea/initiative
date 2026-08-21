@@ -579,6 +579,7 @@
     "mentionDoc": "ein Dokument verknüpfen",
     "mentionProject": "ein Projekt verknüpfen",
     "loading": "Kommentare werden geladen...",
+    "loadError": "Kommentare können derzeit nicht geladen werden.",
     "empty": "Noch keine Kommentare. Sei der Erste, der etwas beiträgt.",
     "errorCreate": "Kommentar kann derzeit nicht veröffentlicht werden.",
     "errorDelete": "Kommentar kann derzeit nicht gelöscht werden.",
