@@ -405,7 +405,6 @@ async def duplicate_document(
         document_type=source.document_type,
         content=content_copy,
         created_by=user_id,
-        updated_by=user_id,
         featured_image_url=featured_image_url,
         is_template=False,
     )

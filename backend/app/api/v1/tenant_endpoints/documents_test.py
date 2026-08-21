@@ -60,7 +60,6 @@ async def _create_file_document(
         initiative_id=initiative.id,
         guild_id=initiative.guild_id,
         created_by=owner.id,
-        updated_by=owner.id,
         document_type=DocumentType.file,
         file_url=f"/uploads/{initiative.guild_id}/{filename}",
         original_filename=filename,

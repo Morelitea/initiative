@@ -98,7 +98,6 @@ class DocumentSummary(DocumentBase):
     # which matters on cross-guild surfaces like My Documents.
     guild_id: int
     created_by: int
-    updated_by: int
     created_at: datetime
     updated_at: datetime
     initiative: Optional[InitiativeRead] = None
@@ -227,7 +226,6 @@ def serialize_document_summary(
         featured_image_url=document.featured_image_url,
         is_template=document.is_template,
         created_by=document.created_by,
-        updated_by=document.updated_by,
         created_at=document.created_at,
         updated_at=document.updated_at,
         initiative=initiative,

@@ -10,14 +10,15 @@ so anything needing a row's author carried a per-table map of column names.
 Every one of those columns is renamed, not recreated, so its data survives.
 
 The ``_id`` suffix goes with them: ``created_by`` now matches ``deleted_by``,
-which never had one, and ``documents.updated_by``.
+which never had one.
 
-There is deliberately **no** schema-wide ``updated_by``. Who changed a row, and
-when, is already captured per transaction by ``public.capture_change`` into
+``documents.updated_by_id`` is **dropped**. Who changed a row, and when, is
+already captured per transaction by ``public.capture_change`` into
 ``event_outbox`` — with the transaction id and the names of the columns that
-changed, which one mutable column could not hold. ``documents`` keeps its own
-``updated_by`` because a document's last editor is a product feature; nothing
-else grows one.
+changed, which one mutable column could not hold. The column was written on six
+paths and read on none: it was required by the read schema, so a client
+assembling a document summary from another shape had to invent a value to
+satisfy it. No table grows one.
 
 A BEFORE INSERT trigger fills the column from ``app.current_user_id``, the GUC
 the request already sets for RLS — the same shape as the ``fn_*_set_guild_id``
@@ -70,8 +71,9 @@ _RENAMES: tuple[tuple[str, str], ...] = (
     ("webhook_subscriptions", "created_by_user_id"),
 )
 
-#: The one "last editor" column that stays, dropping its suffix with the rest.
-_UPDATED_BY_RENAME = ("documents", "updated_by_id", "updated_by")
+#: Written on six paths, read on none — and ``capture_change`` already records
+#: who changed a document, with the transaction and the columns involved.
+_DROPPED_UPDATED_BY = ("documents", "updated_by_id")
 
 #: Constraints and indexes named after a renamed column. Postgres rewrites what
 #: they reference on RENAME COLUMN but keeps their own name, so the name is
@@ -172,8 +174,8 @@ def upgrade() -> None:
 def _apply_upgrade() -> None:
     for table, old in _RENAMES:
         op.alter_column(table, old, new_column_name="created_by")
-    table, old, new = _UPDATED_BY_RENAME
-    op.alter_column(table, old, new_column_name=new)
+    table, column = _DROPPED_UPDATED_BY
+    op.drop_column(table, column)
     for forward, _ in _RENAMED_OBJECTS:
         op.execute(forward)
 
@@ -231,6 +233,32 @@ def _backfill_children_from_parents() -> None:
             op.execute(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY")
 
 
+def _restore_updated_by() -> None:
+    """Put ``documents.updated_by_id`` back, NOT NULL as it was.
+
+    The values it held are gone, so every row gets its author — the only
+    non-arbitrary stand-in available, and true for a document nobody has edited
+    since. FORCE ROW LEVEL SECURITY binds the owning role, so the UPDATE runs
+    with policies off and the remaining count is asserted rather than assumed.
+    """
+    table, column = _DROPPED_UPDATED_BY
+    op.add_column(table, sa.Column(column, sa.Integer(), nullable=True))
+    op.execute(f"ALTER TABLE {table} NO FORCE ROW LEVEL SECURITY")
+    try:
+        bind = op.get_bind()
+        bind.execute(sa.text(f"UPDATE {table} SET {column} = created_by"))  # noqa: S608
+        remaining = bind.execute(
+            sa.text(f"SELECT count(*) FROM {table} WHERE {column} IS NULL")  # noqa: S608
+        ).scalar()
+        if remaining:
+            raise RuntimeError(
+                f"{remaining} {table} rows have no author to restore {column} from"
+            )
+    finally:
+        op.execute(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY")
+    op.alter_column(table, column, nullable=False)
+
+
 def downgrade() -> None:
     run_for_each_guild_schema(op.get_bind(), _apply_downgrade)
     # Reachable only from the triggers just dropped.
@@ -246,7 +274,6 @@ def _apply_downgrade() -> None:
 
     for _, reverse in _RENAMED_OBJECTS:
         op.execute(reverse)
-    table, old, new = _UPDATED_BY_RENAME
-    op.alter_column(table, new, new_column_name=old)
+    _restore_updated_by()
     for table, old in _RENAMES:
         op.alter_column(table, "created_by", new_column_name=old)

@@ -90,19 +90,18 @@ class CreatedByMixin(SQLModel):
     a freshly flushed object holds ``None`` until it is refreshed — the value
     is on the row, not yet in the identity map.
 
-    **There is deliberately no schema-wide ``updated_by``.** Who changed a row,
+    **There is deliberately no ``updated_by``, anywhere.** Who changed a row,
     and when, is recorded per transaction by ``public.capture_change`` into
     ``event_outbox`` — with the transaction id and the columns that changed,
-    which a single mutable column could never hold. A row-level "last editor"
-    is only kept where it is a product feature in its own right (``documents``
-    declares its own ``updated_by``), not as a schema-wide default that would
-    be overwritten by the next save and read by nothing.
+    which a single mutable column could never hold. ``documents`` carried one
+    until it was checked and found to be written on six paths and read on
+    none; ``created_by_test.py`` now holds the line at zero.
 
     Nullable: a row can predate the column or outlive knowing who made it. The
     tables that already required a creator keep ``NOT NULL`` by redeclaring
     ``created_by`` — the mixin is the floor, not a ceiling. The name pairs with
-    ``SoftDeleteMixin.deleted_by`` above; ``created_by`` / ``updated_by`` /
-    ``deleted_by`` are the same shape and carry no ``_id`` suffix.
+    ``SoftDeleteMixin.deleted_by`` above: both say who, neither carries an
+    ``_id`` suffix.
 
     ``foreign_key`` here is ORM metadata — it is what lets relationships like
     ``Task.creator`` resolve their join — not a constraint in the guild

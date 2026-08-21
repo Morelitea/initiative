@@ -307,7 +307,6 @@ async def test_soft_delete_document_preserves_uploads(session: AsyncSession):
         content={"text": "uses /uploads/abc123.png"},
         featured_image_url="/uploads/abc123.png",
         created_by=user.id,
-        updated_by=user.id,
     )
     session.add(doc)
     await session.commit()
@@ -363,7 +362,6 @@ async def test_purge_document_uploads_escapes_like_wildcards(session: AsyncSessi
         content={},
         featured_image_url="/uploads/file_v2.png",
         created_by=user.id,
-        updated_by=user.id,
     )
     # The decoy uses /uploads/fileXv2.png embedded in content. Without
     # escaping, the LIKE pattern '%/uploads/file_v2.png%' matches the
@@ -376,7 +374,6 @@ async def test_purge_document_uploads_escapes_like_wildcards(session: AsyncSessi
         document_type=DocumentType.native,
         content={"src": "/uploads/fileXv2.png"},
         created_by=user.id,
-        updated_by=user.id,
     )
     session.add(doomed)
     session.add(decoy)
@@ -494,7 +491,6 @@ async def test_purge_document_uploads_removes_all_version_blobs(session: AsyncSe
         file_size=10,
         original_filename=current_name,
         created_by=user.id,
-        updated_by=user.id,
     )
     session.add(doomed)
     await session.flush()

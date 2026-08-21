@@ -79,23 +79,23 @@ def test_authored_tables_have_the_column(table: str):
     assert "created_by" in columns, f"{table} is missing created_by"
 
 
-def test_updated_by_stays_a_documents_feature():
-    """There is no schema-wide "last editor" column, on purpose.
+def test_nothing_carries_updated_by():
+    """There is no "last editor" column anywhere, on purpose.
 
     Who changed a row is captured per transaction into ``event_outbox`` by
     ``public.capture_change``, with the transaction id and the columns that
-    changed. A mutable column holds strictly less and is overwritten by the
-    next save. ``documents`` keeps one because showing a document's last
-    editor is a product feature in its own right.
+    changed. A mutable column holds strictly less than that and is overwritten
+    by the next save. ``documents`` carried one until it was checked and found
+    to be written on six paths and read on none.
     """
     carriers = {
         name
         for name, table in SQLModel.metadata.tables.items()
         if "updated_by" in table.columns
     }
-    assert carriers == {"documents"}, (
-        f"Tables carrying updated_by: {sorted(carriers)}. Only documents should "
-        "— everywhere else, who changed a row is event_outbox's answer."
+    assert not carriers, (
+        f"Tables carrying updated_by: {sorted(carriers)}. Who changed a row is "
+        "event_outbox's answer, not a column's."
     )
 
 
@@ -105,5 +105,5 @@ def test_no_table_reintroduces_a_retired_spelling(table: str):
     clashes = columns & set(RETIRED_SPELLINGS)
     assert not clashes, (
         f"{table} names an attribution column {sorted(clashes)}. "
-        "Guild content spells it created_by / updated_by."
+        "Guild content spells it created_by."
     )

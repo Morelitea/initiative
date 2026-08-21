@@ -1306,7 +1306,6 @@ async def create_document(
         "title": title or f"Test Document {datetime.now(timezone.utc).timestamp()}",
         "document_type": DocumentType.native,
         "created_by": creator.id,
-        "updated_by": creator.id,
     }
     document = Document(**{**defaults, **overrides})
     session.add(document)

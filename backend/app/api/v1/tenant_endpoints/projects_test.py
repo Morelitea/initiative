@@ -1575,7 +1575,6 @@ async def test_project_shows_all_members_document_to_member(
         initiative_id=initiative.id,
         guild_id=guild.id,
         created_by=owner.user.id,
-        updated_by=owner.user.id,
         document_type=DocumentType.native,
     )
     session.add(doc)

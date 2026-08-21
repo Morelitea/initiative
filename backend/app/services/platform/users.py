@@ -21,7 +21,7 @@ from app.models.tenant._mixins import created_by_models
 from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceGrant, ResourceAccessLevel
 from app.models.tenant.task import TaskAssignee
-from app.models.tenant.document import Document, ProjectDocument
+from app.models.tenant.document import ProjectDocument
 from app.models.platform.notification import Notification
 from app.models.tenant.project_order import ProjectOrder
 from app.models.tenant.project_activity import ProjectFavorite
@@ -887,10 +887,9 @@ async def reassign_user_content(
     remembered: a new table is covered as soon as it declares
     ``CreatedByMixin``.
 
-    Two columns sit outside that registry and are swept by hand: a document's
-    ``updated_by`` (a product feature on one table, not a schema-wide column)
-    and a junction's ``attached_by_id`` (which names who linked two rows, not
-    who made one).
+    One column sits outside that registry and is swept by hand: a junction's
+    ``attached_by_id``, which names who linked two rows rather than who made
+    one.
 
     Ownership is a different thing and moves separately; this only rewrites who
     the row records as its author.
@@ -905,11 +904,6 @@ async def reassign_user_content(
             .values(created_by=system_user_id)
         )
 
-    await session.exec(
-        update(Document)
-        .where(Document.updated_by == user_id)
-        .values(updated_by=system_user_id)
-    )
     await session.exec(
         update(ProjectDocument)
         .where(ProjectDocument.attached_by_id == user_id)

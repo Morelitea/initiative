@@ -677,7 +677,6 @@ async def test_reassign_user_content_moves_file_version_uploads(session: AsyncSe
         initiative_id=initiative.id,
         guild_id=guild.id,
         created_by=owner.id,
-        updated_by=owner.id,
         document_type=DocumentType.file,
         file_url="/uploads/v1.pdf",
         file_content_type="application/pdf",

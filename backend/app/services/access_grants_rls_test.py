@@ -50,7 +50,6 @@ async def test_pam_read_grant_sees_only_granted_guild(session: AsyncSession):
         title="Alpha Doc",
         content={},
         created_by=owner.id,
-        updated_by=owner.id,
     )
     session.add(doc_a)
     await session.commit()

@@ -90,7 +90,6 @@ class DocumentImporter:
             initiative_id=target_initiative.id,
             guild_id=guild_id,
             created_by=importer.id,
-            updated_by=importer.id,
         )
         session.add(document)
         await session.flush()

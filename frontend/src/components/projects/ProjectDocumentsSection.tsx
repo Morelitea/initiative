@@ -301,7 +301,6 @@ const createFallbackSummary = (
   title: doc.title,
   featured_image_url: null,
   created_by: 0,
-  updated_by: 0,
   created_at: doc.updated_at,
   updated_at: doc.updated_at,
   initiative: null,

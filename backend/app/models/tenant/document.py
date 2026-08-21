@@ -55,7 +55,6 @@ class Document(CreatedByMixin, SoftDeleteMixin, table=True):
         sa_column=Column(JSONB, nullable=False, server_default=text("'{}'::jsonb")),
     )
     created_by: int = Field(foreign_key="users.id", nullable=False)
-    updated_by: int = Field(foreign_key="users.id", nullable=False)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),

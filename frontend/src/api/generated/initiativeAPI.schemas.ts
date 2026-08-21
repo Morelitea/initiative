@@ -1731,7 +1731,6 @@ export interface DocumentSummary {
   id: number;
   guild_id: number;
   created_by: number;
-  updated_by: number;
   created_at: string;
   updated_at: string;
   initiative: InitiativeRead | null;
@@ -1781,7 +1780,6 @@ export interface DocumentRead {
   id: number;
   guild_id: number;
   created_by: number;
-  updated_by: number;
   created_at: string;
   updated_at: string;
   initiative: InitiativeRead | null;

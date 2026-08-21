@@ -399,7 +399,6 @@ async def _apply_file_entry(
                 initiative_id=initiative.id,
                 guild_id=initiative.guild_id,
                 created_by=user.id,
-                updated_by=user.id,
                 file_url=f"/uploads/{initiative.guild_id}/{storage_key}",
                 # The original name lives in the manifest's asset record —
                 # the uploads row's filename IS the storage key.

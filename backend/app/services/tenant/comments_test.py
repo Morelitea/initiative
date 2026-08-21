@@ -70,7 +70,6 @@ async def test_ensure_document_access_honors_grant(session: AsyncSession):
         title="Doc",
         content={},
         created_by=owner.id,
-        updated_by=owner.id,
     )
     session.add(document)
     await session.commit()
