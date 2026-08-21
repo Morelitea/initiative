@@ -412,7 +412,7 @@ async def create_dashboard(
     dashboard = Dashboard(
         guild_id=guild_context.guild_id,
         initiative_id=initiative.id,
-        created_by_id=current_user.id,
+        created_by=current_user.id,
         name=dashboard_in.name.strip(),
         description=dashboard_in.description,
         definition=definition,

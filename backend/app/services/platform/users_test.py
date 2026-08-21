@@ -659,7 +659,7 @@ async def test_transfer_project_ownership_drops_previous_owners_permission_row(
 @pytest.mark.unit
 @pytest.mark.service
 async def test_reassign_user_content_moves_file_version_uploads(session: AsyncSession):
-    """reassign_user_content must move document_file_versions.created_by_id to
+    """reassign_user_content must move document_file_versions.created_by to
     the system user so hard-deleting an uploader doesn't violate the RESTRICT FK
     (and version history outlives the user)."""
     from app.models.tenant.document import Document, DocumentFileVersion, DocumentType
@@ -676,8 +676,8 @@ async def test_reassign_user_content_moves_file_version_uploads(session: AsyncSe
         title="Versioned",
         initiative_id=initiative.id,
         guild_id=guild.id,
-        created_by_id=owner.id,
-        updated_by_id=owner.id,
+        created_by=owner.id,
+        updated_by=owner.id,
         document_type=DocumentType.file,
         file_url="/uploads/v1.pdf",
         file_content_type="application/pdf",
@@ -694,7 +694,7 @@ async def test_reassign_user_content_moves_file_version_uploads(session: AsyncSe
         file_content_type="application/pdf",
         file_size=10,
         original_filename="v1.pdf",
-        created_by_id=owner.id,
+        created_by=owner.id,
     )
     session.add(version)
     await session.commit()
@@ -708,7 +708,7 @@ async def test_reassign_user_content_moves_file_version_uploads(session: AsyncSe
             select(DocumentFileVersion).where(DocumentFileVersion.id == version.id)
         )
     ).one()
-    assert refreshed.created_by_id == system_user.id
+    assert refreshed.created_by == system_user.id
 
 
 @pytest.mark.integration

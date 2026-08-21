@@ -43,7 +43,7 @@ class WebhookSubscriptionRead(SanitizedBaseModel):
     id: int
     guild_id: int
     initiative_id: int | None
-    created_by_id: int
+    created_by: int
     target_url: str
     event_types: list[str]
     fields: list[str] | None

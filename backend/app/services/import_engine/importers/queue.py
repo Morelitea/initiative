@@ -61,7 +61,7 @@ class QueueImporter:
             current_round=env.current_round,
             initiative_id=target_initiative.id,
             guild_id=guild_id,
-            created_by_id=importer.id,
+            created_by=importer.id,
         )
         session.add(queue)
         await session.flush()

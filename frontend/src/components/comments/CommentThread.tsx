@@ -56,14 +56,14 @@ export const CommentThread = ({
 
   const anonymizedAuthor = isAnonymizedUser(comment.author);
   const displayName = comment.author
-    ? getUserDisplayName(comment.author, `User #${comment.created_by_id}`)
-    : `User #${comment.created_by_id}`;
+    ? getUserDisplayName(comment.author, `User #${comment.created_by}`)
+    : `User #${comment.created_by}`;
   const avatarSrc = anonymizedAuthor
     ? undefined
     : resolveUploadUrl(comment.author?.avatar_url) || comment.author?.avatar_base64 || undefined;
 
-  const canDelete = currentUserId === comment.created_by_id || canModerate;
-  const canEdit = currentUserId === comment.created_by_id;
+  const canDelete = currentUserId === comment.created_by || canModerate;
+  const canEdit = currentUserId === comment.created_by;
   const visualDepth = Math.min(depth, MAX_VISUAL_DEPTH);
   const isEdited = Boolean(comment.updated_at);
 
@@ -91,7 +91,7 @@ export const CommentThread = ({
         <div className="flex gap-3">
           <Avatar className="h-9 w-9 border bg-background">
             {avatarSrc ? <AvatarImage src={avatarSrc} alt={displayName} /> : null}
-            <AvatarFallback userId={anonymizedAuthor ? null : comment.created_by_id}>
+            <AvatarFallback userId={anonymizedAuthor ? null : comment.created_by}>
               {getInitialsForUser(comment.author)}
             </AvatarFallback>
           </Avatar>

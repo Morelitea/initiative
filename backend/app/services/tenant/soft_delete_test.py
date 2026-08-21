@@ -211,7 +211,7 @@ async def test_restore_returns_needs_reassignment_when_owner_left_initiative(
         await session.exec(select_including_deleted(Task).where(Task.id == task.id))
     ).one()
     assert refreshed_again.deleted_at is None
-    assert refreshed_again.created_by_id == pm.id
+    assert refreshed_again.created_by == pm.id
 
 
 async def test_restore_rejects_invalid_new_owner(session: AsyncSession):
@@ -293,7 +293,7 @@ async def test_soft_delete_document_preserves_uploads(session: AsyncSession):
     upload = Upload(
         filename="abc123.png",
         guild_id=guild.id,
-        created_by_id=user.id,
+        created_by=user.id,
         size_bytes=1234,
     )
     session.add(upload)
@@ -306,8 +306,8 @@ async def test_soft_delete_document_preserves_uploads(session: AsyncSession):
         document_type=DocumentType.native,
         content={"text": "uses /uploads/abc123.png"},
         featured_image_url="/uploads/abc123.png",
-        created_by_id=user.id,
-        updated_by_id=user.id,
+        created_by=user.id,
+        updated_by=user.id,
     )
     session.add(doc)
     await session.commit()
@@ -347,7 +347,7 @@ async def test_purge_document_uploads_escapes_like_wildcards(session: AsyncSessi
     upload = Upload(
         filename="file_v2.png",
         guild_id=guild.id,
-        created_by_id=user.id,
+        created_by=user.id,
         size_bytes=1234,
     )
     session.add(upload)
@@ -362,8 +362,8 @@ async def test_purge_document_uploads_escapes_like_wildcards(session: AsyncSessi
         document_type=DocumentType.native,
         content={},
         featured_image_url="/uploads/file_v2.png",
-        created_by_id=user.id,
-        updated_by_id=user.id,
+        created_by=user.id,
+        updated_by=user.id,
     )
     # The decoy uses /uploads/fileXv2.png embedded in content. Without
     # escaping, the LIKE pattern '%/uploads/file_v2.png%' matches the
@@ -375,8 +375,8 @@ async def test_purge_document_uploads_escapes_like_wildcards(session: AsyncSessi
         title="Decoy",
         document_type=DocumentType.native,
         content={"src": "/uploads/fileXv2.png"},
-        created_by_id=user.id,
-        updated_by_id=user.id,
+        created_by=user.id,
+        updated_by=user.id,
     )
     session.add(doomed)
     session.add(decoy)
@@ -424,7 +424,7 @@ async def test_trash_listing_dedupes_nested_comment_replies(
     parent = Comment(
         guild_id=guild.id,
         task_id=task.id,
-        created_by_id=user.id,
+        created_by=user.id,
         content="Top-level",
     )
     session.add(parent)
@@ -434,7 +434,7 @@ async def test_trash_listing_dedupes_nested_comment_replies(
     reply = Comment(
         guild_id=guild.id,
         task_id=task.id,
-        created_by_id=user.id,
+        created_by=user.id,
         content="Reply",
         parent_comment_id=parent.id,
     )
@@ -479,7 +479,7 @@ async def test_purge_document_uploads_removes_all_version_blobs(session: AsyncSe
             Upload(
                 filename=name,
                 guild_id=guild.id,
-                created_by_id=user.id,
+                created_by=user.id,
                 size_bytes=10,
             )
         )
@@ -493,8 +493,8 @@ async def test_purge_document_uploads_removes_all_version_blobs(session: AsyncSe
         file_content_type="application/pdf",
         file_size=10,
         original_filename=current_name,
-        created_by_id=user.id,
-        updated_by_id=user.id,
+        created_by=user.id,
+        updated_by=user.id,
     )
     session.add(doomed)
     await session.flush()
@@ -508,7 +508,7 @@ async def test_purge_document_uploads_removes_all_version_blobs(session: AsyncSe
                 file_content_type="application/pdf",
                 file_size=10,
                 original_filename=old_name,
-                created_by_id=user.id,
+                created_by=user.id,
             ),
             DocumentFileVersion(
                 document_id=doomed.id,
@@ -518,7 +518,7 @@ async def test_purge_document_uploads_removes_all_version_blobs(session: AsyncSe
                 file_content_type="application/pdf",
                 file_size=10,
                 original_filename=current_name,
-                created_by_id=user.id,
+                created_by=user.id,
             ),
         ]
     )

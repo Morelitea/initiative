@@ -132,7 +132,7 @@ async def test_large_export_becomes_job(
     body = resp.json()
     assert body["status"] == ExportJobStatus.queued.value
     assert body["source"] == "tasks"
-    assert body["created_by_id"] == a.user.id
+    assert body["created_by"] == a.user.id
     # The row persists the SELECTOR only — no artifact_ref field is exposed,
     # and params echo the caller's own filter input.
     assert "artifact_ref" not in body
@@ -817,7 +817,7 @@ async def test_gc_expires_artifacts(acting_user, session):
     storage.write(key, b"%PDF-fake", content_type="application/pdf")
     job = ExportJob(
         guild_id=a.guild.id,
-        created_by_id=a.user.id,
+        created_by=a.user.id,
         source="tasks",
         template_id="task-table",
         format="pdf",
@@ -849,7 +849,7 @@ async def test_gc_expires_row_even_when_artifact_delete_fails(
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     job = ExportJob(
         guild_id=a.guild.id,
-        created_by_id=a.user.id,
+        created_by=a.user.id,
         source="tasks",
         template_id="task-table",
         format="pdf",

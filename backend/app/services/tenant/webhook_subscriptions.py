@@ -110,7 +110,7 @@ async def create_subscription(
     session: AsyncSession,
     *,
     payload: WebhookSubscriptionCreate,
-    created_by_id: int,
+    created_by: int,
     guild_id: int,
 ) -> tuple[WebhookSubscription, str]:
     """Persist a fresh subscription and return ``(row, plaintext_secret)``.
@@ -128,7 +128,7 @@ async def create_subscription(
     subscription = WebhookSubscription(
         guild_id=guild_id,
         initiative_id=payload.initiative_id,
-        created_by_id=created_by_id,
+        created_by=created_by,
         target_url=str(payload.target_url),
         hmac_secret=secret,
         event_types=list(payload.event_types),

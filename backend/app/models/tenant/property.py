@@ -18,7 +18,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Enum as SQLEnum, Field, Relationship
 
-from app.models.tenant._mixins import RowAuditMixin
+from app.models.tenant._mixins import CreatedByMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.calendar_event import CalendarEvent
@@ -42,7 +42,7 @@ class PropertyType(str, Enum):
     user_reference = "user_reference"
 
 
-class PropertyDefinition(RowAuditMixin, table=True):
+class PropertyDefinition(CreatedByMixin, table=True):
     """Initiative-scoped custom property definition.
 
     Definitions live on a single initiative; values live on entity-specific
@@ -119,7 +119,7 @@ class PropertyDefinition(RowAuditMixin, table=True):
     )
 
 
-class DocumentPropertyValue(RowAuditMixin, table=True):
+class DocumentPropertyValue(CreatedByMixin, table=True):
     """Typed property value attached to a document."""
 
     __tablename__ = "document_property_values"
@@ -190,7 +190,7 @@ class DocumentPropertyValue(RowAuditMixin, table=True):
     )
 
 
-class TaskPropertyValue(RowAuditMixin, table=True):
+class TaskPropertyValue(CreatedByMixin, table=True):
     """Typed property value attached to a task."""
 
     __tablename__ = "task_property_values"
@@ -259,7 +259,7 @@ class TaskPropertyValue(RowAuditMixin, table=True):
     )
 
 
-class CalendarEventPropertyValue(RowAuditMixin, table=True):
+class CalendarEventPropertyValue(CreatedByMixin, table=True):
     """Typed property value attached to a calendar event."""
 
     __tablename__ = "calendar_event_property_values"

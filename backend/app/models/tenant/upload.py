@@ -6,16 +6,16 @@ from typing import Optional
 from sqlalchemy import Column, DateTime, String
 from sqlmodel import Field
 
-from app.models.tenant._mixins import RowAuditMixin
+from app.models.tenant._mixins import CreatedByMixin
 
 
-class Upload(RowAuditMixin, table=True):
+class Upload(CreatedByMixin, table=True):
     __tablename__ = "uploads"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     filename: str = Field(unique=True, index=True)
     guild_id: int = Field(foreign_key="guilds.id", index=True)
-    created_by_id: int = Field(foreign_key="users.id")
+    created_by: int = Field(foreign_key="users.id")
     size_bytes: int = Field(default=0)
     # MIME type recorded at upload time, so serving can set Content-Type without
     # sniffing the bytes (and a future object-store backend can set it on the

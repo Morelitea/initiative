@@ -77,14 +77,14 @@ class ArtifactHandler:
 
 
 async def _create_calendar(
-    session: AsyncSession, *, guild_id: int, created_by_id: int, name: str
+    session: AsyncSession, *, guild_id: int, created_by: int, name: str
 ) -> int:
     calendar = Calendar(
         guild_id=guild_id,
         # No initiative: this belongs to the guild. Its grants decide who reads
         # and writes it, exactly as for an initiative calendar.
         initiative_id=None,
-        created_by_id=created_by_id,
+        created_by=created_by,
         name=name,
     )
     session.add(calendar)
@@ -94,7 +94,7 @@ async def _create_calendar(
         ResourceGrant(
             resource_type="calendar",
             resource_id=calendar.id,
-            user_id=created_by_id,
+            user_id=created_by,
             level=ResourceAccessLevel.owner,
             guild_id=guild_id,
             initiative_id=None,
@@ -205,7 +205,7 @@ async def create_app_artifacts(
     *,
     definition: dict,
     guild_id: int,
-    created_by_id: int,
+    created_by: int,
     name: str,
 ) -> list[dict[str, Any]]:
     """Create what the app mounts, and return what it produced.
@@ -229,7 +229,7 @@ async def create_app_artifacts(
         raise ValueError(f"cannot mount {tool!r} at guild scope")
 
     artifact_id = await handler.create(
-        session, guild_id=guild_id, created_by_id=created_by_id, name=name
+        session, guild_id=guild_id, created_by=created_by, name=name
     )
     return [{"type": tool, "id": artifact_id}]
 
@@ -241,7 +241,7 @@ async def install_app(
     listing_version: str,
     definition: dict,
     guild_id: int,
-    created_by_id: int,
+    created_by: int,
     name: str,
 ) -> GuildApp:
     """Create the install row, and whatever the app mounts alongside it.
@@ -256,7 +256,7 @@ async def install_app(
         session,
         definition=definition,
         guild_id=guild_id,
-        created_by_id=created_by_id,
+        created_by=created_by,
         name=name,
     )
     app = GuildApp(
@@ -269,7 +269,7 @@ async def install_app(
         config={},
         config_secrets={},
         artifacts=artifacts,
-        created_by_id=created_by_id,
+        created_by=created_by,
     )
     session.add(app)
     await session.flush()

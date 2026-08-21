@@ -15,7 +15,7 @@ from sqlalchemy import (
 )
 from sqlmodel import Field, Relationship, SQLModel
 
-from app.models.tenant._mixins import RowAuditMixin, SoftDeleteMixin
+from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.initiative import Initiative
@@ -26,18 +26,18 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.resource_grant import ResourceGrant
 
 
-class Queue(RowAuditMixin, SoftDeleteMixin, table=True):
+class Queue(CreatedByMixin, SoftDeleteMixin, table=True):
     """Initiative-scoped queue for turn/priority tracking."""
 
     __tablename__ = "queues"
-    _owner_field = "created_by_id"
+    _owner_field = "created_by"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
     initiative_id: int = Field(foreign_key="initiatives.id", nullable=False, index=True)
     name: str = Field(nullable=False, max_length=255)
     description: Optional[str] = Field(default=None)
-    created_by_id: int = Field(foreign_key="users.id", nullable=False)
+    created_by: int = Field(foreign_key="users.id", nullable=False)
     current_item_id: Optional[int] = Field(
         default=None,
         sa_column=Column(
@@ -86,7 +86,7 @@ class Queue(RowAuditMixin, SoftDeleteMixin, table=True):
     )
 
 
-class QueueItem(RowAuditMixin, SoftDeleteMixin, table=True):
+class QueueItem(CreatedByMixin, SoftDeleteMixin, table=True):
     """Standalone entry in a queue (character, creature, etc.)."""
 
     __tablename__ = "queue_items"

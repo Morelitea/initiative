@@ -63,7 +63,7 @@ def _app(**overrides) -> SimpleNamespace:
             # Every initiative, which is what an install that never narrowed it
             # says and what the serializer reads.
             "placement": {},
-            "created_by_id": 11,
+            "created_by": 11,
             "created_at": now,
             "updated_at": now,
             **overrides,

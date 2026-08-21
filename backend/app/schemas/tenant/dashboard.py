@@ -92,7 +92,7 @@ class DashboardSummary(DashboardBase):
     id: int
     initiative_id: int
     guild_id: int
-    created_by_id: int
+    created_by: int
     created_at: datetime
     updated_at: datetime
     # Marketplace provenance; both null for a dashboard authored from scratch.
@@ -214,7 +214,7 @@ def serialize_dashboard_summary(
         description=dashboard.description,
         initiative_id=dashboard.initiative_id,
         guild_id=dashboard.guild_id,
-        created_by_id=dashboard.created_by_id,
+        created_by=dashboard.created_by,
         created_at=dashboard.created_at,
         updated_at=dashboard.updated_at,
         listing_uid=dashboard.listing_uid,

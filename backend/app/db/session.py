@@ -6,14 +6,14 @@ from typing import Any, AsyncGenerator, Optional, Sequence
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import event, inspect, text
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session as SyncSession
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.db import base  # noqa: F401  # ensure models are imported for Alembic
-from app.models.tenant._mixins import RowAuditMixin
+from app.models.tenant._mixins import CreatedByMixin
 
 # Primary engine: non-superuser (DATABASE_URL_APP) for RLS-enforced queries.
 engine = create_async_engine(settings.DATABASE_URL_APP, echo=False)
@@ -268,24 +268,28 @@ def _replay_rls_context(session: SyncSession, transaction, connection) -> None:
 event.listen(SyncSession, "after_begin", _replay_rls_context, propagate=True)
 
 
-def _stamp_row_audit(session: SyncSession, flush_context, instances) -> None:
-    """before_flush hook: record who created and who last changed a guild row.
+def _stamp_created_by(session: SyncSession, flush_context, instances) -> None:
+    """before_flush hook: record who made a guild row.
 
-    Every guild-content table carries ``created_by_id``/``updated_by_id``
-    (``app.models.tenant._mixins.RowAuditMixin``). Stamping them here rather
-    than at each call site is what keeps them true: the ORM flush already
-    knows who the request belongs to, where the alternative is remembering to
-    set two columns everywhere a row is written.
+    Every guild-content table carries ``created_by``
+    (``app.models.tenant._mixins.CreatedByMixin``). Stamping it here rather
+    than at each call site is what keeps it true: the ORM flush already knows
+    who the request belongs to, where the alternative is remembering to set a
+    column everywhere a row is written.
 
-    Only NULLs are filled, so a caller that names an actor explicitly — the
+    Inserts only. ``created_by`` is written once and never revised — an author
+    is a historical fact, and who changed a row afterwards is recorded per
+    transaction by ``public.capture_change`` into ``event_outbox``.
+
+    Only NULL is filled, so a caller that names an author explicitly — the
     backup importer restoring original authorship, say — keeps it. A session
     with no user in its context (background jobs, seeding, migrations) stamps
     nothing, because there is no one to name.
 
-    This covers ORM writes. A bulk ``update()``/``insert()`` statement never
-    reaches a flush, so a service that writes that way sets the columns itself
-    or leaves them alone deliberately (``reassign_user_content`` does the
-    latter — it is rewriting attribution, not performing it).
+    This covers ORM writes. A bulk ``insert()`` statement never reaches a
+    flush, so a service that writes that way sets the column itself or leaves
+    it alone deliberately (``reassign_user_content`` does the latter — it is
+    rewriting authorship, not performing it).
     """
     params = session.info.get(_RLS_PARAMS_INFO_KEY)
     user_id = params.get("user_id") if params else None
@@ -293,25 +297,11 @@ def _stamp_row_audit(session: SyncSession, flush_context, instances) -> None:
         return
 
     for obj in session.new:
-        if not isinstance(obj, RowAuditMixin):
-            continue
-        if obj.created_by_id is None:
-            obj.created_by_id = user_id
-        if obj.updated_by_id is None:
-            obj.updated_by_id = user_id
-
-    for obj in session.dirty:
-        if not isinstance(obj, RowAuditMixin):
-            continue
-        if not session.is_modified(obj, include_collections=False):
-            continue
-        # An explicit assignment in this flush wins; this only fills the gap.
-        if inspect(obj).attrs["updated_by_id"].history.has_changes():
-            continue
-        obj.updated_by_id = user_id
+        if isinstance(obj, CreatedByMixin) and obj.created_by is None:
+            obj.created_by = user_id
 
 
-event.listen(SyncSession, "before_flush", _stamp_row_audit, propagate=True)
+event.listen(SyncSession, "before_flush", _stamp_created_by, propagate=True)
 
 
 async def set_rls_context(

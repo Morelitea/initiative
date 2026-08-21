@@ -273,7 +273,7 @@ async def test_another_apps_install_does_not_let_this_one_act(
                 "app_kind": "service",
                 "service": {"public_id": "other.app"},
             },
-            created_by_id=user.id,
+            created_by=user.id,
         )
     )
     await session.commit()

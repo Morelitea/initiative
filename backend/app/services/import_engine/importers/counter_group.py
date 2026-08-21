@@ -57,7 +57,7 @@ class CounterGroupImporter:
             description=env.description,
             initiative_id=target_initiative.id,
             guild_id=guild_id,
-            created_by_id=importer.id,
+            created_by=importer.id,
         )
         session.add(group)
         await session.flush()

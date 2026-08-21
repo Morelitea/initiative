@@ -25,7 +25,7 @@ from sqlalchemy import Column, DateTime, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field
 
-from app.models.tenant._mixins import RowAuditMixin
+from app.models.tenant._mixins import CreatedByMixin
 
 
 class ImportJobStatus(str, Enum):
@@ -41,12 +41,12 @@ class ImportJobStatus(str, Enum):
     expired = "expired"
 
 
-class ImportJob(RowAuditMixin, table=True):
+class ImportJob(CreatedByMixin, table=True):
     __tablename__ = "import_jobs"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
-    created_by_id: int = Field(foreign_key="users.id", nullable=False)
+    created_by: int = Field(foreign_key="users.id", nullable=False)
 
     # Envelope type ("initiative-document", …) or "backup".
     source: str = Field(nullable=False)

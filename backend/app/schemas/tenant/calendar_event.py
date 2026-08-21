@@ -143,7 +143,7 @@ class CalendarEventSummary(CalendarEventBase):
     # a guild-level calendar.
     initiative_id: Optional[int] = None
     guild_id: int
-    created_by_id: int
+    created_by: int
     attendee_count: int = 0
     attendee_names: List[str] = Field(default_factory=list)
     attendee_previews: List[CalendarEventAttendeePreview] = Field(default_factory=list)
@@ -276,7 +276,7 @@ def serialize_calendar_event_summary(
         calendar_id=event.calendar_id,
         initiative_id=calendar.initiative_id if calendar is not None else 0,
         guild_id=event.guild_id,
-        created_by_id=event.created_by_id,
+        created_by=event.created_by,
         attendee_count=len(attendees_list),
         attendee_names=names,
         attendee_previews=previews,

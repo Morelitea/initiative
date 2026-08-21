@@ -11,7 +11,7 @@ export function buildComment(overrides: Partial<CommentRead> = {}): CommentRead 
   return {
     id: counter,
     content: `Comment content ${counter}`,
-    created_by_id: 1,
+    created_by: 1,
     task_id: null,
     document_id: null,
     parent_comment_id: null,

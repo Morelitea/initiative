@@ -7,7 +7,7 @@ from pydantic import ConfigDict
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
-from app.models.tenant._mixins import RowAuditMixin, SoftDeleteMixin
+from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.initiative import Initiative
@@ -27,11 +27,11 @@ class CounterPermissionLevel(str, Enum):
     read = "read"
 
 
-class CounterGroup(RowAuditMixin, SoftDeleteMixin, table=True):
+class CounterGroup(CreatedByMixin, SoftDeleteMixin, table=True):
     """Initiative-scoped container for a set of related counters."""
 
     __tablename__ = "counter_groups"
-    _owner_field = "created_by_id"
+    _owner_field = "created_by"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
@@ -41,7 +41,7 @@ class CounterGroup(RowAuditMixin, SoftDeleteMixin, table=True):
         default=None,
         sa_column=Column(Text, nullable=True),
     )
-    created_by_id: int = Field(foreign_key="users.id", nullable=False)
+    created_by: int = Field(foreign_key="users.id", nullable=False)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -92,7 +92,7 @@ class CounterGroupTag(SQLModel, table=True):
     tag: Optional["Tag"] = Relationship(back_populates="counter_group_links")
 
 
-class Counter(RowAuditMixin, SoftDeleteMixin, table=True):
+class Counter(CreatedByMixin, SoftDeleteMixin, table=True):
     """A single named numeric counter inside a counter group."""
 
     __tablename__ = "counters"

@@ -4,11 +4,11 @@ from typing import Optional
 from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, Integer, Text
 from sqlmodel import Field, Relationship
 
-from app.models.tenant._mixins import RowAuditMixin, SoftDeleteMixin
+from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
 from app.models.platform.user import User
 
 
-class Comment(RowAuditMixin, SoftDeleteMixin, table=True):
+class Comment(CreatedByMixin, SoftDeleteMixin, table=True):
     __tablename__ = "comments"
     _display_field = "content"
     __table_args__ = (
@@ -18,7 +18,7 @@ class Comment(RowAuditMixin, SoftDeleteMixin, table=True):
         ),
     )
     # Comment authorship is intentionally NOT reassignable on restore.
-    # Comments are first-person speech; transferring created_by_id to someone
+    # Comments are first-person speech; transferring created_by to someone
     # else would let admins put words in another user's mouth. If the
     # original author has left, the restore goes through and the comment
     # renders as "Deleted user #N" via the existing user-display helpers.
@@ -29,7 +29,7 @@ class Comment(RowAuditMixin, SoftDeleteMixin, table=True):
         sa_column=Column(Integer, ForeignKey("guilds.id"), nullable=True),
     )
     content: str = Field(sa_column=Column(Text, nullable=False))
-    created_by_id: int = Field(
+    created_by: int = Field(
         sa_column=Column(
             Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
         ),
@@ -61,8 +61,9 @@ class Comment(RowAuditMixin, SoftDeleteMixin, table=True):
         sa_column=Column(DateTime(timezone=True), nullable=True),
     )
     # The API calls this the author; the column is the schema-wide
-    # ``created_by_id``. ``foreign_keys`` is explicit because
-    # ``updated_by_id`` also relates Comment->User.
+    # ``created_by``, which is what a comment's author IS. ``foreign_keys`` is
+    # named rather than inferred so the join survives another user FK landing
+    # on this table.
     author: User = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "[Comment.created_by_id]"},
+        sa_relationship_kwargs={"foreign_keys": "[Comment.created_by]"},
     )

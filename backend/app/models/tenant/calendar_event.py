@@ -6,7 +6,7 @@ from pydantic import ConfigDict
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, Text
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
-from app.models.tenant._mixins import RowAuditMixin, SoftDeleteMixin
+from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.calendar import Calendar
@@ -16,7 +16,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.document import Document
 
 
-class CalendarEvent(RowAuditMixin, SoftDeleteMixin, table=True):
+class CalendarEvent(CreatedByMixin, SoftDeleteMixin, table=True):
     """Event inside a calendar (Google Calendar-like).
 
     Events carry no grants of their own: access derives entirely from the
@@ -24,7 +24,7 @@ class CalendarEvent(RowAuditMixin, SoftDeleteMixin, table=True):
     """
 
     __tablename__ = "calendar_events"
-    _owner_field = "created_by_id"
+    _owner_field = "created_by"
     _display_field = "title"
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -49,7 +49,7 @@ class CalendarEvent(RowAuditMixin, SoftDeleteMixin, table=True):
         default=None,
         sa_column=Column(Text, nullable=True),
     )
-    created_by_id: int = Field(foreign_key="users.id", nullable=False)
+    created_by: int = Field(foreign_key="users.id", nullable=False)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -61,7 +61,7 @@ class CalendarEvent(RowAuditMixin, SoftDeleteMixin, table=True):
 
     calendar: Optional["Calendar"] = Relationship(back_populates="events")
     creator: Optional["User"] = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "[CalendarEvent.created_by_id]"},
+        sa_relationship_kwargs={"foreign_keys": "[CalendarEvent.created_by]"},
     )
     attendees: List["CalendarEventAttendee"] = Relationship(
         back_populates="calendar_event",

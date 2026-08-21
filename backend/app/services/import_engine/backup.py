@@ -398,8 +398,8 @@ async def _apply_file_entry(
                 content={},
                 initiative_id=initiative.id,
                 guild_id=initiative.guild_id,
-                created_by_id=user.id,
-                updated_by_id=user.id,
+                created_by=user.id,
+                updated_by=user.id,
                 file_url=f"/uploads/{initiative.guild_id}/{storage_key}",
                 # The original name lives in the manifest's asset record —
                 # the uploads row's filename IS the storage key.
@@ -537,7 +537,7 @@ async def _restore_assets(
             Upload(
                 filename=asset.storage_key,
                 guild_id=guild_id,
-                created_by_id=user.id,
+                created_by=user.id,
                 size_bytes=len(data),
                 content_type=asset.content_type,
                 content_hash=compute_content_hash(data),

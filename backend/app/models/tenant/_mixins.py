@@ -64,33 +64,35 @@ class SoftDeleteMixin(SQLModel):
         return cls._display_field
 
 
-class RowAuditMixin(SQLModel):
-    """Mixin that adds the two row-attribution columns to a guild-schema table.
+class CreatedByMixin(SQLModel):
+    """Mixin that adds ``created_by`` to a guild-schema table.
 
-    Every content table in a ``guild_<id>`` schema records who created the row
-    (``created_by_id``) and who last changed it (``updated_by_id``), under
-    those names and no other. The columns exist whether or not the API
-    surfaces them, so anything that needs a row's actor — the trash can,
-    ownership transfer, account erasure, an access review — resolves one
-    column name for every table instead of a per-table lookup. That is what
-    the old spellings (``author_id``, ``uploader_user_id``, ``uploaded_by_id``,
-    ``installed_by_id``, ``created_by_user_id``) cost, and why they are gone.
+    One column, one name, on every guild-schema table that models something a
+    person made. It records the **author**: who made this row, as a historical
+    fact. Authorship never transfers — ownership is a live permission and lives
+    in ``resource_grants`` (see ``app.services.tenant.ownership``), and the two
+    were conflated for a long time under a column named for one and used as the
+    other.
 
-    **This is current-state attribution, not an audit trail.** ``updated_by_id``
-    holds only the most recent writer; the previous one is gone the moment
-    someone else saves. A question of the form "who changed this, and when"
-    is answered by the append-only change log, not by these columns — see
-    ``history/pam-audit-sink-design.md``. They are a supporting control, and a
-    convenience for reads that want to show an actor without a join.
+    The column exists whether or not the API surfaces it, so anything that
+    needs a row's author — the trash can, ownership transfer, account erasure —
+    resolves one column name for every table instead of a per-table lookup.
+    That is what the old spellings (``author_id``, ``uploader_user_id``,
+    ``uploaded_by_id``, ``installed_by_id``, ``created_by_user_id``) cost.
 
-    Individual tables may read the columns as something narrower: a comment's
-    ``created_by_id`` is its author, a grant's is who granted it, an installed
-    app's is who installed it. That is a domain reading of one generic column,
-    which is why the column is not named for any of them.
+    **There is deliberately no schema-wide ``updated_by``.** Who changed a row,
+    and when, is recorded per transaction by ``public.capture_change`` into
+    ``event_outbox`` — with the transaction id and the columns that changed,
+    which a single mutable column could never hold. A row-level "last editor"
+    is only kept where it is a product feature in its own right (``documents``
+    declares its own ``updated_by``), not as a schema-wide default that would
+    be overwritten by the next save and read by nothing.
 
-    Both are nullable: a row can predate the columns or outlive knowing who
-    made it. The tables that already required a creator keep ``NOT NULL`` by
-    redeclaring ``created_by_id`` — the mixin is the floor, not a ceiling.
+    Nullable: a row can predate the column or outlive knowing who made it. The
+    tables that already required a creator keep ``NOT NULL`` by redeclaring
+    ``created_by`` — the mixin is the floor, not a ceiling. The name pairs with
+    ``SoftDeleteMixin.deleted_by`` above; ``created_by`` / ``updated_by`` /
+    ``deleted_by`` are the same shape and carry no ``_id`` suffix.
 
     ``foreign_key`` here is ORM metadata — it is what lets relationships like
     ``Task.creator`` resolve their join — not a constraint in the guild
@@ -101,27 +103,24 @@ class RowAuditMixin(SQLModel):
     ``app.services.platform.users.reassign_user_content`` sweeps every table
     carrying this mixin, so a new one is covered the moment it is declared.
 
-    ``row_audit_test.py`` fails CI if a guild-schema table carries neither
-    this mixin nor an entry in ``tenancy.ROW_AUDIT_EXEMPT_TABLES``.
+    ``created_by_test.py`` fails CI if a guild-schema table carries neither
+    this mixin nor an entry in ``tenancy.CREATED_BY_EXEMPT_TABLES``.
     """
 
-    created_by_id: Optional[int] = Field(
-        default=None, foreign_key="users.id", nullable=True
-    )
-    updated_by_id: Optional[int] = Field(
+    created_by: Optional[int] = Field(
         default=None, foreign_key="users.id", nullable=True
     )
 
 
-def row_audit_models() -> list[type[RowAuditMixin]]:
-    """Every mapped model carrying :class:`RowAuditMixin`, by table name.
+def created_by_models() -> list[type[CreatedByMixin]]:
+    """Every mapped model carrying :class:`CreatedByMixin`, by table name.
 
-    The single source for "which tables record an actor" — the erasure sweep
+    The single source for "which tables record an author" — the erasure sweep
     (``reassign_user_content``) and the completeness test both read it, so a
     new table joins both the moment it declares the mixin.
     """
-    found: dict[str, type[RowAuditMixin]] = {}
-    stack = list(RowAuditMixin.__subclasses__())
+    found: dict[str, type[CreatedByMixin]] = {}
+    stack = list(CreatedByMixin.__subclasses__())
     while stack:
         cls = stack.pop()
         stack.extend(cls.__subclasses__())

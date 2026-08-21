@@ -264,7 +264,7 @@ async def duplicate_counter_group(
     new_group = CounterGroup(
         guild_id=guild_id,
         initiative_id=source.initiative_id,
-        created_by_id=user_id,
+        created_by=user_id,
         name=name,
         description=source.description,
     )

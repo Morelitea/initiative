@@ -24,15 +24,15 @@ from app.testing.factories import (
 )
 
 
-async def _create_task(session, project, title="Test Task", *, created_by_id=None):
-    """Helper to create a task with an optional created_by_id.
+async def _create_task(session, project, title="Test Task", *, created_by=None):
+    """Helper to create a task with an optional created_by.
 
     Routes as a guild admin (the project owner) so the status/task INSERTs satisfy
-    the content RLS regardless of who ``created_by_id`` is — the test may attribute
+    the content RLS regardless of who ``created_by`` is — the test may attribute
     a task to a non-member or to nobody (legacy), which the actor's write access,
     not the attributee's, governs.
 
-    ``created_by_id=None`` means "a row from before the column existed". The
+    ``created_by=None`` means "a row from before the column existed". The
     ORM write path stamps the routed user onto anything unattributed, so such a
     row has to be made the way the real ones survive: with a statement that
     never reaches a flush.
@@ -53,13 +53,13 @@ async def _create_task(session, project, title="Test Task", *, created_by_id=Non
         project_id=project.id,
         task_status_id=status.id,
         guild_id=project.guild_id,
-        created_by_id=created_by_id,
+        created_by=created_by,
     )
     session.add(task)
     await session.commit()
-    if created_by_id is None:
+    if created_by is None:
         await session.exec(
-            update(Task).where(Task.id == task.id).values(created_by_id=None)
+            update(Task).where(Task.id == task.id).values(created_by=None)
         )
         await session.commit()
     await session.refresh(task)
@@ -76,10 +76,8 @@ async def _setup_guild_with_project(session, user, *, guild_name="Test Guild"):
 
 
 @pytest.mark.integration
-async def test_create_task_sets_created_by_id(
-    client: AsyncClient, session: AsyncSession
-):
-    """Creating a task via the API should populate created_by_id."""
+async def test_create_task_sets_created_by(client: AsyncClient, session: AsyncSession):
+    """Creating a task via the API should populate created_by."""
     user = await create_user(session, email="creator@example.com")
     guild, initiative, project = await _setup_guild_with_project(session, user)
 
@@ -100,7 +98,7 @@ async def test_create_task_sets_created_by_id(
 
     assert response.status_code == 201
     data = response.json()
-    assert data["created_by_id"] == user.id
+    assert data["created_by"] == user.id
 
 
 @pytest.mark.integration
@@ -109,8 +107,8 @@ async def test_list_global_created_tasks(client: AsyncClient, session: AsyncSess
     creator = await create_user(session, email="creator@example.com")
     guild, _, project = await _setup_guild_with_project(session, creator)
 
-    task1 = await _create_task(session, project, "My Task 1", created_by_id=creator.id)
-    task2 = await _create_task(session, project, "My Task 2", created_by_id=creator.id)
+    task1 = await _create_task(session, project, "My Task 1", created_by=creator.id)
+    task2 = await _create_task(session, project, "My Task 2", created_by=creator.id)
 
     headers = get_auth_headers(creator)
     response = await client.get("/api/v1/me/tasks/created", headers=headers)
@@ -133,10 +131,8 @@ async def test_list_global_created_tasks_excludes_others(
     guild, _, project = await _setup_guild_with_project(session, creator)
     await create_guild_membership(session, user=other, guild=guild)
 
-    my_task = await _create_task(session, project, "My Task", created_by_id=creator.id)
-    other_task = await _create_task(
-        session, project, "Other Task", created_by_id=other.id
-    )
+    my_task = await _create_task(session, project, "My Task", created_by=creator.id)
+    other_task = await _create_task(session, project, "Other Task", created_by=other.id)
 
     headers = get_auth_headers(creator)
     response = await client.get("/api/v1/me/tasks/created", headers=headers)
@@ -151,13 +147,13 @@ async def test_list_global_created_tasks_excludes_others(
 async def test_list_global_created_tasks_excludes_null_created_by(
     client: AsyncClient, session: AsyncSession
 ):
-    """Tasks with no created_by_id (legacy) should not appear in global_created."""
+    """Tasks with no created_by (legacy) should not appear in global_created."""
     user = await create_user(session, email="user@example.com")
     guild, _, project = await _setup_guild_with_project(session, user)
 
-    # Task without created_by_id (simulates pre-migration task)
+    # Task without created_by (simulates pre-migration task)
     legacy_task = await _create_task(session, project, "Legacy Task")
-    my_task = await _create_task(session, project, "My Task", created_by_id=user.id)
+    my_task = await _create_task(session, project, "My Task", created_by=user.id)
 
     headers = get_auth_headers(user)
     response = await client.get("/api/v1/me/tasks/created", headers=headers)
@@ -177,14 +173,12 @@ async def test_list_global_created_tasks_priority_filter(
     guild, _, project = await _setup_guild_with_project(session, user)
 
     high_task = await _create_task(
-        session, project, "High Priority", created_by_id=user.id
+        session, project, "High Priority", created_by=user.id
     )
     high_task.priority = TaskPriority.high
     session.add(high_task)
 
-    low_task = await _create_task(
-        session, project, "Low Priority", created_by_id=user.id
-    )
+    low_task = await _create_task(session, project, "Low Priority", created_by=user.id)
     low_task.priority = TaskPriority.low
     session.add(low_task)
     await session.commit()
@@ -214,8 +208,8 @@ async def test_list_global_created_tasks_guild_filter(
         session, user, guild_name="Guild 2"
     )
 
-    task1 = await _create_task(session, project1, "Guild 1 Task", created_by_id=user.id)
-    task2 = await _create_task(session, project2, "Guild 2 Task", created_by_id=user.id)
+    task1 = await _create_task(session, project1, "Guild 1 Task", created_by=user.id)
+    task2 = await _create_task(session, project2, "Guild 2 Task", created_by=user.id)
 
     headers = get_auth_headers(user)
 
@@ -252,7 +246,7 @@ async def test_list_global_created_tasks_pagination(
 
     # Create 3 tasks
     for i in range(3):
-        await _create_task(session, project, f"Task {i}", created_by_id=user.id)
+        await _create_task(session, project, f"Task {i}", created_by=user.id)
 
     headers = get_auth_headers(user)
 

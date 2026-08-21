@@ -415,7 +415,7 @@ async def create_queue(
     queue = Queue(
         guild_id=guild_context.guild_id,
         initiative_id=initiative.id,
-        created_by_id=current_user.id,
+        created_by=current_user.id,
         name=queue_in.name.strip(),
         description=queue_in.description,
     )

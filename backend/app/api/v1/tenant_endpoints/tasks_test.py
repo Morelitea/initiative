@@ -1530,7 +1530,7 @@ async def test_read_task_includes_creator_summary(
     response = await client.get(a.g(f"/tasks/{task_id}"), headers=a.headers)
     assert response.status_code == 200
     body = response.json()
-    assert body["created_by_id"] == a.user.id
+    assert body["created_by"] == a.user.id
     assert body["creator"] is not None
     assert body["creator"]["id"] == a.user.id
     assert body["creator"]["full_name"] == "Ada C."

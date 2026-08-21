@@ -159,7 +159,7 @@ export function EventDetailPage() {
     },
   });
 
-  const isOwner = event?.created_by_id === user?.id;
+  const isOwner = event?.created_by === user?.id;
 
   // Find current user's RSVP status
   const myAttendee = useMemo(() => {

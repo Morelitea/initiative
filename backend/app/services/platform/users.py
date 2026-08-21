@@ -17,11 +17,11 @@ from app.db.session import set_rls_context
 from app.models.platform.user import User, UserRole, UserStatus
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.services.auth import identity as identity_service
-from app.models.tenant._mixins import row_audit_models
+from app.models.tenant._mixins import created_by_models
 from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceGrant, ResourceAccessLevel
 from app.models.tenant.task import TaskAssignee
-from app.models.tenant.document import ProjectDocument
+from app.models.tenant.document import Document, ProjectDocument
 from app.models.platform.notification import Notification
 from app.models.tenant.project_order import ProjectOrder
 from app.models.tenant.project_activity import ProjectFavorite
@@ -878,35 +878,38 @@ async def reassign_user_content(
     user_id: int,
     system_user_id: int,
 ) -> None:
-    """Re-point row attribution in the routed guild schema at the system user.
+    """Re-point authorship in the routed guild schema at the system user.
 
     Hard delete vaporises the user row, but the content the rest of the guild
     can still see — documents, comments, uploaded files, everything else they
-    made — has to outlive it. The two attribution columns are the same pair on
-    every table that has them, so this sweeps the registry rather than a list
-    that has to be remembered: a new table is covered as soon as it declares
-    ``RowAuditMixin``.
+    made — has to outlive it. ``created_by`` is the same column on every table
+    that has one, so this sweeps the registry rather than a list that has to be
+    remembered: a new table is covered as soon as it declares
+    ``CreatedByMixin``.
+
+    Two columns sit outside that registry and are swept by hand: a document's
+    ``updated_by`` (a product feature on one table, not a schema-wide column)
+    and a junction's ``attached_by_id`` (which names who linked two rows, not
+    who made one).
 
     Ownership is a different thing and moves separately; this only rewrites who
-    the row records as its actor.
+    the row records as its author.
 
     The caller routes the session into one guild schema before calling, and
     calls again per guild.
     """
-    for model in row_audit_models():
+    for model in created_by_models():
         await session.exec(
             update(model)
-            .where(model.created_by_id == user_id)
-            .values(created_by_id=system_user_id)
-        )
-        await session.exec(
-            update(model)
-            .where(model.updated_by_id == user_id)
-            .values(updated_by_id=system_user_id)
+            .where(model.created_by == user_id)
+            .values(created_by=system_user_id)
         )
 
-    # Junction rows name who attached the link rather than who authored a row,
-    # so they sit outside the mixin and are swept by hand.
+    await session.exec(
+        update(Document)
+        .where(Document.updated_by == user_id)
+        .values(updated_by=system_user_id)
+    )
     await session.exec(
         update(ProjectDocument)
         .where(ProjectDocument.attached_by_id == user_id)

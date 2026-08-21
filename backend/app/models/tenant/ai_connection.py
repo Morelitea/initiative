@@ -14,10 +14,10 @@ from sqlalchemy import Boolean, Column, DateTime, String
 from sqlmodel import Field
 from pydantic import ConfigDict
 
-from app.models.tenant._mixins import RowAuditMixin
+from app.models.tenant._mixins import CreatedByMixin
 
 
-class GuildAIConnection(RowAuditMixin, table=True):
+class GuildAIConnection(CreatedByMixin, table=True):
     __tablename__ = "guild_ai_connections"
     __allow_unmapped__ = True
     model_config = ConfigDict(arbitrary_types_allowed=True)

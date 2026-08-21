@@ -464,7 +464,7 @@ async def test_large_envelope_becomes_job_and_worker_applies_it(
     imported = (
         await session.exec(select(Queue).where(Queue.name == "Big Queue"))
     ).one()
-    assert imported.created_by_id == a.user.id  # applied AS the creator
+    assert imported.created_by == a.user.id  # applied AS the creator
 
     notifications = list(
         await session.exec(
@@ -536,7 +536,7 @@ async def test_stale_running_import_fails_closed_not_reapplied(
     stale_time = datetime.now(timezone.utc) - timedelta(minutes=30)
     job = ImportJob(
         guild_id=a.guild.id,
-        created_by_id=a.user.id,
+        created_by=a.user.id,
         source="initiative-queue",
         params={"initiative_id": a.initiative.id},
         payload_ref="imports/gone.json",

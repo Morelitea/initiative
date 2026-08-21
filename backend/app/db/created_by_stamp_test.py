@@ -1,8 +1,8 @@
-"""The write path fills in who created a row and who last changed it.
+"""The write path fills in who made a row.
 
-``RowAuditMixin`` puts ``created_by_id``/``updated_by_id`` on every guild
-content table; the ``before_flush`` hook in ``app.db.session`` is what keeps
-them true, since the alternative is stamping them at every call site.
+``CreatedByMixin`` puts ``created_by`` on every guild content table; the
+``before_flush`` hook in ``app.db.session`` is what keeps it true, since the
+alternative is stamping it at every call site.
 """
 
 import pytest
@@ -50,8 +50,7 @@ async def test_insert_records_the_acting_user(session: AsyncSession):
     session.add(subtask)
     await session.flush()
 
-    assert subtask.created_by_id == actor.id
-    assert subtask.updated_by_id == actor.id
+    assert subtask.created_by == actor.id
 
 
 async def test_an_explicit_author_is_kept(session: AsyncSession):
@@ -64,15 +63,16 @@ async def test_an_explicit_author_is_kept(session: AsyncSession):
         task_id=task.id,
         guild_id=guild.id,
         content="imported",
-        created_by_id=original.id,
+        created_by=original.id,
     )
     session.add(subtask)
     await session.flush()
 
-    assert subtask.created_by_id == original.id
+    assert subtask.created_by == original.id
 
 
-async def test_update_moves_updated_by_and_leaves_the_author(session: AsyncSession):
+async def test_an_edit_by_someone_else_leaves_the_author(session: AsyncSession):
+    """Authorship is a historical fact: editing a row never rewrites it."""
     guild, task, author = await _workspace(session)
     editor = await create_user(session)
     await create_guild_membership(session, user=editor, guild=guild)
@@ -88,8 +88,7 @@ async def test_update_moves_updated_by_and_leaves_the_author(session: AsyncSessi
     row.content = "second draft"
     await session.flush()
 
-    assert row.created_by_id == author.id
-    assert row.updated_by_id == editor.id
+    assert row.created_by == author.id
 
 
 async def test_a_system_session_stamps_nothing(session: AsyncSession):
@@ -101,5 +100,4 @@ async def test_a_system_session_stamps_nothing(session: AsyncSession):
     session.add(subtask)
     await session.flush()
 
-    assert subtask.created_by_id is None
-    assert subtask.updated_by_id is None
+    assert subtask.created_by is None

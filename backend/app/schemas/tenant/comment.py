@@ -64,7 +64,7 @@ class CommentRead(CommentBase):
     )
 
     id: int
-    created_by_id: int
+    created_by: int
     task_id: Optional[int] = None
     document_id: Optional[int] = None
     parent_comment_id: Optional[int] = None

@@ -43,7 +43,7 @@ __all__ = [
     "SHARED_TABLES",
     "GUILD_LEVEL_TABLES",
     "OWN_ROW_TABLES",
-    "ROW_AUDIT_EXEMPT_TABLES",
+    "CREATED_BY_EXEMPT_TABLES",
     "INITIATIVE_SCOPED_TABLES",
     "GUILD_SCOPED_TABLES",
     "ALL_CLASSIFIED_TABLES",
@@ -188,8 +188,8 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
 # MUST also be in ``GUILD_LEVEL_TABLES`` (that's the schema-placement decision;
 # this is the policy overlay) — enforced in ``tenancy_test.py``.
 OWN_ROW_TABLES: dict[str, str] = {
-    "export_jobs": "created_by_id",
-    "import_jobs": "created_by_id",
+    "export_jobs": "created_by",
+    "import_jobs": "created_by",
     "guild_ai_member_keys": "user_id",
     "guild_ai_member_prefs": "user_id",
     "guild_app_user_connections": "user_id",
@@ -199,13 +199,13 @@ OWN_ROW_TABLES: dict[str, str] = {
 
 # --- Row-attribution overlay on guild-schema tables ---------------------------
 # Every guild-schema table that models something a person made carries
-# ``created_by_id`` + ``updated_by_id`` by subclassing
-# ``app.models.tenant._mixins.RowAuditMixin``. Membership is therefore
+# ``created_by`` + ``updated_by`` by subclassing
+# ``app.models.tenant._mixins.CreatedByMixin``. Membership is therefore
 # declared by the model, not copied into a list here; what IS declared here is
 # the opposite — the tables that deliberately do NOT carry the pair, each with
-# the reason it does not need one. ``row_audit_test.py`` fails CI when a guild
+# the reason it does not need one. ``created_by_test.py`` fails CI when a guild
 # table is in neither bucket, so a new table forces the decision.
-ROW_AUDIT_EXEMPT_TABLES: frozenset[str] = frozenset(
+CREATED_BY_EXEMPT_TABLES: frozenset[str] = frozenset(
     {
         # Junctions and link rows. Each already carries its own matched pair
         # naming the relation rather than a row author — ``attached_by_id`` /

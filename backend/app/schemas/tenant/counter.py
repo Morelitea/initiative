@@ -163,7 +163,7 @@ class CounterGroupSummary(CounterGroupBase):
     id: int
     initiative_id: int
     guild_id: int
-    created_by_id: int
+    created_by: int
     counter_count: int = 0
     my_permission_level: Optional[str] = None
     tags: List[TagSummary] = Field(default_factory=list)
@@ -251,7 +251,7 @@ def serialize_counter_group_summary(
         description=group.description,
         initiative_id=group.initiative_id,
         guild_id=group.guild_id,
-        created_by_id=group.created_by_id,
+        created_by=group.created_by,
         counter_count=len(_active_counters(group)),
         my_permission_level=my_permission_level,
         created_at=group.created_at,

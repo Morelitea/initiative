@@ -366,7 +366,7 @@ async def install_guild_app(
             listing_version=version.version,
             definition=definition,
             guild_id=guild_context.guild_id,
-            created_by_id=current_user.id,
+            created_by=current_user.id,
             name=name,
         )
         await session.commit()

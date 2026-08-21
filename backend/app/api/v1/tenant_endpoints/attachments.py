@@ -128,7 +128,7 @@ async def upload_attachment(
     upload = Upload(
         filename=filename,
         guild_id=guild_context.guild_id,
-        created_by_id=current_user.id,
+        created_by=current_user.id,
         size_bytes=len(contents),
         content_type=resolved_content_type,
         content_hash=compute_content_hash(contents),

@@ -883,7 +883,7 @@ export interface CalendarEventSummary {
   calendar_id: number;
   initiative_id: number | null;
   guild_id: number;
-  created_by_id: number;
+  created_by: number;
   attendee_count: number;
   attendee_names: string[];
   attendee_previews: CalendarEventAttendeePreview[];
@@ -1068,7 +1068,7 @@ export interface TaskListRead {
   completed_at: string | null;
   position: number;
   is_archived: boolean;
-  created_by_id: number | null;
+  created_by: number | null;
   assignees: TaskAssigneeSummary[];
   recurrence_occurrence_count: number;
   comment_count: number;
@@ -1156,7 +1156,7 @@ export interface CalendarEventRead {
   calendar_id: number;
   initiative_id: number | null;
   guild_id: number;
-  created_by_id: number;
+  created_by: number;
   attendee_count: number;
   attendee_names: string[];
   attendee_previews: CalendarEventAttendeePreview[];
@@ -1192,7 +1192,7 @@ export interface CalendarSummary {
   id: number;
   initiative_id: number | null;
   guild_id: number;
-  created_by_id: number;
+  created_by: number;
   created_at: string;
   updated_at: string;
   my_permission_level: string | null;
@@ -1220,7 +1220,7 @@ export interface CalendarRead {
   id: number;
   initiative_id: number | null;
   guild_id: number;
-  created_by_id: number;
+  created_by: number;
   created_at: string;
   updated_at: string;
   my_permission_level: string | null;
@@ -1269,7 +1269,7 @@ export interface CommentCreate {
 export interface CommentRead {
   content: string;
   id: number;
-  created_by_id: number;
+  created_by: number;
   task_id: number | null;
   document_id: number | null;
   parent_comment_id: number | null;
@@ -1335,7 +1335,7 @@ export interface CounterGroupSummary {
   id: number;
   initiative_id: number;
   guild_id: number;
-  created_by_id: number;
+  created_by: number;
   counter_count: number;
   my_permission_level: string | null;
   tags: TagSummary[];
@@ -1385,7 +1385,7 @@ export interface CounterGroupRead {
   id: number;
   initiative_id: number;
   guild_id: number;
-  created_by_id: number;
+  created_by: number;
   counter_count: number;
   my_permission_level: string | null;
   tags: TagSummary[];
@@ -1478,7 +1478,7 @@ export interface DashboardSummary {
   id: number;
   initiative_id: number;
   guild_id: number;
-  created_by_id: number;
+  created_by: number;
   created_at: string;
   updated_at: string;
   listing_uid: string | null;
@@ -1510,7 +1510,7 @@ export interface DashboardRead {
   id: number;
   initiative_id: number;
   guild_id: number;
-  created_by_id: number;
+  created_by: number;
   created_at: string;
   updated_at: string;
   listing_uid: string | null;
@@ -1658,7 +1658,7 @@ export interface DocumentFileVersionRead {
   file_content_type: string | null;
   file_size: number | null;
   original_filename: string | null;
-  created_by_id: number;
+  created_by: number;
   created_at: string;
   is_current: boolean;
 }
@@ -1730,8 +1730,8 @@ export interface DocumentSummary {
   is_template: boolean;
   id: number;
   guild_id: number;
-  created_by_id: number;
-  updated_by_id: number;
+  created_by: number;
+  updated_by: number;
   created_at: string;
   updated_at: string;
   initiative: InitiativeRead | null;
@@ -1780,8 +1780,8 @@ export interface DocumentRead {
   is_template: boolean;
   id: number;
   guild_id: number;
-  created_by_id: number;
-  updated_by_id: number;
+  created_by: number;
+  updated_by: number;
   created_at: string;
   updated_at: string;
   initiative: InitiativeRead | null;
@@ -1892,7 +1892,7 @@ export const ExportJobStatus = {
 export interface ExportJobRead {
   id: number;
   guild_id: number;
-  created_by_id: number;
+  created_by: number;
   source: string;
   template_id: string;
   format: string;
@@ -2092,7 +2092,7 @@ export interface GuildAppDetail {
   mandatory: boolean;
   available: boolean;
   delegates: boolean;
-  created_by_id: number;
+  created_by: number;
   created_at: string;
   updated_at: string;
   connections: GuildAppConnectionRead[];
@@ -2151,7 +2151,7 @@ export interface GuildAppRead {
   mandatory: boolean;
   available: boolean;
   delegates: boolean;
-  created_by_id: number;
+  created_by: number;
   created_at: string;
   updated_at: string;
 }
@@ -2499,7 +2499,7 @@ export const ImportJobStatus = {
 export interface ImportJobRead {
   id: number;
   guild_id: number;
-  created_by_id: number;
+  created_by: number;
   source: string;
   params: ImportJobReadParams;
   plan: ImportJobReadPlan;
@@ -3462,7 +3462,7 @@ export interface QueueSummary {
   id: number;
   initiative_id: number;
   guild_id: number;
-  created_by_id: number;
+  created_by: number;
   current_round: number;
   is_active: boolean;
   item_count: number;
@@ -3491,7 +3491,7 @@ export interface QueueRead {
   id: number;
   initiative_id: number;
   guild_id: number;
-  created_by_id: number;
+  created_by: number;
   current_round: number;
   is_active: boolean;
   item_count: number;
@@ -4083,7 +4083,7 @@ export interface TaskRead {
   completed_at: string | null;
   position: number;
   is_archived: boolean;
-  created_by_id: number | null;
+  created_by: number | null;
   creator: UserPublic | null;
   assignees: UserPublic[];
   recurrence_occurrence_count: number;
@@ -4617,7 +4617,7 @@ export interface WebhookSubscriptionCreated {
   id: number;
   guild_id: number;
   initiative_id: number | null;
-  created_by_id: number;
+  created_by: number;
   target_url: string;
   event_types: string[];
   fields: string[] | null;
@@ -4636,7 +4636,7 @@ export interface WebhookSubscriptionRead {
   id: number;
   guild_id: number;
   initiative_id: number | null;
-  created_by_id: number;
+  created_by: number;
   target_url: string;
   event_types: string[];
   fields: string[] | null;
