@@ -1,29 +1,14 @@
 import { ChevronDown, Filter } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import type { InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-
-const INITIATIVE_FILTER_ALL = "all";
 
 type CountersFilterBarProps = {
   searchQuery: string;
   onSearchQueryChange: (value: string) => void;
-  initiativeFilter: string;
-  onInitiativeFilterChange: (value: string) => void;
-  lockedInitiativeId: number | null;
-  lockedInitiativeName: string | null;
-  initiatives: InitiativeRead[];
   filtersOpen: boolean;
   onFiltersOpenChange: (open: boolean) => void;
 };
@@ -31,11 +16,6 @@ type CountersFilterBarProps = {
 export const CountersFilterBar = ({
   searchQuery,
   onSearchQueryChange,
-  initiativeFilter,
-  onInitiativeFilterChange,
-  lockedInitiativeId,
-  lockedInitiativeName,
-  initiatives,
   filtersOpen,
   onFiltersOpenChange,
 }: CountersFilterBarProps) => {
@@ -74,42 +54,6 @@ export const CountersFilterBar = ({
               className="min-w-60"
             />
           </div>
-          {lockedInitiativeId ? (
-            <div className="w-full space-y-2 sm:w-60">
-              <Label className="block font-medium text-muted-foreground text-xs">
-                {t("filters.filterByInitiative")}
-              </Label>
-              <p className="font-medium text-sm">
-                {lockedInitiativeName ?? t("filters.allInitiatives")}
-              </p>
-            </div>
-          ) : (
-            initiatives.length > 1 && (
-              <div className="w-full space-y-2 sm:w-60">
-                <Label
-                  htmlFor="counter-group-initiative-filter"
-                  className="block font-medium text-muted-foreground text-xs"
-                >
-                  {t("filters.filterByInitiative")}
-                </Label>
-                <Select value={initiativeFilter} onValueChange={onInitiativeFilterChange}>
-                  <SelectTrigger id="counter-group-initiative-filter">
-                    <SelectValue placeholder={t("filters.allInitiatives")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={INITIATIVE_FILTER_ALL}>
-                      {t("filters.allInitiatives")}
-                    </SelectItem>
-                    {initiatives.map((initiative) => (
-                      <SelectItem key={initiative.id} value={String(initiative.id)}>
-                        {initiative.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )
-          )}
         </div>
       </CollapsibleContent>
     </Collapsible>

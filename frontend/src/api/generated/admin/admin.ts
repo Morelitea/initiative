@@ -766,8 +766,10 @@ export const useUpdatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch = <
 /**
  * Check if a user can be deleted (admin only).
  *
- * Returns blockers, warnings, owned projects, and detailed blocker info
- * with lists of members who could be promoted to resolve blockers.
+ * Returns the blockers and, for each, the members who could be promoted to
+ * resolve it. Being the last admin of a guild is the only one: owning content
+ * does not stop a deletion, because ownership is released on the way out and
+ * the content is left unowned for a guild admin to claim.
  * @summary Check User Deletion Eligibility
  */
 export const checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet = (

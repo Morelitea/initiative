@@ -166,19 +166,13 @@ async def test_check_deletion_eligibility_can_delete(session: AsyncSession):
     )
 
     # Check deletion eligibility
-    (
-        can_delete,
-        blockers,
-        _warnings,
-        owned_projects,
-    ) = await user_service.check_deletion_eligibility(
+    can_delete, blockers = await user_service.check_deletion_eligibility(
         session,
         member.id,
     )
 
     assert can_delete is True
     assert len(blockers) == 0
-    assert len(owned_projects) == 0
 
 
 @pytest.mark.unit
@@ -193,12 +187,7 @@ async def test_check_deletion_eligibility_blocked_last_admin(session: AsyncSessi
     )
 
     # Check deletion eligibility
-    (
-        can_delete,
-        blockers,
-        _warnings,
-        _owned_projects,
-    ) = await user_service.check_deletion_eligibility(
+    can_delete, blockers = await user_service.check_deletion_eligibility(
         session,
         admin.id,
     )
@@ -464,7 +453,7 @@ async def test_hard_delete_user_scrubs_addressed_invites(session: AsyncSession):
     invite_id = invite.id
     victim_id = victim.id
 
-    await user_service.hard_delete_user(session, victim_id, {})
+    await user_service.hard_delete_user(session, victim_id)
     session.expunge_all()
 
     # User row is gone...
@@ -584,76 +573,6 @@ async def test_is_last_platform_admin_excludes_plain_admin(session: AsyncSession
     )
 
     assert await user_service.is_last_platform_admin(session, plain_admin.id) is False
-
-
-@pytest.mark.unit
-@pytest.mark.service
-async def test_transfer_project_ownership_drops_previous_owners_permission_row(
-    session: AsyncSession,
-):
-    """Transferring ownership has to drop the departing owner's
-    ``ProjectPermission`` row. Otherwise that user keeps a stale
-    ``level=owner`` row which, after a reactivation + readd cycle,
-    leaves the project with two "owners" and a broken access
-    dropdown that can't reconcile its value.
-    """
-    from app.models.tenant.resource_grant import ResourceGrant
-    from app.testing.factories import create_initiative, create_project
-
-    admin = await create_user(session, email="admin@example.com")
-    successor = await create_user(session, email="successor@example.com")
-    departing = await create_user(session, email="departing@example.com")
-    guild = await create_guild(session, creator=admin)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-    await create_guild_membership(
-        session, user=successor, guild=guild, role=GuildRole.member
-    )
-    await create_guild_membership(
-        session, user=departing, guild=guild, role=GuildRole.member
-    )
-    initiative = await create_initiative(session, guild=guild, creator=admin)
-    project = await create_project(session, initiative=initiative, owner=departing)
-
-    # Sanity: project factory grants the creator an owner-level
-    # ProjectPermission.
-    pre = (
-        await session.exec(
-            select(ResourceGrant).where(
-                ResourceGrant.resource_type == "project",
-                ResourceGrant.resource_id == project.id,
-                ResourceGrant.user_id == departing.id,
-            )
-        )
-    ).one()
-    assert pre is not None
-
-    await user_service.transfer_project_ownership(session, project.id, successor.id)
-    await session.commit()
-
-    # Departing owner's row is gone.
-    assert (
-        await session.exec(
-            select(ResourceGrant).where(
-                ResourceGrant.resource_type == "project",
-                ResourceGrant.resource_id == project.id,
-                ResourceGrant.user_id == departing.id,
-            )
-        )
-    ).one_or_none() is None
-
-    # Successor has owner-level permission.
-    successor_perm = (
-        await session.exec(
-            select(ResourceGrant).where(
-                ResourceGrant.resource_type == "project",
-                ResourceGrant.resource_id == project.id,
-                ResourceGrant.user_id == successor.id,
-            )
-        )
-    ).one()
-    assert successor_perm.level == "owner"
 
 
 @pytest.mark.unit
@@ -895,7 +814,7 @@ async def test_hard_delete_anonymized_user_cleans_guild_data(session: AsyncSessi
     await user_service.soft_delete_user(session, victim_id)
     session.expunge_all()
 
-    await user_service.hard_delete_user(session, victim_id, {})
+    await user_service.hard_delete_user(session, victim_id)
     session.expunge_all()
 
     # The users row is gone.

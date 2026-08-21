@@ -18,12 +18,13 @@ import { useDashboardsList } from "@/hooks/useDashboards";
 import { getDefaultFiltersVisibility } from "@/hooks/useDefaultFiltersOpen";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
-import { useInitiativeFilter } from "@/hooks/useInitiativeFilter";
-import { useInitiatives } from "@/hooks/useInitiatives";
 import { useGuildPath } from "@/lib/guildUrl";
+import { toolDetailRoute } from "@/lib/tools";
 
 type DashboardsViewProps = {
-  fixedInitiativeId?: number;
+  /** The initiative this list belongs to. Required: dashboards are only ever
+   *  browsed inside one, and the URL says which. */
+  fixedInitiativeId: number;
   canCreate?: boolean;
 };
 
@@ -32,34 +33,16 @@ export const DashboardsView = ({ fixedInitiativeId, canCreate }: DashboardsViewP
   const router = useRouter();
   const gp = useGuildPath();
 
-  const lockedInitiativeId = typeof fixedInitiativeId === "number" ? fixedInitiativeId : null;
-
-  const { initiativeFilter, setInitiativeFilter, filteredInitiativeId } = useInitiativeFilter({
-    lockedInitiativeId,
-  });
-  const effectiveInitiativeId = lockedInitiativeId ?? filteredInitiativeId;
-
   const dashboardsQuery = useDashboardsList({
-    ...(effectiveInitiativeId ? { initiative_id: effectiveInitiativeId } : {}),
+    initiative_id: fixedInitiativeId,
     page: 1,
     page_size: 50,
   });
-  const initiativesQuery = useInitiatives();
-  const initiatives = useMemo(
-    () => (initiativesQuery.data ?? []).filter((init) => init.dashboards_enabled),
-    [initiativesQuery.data]
-  );
-  const initiativeNameMap = useMemo(() => {
-    const map = new Map<number, string>();
-    for (const init of initiatives) map.set(init.id, init.name);
-    return map;
-  }, [initiatives]);
 
-  // Canonical create answer: the locked/filtered initiative's server-computed
-  // create flag, or (in the "All" view) whether any visible initiative grants
-  // it. An explicit canCreate prop (e.g. from InitiativeDetailPage) wins.
+  // Canonical create answer: this initiative's server-computed create flag. An
+  // explicit canCreate prop (e.g. from InitiativeDetailPage) wins.
   const { canCreate: canCreateDerived } = useToolCreateAccess(Tool.dashboard, {
-    initiativeId: effectiveInitiativeId,
+    initiativeId: fixedInitiativeId,
   });
   const canCreateDashboards = canCreate ?? canCreateDerived;
 
@@ -85,44 +68,17 @@ export const DashboardsView = ({ fixedInitiativeId, canCreate }: DashboardsViewP
 
   const totalCount = dashboardsQuery.data?.total_count ?? 0;
 
-  const lockedInitiativeName = lockedInitiativeId
-    ? (initiativeNameMap.get(lockedInitiativeId) ?? null)
-    : null;
-
   const handleCreated = (dashboard: { id: number }) => {
-    void router.navigate({ to: gp(`/dashboards/${dashboard.id}`) });
+    void router.navigate({
+      to: gp(toolDetailRoute(Tool.dashboard, fixedInitiativeId, dashboard.id)),
+    });
   };
 
   const selection = useGridSelection<(typeof dashboards)[number]>();
 
   return (
     <div className="space-y-6">
-      {!lockedInitiativeId && (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="flex items-baseline gap-4">
-              <h1 className="font-semibold text-3xl tracking-tight">{t("title")}</h1>
-              {canCreateDashboards && (
-                <Button size="sm" variant="outline" onClick={() => setCreateOpen(true)}>
-                  <Plus className="h-4 w-4" />
-                  {t("createDashboard")}
-                </Button>
-              )}
-              {canCreateDashboards && (
-                <Button size="sm" variant="ghost" asChild>
-                  <Link to={gp("/marketplace")} search={{ kind: "dashboard" }}>
-                    <Store className="h-4 w-4" />
-                    {t("browseMarketplace")}
-                  </Link>
-                </Button>
-              )}
-            </div>
-            <p className="text-muted-foreground text-sm">{t("noDashboardsDescription")}</p>
-          </div>
-        </div>
-      )}
-
-      {lockedInitiativeId && canCreateDashboards && (
+      {canCreateDashboards && (
         <div className="flex flex-wrap items-center justify-end gap-3">
           <Button variant="outline" onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4" />
@@ -140,11 +96,6 @@ export const DashboardsView = ({ fixedInitiativeId, canCreate }: DashboardsViewP
       <DashboardsFilterBar
         searchQuery={search}
         onSearchQueryChange={setSearch}
-        initiativeFilter={initiativeFilter}
-        onInitiativeFilterChange={setInitiativeFilter}
-        lockedInitiativeId={lockedInitiativeId}
-        lockedInitiativeName={lockedInitiativeName}
-        initiatives={initiatives}
         filtersOpen={filtersOpen}
         onFiltersOpenChange={setFiltersOpen}
       />
@@ -172,10 +123,7 @@ export const DashboardsView = ({ fixedInitiativeId, canCreate }: DashboardsViewP
                 onToggle={() => selection.toggle(dashboard)}
                 label={dashboard.name}
               >
-                <DashboardCard
-                  dashboard={dashboard}
-                  initiativeName={initiativeNameMap.get(dashboard.initiative_id)}
-                />
+                <DashboardCard dashboard={dashboard} />
               </SelectableGridItem>
             ))}
           </div>
@@ -199,14 +147,10 @@ export const DashboardsView = ({ fixedInitiativeId, canCreate }: DashboardsViewP
       <CreateDashboardDialog
         open={createOpen}
         onOpenChange={handleCreateOpenChange}
-        initiativeId={lockedInitiativeId ?? undefined}
-        defaultInitiativeId={effectiveInitiativeId ?? undefined}
+        initiativeId={fixedInitiativeId}
+        defaultInitiativeId={fixedInitiativeId}
         onSuccess={handleCreated}
       />
     </div>
   );
 };
-
-export function DashboardsPage() {
-  return <DashboardsView />;
-}

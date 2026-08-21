@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { useGuilds } from "@/hooks/useGuilds";
 import { guildPath } from "@/lib/guildUrl";
+import { entityRefRoute } from "@/lib/tools";
 
 interface MentionPart {
   type: "text" | "user" | "task" | "doc" | "project" | "url";
@@ -156,6 +157,14 @@ interface CommentContentProps {
   content: string;
 }
 
+/** Mention kinds that address an entity: which ref type resolves them, and
+ *  the label the link renders under. */
+const MENTION_REFS = {
+  task: { refType: "task", labelKey: "comments.taskPrefix" },
+  doc: { refType: "document", labelKey: "comments.docPrefix" },
+  project: { refType: "project", labelKey: "comments.projectPrefix" },
+} as const;
+
 export const CommentContent = ({ content }: CommentContentProps) => {
   const { t } = useTranslation("documents");
   const { activeGuildId } = useGuilds();
@@ -201,37 +210,20 @@ export const CommentContent = ({ content }: CommentContentProps) => {
           );
         }
 
-        if (part.type === "task") {
-          return (
-            // biome-ignore lint/suspicious/noArrayIndexKey: no id to key from, just parts of a string
-            <Link key={index} to={gp(`/tasks/${part.id}`)} className="text-primary hover:underline">
-              {t("comments.taskPrefix", { name: part.displayText })}
-            </Link>
-          );
-        }
-
-        if (part.type === "doc") {
+        // A mention carries only an id, and an entity's address names its
+        // initiative — so these link at the `/go` resolver, which reads the
+        // entity and redirects. An id-less mention renders as plain text
+        // rather than a link that resolves to nothing.
+        if (MENTION_REFS[part.type as keyof typeof MENTION_REFS] && part.id !== undefined) {
+          const { refType, labelKey } = MENTION_REFS[part.type as keyof typeof MENTION_REFS];
           return (
             <Link
               // biome-ignore lint/suspicious/noArrayIndexKey: no id to key from, just parts of a string
               key={index}
-              to={gp(`/documents/${part.id}`)}
+              to={gp(entityRefRoute(refType, part.id))}
               className="text-primary hover:underline"
             >
-              {t("comments.docPrefix", { name: part.displayText })}
-            </Link>
-          );
-        }
-
-        if (part.type === "project") {
-          return (
-            <Link
-              // biome-ignore lint/suspicious/noArrayIndexKey: no id to key from, just parts of a string
-              key={index}
-              to={gp(`/projects/${part.id}`)}
-              className="text-primary hover:underline"
-            >
-              {t("comments.projectPrefix", { name: part.displayText })}
+              {t(labelKey, { name: part.displayText })}
             </Link>
           );
         }

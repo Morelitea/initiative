@@ -23,6 +23,7 @@ from app.models.tenant.task import Subtask, Task, TaskAssignee, TaskStatusCatego
 from app.services.tenant import project_export as export_service
 from app.services.tenant import project_import as import_service
 from app.services.tenant import task_statuses as task_statuses_service
+from app.services.tenant import ownership as ownership_service
 from app.testing import (
     create_guild,
     create_guild_membership,
@@ -178,6 +179,7 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
         select(Project)
         .where(Project.id == result.project_id)
         .options(
+            selectinload(Project.grants),
             selectinload(Project.task_statuses),
             selectinload(Project.tag_links).selectinload(ProjectTag.tag),
             selectinload(Project.tasks).selectinload(Task.subtasks),
@@ -194,7 +196,7 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
     assert new_project.initiative_id == target_initiative.id
     assert new_project.name == "Source Project"
     assert new_project.icon == "🚀"
-    assert new_project.owner_id == owner.id
+    assert ownership_service.owner_id_of(new_project) == owner.id
     assert len(new_project.tasks) == 1
     new_task = new_project.tasks[0]
     assert new_task.title == "Fix the thing"

@@ -218,7 +218,7 @@ def test_the_generic_tool_tags_route_is_the_only_tool_set_tags_surface():
 
 def test_tool_models_spell_the_shared_columns_the_same():
     # The facts every tool table carries spell the same on each of them: one
-    # display column called `name` (documents said `title` until 0190), and
+    # display column called `name` (documents said `title` until 0191), and
     # the shared scope/author/lifecycle columns under their canonical names.
     # A new tool that renames one of these — or labels rows through a synonym
     # like `title`/`label` — fails here. Sub-resources (tasks, queue items,

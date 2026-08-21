@@ -28,7 +28,6 @@ class Calendar(CreatedByMixin, SoftDeleteMixin, table=True):
     """
 
     __tablename__ = "calendars"
-    _owner_field = "created_by"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)

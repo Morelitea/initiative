@@ -14,6 +14,7 @@ import {
   InitiativeColorDot,
   resolveInitiativeColor,
 } from "@/lib/initiativeColors";
+import { initiativeRoute } from "@/lib/tools";
 
 import { FavoriteProjectButton } from "./FavoriteProjectButton";
 
@@ -69,7 +70,7 @@ export const ProjectOverviewCard = ({ project, projectIsArchived }: ProjectOverv
       </div>
       {project.initiative ? (
         <Link
-          to={gp(`/initiatives/${project.initiative.id}`)}
+          to={gp(initiativeRoute(project.initiative.id))}
           className="flex items-center gap-2 font-medium text-muted-foreground text-sm"
         >
           <InitiativeColorDot color={project.initiative.color} />

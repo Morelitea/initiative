@@ -74,3 +74,24 @@ export function extractSubPath(path: string): string {
 export function replaceGuildId(path: string, newGuildId: number): string {
   return path.replace(/^\/g\/\d+/, `/g/${newGuildId}`);
 }
+
+/**
+ * Rewrite a guild-scoped path so it names `initiativeId` as the initiative its
+ * entity lives in.
+ *
+ * Three shapes, because the initiative segment may need replacing, removing, or
+ * inserting: a path already under `/i/{other}`, a guild-level path for an
+ * entity that does belong to an initiative, and the reverse — an initiative
+ * path for an entity that belongs to none (an app's calendar).
+ *
+ * Returns the path unchanged when it isn't guild-scoped, so a caller can
+ * compare the result to decide whether anything needs correcting.
+ */
+export function canonicalInitiativePath(pathname: string, initiativeId: number | null): string {
+  const guild = pathname.match(/^\/g\/(\d+)(\/.*)?$/);
+  if (!guild) return pathname;
+  const [, guildId, rest = ""] = guild;
+  const withoutInitiative = rest.replace(/^\/i\/\d+/, "");
+  const prefix = initiativeId === null ? "" : `/i/${initiativeId}`;
+  return `/g/${guildId}${prefix}${withoutInitiative}`;
+}

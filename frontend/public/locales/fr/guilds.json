@@ -30,35 +30,21 @@
     "description": "Vous perdrez l'accès à toutes les initiatives et projets dans <bold>{{name}}</bold>. Cette action est irréversible.",
     "cannotLeaveTitle": "Impossible de quitter le groupe",
     "lastAdminWarning": "Vous êtes le dernier administrateur de ce groupe. Promouvez d'abord un autre membre en administrateur.",
-    "solePmWarning": "Vous êtes le seul chef de projet de : <bold>{{initiatives}}</bold>. Promouvez d'abord un autre membre en chef de projet.",
     "leaving": "Départ en cours...",
     "leaveButton": "Quitter le groupe",
     "leftGuild": "{{name}} quitté",
     "failedToLeave": "Échec du départ du groupe. Veuillez réessayer.",
     "failedToCheckEligibility": "Échec de la vérification de l'éligibilité. Veuillez réessayer.",
-    "transferDescription": "Avant de quitter <bold>{{name}}</bold>, décidez de ce qui doit arriver à chaque projet que vous possédez — le transférer à un autre membre, ou le supprimer. Sinon, le projet resterait sans aucun membre pouvant y accéder.",
-    "selectNewOwnerPlaceholder": "Sélectionner le nouveau propriétaire…",
-    "noTransferCandidates": "Aucun membre éligible n'est disponible dans cette initiative.",
-    "dispositionTransferLabel": "Transférer la propriété",
-    "dispositionDeleteLabel": "Supprimer ce projet",
-    "dispositionDeleteHelper": "Envoie le projet à la corbeille de ce groupe. Les administrateurs du groupe peuvent le restaurer avant la fin de la période de rétention."
+    "ownershipReleased": "Tout ce qui vous appartient dans cette guilde devient sans propriétaire. Un administrateur pourra le récupérer plus tard."
   },
   "removeMember": {
     "title": "Retirer le membre du groupe",
     "description": "Retirer {{email}} de ce groupe ? Il perdra l'accès à toutes les initiatives et projets qu'il contient.",
-    "cannotRemoveTitle": "Impossible de retirer le membre",
-    "solePmWarning": "Il est le seul chef de projet de : {{initiatives}}. Promouvez d'abord un autre membre en chef de projet.",
-    "transferDescription": "Retirer {{email}} laisserait orphelins les projets qu'il possède dans ce groupe. Décidez de ce qui doit arriver à chacun — le transférer à un autre chef de projet, ou le supprimer.",
-    "selectNewOwnerPlaceholder": "Sélectionner le nouveau propriétaire…",
-    "noTransferCandidates": "Aucun chef de projet éligible n'est disponible dans cette initiative.",
-    "dispositionTransferLabel": "Transférer la propriété",
-    "dispositionDeleteLabel": "Supprimer ce projet",
-    "dispositionDeleteHelper": "Envoie le projet à la corbeille de ce groupe. Les administrateurs du groupe peuvent le restaurer avant la fin de la période de rétention.",
     "removeButton": "Retirer du groupe",
     "removing": "Retrait en cours…",
     "removed": "{{email}} retiré",
     "failedToRemove": "Échec du retrait du membre. Veuillez réessayer.",
-    "failedToCheckEligibility": "Échec de la vérification de l'éligibilité au retrait. Veuillez réessayer."
+    "ownershipReleased": "Tout ce qui lui appartient devient sans propriétaire. Vous pouvez le récupérer à tout moment depuis la liste du contenu sans propriétaire."
   },
   "invite": {
     "title": "Rejoindre {{guildName}}",
@@ -279,5 +265,32 @@
     "selfHosted": "Auto-hébergé",
     "upgrade": "Mettre à niveau",
     "manageBilling": "Gérer la facturation"
+  },
+  "transferOwnership": {
+    "title": "Transférer la propriété",
+    "claimTitle": "Récupérer le contenu sans propriétaire",
+    "description": "Transférer tout ce que {{name}} possède dans cette guilde à un autre administrateur.",
+    "claimDescription": "Confier à un administrateur tout ce qu'aucun membre actuel ne possède.",
+    "whatMoves": "Ce qui est transféré",
+    "recipientLabel": "Nouveau propriétaire",
+    "recipientPlaceholder": "Choisir un administrateur",
+    "adminsOnly": "Seuls les administrateurs de la guilde peuvent recevoir la propriété.",
+    "confirm": "Transférer",
+    "transferring": "Transfert…",
+    "nothingOwned": "Cette personne ne possède rien dans cette guilde.",
+    "nothingUnowned": "Tout dans cette guilde a un propriétaire.",
+    "moved_one": "{{count}} élément transféré",
+    "moved_other": "{{count}} éléments transférés",
+    "failed": "Impossible de transférer la propriété.",
+    "loadFailed": "Impossible de charger ce que possède cette personne.",
+    "action": "Transférer la propriété"
+  },
+  "unownedContent": {
+    "title": "Contenu sans propriétaire",
+    "description": "Contenu qu'aucun membre actuel ne possède — ce que laisse derrière lui un départ de la guilde. Récupérez-le pour qu'un administrateur en reprenne la charge.",
+    "empty": "Tout dans cette guilde a un propriétaire.",
+    "claimButton": "Tout récupérer",
+    "summary_one": "{{count}} élément n'a pas de propriétaire",
+    "summary_other": "{{count}} éléments n'ont pas de propriétaire"
   }
 }

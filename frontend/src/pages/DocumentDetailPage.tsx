@@ -98,6 +98,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useAuth } from "@/hooks/useAuth";
+import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useCollaboration } from "@/hooks/useCollaboration";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
@@ -110,6 +111,7 @@ import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { findNewMentions } from "@/lib/mentionUtils";
 import { hasWriteAccess } from "@/lib/permissions";
 import { getItem, removeItem, setItem } from "@/lib/storage";
+import { initiativeRoute, toolDetailRoute, toolListRoute, toolSettingsRoute } from "@/lib/tools";
 import { resolveHeaderlessApiUrl, resolveUploadUrl } from "@/lib/uploadUrl";
 import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
@@ -239,6 +241,10 @@ export const DocumentDetailPage = () => {
   });
 
   const document = documentQuery.data;
+  // The path supplies the initiative while this loads, but the entity is the
+  // authority once it arrives — a URL naming a different one is corrected
+  // rather than left to build links into an initiative it isn't in.
+  const initiativeId = useCanonicalInitiativeId(document?.initiative_id);
   const relativeUpdatedAt = useRelativeTime(document?.updated_at);
 
   // Track recently viewed documents so the layout header tabs bar can surface
@@ -428,10 +434,10 @@ export const DocumentDetailPage = () => {
   const handleWikilinkNavigate = useCallback(
     (targetDocumentId: number) => {
       void navigate({
-        to: gp(`/documents/${targetDocumentId}`),
+        to: gp(toolDetailRoute(Tool.document, initiativeId, targetDocumentId)),
       });
     },
-    [navigate, gp]
+    [navigate, gp, initiativeId]
   );
 
   // Wikilink create handler - opens dialog and stores update callback
@@ -482,11 +488,11 @@ export const DocumentDetailPage = () => {
           }).catch(() => {});
         }
         void navigate({
-          to: gp(`/documents/${newDocumentId}`),
+          to: gp(toolDetailRoute(Tool.document, initiativeId, newDocumentId)),
         });
       }, 0);
     },
-    [navigate, gp, token, activeGuildId, parsedId]
+    [navigate, gp, token, activeGuildId, parsedId, initiativeId]
   );
 
   const updateDocumentCommentCount = (delta: number) => {
@@ -1007,7 +1013,7 @@ export const DocumentDetailPage = () => {
 
   if (documentQuery.isError || !document) {
     const status = getHttpStatus(documentQuery.error);
-    const backTo = gp("/documents");
+    const backTo = gp(toolListRoute(Tool.document, initiativeId));
     const backLabel = t("detail.backToDocuments");
 
     if (status === 403) {
@@ -1056,7 +1062,7 @@ export const DocumentDetailPage = () => {
           {canEditDocument && (
             <Button asChild variant="outline" size="sm">
               <Link
-                to={gp(`/documents/${document.id}/settings`)}
+                to={gp(toolSettingsRoute(Tool.document, initiativeId, document.id))}
                 className="inline-flex items-center gap-2"
               >
                 <Settings className="h-4 w-4" />
@@ -1111,7 +1117,7 @@ export const DocumentDetailPage = () => {
         <div className="flex flex-wrap items-center gap-2 text-muted-foreground text-sm">
           {document.initiative ? (
             <Link
-              to={gp(`/initiatives/${document.initiative.id}`)}
+              to={gp(initiativeRoute(document.initiative.id))}
               className="inline-flex items-center gap-1 rounded-full border px-3 py-1"
             >
               <InitiativeColorDot color={document.initiative.color} />
@@ -1500,7 +1506,13 @@ export const DocumentDetailPage = () => {
                   >
                     <div className="space-y-0.5">
                       <Link
-                        to={gp(`/projects/${link.project_id}`)}
+                        to={gp(
+                          toolDetailRoute(
+                            Tool.project,
+                            link.project_initiative_id ?? null,
+                            link.project_id
+                          )
+                        )}
                         className="font-medium hover:underline"
                       >
                         {link.project_name ?? t("detail.projectFallback", { id: link.project_id })}

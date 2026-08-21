@@ -3,11 +3,13 @@ import { ChevronDown, ChevronRight, FileText, Link2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { useDocumentBacklinks } from "@/hooks/useDocuments";
 import { useGuildPath } from "@/lib/guildUrl";
+import { toolDetailRoute } from "@/lib/tools";
 
 interface DocumentBacklinksProps {
   documentId: number;
@@ -59,7 +61,7 @@ export function DocumentBacklinks({ documentId }: DocumentBacklinksProps) {
             {backlinks.map((backlink) => (
               <li key={backlink.id}>
                 <Link
-                  to={gp(`/documents/${backlink.id}`)}
+                  to={gp(toolDetailRoute(Tool.document, backlink.initiative_id, backlink.id))}
                   className="group flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-accent"
                 >
                   <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />

@@ -4,9 +4,10 @@ import { ChevronDown, Filter, Loader2, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
-  DocumentSummary,
-  ListMyDocumentsApiV1MeDocumentsGetParams,
+import {
+  type DocumentSummary,
+  type ListMyDocumentsApiV1MeDocumentsGetParams,
+  Tool,
 } from "@/api/generated/initiativeAPI.schemas";
 import { invalidateAllDocuments } from "@/api/query-keys";
 import { PullToRefresh } from "@/components/PullToRefresh";
@@ -26,6 +27,7 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { guildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import type { AppColumnDef } from "@/lib/table";
+import { initiativeRoute, toolDetailRoute } from "@/lib/tools";
 import { useGlobalListFilters } from "@/pages/user/useGlobalListFilters";
 
 const MY_DOCUMENTS_FILTERS_KEY = "initiative-my-documents-filters";
@@ -157,7 +159,7 @@ export const MyDocumentsPage = () => {
           const doc = row.original;
           return (
             <Link
-              to={docGuildPath(doc, `/documents/${doc.id}`)}
+              to={docGuildPath(doc, toolDetailRoute(Tool.document, doc.initiative_id, doc.id))}
               className="flex items-center gap-2 font-medium text-foreground hover:underline"
             >
               {doc.name}
@@ -183,7 +185,7 @@ export const MyDocumentsPage = () => {
           }
           return (
             <Link
-              to={docGuildPath(doc, `/initiatives/${initiative.id}`)}
+              to={docGuildPath(doc, initiativeRoute(initiative.id))}
               className="flex items-center gap-2 text-muted-foreground text-sm hover:underline"
             >
               <InitiativeColorDot color={initiative.color} />

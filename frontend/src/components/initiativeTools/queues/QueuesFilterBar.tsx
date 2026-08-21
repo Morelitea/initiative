@@ -1,7 +1,6 @@
 import { ChevronDown, Filter } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import type { InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
@@ -14,8 +13,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const INITIATIVE_FILTER_ALL = "all";
-
 export type StatusFilter = "all" | "active" | "inactive";
 
 type QueuesFilterBarProps = {
@@ -23,11 +20,6 @@ type QueuesFilterBarProps = {
   onSearchQueryChange: (value: string) => void;
   statusFilter: StatusFilter;
   onStatusFilterChange: (value: StatusFilter) => void;
-  initiativeFilter: string;
-  onInitiativeFilterChange: (value: string) => void;
-  lockedInitiativeId: number | null;
-  lockedInitiativeName: string | null;
-  initiatives: InitiativeRead[];
   filtersOpen: boolean;
   onFiltersOpenChange: (open: boolean) => void;
 };
@@ -37,11 +29,6 @@ export const QueuesFilterBar = ({
   onSearchQueryChange,
   statusFilter,
   onStatusFilterChange,
-  initiativeFilter,
-  onInitiativeFilterChange,
-  lockedInitiativeId,
-  lockedInitiativeName,
-  initiatives,
   filtersOpen,
   onFiltersOpenChange,
 }: QueuesFilterBarProps) => {
@@ -101,42 +88,6 @@ export const QueuesFilterBar = ({
               </SelectContent>
             </Select>
           </div>
-          {lockedInitiativeId ? (
-            <div className="w-full space-y-2 sm:w-60">
-              <Label className="block font-medium text-muted-foreground text-xs">
-                {t("filters.filterByInitiative")}
-              </Label>
-              <p className="font-medium text-sm">
-                {lockedInitiativeName ?? t("filters.allInitiatives")}
-              </p>
-            </div>
-          ) : (
-            initiatives.length > 1 && (
-              <div className="w-full space-y-2 sm:w-60">
-                <Label
-                  htmlFor="queue-initiative-filter"
-                  className="block font-medium text-muted-foreground text-xs"
-                >
-                  {t("filters.filterByInitiative")}
-                </Label>
-                <Select value={initiativeFilter} onValueChange={onInitiativeFilterChange}>
-                  <SelectTrigger id="queue-initiative-filter">
-                    <SelectValue placeholder={t("filters.allInitiatives")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={INITIATIVE_FILTER_ALL}>
-                      {t("filters.allInitiatives")}
-                    </SelectItem>
-                    {initiatives.map((initiative) => (
-                      <SelectItem key={initiative.id} value={String(initiative.id)}>
-                        {initiative.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )
-          )}
         </div>
       </CollapsibleContent>
     </Collapsible>

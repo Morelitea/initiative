@@ -101,8 +101,6 @@
     "hide": "Ausblenden",
     "searchGroups": "Zählergruppen suchen...",
     "filterByName": "Nach Namen filtern",
-    "filterByInitiative": "Initiative",
-    "allInitiatives": "Alle Initiativen",
     "noMatchingGroups": "Keine Zählergruppen entsprechen deinen Filtern."
   },
   "tags": "Tags"

@@ -20,13 +20,19 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useAppConfig } from "@/hooks/useAppConfig";
 import type { InitiativeToolAccess } from "@/hooks/useInitiativeAccess";
 import { initiativeAppPath } from "@/lib/appSurfaces";
 import { guildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
 import { getItem, setItem } from "@/lib/storage";
-import { SIDEBAR_TOOLS, TOOL_ICONS, toolNavLabelKey, toolRowTarget } from "@/lib/tools";
+import {
+  initiativeRoute,
+  SIDEBAR_TOOLS,
+  TOOL_ICONS,
+  toolDetailRoute,
+  toolListRoute,
+  toolNavLabelKey,
+} from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 export interface InitiativeSectionProps {
@@ -154,7 +160,7 @@ export const InitiativeSection = memo(
               className="min-w-0 flex-1 justify-start px-0 py-1.5 font-medium text-sm hover:bg-accent"
               asChild
             >
-              <Link to={gp(`/initiatives/${initiative.id}`)} className="flex min-w-0 items-center">
+              <Link to={gp(initiativeRoute(initiative.id))} className="flex min-w-0 items-center">
                 <span className="min-w-0 flex-1 truncate text-left">{initiative.name}</span>
               </Link>
             </Button>
@@ -170,7 +176,7 @@ export const InitiativeSection = memo(
                     className="hidden h-6 w-0 shrink-0 overflow-hidden p-0 opacity-0 transition-all group-hover/initiative:w-6 group-hover/initiative:opacity-100 motion-reduce:transition-none lg:flex"
                     asChild
                   >
-                    <Link to={gp(`/initiatives/${initiative.id}/settings`)}>
+                    <Link to={gp(`${initiativeRoute(initiative.id)}/settings`)}>
                       <Settings className="h-3 w-3" />
                     </Link>
                   </Button>
@@ -196,7 +202,7 @@ export const InitiativeSection = memo(
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
                   <DropdownMenuItem asChild>
-                    <Link to={gp(`/initiatives/${initiative.id}/settings`)}>
+                    <Link to={gp(`${initiativeRoute(initiative.id)}/settings`)}>
                       <Settings className="mr-2 h-4 w-4" />
                       {t("initiativeSettings")}
                     </Link>
@@ -249,16 +255,12 @@ export const InitiativeSection = memo(
                   the project list expands directly beneath their row). */}
               {SIDEBAR_TOOLS.filter(showTool).map((tool) => {
                 const Icon = TOOL_ICONS[tool];
-                const row = toolRowTarget(tool, initiative.id);
+                const rowTo = toolListRoute(tool, initiative.id);
                 return (
                   <SidebarMenuItem key={tool}>
                     <div className="group/tool flex w-full min-w-0 items-center gap-1">
                       <SidebarMenuButton asChild size="sm" className="min-w-0 flex-1">
-                        <Link
-                          to={gp(row.to)}
-                          search={row.search}
-                          className="flex min-w-0 items-center gap-2"
-                        >
+                        <Link to={gp(rowTo)} className="flex min-w-0 items-center gap-2">
                           <Icon className="h-4 w-4" />
                           <span className="min-w-0 flex-1 truncate">
                             {t(toolNavLabelKey(tool))}
@@ -286,7 +288,7 @@ export const InitiativeSection = memo(
                         isActive={project.id === activeProjectId}
                       >
                         <Link
-                          to={gp(`/projects/${project.id}`)}
+                          to={gp(toolDetailRoute(Tool.project, initiative.id, project.id))}
                           className="flex min-w-0 items-center gap-2"
                         >
                           {project.icon ? (
@@ -306,7 +308,11 @@ export const InitiativeSection = memo(
                                 className="hidden h-6 w-0 shrink-0 overflow-hidden p-0 opacity-0 transition-all group-hover/project:w-6 group-hover/project:opacity-100 motion-reduce:transition-none lg:flex"
                                 asChild
                               >
-                                <Link to={gp(`/projects/${project.id}/settings`)}>
+                                <Link
+                                  to={gp(
+                                    `${toolDetailRoute(Tool.project, initiative.id, project.id)}/settings`
+                                  )}
+                                >
                                   <Settings className="h-3 w-3" />
                                 </Link>
                               </Button>
@@ -333,7 +339,11 @@ export const InitiativeSection = memo(
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-48">
                               <DropdownMenuItem asChild>
-                                <Link to={gp(`/projects/${project.id}/settings`)}>
+                                <Link
+                                  to={gp(
+                                    `${toolDetailRoute(Tool.project, initiative.id, project.id)}/settings`
+                                  )}
+                                >
                                   <Settings className="mr-2 h-4 w-4" />
                                   {t("projectSettings")}
                                 </Link>

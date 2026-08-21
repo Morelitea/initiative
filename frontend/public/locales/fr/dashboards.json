@@ -28,8 +28,6 @@
     "hide": "Masquer",
     "filterByName": "Filtrer par nom",
     "searchDashboards": "Rechercher des tableaux de bord...",
-    "filterByInitiative": "Initiative",
-    "allInitiatives": "Toutes les initiatives",
     "noMatchingDashboards": "Aucun tableau de bord ne correspond à vos filtres."
   },
   "loading": "Chargement des tableaux de bord...",

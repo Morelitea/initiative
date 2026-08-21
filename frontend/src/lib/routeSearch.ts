@@ -1,7 +1,6 @@
 /**
- * Shared `validateSearch` parsers for the tool-list route search params that
- * were previously copy-pasted across route files. Each returns exactly the
- * shape the routes validated inline, so route search types are unchanged.
+ * Shared `validateSearch` parsers for the route search params that were
+ * previously copy-pasted across route files.
  */
 
 /** Search shape for routes whose only param is a page number. Keep the key
@@ -19,25 +18,21 @@ export function validatePage(value: unknown): number | undefined {
   return undefined;
 }
 
-/** The `create` + `initiativeId` string params shared by tool-list routes. */
-export function validateToolListSearch(search: Record<string, unknown>): {
+/**
+ * Search shared by the six initiative tool tabs: open the create dialog, and
+ * the page cursor for the tools that paginate.
+ *
+ * There is no `initiativeId` any more — the path carries it. Because all six
+ * tabs are now routes under one initiative rather than six separate list
+ * routes, `page` is SHARED between them; a tab link must clear it (`search={{}}`)
+ * so a cursor from one tool doesn't follow the reader into the next.
+ */
+export function validateInitiativeToolSearch(search: Record<string, unknown>): {
   create?: string;
-  initiativeId?: string;
-} {
-  return {
-    create: typeof search.create === "string" ? search.create : undefined,
-    initiativeId: typeof search.initiativeId === "string" ? search.initiativeId : undefined,
-  };
-}
-
-/** `create` + `initiativeId` plus a coerced `page`, for paginated tool-list routes. */
-export function validateToolListSearchWithPage(search: Record<string, unknown>): {
-  create?: string;
-  initiativeId?: string;
   page?: number;
 } {
   return {
-    ...validateToolListSearch(search),
+    create: typeof search.create === "string" ? search.create : undefined,
     page: validatePage(search.page),
   };
 }

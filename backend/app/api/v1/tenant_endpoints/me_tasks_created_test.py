@@ -27,7 +27,7 @@ from app.testing.factories import (
 async def _create_task(session, project, title="Test Task", *, created_by=None):
     """Helper to create a task with an optional created_by.
 
-    Routes as a guild admin (the project owner) so the status/task INSERTs satisfy
+    Routes as a guild admin (the project's author) so the status/task INSERTs satisfy
     the content RLS regardless of who ``created_by`` is — the test may attribute
     a task to a non-member or to nobody (legacy), which the actor's write access,
     not the attributee's, governs.
@@ -43,7 +43,10 @@ async def _create_task(session, project, title="Test Task", *, created_by=None):
     # Route status setup + the task into the project's guild schema; a prior
     # setup may have left the search_path on a different guild.
     await set_rls_context(
-        session, user_id=project.owner_id, guild_id=project.guild_id, guild_role="admin"
+        session,
+        user_id=project.created_by,
+        guild_id=project.guild_id,
+        guild_role="admin",
     )
     await task_statuses_service.ensure_default_statuses(session, project.id)
     status = await task_statuses_service.get_default_status(session, project.id)

@@ -2,8 +2,6 @@ import { useRouter, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 
 type Options = {
-  /** Called when the dialog opens from `?create=true`, with any `?initiativeId`. */
-  onOpenFromUrl?: (urlInitiativeId?: string) => void;
   /** Called whenever the dialog closes (whether opened from the URL or a button). */
   onClose?: () => void;
 };
@@ -20,7 +18,7 @@ type Options = {
  */
 export function useCreateFromSearchParam(options?: Options) {
   const router = useRouter();
-  const search = useSearch({ strict: false }) as { create?: string; initiativeId?: string };
+  const search = useSearch({ strict: false }) as { create?: string };
   const [open, setOpen] = useState(false);
   // Prevents the close → clear-param → effect chain from re-opening the dialog.
   const isClosing = useRef(false);
@@ -31,7 +29,6 @@ export function useCreateFromSearchParam(options?: Options) {
     const shouldCreate = search.create === "true";
     if (shouldCreate && !open && !isClosing.current) {
       setOpen(true);
-      optionsRef.current?.onOpenFromUrl?.(search.initiativeId);
     }
     if (!shouldCreate) {
       isClosing.current = false;

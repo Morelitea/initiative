@@ -53,8 +53,6 @@
     "hide": "Filter ausblenden",
     "filterByName": "Nach Namen filtern",
     "searchEvents": "Termine suchen...",
-    "filterByInitiative": "Nach Initiative filtern",
-    "allInitiatives": "Alle Initiativen",
     "noMatchingEvents": "Keine passenden Termine"
   },
   "loading": "Wird geladen...",

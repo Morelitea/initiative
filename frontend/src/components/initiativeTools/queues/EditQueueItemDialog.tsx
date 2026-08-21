@@ -31,6 +31,7 @@ import {
 } from "@/hooks/useQueues";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
+import { entityRefRoute } from "@/lib/tools";
 import type { DialogProps } from "@/types/dialog";
 
 type EditQueueItemDialogProps = DialogProps & {
@@ -292,7 +293,7 @@ export const EditQueueItemDialog = ({
               loading={docsLoading}
               onSearchChange={setDocSearch}
               onOpenChange={setDocPickerOpen}
-              hrefFor={(id) => gp(`/documents/${id}`)}
+              hrefFor={(id) => gp(entityRefRoute("document", id))}
               placeholder={t("selectDocument")}
               emptyMessage={t("noDocuments")}
               readOnly={readOnly}
@@ -306,7 +307,7 @@ export const EditQueueItemDialog = ({
               loading={tasksLoading}
               onSearchChange={setTaskSearch}
               onOpenChange={setTaskPickerOpen}
-              hrefFor={(id) => gp(`/tasks/${id}`)}
+              hrefFor={(id) => gp(entityRefRoute("task", id))}
               placeholder={t("selectTask")}
               emptyMessage={t("noTasks")}
               readOnly={readOnly}

@@ -1,4 +1,4 @@
-import { Copy, Download, RefreshCcw, Trash2 } from "lucide-react";
+import { Copy, Download, HandCoins, RefreshCcw, Trash2 } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -13,6 +13,8 @@ import type {
   UserGuildMember,
 } from "@/api/generated/initiativeAPI.schemas";
 import { RemoveGuildMemberDialog } from "@/components/guilds/RemoveGuildMemberDialog";
+import { TransferContentOwnershipDialog } from "@/components/guilds/TransferContentOwnershipDialog";
+import { UnownedContentCard } from "@/components/guilds/UnownedContentCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
@@ -88,6 +90,10 @@ export const SettingsUsersPage = () => {
     userId: number;
     email: string;
   } | null>(null);
+  // `member: null` opens the dialog in "claim everything unowned" mode.
+  const [transferTarget, setTransferTarget] = useState<{ member: UserGuildMember | null } | null>(
+    null
+  );
 
   const loadInvites = useCallback(async () => {
     if (!activeGuildId) {
@@ -120,6 +126,14 @@ export const SettingsUsersPage = () => {
   const usersQuery = useUsers({ enabled: isGuildAdmin });
 
   const approveUser = useApproveUser();
+
+  // Ownership can only be handed to a guild admin, so the picker is the guild's
+  // admin roster rather than every member.
+  const guildAdmins = useMemo(
+    () =>
+      (usersQuery.data ?? []).filter((m) => m.guild_role === "admin" && m.status !== "anonymized"),
+    [usersQuery.data]
+  );
 
   const updateGuildMembership = useUpdateGuildMembership({
     onError: (error: unknown) => {
@@ -270,6 +284,15 @@ export const SettingsUsersPage = () => {
             >
               <Download className="h-4 w-4" />
               {t("users.exportUser")}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setTransferTarget({ member: guildMember })}
+            >
+              <HandCoins className="h-4 w-4" />
+              {t("transferOwnership.action")}
             </Button>
             <Button
               type="button"
@@ -451,11 +474,22 @@ export const SettingsUsersPage = () => {
         </CardContent>
       </Card>
 
+      <UnownedContentCard onClaim={() => setTransferTarget({ member: null })} />
+
       <RemoveGuildMemberDialog
         open={deleteUserConfirm !== null}
         onOpenChange={(open) => !open && setDeleteUserConfirm(null)}
         userId={deleteUserConfirm?.userId ?? null}
         email={deleteUserConfirm?.email ?? ""}
+      />
+
+      <TransferContentOwnershipDialog
+        open={transferTarget !== null}
+        onOpenChange={(open) => !open && setTransferTarget(null)}
+        member={transferTarget?.member ?? null}
+        admins={guildAdmins}
+        defaultRecipientId={user?.id}
+        onSuccess={() => void usersQuery.refetch()}
       />
     </div>
   );

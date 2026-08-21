@@ -1,7 +1,7 @@
 import { ChevronDown, Filter } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import type { InitiativeRead, TagSummary } from "@/api/generated/initiativeAPI.schemas";
+import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
 import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
 import { PropertyFilter } from "@/components/properties/PropertyFilter";
 import { TagPicker } from "@/components/tags/TagPicker";
@@ -9,25 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-
-const INITIATIVE_FILTER_ALL = "all";
 
 export interface DocumentsFilterBarProps {
   searchQuery: string;
   onSearchQueryChange: (value: string) => void;
-  initiativeFilter: string;
-  onInitiativeFilterChange: (value: string) => void;
-  lockedInitiativeId: number | null;
-  lockedInitiativeName: string | null;
-  viewableInitiatives: InitiativeRead[];
-  initiativesLoading: boolean;
   filtersOpen: boolean;
   onFiltersOpenChange: (open: boolean) => void;
   viewMode: "grid" | "list" | "tags";
@@ -41,12 +26,6 @@ export interface DocumentsFilterBarProps {
 export const DocumentsFilterBar = ({
   searchQuery,
   onSearchQueryChange,
-  initiativeFilter,
-  onInitiativeFilterChange,
-  lockedInitiativeId,
-  lockedInitiativeName,
-  viewableInitiatives,
-  initiativesLoading,
   filtersOpen,
   onFiltersOpenChange,
   viewMode,
@@ -92,44 +71,6 @@ export const DocumentsFilterBar = ({
                 onChange={(event) => onSearchQueryChange(event.target.value)}
               />
             </div>
-            {lockedInitiativeId ? (
-              <div className="w-full space-y-2 sm:w-60">
-                <Label className="block font-medium text-muted-foreground text-xs">
-                  {t("page.initiativeLabel")}
-                </Label>
-                <p className="font-medium text-sm">
-                  {lockedInitiativeName ?? t("page.selectedInitiative")}
-                </p>
-              </div>
-            ) : (
-              <div className="w-full space-y-2 sm:w-60">
-                <Label
-                  htmlFor="document-initiative-filter"
-                  className="block font-medium text-muted-foreground text-xs"
-                >
-                  {t("page.initiativeLabel")}
-                </Label>
-                <Select
-                  value={initiativeFilter}
-                  onValueChange={(value) => onInitiativeFilterChange(value)}
-                  disabled={initiativesLoading}
-                >
-                  <SelectTrigger id="document-initiative-filter">
-                    <SelectValue placeholder={t("page.allInitiatives")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={INITIATIVE_FILTER_ALL}>
-                      {t("page.allInitiatives")}
-                    </SelectItem>
-                    {viewableInitiatives.map((initiative) => (
-                      <SelectItem key={initiative.id} value={String(initiative.id)}>
-                        {initiative.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
             {viewMode !== "tags" && !fixedTagIds && (
               <div className="w-full space-y-2 sm:w-48">
                 <Label

@@ -101,8 +101,6 @@
     "hide": "Masquer",
     "searchGroups": "Rechercher des groupes de compteurs...",
     "filterByName": "Filtrer par nom",
-    "filterByInitiative": "Initiative",
-    "allInitiatives": "Toutes les initiatives",
     "noMatchingGroups": "Aucun groupe de compteurs ne correspond à vos filtres."
   },
   "tags": "Étiquettes"

@@ -50,6 +50,7 @@ export function buildRecentActivityEntry(
     document_name: null,
     project_id: null,
     project_name: null,
+    initiative_id: null,
     ...overrides,
   };
 }

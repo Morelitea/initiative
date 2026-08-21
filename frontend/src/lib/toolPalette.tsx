@@ -14,16 +14,14 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
-import { useAppConfig } from "@/hooks/useAppConfig";
 import { useCalendarsList } from "@/hooks/useCalendars";
 import { useCounterGroupsList } from "@/hooks/useCounters";
 import { useDashboardsList } from "@/hooks/useDashboards";
 import { useDocumentsList } from "@/hooks/useDocuments";
-import { useInitiatives } from "@/hooks/useInitiatives";
 import { useProjects } from "@/hooks/useProjects";
 import { useQueuesList } from "@/hooks/useQueues";
 import { getDocumentIcon, getDocumentIconColor } from "@/lib/fileUtils";
-import { TOOLS, toolCamelPlural, toolListRoute } from "@/lib/tools";
+import { TOOLS, toolCamelPlural, toolDetailRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 export interface PaletteItem {
@@ -68,7 +66,7 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
           ...(project.tags?.map((tag) => tag.name) ?? []),
         ],
         icon: project.icon ? <span className="text-base leading-none">{project.icon}</span> : null,
-        path: `${toolListRoute(Tool.project)}/${project.id}`,
+        path: toolDetailRoute(Tool.project, project.initiative_id, project.id),
       }));
     },
   },
@@ -97,7 +95,7 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
           label: doc.name,
           keywords: [doc.initiative?.name ?? "", ...(doc.tags?.map((tag) => tag.name) ?? [])],
           icon: <DocIcon className={cn(color)} />,
-          path: `${toolListRoute(Tool.document)}/${doc.id}`,
+          path: toolDetailRoute(Tool.document, doc.initiative_id, doc.id),
         };
       });
     },
@@ -111,7 +109,7 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
         label: queue.name,
         keywords: [queue.description ?? ""],
         icon: null,
-        path: `${toolListRoute(Tool.queue)}/${queue.id}`,
+        path: toolDetailRoute(Tool.queue, queue.initiative_id, queue.id),
       }));
     },
   },
@@ -124,7 +122,7 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
         label: group.name,
         keywords: [group.description ?? ""],
         icon: null,
-        path: `${toolListRoute(Tool.counter_group)}/${group.id}`,
+        path: toolDetailRoute(Tool.counter_group, group.initiative_id, group.id),
       }));
     },
   },
@@ -137,7 +135,7 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
         label: calendar.name,
         keywords: [calendar.description ?? ""],
         icon: null,
-        path: `${toolListRoute(Tool.calendar)}/${calendar.id}`,
+        path: toolDetailRoute(Tool.calendar, calendar.initiative_id, calendar.id),
       }));
     },
   },
@@ -150,7 +148,7 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
         label: dashboard.name,
         keywords: [dashboard.description ?? ""],
         icon: null,
-        path: `${toolListRoute(Tool.dashboard)}/${dashboard.id}`,
+        path: toolDetailRoute(Tool.dashboard, dashboard.initiative_id, dashboard.id),
       }));
     },
   },

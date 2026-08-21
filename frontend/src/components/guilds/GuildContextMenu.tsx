@@ -62,7 +62,7 @@ export const GuildContextMenu = ({ guild, children }: GuildContextMenuProps) => 
     if (guild.id !== activeGuildId) {
       await switchGuild(guild.id);
     }
-    router.navigate({ to: "/initiatives" });
+    router.navigate({ to: "/g/$guildId/i", params: { guildId: String(guild.id) } });
   };
 
   const handleGuildSettings = async () => {
@@ -78,7 +78,11 @@ export const GuildContextMenu = ({ guild, children }: GuildContextMenuProps) => 
     if (guild.id !== activeGuildId) {
       await switchGuild(guild.id);
     }
-    router.navigate({ to: "/initiatives", search: { create: "true" } });
+    router.navigate({
+      to: "/g/$guildId/i",
+      params: { guildId: String(guild.id) },
+      search: { create: "true" },
+    });
   };
 
   const handleCopyGuildId = () => {

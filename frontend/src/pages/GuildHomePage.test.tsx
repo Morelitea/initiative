@@ -190,6 +190,7 @@ describe("GuildHomePage", () => {
             task_title: "Fuel check",
             project_id: 1,
             project_name: "Lunar Lander",
+            initiative_id: 5,
           }),
         ])
       )
@@ -202,7 +203,7 @@ describe("GuildHomePage", () => {
     expect(screen.getByText("on Fuel check in Lunar Lander")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Ready for the review/ })).toHaveAttribute(
       "href",
-      "/g/1/tasks/4"
+      "/g/1/i/5/projects/1/tasks/4"
     );
   });
 

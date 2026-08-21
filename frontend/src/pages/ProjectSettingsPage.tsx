@@ -6,12 +6,7 @@ import { ProjectTaskStatusesManager } from "@/components/projects/ProjectTaskSta
 import { ProjectSettingsAdvancedTab } from "@/components/projects/settings/ProjectSettingsAdvancedTab";
 import { ProjectSettingsDetailsTab } from "@/components/projects/settings/ProjectSettingsDetailsTab";
 import { ToolSettingsPage } from "@/components/tools/settings/ToolSettingsPage";
-import {
-  useDeleteProject,
-  useProject,
-  useSetProjectGrants,
-  useUpdateProject,
-} from "@/hooks/useProjects";
+import { useDeleteProject, useProject, useSetProjectGrants } from "@/hooks/useProjects";
 import { hasWriteAccess } from "@/lib/permissions";
 
 export const ProjectSettingsPage = () => {

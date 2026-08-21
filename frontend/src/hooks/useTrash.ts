@@ -2,8 +2,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type {
   EntityType,
-  RestoreNeedsReassignmentResponse,
-  RestoreRequest,
   RestoreResponse,
   TrashListResponse,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -89,15 +87,10 @@ export type RestoreTrashVars = {
   guildId: number;
   entityType: EntityType;
   entityId: number;
-  body?: RestoreRequest;
 };
 
-// 200 {restored: true} or — recovered from a 409 in mutationFn —
-// {needs_reassignment: true, ...}. The dialog branches on shape.
-export type RestoreTrashResponse = RestoreResponse | RestoreNeedsReassignmentResponse;
-
 export const useRestoreTrashEntity = (
-  options?: MutationOpts<RestoreTrashResponse, RestoreTrashVars>
+  options?: MutationOpts<RestoreResponse, RestoreTrashVars>
 ) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
   const queryClient = useQueryClient();
@@ -108,48 +101,21 @@ export const useRestoreTrashEntity = (
       guildId,
       entityType,
       entityId,
-      body,
-    }: RestoreTrashVars): Promise<RestoreTrashResponse> => {
-      try {
-        // 200 → RestoreResponse. The 409 needs-reassignment branch is caught
-        // below and its body recovered into the same union.
-        return await restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost(
-          guildId,
-          entityType,
-          entityId,
-          body ?? {}
-        );
-      } catch (err) {
-        // The needs-reassignment branch is a successful interaction shape
-        // (the user just needs to pick an owner) but the API correctly
-        // signals it as 409 so non-React-Query consumers don't mistake it
-        // for a happy path. Recover the body and let onSuccess handle it.
-        const status = (err as { response?: { status?: number; data?: unknown } })?.response
-          ?.status;
-        const data = (err as { response?: { status?: number; data?: unknown } })?.response?.data;
-        if (
-          status === 409 &&
-          data &&
-          typeof data === "object" &&
-          "needs_reassignment" in (data as object)
-        ) {
-          return data as RestoreNeedsReassignmentResponse;
-        }
-        throw err;
-      }
-    },
+    }: RestoreTrashVars): Promise<RestoreResponse> =>
+      restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost(
+        guildId,
+        entityType,
+        entityId
+      ),
     onSuccess: (...args) => {
-      const [data, variables] = args;
-      // Always invalidate both trash views (personal /me and the item's guild)
-      // so the row disappears — or stays, when the response was
-      // needs_reassignment.
+      const [, variables] = args;
+      // Invalidate both trash views (personal /me and the item's guild) so the
+      // restored row disappears from each.
       void queryClient.invalidateQueries({ queryKey: getListMyTrashApiV1MeTrashGetQueryKey() });
       void queryClient.invalidateQueries({
         queryKey: getListGuildTrashApiV1GGuildIdTrashGetQueryKey(variables.guildId),
       });
-      if ("restored" in data) {
-        void ENTITY_INVALIDATORS[variables.entityType]?.();
-      }
+      void ENTITY_INVALIDATORS[variables.entityType]?.();
       onSuccess?.(...args);
     },
     onError: (...args) => {

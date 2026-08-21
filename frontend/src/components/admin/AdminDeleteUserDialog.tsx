@@ -1,12 +1,10 @@
 import { AlertCircle, ChevronLeft, Loader2, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { adminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGet } from "@/api/generated/admin/admin";
 import type {
   AdminDeletionEligibilityResponse,
   GuildBlockerInfo,
-  InitiativeBlockerInfo,
   UserRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -27,10 +25,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import {
   useAdminDeleteGuild,
-  useAdminDeleteInitiative,
   useAdminDeleteUser,
   useAdminPromoteGuildMember,
-  useAdminPromoteInitiativeMember,
   useUserDeletionEligibility,
 } from "@/hooks/useAdmin";
 import { toast } from "@/lib/chesterToast";
@@ -49,12 +45,7 @@ import type { DialogWithSuccessProps } from "@/types/dialog";
  * projects always have a usable owner.
  */
 type AdminAction = "deactivate" | "soft_delete" | "hard_delete";
-type DeletionStep =
-  | "choose-type"
-  | "check-blockers"
-  | "resolve-blockers"
-  | "transfer-projects"
-  | "confirm";
+type DeletionStep = "choose-type" | "check-blockers" | "resolve-blockers" | "confirm";
 
 /**
  * Which actions make sense for a target in a given lifecycle state:
@@ -112,14 +103,11 @@ export function AdminDeleteUserDialog({
   const [step, setStep] = useState<DeletionStep>("choose-type");
   const [action, setAction] = useState<AdminAction>(validActions[0]);
   const [eligibility, setEligibility] = useState<AdminDeletionEligibilityResponse | null>(null);
-  const [projectTransfers, setProjectTransfers] = useState<Record<string, number>>({});
   const [confirmationText, setConfirmationText] = useState("");
   const [agreedToConsequences, setAgreedToConsequences] = useState(false);
 
   // State for blocker resolution
   const [guildDeleteConfirm, setGuildDeleteConfirm] = useState<GuildBlockerInfo | null>(null);
-  const [initiativeDeleteConfirm, setInitiativeDeleteConfirm] =
-    useState<InitiativeBlockerInfo | null>(null);
   const [isResolvingBlocker, setIsResolvingBlocker] = useState(false);
 
   // Reset state when dialog opens/closes. Default action falls back to
@@ -130,11 +118,9 @@ export function AdminDeleteUserDialog({
       setStep("choose-type");
       setAction(validActions[0]);
       setEligibility(null);
-      setProjectTransfers({});
       setConfirmationText("");
       setAgreedToConsequences(false);
       setGuildDeleteConfirm(null);
-      setInitiativeDeleteConfirm(null);
       setIsResolvingBlocker(false);
     }
   }, [open, validActions]);
@@ -142,28 +128,6 @@ export function AdminDeleteUserDialog({
   // Fetch deletion eligibility
   const { refetch: checkEligibility, isFetching: isCheckingEligibility } =
     useUserDeletionEligibility(targetUser.id);
-
-  // Fetch initiative members for project transfer
-  const [initiativeMembers, setInitiativeMembers] = useState<Record<number, UserRead[]>>({});
-  const fetchInitiativeMembers = useCallback(
-    async (initiativeId: number, guildId: number) => {
-      if (initiativeMembers[initiativeId]) return;
-
-      try {
-        const members = await (adminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGet(
-          initiativeId,
-          { guild_id: guildId }
-        ) as unknown as Promise<UserRead[]>);
-        setInitiativeMembers((prev) => ({
-          ...prev,
-          [initiativeId]: members.filter((u) => u.id !== targetUser.id),
-        }));
-      } catch (error) {
-        console.error("Failed to fetch initiative members:", error);
-      }
-    },
-    [initiativeMembers, targetUser.id]
-  );
 
   // Mutations for resolving blockers
   const promoteGuildMember = useAdminPromoteGuildMember({
@@ -189,30 +153,6 @@ export function AdminDeleteUserDialog({
     onSettled: () => setIsResolvingBlocker(false),
   });
 
-  const deleteInitiative = useAdminDeleteInitiative({
-    onSuccess: async () => {
-      toast.success(t("adminDeleteUser.deleteInitiativeSuccess"));
-      setInitiativeDeleteConfirm(null);
-      await refreshEligibility();
-    },
-    onError: (error: unknown) => {
-      toast.error(getErrorMessage(error, "settings:adminDeleteUser.deleteInitiativeError"));
-    },
-    onSettled: () => setIsResolvingBlocker(false),
-  });
-
-  const promoteInitiativeMember = useAdminPromoteInitiativeMember({
-    onSuccess: async () => {
-      toast.success(t("adminDeleteUser.promoteSuccess"));
-      await refreshEligibility();
-    },
-    onError: (error: unknown) => {
-      toast.error(getErrorMessage(error, "settings:adminDeleteUser.promoteError"));
-    },
-    onSettled: () => setIsResolvingBlocker(false),
-  });
-
-  // Delete user mutation
   const deleteUser = useAdminDeleteUser(targetUser.id, {
     onSuccess: (data) => {
       toast.success(data.message);
@@ -229,19 +169,8 @@ export function AdminDeleteUserDialog({
     const result = await checkEligibility();
     if (result.data) {
       setEligibility(result.data);
-
-      // Load initiative members for all owned projects
-      for (const project of result.data.owned_projects) {
-        await fetchInitiativeMembers(project.initiative_id, project.guild_id);
-      }
-
-      // If blockers are now resolved, move forward
       if (result.data.can_delete) {
-        if (result.data.owned_projects.length > 0) {
-          setStep("transfer-projects");
-        } else {
-          setStep("confirm");
-        }
+        setStep("confirm");
       }
     }
   };
@@ -254,46 +183,21 @@ export function AdminDeleteUserDialog({
       if (result.data) {
         setEligibility(result.data);
 
-        // Load initiative members for all owned projects
-        for (const project of result.data.owned_projects) {
-          await fetchInitiativeMembers(project.initiative_id, project.guild_id);
-        }
-
-        // Check if there are blockers that can be resolved
-        const hasResolvableBlockers =
-          result.data.guild_blockers.length > 0 || result.data.initiative_blockers.length > 0;
-
-        if (!result.data.can_delete && hasResolvableBlockers) {
+        if (!result.data.can_delete && result.data.guild_blockers.length > 0) {
           setStep("resolve-blockers");
-        } else if (result.data.can_delete && result.data.owned_projects.length === 0) {
+        } else if (result.data.can_delete) {
           setStep("confirm");
-        } else if (result.data.can_delete && result.data.owned_projects.length > 0) {
-          setStep("transfer-projects");
         }
       }
     } else if (step === "check-blockers" || step === "resolve-blockers") {
       if (eligibility?.can_delete) {
-        if (eligibility.owned_projects.length > 0) {
-          setStep("transfer-projects");
-        } else {
-          setStep("confirm");
-        }
+        setStep("confirm");
       }
-    } else if (step === "transfer-projects") {
-      setStep("confirm");
     }
   };
 
   const handleBack = () => {
     if (step === "confirm") {
-      if (eligibility?.owned_projects.length) {
-        setStep("transfer-projects");
-      } else if (hasBlockers) {
-        setStep("resolve-blockers");
-      } else {
-        setStep("check-blockers");
-      }
-    } else if (step === "transfer-projects") {
       if (hasBlockers) {
         setStep("resolve-blockers");
       } else {
@@ -307,10 +211,7 @@ export function AdminDeleteUserDialog({
   };
 
   const handleDelete = () => {
-    deleteUser.mutate({
-      action: action,
-      project_transfers: eligibility?.owned_projects.length ? projectTransfers : undefined,
-    });
+    deleteUser.mutate({ action });
   };
 
   const handlePromoteGuildMember = (guildId: number, userId: number) => {
@@ -325,29 +226,14 @@ export function AdminDeleteUserDialog({
     deleteGuild.mutate({ guildId, blockedUserId: targetUser.id });
   };
 
-  const handleDeleteInitiative = (initiativeId: number, guildId: number) => {
-    setIsResolvingBlocker(true);
-    deleteInitiative.mutate({ initiativeId, guildId });
-  };
-
-  const handlePromoteInitiativeMember = (initiativeId: number, userId: number, guildId: number) => {
-    setIsResolvingBlocker(true);
-    promoteInitiativeMember.mutate({ initiativeId, userId, guildId });
-  };
-
-  // Check if there are blockers (guild or initiative)
-  const hasBlockers =
-    (eligibility?.guild_blockers.length ?? 0) > 0 ||
-    (eligibility?.initiative_blockers.length ?? 0) > 0;
+  // Being the last admin of a guild is the only blocker. Owning content is not
+  // one — ownership is released as the memberships go, and what they owned is
+  // left for a guild admin to claim.
+  const hasBlockers = (eligibility?.guild_blockers.length ?? 0) > 0;
 
   // Validation
   const canProceedFromChooseType = action !== null;
   const canProceedFromBlockers = eligibility?.can_delete === true;
-  const canProceedFromTransfers =
-    !eligibility?.owned_projects.length ||
-    eligibility.owned_projects.every(
-      (project) => !!projectTransfers[`${project.guild_id}:${project.id}`]
-    );
   const confirmationRequired = targetUser.email.split("@")[0].toUpperCase();
   const canConfirm =
     confirmationText === confirmationRequired && (action !== "hard_delete" || agreedToConsequences);
@@ -371,7 +257,6 @@ export function AdminDeleteUserDialog({
             {step === "choose-type" && t("adminDeleteUser.stepType")}
             {step === "check-blockers" && t("adminDeleteUser.checkingEligibility")}
             {step === "resolve-blockers" && t("adminDeleteUser.stepBlockers")}
-            {step === "transfer-projects" && t("adminDeleteUser.stepTransfer")}
             {step === "confirm" &&
               t(
                 action === "deactivate"
@@ -438,22 +323,6 @@ export function AdminDeleteUserDialog({
 
               {eligibility?.can_delete && (
                 <>
-                  {eligibility.warnings.length > 0 && (
-                    <Alert>
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription>
-                        <div className="mb-2 font-semibold">
-                          {t("adminDeleteUser.warningsTitle")}
-                        </div>
-                        <ul className="list-inside list-disc space-y-1">
-                          {eligibility.warnings.map((warning) => (
-                            <li key={warning}>{warning}</li>
-                          ))}
-                        </ul>
-                      </AlertDescription>
-                    </Alert>
-                  )}
-
                   <Alert className="border-green-500/50 bg-green-50 dark:bg-green-950">
                     <AlertDescription>{t("adminDeleteUser.confirmDescription")}</AlertDescription>
                   </Alert>
@@ -470,180 +339,58 @@ export function AdminDeleteUserDialog({
                 <AlertDescription>{t("adminDeleteUser.blockersDescription")}</AlertDescription>
               </Alert>
 
-              {/* Group blockers by guild */}
-              {(() => {
-                // Build a map of guild_id -> { guildBlocker?, initiativeBlockers[] }
-                const guildGroups = new Map<
-                  number,
-                  {
-                    guildBlocker: GuildBlockerInfo | null;
-                    guildName: string;
-                    initiativeBlockers: InitiativeBlockerInfo[];
-                  }
-                >();
-
-                // Add guild blockers
-                for (const blocker of eligibility.guild_blockers) {
-                  guildGroups.set(blocker.guild_id, {
-                    guildBlocker: blocker,
-                    guildName: blocker.guild_name,
-                    initiativeBlockers: [],
-                  });
-                }
-
-                // Add initiative blockers, grouped by guild
-                for (const blocker of eligibility.initiative_blockers) {
-                  const existing = guildGroups.get(blocker.guild_id);
-                  if (existing) {
-                    existing.initiativeBlockers.push(blocker);
-                  } else {
-                    // Initiative blocker without a guild blocker - need to get guild name from initiative
-                    guildGroups.set(blocker.guild_id, {
-                      guildBlocker: null,
-                      guildName: "", // Will show just initiatives
-                      initiativeBlockers: [blocker],
-                    });
-                  }
-                }
-
-                return Array.from(guildGroups.entries()).map(
-                  ([guildId, { guildBlocker, initiativeBlockers }]) => (
-                    <div key={guildId} className="space-y-3 rounded-lg border p-4">
-                      {/* Guild blocker section */}
-                      {guildBlocker && (
-                        <>
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <h4 className="font-medium">
-                                {t("adminDeleteUser.guildBlockerTitle", {
-                                  guildName: guildBlocker.guild_name,
-                                })}
-                              </h4>
-                              <p className="text-muted-foreground text-sm">
-                                {t("adminDeleteUser.guildBlockerDescription")}
-                              </p>
-                            </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="text-destructive hover:text-destructive"
-                              onClick={() => setGuildDeleteConfirm(guildBlocker)}
-                              disabled={isResolvingBlocker}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              {t("adminDeleteUser.deleteGuild")}
-                            </Button>
-                          </div>
-
-                          {guildBlocker.other_members.length > 0 ? (
-                            <div className="space-y-2">
-                              <Label className="text-sm">
-                                {t("adminDeleteUser.promoteToGuildAdmin")}
-                              </Label>
-                              <div className="flex items-center gap-2">
-                                <SearchableCombobox
-                                  items={guildBlocker.other_members.map((member) => ({
-                                    value: member.id.toString(),
-                                    label: formatMemberLabel(member),
-                                  }))}
-                                  onValueChange={(value) =>
-                                    handlePromoteGuildMember(
-                                      guildBlocker.guild_id,
-                                      parseInt(value, 10)
-                                    )
-                                  }
-                                  placeholder={t("adminDeleteUser.transferSelectPlaceholder")}
-                                  emptyMessage={t("adminDeleteUser.noUsersAvailable")}
-                                  disabled={isResolvingBlocker}
-                                  className="flex-1"
-                                />
-                                {isResolvingBlocker && <Loader2 className="h-5 w-5 animate-spin" />}
-                              </div>
-                            </div>
-                          ) : (
-                            <p className="text-muted-foreground text-sm italic">
-                              {t("adminDeleteUser.noUsersAvailable")}
-                            </p>
-                          )}
-                        </>
-                      )}
-
-                      {/* Initiative blockers nested under the guild */}
-                      {initiativeBlockers.length > 0 && (
-                        <div
-                          className={
-                            guildBlocker ? "ml-4 space-y-3 border-l-2 border-l-muted pl-4" : ""
-                          }
-                        >
-                          {initiativeBlockers.map((initBlocker) => (
-                            <div
-                              key={initBlocker.initiative_id}
-                              className={guildBlocker ? "space-y-2" : "space-y-3"}
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="flex-1">
-                                  <h4 className="font-medium">
-                                    {t("adminDeleteUser.initiativeBlockerTitle", {
-                                      initiativeName: initBlocker.initiative_name,
-                                    })}
-                                  </h4>
-                                  <p className="text-muted-foreground text-sm">
-                                    {t("adminDeleteUser.initiativeBlockerDescription")}
-                                  </p>
-                                </div>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="text-destructive hover:text-destructive"
-                                  onClick={() => setInitiativeDeleteConfirm(initBlocker)}
-                                  disabled={isResolvingBlocker}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                  {t("adminDeleteUser.deleteInitiative")}
-                                </Button>
-                              </div>
-
-                              {initBlocker.other_members.length > 0 ? (
-                                <div className="space-y-2">
-                                  <Label className="text-sm">
-                                    {t("adminDeleteUser.promoteToInitiativePM")}
-                                  </Label>
-                                  <div className="flex items-center gap-2">
-                                    <SearchableCombobox
-                                      items={initBlocker.other_members.map((member) => ({
-                                        value: member.id.toString(),
-                                        label: formatMemberLabel(member),
-                                      }))}
-                                      onValueChange={(value) =>
-                                        handlePromoteInitiativeMember(
-                                          initBlocker.initiative_id,
-                                          parseInt(value, 10),
-                                          initBlocker.guild_id
-                                        )
-                                      }
-                                      placeholder={t("adminDeleteUser.transferSelectPlaceholder")}
-                                      emptyMessage={t("adminDeleteUser.noUsersAvailable")}
-                                      disabled={isResolvingBlocker}
-                                      className="flex-1"
-                                    />
-                                    {isResolvingBlocker && (
-                                      <Loader2 className="h-5 w-5 animate-spin" />
-                                    )}
-                                  </div>
-                                </div>
-                              ) : (
-                                <p className="text-muted-foreground text-sm italic">
-                                  {t("adminDeleteUser.noUsersAvailable")}
-                                </p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
+              {eligibility.guild_blockers.map((guildBlocker) => (
+                <div key={guildBlocker.guild_id} className="space-y-3 rounded-lg border p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium">
+                        {t("adminDeleteUser.guildBlockerTitle", {
+                          guildName: guildBlocker.guild_name,
+                        })}
+                      </h4>
+                      <p className="text-muted-foreground text-sm">
+                        {t("adminDeleteUser.guildBlockerDescription")}
+                      </p>
                     </div>
-                  )
-                );
-              })()}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => setGuildDeleteConfirm(guildBlocker)}
+                      disabled={isResolvingBlocker}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      {t("adminDeleteUser.deleteGuild")}
+                    </Button>
+                  </div>
+
+                  {guildBlocker.other_members.length > 0 ? (
+                    <div className="space-y-2">
+                      <Label className="text-sm">{t("adminDeleteUser.promoteToGuildAdmin")}</Label>
+                      <div className="flex items-center gap-2">
+                        <SearchableCombobox
+                          items={guildBlocker.other_members.map((member) => ({
+                            value: member.id.toString(),
+                            label: formatMemberLabel(member),
+                          }))}
+                          onValueChange={(value) =>
+                            handlePromoteGuildMember(guildBlocker.guild_id, parseInt(value, 10))
+                          }
+                          placeholder={t("adminDeleteUser.transferSelectPlaceholder")}
+                          emptyMessage={t("adminDeleteUser.noUsersAvailable")}
+                          disabled={isResolvingBlocker}
+                          className="flex-1"
+                        />
+                        {isResolvingBlocker && <Loader2 className="h-5 w-5 animate-spin" />}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground text-sm italic">
+                      {t("adminDeleteUser.noUsersAvailable")}
+                    </p>
+                  )}
+                </div>
+              ))}
 
               {eligibility.can_delete && (
                 <Alert className="border-green-500/50 bg-green-50 dark:bg-green-950">
@@ -653,42 +400,7 @@ export function AdminDeleteUserDialog({
             </div>
           )}
 
-          {/* Step 3: Transfer Projects */}
-          {step === "transfer-projects" && eligibility && (
-            <div className="space-y-4">
-              <p className="text-muted-foreground text-sm">
-                {t("adminDeleteUser.transferDescription")}
-              </p>
-
-              {eligibility.owned_projects.map((project) => (
-                <div
-                  key={`${project.guild_id}:${project.id}`}
-                  className="space-y-2 rounded-lg border p-4"
-                >
-                  <Label className="font-medium">{project.name}</Label>
-                  <SearchableCombobox
-                    items={
-                      initiativeMembers[project.initiative_id]?.map((member) => ({
-                        value: member.id.toString(),
-                        label: formatMemberLabel(member),
-                      })) ?? []
-                    }
-                    value={projectTransfers[`${project.guild_id}:${project.id}`]?.toString()}
-                    onValueChange={(value) =>
-                      setProjectTransfers((prev) => ({
-                        ...prev,
-                        [`${project.guild_id}:${project.id}`]: parseInt(value, 10),
-                      }))
-                    }
-                    placeholder={t("adminDeleteUser.transferSelectPlaceholder")}
-                    emptyMessage={t("adminDeleteUser.noUsersAvailable")}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Step 4: Confirm */}
+          {/* Step 3: Confirm */}
           {step === "confirm" && (
             <div className="space-y-4">
               <Alert variant="destructive">
@@ -769,7 +481,6 @@ export function AdminDeleteUserDialog({
                     (step === "choose-type" && !canProceedFromChooseType) ||
                     (step === "check-blockers" && !canProceedFromBlockers) ||
                     (step === "resolve-blockers" && !canProceedFromBlockers) ||
-                    (step === "transfer-projects" && !canProceedFromTransfers) ||
                     isCheckingEligibility ||
                     isResolvingBlocker
                   }
@@ -822,26 +533,6 @@ export function AdminDeleteUserDialog({
         destructive
         onConfirm={() => guildDeleteConfirm && handleDeleteGuild(guildDeleteConfirm.guild_id)}
         isLoading={deleteGuild.isPending}
-      />
-
-      {/* Initiative deletion confirmation dialog */}
-      <ConfirmDialog
-        open={initiativeDeleteConfirm !== null}
-        onOpenChange={(open) => !open && setInitiativeDeleteConfirm(null)}
-        title={t("adminDeleteUser.deleteInitiative")}
-        description={t("adminDeleteUser.deleteInitiativeConfirm", {
-          initiativeName: initiativeDeleteConfirm?.initiative_name,
-        })}
-        confirmLabel={t("adminDeleteUser.deleteInitiative")}
-        destructive
-        onConfirm={() =>
-          initiativeDeleteConfirm &&
-          handleDeleteInitiative(
-            initiativeDeleteConfirm.initiative_id,
-            initiativeDeleteConfirm.guild_id
-          )
-        }
-        isLoading={deleteInitiative.isPending}
       />
     </Dialog>
   );

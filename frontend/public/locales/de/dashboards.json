@@ -28,8 +28,6 @@
     "hide": "Ausblenden",
     "filterByName": "Nach Namen filtern",
     "searchDashboards": "Dashboards suchen...",
-    "filterByInitiative": "Initiative",
-    "allInitiatives": "Alle Initiativen",
     "noMatchingDashboards": "Keine Dashboards entsprechen deinen Filtern."
   },
   "loading": "Dashboards werden geladen...",

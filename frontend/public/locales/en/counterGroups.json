@@ -101,8 +101,6 @@
     "hide": "Hide",
     "searchGroups": "Search counter groups...",
     "filterByName": "Filter by name",
-    "filterByInitiative": "Initiative",
-    "allInitiatives": "All initiatives",
     "noMatchingGroups": "No counter groups match your filters."
   },
   "tags": "Tags"

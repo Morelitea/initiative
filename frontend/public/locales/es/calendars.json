@@ -53,8 +53,6 @@
     "hide": "Ocultar filtros",
     "filterByName": "Filtrar por nombre",
     "searchEvents": "Buscar eventos...",
-    "filterByInitiative": "Filtrar por iniciativa",
-    "allInitiatives": "Todas las iniciativas",
     "noMatchingEvents": "No se encontraron eventos"
   },
   "loading": "Cargando...",

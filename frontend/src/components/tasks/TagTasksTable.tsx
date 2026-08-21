@@ -5,14 +5,15 @@ import { ChevronDown, Filter, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
-  FilterCondition,
-  ListTasksApiV1GGuildIdTasksGetParams,
-  SortField,
-  TaskListRead,
-  TaskPriority,
-  TaskStatusCategory,
-  TaskStatusRead,
+import {
+  type FilterCondition,
+  type ListTasksApiV1GGuildIdTasksGetParams,
+  type SortField,
+  type TaskListRead,
+  type TaskPriority,
+  type TaskStatusCategory,
+  type TaskStatusRead,
+  Tool,
 } from "@/api/generated/initiativeAPI.schemas";
 import { listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet } from "@/api/generated/task-statuses/task-statuses";
 import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
@@ -35,6 +36,7 @@ import { getErrorMessage } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { dateSortingFn, PRIORITY_ORDER, prioritySortingFn } from "@/lib/sorting";
 import type { AppColumnDef } from "@/lib/table";
+import { taskRoute, toolDetailRoute } from "@/lib/tools";
 
 const statusFallbackOrder: Record<TaskStatusCategory, TaskStatusCategory[]> = {
   backlog: ["backlog"],
@@ -324,7 +326,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
           <div className="flex min-w-60 flex-col text-left">
             <div className="flex">
               <Link
-                to={gp(`/tasks/${task.id}`)}
+                to={gp(taskRoute(task.initiative_id, task.project_id, task.id))}
                 className="flex w-full items-center gap-2 font-medium text-foreground hover:underline"
               >
                 {task.title}
@@ -349,7 +351,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
         return (
           <div className="min-w-30">
             <Link
-              to={gp(`/projects/${task.project_id}`)}
+              to={gp(toolDetailRoute(Tool.project, task.initiative_id, task.project_id))}
               className="font-medium text-primary text-sm hover:underline"
             >
               {task.project_name ?? t("projectFallback", { id: task.project_id })}

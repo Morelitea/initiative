@@ -30,35 +30,21 @@
     "description": "You will lose access to all initiatives and projects in <bold>{{name}}</bold>. This action cannot be undone.",
     "cannotLeaveTitle": "Cannot leave guild",
     "lastAdminWarning": "You are the last admin of this guild. Promote another member to admin first.",
-    "solePmWarning": "You are the sole project manager of: <bold>{{initiatives}}</bold>. Promote another member to project manager first.",
     "leaving": "Leaving...",
     "leaveButton": "Leave Guild",
     "leftGuild": "Left {{name}}",
     "failedToLeave": "Failed to leave guild. Please try again.",
     "failedToCheckEligibility": "Failed to check eligibility. Please try again.",
-    "transferDescription": "Before leaving <bold>{{name}}</bold>, decide what happens to each project you own — hand it off to another member, or delete it. Otherwise the project would be left with no member who can access it.",
-    "selectNewOwnerPlaceholder": "Select new owner…",
-    "noTransferCandidates": "No eligible members are available in this initiative.",
-    "dispositionTransferLabel": "Transfer ownership",
-    "dispositionDeleteLabel": "Delete this project",
-    "dispositionDeleteHelper": "Sends the project to this guild's trash. Guild admins can restore it before the retention window passes."
+    "ownershipReleased": "Anything you own in this guild becomes unowned. A guild admin can claim it later."
   },
   "removeMember": {
     "title": "Remove member from guild",
     "description": "Remove {{email}} from this guild? They'll lose access to every initiative and project in it.",
-    "cannotRemoveTitle": "Cannot remove member",
-    "solePmWarning": "They are the sole project manager of: {{initiatives}}. Promote another member to project manager first.",
-    "transferDescription": "Removing {{email}} would orphan the projects they own in this guild. Decide what happens to each one — hand it to another project manager, or delete it.",
-    "selectNewOwnerPlaceholder": "Select new owner…",
-    "noTransferCandidates": "No eligible project managers are available in this initiative.",
-    "dispositionTransferLabel": "Transfer ownership",
-    "dispositionDeleteLabel": "Delete this project",
-    "dispositionDeleteHelper": "Sends the project to this guild's trash. Guild admins can restore it before the retention window passes.",
     "removeButton": "Remove from guild",
     "removing": "Removing…",
     "removed": "Removed {{email}}",
     "failedToRemove": "Failed to remove member. Please try again.",
-    "failedToCheckEligibility": "Failed to check removal eligibility. Please try again."
+    "ownershipReleased": "Anything they own becomes unowned. You can claim it any time from the unowned content list below."
   },
   "invite": {
     "title": "Join {{guildName}}",
@@ -279,5 +265,32 @@
     "selfHosted": "Self-hosted",
     "upgrade": "Upgrade",
     "manageBilling": "Manage billing"
+  },
+  "transferOwnership": {
+    "title": "Transfer ownership",
+    "claimTitle": "Claim unowned content",
+    "description": "Move everything {{name}} owns in this guild to another admin.",
+    "claimDescription": "Give everything no current member owns to an admin.",
+    "whatMoves": "What moves",
+    "recipientLabel": "New owner",
+    "recipientPlaceholder": "Choose an admin",
+    "adminsOnly": "Only guild admins can be given ownership.",
+    "confirm": "Transfer",
+    "transferring": "Transferring…",
+    "nothingOwned": "They own nothing in this guild.",
+    "nothingUnowned": "Everything in this guild has an owner.",
+    "moved_one": "{{count}} item transferred",
+    "moved_other": "{{count}} items transferred",
+    "failed": "Could not transfer ownership.",
+    "loadFailed": "Could not load what this person owns.",
+    "action": "Transfer ownership"
+  },
+  "unownedContent": {
+    "title": "Unowned content",
+    "description": "Content no current member owns — what a member leaving the guild leaves behind. Claim it to put an admin back in charge.",
+    "empty": "Everything in this guild has an owner.",
+    "claimButton": "Claim all",
+    "summary_one": "{{count}} item has no owner",
+    "summary_other": "{{count}} items have no owner"
   }
 }

@@ -513,6 +513,8 @@ export function useWidgetData(
     appQuery.isLoading,
     refetch,
     appQuery.isError,
+    counterGroupQuery,
+    documentQuery,
   ]);
 }
 

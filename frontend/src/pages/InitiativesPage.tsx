@@ -45,7 +45,7 @@ import { useProjectCountsByInitiative } from "@/hooks/useProjects";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
-import { TOGGLEABLE_TOOLS, toolViewPermission } from "@/lib/tools";
+import { initiativeRoute, TOGGLEABLE_TOOLS, toolViewPermission } from "@/lib/tools";
 
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
@@ -241,7 +241,7 @@ export const InitiativesPage = () => {
                   </CardContent>
                   <CardFooter>
                     <Button asChild variant="outline" size="sm">
-                      <Link to={gp(`/initiatives/${initiative.id}`)}>{t("openInitiative")}</Link>
+                      <Link to={gp(initiativeRoute(initiative.id))}>{t("openInitiative")}</Link>
                     </Button>
                   </CardFooter>
                 </Card>

@@ -14,13 +14,17 @@ import {
   useMarkNotificationRead,
   useNotifications,
 } from "@/hooks/useNotifications";
+import { normalizeLegacyTarget } from "@/lib/entityResolver";
 import { downloadExportArtifact } from "@/lib/exportDownload";
 import { guildPath } from "@/lib/guildUrl";
+import { entityRefRoute, INITIATIVES_ROUTE } from "@/lib/tools";
 
-// Build guild-scoped URL directly
+// Build guild-scoped URL directly. Notification rows persist their
+// target_path, so one written before tools moved inside their initiative is
+// mapped onto the `/go` resolver on the way out.
 const buildGuildPath = (guildId: number, targetPath: string): string => {
   const normalized = targetPath.startsWith("/") ? targetPath : `/${targetPath}`;
-  return guildPath(guildId, normalized);
+  return guildPath(guildId, normalizeLegacyTarget(normalized));
 };
 
 const resolveSmartLink = (notification: NotificationRead): string | null => {
@@ -63,25 +67,23 @@ const notificationLink = (notification: NotificationRead): string | null => {
   }
   const data = notification.data || {};
   switch (notification.type) {
-    case "task_assignment":
-      if (typeof data.task_id === "number") {
-        return `/tasks/${data.task_id}`;
-      }
-      if (typeof data.task_id === "string") {
-        const parsedTaskId = Number(data.task_id);
-        if (Number.isFinite(parsedTaskId)) {
-          return `/tasks/${parsedTaskId}`;
-        }
+    // These hold ids and nothing else, so they address the `/go` resolver,
+    // which reads the entity and works out where it lives.
+    case "task_assignment": {
+      const taskId = Number(data.task_id);
+      if (Number.isFinite(taskId) && data.task_id != null) {
+        return entityRefRoute("task", taskId);
       }
       if (typeof data.project_id === "number") {
-        return `/projects/${data.project_id}`;
+        return entityRefRoute("project", data.project_id);
       }
       return null;
+    }
     case "initiative_added":
-      return "/initiatives";
+      return INITIATIVES_ROUTE;
     case "project_added":
       if (typeof data.project_id === "number") {
-        return `/projects/${data.project_id}`;
+        return entityRefRoute("project", data.project_id);
       }
       return null;
     case "import_ready":
@@ -95,7 +97,7 @@ const notificationLink = (notification: NotificationRead): string | null => {
       return "/settings";
     case "mention":
       if (typeof data.document_id === "number") {
-        return `/documents/${data.document_id}`;
+        return entityRefRoute("document", data.document_id);
       }
       return null;
     case "access_grant_requested":
@@ -111,7 +113,7 @@ const notificationLink = (notification: NotificationRead): string | null => {
     case "event_rsvp":
     case "event_reminder": {
       const eventId = Number(data.event_id);
-      return Number.isFinite(eventId) ? `/calendar-events/${eventId}` : null;
+      return Number.isFinite(eventId) ? entityRefRoute("event", eventId) : null;
     }
     default:
       return null;

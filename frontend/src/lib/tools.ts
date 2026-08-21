@@ -134,31 +134,117 @@ export const toolPascalSingular = (tool: Tool): string =>
  *  Callers must prepend `/api/v1/g/${guildId}` when building guild-scoped requests. */
 export const toolApiPath = (tool: Tool): string => `/api/v1/${toolRouteSegment(tool)}`;
 
-/** Guild-relative list route, e.g. "/counter-groups". */
-export const toolListRoute = (tool: Tool): string => `/${toolRouteSegment(tool)}`;
+// ---------------------------------------------------------------------------
+// Routes — a tool entity's URL names the whole chain it belongs to:
+// /g/{guild}/i/{initiative}/{tool}/{id}. There is no guild-wide tool list; the
+// guild home (`/?tool=`) is the cross-initiative browse surface, so a tool's
+// "list" is always one initiative's tab. Every builder here returns a
+// GUILD-relative path — callers prepend the guild prefix with `useGuildPath`.
+// ---------------------------------------------------------------------------
 
-/** Guild-relative detail route for one entity, e.g. "/counter-groups/12". */
-export const toolDetailRoute = (tool: Tool, id: number): string => `${toolListRoute(tool)}/${id}`;
+/** Guild-relative initiatives list. */
+export const INITIATIVES_ROUTE = "/i";
 
-/** Guild-relative settings route for one entity, e.g. "/counter-groups/12/settings". */
-export const toolSettingsRoute = (tool: Tool, id: number): string =>
-  `${toolDetailRoute(tool, id)}/settings`;
+/** Guild-relative route for one initiative, e.g. "/i/12". */
+export const initiativeRoute = (initiativeId: number): string =>
+  `${INITIATIVES_ROUTE}/${initiativeId}`;
+
+/**
+ * Guild-relative list route for a tool inside one initiative — which is also
+ * the initiative page with that tool's tab selected, e.g. "/i/12/counter-groups".
+ *
+ * `initiativeId === null` names a GUILD-LEVEL entity. Calendars are the only
+ * tool that has any (an app-installed calendar has no `initiative_id`), and
+ * they keep their guild routes. Treat `null` as "address me at the guild
+ * route", never as "initiative unknown".
+ */
+export const toolListRoute = (tool: Tool, initiativeId: number | null): string =>
+  initiativeId === null
+    ? `/${toolRouteSegment(tool)}`
+    : `${initiativeRoute(initiativeId)}/${toolRouteSegment(tool)}`;
+
+/** Guild-relative detail route for one entity, e.g. "/i/12/counter-groups/3". */
+export const toolDetailRoute = (tool: Tool, initiativeId: number | null, id: number): string =>
+  `${toolListRoute(tool, initiativeId)}/${id}`;
+
+/** Guild-relative settings route, e.g. "/i/12/counter-groups/3/settings". */
+export const toolSettingsRoute = (tool: Tool, initiativeId: number | null, id: number): string =>
+  `${toolDetailRoute(tool, initiativeId, id)}/settings`;
+
+/**
+ * Where a tool's entities are browsed ACROSS initiatives: the guild home,
+ * showing that tool. The only "list" a guild-level entity can go back to, and
+ * where a tool page lands when it has no initiative to return to.
+ */
+export const toolGuildBrowseTarget = (tool: Tool): { to: string; search: { tool: string } } => ({
+  to: "/",
+  search: { tool: toolRouteSegment(tool) },
+});
+
+// --- The three tools with a child entity -----------------------------------
+// Stated here once rather than left to each page: a task belongs to a project,
+// an event to a calendar, a counter to its group, and each child nests under
+// its parent so the URL reads end to end.
+
+/** e.g. "/i/1/projects/2/tasks/5". */
+export const taskRoute = (initiativeId: number | null, projectId: number, taskId: number): string =>
+  `${toolDetailRoute(Tool.project, initiativeId, projectId)}/tasks/${taskId}`;
+
+/** e.g. "/i/1/calendars/2/events/9". */
+export const eventRoute = (
+  initiativeId: number | null,
+  calendarId: number,
+  eventId: number
+): string => `${toolDetailRoute(Tool.calendar, initiativeId, calendarId)}/events/${eventId}`;
+
+/** e.g. "/i/1/calendars/2/events/9/settings". */
+export const eventSettingsRoute = (
+  initiativeId: number | null,
+  calendarId: number,
+  eventId: number
+): string => `${eventRoute(initiativeId, calendarId, eventId)}/settings`;
+
+/** e.g. "/i/1/counter-groups/3/counter/7". */
+export const counterRoute = (
+  initiativeId: number | null,
+  groupId: number,
+  counterId: number
+): string => `${toolDetailRoute(Tool.counter_group, initiativeId, groupId)}/counter/${counterId}`;
+
+/**
+ * Guild-relative resolver route for an entity whose initiative isn't in hand,
+ * e.g. "/go/document/42". The resolver reads the entity and replaces itself
+ * with the canonical address.
+ *
+ * Use ONLY where the caller genuinely holds nothing but an id — a @mention, a
+ * queue item's linked entity, a stored notification target. Anywhere the parent
+ * is already loaded, build the real route: the resolver costs a round trip.
+ */
+export const entityRefRoute = (refType: string, id: number): string => `/go/${refType}/${id}`;
+
+/** {@link entityRefRoute} for a tool, keyed by its kebab singular. */
+export const toolRefRoute = (tool: Tool, id: number): string =>
+  entityRefRoute(toolKebabSingular(tool), id);
 
 /** The router path param carrying a tool entity's id, e.g. "counterGroupId".
  *  Every tool's detail/settings route names its param this way, so the shared
  *  settings page reads the id without a per-tool lookup. */
 export const toolParamName = (tool: Tool): string => `${toolCamelSingular(tool)}Id`;
 
+/** "counter_group" → "counter-group". The KEBAB SINGULAR: export-engine source
+ * name, envelope discriminator, and entity-ref segment. */
+export const toolKebabSingular = (tool: Tool): string => tool.replaceAll("_", "-");
+
 /** Export-engine endpoint (relative to /g/{guildId}), e.g. "/exports/counter-group"
  * — the engine's source name is the KEBAB SINGULAR of the tool. */
-export const toolExportEndpoint = (tool: Tool): string => `/exports/${tool.replaceAll("_", "-")}`;
+export const toolExportEndpoint = (tool: Tool): string => `/exports/${toolKebabSingular(tool)}`;
 
 /** Single-entity export selector param, e.g. "counter_group_id". */
 export const toolExportIdParam = (tool: Tool): string => `${tool}_id`;
 
 /** The envelope ``type`` discriminator a tool's single-entity export emits —
  * the same value its importer registers under: the kebab-singular. */
-export const toolEnvelopeType = (tool: Tool): string => `initiative-${tool.replaceAll("_", "-")}`;
+export const toolEnvelopeType = (tool: Tool): string => `initiative-${toolKebabSingular(tool)}`;
 
 /** Inverse of {@link toolEnvelopeType}: which tool an envelope belongs to,
  * or null for an unknown/backup type. */
@@ -202,24 +288,13 @@ export const isToolEnabled = (tool: Tool, initiative: InitiativeRead): boolean =
   CORE_TOOLS.has(tool) ||
   Boolean(initiative[`${toolPlural(tool)}_enabled` as keyof InitiativeRead]);
 
-/** Guild-relative sidebar/nav row target for a tool inside an initiative: its
- *  shared list route, filtered to that initiative. Callers prepend the guild
- *  prefix (`useGuildPath`). */
-export const toolRowTarget = (
-  tool: Tool,
-  initiativeId: number
-): { to: string; search: { initiativeId: string } } => ({
-  to: toolListRoute(tool),
-  search: { initiativeId: String(initiativeId) },
-});
-
-/** Guild-relative create target for a tool inside an initiative. In-app tools
- *  open their list route's create dialog (`?create=true`); hand-off tools open
- *  their embedded page with a create intent. Callers prepend the guild prefix. */
+/** Guild-relative create target for a tool inside an initiative: the tool's
+ *  own tab, with its create dialog open (`?create=true`). Callers prepend the
+ *  guild prefix (`useGuildPath`). */
 export const toolCreateTarget = (
   tool: Tool,
   initiativeId: number
 ): { to: string; search: Record<string, string> } => ({
-  to: toolListRoute(tool),
-  search: { create: "true", initiativeId: String(initiativeId) },
+  to: toolListRoute(tool, initiativeId),
+  search: { create: "true" },
 });

@@ -28,8 +28,6 @@
     "hide": "Ocultar",
     "filterByName": "Filtrar por nombre",
     "searchDashboards": "Buscar paneles...",
-    "filterByInitiative": "Iniciativa",
-    "allInitiatives": "Todas las iniciativas",
     "noMatchingDashboards": "Ningún panel coincide con tus filtros."
   },
   "loading": "Cargando paneles...",
