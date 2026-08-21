@@ -40,7 +40,6 @@ from app.core.messages import (
     InitiativeMessages,
     QueryMessages,
 )
-from app.core.pam_context import has_active_grant
 from app.core.rate_limit import limiter
 from app.db.session import get_admin_session
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
@@ -342,18 +341,17 @@ def _build_visible_docs_filters(
     is_template: Optional[bool] = None,
     document_type: Optional[DocumentType] = None,
 ):
-    """Build common WHERE conditions for visible-document queries."""
-    # A guild admin (full access to all guild data) or a live PAM grant sees all
-    # of the guild's documents in one bulk, guild-scoped query; otherwise narrow
-    # to documents the user has explicit/role permission for. Guild scope + RLS
-    # apply either way.
-    conditions = [Initiative.guild_id == guild_id]
-    if not has_active_grant(
-        guild_id
-    ) and not permissions_service.is_request_guild_admin(guild_id):
-        conditions.append(
-            Document.id.in_(permissions_service.visible_document_ids_subquery(user_id))
-        )
+    """Build common WHERE conditions for visible-document queries.
+
+    Guild scope + RLS apply either way; ``dac_scope_clause`` adds the sharing
+    gate, resolving to a no-op for a request that reaches the whole guild.
+    """
+    conditions = [
+        Initiative.guild_id == guild_id,
+        permissions_service.dac_scope_clause(
+            Tool.document, Document.id, user_id, guild_id=guild_id
+        ),
+    ]
 
     if initiative_id is not None:
         conditions.append(Document.initiative_id == initiative_id)

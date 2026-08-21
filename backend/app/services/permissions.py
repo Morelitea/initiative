@@ -19,7 +19,7 @@ from enum import Enum
 from typing import Any, TypeVar
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, or_
+from sqlalchemy import ColumnElement, and_, or_, true
 from sqlmodel import select
 
 from app.core.pam_context import active_grant_level, grant_satisfies, has_active_grant
@@ -29,7 +29,6 @@ from app.core.role_context import (
     request_overrides_sharing,
 )
 from app.core.tools import Tool
-from app.services.membership import guild_member_clause
 
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.tenant.project import (
@@ -166,22 +165,6 @@ def visible_resource_ids_subquery(resource_type: str, user_id: int):
     )
 
 
-def visible_project_ids_subquery(user_id: int):
-    """Project IDs the user can access: granted ∪ (all projects if guild admin)."""
-    guild_admin_subq = select(Project.id).where(
-        guild_member_clause(user_id, Project.guild_id, role=GuildRole.admin)
-    )
-    return visible_resource_ids_subquery("project", user_id).union(guild_admin_subq)
-
-
-def visible_document_ids_subquery(user_id: int):
-    """Document IDs the user can access: granted ∪ (all documents if guild admin)."""
-    guild_admin_subq = select(Document.id).where(
-        guild_member_clause(user_id, Document.guild_id, role=GuildRole.admin)
-    )
-    return visible_resource_ids_subquery("document", user_id).union(guild_admin_subq)
-
-
 # ── Initiative-scope gate (loaded-data variant) ──────────────────
 
 
@@ -236,6 +219,35 @@ def request_bypasses_dac(
     if is_request_guild_admin(guild_id, guild_role=guild_role):
         return True
     return request_overrides_sharing(initiative_id)
+
+
+def dac_scope_clause(
+    tool: Tool,
+    id_col: ColumnElement[int],
+    user_id: int,
+    *,
+    guild_id: int | None,
+) -> ColumnElement[bool]:
+    """The WHERE leg narrowing ``id_col`` to the ``tool`` rows this request may see.
+
+    The query-shaped counterpart of :func:`request_bypasses_dac`: that one asks
+    about a loaded row, this one asks once for a whole statement, and both read
+    the same request context. Returns ``true()`` when the request reaches the
+    guild regardless of grants, so a caller appends it unconditionally rather
+    than branching around the narrowing.
+
+    ``id_col`` is whichever column names the resource — its own id, or a foreign
+    key to it (``Task.project_id``).
+
+    The initiative "Full access" override is deliberately not folded in: it is
+    per-initiative, so it cannot collapse to one guild-wide answer, and no
+    listing path applies it today.
+    """
+    if guild_id is not None and (
+        has_active_grant(guild_id) or is_request_guild_admin(guild_id)
+    ):
+        return true()
+    return id_col.in_(visible_resource_ids_subquery(tool, user_id))
 
 
 #: Distinguishes "this row has no initiative_id column" from "its initiative_id

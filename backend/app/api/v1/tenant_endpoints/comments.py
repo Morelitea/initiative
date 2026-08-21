@@ -12,7 +12,7 @@ from app.api.deps import (
     get_current_active_user,
     get_guild_membership,
 )
-from app.core.pam_context import has_active_grant
+from app.core.tools import Tool
 from app.models.tenant.comment import Comment
 from app.models.tenant.document import Document
 from app.models.tenant.initiative import Initiative, InitiativeMember
@@ -20,8 +20,7 @@ from app.models.tenant.project import Project
 from app.models.tenant.task import Task
 from app.models.platform.user import User, UserStatus
 from app.services.permissions import (
-    visible_document_ids_subquery,
-    visible_project_ids_subquery,
+    dac_scope_clause,
 )
 from app.schemas.tenant.comment import (
     CommentAuthor,
@@ -136,25 +135,24 @@ async def recent_comments(
         Comment.parent_comment_id.is_(None),
         Comment.guild_id == guild_context.guild_id,
     ]
-    # A PAM grantee can read all of the guild's content (RLS already scopes the
-    # joined tables to the granted guild), so skip the per-DAC visibility
-    # narrowing that a non-member would otherwise fail. Members still see only
-    # the tasks/documents they have permission for.
-    if not has_active_grant(guild_context.guild_id):
-        visible_projects = visible_project_ids_subquery(user_id).subquery()
-        visible_documents = visible_document_ids_subquery(user_id).subquery()
-        conditions.append(
-            or_(
-                and_(
-                    Project.id.isnot(None),
-                    Project.id.in_(select(visible_projects)),
+    # A comment is reached through its task's project or through its document, so
+    # the sharing gate is applied per kind. Each clause is a no-op for a request
+    # that reaches the whole guild, leaving only "attached to one or the other".
+    guild_id = guild_context.guild_id
+    conditions.append(
+        or_(
+            and_(
+                Project.id.isnot(None),
+                dac_scope_clause(Tool.project, Project.id, user_id, guild_id=guild_id),
+            ),
+            and_(
+                Document.id.isnot(None),
+                dac_scope_clause(
+                    Tool.document, Document.id, user_id, guild_id=guild_id
                 ),
-                and_(
-                    Document.id.isnot(None),
-                    Document.id.in_(select(visible_documents)),
-                ),
-            )
+            ),
         )
+    )
 
     stmt = (
         select(Comment)
