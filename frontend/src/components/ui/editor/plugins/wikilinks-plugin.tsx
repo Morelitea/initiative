@@ -147,12 +147,12 @@ function useWikilinkSearch(
   }, [queryString, initiativeId, guildId]);
 
   const options = useMemo(() => {
-    const docOptions = results.map((doc) => new WikilinkTypeaheadOption(doc.title, doc.id, false));
+    const docOptions = results.map((doc) => new WikilinkTypeaheadOption(doc.name, doc.id, false));
 
     // Add "Create new document" option if query doesn't exactly match any result
     if (queryString && queryString.trim().length > 0) {
       const normalizedQuery = queryString.trim().toLowerCase();
-      const exactMatch = results.some((doc) => doc.title.toLowerCase() === normalizedQuery);
+      const exactMatch = results.some((doc) => doc.name.toLowerCase() === normalizedQuery);
       if (!exactMatch) {
         docOptions.push(new WikilinkTypeaheadOption(queryString.trim(), null, true));
       }

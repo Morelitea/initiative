@@ -56,7 +56,7 @@ async def _create_file_document(
     get_guild_storage(initiative.guild_id).write(filename, b"%PDF-1.4 test")
 
     doc = Document(
-        title="Test File Doc",
+        name="Test File Doc",
         initiative_id=initiative.id,
         guild_id=initiative.guild_id,
         created_by=owner.id,
@@ -106,7 +106,7 @@ async def test_create_document_with_permissions(
     member_role = result.one()
 
     payload = {
-        "title": "Doc With Permissions",
+        "name": "Doc With Permissions",
         "initiative_id": initiative.id,
         "grants": [
             {"role_id": member_role.id, "level": "read"},
@@ -120,7 +120,7 @@ async def test_create_document_with_permissions(
 
     assert response.status_code == 201
     data = response.json()
-    assert data["title"] == "Doc With Permissions"
+    assert data["name"] == "Doc With Permissions"
 
     grants = data["grants"]
     # Owner grant + member's write user grant.
@@ -142,7 +142,7 @@ async def test_create_document_defaults_to_all_members_viewer(
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
 
     payload = {
-        "title": "Doc Default Share",
+        "name": "Doc Default Share",
         "initiative_id": admin.initiative.id,
     }
 
@@ -181,7 +181,7 @@ async def test_create_document_rejects_foreign_initiative_role(
     foreign_role = result.one()
 
     payload = {
-        "title": "Doc Cross Initiative",
+        "name": "Doc Cross Initiative",
         "initiative_id": initiative_a.id,
         "grants": [
             {"role_id": foreign_role.id, "level": "read"},
@@ -212,7 +212,7 @@ async def test_create_document_skips_owner_level_grants(
     )
 
     payload = {
-        "title": "Doc Owner Skip",
+        "name": "Doc Owner Skip",
         "initiative_id": admin.initiative.id,
         "grants": [{"user_id": member.user.id, "level": "owner"}],
     }
@@ -238,7 +238,7 @@ async def _make_native_doc(
     *,
     initiative,
     creator,
-    title: str,
+    name: str,
     is_template: bool,
 ) -> Document:
     """Create a native document with creator as owner, optionally a template."""
@@ -246,7 +246,7 @@ async def _make_native_doc(
         session,
         initiative,
         creator,
-        title=title,
+        name=name,
         content={"root": {"type": "root", "children": []}},
         is_template=is_template,
     )
@@ -272,7 +272,7 @@ async def test_copy_template_with_read_only_access(
         session,
         initiative=initiative,
         creator=template_owner.user,
-        title="Project Kickoff Template",
+        name="Project Kickoff Template",
         is_template=True,
     )
     # Grant reader explicit read-only access on the template.
@@ -291,12 +291,12 @@ async def test_copy_template_with_read_only_access(
     response = await client.post(
         reader.g(f"/documents/{template.id}/copy"),
         headers=reader.headers,
-        json={"target_initiative_id": initiative.id, "title": "My Kickoff"},
+        json={"target_initiative_id": initiative.id, "name": "My Kickoff"},
     )
 
     assert response.status_code == 201, response.text
     data = response.json()
-    assert data["title"] == "My Kickoff"
+    assert data["name"] == "My Kickoff"
     assert data["is_template"] is False
     assert data["created_by"] == reader.user.id
 
@@ -309,7 +309,7 @@ async def test_copy_template_with_read_only_access(
     # Source template is unchanged.
     await session.refresh(template)
     assert template.is_template is True
-    assert template.title == "Project Kickoff Template"
+    assert template.name == "Project Kickoff Template"
 
 
 @pytest.mark.integration
@@ -331,7 +331,7 @@ async def test_copy_non_template_still_requires_write_access(
         session,
         initiative=initiative,
         creator=owner.user,
-        title="Confidential Notes",
+        name="Confidential Notes",
         is_template=False,
     )
     session.add(
@@ -349,7 +349,7 @@ async def test_copy_non_template_still_requires_write_access(
     response = await client.post(
         reader.g(f"/documents/{doc.id}/copy"),
         headers=reader.headers,
-        json={"target_initiative_id": initiative.id, "title": "My Copy"},
+        json={"target_initiative_id": initiative.id, "name": "My Copy"},
     )
 
     assert response.status_code == 403
@@ -618,7 +618,7 @@ async def test_download_native_document_returns_404(
     response = await client.post(
         owner.g("/documents/"),
         headers=owner.headers,
-        json={"title": "Native Doc", "initiative_id": owner.initiative.id},
+        json={"name": "Native Doc", "initiative_id": owner.initiative.id},
     )
     assert response.status_code == 201
     doc_id = response.json()["id"]
@@ -645,7 +645,7 @@ async def test_update_content_clears_yjs_state(
     create_resp = await client.post(
         owner.g("/documents/"),
         headers=owner.headers,
-        json={"title": "Collab Doc", "initiative_id": owner.initiative.id},
+        json={"name": "Collab Doc", "initiative_id": owner.initiative.id},
     )
     assert create_resp.status_code == 201
     doc_id = create_resp.json()["id"]
@@ -695,7 +695,7 @@ async def test_create_whiteboard_document(client: AsyncClient, acting_user) -> N
         owner.g("/documents/"),
         headers=owner.headers,
         json={
-            "title": "My Whiteboard",
+            "name": "My Whiteboard",
             "initiative_id": owner.initiative.id,
             "document_type": "whiteboard",
         },
@@ -742,7 +742,7 @@ async def test_create_smart_link_document(client: AsyncClient, acting_user) -> N
         owner.g("/documents/"),
         headers=owner.headers,
         json={
-            "title": "Design file",
+            "name": "Design file",
             "initiative_id": owner.initiative.id,
             "document_type": "smart_link",
             "content": {"url": "https://www.figma.com/design/abc/Example"},
@@ -764,7 +764,7 @@ async def test_create_smart_link_rejects_missing_url(
         owner.g("/documents/"),
         headers=owner.headers,
         json={
-            "title": "Bad link",
+            "name": "Bad link",
             "initiative_id": owner.initiative.id,
             "document_type": "smart_link",
             "content": {},
@@ -784,7 +784,7 @@ async def test_create_smart_link_rejects_non_http_url(
         owner.g("/documents/"),
         headers=owner.headers,
         json={
-            "title": "Bad scheme",
+            "name": "Bad scheme",
             "initiative_id": owner.initiative.id,
             "document_type": "smart_link",
             "content": {"url": "ftp://example.com/file"},
@@ -965,8 +965,8 @@ async def test_autocomplete_documents_empty_query_returns_recent(
     """An empty ``q`` is the picker's opening state — it must list documents,
     not 422. Without this, a typeahead shows nothing until the user types."""
     actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await create_document(session, actor.initiative, actor.user, title="Alpha Handbook")
-    await create_document(session, actor.initiative, actor.user, title="Beta Manual")
+    await create_document(session, actor.initiative, actor.user, name="Alpha Handbook")
+    await create_document(session, actor.initiative, actor.user, name="Beta Manual")
 
     response = await client.get(
         actor.g("/documents/autocomplete"),
@@ -975,8 +975,8 @@ async def test_autocomplete_documents_empty_query_returns_recent(
     )
 
     assert response.status_code == 200
-    titles = {item["title"] for item in response.json()}
-    assert titles == {"Alpha Handbook", "Beta Manual"}
+    names = {item["name"] for item in response.json()}
+    assert names == {"Alpha Handbook", "Beta Manual"}
 
 
 @pytest.mark.integration
@@ -984,8 +984,8 @@ async def test_autocomplete_documents_filters_by_query(
     client: AsyncClient, session, acting_user
 ):
     actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await create_document(session, actor.initiative, actor.user, title="Alpha Handbook")
-    await create_document(session, actor.initiative, actor.user, title="Beta Manual")
+    await create_document(session, actor.initiative, actor.user, name="Alpha Handbook")
+    await create_document(session, actor.initiative, actor.user, name="Beta Manual")
 
     response = await client.get(
         actor.g("/documents/autocomplete"),
@@ -994,7 +994,7 @@ async def test_autocomplete_documents_filters_by_query(
     )
 
     assert response.status_code == 200
-    assert [item["title"] for item in response.json()] == ["Beta Manual"]
+    assert [item["name"] for item in response.json()] == ["Beta Manual"]
 
 
 @pytest.mark.integration
@@ -1003,7 +1003,7 @@ async def test_autocomplete_documents_honors_limit(
 ):
     actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
     for i in range(5):
-        await create_document(session, actor.initiative, actor.user, title=f"Doc {i}")
+        await create_document(session, actor.initiative, actor.user, name=f"Doc {i}")
 
     response = await client.get(
         actor.g("/documents/autocomplete"),
@@ -1042,20 +1042,20 @@ async def test_autocomplete_documents_guild_wide_template_search(
     other_initiative = await create_initiative(session, actor.guild, actor.user)
 
     here = await create_document(
-        session, actor.initiative, actor.user, title="Meeting Notes", is_template=True
+        session, actor.initiative, actor.user, name="Meeting Notes", is_template=True
     )
     there = await create_document(
-        session, other_initiative, actor.user, title="Meeting Agenda", is_template=True
+        session, other_initiative, actor.user, name="Meeting Agenda", is_template=True
     )
     board = await create_document(
         session,
         other_initiative,
         actor.user,
-        title="Meeting Board",
+        name="Meeting Board",
         is_template=True,
         document_type=DocumentType.whiteboard,
     )
-    await create_document(session, actor.initiative, actor.user, title="Meeting Recap")
+    await create_document(session, actor.initiative, actor.user, name="Meeting Recap")
 
     response = await client.get(
         actor.g("/documents/autocomplete"),
@@ -1087,7 +1087,7 @@ async def test_autocomplete_guild_wide_respects_document_dac(
         session,
         owner.initiative,
         owner.user,
-        title="Private Template",
+        name="Private Template",
         is_template=True,
     )
 
@@ -1172,5 +1172,5 @@ async def test_reading_a_document_can_leave_the_body_out(
     body = slim.json()
     assert body["content"] == {}
     assert body["id"] == document_id
-    assert body["title"] == full.json()["title"]
+    assert body["name"] == full.json()["name"]
     assert body["updated_at"] == full.json()["updated_at"]

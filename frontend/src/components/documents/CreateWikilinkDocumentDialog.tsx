@@ -58,7 +58,7 @@ export function CreateWikilinkDocumentDialog({
   const templateItems = useMemo(() => {
     const templates = (templateDocumentsQuery.data ?? []).map((doc) => ({
       value: String(doc.id),
-      label: doc.title,
+      label: doc.name,
     }));
     // "Blank document" is the default choice, not a search result: offer it
     // only in the unsearched list, so a query matching no template leaves the
@@ -126,7 +126,7 @@ export function CreateWikilinkDocumentDialog({
             <Button
               onClick={() =>
                 createDocument.mutate({
-                  title: title.trim(),
+                  name: title.trim(),
                   initiative_id: initiativeId,
                   template_id:
                     selectedTemplateId && selectedTemplateId !== BLANK_TEMPLATE

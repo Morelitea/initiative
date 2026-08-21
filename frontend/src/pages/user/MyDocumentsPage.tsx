@@ -35,7 +35,7 @@ const PAGE_SIZE = 20;
 
 /** Map DataTable column IDs to backend sort field names */
 const SORT_FIELD_MAP: Record<string, string> = {
-  title: "title",
+  name: "name",
   updatedAt: "updated_at",
 };
 
@@ -143,7 +143,7 @@ export const MyDocumentsPage = () => {
         enableSorting: false,
       },
       {
-        accessorKey: "title",
+        accessorKey: "name",
         header: ({ column }) => {
           const isSorted = column.getIsSorted();
           return (
@@ -162,7 +162,7 @@ export const MyDocumentsPage = () => {
               to={docGuildPath(doc, toolDetailRoute(Tool.document, doc.initiative_id, doc.id))}
               className="flex items-center gap-2 font-medium text-foreground hover:underline"
             >
-              {doc.title}
+              {doc.name}
               {doc.is_template && (
                 <Badge variant="secondary" className="text-xs">
                   {t("type.template")}

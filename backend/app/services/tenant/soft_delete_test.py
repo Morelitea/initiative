@@ -220,7 +220,7 @@ async def test_soft_delete_document_preserves_uploads(session: AsyncSession):
     doc = Document(
         guild_id=guild.id,
         initiative_id=initiative.id,
-        title="With image",
+        name="With image",
         document_type=DocumentType.native,
         content={"text": "uses /uploads/abc123.png"},
         featured_image_url="/uploads/abc123.png",
@@ -275,7 +275,7 @@ async def test_purge_document_uploads_escapes_like_wildcards(session: AsyncSessi
     doomed = Document(
         guild_id=guild.id,
         initiative_id=initiative.id,
-        title="Doomed",
+        name="Doomed",
         document_type=DocumentType.native,
         content={},
         featured_image_url="/uploads/file_v2.png",
@@ -288,7 +288,7 @@ async def test_purge_document_uploads_escapes_like_wildcards(session: AsyncSessi
     decoy = Document(
         guild_id=guild.id,
         initiative_id=initiative.id,
-        title="Decoy",
+        name="Decoy",
         document_type=DocumentType.native,
         content={"src": "/uploads/fileXv2.png"},
         created_by=user.id,
@@ -401,7 +401,7 @@ async def test_purge_document_uploads_removes_all_version_blobs(session: AsyncSe
     doomed = Document(
         guild_id=guild.id,
         initiative_id=initiative.id,
-        title="Doomed file",
+        name="Doomed file",
         document_type=DocumentType.file,
         content={},
         file_url=f"/uploads/{current_name}",
@@ -490,12 +490,12 @@ async def test_hard_purge_unresolves_wikilinks_in_linking_documents(
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
     initiative = await create_initiative(session, guild, user)
-    target = await create_document(session, initiative, user, title="Target")
+    target = await create_document(session, initiative, user, name="Target")
     linking = await create_document(
         session,
         initiative,
         user,
-        title="Linking",
+        name="Linking",
         content=_wikilink_content(target.id),
         yjs_state=b"stale-collab-state",
     )
@@ -544,12 +544,12 @@ async def test_hard_purge_unresolves_wikilinks_in_trashed_linking_documents(
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
     initiative = await create_initiative(session, guild, user)
-    target = await create_document(session, initiative, user, title="Target")
+    target = await create_document(session, initiative, user, name="Target")
     linking = await create_document(
         session,
         initiative,
         user,
-        title="Trashed Linking",
+        name="Trashed Linking",
         content=_wikilink_content(target.id),
     )
     session.add(

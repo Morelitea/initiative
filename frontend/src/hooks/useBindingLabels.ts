@@ -97,7 +97,7 @@ export function useBindingLabels(
       for (const counter of group.data.counters ?? []) labels.counter.set(counter.id, counter.name);
     }
     if (document.data?.initiative_id === initiativeId) {
-      labels.document.set(document.data.id, document.data.title);
+      labels.document.set(document.data.id, document.data.name);
     }
     for (const member of initiative.data?.members ?? []) {
       const name = member.user.full_name;

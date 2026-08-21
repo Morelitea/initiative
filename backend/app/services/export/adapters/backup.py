@@ -512,7 +512,7 @@ class _ScopeBuilder:
                 if hasattr(document.document_type, "value")
                 else str(document.document_type)
             )
-            path_stem = f"{folder}/documents/{_slug(document.id, document.title)}"
+            path_stem = f"{folder}/documents/{_slug(document.id, document.name)}"
 
             if doc_type == DocumentType.file.value:
                 if not _include_uploads(self.params):
@@ -520,7 +520,7 @@ class _ScopeBuilder:
                         ManifestSkipped(
                             tool="document",
                             entity_id=document.id,
-                            title=document.title,
+                            title=document.name,
                             initiative_id=initiative.id,
                             reason="uploads_excluded",
                         )
@@ -552,7 +552,7 @@ class _ScopeBuilder:
                     type="initiative-document",
                     schema_version=1,
                     entity_id=document.id,
-                    title=document.title,
+                    title=document.name,
                     initiative_id=initiative.id,
                 )
             else:
@@ -579,7 +579,7 @@ class _ScopeBuilder:
                     type="file",
                     schema_version=None,
                     entity_id=document.id,
-                    title=document.title,
+                    title=document.name,
                     initiative_id=initiative.id,
                     tags=metadata["tags"],
                     properties=metadata["properties"],

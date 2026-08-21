@@ -324,7 +324,7 @@ async def duplicate_document(
     *,
     source: Document,
     target_initiative_id: int,
-    title: str,
+    name: str,
     user_id: int,
     guild_id: int | None = None,
 ) -> Document:
@@ -398,7 +398,7 @@ async def duplicate_document(
             session.add_all(new_upload_records)
 
     duplicated = Document(
-        title=title,
+        name=name,
         initiative_id=target_initiative_id,
         guild_id=guild_id or source.guild_id,
         document_type=source.document_type,

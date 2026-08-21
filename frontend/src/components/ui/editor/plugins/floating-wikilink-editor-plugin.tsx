@@ -186,7 +186,7 @@ function FloatingWikilinkEditor({
       editor.update(() => {
         const node = $getNodeByKey(wikilinkNodeKey);
         if ($isWikilinkNode(node)) {
-          const newWikilink = $createWikilinkNode(doc.title, doc.id);
+          const newWikilink = $createWikilinkNode(doc.name, doc.id);
           node.replace(newWikilink);
           newWikilink.select();
         }
@@ -258,7 +258,7 @@ function FloatingWikilinkEditor({
   // Check if search query has an exact match in results
   const hasExactMatch = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
-    return searchResults.some((doc) => doc.title.toLowerCase() === normalizedQuery);
+    return searchResults.some((doc) => doc.name.toLowerCase() === normalizedQuery);
   }, [searchQuery, searchResults]);
 
   if (!wikilinkNode) {
@@ -298,12 +298,12 @@ function FloatingWikilinkEditor({
                   {searchResults.map((doc) => (
                     <CommandItem
                       key={doc.id}
-                      value={doc.title}
+                      value={doc.name}
                       onSelect={() => handleSelectDocument(doc)}
                       className="flex cursor-pointer items-center gap-2"
                     >
                       <FileText className="h-4 w-4 text-muted-foreground" />
-                      <span className="truncate">{doc.title}</span>
+                      <span className="truncate">{doc.name}</span>
                     </CommandItem>
                   ))}
                   {searchQuery.trim() && !hasExactMatch && onCreateDocument && (

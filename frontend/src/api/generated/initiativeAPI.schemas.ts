@@ -678,7 +678,7 @@ export interface BodyUploadBackupApiV1GGuildIdImportsBackupPost {
 }
 
 export interface BodyUploadDocumentFileApiV1GGuildIdDocumentsUploadPost {
-  title: string;
+  name: string;
   initiative_id: number;
   file: Blob;
 }
@@ -1098,7 +1098,7 @@ export interface CalendarEventCreate {
 
 export interface CalendarEventDocumentRead {
   document_id: number;
-  title?: string;
+  name?: string;
   attached_at: string;
 }
 
@@ -1565,7 +1565,7 @@ export const DocumentType = {
  */
 export interface DocumentAutocomplete {
   id: number;
-  title: string;
+  name: string;
   updated_at: string;
   document_type: DocumentType;
 }
@@ -1575,14 +1575,14 @@ export interface DocumentAutocomplete {
  */
 export interface DocumentBacklink {
   id: number;
-  title: string;
+  name: string;
   updated_at: string;
   initiative_id: number;
 }
 
 export interface DocumentCopyRequest {
   target_initiative_id: number;
-  title?: string | null;
+  name?: string | null;
 }
 
 export type DocumentCountsResponseTagCounts = { [key: string]: number };
@@ -1607,7 +1607,7 @@ export const DocumentCreateDocumentType = {
 } as const;
 
 export interface DocumentCreate {
-  title: string;
+  name: string;
   initiative_id: number;
   featured_image_url?: string | null;
   is_template?: boolean;
@@ -1617,7 +1617,7 @@ export interface DocumentCreate {
 }
 
 export interface DocumentDuplicateRequest {
-  title?: string | null;
+  name?: string | null;
 }
 
 /**
@@ -1698,7 +1698,7 @@ export const DocumentSummaryDocumentType = {
 } as const;
 
 export interface DocumentSummary {
-  title: string;
+  name: string;
   initiative_id: number;
   featured_image_url: string | null;
   is_template: boolean;
@@ -1747,7 +1747,7 @@ export const DocumentReadDocumentType = {
 export type DocumentReadContent = { [key: string]: unknown };
 
 export interface DocumentRead {
-  title: string;
+  name: string;
   initiative_id: number;
   featured_image_url: string | null;
   is_template: boolean;
@@ -1776,7 +1776,7 @@ export interface DocumentRead {
 export type DocumentUpdateContent = { [key: string]: unknown } | null;
 
 export interface DocumentUpdate {
-  title?: string | null;
+  name?: string | null;
   content?: DocumentUpdateContent;
   featured_image_url?: string | null;
   is_template?: boolean | null;
@@ -3109,7 +3109,7 @@ export interface ProjectCreate {
 
 export interface ProjectDocumentSummary {
   document_id: number;
-  title: string;
+  name: string;
   updated_at: string;
   attached_at: string;
 }
@@ -3243,7 +3243,7 @@ export interface TaggedTaskSummary {
 
 export interface TaggedDocumentSummary {
   id: number;
-  title: string;
+  name: string;
   initiative_id: number;
   initiative_name: string | null;
 }
@@ -3346,7 +3346,7 @@ export interface QueueItemCreate {
 
 export interface QueueItemDocumentRead {
   document_id: number;
-  title?: string;
+  name?: string;
   attached_at: string;
 }
 
@@ -3467,7 +3467,7 @@ export interface RecentActivityEntry {
   task_id?: number | null;
   task_title?: string | null;
   document_id?: number | null;
-  document_title?: string | null;
+  document_name?: string | null;
   project_id?: number | null;
   project_name?: string | null;
   initiative_id?: number | null;
@@ -5067,7 +5067,7 @@ export type AutocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGetParams = {
 
 export type ReadDocumentApiV1GGuildIdDocumentsDocumentIdGetParams = {
   /**
-   * Include the document body. Pass false for the metadata alone — a document's body is the largest thing this API returns, and a caller reacting to a change (a title, a tag, a property) does not need it. Everything else is unchanged.
+   * Include the document body. Pass false for the metadata alone — a document's body is the largest thing this API returns, and a caller reacting to a change (a name, a tag, a property) does not need it. Everything else is unchanged.
    */
   include_content?: boolean;
   /**

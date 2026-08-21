@@ -11,7 +11,7 @@ export function buildDocumentSummary(overrides: Partial<DocumentSummary> = {}): 
   return {
     id: counter,
     initiative_id: 1,
-    title: `Document ${counter}`,
+    name: `Document ${counter}`,
     featured_image_url: null,
     is_template: false,
     created_by: 1,

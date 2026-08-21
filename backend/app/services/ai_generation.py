@@ -165,7 +165,7 @@ async def generate_document_summary(
     user: User,
     guild_id: int | None,
     document_content: dict | None,
-    document_title: str,
+    document_name: str,
 ) -> str:
     """Generate a summary of a document using configured AI provider."""
     resolved = await resolve_ai_settings(session, user, guild_id)
@@ -186,7 +186,7 @@ async def generate_document_summary(
 
     locale = getattr(user, "locale", None) or "en"
     system_prompt, user_content = _build_summary_prompt(
-        document_title, markdown_content, locale=locale
+        document_name, markdown_content, locale=locale
     )
 
     if resolved.provider == AIProvider.openai:

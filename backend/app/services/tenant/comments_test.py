@@ -67,7 +67,7 @@ async def test_ensure_document_access_honors_grant(session: AsyncSession):
     document = Document(
         guild_id=guild.id,
         initiative_id=init.id,
-        title="Doc",
+        name="Doc",
         content={},
         created_by=owner.id,
     )

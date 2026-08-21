@@ -52,7 +52,7 @@ const DOCUMENT_VIEW_KEY = "documents:view-mode";
 
 /** Map DataTable column IDs to backend sort field names */
 const SORT_FIELD_MAP: Record<string, string> = {
-  title: "title",
+  name: "name",
   "last updated": "updated_at",
 };
 const DOCUMENT_TAG_FILTERS_KEY = "documents:tag-filters";
@@ -654,7 +654,7 @@ export const DocumentsView = ({
                   active={cardSelectionActive}
                   selected={selectedDocumentIds.has(document.id)}
                   onToggle={() => toggleDocumentSelection(document)}
-                  label={document.title}
+                  label={document.name}
                 >
                   <DocumentCard document={document} />
                 </SelectableGridItem>

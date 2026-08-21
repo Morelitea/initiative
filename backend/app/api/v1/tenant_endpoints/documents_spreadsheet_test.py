@@ -51,7 +51,7 @@ async def test_create_spreadsheet_round_trips_cells(
     client: AsyncClient, env: _SpreadsheetEnv
 ):
     payload = {
-        "title": "Q2 Numbers",
+        "name": "Q2 Numbers",
         "initiative_id": env.initiative.id,
         "document_type": "spreadsheet",
         "content": {
@@ -102,7 +102,7 @@ async def test_patch_spreadsheet_replaces_cells(
         f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
-            "title": "Sheet",
+            "name": "Sheet",
             "initiative_id": env.initiative.id,
             "document_type": "spreadsheet",
             "content": {"cells": {"0:0": "before"}},
@@ -130,7 +130,7 @@ async def test_create_spreadsheet_rejects_nested_value(
         f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
-            "title": "Bad Sheet",
+            "name": "Bad Sheet",
             "initiative_id": env.initiative.id,
             "document_type": "spreadsheet",
             "content": {"cells": {"0:0": {"nested": "object"}}},
@@ -148,7 +148,7 @@ async def test_create_spreadsheet_rejects_unknown_schema_version(
         f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
-            "title": "Bad Sheet",
+            "name": "Bad Sheet",
             "initiative_id": env.initiative.id,
             "document_type": "spreadsheet",
             "content": {"schema_version": 999, "cells": {"0:0": "ok"}},
@@ -169,7 +169,7 @@ async def test_create_spreadsheet_rejects_bool_schema_version(
         f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
-            "title": "Bad Sheet",
+            "name": "Bad Sheet",
             "initiative_id": env.initiative.id,
             "document_type": "spreadsheet",
             "content": {"schema_version": True, "cells": {"0:0": "ok"}},
@@ -190,7 +190,7 @@ async def test_create_spreadsheet_rejects_non_dict_cells(
         f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
-            "title": "Bad Sheet",
+            "name": "Bad Sheet",
             "initiative_id": env.initiative.id,
             "document_type": "spreadsheet",
             "content": {"cells": []},
@@ -208,7 +208,7 @@ async def test_create_spreadsheet_rejects_non_dict_dimensions(
         f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
-            "title": "Bad Sheet",
+            "name": "Bad Sheet",
             "initiative_id": env.initiative.id,
             "document_type": "spreadsheet",
             "content": {"cells": {}, "dimensions": []},
@@ -230,7 +230,7 @@ async def test_create_spreadsheet_canonicalizes_cell_keys(
         f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
-            "title": "Sheet",
+            "name": "Sheet",
             "initiative_id": env.initiative.id,
             "document_type": "spreadsheet",
             "content": {
@@ -262,7 +262,7 @@ async def test_create_spreadsheet_with_empty_content(
         f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
-            "title": "Empty Sheet",
+            "name": "Empty Sheet",
             "initiative_id": env.initiative.id,
             "document_type": "spreadsheet",
         },
@@ -289,7 +289,7 @@ async def test_v1_payload_upcasts_to_current(client: AsyncClient, env: _Spreadsh
         f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
-            "title": "Legacy Sheet",
+            "name": "Legacy Sheet",
             "initiative_id": env.initiative.id,
             "document_type": "spreadsheet",
             "content": {
@@ -339,7 +339,7 @@ async def test_v2_formatting_round_trips(client: AsyncClient, env: _SpreadsheetE
         f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
-            "title": "Formatted",
+            "name": "Formatted",
             "initiative_id": env.initiative.id,
             "document_type": "spreadsheet",
             "content": payload_content,
@@ -373,7 +373,7 @@ async def test_v2_clamps_sizes_and_frozen(client: AsyncClient, env: _Spreadsheet
         f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
-            "title": "Clamp",
+            "name": "Clamp",
             "initiative_id": env.initiative.id,
             "document_type": "spreadsheet",
             "content": {
@@ -405,7 +405,7 @@ async def test_v2_drops_malformed_formatting(client: AsyncClient, env: _Spreadsh
         f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
-            "title": "Lenient",
+            "name": "Lenient",
             "initiative_id": env.initiative.id,
             "document_type": "spreadsheet",
             "content": {
@@ -442,7 +442,7 @@ async def test_v2_rejects_non_dict_columns(client: AsyncClient, env: _Spreadshee
         f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
-            "title": "Bad",
+            "name": "Bad",
             "initiative_id": env.initiative.id,
             "document_type": "spreadsheet",
             "content": {"schema_version": 2, "cells": {}, "columns": []},
@@ -462,7 +462,7 @@ async def test_v2_canonicalizes_formatting_keys(
         f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
-            "title": "Canon",
+            "name": "Canon",
             "initiative_id": env.initiative.id,
             "document_type": "spreadsheet",
             "content": {
@@ -489,7 +489,7 @@ async def test_v2_border_round_trips_and_drops_bad_edges(
         f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
-            "title": "Borders",
+            "name": "Borders",
             "initiative_id": env.initiative.id,
             "document_type": "spreadsheet",
             "content": {
@@ -528,7 +528,7 @@ async def test_v2_tier1_style_and_number_options(
         f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
-            "title": "Tier1",
+            "name": "Tier1",
             "initiative_id": env.initiative.id,
             "document_type": "spreadsheet",
             "content": {
@@ -595,7 +595,7 @@ async def test_v3_multiple_sheets_round_trip(client: AsyncClient, env: _Spreadsh
         f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
-            "title": "Workbook",
+            "name": "Workbook",
             "initiative_id": env.initiative.id,
             "document_type": "spreadsheet",
             "content": {
@@ -643,7 +643,7 @@ async def test_v2_payload_upcasts_to_single_sheet(
         f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
-            "title": "Legacy",
+            "name": "Legacy",
             "initiative_id": env.initiative.id,
             "document_type": "spreadsheet",
             "content": {
@@ -678,7 +678,7 @@ async def test_v3_sheet_names_are_sanitized_and_deduplicated(
         f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
-            "title": "Names",
+            "name": "Names",
             "initiative_id": env.initiative.id,
             "document_type": "spreadsheet",
             "content": {
@@ -715,7 +715,7 @@ async def test_v3_duplicate_sheet_ids_are_repaired(
         f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
-            "title": "Ids",
+            "name": "Ids",
             "initiative_id": env.initiative.id,
             "document_type": "spreadsheet",
             "content": {
@@ -740,7 +740,7 @@ async def test_v3_rejects_non_list_sheets(client: AsyncClient, env: _Spreadsheet
         f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
-            "title": "Bad",
+            "name": "Bad",
             "initiative_id": env.initiative.id,
             "document_type": "spreadsheet",
             "content": {"schema_version": 3, "kind": "spreadsheet", "sheets": {}},
@@ -760,7 +760,7 @@ async def test_v3_empty_sheets_list_yields_one_sheet(
         f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
-            "title": "Empty",
+            "name": "Empty",
             "initiative_id": env.initiative.id,
             "document_type": "spreadsheet",
             "content": {"schema_version": 3, "kind": "spreadsheet", "sheets": []},
@@ -781,7 +781,7 @@ async def test_v3_rejects_bad_cell_on_a_later_sheet(
         f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
-            "title": "Bad",
+            "name": "Bad",
             "initiative_id": env.initiative.id,
             "document_type": "spreadsheet",
             "content": {

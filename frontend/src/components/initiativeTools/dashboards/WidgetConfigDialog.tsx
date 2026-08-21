@@ -151,7 +151,7 @@ export function WidgetConfigDialog({
       })),
       document: (documents.data?.items ?? []).map((document) => ({
         value: String(document.id),
-        label: document.title,
+        label: document.name,
       })),
     }),
     [

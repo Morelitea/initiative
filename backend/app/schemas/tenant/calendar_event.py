@@ -45,7 +45,7 @@ class CalendarEventDocumentRead(SanitizedBaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     document_id: int
-    title: str = ""
+    name: str = ""
     attached_at: datetime
 
 
@@ -184,7 +184,7 @@ def _serialize_documents(event: "CalendarEvent") -> List[CalendarEventDocumentRe
         result.append(
             CalendarEventDocumentRead(
                 document_id=link.document_id,
-                title=getattr(doc, "title", "") if doc else "",
+                name=getattr(doc, "name", "") if doc else "",
                 attached_at=link.attached_at,
             )
         )

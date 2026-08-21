@@ -393,7 +393,7 @@ async def _apply_file_entry(
     try:
         async with session.begin_nested():
             document = Document(
-                title=entry.title,
+                name=entry.title,
                 document_type=DocumentType.file,
                 content={},
                 initiative_id=initiative.id,

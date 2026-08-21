@@ -131,7 +131,7 @@ def _project_documents(
         summary = serialize_project_document_link(link)
         if summary:
             documents.append(summary)
-    documents.sort(key=lambda item: (item.title.lower(), item.document_id))
+    documents.sort(key=lambda item: (item.name.lower(), item.document_id))
     return documents
 
 

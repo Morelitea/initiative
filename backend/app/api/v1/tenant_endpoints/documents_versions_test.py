@@ -47,7 +47,7 @@ async def _upload_initial_file_doc(
     actor,
     *,
     initiative,
-    title: str = "Versioned Doc",
+    name: str = "Versioned Doc",
     content: bytes = PDF_BYTES,
     filename: str = "v1.pdf",
     content_type: str = "application/pdf",
@@ -56,7 +56,7 @@ async def _upload_initial_file_doc(
     response = await client.post(
         actor.g("/documents/upload"),
         headers=actor.headers,
-        data={"title": title, "initiative_id": str(initiative.id)},
+        data={"name": name, "initiative_id": str(initiative.id)},
         files={"file": (filename, content, content_type)},
     )
     assert response.status_code == 201, response.text
@@ -228,7 +228,7 @@ async def test_upload_version_non_file_document_rejected(
     create = await client.post(
         owner.g("/documents/"),
         headers=owner.headers,
-        json={"title": "Native doc", "initiative_id": initiative.id},
+        json={"name": "Native doc", "initiative_id": initiative.id},
     )
     assert create.status_code == 201
     native_id = create.json()["id"]
@@ -662,7 +662,7 @@ async def test_delete_version_non_file_document_rejected(
     create = await client.post(
         owner.g("/documents/"),
         headers=owner.headers,
-        json={"title": "Native doc", "initiative_id": initiative.id},
+        json={"name": "Native doc", "initiative_id": initiative.id},
     )
     assert create.status_code == 201
     native_id = create.json()["id"]
@@ -703,7 +703,7 @@ async def test_upload_document_file_over_limit_rejected(
     resp = await client.post(
         owner.g("/documents/upload"),
         headers=owner.headers,
-        data={"title": "Too big", "initiative_id": str(initiative.id)},
+        data={"name": "Too big", "initiative_id": str(initiative.id)},
         files={"file": ("big.pdf", oversized, "application/pdf")},
     )
 
@@ -716,7 +716,7 @@ async def test_upload_document_file_over_limit_rejected(
             select(Document).where(Document.initiative_id == initiative.id)
         )
     ).all()
-    assert all(d.title != "Too big" for d in docs)
+    assert all(d.name != "Too big" for d in docs)
 
 
 @pytest.mark.integration
@@ -737,7 +737,7 @@ async def test_upload_document_file_just_under_limit_succeeds(
     resp = await client.post(
         owner.g("/documents/upload"),
         headers=owner.headers,
-        data={"title": "Under cap", "initiative_id": str(initiative.id)},
+        data={"name": "Under cap", "initiative_id": str(initiative.id)},
         files={"file": ("under.pdf", under, "application/pdf")},
     )
 

@@ -23,7 +23,7 @@ import { toolDetailRoute } from "@/lib/tools";
 import { getUserDisplayName } from "@/lib/userDisplay";
 
 // Cell component that uses guild-scoped URLs
-const DocumentTitleCell = ({ document }: { document: DocumentSummary }) => {
+const DocumentNameCell = ({ document }: { document: DocumentSummary }) => {
   const gp = useGuildPath();
   return (
     <div className="min-w-[220px] sm:min-w-0">
@@ -31,7 +31,7 @@ const DocumentTitleCell = ({ document }: { document: DocumentSummary }) => {
         to={gp(toolDetailRoute(Tool.document, document.initiative_id, document.id))}
         className="font-medium text-primary hover:underline"
       >
-        {document.title}
+        {document.name}
       </Link>
     </div>
   );
@@ -117,7 +117,7 @@ export const DocumentsListView = ({
   const documentColumns: AppColumnDef<DocumentSummary>[] = useMemo(
     () => [
       {
-        accessorKey: "title",
+        accessorKey: "name",
         header: ({ column }) => {
           const isSorted = column.getIsSorted();
           return (
@@ -129,7 +129,7 @@ export const DocumentsListView = ({
             </div>
           );
         },
-        cell: ({ row }) => <DocumentTitleCell document={row.original} />,
+        cell: ({ row }) => <DocumentNameCell document={row.original} />,
         enableSorting: true,
         sortFn: "alphanumeric",
         enableHiding: false,
@@ -256,7 +256,7 @@ export const DocumentsListView = ({
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
         enableFilterInput
-        filterInputColumnKey="title"
+        filterInputColumnKey="name"
         filterInputPlaceholder={t("documents:page.filterPlaceholder")}
         enableColumnVisibilityDropdown
         enablePagination

@@ -41,14 +41,13 @@ class DocumentType(str, Enum):
 
 class Document(CreatedByMixin, SoftDeleteMixin, table=True):
     __tablename__ = "documents"
-    _display_field = "title"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: Optional[int] = Field(
         default=None, foreign_key="guilds.id", nullable=True
     )
     initiative_id: int = Field(foreign_key="initiatives.id", nullable=False)
-    title: str = Field(nullable=False, index=True, max_length=255)
+    name: str = Field(nullable=False, index=True, max_length=255)
     content: dict = Field(
         default_factory=dict,
         sa_column=Column(JSONB, nullable=False, server_default=text("'{}'::jsonb")),

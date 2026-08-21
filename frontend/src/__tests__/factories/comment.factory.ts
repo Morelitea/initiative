@@ -47,7 +47,7 @@ export function buildRecentActivityEntry(
     task_id: null,
     task_title: null,
     document_id: null,
-    document_title: null,
+    document_name: null,
     project_id: null,
     project_name: null,
     initiative_id: null,

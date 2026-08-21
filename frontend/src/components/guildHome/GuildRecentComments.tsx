@@ -39,8 +39,8 @@ const CommentEntry = ({ entry }: { entry: RecentActivityEntry }) => {
   const contextParts: string[] = [];
   if (entry.task_title) {
     contextParts.push(t("recentComments.onTask", { taskTitle: entry.task_title }));
-  } else if (entry.document_title) {
-    contextParts.push(t("recentComments.onDocument", { documentTitle: entry.document_title }));
+  } else if (entry.document_name) {
+    contextParts.push(t("recentComments.onDocument", { documentTitle: entry.document_name }));
   }
   if (entry.project_name) {
     contextParts.push(t("recentComments.inProject", { projectName: entry.project_name }));

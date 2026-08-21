@@ -354,7 +354,7 @@ async def _process_comment_notifications(
     if task_context:
         context_title = task_context.task.title
     elif document:
-        context_title = document.title
+        context_title = document.name
 
     # 1. Reply to comment → notify parent comment author
     if parent_comment and parent_comment.created_by != author.id:
@@ -460,7 +460,7 @@ async def _process_comment_notifications(
                 commenter=author,
                 comment_id=cast(int, comment.id),
                 document_id=document.id,
-                document_title=document.title,
+                document_name=document.name,
                 guild_id=guild_id,
             )
             notified_user_ids.add(doc_author.id)

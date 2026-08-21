@@ -100,7 +100,7 @@ def event_export_dict(event: CalendarEvent) -> dict:
 
     Attendees ride as display name + email + RSVP (informational — user ids
     are guild-local, an import can't rebind them); tags by name; linked
-    documents by title."""
+    documents by name."""
     recurrence: Optional[dict] = None
     if event.recurrence:
         try:
@@ -135,7 +135,7 @@ def event_export_dict(event: CalendarEvent) -> dict:
             link.tag.name for link in event.tag_links or [] if link.tag is not None
         ),
         "documents": sorted(
-            link.document.title
+            link.document.name
             for link in event.document_links or []
             if link.document is not None
         ),

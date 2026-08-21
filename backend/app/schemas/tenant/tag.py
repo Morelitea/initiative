@@ -144,7 +144,7 @@ class TaggedDocumentSummary(SanitizedBaseModel):
     )
 
     id: int
-    title: str
+    name: str
     initiative_id: int
     initiative_name: Optional[str] = None
 
