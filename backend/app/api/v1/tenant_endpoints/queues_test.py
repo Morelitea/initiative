@@ -74,7 +74,7 @@ async def test_create_queue(client: AsyncClient, acting_user):
     assert data["name"] == "Initiative Order"
     assert data["description"] == "Turn tracker"
     assert data["initiative_id"] == a.initiative.id
-    assert data["created_by_id"] == a.user.id
+    assert data["created_by"] == a.user.id
     assert data["is_active"] is False
     assert data["current_round"] == 1
 

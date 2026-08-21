@@ -109,7 +109,7 @@ def _unsaved_event(
     return CalendarEvent(
         guild_id=1,
         calendar_id=1,
-        created_by_id=1,
+        created_by=1,
         title=title,
         start_at=start_at,
         end_at=end_at,

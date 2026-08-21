@@ -373,7 +373,7 @@ async def test_grant_cannot_manage_counter_group_access(
     guild = await create_guild(session, creator=owner)
     init = await create_initiative(session, guild, owner, name="Stats Wing")
     cg = CounterGroup(
-        guild_id=guild.id, initiative_id=init.id, name="Stats", created_by_id=owner.id
+        guild_id=guild.id, initiative_id=init.id, name="Stats", created_by=owner.id
     )
     session.add(cg)
     await session.commit()

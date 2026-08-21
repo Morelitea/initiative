@@ -59,8 +59,7 @@ async def _create_file_document(
         title="Test File Doc",
         initiative_id=initiative.id,
         guild_id=initiative.guild_id,
-        created_by_id=owner.id,
-        updated_by_id=owner.id,
+        created_by=owner.id,
         document_type=DocumentType.file,
         file_url=f"/uploads/{initiative.guild_id}/{filename}",
         original_filename=filename,
@@ -299,7 +298,7 @@ async def test_copy_template_with_read_only_access(
     data = response.json()
     assert data["title"] == "My Kickoff"
     assert data["is_template"] is False
-    assert data["created_by_id"] == reader.user.id
+    assert data["created_by"] == reader.user.id
 
     # Reader is owner of the new doc.
     new_grant_levels = {

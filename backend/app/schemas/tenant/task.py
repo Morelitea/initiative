@@ -193,9 +193,9 @@ class TaskRead(TaskBase):
     completed_at: Optional[datetime] = None
     position: float
     is_archived: bool = False
-    created_by_id: Optional[int] = None
+    created_by: Optional[int] = None
     # Author summary — lets the detail view render "Created by …" without
-    # fetching the whole guild roster to resolve ``created_by_id``.
+    # fetching the whole guild roster to resolve ``created_by``.
     creator: Optional[UserPublic] = None
     assignees: List[UserPublic] = []
     recurrence_occurrence_count: int = 0
@@ -223,7 +223,7 @@ class TaskListRead(TaskBase):
     completed_at: Optional[datetime] = None
     position: float
     is_archived: bool = False
-    created_by_id: Optional[int] = None
+    created_by: Optional[int] = None
     assignees: List[TaskAssigneeSummary] = []
     recurrence_occurrence_count: int = 0
     comment_count: int = 0

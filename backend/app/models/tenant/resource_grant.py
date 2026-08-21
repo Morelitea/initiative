@@ -32,9 +32,11 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship
 
 from app.core.tools import Tool  # noqa: F401  (re-exported for grant callers)
+
+from app.models.tenant._mixins import CreatedByMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.initiative import InitiativeRoleModel
@@ -47,7 +49,7 @@ class ResourceAccessLevel(str, Enum):
     read = "read"
 
 
-class ResourceGrant(SQLModel, table=True):
+class ResourceGrant(CreatedByMixin, table=True):
     __tablename__ = "resource_grants"
 
     __table_args__ = (

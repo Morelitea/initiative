@@ -86,7 +86,7 @@ async def test_create_counter_group(client: AsyncClient, acting_user):
     assert data["name"] == "Combat Tracker"
     assert data["description"] == "HP, AC, etc."
     assert data["initiative_id"] == a.initiative.id
-    assert data["created_by_id"] == a.user.id
+    assert data["created_by"] == a.user.id
     assert data["counter_count"] == 0
 
 

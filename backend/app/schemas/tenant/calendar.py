@@ -52,7 +52,7 @@ class CalendarSummary(CalendarBase):
     #: guild rather than to any initiative.
     initiative_id: Optional[int] = None
     guild_id: int
-    created_by_id: int
+    created_by: int
     created_at: datetime
     updated_at: datetime
     my_permission_level: Optional[str] = None
@@ -90,7 +90,7 @@ def serialize_calendar_summary(
         color=calendar.color,
         initiative_id=calendar.initiative_id,
         guild_id=calendar.guild_id,
-        created_by_id=calendar.created_by_id,
+        created_by=calendar.created_by,
         created_at=calendar.created_at,
         updated_at=calendar.updated_at,
         my_permission_level=(

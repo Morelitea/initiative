@@ -389,7 +389,7 @@ async def duplicate_document(
                     Upload(
                         filename=fname,
                         guild_id=effective_guild_id,
-                        uploader_user_id=user_id,
+                        created_by=user_id,
                         size_bytes=fpath.stat().st_size if fpath.exists() else 0,
                         content_type=content_type,
                         content_hash=content_hash,
@@ -404,8 +404,7 @@ async def duplicate_document(
         guild_id=guild_id or source.guild_id,
         document_type=source.document_type,
         content=content_copy,
-        created_by_id=user_id,
-        updated_by_id=user_id,
+        created_by=user_id,
         featured_image_url=featured_image_url,
         is_template=False,
     )

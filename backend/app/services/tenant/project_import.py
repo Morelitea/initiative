@@ -292,7 +292,7 @@ async def _import_task(
         position=envelope_task.position,
         is_archived=envelope_task.is_archived,
         completed_at=envelope_task.completed_at,
-        created_by_id=importer_id,
+        created_by=importer_id,
     )
     # A restore keeps the completion time the envelope carries; envelopes taken
     # before the field existed carry none, so it's derived from the restored

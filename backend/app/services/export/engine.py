@@ -176,7 +176,7 @@ async def start_export(
             select(func.count())
             .select_from(ExportJob)
             .where(
-                ExportJob.created_by_id == user.id,
+                ExportJob.created_by == user.id,
                 ExportJob.status.in_((ExportJobStatus.queued, ExportJobStatus.running)),
             )
         )
@@ -186,7 +186,7 @@ async def start_export(
 
     job = ExportJob(
         guild_id=guild_id,
-        created_by_id=user.id,
+        created_by=user.id,
         source=source,
         template_id=adapter.template_id,
         format=format,

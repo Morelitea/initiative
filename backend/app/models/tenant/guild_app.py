@@ -34,10 +34,12 @@ from typing import Any, Optional
 from pydantic import ConfigDict
 from sqlalchemy import Boolean, Column, DateTime, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field
+
+from app.models.tenant._mixins import CreatedByMixin
 
 
-class GuildApp(SQLModel, table=True):
+class GuildApp(CreatedByMixin, table=True):
     __tablename__ = "guild_apps"
     __allow_unmapped__ = True
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -123,7 +125,7 @@ class GuildApp(SQLModel, table=True):
         sa_column=Column(JSONB, nullable=False, server_default="{}"),
     )
 
-    installed_by_id: int = Field(foreign_key="users.id", nullable=False)
+    created_by: int = Field(foreign_key="users.id", nullable=False)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),

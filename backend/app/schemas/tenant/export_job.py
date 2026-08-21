@@ -18,7 +18,7 @@ class ExportJobRead(SanitizedBaseModel):
 
     id: int
     guild_id: int
-    created_by_id: int
+    created_by: int
     source: str
     template_id: str
     format: str

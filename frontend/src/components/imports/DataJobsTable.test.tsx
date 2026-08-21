@@ -24,7 +24,7 @@ const iso = (offsetMs: number) => new Date(now.getTime() + offsetMs).toISOString
 const exportJob = (o: Record<string, unknown>) => ({
   id: 1,
   guild_id: 1,
-  created_by_id: 1,
+  created_by: 1,
   source: "guild",
   template_id: "data-table",
   format: "zip",
@@ -39,7 +39,7 @@ const exportJob = (o: Record<string, unknown>) => ({
 const importJob = (o: Record<string, unknown>) => ({
   id: 1,
   guild_id: 1,
-  created_by_id: 1,
+  created_by: 1,
   source: "backup",
   params: {},
   plan: null,

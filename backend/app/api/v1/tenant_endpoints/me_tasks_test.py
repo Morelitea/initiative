@@ -3,7 +3,7 @@ Integration tests for the assigned-tasks /me view.
 
 Tests GET /api/v1/me/tasks, which returns tasks ASSIGNED to the current user
 across all guilds they belong to (distinct from /me/tasks/created, which keys
-off created_by_id).
+off created_by).
 """
 
 import json
@@ -29,7 +29,7 @@ async def _create_task(
     project,
     title="Test Task",
     *,
-    created_by_id=None,
+    created_by=None,
     due_date=None,
     start_date=None,
     priority=TaskPriority.medium,
@@ -40,7 +40,7 @@ async def _create_task(
 
     # Route status setup + the task into the project's guild schema; a prior
     # setup may have left the search_path on a different guild.
-    await set_rls_context(session, user_id=created_by_id, guild_id=project.guild_id)
+    await set_rls_context(session, user_id=created_by, guild_id=project.guild_id)
     await task_statuses_service.ensure_default_statuses(session, project.id)
     status = await task_statuses_service.get_default_status(session, project.id)
 
@@ -49,7 +49,7 @@ async def _create_task(
         project_id=project.id,
         task_status_id=status.id,
         guild_id=project.guild_id,
-        created_by_id=created_by_id,
+        created_by=created_by,
         due_date=due_date,
         start_date=start_date,
         priority=priority,
@@ -66,7 +66,7 @@ async def _assign(session, task, user_id):
     ACTOR's access, and the assignee need not be an initiative member."""
     from app.db.session import set_rls_context
 
-    await set_rls_context(session, user_id=task.created_by_id, guild_id=task.guild_id)
+    await set_rls_context(session, user_id=task.created_by, guild_id=task.guild_id)
     session.add(TaskAssignee(task_id=task.id, user_id=user_id))
     await session.commit()
 
@@ -88,8 +88,8 @@ async def test_list_my_tasks_returns_assigned(
     user = await create_user(session, email="user@example.com")
     guild, _, project = await _setup_guild_with_project(session, user)
 
-    task1 = await _create_task(session, project, "Assigned 1", created_by_id=user.id)
-    task2 = await _create_task(session, project, "Assigned 2", created_by_id=user.id)
+    task1 = await _create_task(session, project, "Assigned 1", created_by=user.id)
+    task2 = await _create_task(session, project, "Assigned 2", created_by=user.id)
     await _assign(session, task1, user.id)
     await _assign(session, task2, user.id)
 
@@ -114,16 +114,16 @@ async def test_list_my_tasks_excludes_unassigned_and_others(
     guild, _, project = await _setup_guild_with_project(session, user)
     await create_guild_membership(session, user=other, guild=guild)
 
-    mine = await _create_task(session, project, "Mine", created_by_id=user.id)
+    mine = await _create_task(session, project, "Mine", created_by=user.id)
     await _assign(session, mine, user.id)
 
     # Created by the caller but assigned to nobody — the assigned view must skip it.
     created_not_assigned = await _create_task(
-        session, project, "Created not assigned", created_by_id=user.id
+        session, project, "Created not assigned", created_by=user.id
     )
 
     # Assigned to someone else — must not appear for the caller.
-    others = await _create_task(session, project, "Others", created_by_id=user.id)
+    others = await _create_task(session, project, "Others", created_by=user.id)
     await _assign(session, others, other.id)
 
     headers = get_auth_headers(user)
@@ -162,7 +162,7 @@ async def test_admin_sees_assigned_task_in_non_member_initiative(
     project = await create_project(session, initiative, member, name="Member Project")
 
     task = await _create_task(
-        session, project, "Assigned to admin", created_by_id=member.id
+        session, project, "Assigned to admin", created_by=member.id
     )
     await _assign(session, task, admin.id)
 
@@ -185,10 +185,10 @@ async def test_list_my_tasks_priority_filter(
     user = await create_user(session, email="user@example.com")
     guild, _, project = await _setup_guild_with_project(session, user)
 
-    high = await _create_task(session, project, "High", created_by_id=user.id)
+    high = await _create_task(session, project, "High", created_by=user.id)
     high.priority = TaskPriority.high
     session.add(high)
-    low = await _create_task(session, project, "Low", created_by_id=user.id)
+    low = await _create_task(session, project, "Low", created_by=user.id)
     low.priority = TaskPriority.low
     session.add(low)
     await session.commit()
@@ -236,16 +236,16 @@ async def test_list_my_tasks_due_date_filter_across_guilds(
     # One overdue + one upcoming in each guild, so a working filter must reach
     # across guilds and cannot pass by only matching one guild's rows.
     g1_overdue = await _create_task(
-        session, project1, "g1 overdue", created_by_id=user.id, due_date=overdue
+        session, project1, "g1 overdue", created_by=user.id, due_date=overdue
     )
     g1_upcoming = await _create_task(
-        session, project1, "g1 upcoming", created_by_id=user.id, due_date=upcoming
+        session, project1, "g1 upcoming", created_by=user.id, due_date=upcoming
     )
     g2_overdue = await _create_task(
-        session, project2, "g2 overdue", created_by_id=user.id, due_date=overdue
+        session, project2, "g2 overdue", created_by=user.id, due_date=overdue
     )
     g2_upcoming = await _create_task(
-        session, project2, "g2 upcoming", created_by_id=user.id, due_date=upcoming
+        session, project2, "g2 upcoming", created_by=user.id, due_date=upcoming
     )
     for task in (g1_overdue, g1_upcoming, g2_overdue, g2_upcoming):
         await _assign(session, task, user.id)
@@ -282,12 +282,8 @@ async def test_list_my_tasks_guild_ids_filter(
         session, user, guild_name="Guild 2"
     )
 
-    task1 = await _create_task(
-        session, project1, "Task in Guild 1", created_by_id=user.id
-    )
-    task2 = await _create_task(
-        session, project2, "Task in Guild 2", created_by_id=user.id
-    )
+    task1 = await _create_task(session, project1, "Task in Guild 1", created_by=user.id)
+    task2 = await _create_task(session, project2, "Task in Guild 2", created_by=user.id)
     await _assign(session, task1, user.id)
     await _assign(session, task2, user.id)
 
@@ -322,7 +318,7 @@ async def test_list_my_tasks_pagination(client: AsyncClient, session: AsyncSessi
     guild, _, project = await _setup_guild_with_project(session, user)
 
     for i in range(3):
-        task = await _create_task(session, project, f"Task {i}", created_by_id=user.id)
+        task = await _create_task(session, project, f"Task {i}", created_by=user.id)
         await _assign(session, task, user.id)
 
     headers = get_auth_headers(user)
@@ -371,19 +367,19 @@ async def test_list_my_tasks_date_group_sorted_across_guilds(
     # Interleave date groups so any per-guild-only ordering is detectably wrong:
     # guild1 holds overdue + later; guild2 holds today + this-week.
     g1_overdue = await _create_task(
-        session, project1, "g1 overdue", created_by_id=user.id, due_date=overdue
+        session, project1, "g1 overdue", created_by=user.id, due_date=overdue
     )
     g1_later = await _create_task(
-        session, project1, "g1 later", created_by_id=user.id, due_date=later
+        session, project1, "g1 later", created_by=user.id, due_date=later
     )
     # "Today" via start_date (start <= today → group 1) rather than a narrow
     # future due_date, so the classification is stable at any time of day —
     # including right around midnight UTC.
     g2_today = await _create_task(
-        session, project2, "g2 today", created_by_id=user.id, start_date=now
+        session, project2, "g2 today", created_by=user.id, start_date=now
     )
     g2_week = await _create_task(
-        session, project2, "g2 this week", created_by_id=user.id, due_date=this_week
+        session, project2, "g2 this week", created_by=user.id, due_date=this_week
     )
     for task in (g1_overdue, g1_later, g2_today, g2_week):
         await _assign(session, task, user.id)
@@ -418,16 +414,16 @@ async def test_list_my_tasks_priority_sorted_desc_across_guilds(
 
     # Split priorities across both guilds so per-guild-only ordering is wrong.
     g1_low = await _create_task(
-        session, project1, "low", created_by_id=user.id, priority=TaskPriority.low
+        session, project1, "low", created_by=user.id, priority=TaskPriority.low
     )
     g1_high = await _create_task(
-        session, project1, "high", created_by_id=user.id, priority=TaskPriority.high
+        session, project1, "high", created_by=user.id, priority=TaskPriority.high
     )
     g2_medium = await _create_task(
-        session, project2, "medium", created_by_id=user.id, priority=TaskPriority.medium
+        session, project2, "medium", created_by=user.id, priority=TaskPriority.medium
     )
     g2_urgent = await _create_task(
-        session, project2, "urgent", created_by_id=user.id, priority=TaskPriority.urgent
+        session, project2, "urgent", created_by=user.id, priority=TaskPriority.urgent
     )
     for task in (g1_low, g1_high, g2_medium, g2_urgent):
         await _assign(session, task, user.id)
@@ -465,12 +461,8 @@ async def test_list_my_tasks_property_value_is_null_filter(
         session, initiative, name="Owner note", type=PropertyType.text
     )
 
-    with_value = await _create_task(
-        session, project, "Has value", created_by_id=user.id
-    )
-    without_value = await _create_task(
-        session, project, "No value", created_by_id=user.id
-    )
+    with_value = await _create_task(session, project, "Has value", created_by=user.id)
+    without_value = await _create_task(session, project, "No value", created_by=user.id)
     await _assign(session, with_value, user.id)
     await _assign(session, without_value, user.id)
     await create_task_property_value(
@@ -537,14 +529,14 @@ async def test_list_my_tasks_property_filter_spans_guilds(
     # Build each guild's rows fully before moving on: the assign/value writes
     # route the session's ROLE into that guild, so interleaving would leave a
     # write pointed at the wrong guild's schema.
-    g1_has = await _create_task(session, project1, "g1 has", created_by_id=user.id)
-    g1_empty = await _create_task(session, project1, "g1 empty", created_by_id=user.id)
+    g1_has = await _create_task(session, project1, "g1 has", created_by=user.id)
+    g1_empty = await _create_task(session, project1, "g1 empty", created_by=user.id)
     await _assign(session, g1_has, user.id)
     await _assign(session, g1_empty, user.id)
     await create_task_property_value(session, g1_has, def1, value_text="x")
 
-    g2_has = await _create_task(session, project2, "g2 has", created_by_id=user.id)
-    g2_empty = await _create_task(session, project2, "g2 empty", created_by_id=user.id)
+    g2_has = await _create_task(session, project2, "g2 has", created_by=user.id)
+    g2_empty = await _create_task(session, project2, "g2 empty", created_by=user.id)
     await _assign(session, g2_has, user.id)
     await _assign(session, g2_empty, user.id)
     await create_task_property_value(session, g2_has, def2, value_text="y")

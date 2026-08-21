@@ -24,7 +24,7 @@ const PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46]); // "%PDF"
 const buildJob = (overrides: Partial<ExportJobRead> = {}): ExportJobRead => ({
   id: 7,
   guild_id: 1,
-  created_by_id: 1,
+  created_by: 1,
   source: "tasks",
   template_id: "task-table",
   format: "pdf",
