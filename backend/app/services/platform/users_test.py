@@ -376,7 +376,7 @@ async def test_soft_delete_user_scrubs_addressed_invites(session: AsyncSession):
     victim_invite = await guild_service.create_guild_invite(
         session,
         guild_id=guild.id,
-        created_by_user_id=admin.id,
+        created_by=admin.id,
         invitee_email="scrubme@example.com",
         max_uses=1,
         expires_at=None,
@@ -385,7 +385,7 @@ async def test_soft_delete_user_scrubs_addressed_invites(session: AsyncSession):
     other_invite = await guild_service.create_guild_invite(
         session,
         guild_id=guild.id,
-        created_by_user_id=admin.id,
+        created_by=admin.id,
         invitee_email="keep@example.com",
         max_uses=1,
         expires_at=None,
@@ -394,7 +394,7 @@ async def test_soft_delete_user_scrubs_addressed_invites(session: AsyncSession):
     open_invite = await guild_service.create_guild_invite(
         session,
         guild_id=guild.id,
-        created_by_user_id=admin.id,
+        created_by=admin.id,
         invitee_email=None,
         max_uses=5,
         expires_at=None,
@@ -440,7 +440,7 @@ async def test_soft_delete_user_scrubs_addressed_invites(session: AsyncSession):
 async def test_hard_delete_user_scrubs_addressed_invites(session: AsyncSession):
     """Hard delete has the same residual-PII gap: an invite addressed to the
     removed user keeps a reversible copy of their email. The invitee address
-    must be scrubbed — distinct from the ``created_by_user_id`` NULLing, which
+    must be scrubbed — distinct from the ``created_by`` NULLing, which
     only covers invites the user *sent* (here the inviter is a different
     admin, so only the invitee-scrub can clear it)."""
     from app.models.platform.guild import GuildInvite
@@ -456,7 +456,7 @@ async def test_hard_delete_user_scrubs_addressed_invites(session: AsyncSession):
     invite = await guild_service.create_guild_invite(
         session,
         guild_id=guild.id,
-        created_by_user_id=admin.id,
+        created_by=admin.id,
         invitee_email="hardscrub@example.com",
         max_uses=1,
         expires_at=None,

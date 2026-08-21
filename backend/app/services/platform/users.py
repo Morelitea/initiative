@@ -1162,14 +1162,12 @@ async def hard_delete_user(
 
     # Clear nullable creator references on shared guild rows.
     await session.exec(
-        update(Guild)
-        .where(Guild.created_by_user_id == user_id)
-        .values(created_by_user_id=None)
+        update(Guild).where(Guild.created_by == user_id).values(created_by=None)
     )
     await session.exec(
         update(GuildInvite)
-        .where(GuildInvite.created_by_user_id == user_id)
-        .values(created_by_user_id=None)
+        .where(GuildInvite.created_by == user_id)
+        .values(created_by=None)
     )
 
     # GuildMemberships cascade-delete via the User relationship. InitiativeMembers
@@ -1178,7 +1176,7 @@ async def hard_delete_user(
 
     # Scrub the user's address out of any guild invite bound to it before the
     # row goes — a bound invite otherwise keeps a recoverable copy of the email
-    # (the ``created_by_user_id`` NULLing above only covers invites this user
+    # (the ``created_by`` NULLing above only covers invites this user
     # *sent*, not ones addressed *to* them).
     if user.email_hash:
         await _scrub_invites_addressed_to(session, email_hash=user.email_hash)

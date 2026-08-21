@@ -203,7 +203,7 @@ async def create_guild(
     defaults = {
         "name": f"Test Guild {datetime.now(timezone.utc).timestamp()}",
         "description": "A test guild for integration testing",
-        "created_by_user_id": creator.id,
+        "created_by": creator.id,
     }
 
     guild_data = {**defaults, **overrides}

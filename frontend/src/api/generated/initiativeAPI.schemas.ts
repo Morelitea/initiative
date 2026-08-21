@@ -2275,7 +2275,7 @@ export interface GuildInviteRead {
   id: number;
   code: string;
   guild_id: number;
-  created_by_user_id: number | null;
+  created_by: number | null;
   expires_at: string | null;
   max_uses: number | null;
   uses: number;

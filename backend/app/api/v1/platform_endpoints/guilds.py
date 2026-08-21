@@ -288,7 +288,7 @@ async def create_guild(
     )
     await session.commit()
     if owner.id != current_user.id:
-        # Both identities: created_by_user_id holds the first, the admin
+        # Both identities: created_by holds the first, the admin
         # membership the second.
         logger.info(
             "guild %s created by user %s on behalf of user %s",
@@ -670,7 +670,7 @@ async def create_guild_invite(
     invite = await guilds_service.create_guild_invite(
         session,
         guild_id=guild_id,
-        created_by_user_id=current_user.id,
+        created_by=current_user.id,
         expires_at=invite_in.expires_at,
         max_uses=invite_in.max_uses,
         invitee_email=invite_in.invitee_email,

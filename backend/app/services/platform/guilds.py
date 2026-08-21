@@ -436,7 +436,7 @@ async def create_guild(
         if description and description.strip()
         else None,
         icon_base64=icon_base64,
-        created_by_user_id=creator.id if creator else None,
+        created_by=creator.id if creator else None,
         created_at=now,
         updated_at=now,
     )
@@ -660,7 +660,7 @@ async def create_guild_invite(
     session: AsyncSession,
     *,
     guild_id: int,
-    created_by_user_id: int | None,
+    created_by: int | None,
     expires_at: datetime | None = None,
     max_uses: int | None = 1,
     invitee_email: str | None = None,
@@ -677,7 +677,7 @@ async def create_guild_invite(
     invite = GuildInvite(
         code=code,
         guild_id=guild_id,
-        created_by_user_id=created_by_user_id,
+        created_by=created_by,
         expires_at=expiry,
         max_uses=max_uses,
         invitee_email_encrypted=encrypt_field(invitee_email, SALT_EMAIL)
