@@ -44,15 +44,6 @@ from app.models.platform.user import User
 # ---------------------------------------------------------------------------
 
 
-def visible_queue_ids_subquery(user_id: int):
-    """Return a subquery of queue IDs the user can access.
-
-    Delegates to the polymorphic ``ResourceGrant`` engine, combining
-    user-specific and role-based grants for the ``"queue"`` resource type.
-    """
-    return permissions_service.visible_resource_ids_subquery("queue", user_id)
-
-
 # DAC — thin wrappers over the registry engine (the "queue" row of DAC_RESOURCES).
 
 
@@ -126,7 +117,6 @@ async def get_queue_for_export(
     rule holds on the worker's render-time replay too. READ access suffices —
     exporting is a formatted read. The guild role is resolved here rather than
     taken from a request context, so the seam works transport-free."""
-    from app.services.platform import guilds as guilds_service
 
     queue = await get_queue(session, queue_id)
     if queue is None:
@@ -139,14 +129,10 @@ async def get_queue_for_export(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=QueueMessages.FEATURE_DISABLED,
         )
-    membership = await guilds_service.get_membership(
-        session, guild_id=guild_id, user_id=current_user.id
-    )
     require_queue_access(
         queue,
         current_user,
         access="read",
-        guild_role=membership.role if membership else None,
     )
     return queue
 
@@ -159,29 +145,18 @@ async def list_queue_ids_for_export(
     initiative_ids: list[int],
 ) -> list[int]:
     """Ids of every queue the user may export in the given initiatives —
-    DAC-visible to the user (guild admins see all via the membership role),
+    DAC-visible to the user (a request that reaches the whole guild sees all),
     feature-flag respected. Deterministic order for stable backup output."""
-    from app.services import permissions as permissions_service
-    from app.services.platform import guilds as guilds_service
-    from app.services.rls import is_guild_admin
 
     if not initiative_ids:
         return []
     conditions = [
         Queue.initiative_id.in_(initiative_ids),
         Initiative.queues_enabled == True,  # noqa: E712
+        permissions_service.dac_scope_clause(
+            Tool.queue, Queue.id, current_user.id, guild_id=guild_id
+        ),
     ]
-    membership = await guilds_service.get_membership(
-        session, guild_id=guild_id, user_id=current_user.id
-    )
-    if membership is None or not is_guild_admin(membership.role):
-        conditions.append(
-            Queue.id.in_(
-                permissions_service.visible_resource_ids_subquery(
-                    "queue", current_user.id
-                )
-            )
-        )
     statement = (
         select(Queue.id)
         .join(Initiative, Initiative.id == Queue.initiative_id)

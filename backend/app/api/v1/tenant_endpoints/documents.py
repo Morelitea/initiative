@@ -1446,6 +1446,7 @@ async def get_backlinks(
         session,
         document_id=document_id,
         user_id=current_user.id,
+        guild_id=guild_context.guild_id,
     )
 
     return [

@@ -89,7 +89,6 @@ async def create_comment(
             session,
             author=current_user,
             guild_id=guild_context.guild_id,
-            guild_role=guild_context.role,
             content=comment_in.content,
             task_id=comment_in.task_id,
             document_id=comment_in.document_id,
@@ -241,7 +240,6 @@ async def list_comments(
             session,
             user=current_user,
             guild_id=guild_context.guild_id,
-            guild_role=guild_context.role,
             task_id=task_id,
             document_id=document_id,
         )
@@ -276,7 +274,6 @@ async def read_comment(
             comment_id=comment_id,
             user=current_user,
             guild_id=guild_context.guild_id,
-            guild_role=guild_context.role,
         )
     except comments_service.CommentNotFoundError as exc:
         raise HTTPException(

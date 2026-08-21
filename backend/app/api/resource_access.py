@@ -194,13 +194,13 @@ async def load_authorized(
     return row
 
 
-def my_permission_level(
-    row: Any, kind: Tool, user: User, guild_context: GuildContext
-) -> str | None:
-    """`my_permission_level` for the client: guild admin → owner, else DAC."""
+def my_permission_level(row: Any, kind: Tool, user: User) -> str | None:
+    """`my_permission_level` for the client — the DAC engine's answer.
+
+    The engine already reports ``owner`` for a request that reaches the whole
+    guild, so there is nothing to special-case ahead of it.
+    """
     cfg = RESOURCE_ACCESS[kind]
-    if guild_context.role == GuildRole.admin:
-        return "owner"
     return permissions_service.compute_permission(
         permissions_service.DAC_RESOURCES[cfg.dac_kind], row, user.id
     )

@@ -118,7 +118,7 @@ from app.models.tenant.task import (  # noqa: E402
     TaskStatus,
     TaskStatusCategory,
 )
-from app.models.platform.user import User, UserRole  # noqa: E402
+from app.models.platform.user import User, UserRole, UserStatus  # noqa: E402
 from app.services.platform.app_settings import get_or_create_guild_settings  # noqa: E402
 from app.services.platform.guilds import get_primary_guild  # noqa: E402
 from app.services.tenant.initiatives import (  # noqa: E402
@@ -406,7 +406,7 @@ async def _create_users(
             full_name=ud["full_name"],
             hashed_password=get_password_hash("changeme"),
             role=ud.get("role", UserRole.member),
-            is_active=True,
+            status=UserStatus.active,
             timezone=ud.get("timezone", "UTC"),
             locale=ud.get("locale", "en"),
             color_theme=ud.get("color_theme", "kobold"),
@@ -458,7 +458,7 @@ async def _create_guild(
     guild = Guild(
         name=name,
         description=description,
-        created_by_user_id=creator.id,
+        created_by=creator.id,
     )
     session.add(guild)
     await session.flush()
@@ -608,7 +608,6 @@ async def _create_project(
         name=name,
         icon=icon,
         description=description,
-        owner_id=owner.id,
         initiative_id=initiative.id,
     )
     session.add(project)
@@ -701,7 +700,7 @@ async def _create_tasks(
             title=td["title"],
             description=td.get("description"),
             priority=td["priority"],
-            sort_order=float(i),
+            position=float(i),
             due_date=(NOW + timedelta(days=due)) if due is not None else None,
             start_date=(NOW + timedelta(days=start)) if start is not None else None,
             is_archived=td.get("archived", False),
@@ -811,10 +810,9 @@ async def _create_documents(
         doc = Document(
             guild_id=guild.id,
             initiative_id=dd["initiative_id"],
-            title=dd["title"],
+            name=dd["title"],
             content=_doc(dd["paragraphs"]),
-            created_by_id=creator.id,
-            updated_by_id=creator.id,
+            created_by=creator.id,
         )
         session.add(doc)
         await session.flush()
@@ -949,7 +947,7 @@ async def _create_comments(
         comment = Comment(
             guild_id=guild.id,
             content=cd["content"],
-            author_id=author.id,
+            created_by=author.id,
             task_id=task.id if task else None,
             document_id=doc.id if doc else None,
         )
@@ -1123,7 +1121,7 @@ async def _create_queues(
             initiative_id=qd["initiative_id"],
             name=qd["name"],
             description=qd.get("description"),
-            created_by_id=creator.id,
+            created_by=creator.id,
             is_active=qd.get("is_active", False),
             current_round=qd.get("current_round", 1),
         )
@@ -1333,7 +1331,7 @@ async def _create_counter_groups(
             initiative_id=gd["initiative_id"],
             name=gd["name"],
             description=gd.get("description"),
-            created_by_id=creator.id,
+            created_by=creator.id,
         )
         session.add(group)
         await session.flush()
@@ -1560,7 +1558,7 @@ async def _create_dashboards(
             name=dd["name"],
             description=dd.get("description"),
             definition=definition,
-            created_by_id=creator.id,
+            created_by=creator.id,
         )
         session.add(dashboard)
         await session.flush()
@@ -1655,7 +1653,7 @@ async def _create_calendar_events(
                 name="Default Calendar",
                 color=(initiative.color if initiative else None)
                 or DEFAULT_CALENDAR_COLOR,
-                created_by_id=creator.id,
+                created_by=creator.id,
             )
             session.add(calendar)
             await session.flush()
@@ -1692,7 +1690,7 @@ async def _create_calendar_events(
             end_at=ed["end_at"],
             all_day=ed.get("all_day", False),
             recurrence=json.dumps(recurrence_raw) if recurrence_raw else None,
-            created_by_id=creator.id,
+            created_by=creator.id,
         )
         session.add(event)
         await session.flush()

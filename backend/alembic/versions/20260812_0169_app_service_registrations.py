@@ -20,6 +20,7 @@ Access shape (owner + system engine only):
 """
 
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 from alembic import op
 
 from app.core.config import settings
@@ -50,7 +51,7 @@ def upgrade() -> None:
         sa.Column("base_url", sa.String(length=1000), nullable=False),
         sa.Column(
             "allowed_origins",
-            sa.dialects.postgresql.JSONB(),
+            postgresql.JSONB(),
             server_default="[]",
             nullable=False,
         ),
@@ -61,7 +62,7 @@ def upgrade() -> None:
         # against a closed vocabulary in the service layer on every write.
         sa.Column(
             "grants",
-            sa.dialects.postgresql.JSONB(),
+            postgresql.JSONB(),
             server_default="[]",
             nullable=False,
         ),
