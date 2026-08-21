@@ -783,10 +783,15 @@ async def test_remove_initiative_member(
 
 
 @pytest.mark.integration
-async def test_cannot_remove_last_manager(
+async def test_removing_the_last_manager_is_allowed(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """Test that removing the last manager fails."""
+    """An initiative may be left with no manager until an admin appoints one.
+
+    Ending a membership is not blocked by it being the last manager's;
+    ``test_cannot_demote_last_manager`` covers the case that still is, which
+    edits a live membership rather than ending it.
+    """
     manager = await acting_user(guild_role=GuildRole.member, initiative=True)
 
     response = await client.delete(
@@ -794,8 +799,8 @@ async def test_cannot_remove_last_manager(
         headers=manager.headers,
     )
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == "INITIATIVE_MUST_HAVE_PM"
+    assert response.status_code == 200
+    assert response.json()["members"] == []
 
 
 @pytest.mark.integration

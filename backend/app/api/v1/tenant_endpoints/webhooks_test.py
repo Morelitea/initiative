@@ -393,7 +393,9 @@ async def test_complementary_patches_cannot_commit_an_impossible_pair(
             json=_body(
                 initiative_id=a.initiative.id,
                 event_types=["tasks.updated"],
-                fields=["title"],
+                # A field both resources report, so the first patch below is
+                # valid against the row it reads.
+                fields=["tags"],
             ),
             headers=a.headers,
         )
