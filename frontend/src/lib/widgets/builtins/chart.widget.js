@@ -273,7 +273,7 @@ const strings = {
 function render(data, config, context) {
   // The viewer's language, and this module's own words in it. An older host
   // that passes no context leaves this at English rather than failing.
-  const lang = (context && context.locale) || "en";
+  const lang = context?.locale || "en";
   const say = (key) => {
     const entry = strings[key] || {};
     return entry[lang] || entry[lang.split("-")[0]] || entry.en || key;
@@ -466,7 +466,7 @@ function render(data, config, context) {
 
     case "sheet_range": {
       const range = data.range;
-      if (!range || !range.rows.length) return empty(say("rangeEmpty"));
+      if (!range?.rows.length) return empty(say("rangeEmpty"));
       const firstRow = range.rows[0];
       // First non-numeric column labels the axis; every numeric column becomes
       // a series. A range with no labels falls back to row ordinals.

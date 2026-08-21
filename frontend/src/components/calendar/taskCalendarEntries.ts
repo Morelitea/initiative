@@ -53,7 +53,13 @@ export function buildTaskCalendarEntries(
     endAt: task.start_date as string,
     allDay: true,
     kind: "start",
-    meta: { type: "task", taskId: task.id, kind: "start" },
+    meta: {
+      type: "task",
+      taskId: task.id,
+      projectId: task.project_id,
+      initiativeId: task.initiative_id,
+      kind: "start",
+    },
   });
   const dueMarker = (): CalendarEntry => ({
     ...base,
@@ -62,7 +68,13 @@ export function buildTaskCalendarEntries(
     endAt: task.due_date as string,
     allDay: true,
     kind: "due",
-    meta: { type: "task", taskId: task.id, kind: "due" },
+    meta: {
+      type: "task",
+      taskId: task.id,
+      projectId: task.project_id,
+      initiativeId: task.initiative_id,
+      kind: "due",
+    },
   });
 
   if (start && due) {
@@ -75,7 +87,13 @@ export function buildTaskCalendarEntries(
           startAt: task.start_date as string,
           endAt: task.due_date as string,
           allDay: false,
-          meta: { type: "task", taskId: task.id, kind: "span" },
+          meta: {
+            type: "task",
+            taskId: task.id,
+            projectId: task.project_id,
+            initiativeId: task.initiative_id,
+            kind: "span",
+          },
         },
       ];
     }
@@ -87,7 +105,13 @@ export function buildTaskCalendarEntries(
           startAt: task.start_date as string,
           endAt: task.due_date as string,
           allDay: true,
-          meta: { type: "task", taskId: task.id, kind: "span" },
+          meta: {
+            type: "task",
+            taskId: task.id,
+            projectId: task.project_id,
+            initiativeId: task.initiative_id,
+            kind: "span",
+          },
         },
       ];
     }

@@ -45,17 +45,26 @@ import {
   useSetEventTags,
   useUpdateCalendarEvent,
 } from "@/hooks/useCalendarEvents";
+import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
+import { eventRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
 
 export function EventSettingsPage() {
   const { t } = useTranslation(["calendars", "common", "access"]);
   const router = useRouter();
   const gp = useGuildPath();
-  const { eventId: eventIdParam } = useParams({ strict: false });
+  const { eventId: eventIdParam, calendarId: calendarIdParam } = useParams({ strict: false }) as {
+    eventId?: string;
+    calendarId?: string;
+  };
   const eventId = Number(eventIdParam);
+  const calendarId = calendarIdParam ? Number(calendarIdParam) : null;
 
   const { data: event, isLoading } = useCalendarEvent(Number.isFinite(eventId) ? eventId : null);
+  // The path supplies the initiative while this loads; the event is the
+  // authority once it arrives, and null is a guild-level calendar's address.
+  const initiativeId = useCanonicalInitiativeId(event?.initiative_id);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -200,7 +209,13 @@ export function EventSettingsPage() {
   const deleteEvent = useDeleteCalendarEvent({
     onSuccess: () => {
       toast.success(t("eventDeleted"));
-      void router.navigate({ to: gp("/calendars") });
+      void router.navigate({
+        to: gp(
+          calendarId == null
+            ? toolListRoute(Tool.calendar, initiativeId)
+            : toolDetailRoute(Tool.calendar, initiativeId, calendarId)
+        ),
+      });
     },
   });
 
@@ -239,7 +254,7 @@ export function EventSettingsPage() {
       <div className="p-8 text-center">
         <p className="text-muted-foreground">{t("notFound")}</p>
         <Button variant="link" asChild className="mt-2">
-          <Link to={gp("/calendars")}>{t("backToEvents")}</Link>
+          <Link to={gp(toolListRoute(Tool.calendar, initiativeId))}>{t("backToEvents")}</Link>
         </Button>
       </div>
     );
@@ -249,9 +264,9 @@ export function EventSettingsPage() {
     <div className="space-y-6">
       <ToolBreadcrumb
         tool={Tool.calendar}
-        initiativeId={event.initiative_id}
+        initiativeId={initiativeId}
         trail={[
-          { label: event.title, to: `/calendar-events/${eventId}` },
+          { label: event.title, to: eventRoute(initiativeId, event.calendar_id, eventId) },
           { label: t("common:toolSettings.title") },
         ]}
       />

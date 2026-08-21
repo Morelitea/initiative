@@ -4,9 +4,10 @@ import { ChevronDown, Filter, Loader2, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
-  ListMyProjectsApiV1MeProjectsGetParams,
-  ProjectRead,
+import {
+  type ListMyProjectsApiV1MeProjectsGetParams,
+  type ProjectRead,
+  Tool,
 } from "@/api/generated/initiativeAPI.schemas";
 import { invalidateAllProjects } from "@/api/query-keys";
 import { PullToRefresh } from "@/components/PullToRefresh";
@@ -25,6 +26,7 @@ import { useGlobalProjects, usePrefetchGlobalProjects } from "@/hooks/useProject
 import { guildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import type { AppColumnDef } from "@/lib/table";
+import { initiativeRoute, toolDetailRoute } from "@/lib/tools";
 import { useGlobalListFilters } from "@/pages/user/useGlobalListFilters";
 
 const MY_PROJECTS_FILTERS_KEY = "initiative-my-projects-filters";
@@ -170,9 +172,14 @@ export const MyProjectsPage = () => {
         cell: ({ row }) => {
           const project = row.original;
           const guildId = getProjectGuildId(project);
+          // Without a guild there is no address to build — the row links
+          // nowhere rather than at a path that no longer resolves.
           const href = guildId
-            ? guildPath(guildId, `/projects/${project.id}`)
-            : `/projects/${project.id}`;
+            ? guildPath(guildId, toolDetailRoute(Tool.project, project.initiative_id, project.id))
+            : null;
+          if (!href) {
+            return <span className="flex items-center gap-2 font-medium">{project.name}</span>;
+          }
           return (
             <Link
               to={href}
@@ -199,12 +206,17 @@ export const MyProjectsPage = () => {
             return <span className="text-muted-foreground text-sm">&mdash;</span>;
           }
           const guildId = getProjectGuildId(project);
-          const href = guildId
-            ? guildPath(guildId, `/initiatives/${initiative.id}`)
-            : `/initiatives/${initiative.id}`;
+          if (!guildId) {
+            return (
+              <span className="flex items-center gap-2 text-muted-foreground text-sm">
+                <InitiativeColorDot color={initiative.color} />
+                {initiative.name}
+              </span>
+            );
+          }
           return (
             <Link
-              to={href}
+              to={guildPath(guildId, initiativeRoute(initiative.id))}
               className="flex items-center gap-2 text-muted-foreground text-sm hover:underline"
             >
               <InitiativeColorDot color={initiative.color} />

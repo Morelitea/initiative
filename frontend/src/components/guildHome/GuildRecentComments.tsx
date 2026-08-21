@@ -11,7 +11,7 @@ import { Link } from "@tanstack/react-router";
 import { MessageSquare } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import type { RecentActivityEntry } from "@/api/generated/initiativeAPI.schemas";
+import { type RecentActivityEntry, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { CommentContent } from "@/components/comments/CommentContent";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useRecentComments } from "@/hooks/useComments";
 import { useGuildPath } from "@/lib/guildUrl";
 import { getInitials } from "@/lib/initials";
+import { taskRoute, toolDetailRoute } from "@/lib/tools";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { getUserDisplayName } from "@/lib/userDisplay";
 
@@ -30,9 +31,9 @@ const CommentEntry = ({ entry }: { entry: RecentActivityEntry }) => {
   const gp = useGuildPath();
 
   const linkTo = entry.task_id
-    ? gp(`/tasks/${entry.task_id}`)
+    ? gp(taskRoute(entry.initiative_id ?? null, entry.project_id as number, entry.task_id))
     : entry.document_id
-      ? gp(`/documents/${entry.document_id}`)
+      ? gp(toolDetailRoute(Tool.document, entry.initiative_id ?? null, entry.document_id))
       : undefined;
 
   const contextParts: string[] = [];

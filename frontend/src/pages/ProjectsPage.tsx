@@ -14,7 +14,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Link, useSearch } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import {
   Archive,
   FileDown,
@@ -24,7 +24,7 @@ import {
   Plus,
   ScrollText,
 } from "lucide-react";
-import { type HTMLAttributes, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type HTMLAttributes, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ProjectRead, TagRead, TagSummary } from "@/api/generated/initiativeAPI.schemas";
@@ -55,7 +55,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import { useDefaultFiltersOpen } from "@/hooks/useDefaultFiltersOpen";
 import { useGridSelection } from "@/hooks/useGridSelection";
-import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeAccess, useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import {
@@ -70,44 +69,41 @@ import { useTags } from "@/hooks/useTags";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
+import { toolDetailRoute } from "@/lib/tools";
 
-const INITIATIVE_FILTER_ALL = "all";
 const PROJECT_SORT_KEY = "project:list:sort";
 const PROJECT_SEARCH_KEY = "project:list:search";
 const PROJECT_VIEW_KEY = "project:list:view-mode";
 const PROJECT_TAG_FILTERS_KEY = "project:list:tag-filters";
 
-type ProjectsViewProps = {
-  fixedInitiativeId?: number;
-  fixedTagIds?: number[];
-  canCreate?: boolean;
-};
+/**
+ * Scoped one of two ways, never both and never neither: to an initiative (the
+ * initiative page's Projects tab) or to a tag (the cross-initiative tag
+ * browse). Stating it as a union keeps "unscoped is only legal for the tag
+ * browse" a fact the compiler checks rather than a comment that rots.
+ */
+type ProjectsViewProps =
+  | { fixedInitiativeId: number; fixedTagIds?: never; canCreate?: boolean }
+  | { fixedInitiativeId?: never; fixedTagIds: number[]; canCreate?: boolean };
 
 export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: ProjectsViewProps) => {
   const { t } = useTranslation(["projects", "common", "access"]);
   const { user } = useAuth();
-  const { activeGuildId } = useGuilds();
   // Single source of truth for "what can I do in each initiative" — honors
   // guild-admin / PAM / membership so this page never re-derives access from
   // raw membership flags (which would wrongly exclude guild admins).
   const { isGuildAdmin, isGrantGuild } = useInitiativeAccess();
   const gp = useGuildPath();
-  const searchParams = useSearch({ strict: false }) as { create?: string; initiativeId?: string };
   const lockedInitiativeId = typeof fixedInitiativeId === "number" ? fixedInitiativeId : null;
 
   const handleRefresh = useCallback(async () => {
     await invalidateAllProjects();
   }, []);
-  const [initiativeId, setInitiativeId] = useState<string | null>(null);
   const {
     open: isComposerOpen,
     setOpen: setIsComposerOpen,
     onOpenChange: handleComposerOpenChange,
-  } = useCreateFromSearchParam({
-    onOpenFromUrl: (urlInitiativeId) => {
-      if (urlInitiativeId) setInitiativeId(urlInitiativeId);
-    },
-  });
+  } = useCreateFromSearchParam();
   const [searchQuery, setSearchQuery] = useViewPreference<string>(PROJECT_SEARCH_KEY, "");
   type ProjectSortMode = "custom" | "updated" | "created" | "alphabetical" | "recently_viewed";
   const [persistedSortMode, setPersistedSortMode] = useViewPreference<ProjectSortMode>(
@@ -129,49 +125,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   const [customOrder, setCustomOrder] = useState<number[]>([]);
   const removeTemplate = useRemoveProjectTemplate();
 
-  const [initiativeFilter, setInitiativeFilter] = useState<string>(
-    lockedInitiativeId ? String(lockedInitiativeId) : INITIATIVE_FILTER_ALL
-  );
-  // Parse the filtered initiative ID for permission checks
-  const filteredInitiativeId =
-    initiativeFilter !== INITIATIVE_FILTER_ALL ? Number(initiativeFilter) : null;
   const [favoritesOnly, setFavoritesOnly] = useState(false);
-  const lastConsumedFilterParams = useRef<string>("");
-  const prevGuildIdRef = useRef<number | null>(activeGuildId);
-
-  // Check for query params to filter by initiative (consume once)
-  useEffect(() => {
-    const urlInitiativeId = searchParams.initiativeId;
-    const paramKey = urlInitiativeId || "";
-
-    if (urlInitiativeId && !lockedInitiativeId && paramKey !== lastConsumedFilterParams.current) {
-      lastConsumedFilterParams.current = paramKey;
-      setInitiativeFilter(urlInitiativeId);
-      // Also set as default for create dialog
-      setInitiativeId(urlInitiativeId);
-    }
-  }, [searchParams, lockedInitiativeId]);
-
-  useEffect(() => {
-    if (lockedInitiativeId) {
-      const lockedValue = String(lockedInitiativeId);
-      setInitiativeFilter((prev) => (prev === lockedValue ? prev : lockedValue));
-      // Also set as default for create dialog
-      setInitiativeId(lockedValue);
-    }
-  }, [lockedInitiativeId]);
-
-  // Reset initiative filter when guild changes (initiative IDs are guild-specific)
-  useEffect(() => {
-    const prevGuildId = prevGuildIdRef.current;
-    prevGuildIdRef.current = activeGuildId;
-    // Only reset if guild actually changed (not on initial mount)
-    if (prevGuildId !== null && prevGuildId !== activeGuildId && !lockedInitiativeId) {
-      setInitiativeFilter(INITIATIVE_FILTER_ALL);
-      setInitiativeId("");
-      lastConsumedFilterParams.current = "";
-    }
-  }, [activeGuildId, lockedInitiativeId]);
 
   const unarchiveProject = useUnarchiveProject();
 
@@ -220,7 +174,11 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     setTagFilters(newTags.map((t) => t.id));
   };
 
-  const projectsQuery = useProjects();
+  // Scoped in SQL rather than filtered here: the tab only ever shows one
+  // initiative's projects, and the tag browse spans them all.
+  const projectsQuery = useProjects(
+    lockedInitiativeId ? { initiative_id: lockedInitiativeId } : undefined
+  );
 
   // This is a guild-scoped page and the initiatives list is cheap + cached, so
   // fetch it unconditionally. Create access is derived from the same payload
@@ -233,7 +191,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   // create flag, or (in the "All" view) whether any visible initiative grants
   // it. `creatableInitiatives` feeds the create dialog's initiative picker.
   const { canCreate: canCreateDerived, creatableInitiatives } = useToolCreateAccess(Tool.project, {
-    initiativeId: lockedInitiativeId ?? filteredInitiativeId,
+    initiativeId: lockedInitiativeId,
   });
 
   // Check if user can view projects for the filtered initiative
@@ -243,8 +201,8 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     if (isGuildAdmin || isGrantGuild) {
       return true;
     }
-    // If no specific initiative is filtered, user can view the page
-    const effectiveInitiativeId = lockedInitiativeId ?? filteredInitiativeId;
+    // The cross-initiative tag browse has no one initiative to check.
+    const effectiveInitiativeId = lockedInitiativeId;
     if (!effectiveInitiativeId || !user) {
       return true;
     }
@@ -257,14 +215,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
       return true; // Not a member, let the backend handle access control
     }
     return membership.can_view_projects !== false;
-  }, [
-    lockedInitiativeId,
-    filteredInitiativeId,
-    user,
-    initiativesQuery.data,
-    isGuildAdmin,
-    isGrantGuild,
-  ]);
+  }, [lockedInitiativeId, user, initiativesQuery.data, isGuildAdmin, isGrantGuild]);
 
   // An explicit canCreate prop (e.g. from InitiativeDetailPage) wins; otherwise
   // use the canonical derivation above.
@@ -281,36 +232,14 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     return hasWriteAccess(project.my_permission_level);
   };
 
-  const templatesQuery = useTemplateProjects();
-  const archivedQuery = useArchivedProjects();
+  const templatesQuery = useTemplateProjects(lockedInitiativeId);
+  const archivedQuery = useArchivedProjects(lockedInitiativeId);
 
   useEffect(() => {
     if (!canCreateProjects) {
       setIsComposerOpen(false);
-      setInitiativeId(null);
-      return;
     }
-    // A locked initiative is managed by the effect above; don't fall back to the
-    // first creatable initiative or we'd desync from the locked one.
-    if (lockedInitiativeId) {
-      return;
-    }
-    // Don't override if we're opening from URL params
-    const urlInitiativeId = searchParams.initiativeId;
-    if (initiativeId || urlInitiativeId) {
-      return;
-    }
-    if (creatableInitiatives.length > 0) {
-      setInitiativeId(String(creatableInitiatives[0].id));
-    }
-  }, [
-    canCreateProjects,
-    initiativeId,
-    creatableInitiatives,
-    searchParams,
-    lockedInitiativeId,
-    setIsComposerOpen,
-  ]);
+  }, [canCreateProjects, setIsComposerOpen]);
 
   const reorderProjects = useReorderProjects();
 
@@ -351,8 +280,8 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     });
   }, [availableInitiatives, user]);
 
-  const lockedInitiative = lockedInitiativeId
-    ? (availableInitiatives.find((init) => init.id === lockedInitiativeId) ?? null)
+  const lockedInitiativeName = lockedInitiativeId
+    ? (availableInitiatives.find((init) => init.id === lockedInitiativeId)?.name ?? null)
     : null;
 
   // Get IDs of initiatives where user can view projects
@@ -370,25 +299,12 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
         return false;
       }
       const matchesSearch = !query ? true : project.name.toLowerCase().includes(query);
-      const matchesInitiative =
-        initiativeFilter === INITIATIVE_FILTER_ALL ||
-        (projectInitiativeId !== null &&
-          projectInitiativeId !== undefined &&
-          initiativeFilter === projectInitiativeId.toString());
       const matchesFavorites = !favoritesOnly ? true : Boolean(project.is_favorited);
       const matchesTags =
         tagFilterSet.size === 0 || (project.tags?.some((tag) => tagFilterSet.has(tag.id)) ?? false);
-      return matchesSearch && matchesInitiative && matchesFavorites && matchesTags;
+      return matchesSearch && matchesFavorites && matchesTags;
     });
-  }, [
-    projects,
-    searchQuery,
-    initiativeFilter,
-    favoritesOnly,
-    tagFilters,
-    user,
-    viewableInitiativeIds,
-  ]);
+  }, [projects, searchQuery, favoritesOnly, tagFilters, user, viewableInitiativeIds]);
 
   const pinnedProjects = useMemo(() => {
     return filteredProjects
@@ -660,11 +576,6 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
             <ProjectsFilterBar
               searchQuery={searchQuery}
               onSearchQueryChange={setSearchQuery}
-              initiativeFilter={initiativeFilter}
-              onInitiativeFilterChange={setInitiativeFilter}
-              lockedInitiativeId={lockedInitiativeId}
-              lockedInitiativeName={lockedInitiative?.name ?? null}
-              viewableInitiatives={viewableInitiatives}
               filtersOpen={filtersOpen}
               onFiltersOpenChange={setFiltersOpen}
               sortMode={sortMode}
@@ -774,7 +685,11 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                     </CardContent>
                     <CardFooter className="flex flex-wrap gap-3">
                       <Button asChild variant="link" className="px-0">
-                        <Link to={gp(`/projects/${template.id}`)}>
+                        <Link
+                          to={gp(
+                            toolDetailRoute(Tool.project, template.initiative_id, template.id)
+                          )}
+                        >
                           {t("templates.viewTemplate")}
                         </Link>
                       </Button>
@@ -838,7 +753,13 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                     </CardContent>
                     <CardFooter className="flex flex-wrap gap-3">
                       <Button asChild variant="link" className="px-0">
-                        <Link to={gp(`/projects/${archived.id}`)}>{t("archived.viewDetails")}</Link>
+                        <Link
+                          to={gp(
+                            toolDetailRoute(Tool.project, archived.initiative_id, archived.id)
+                          )}
+                        >
+                          {t("archived.viewDetails")}
+                        </Link>
                       </Button>
                       {hasProjectWritePermission(archived) ? (
                         <Button
@@ -870,13 +791,13 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
             open={isComposerOpen}
             onOpenChange={handleComposerOpenChange}
             lockedInitiativeId={lockedInitiativeId}
-            lockedInitiativeName={lockedInitiative?.name ?? null}
+            lockedInitiativeName={lockedInitiativeName}
             creatableInitiatives={creatableInitiatives}
             initiativesQuery={{
               isLoading: initiativesQuery.isLoading,
               isError: initiativesQuery.isError,
             }}
-            defaultInitiativeId={initiativeId}
+            defaultInitiativeId={lockedInitiativeId ? String(lockedInitiativeId) : null}
             onCreated={() => handleComposerOpenChange(false)}
           />
         )}
@@ -893,8 +814,6 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     </PullToRefresh>
   );
 };
-
-export const ProjectsPage = () => <ProjectsView />;
 
 const SortableProjectCardLink = ({
   project,

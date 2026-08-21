@@ -40,7 +40,11 @@ interface RenderWithProvidersResult extends ReturnType<typeof render> {
 
 interface RenderPageOptions extends ProviderOptions {
   routerSearch?: Record<string, unknown>;
+  /** The route the page is mounted at. Use `$param` segments for a page that
+   *  reads `useParams`, and supply their values via {@link routeParams}. */
   initialRoute?: string;
+  /** Values for the `$param` segments in {@link initialRoute}. */
+  routeParams?: Record<string, string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -186,6 +190,7 @@ export function renderPage(
     queryClient: qc,
     routerSearch,
     initialRoute = "/",
+    routeParams,
     ...renderOptions
   } = options;
 
@@ -212,8 +217,17 @@ export function renderPage(
 
   const routeTree = rootRoute.addChildren([childRoute]);
 
+  // The route pattern carries `$param` placeholders; the history entry needs
+  // them filled in, or nothing matches.
+  const initialEntry = routeParams
+    ? Object.entries(routeParams).reduce(
+        (path, [name, value]) => path.replaceAll(`$${name}`, value),
+        initialRoute
+      )
+    : initialRoute;
+
   const history = createMemoryHistory({
-    initialEntries: [initialRoute],
+    initialEntries: [initialEntry],
   });
 
   const router = createRouter({ routeTree, history });

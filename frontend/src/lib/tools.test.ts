@@ -17,19 +17,29 @@ import {
 } from "@/api/generated/initiativeAPI.schemas";
 import { PALETTE_TOOLS, TOOL_PALETTE } from "@/lib/toolPalette";
 import {
+  counterRoute,
+  entityRefRoute,
+  eventRoute,
+  INITIATIVES_ROUTE,
+  initiativeRoute,
   NON_EXPORTABLE_TOOLS,
   SIDEBAR_TOOLS,
   TOGGLEABLE_TOOLS,
   TOOL_ICONS,
   TOOLS,
+  taskRoute,
   toolCamelPlural,
   toolCamelSingular,
   toolCreateLabelKey,
   toolCreatePermission,
+  toolDetailRoute,
+  toolListRoute,
   toolNavLabelKey,
   toolParamName,
   toolPascalSingular,
+  toolRefRoute,
   toolRouteSegment,
+  toolSettingsRoute,
   toolViewPermission,
 } from "@/lib/tools";
 
@@ -41,10 +51,11 @@ import nav from "../../public/locales/en/nav.json";
 import trash from "../../public/locales/en/trash.json";
 
 // Route files (keys only — nothing is loaded). The guild tree holds each
-// tool's list, detail, and settings routes.
+// tool's tab, detail, and settings routes, nested under their initiative.
 const guildRouteFiles = Object.keys(
-  import.meta.glob("../routes/_serverRequired/_authenticated/g/$guildId/*.tsx")
+  import.meta.glob("../routes/_serverRequired/_authenticated/g/$guildId/**/*.tsx")
 );
+const INITIATIVE_ROUTES = "../routes/_serverRequired/_authenticated/g/$guildId/i/$initiativeId";
 // Locale namespace files across every shipped language.
 const localeFiles = Object.keys(import.meta.glob("../../public/locales/*/*.json"));
 const locales = [...new Set(localeFiles.map((f) => f.split("/").at(-2)))];
@@ -171,10 +182,22 @@ describe("tool i18n", () => {
 });
 
 describe("tool routes", () => {
-  it("every tool has its guild list route", () => {
+  // A tool's list IS its initiative tab, so the route lives inside the
+  // initiative tree. Six sibling files rather than one dynamic $toolSegment
+  // route: a dynamic segment beside `settings`/`apps` would resolve by
+  // static-beats-dynamic ranking, which fails silently and only at runtime.
+  it("every tool has its initiative tab route", () => {
     for (const tool of TOOLS) {
-      const file = `../routes/_serverRequired/_authenticated/g/$guildId/${toolRouteSegment(tool)}.tsx`;
-      expect(guildRouteFiles, `missing route file ${file}`).toContain(file);
+      const file = `${INITIATIVE_ROUTES}/${toolRouteSegment(tool)}/index.tsx`;
+      expect(guildRouteFiles, `missing tab route file ${file}`).toContain(file);
+    }
+  });
+
+  // Without this a tool could ship with a clickable card and nowhere to land.
+  it("every tool has its per-entity detail route", () => {
+    for (const tool of TOOLS) {
+      const file = `${INITIATIVE_ROUTES}/${toolRouteSegment(tool)}/$${toolParamName(tool)}/index.tsx`;
+      expect(guildRouteFiles, `missing detail route file ${file}`).toContain(file);
     }
   });
 
@@ -182,8 +205,20 @@ describe("tool routes", () => {
   // absence of this check is how a tool shipped with no way to do either.
   it("every tool has its per-entity settings route", () => {
     for (const tool of TOOLS) {
-      const file = `../routes/_serverRequired/_authenticated/g/$guildId/${toolRouteSegment(tool)}_.$${toolParamName(tool)}_.settings.tsx`;
+      const file = `${INITIATIVE_ROUTES}/${toolRouteSegment(tool)}/$${toolParamName(tool)}/settings.tsx`;
       expect(guildRouteFiles, `missing settings route file ${file}`).toContain(file);
+    }
+  });
+
+  // The tab routes are siblings of the initiative's own static children, so a
+  // tool whose segment collided with one would be unreachable.
+  it("no tool segment collides with a reserved initiative child route", () => {
+    const reserved = new Set(["settings", "apps"]);
+    for (const tool of TOOLS) {
+      expect(
+        reserved.has(toolRouteSegment(tool)),
+        `${tool} would shadow /i/$initiativeId/${toolRouteSegment(tool)}`
+      ).toBe(false);
     }
   });
 
@@ -191,6 +226,39 @@ describe("tool routes", () => {
     expect(toolCamelSingular(Tool.counter_group)).toBe("counterGroup");
     expect(toolParamName(Tool.counter_group)).toBe("counterGroupId");
     expect(toolParamName(Tool.project)).toBe("projectId");
+  });
+});
+
+describe("tool route builders", () => {
+  it("addresses a tool entity inside its initiative", () => {
+    expect(toolListRoute(Tool.counter_group, 12)).toBe("/i/12/counter-groups");
+    expect(toolDetailRoute(Tool.counter_group, 12, 3)).toBe("/i/12/counter-groups/3");
+    expect(toolSettingsRoute(Tool.project, 1, 7)).toBe("/i/1/projects/7/settings");
+  });
+
+  // Only calendars have guild-level entities (an app installs one). A null
+  // initiative means "address me at the guild route", never "unknown".
+  it("keeps a guild-level entity at its guild route", () => {
+    expect(toolListRoute(Tool.calendar, null)).toBe("/calendars");
+    expect(toolDetailRoute(Tool.calendar, null, 3)).toBe("/calendars/3");
+    expect(toolSettingsRoute(Tool.calendar, null, 3)).toBe("/calendars/3/settings");
+  });
+
+  it("nests a child entity under its parent", () => {
+    expect(taskRoute(1, 2, 5)).toBe("/i/1/projects/2/tasks/5");
+    expect(eventRoute(1, 2, 9)).toBe("/i/1/calendars/2/events/9");
+    expect(eventRoute(null, 2, 9)).toBe("/calendars/2/events/9");
+    expect(counterRoute(1, 3, 7)).toBe("/i/1/counter-groups/3/counter/7");
+  });
+
+  it("names the initiative tree", () => {
+    expect(INITIATIVES_ROUTE).toBe("/i");
+    expect(initiativeRoute(4)).toBe("/i/4");
+  });
+
+  it("routes a bare id through the resolver", () => {
+    expect(entityRefRoute("document", 42)).toBe("/go/document/42");
+    expect(toolRefRoute(Tool.counter_group, 3)).toBe("/go/counter-group/3");
   });
 });
 

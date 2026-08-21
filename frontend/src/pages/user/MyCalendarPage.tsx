@@ -4,12 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
-import type {
-  FilterCondition,
-  FilterGroup,
-  ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams,
-  TaskPriority,
-  TaskStatusCategory,
+import {
+  type FilterCondition,
+  type FilterGroup,
+  type ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams,
+  type TaskPriority,
+  type TaskStatusCategory,
+  Tool,
 } from "@/api/generated/initiativeAPI.schemas";
 import { invalidateAllCalendars, invalidateAllTasks } from "@/api/query-keys";
 import {
@@ -39,6 +40,7 @@ import { guildPath, useGuildPath } from "@/lib/guildUrl";
 import { getProjectColor } from "@/lib/projectColor";
 import { PRIORITY_ORDER } from "@/lib/sorting";
 import { getItem, setItem } from "@/lib/storage";
+import { entityRefRoute, toolSettingsRoute } from "@/lib/tools";
 
 const STORAGE_KEY = "initiative-my-calendar-prefs";
 const VISIBILITY_KEY = "initiative-my-calendar-visibility";
@@ -312,10 +314,12 @@ export const MyCalendarPage = () => {
       | undefined;
     if (!meta) return;
     const scopedPath = (path: string) => (meta.guildId ? guildPath(meta.guildId, path) : gp(path));
+    // Cross-guild rows carry no initiative, so the resolver works out where
+    // the entity lives on the way in.
     if (meta.type === "task" && meta.taskId) {
-      void navigate({ to: scopedPath(`/tasks/${meta.taskId}`) });
+      void navigate({ to: scopedPath(entityRefRoute("task", meta.taskId)) });
     } else if (meta.type === "event" && meta.eventId) {
-      void navigate({ to: scopedPath(`/calendar-events/${meta.eventId}`) });
+      void navigate({ to: scopedPath(entityRefRoute("event", meta.eventId)) });
     }
   };
 
@@ -418,7 +422,10 @@ export const MyCalendarPage = () => {
                     return guildName ? `${calendar.name} · ${guildName}` : calendar.name;
                   }}
                   settingsPathFor={(calendar) =>
-                    guildPath(calendar.guild_id, `/calendars/${calendar.id}/settings`)
+                    guildPath(
+                      calendar.guild_id,
+                      toolSettingsRoute(Tool.calendar, calendar.initiative_id, calendar.id)
+                    )
                   }
                   canCreate={false}
                   onCreate={() => {}}

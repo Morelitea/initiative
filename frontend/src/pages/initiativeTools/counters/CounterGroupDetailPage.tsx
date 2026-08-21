@@ -42,6 +42,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import {
   useCounterGroup,
   useDeleteCounter,
@@ -58,7 +59,7 @@ import { useViewPreference } from "@/hooks/useViewPreference";
 import { exportFilenameStem } from "@/lib/exportDownload";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
-import { toolExportEndpoint } from "@/lib/tools";
+import { counterRoute, toolExportEndpoint, toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 const layoutStorageKey = (groupId: number) => `counter-group-${groupId}-layout`;
 
@@ -118,6 +119,10 @@ export function CounterGroupDetailPage() {
   };
 
   const group = groupQuery.data;
+  // The path supplies the initiative while this loads, but the entity is the
+  // authority once it arrives — a URL naming a different one is corrected
+  // rather than left to build links into an initiative it isn't in.
+  const initiativeId = useCanonicalInitiativeId(group?.initiative_id);
   const counters = useMemo(() => {
     const list = group?.counters ?? [];
     return [...list].sort((a, b) => Number(a.position) - Number(b.position));
@@ -182,7 +187,7 @@ export function CounterGroupDetailPage() {
         <h1 className="font-semibold text-2xl">{t("notFound")}</h1>
         <p className="text-muted-foreground text-sm">{t("notFoundDescription")}</p>
         <Button variant="outline" asChild>
-          <Link to={gp("/counter-groups")}>
+          <Link to={gp(toolListRoute(Tool.counter_group, initiativeId))}>
             <ArrowLeft className="h-4 w-4" />
             {t("backToGroups")}
           </Link>
@@ -283,7 +288,11 @@ export function CounterGroupDetailPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => router.navigate({ to: gp(`/counter-groups/${group.id}/settings`) })}
+              onClick={() =>
+                router.navigate({
+                  to: gp(toolSettingsRoute(Tool.counter_group, initiativeId, group.id)),
+                })
+              }
             >
               <Settings className="h-4 w-4" />
               {t("settings")}
@@ -322,7 +331,7 @@ export function CounterGroupDetailPage() {
                   counter={counter}
                   canWrite={!!canWrite}
                   layout={layout}
-                  focusHref={gp(`/counter-groups/${group.id}/counter/${counter.id}`)}
+                  focusHref={gp(counterRoute(initiativeId, group.id, counter.id))}
                   onSetCount={(value) => {
                     // Direct typed entry wins over any pending stepped flush.
                     stepper.cancel(counter.id);

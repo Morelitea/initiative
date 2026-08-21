@@ -19,6 +19,7 @@ import { guildMayAuthorTools, useCreatableInitiatives } from "@/hooks/useInitiat
 import { guildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { getItem, removeItem, setItem } from "@/lib/storage";
+import { toolListRoute } from "@/lib/tools";
 
 // ── Module-level opener (same pattern as CreateTaskWizard) ──────────────────
 
@@ -138,13 +139,13 @@ export const CreateDocumentWizard = () => {
         initiativeName: iName,
       });
       setOpen(false);
-      // DocumentsPage reads ?create=true&initiativeId=<id> and opens its
-      // existing <CreateDocumentDialog> with the initiative pre-selected, so
-      // the wizard hands off the rest of the flow without re-mounting the
-      // creation UI.
+      // The initiative's documents tab reads ?create=true and opens its
+      // existing <CreateDocumentDialog>, so the wizard hands off the rest of
+      // the flow without re-mounting the creation UI. The initiative is in the
+      // path now rather than a search param.
       void router.navigate({
-        to: guildPath(gId, "/documents"),
-        search: { create: "true", initiativeId: String(iId) },
+        to: guildPath(gId, toolListRoute(Tool.document, iId)),
+        search: { create: "true" },
       });
     },
     [router]

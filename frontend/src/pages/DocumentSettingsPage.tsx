@@ -22,6 +22,7 @@ import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
+import { toolDetailRoute } from "@/lib/tools";
 
 export const DocumentSettingsPage = () => {
   const { t } = useTranslation(["documents", "common"]);
@@ -86,7 +87,9 @@ export const DocumentSettingsPage = () => {
     onSuccess: (duplicated) => {
       toast.success(t("settings.documentDuplicated"));
       setDuplicateDialogOpen(false);
-      router.navigate({ to: gp(`/documents/${duplicated.id}`) });
+      router.navigate({
+        to: gp(toolDetailRoute(Tool.document, duplicated.initiative_id, duplicated.id)),
+      });
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "documents:settings.duplicateError"));
@@ -102,7 +105,7 @@ export const DocumentSettingsPage = () => {
         })
       );
       setCopyDialogOpen(false);
-      router.navigate({ to: gp(`/documents/${copied.id}`) });
+      router.navigate({ to: gp(toolDetailRoute(Tool.document, copied.initiative_id, copied.id)) });
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "documents:settings.copyError"));

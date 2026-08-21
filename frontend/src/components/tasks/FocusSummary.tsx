@@ -17,6 +17,7 @@ import { Slider } from "@/components/ui/slider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { FOCUS_HORIZON_ANY, FOCUS_PRIORITIES, type useFocusSummary } from "@/hooks/useFocusSummary";
 import { guildPath } from "@/lib/guildUrl";
+import { entityRefRoute, taskRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 type FocusSummaryData = ReturnType<typeof useFocusSummary>;
@@ -31,7 +32,12 @@ export type FocusSummaryProps = {
 
 const taskHref = (task: TaskListRead, activeGuildId: number | null) => {
   const guildId = task.guild_id ?? activeGuildId;
-  const path = `/tasks/${task.id}`;
+  // A task's URL names its project and initiative; a row missing either
+  // resolves through `/go` rather than pointing at an address that isn't one.
+  const path =
+    task.initiative_id != null
+      ? taskRoute(task.initiative_id, task.project_id, task.id)
+      : entityRefRoute("task", task.id);
   return guildId ? guildPath(guildId, path) : path;
 };
 

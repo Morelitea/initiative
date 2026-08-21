@@ -13,7 +13,7 @@ import {
 import { type TouchEvent, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { CounterRead } from "@/api/generated/initiativeAPI.schemas";
+import { type CounterRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { CounterFormDialog } from "@/components/initiativeTools/counters/CounterFormDialog";
 import { CounterNumberView } from "@/components/initiativeTools/counters/views/CounterNumberView";
 import { CounterProgressBarView } from "@/components/initiativeTools/counters/views/CounterProgressBarView";
@@ -25,6 +25,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import {
   useCounterGroup,
   useResetCounter,
@@ -36,6 +37,7 @@ import { getContrastingTextColor } from "@/lib/counter-color";
 import { isAtMax, isAtMin } from "@/lib/counter-math";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
+import { counterRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 const SWIPE_THRESHOLD_PX = 60;
@@ -50,7 +52,11 @@ export function CounterDetailPage() {
     counterId: counterIdParam,
   } = useParams({
     strict: false,
-  }) as { guildId?: string; counterGroupId?: string; counterId?: string };
+  }) as {
+    guildId?: string;
+    counterGroupId?: string;
+    counterId?: string;
+  };
 
   const groupId = groupIdParam ? Number(groupIdParam) : null;
   const counterId = counterIdParam ? Number(counterIdParam) : null;
@@ -67,6 +73,9 @@ export function CounterDetailPage() {
   const [touchStartY, setTouchStartY] = useState<number | null>(null);
 
   const group = groupQuery.data;
+  // The path supplies the initiative while this loads; the entity is the
+  // authority once it arrives, and a URL naming a different one is corrected.
+  const initiativeId = useCanonicalInitiativeId(group?.initiative_id);
   const counters = useMemo(() => {
     const list = group?.counters ?? [];
     return [...list].sort((a, b) => Number(a.position) - Number(b.position));
@@ -85,15 +94,7 @@ export function CounterDetailPage() {
     const wrapped = ((index % counters.length) + counters.length) % counters.length;
     const next = counters[wrapped];
     if (!next) return;
-    navigate({
-      to: "/g/$guildId/counter-groups/$counterGroupId/counter/$counterId",
-      params: {
-        guildId,
-        counterGroupId: String(groupId),
-        counterId: String(next.id),
-      },
-      replace: true,
-    });
+    navigate({ to: gp(counterRoute(initiativeId, groupId, next.id)), replace: true });
   };
 
   const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
@@ -134,7 +135,7 @@ export function CounterDetailPage() {
         <h1 className="font-semibold text-2xl">{t("notFound")}</h1>
         <p className="text-muted-foreground text-sm">{t("notFoundDescription")}</p>
         <Button variant="outline" asChild>
-          <Link to={gp("/counter-groups")}>{t("backToGroups")}</Link>
+          <Link to={gp(toolListRoute(Tool.counter_group, initiativeId))}>{t("backToGroups")}</Link>
         </Button>
       </div>
     );
@@ -145,7 +146,9 @@ export function CounterDetailPage() {
       <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-background px-4 text-center">
         <h1 className="font-semibold text-2xl">{t("focus.notFound")}</h1>
         <Button variant="outline" asChild>
-          <Link to={gp(`/counter-groups/${groupId}`)}>{t("backToGroup")}</Link>
+          <Link to={gp(toolDetailRoute(Tool.counter_group, initiativeId, groupId))}>
+            {t("backToGroup")}
+          </Link>
         </Button>
       </div>
     );
@@ -227,7 +230,7 @@ export function CounterDetailPage() {
           className={cn("h-10 w-10", chromeButtonClass)}
           style={{ color: fg }}
         >
-          <Link to={gp(`/counter-groups/${groupId}`)}>
+          <Link to={gp(toolDetailRoute(Tool.counter_group, initiativeId, groupId))}>
             <X className="h-5 w-5" />
           </Link>
         </Button>

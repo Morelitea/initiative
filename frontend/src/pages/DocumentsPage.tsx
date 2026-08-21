@@ -40,13 +40,13 @@ import {
   usePrefetchDocumentsList,
 } from "@/hooks/useDocuments";
 import { useInitiativeAccess, useToolCreateAccess } from "@/hooks/useInitiativeAccess";
-import { INITIATIVE_FILTER_ALL, useInitiativeFilter } from "@/hooks/useInitiativeFilter";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useTags } from "@/hooks/useTags";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
 import { buildTagTree, collectDescendantTagIds, findNodeByPath } from "@/lib/tagTree";
+import { toolDetailRoute } from "@/lib/tools";
 
 const DOCUMENT_VIEW_KEY = "documents:view-mode";
 
@@ -77,19 +77,12 @@ export const DocumentsView = ({
   const { isGuildAdmin, isGrantGuild } = useInitiativeAccess();
   const gp = useGuildPath();
   const searchParams = useSearch({ strict: false }) as {
-    initiativeId?: string;
     create?: string;
     page?: number;
   };
+  // The initiative comes from the path. It is absent only on the tag browse,
+  // which is deliberately cross-initiative.
   const lockedInitiativeId = typeof fixedInitiativeId === "number" ? fixedInitiativeId : null;
-  // The initiative filter consumes ?initiativeId — and, unlike the other tool
-  // lists, clearing the param (e.g. clicking "All Documents" from an
-  // initiative-scoped view) resets it back to ALL rather than staying pinned to
-  // the initiative we arrived from.
-  const { initiativeFilter, setInitiativeFilter, filteredInitiativeId } = useInitiativeFilter({
-    lockedInitiativeId,
-    resetOnParamCleared: true,
-  });
   const searchParamsRef = useRef(searchParams);
   searchParamsRef.current = searchParams;
   const [searchQuery, setSearchQuery] = useState("");
@@ -278,9 +271,7 @@ export const DocumentsView = ({
   const encodedPropertyFilters = propertyFilters.length > 0 ? propertyFiltersKey : null;
 
   const documentsQueryParams: ListDocumentsApiV1GGuildIdDocumentsGetParams = {
-    ...(initiativeFilter !== INITIATIVE_FILTER_ALL
-      ? { initiative_id: Number(initiativeFilter) }
-      : {}),
+    ...(lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {}),
     ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
     ...(queryTagIds.length > 0 ? { tag_ids: queryTagIds } : {}),
     ...(treeWantsUntagged ? { untagged: true } : {}),
@@ -295,9 +286,7 @@ export const DocumentsView = ({
 
   // Counts query for tags view sidebar
   const countsQueryParams = {
-    ...(initiativeFilter !== INITIATIVE_FILTER_ALL
-      ? { initiative_id: Number(initiativeFilter) }
-      : {}),
+    ...(lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {}),
     ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
   };
 
@@ -308,9 +297,7 @@ export const DocumentsView = ({
     (targetPage: number) => {
       if (targetPage < 1) return;
       const prefetchParams: ListDocumentsApiV1GGuildIdDocumentsGetParams = {
-        ...(initiativeFilter !== INITIATIVE_FILTER_ALL
-          ? { initiative_id: Number(initiativeFilter) }
-          : {}),
+        ...(lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {}),
         ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
         ...(queryTagIds.length > 0 ? { tag_ids: queryTagIds } : {}),
         ...(treeWantsUntagged ? { untagged: true } : {}),
@@ -323,7 +310,7 @@ export const DocumentsView = ({
       void prefetchDocuments(prefetchParams);
     },
     [
-      initiativeFilter,
+      lockedInitiativeId,
       searchQuery,
       queryTagIds,
       treeWantsUntagged,
@@ -341,22 +328,17 @@ export const DocumentsView = ({
   // create flag, or (in the "All" view) whether any visible initiative grants
   // it. `creatableInitiatives` feeds the create dialog's initiative picker.
   const { canCreate: canCreateDerived, creatableInitiatives } = useToolCreateAccess(Tool.document, {
-    initiativeId: lockedInitiativeId ?? filteredInitiativeId,
+    initiativeId: lockedInitiativeId,
   });
 
-  const [createDialogInitiativeId, setCreateDialogInitiativeId] = useState<number | undefined>(
+  const [createDialogInitiativeId, _setCreateDialogInitiativeId] = useState<number | undefined>(
     lockedInitiativeId ?? undefined
   );
   const {
     open: createDialogOpen,
     setOpen: setCreateDialogOpen,
     onOpenChange: handleCreateDialogOpenChange,
-  } = useCreateFromSearchParam({
-    onOpenFromUrl: (urlInitiativeId) => {
-      if (urlInitiativeId && !lockedInitiativeId)
-        setCreateDialogInitiativeId(Number(urlInitiativeId));
-    },
-  });
+  } = useCreateFromSearchParam();
   const [selectedDocuments, setSelectedDocuments] = useState<DocumentSummary[]>([]);
 
   // Grid/tags selection mode (the table view has its own row checkboxes and
@@ -413,12 +395,11 @@ export const DocumentsView = ({
     if (isGuildAdmin || isGrantGuild) {
       return true;
     }
-    // If no specific initiative is filtered, user can view the page
-    const effectiveInitiativeId = lockedInitiativeId ?? filteredInitiativeId;
-    if (!effectiveInitiativeId || !user) {
+    // The cross-initiative tag browse has no one initiative to check.
+    if (!lockedInitiativeId || !user) {
       return true;
     }
-    const initiative = initiativesQuery.data?.find((i) => i.id === effectiveInitiativeId);
+    const initiative = initiativesQuery.data?.find((i) => i.id === lockedInitiativeId);
     if (!initiative) {
       return true; // Initiative not loaded yet, assume access
     }
@@ -427,14 +408,7 @@ export const DocumentsView = ({
       return true; // Not a member, let the backend handle access control
     }
     return membership.can_view_documents !== false;
-  }, [
-    lockedInitiativeId,
-    filteredInitiativeId,
-    user,
-    initiativesQuery.data,
-    isGuildAdmin,
-    isGrantGuild,
-  ]);
+  }, [lockedInitiativeId, user, initiativesQuery.data, isGuildAdmin, isGrantGuild]);
 
   // An explicit canCreate prop (e.g. from InitiativeDetailPage) wins; otherwise
   // use the canonical derivation above.
@@ -447,10 +421,11 @@ export const DocumentsView = ({
       : null
   );
 
-  const handleDocumentCreated = (document: { id: number }) => {
-    router.navigate({
-      to: gp(`/documents/${document.id}`),
-    });
+  const handleDocumentCreated = (document: { id: number; initiative_id?: number }) => {
+    // The dialog can only create inside a scope this view already has: the
+    // locked initiative, or the one it picked when there is none.
+    const initiativeId = lockedInitiativeId ?? document.initiative_id ?? null;
+    router.navigate({ to: gp(toolDetailRoute(Tool.document, initiativeId, document.id)) });
   };
 
   const deleteDocuments = useDeleteDocuments({
@@ -461,8 +436,8 @@ export const DocumentsView = ({
     onSuccess: () => setSelectedDocuments([]),
   });
 
-  const initiatives = initiativesQuery.data ?? [];
-  // Filter initiatives where user can view docs (for the dropdown)
+  // Initiatives whose documents this reader may see. Still needed on the
+  // cross-initiative tag browse, which lists documents from several at once.
   const viewableInitiatives = useMemo(() => {
     const allInitiatives = initiativesQuery.data ?? [];
     if (!user) return allInitiatives;
@@ -476,10 +451,6 @@ export const DocumentsView = ({
       return membership.can_view_documents !== false;
     });
   }, [initiativesQuery.data, user, isGuildAdmin, isGrantGuild]);
-  const lockedInitiative = lockedInitiativeId
-    ? (initiatives.find((initiative) => initiative.id === lockedInitiativeId) ?? null)
-    : null;
-
   // Get IDs of initiatives where user can view docs
   const viewableInitiativeIds = useMemo(() => {
     return new Set(viewableInitiatives.map((i) => i.id));
@@ -578,12 +549,6 @@ export const DocumentsView = ({
       <DocumentsFilterBar
         searchQuery={searchQuery}
         onSearchQueryChange={setSearchQuery}
-        initiativeFilter={initiativeFilter}
-        onInitiativeFilterChange={setInitiativeFilter}
-        lockedInitiativeId={lockedInitiativeId}
-        lockedInitiativeName={lockedInitiative?.name ?? null}
-        viewableInitiatives={viewableInitiatives}
-        initiativesLoading={initiativesQuery.isLoading}
         filtersOpen={filtersOpen}
         onFiltersOpenChange={setFiltersOpen}
         viewMode={viewMode}
@@ -759,11 +724,7 @@ export const DocumentsView = ({
         open={createDialogOpen}
         onOpenChange={handleCreateDialogOpenChange}
         initiativeId={lockedInitiativeId ?? undefined}
-        defaultInitiativeId={
-          initiativeFilter !== INITIATIVE_FILTER_ALL
-            ? Number(initiativeFilter)
-            : createDialogInitiativeId
-        }
+        defaultInitiativeId={lockedInitiativeId ?? createDialogInitiativeId}
         initiatives={creatableInitiatives}
         onSuccess={handleDocumentCreated}
       />
@@ -786,5 +747,3 @@ export const DocumentsView = ({
     </div>
   );
 };
-
-export const DocumentsPage = () => <DocumentsView />;

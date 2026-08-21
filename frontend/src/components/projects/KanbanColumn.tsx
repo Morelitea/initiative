@@ -295,10 +295,17 @@ const KanbanCardContent = memo(
     const { activeGuildId } = useGuilds();
 
     const handlePrefetch = () => {
-      if (canOpenTask && activeGuildId) {
+      // Preloading is an optimisation, so a task whose list row didn't name an
+      // initiative simply doesn't get one — the click still navigates.
+      if (canOpenTask && activeGuildId && task.initiative_id != null) {
         router.preloadRoute({
-          to: "/g/$guildId/tasks/$taskId",
-          params: { guildId: String(activeGuildId), taskId: String(task.id) },
+          to: "/g/$guildId/i/$initiativeId/projects/$projectId/tasks/$taskId",
+          params: {
+            guildId: String(activeGuildId),
+            initiativeId: String(task.initiative_id),
+            projectId: String(task.project_id),
+            taskId: String(task.id),
+          },
         });
       }
     };
@@ -502,10 +509,15 @@ const KanbanTaskCard = ({
   });
 
   const handlePrefetch = () => {
-    if (canOpenTask && activeGuildId) {
+    if (canOpenTask && activeGuildId && task.initiative_id != null) {
       router.preloadRoute({
-        to: "/g/$guildId/tasks/$taskId",
-        params: { guildId: String(activeGuildId), taskId: String(task.id) },
+        to: "/g/$guildId/i/$initiativeId/projects/$projectId/tasks/$taskId",
+        params: {
+          guildId: String(activeGuildId),
+          initiativeId: String(task.initiative_id),
+          projectId: String(task.project_id),
+          taskId: String(task.id),
+        },
       });
     }
   };

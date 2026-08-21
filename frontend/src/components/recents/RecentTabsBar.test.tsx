@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildRecentCounterGroupItem,
   buildRecentDocumentItem,
+  buildRecentItem,
   buildRecentProjectItem,
   buildRecentQueueItem,
 } from "@/__tests__/factories/recent.factory";
@@ -80,13 +81,44 @@ describe("RecentTabsBar", () => {
 
     expect(screen.getByRole("link", { name: /ProjectX/ })).toHaveAttribute(
       "href",
-      "/g/1/projects/11"
+      "/g/1/i/5/projects/11"
     );
-    expect(screen.getByRole("link", { name: /DocY/ })).toHaveAttribute("href", "/g/1/documents/22");
-    expect(screen.getByRole("link", { name: /QueueZ/ })).toHaveAttribute("href", "/g/1/queues/33");
+    expect(screen.getByRole("link", { name: /DocY/ })).toHaveAttribute(
+      "href",
+      "/g/1/i/5/documents/22"
+    );
+    expect(screen.getByRole("link", { name: /QueueZ/ })).toHaveAttribute(
+      "href",
+      "/g/1/i/5/queues/33"
+    );
     expect(screen.getByRole("link", { name: /GroupW/ })).toHaveAttribute(
       "href",
-      "/g/1/counter-groups/44"
+      "/g/1/i/5/counter-groups/44"
+    );
+  });
+
+  // Only calendars can be guild-level (an app installs one). Those keep a
+  // guild address rather than being wedged under an initiative they lack.
+  it("links a guild-level calendar at its guild route", () => {
+    renderWithProviders(
+      <RecentTabsBar
+        items={[
+          buildRecentItem({
+            entity_type: "calendar",
+            entity_id: 12,
+            name: "AppCal",
+            initiative_id: null,
+          }),
+        ]}
+        onClose={() => {}}
+        onCloseOthers={() => {}}
+        onCloseAll={() => {}}
+      />
+    );
+
+    expect(screen.getByRole("link", { name: /AppCal/ })).toHaveAttribute(
+      "href",
+      "/g/1/calendars/12"
     );
   });
 

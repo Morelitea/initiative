@@ -1,7 +1,7 @@
 import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 
 export const Route = createFileRoute(
-  "/_serverRequired/_authenticated/g/$guildId/calendars_/$calendarId"
+  "/_serverRequired/_authenticated/g/$guildId/calendars/$calendarId/"
 )({
   component: lazyRouteComponent(() =>
     import("@/pages/initiativeTools/events/CalendarsPage").then((m) => ({

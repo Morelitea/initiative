@@ -117,7 +117,7 @@ const strings = {
 function render(data, config, context) {
   // The viewer's language, and this module's own words in it. An older host
   // that passes no context leaves this at English rather than failing.
-  const lang = (context && context.locale) || "en";
+  const lang = context?.locale || "en";
   const say = (key) => {
     const entry = strings[key] || {};
     return entry[lang] || entry[lang.split("-")[0]] || entry.en || key;

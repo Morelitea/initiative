@@ -4,7 +4,7 @@ import { FileSpreadsheet, FileText, Presentation } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { DocumentSummary, TagSummary } from "@/api/generated/initiativeAPI.schemas";
+import { type DocumentSummary, type TagSummary, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { DocumentsBulkBar } from "@/components/documents/DocumentsBulkBar";
 import { buildPropertyColumns, propertyColumnIds } from "@/components/properties/propertyColumns";
 import { SortIcon } from "@/components/SortIcon";
@@ -19,6 +19,7 @@ import { getFileTypeLabel } from "@/lib/fileUtils";
 import { useGuildPath } from "@/lib/guildUrl";
 import { dateSortingFn } from "@/lib/sorting";
 import type { AppColumnDef } from "@/lib/table";
+import { toolDetailRoute } from "@/lib/tools";
 import { getUserDisplayName } from "@/lib/userDisplay";
 
 // Cell component that uses guild-scoped URLs
@@ -27,7 +28,7 @@ const DocumentTitleCell = ({ document }: { document: DocumentSummary }) => {
   return (
     <div className="min-w-[220px] sm:min-w-0">
       <Link
-        to={gp(`/documents/${document.id}`)}
+        to={gp(toolDetailRoute(Tool.document, document.initiative_id, document.id))}
         className="font-medium text-primary hover:underline"
       >
         {document.title}

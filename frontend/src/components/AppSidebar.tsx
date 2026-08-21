@@ -58,6 +58,7 @@ import { getInitials } from "@/lib/initials";
 import { obfuscateEmail } from "@/lib/obfuscateEmail";
 import { canAccessAdminDashboard, canManagePlatformConfig } from "@/lib/permissions";
 import { getItem, setItem } from "@/lib/storage";
+import { INITIATIVES_ROUTE, toolDetailRoute } from "@/lib/tools";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 
 export const AppSidebar = () => {
@@ -83,11 +84,10 @@ export const AppSidebar = () => {
   // Determine sidebar mode from route
   const isGuildRoute = location.pathname.startsWith("/g/");
 
-  // Extract active project ID from URL (support both old and new URL patterns)
+  // Which project row to highlight. A project is addressed inside its
+  // initiative, so the pattern has to carry that segment too.
   const activeProjectId = useMemo(() => {
-    const match =
-      location.pathname.match(/^\/g\/\d+\/projects\/(\d+)/) ||
-      location.pathname.match(/^\/projects\/(\d+)/);
+    const match = location.pathname.match(/^\/g\/\d+\/i\/\d+\/projects\/(\d+)/);
     return match ? parseInt(match[1], 10) : null;
   }, [location.pathname]);
 
@@ -365,7 +365,13 @@ export const AppSidebar = () => {
                                         isActive={project.id === activeProjectId}
                                       >
                                         <Link
-                                          to={gp(`/projects/${project.id}`)}
+                                          to={gp(
+                                            toolDetailRoute(
+                                              Tool.project,
+                                              project.initiative_id,
+                                              project.id
+                                            )
+                                          )}
                                           className="flex min-w-0 items-center gap-2"
                                         >
                                           {project.icon ? (
@@ -485,7 +491,7 @@ export const AppSidebar = () => {
                               <SidebarMenu>
                                 <SidebarMenuItem>
                                   <SidebarMenuButton asChild size="sm">
-                                    <Link to={gp("/initiatives")} search={{ create: "true" }}>
+                                    <Link to={gp(INITIATIVES_ROUTE)} search={{ create: "true" }}>
                                       <Plus className="h-4 w-4" />
                                       <span>{t("addInitiative")}</span>
                                     </Link>

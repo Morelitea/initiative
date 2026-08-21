@@ -1,12 +1,14 @@
 import type { RecentItemRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { guildPath } from "@/lib/guildUrl";
-import { TOOLS, toolRouteSegment } from "@/lib/tools";
+import { TOOLS, toolDetailRoute, toolRouteSegment } from "@/lib/tools";
 
 export type RecentKey = {
   entityType: RecentItemRead["entity_type"];
   entityId: number;
   /** Guild parsed from the URL prefix. */
   guildId: number;
+  /** Initiative parsed from the URL, or null for a guild-level entity. */
+  initiativeId: number | null;
 };
 
 /**
@@ -20,8 +22,10 @@ export type RecentKey = {
  * Navigating the link enters that guild via the /g/$guildId layout.
  */
 export function recentRoute(item: RecentItemRead): string {
-  const segment = toolRouteSegment(item.entity_type as Tool);
-  return guildPath(item.guild_id, `/${segment}/${item.entity_id}`);
+  return guildPath(
+    item.guild_id,
+    toolDetailRoute(item.entity_type as Tool, item.initiative_id, item.entity_id)
+  );
 }
 
 /** Parse a decimal id from a path segment ("42" → 42, anything else → null). */
@@ -34,24 +38,36 @@ function parseId(segment: string | undefined): number | null {
 }
 
 /**
- * Parse the current location pathname into a ``RecentKey`` so the tabs bar
- * can highlight the active tab. Returns null when no entity detail page is
- * open. Expects ``/g/{guildId}/{toolSegment}/{entityId}/…`` and matches the
- * tool segment against each recentable tool's registry route segment.
+ * Parse the current location pathname into a ``RecentKey`` so the tabs bar can
+ * highlight the active tab. Returns null when no entity detail page is open.
+ *
+ * Two shapes, because a tool entity is addressed inside its initiative but a
+ * guild-level one (only calendars have any) is not:
+ *   /g/{guildId}/i/{initiativeId}/{toolSegment}/{entityId}/…
+ *   /g/{guildId}/{toolSegment}/{entityId}/…
  */
 export function getActiveRecentKey(pathname: string): RecentKey | null {
-  const [, prefix, guildSegment, toolSegment, entitySegment] = pathname.split("/");
-  if (prefix !== "g") {
+  const parts = pathname.split("/");
+  if (parts[1] !== "g") {
     return null;
   }
-  const guildId = parseId(guildSegment);
-  const entityId = parseId(entitySegment);
-  if (guildId == null || entityId == null) {
+  const guildId = parseId(parts[2]);
+  if (guildId == null) {
+    return null;
+  }
+  const nested = parts[3] === "i";
+  const initiativeId = nested ? parseId(parts[4]) : null;
+  if (nested && initiativeId == null) {
+    return null;
+  }
+  const toolSegment = nested ? parts[5] : parts[3];
+  const entityId = parseId(nested ? parts[6] : parts[4]);
+  if (entityId == null) {
     return null;
   }
   for (const tool of TOOLS) {
     if (toolRouteSegment(tool) === toolSegment) {
-      return { entityType: tool as RecentKey["entityType"], entityId, guildId };
+      return { entityType: tool as RecentKey["entityType"], entityId, guildId, initiativeId };
     }
   }
   return null;
