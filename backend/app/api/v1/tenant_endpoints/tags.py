@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Annotated, List, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, update as sa_update
+from sqlalchemy import ColumnElement, func, update as sa_update
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
@@ -308,7 +308,7 @@ async def get_tag_entities(
     # Sharing gate on the project (a no-op for a request that reaches the whole
     # guild). Two columns name a project here — a task's FK and the project's own
     # id — so the clause is built against each.
-    def _project_scope(col):
+    def _project_scope(col: ColumnElement[int]) -> ColumnElement[bool]:
         return permissions_service.dac_scope_clause(
             Tool.project, col, current_user.id, guild_id=guild_context.guild_id
         )

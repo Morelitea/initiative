@@ -19,7 +19,7 @@ from enum import Enum
 from typing import Any, TypeVar
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, or_, true
+from sqlalchemy import ColumnElement, and_, or_, true
 from sqlmodel import select
 
 from app.core.pam_context import active_grant_level, grant_satisfies, has_active_grant
@@ -223,11 +223,11 @@ def request_bypasses_dac(
 
 def dac_scope_clause(
     tool: Tool,
-    id_col: Any,
+    id_col: ColumnElement[int],
     user_id: int,
     *,
     guild_id: int | None,
-) -> Any:
+) -> ColumnElement[bool]:
     """The WHERE leg narrowing ``id_col`` to the ``tool`` rows this request may see.
 
     The query-shaped counterpart of :func:`request_bypasses_dac`: that one asks

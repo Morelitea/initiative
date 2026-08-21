@@ -17,6 +17,8 @@ from app.core.messages import DocumentMessages, ProjectMessages
 from app.models.tenant.document import DocumentPermissionLevel
 from app.models.tenant.project import ProjectPermissionLevel
 from app.models.platform.user import UserRole
+from sqlalchemy import ColumnElement
+
 from app.core.pam_context import set_active_grant
 from app.core.role_context import set_active_role, set_override_sharing_initiatives
 from app.core.tools import Tool
@@ -612,7 +614,7 @@ def test_membership_without_permission_row_still_denied():
 # ── dac_scope_clause: the query-shaped half of the DAC decision ──────────────
 
 
-def _compiled(clause) -> str:
+def _compiled(clause: ColumnElement[bool]) -> str:
     return str(clause.compile(compile_kwargs={"literal_binds": True}))
 
 
