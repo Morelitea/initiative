@@ -1,22 +1,18 @@
-"""Discretionary Access Control (DAC) — gate 4, per-resource sharing.
+"""Discretionary Access Control (DAC) — per-resource sharing.
 
 The application-level permission layer for every tool. Unlike the mandatory RLS
-layer (see ``rls.py``), which PostgreSQL enforces, this decides what a request
+layer (see ``rls.py``), which PostgreSQL enforces, this resolves what a request
 may read, write or own from the ``resource_grants`` rows on a resource.
 
-Whether a request reaches a resource *regardless* of those rows — a guild admin,
-a live PAM grant, an initiative "Full access" role — is one decision, made in one
-place, and asked in two shapes:
+The result is asked for in two shapes, and the second is defined in terms of the
+first:
 
   - :func:`request_bypasses_dac` for a loaded row, behind
     :func:`require_access` / :func:`compute_permission`
   - :func:`dac_scope_clause` for a query, appended to a listing's WHERE
 
-The second calls the first, and the grants half (``_granted_resource_ids``) is
-private, so the two halves of the answer are never applied apart.
-
-Gates 1-3 live elsewhere: guild isolation and initiative membership in ``rls.py``
-and Postgres, and the sync initiative-scope check beside its SQL counterpart in
+Guild isolation and initiative membership are separate layers, in ``rls.py`` and
+Postgres, with the sync initiative-scope check beside its SQL counterpart in
 ``membership.py``.
 """
 
@@ -147,9 +143,8 @@ def _granted_resource_ids(resource_type: str, user_id: int):
     own user grant, a grant to one of their initiative roles, OR an
     all-initiative-members grant on a resource in an initiative they belong to.
 
-    Grants only: it knows nothing about the requests that reach a whole guild.
-    Private on purpose — :func:`dac_scope_clause` is the way to ask, so the two
-    halves of the answer can never be applied separately.
+    Grant rows only. :func:`dac_scope_clause` is the public entry point and
+    composes this with the rest of the decision.
     """
     my_roles = select(InitiativeMember.role_id).where(
         InitiativeMember.user_id == user_id
@@ -218,11 +213,10 @@ def dac_scope_clause(
 ) -> ColumnElement[bool]:
     """The WHERE leg narrowing ``id_col`` to the ``tool`` rows this request may see.
 
-    The query-shaped form of :func:`request_bypasses_dac` — that one asks about a
-    loaded row, this one asks once for a whole statement, and the bypass decision
-    is literally the same call. It returns ``true()`` when the request reaches
-    the guild regardless of grants, so a caller appends it unconditionally rather
-    than branching around the narrowing.
+    The query-shaped form of :func:`request_bypasses_dac`: that one answers for a
+    loaded row, this one answers once for a whole statement, and both resolve
+    through the same call. It returns ``true()`` when the request already covers
+    the guild, so a caller appends it unconditionally rather than branching.
 
     ``id_col`` is whichever column names the resource — its own id, or a foreign
     key to it (``Task.project_id``). ``access`` is what the caller intends to do:

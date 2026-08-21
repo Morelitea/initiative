@@ -104,19 +104,11 @@ def initiative_scope_ok(
     whose ``initiative.memberships`` are already eagerly loaded — gate 2, not
     the per-resource sharing gate, which is ``permissions.dac_scope_clause``.
 
-    Mirrors the old RESTRICTIVE policy expression: initiative member, OR
-    admin of the entity's guild (guild-level), OR a live PAM/break-glass grant
-    covering the guild (app-level reach, handled separately from the guild role).
-
-    There is no standing ``data.bypass`` leg any more: a platform admin/owner
-    reaches a guild only through an explicit break-glass grant, which surfaces
-    here as ``has_active_grant``.
+    Resolves the same legs as ``public.initiative_access``, in the same order, so
+    the app-layer answer and the policy's agree.
     """
-    # A row that names no initiative is guild-level, and the initiative gate has
-    # nothing to decide about it — the same branch `public.initiative_access`
-    # takes, kept in step here because this is its app-layer counterpart. The
-    # guild boundary already applied (the request resolved this guild) and the
-    # row's grants decide the rest.
+    # A row that names no initiative is guild-level, and this check has nothing
+    # to decide about it — the branch `public.initiative_access` takes too.
     if getattr(entity, "initiative_id", NO_SCOPE_COLUMN) is None:
         return True
     initiative = getattr(entity, "initiative", None)
@@ -126,11 +118,8 @@ def initiative_scope_ok(
     if any(m.user_id == user.id for m in memberships):
         return True
     guild_id = getattr(entity, "guild_id", None)
-    # App-level reach via an explicit, time-bound grant — kept distinct from the
-    # guild role below.
     if guild_id is not None and has_active_grant(guild_id):
         return True
-    # Guild-level: admin of the entity's own guild.
     return is_request_guild_admin(guild_id, guild_role=guild_role)
 
 
