@@ -170,6 +170,7 @@ async def _enrich_recent_rows(
                 entity_type=tool.value,
                 entity_id=entity.id,
                 guild_id=entity.guild_id,
+                initiative_id=getattr(entity, "initiative_id", None),
                 name=getattr(entity, spec.name_attr),
                 last_viewed_at=row.last_viewed_at,
                 **(spec.extra(entity) if spec.extra else {}),

@@ -28,6 +28,9 @@ class DocumentProjectLink(SanitizedBaseModel):
     project_id: int
     project_name: Optional[str] = None
     project_icon: Optional[str] = None
+    # The initiative the project lives in — its URL addresses it, so the link
+    # resolves without a second fetch. None when the project isn't loaded.
+    project_initiative_id: Optional[int] = None
     attached_at: datetime
 
 
@@ -85,6 +88,9 @@ class DocumentBacklink(SanitizedBaseModel):
     id: int
     title: str
     updated_at: datetime
+    # The initiative the document lives in — its URL addresses it, so a
+    # backlink can link straight there instead of resolving the id first.
+    initiative_id: int
 
 
 class DocumentSummary(DocumentBase):
@@ -182,6 +188,7 @@ def _serialize_project_links(document: "Document") -> List[DocumentProjectLink]:
                 project_id=link.project_id,
                 project_name=getattr(project, "name", None),
                 project_icon=getattr(project, "icon", None),
+                project_initiative_id=getattr(project, "initiative_id", None),
                 attached_at=link.attached_at,
             )
         )

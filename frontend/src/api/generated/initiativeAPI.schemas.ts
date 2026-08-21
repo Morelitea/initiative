@@ -1605,6 +1605,7 @@ export interface DocumentBacklink {
   id: number;
   title: string;
   updated_at: string;
+  initiative_id: number;
 }
 
 export interface DocumentCopyRequest {
@@ -1709,6 +1710,7 @@ export interface DocumentProjectLink {
   project_id: number;
   project_name?: string | null;
   project_icon?: string | null;
+  project_initiative_id?: number | null;
   attached_at: string;
 }
 
@@ -3525,6 +3527,7 @@ export interface RecentActivityEntry {
   document_title?: string | null;
   project_id?: number | null;
   project_name?: string | null;
+  initiative_id?: number | null;
 }
 
 export type RecentEntityType = (typeof RecentEntityType)[keyof typeof RecentEntityType];
@@ -3548,6 +3551,7 @@ export interface RecentItemRead {
   entity_type: RecentEntityType;
   entity_id: number;
   guild_id: number;
+  initiative_id: number | null;
   name: string;
   last_viewed_at: string;
   icon: string | null;
@@ -4910,6 +4914,10 @@ export type ListProjectsApiV1GGuildIdProjectsGetParams = {
    * Case-insensitive substring match on name.
    */
   search?: string | null;
+  /**
+   * Only projects in this initiative. Omit for every initiative the caller can see.
+   */
+  initiative_id?: number | null;
   /**
    * Return a lightweight projection (id, name, icon, initiative_id, my_permission_level) without documents, grants, tags, or the nested initiative. For project pickers and other list-only callers.
    */

@@ -216,6 +216,15 @@ async def recent_comments(
                 document_title=document.title if document else None,
                 project_id=project.id if project else None,
                 project_name=project.name if project else None,
+                # A comment hangs off a task XOR a document, so whichever
+                # parent loaded is the one that names the initiative.
+                initiative_id=(
+                    document.initiative_id
+                    if document
+                    else project.initiative_id
+                    if project
+                    else None
+                ),
             )
         )
     return entries
