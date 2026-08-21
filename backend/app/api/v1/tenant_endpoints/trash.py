@@ -73,7 +73,7 @@ GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 ENTITY_REGISTRY: dict[str, tuple[type[SQLModel], str]] = {
     "project": (Project, "name"),
     "task": (Task, "title"),
-    "document": (Document, "title"),
+    "document": (Document, "name"),
     "comment": (Comment, "content"),
     "initiative": (Initiative, "name"),
     "tag": (Tag, "name"),

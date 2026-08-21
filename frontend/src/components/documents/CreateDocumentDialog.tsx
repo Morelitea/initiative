@@ -127,7 +127,7 @@ export const CreateDocumentDialog = ({
     () =>
       (templateDocumentsQuery.data ?? []).map((doc) => ({
         value: String(doc.id),
-        label: doc.title,
+        label: doc.name,
       })),
     [templateDocumentsQuery.data]
   );
@@ -490,7 +490,7 @@ export const CreateDocumentDialog = ({
                 const trimmedTitle = newTitle.trim();
                 if (!trimmedTitle || !effectiveInitiativeId) return;
                 createDocument.mutate({
-                  title: trimmedTitle,
+                  name: trimmedTitle,
                   initiative_id: effectiveInitiativeId,
                   is_template: isTemplateDocument,
                   template_id: selectedTemplateId ? Number(selectedTemplateId) : undefined,
@@ -519,7 +519,7 @@ export const CreateDocumentDialog = ({
                 if (!trimmedTitle) return;
                 uploadDocument.mutate({
                   file: selectedFile,
-                  title: trimmedTitle,
+                  name: trimmedTitle,
                   initiative_id: effectiveInitiativeId,
                   project_id: projectId,
                   grants,
@@ -544,7 +544,7 @@ export const CreateDocumentDialog = ({
                 if (!trimmedTitle || !effectiveInitiativeId) return;
                 if (!smartLinkUrlIsHttp) return;
                 createDocument.mutate({
-                  title: trimmedTitle,
+                  name: trimmedTitle,
                   initiative_id: effectiveInitiativeId,
                   project_id: projectId,
                   document_type: "smart_link",

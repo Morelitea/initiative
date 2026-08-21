@@ -64,8 +64,8 @@ export const DocumentSettingsPage = () => {
   useEffect(() => {
     if (!document) return;
     setIsTemplate(document.is_template);
-    setDuplicateTitle(t("settings.duplicateTitlePlaceholder", { title: document.title }));
-    setCopyTitle(document.title);
+    setDuplicateTitle(t("settings.duplicateTitlePlaceholder", { title: document.name }));
+    setCopyTitle(document.name);
   }, [document, t]);
 
   useEffect(() => {
@@ -128,9 +128,9 @@ export const DocumentSettingsPage = () => {
   return (
     <ToolSettingsPage
       tool={Tool.document}
-      // A document's name is its title, which is edited in the editor rather
-      // than here, and it carries no description field.
-      entity={document ? { ...document, name: document.title } : undefined}
+      // A document's name is edited in the editor rather than here, and it
+      // carries no description field.
+      entity={document}
       isLoading={isValidId && documentQuery.isLoading}
       isError={!isValidId || documentQuery.isError}
       setGrants={setGrants}
@@ -148,11 +148,11 @@ export const DocumentSettingsPage = () => {
             canManageDocument={canManageDocument}
             onDuplicateClick={() => {
               setDuplicateDialogOpen(true);
-              setDuplicateTitle(t("settings.duplicateTitlePlaceholder", { title: document.title }));
+              setDuplicateTitle(t("settings.duplicateTitlePlaceholder", { title: document.name }));
             }}
             onCopyClick={() => {
               setCopyDialogOpen(true);
-              setCopyTitle(document.title);
+              setCopyTitle(document.name);
             }}
           />
         ) : null
@@ -160,12 +160,12 @@ export const DocumentSettingsPage = () => {
     >
       {document && (
         <DocumentSettingsDialogs
-          documentTitle={document.title}
+          documentTitle={document.name}
           duplicateDialogOpen={duplicateDialogOpen}
           onDuplicateDialogOpenChange={setDuplicateDialogOpen}
           duplicateTitle={duplicateTitle}
           onDuplicateTitleChange={setDuplicateTitle}
-          onDuplicate={(title) => duplicateDocumentMutation.mutate({ title })}
+          onDuplicate={(title) => duplicateDocumentMutation.mutate({ name: title })}
           isDuplicating={duplicateDocumentMutation.isPending}
           copyDialogOpen={copyDialogOpen}
           onCopyDialogOpenChange={setCopyDialogOpen}
@@ -176,7 +176,7 @@ export const DocumentSettingsPage = () => {
           onCopy={(initiativeId, title) =>
             copyDocumentMutation.mutate({
               target_initiative_id: Number(initiativeId),
-              title,
+              name: title,
             })
           }
           isCopying={copyDocumentMutation.isPending}

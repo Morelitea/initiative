@@ -1289,7 +1289,7 @@ async def create_document(
     initiative: Initiative,
     creator: User,
     *,
-    title: str | None = None,
+    name: str | None = None,
     commit: bool = True,
     **overrides: Any,
 ) -> Document:
@@ -1303,7 +1303,7 @@ async def create_document(
     defaults = {
         "guild_id": initiative.guild_id,
         "initiative_id": initiative.id,
-        "title": title or f"Test Document {datetime.now(timezone.utc).timestamp()}",
+        "name": name or f"Test Document {datetime.now(timezone.utc).timestamp()}",
         "document_type": DocumentType.native,
         "created_by": creator.id,
     }

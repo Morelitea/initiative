@@ -216,6 +216,39 @@ def test_the_generic_tool_tags_route_is_the_only_tool_set_tags_surface():
     assert set(enum_values) == {t.value for t in Tool}
 
 
+def test_tool_models_spell_the_shared_columns_the_same():
+    # The facts every tool table carries spell the same on each of them: one
+    # display column called `name` (documents said `title` until 0190), and
+    # the shared scope/author/lifecycle columns under their canonical names.
+    # A new tool that renames one of these — or labels rows through a synonym
+    # like `title`/`label` — fails here. Sub-resources (tasks, queue items,
+    # calendar events) are not tools and keep their own words.
+    from app.services.tenant.tags import TOOL_TAG_LINKS
+
+    shared_columns = {
+        "id",
+        "guild_id",
+        "initiative_id",
+        "name",
+        "created_by",
+        "created_at",
+        "updated_at",
+        "deleted_at",
+        "deleted_by",
+        "purge_at",
+    }
+    synonyms = {"title", "label"}
+    for tool in Tool:
+        model = TOOL_TAG_LINKS[tool].entity
+        columns = {c.name for c in model.__table__.columns}
+        missing = shared_columns - columns
+        assert not missing, f"{tool.value}: missing shared columns {missing}"
+        assert not (synonyms & columns), (
+            f"{tool.value}: {synonyms & columns} duplicates a shared concept"
+        )
+        assert model.display_field() == "name", tool.value
+
+
 def test_export_adapters_cover_exactly_the_bulk_export_tools():
     """The export-engine adapter registry and the tool registry must agree:
     every BULK_EXPORT_TOOLS member has an adapter keyed by its kebab-singular

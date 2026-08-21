@@ -1617,7 +1617,7 @@ async def test_project_shows_all_members_document_to_member(
     project = await create_project(session, initiative, owner.user)
 
     doc = Document(
-        title="Shared with everyone",
+        name="Shared with everyone",
         initiative_id=initiative.id,
         guild_id=guild.id,
         created_by=owner.user.id,

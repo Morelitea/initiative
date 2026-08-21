@@ -101,7 +101,7 @@ export function useGuildToolRows(tool: Tool, page: number, pageSize: number) {
       case Tool.document:
         return (documents.data?.items ?? []).map((document) => ({
           id: document.id,
-          name: document.title,
+          name: document.name,
           href: href(document.id),
           glyph: null,
           initiativeId: document.initiative_id,

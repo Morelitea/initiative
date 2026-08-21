@@ -213,7 +213,7 @@ async def recent_comments(
                 task_id=task.id if task else None,
                 task_title=task.title if task else None,
                 document_id=document.id if document else None,
-                document_title=document.title if document else None,
+                document_name=document.name if document else None,
                 project_id=project.id if project else None,
                 project_name=project.name if project else None,
                 # A comment hangs off a task XOR a document, so whichever
@@ -457,7 +457,7 @@ async def search_mentionables(
             Document.is_template.is_(False),
         )
         if query:
-            base = base.where(Document.title.ilike(f"%{query}%"))
+            base = base.where(Document.name.ilike(f"%{query}%"))
         count_stmt = select(func.count()).select_from(base.subquery())
         data_stmt = base.order_by(Document.updated_at.desc())
         rows, total_count, actual_page = await paginated_query(
@@ -468,7 +468,7 @@ async def search_mentionables(
                 MentionSuggestion(
                     type=MentionEntityType.doc,
                     id=doc.id,
-                    display_text=doc.title,
+                    display_text=doc.name,
                     subtitle=None,
                 )
             )

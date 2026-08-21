@@ -64,7 +64,7 @@ export function DocumentBacklinks({ documentId }: DocumentBacklinksProps) {
                 >
                   <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <div className="flex-1 truncate">
-                    <span className="text-sm group-hover:underline">{backlink.title}</span>
+                    <span className="text-sm group-hover:underline">{backlink.name}</span>
                     <RelativeTime
                       date={backlink.updated_at}
                       className="ml-2 text-muted-foreground text-xs"

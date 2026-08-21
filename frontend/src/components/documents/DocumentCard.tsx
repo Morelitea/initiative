@@ -104,11 +104,11 @@ export const DocumentCard = ({ document, className }: DocumentCardProps) => {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <h3 className="line-clamp-1 font-semibold text-card-foreground text-lg leading-tight">
-                    {document.title}
+                    {document.name}
                   </h3>
                 </TooltipTrigger>
                 <TooltipContent side="top" align="start">
-                  <p>{document.title}</p>
+                  <p>{document.name}</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>

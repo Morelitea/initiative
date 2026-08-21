@@ -287,7 +287,7 @@ export const DocumentDetailPage = () => {
     if (!document) {
       return;
     }
-    setTitle(document.title);
+    setTitle(document.name);
     if (document.document_type === "whiteboard") {
       // Only load the whiteboard scene once per document ID. Subsequent
       // document changes (from PATCH responses, cache updates, etc.) must
@@ -398,12 +398,12 @@ export const DocumentDetailPage = () => {
   }, [document, user]);
   const isDirty =
     canEditDocument &&
-    ((document && title?.trim() !== document?.title?.trim()) ||
+    ((document && title?.trim() !== document?.name?.trim()) ||
       documentContentJson !== currentContentJson ||
       normalizedDocumentFeatured !== featuredImageUrl);
 
   const titleIsDirty = Boolean(
-    canEditDocument && document && title?.trim() !== document?.title?.trim()
+    canEditDocument && document && title?.trim() !== document?.name?.trim()
   );
 
   const commentsCanModerate = useMemo(() => {
@@ -649,7 +649,7 @@ export const DocumentDetailPage = () => {
       const timer = setTimeout(() => {
         isAutosaveRef.current = true;
         saveDocument.mutate({
-          title: title?.trim(),
+          name: title?.trim(),
           content: contentForSave,
           featured_image_url: featuredImageUrl,
         });
@@ -662,7 +662,7 @@ export const DocumentDetailPage = () => {
       const timer = setTimeout(() => {
         isAutosaveRef.current = true;
         saveDocument.mutate({
-          title: title?.trim(),
+          name: title?.trim(),
           content: contentForSave,
           featured_image_url: featuredImageUrl,
         });
@@ -697,7 +697,7 @@ export const DocumentDetailPage = () => {
     // users who edited while offline get explicit confirmation their work
     // was persisted after reconnecting.
     saveDocument.mutate({
-      title: title?.trim(),
+      name: title?.trim(),
       content: contentForSave,
       featured_image_url: featuredImageUrl,
     });
@@ -722,7 +722,7 @@ export const DocumentDetailPage = () => {
   const pendingSavePayloadRef = useRef<{
     documentId: number;
     data: {
-      title?: string;
+      name?: string;
       content: Record<string, unknown>;
       featured_image_url: string | null;
     };
@@ -735,7 +735,7 @@ export const DocumentDetailPage = () => {
     pendingSavePayloadRef.current = {
       documentId: parsedId,
       data: {
-        title: title?.trim(),
+        name: title?.trim(),
         content: contentForSave,
         featured_image_url: featuredImageUrl,
       },
@@ -809,7 +809,7 @@ export const DocumentDetailPage = () => {
         e.preventDefault();
         if (!saveDocument.isPending) {
           saveDocument.mutate({
-            title: title?.trim(),
+            name: title?.trim(),
             content: contentForSave,
             featured_image_url: featuredImageUrl,
           });
@@ -902,7 +902,7 @@ export const DocumentDetailPage = () => {
       setFeaturedImageUrl(response.url);
       isAutosaveRef.current = true;
       saveDocument.mutate({
-        title: title?.trim(),
+        name: title?.trim(),
         content: contentForSave,
         featured_image_url: response.url,
       });
@@ -1040,13 +1040,13 @@ export const DocumentDetailPage = () => {
         <ToolBreadcrumb
           tool={Tool.document}
           initiativeId={document.initiative_id}
-          trail={[{ label: document.title }]}
+          trail={[{ label: document.name }]}
         />
         <div className="flex items-center gap-2">
           <DocumentExportMenu
             documentId={document.id}
             documentType={document.document_type}
-            title={document.title}
+            title={document.name}
             whiteboardScene={
               document.document_type === "whiteboard" && whiteboardSceneReady
                 ? whiteboardScene
@@ -1091,7 +1091,7 @@ export const DocumentDetailPage = () => {
               onClick={() => {
                 if (saveDocument.isPending) return;
                 saveDocument.mutate({
-                  title: title?.trim(),
+                  name: title?.trim(),
                   content: contentForSave,
                   featured_image_url: featuredImageUrl,
                 });
@@ -1219,7 +1219,7 @@ export const DocumentDetailPage = () => {
                                   setFeaturedImageUrl(null);
                                   isAutosaveRef.current = true;
                                   saveDocument.mutate({
-                                    title: title?.trim(),
+                                    name: title?.trim(),
                                     content: contentForSave,
                                     featured_image_url: null,
                                   });
@@ -1387,7 +1387,7 @@ export const DocumentDetailPage = () => {
                   onContentChange={(content) =>
                     handleContentChange(content as unknown as SerializedEditorState)
                   }
-                  documentTitle={title || document.title}
+                  documentTitle={title || document.name}
                   readOnly={!canEditDocument}
                   yDoc={collaborationEnabled && collaboration.isReady ? spreadsheetYDoc : null}
                   awareness={
@@ -1432,7 +1432,7 @@ export const DocumentDetailPage = () => {
                         type="button"
                         onClick={() =>
                           saveDocument.mutate({
-                            title: title?.trim(),
+                            name: title?.trim(),
                             content: contentForSave,
                             featured_image_url: featuredImageUrl,
                           })

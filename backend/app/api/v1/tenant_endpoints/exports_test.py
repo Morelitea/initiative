@@ -375,7 +375,7 @@ async def test_document_export_per_type_formats(
         session,
         a.initiative,
         a.user,
-        title="Notes",
+        name="Notes",
         content={"root": {"children": [], "type": "root"}},
     )
     resp = await export(native, "json")
@@ -393,7 +393,7 @@ async def test_document_export_per_type_formats(
         session,
         a.initiative,
         a.user,
-        title="Board",
+        name="Board",
         document_type=DocumentType.whiteboard,
         content={"elements": [{"type": "rectangle"}], "appState": {}, "files": {}},
     )
@@ -411,7 +411,7 @@ async def test_document_export_per_type_formats(
         session,
         a.initiative,
         a.user,
-        title="Design doc",
+        name="Design doc",
         document_type=DocumentType.smart_link,
         content={"url": "https://example.com/spec"},
     )
@@ -424,7 +424,7 @@ async def test_document_export_per_type_formats(
     # mismatched combos: an immediate 400, no job side effects
     for doc, bad in ((native, "csv"), (board, "md"), (link, "xlsx")):
         resp = await export(doc, bad)
-        assert resp.status_code == 400, (doc.title, bad)
+        assert resp.status_code == 400, (doc.name, bad)
         assert resp.json()["detail"] == "EXPORT_INVALID_FORMAT"
 
 
@@ -481,7 +481,7 @@ async def test_document_export_lexical_formats(
         }
     }
     doc = await create_document(
-        session, a.initiative, a.user, title="Rich Notes", content=content
+        session, a.initiative, a.user, name="Rich Notes", content=content
     )
 
     async def export(format):
@@ -530,7 +530,7 @@ async def test_document_export_lexical_md_plain_without_assets(
         session,
         a.initiative,
         a.user,
-        title="Plain",
+        name="Plain",
         content={
             "root": {
                 "type": "root",
@@ -568,7 +568,7 @@ async def test_document_export_spreadsheet_formats(
         session,
         a.initiative,
         a.user,
-        title="Budget: Q3",
+        name="Budget: Q3",
         document_type=DocumentType.spreadsheet,
         content={
             "schema_version": 2,
@@ -630,7 +630,7 @@ async def test_document_export_spreadsheet_formats(
     envelope = json.loads(json_resp.content)
     assert envelope["type"] == "initiative-document"
     assert envelope["document_type"] == "spreadsheet"
-    assert envelope["title"] == "Budget: Q3"
+    assert envelope["name"] == "Budget: Q3"
     assert envelope["content"] == sheet_doc.content
 
 
@@ -652,7 +652,7 @@ async def test_document_export_spreadsheet_survives_corrupt_snapshot(
         session,
         a.initiative,
         a.user,
-        title="Odd",
+        name="Odd",
         document_type=DocumentType.spreadsheet,
         content={
             "schema_version": 2,
@@ -692,7 +692,7 @@ async def test_document_export_file_passthrough(
         session,
         a.initiative,
         a.user,
-        title="Uploaded report",
+        name="Uploaded report",
         document_type=DocumentType.file,
         file_url=f"/uploads/{a.guild.id}/stored-abc123.pdf",
         original_filename="Q3 Report Final.pdf",
@@ -762,7 +762,7 @@ async def test_passthrough_exports_do_not_collide_by_filename(
             session,
             a.initiative,
             a.user,
-            title="report",
+            name="report",
             document_type=DocumentType.file,
             file_url=f"/uploads/{a.guild.id}/{blob_key}",
             original_filename="report.pdf",  # SAME name for both
@@ -800,7 +800,7 @@ async def test_document_export_hidden_outside_initiative(
     from app.testing.factories import create_document
 
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    doc = await create_document(session, a.initiative, a.user, title="Secret")
+    doc = await create_document(session, a.initiative, a.user, name="Secret")
     outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
     resp = await client.get(
         a.g("/exports/document"),
@@ -910,7 +910,7 @@ async def _queue_with_items(acting_user, session):
     )
     tag = await create_tag(session, a.guild, name="npc")
     session.add(QueueItemTag(queue_item_id=lurker.id, tag_id=tag.id))
-    doc = await create_document(session, a.initiative, a.user, title="Dungeon map")
+    doc = await create_document(session, a.initiative, a.user, name="Dungeon map")
     task = await create_task(session, a.project, title="Prep loot")
     session.add(
         QueueItemDocument(
@@ -1404,16 +1404,16 @@ async def test_bulk_document_selection_exports_as_zip(
     from app.testing.factories import create_document
 
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    native = await create_document(session, a.initiative, a.user, title="Session Notes")
+    native = await create_document(session, a.initiative, a.user, name="Session Notes")
     sheet = await create_document(
         session,
         a.initiative,
         a.user,
-        title="Budget",
+        name="Budget",
         document_type=DocumentType.spreadsheet,
         content={"schema_version": 2, "cells": {"0:0": "x"}},
     )
-    twin = await create_document(session, a.initiative, a.user, title="Session Notes")
+    twin = await create_document(session, a.initiative, a.user, name="Session Notes")
 
     resp = await client.get(
         a.g("/exports/document"),
@@ -1433,7 +1433,7 @@ async def test_bulk_document_selection_exports_as_zip(
     envelopes = [json.loads(archive.read(n)) for n in names]
     assert all(e["type"] == "initiative-document" for e in envelopes)
     assert {e["document_type"] for e in envelopes} == {"native", "spreadsheet"}
-    assert {e["title"] for e in envelopes} == {"Session Notes", "Budget"}
+    assert {e["name"] for e in envelopes} == {"Session Notes", "Budget"}
 
 
 async def test_bulk_document_selection_rejects_format_not_shared_by_all(
@@ -1446,12 +1446,12 @@ async def test_bulk_document_selection_rejects_format_not_shared_by_all(
     from app.testing.factories import create_document
 
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    native = await create_document(session, a.initiative, a.user, title="Notes")
+    native = await create_document(session, a.initiative, a.user, name="Notes")
     board = await create_document(
         session,
         a.initiative,
         a.user,
-        title="Map",
+        name="Map",
         document_type=DocumentType.whiteboard,
         content={"elements": []},
     )
@@ -1795,7 +1795,7 @@ async def test_smart_link_exports_importable_json_envelope(
         session,
         a.initiative,
         a.user,
-        title="Session zero notes",
+        name="Session zero notes",
         document_type=DocumentType.smart_link,
         content={"url": "https://example.com/notes"},
     )
@@ -1811,7 +1811,7 @@ async def test_smart_link_exports_importable_json_envelope(
         "type": "initiative-document",
         "schema_version": 1,
         "document_type": "smart_link",
-        "title": "Session zero notes",
+        "name": "Session zero notes",
         "content": {"url": "https://example.com/notes"},
         "tags": [],
         "properties": [],
@@ -1854,7 +1854,7 @@ async def test_document_envelope_carries_tags_and_properties(
         session,
         a.initiative,
         a.user,
-        title="Lore",
+        name="Lore",
         content={"root": {"children": [], "type": "root"}},
     )
     tag = await create_tag(session, a.guild, name="worldbuilding")
@@ -1905,7 +1905,7 @@ async def _populate_initiative(session, a, initiative):
     await _all_tools_enabled(session, initiative)
     project = await create_project(session, initiative, a.user, name="Main Arc")
     await create_task(session, project, title="Fell the tower")
-    await create_document(session, initiative, a.user, title="Campaign Notes")
+    await create_document(session, initiative, a.user, name="Campaign Notes")
     await create_queue(session, initiative, a.user, name="Turn Order")
     await create_counter_group(session, initiative, a.user, name="Party Gold")
     calendar = await create_calendar(session, initiative, a.user, name="Raid Nights")
@@ -1988,7 +1988,7 @@ async def test_initiative_backup_zip_layout_and_manifest(
     assert [t["title"] for t in project_env["tasks"]] == ["Fell the tower"]
     doc_env = json.loads(archive.read(by_type["initiative-document"]["path"]))
     assert doc_env["type"] == "initiative-document"
-    assert doc_env["title"] == "Campaign Notes"
+    assert doc_env["name"] == "Campaign Notes"
     calendar_env = json.loads(archive.read(by_type["initiative-calendar"]["path"]))
     assert calendar_env["name"] == "Raid Nights"
     assert [e["title"] for e in calendar_env["events"]] == ["Session Zero"]
@@ -2062,9 +2062,9 @@ async def test_aggregate_export_hides_dac_invisible_rows(
         initiative=a.initiative,
         initiative_role="member",
     )
-    await create_document(session, a.initiative, other.user, title="Their Secret")
+    await create_document(session, a.initiative, other.user, name="Their Secret")
     await create_queue(session, a.initiative, other.user, name="Their Queue")
-    await create_document(session, a.initiative, a.user, title="My Notes")
+    await create_document(session, a.initiative, a.user, name="My Notes")
 
     resp = await client.get(
         a.g("/exports/initiative"),
@@ -2159,7 +2159,7 @@ async def test_backup_uploads_toggle_and_asset_bundling(
         session,
         a.initiative,
         a.user,
-        title="Player Handout",
+        name="Player Handout",
         document_type=DocumentType.file,
         file_url=f"/uploads/{a.guild.id}/handout-xyz.pdf",
         original_filename="Player Handout.pdf",
@@ -2182,7 +2182,7 @@ async def test_backup_uploads_toggle_and_asset_bundling(
         session,
         a.initiative,
         a.user,
-        title="Illustrated Notes",
+        name="Illustrated Notes",
         content={
             "root": {
                 "type": "root",
@@ -2255,7 +2255,7 @@ async def test_backup_upload_byte_cap(
         session,
         a.initiative,
         a.user,
-        title="Big Map",
+        name="Big Map",
         document_type=DocumentType.file,
         file_url=f"/uploads/{a.guild.id}/big-map.png",
         original_filename="big-map.png",
@@ -2295,7 +2295,7 @@ async def test_backup_embedded_image_bytes_hit_cap_at_build(
         session,
         a.initiative,
         a.user,
-        title="Illustrated",
+        name="Illustrated",
         content={
             "root": {
                 "type": "root",
@@ -2446,7 +2446,7 @@ async def test_estimate_reports_counts_uploads_and_ceilings(
         session,
         a.initiative,
         a.user,
-        title="Attached file",
+        name="Attached file",
         document_type=DocumentType.file,
         file_url=f"/uploads/{a.guild.id}/est-blob.bin",
         original_filename="est-blob.bin",

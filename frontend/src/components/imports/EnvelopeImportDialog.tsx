@@ -210,7 +210,9 @@ export function EnvelopeImportDialog({
 
   const isSubmitting = importMutation.isPending;
   const canSubmit = !!envelope && !!initiativeId && !isSubmitting;
-  const envelopeTitle = envelope?.title ?? envelope?.name ?? "";
+  // Every tool's envelope names its entity `name`; document exports taken
+  // before the rename spelled it `title`, which the server still accepts.
+  const envelopeTitle = envelope?.name ?? envelope?.title ?? "";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

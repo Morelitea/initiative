@@ -35,9 +35,9 @@ import { hasWriteAccess } from "@/lib/permissions";
 import { toolDetailRoute, toolListRoute } from "@/lib/tools";
 
 /**
- * The slice of a tool's read schema this page needs. Queues, counter groups,
- * calendars, dashboards, and projects satisfy it as-is; documents map `title`
- * onto `name` in their wrapper.
+ * The slice of a tool's read schema this page needs. Every tool — queues,
+ * counter groups, calendars, dashboards, projects, and documents — satisfies
+ * it as-is.
  */
 export interface ToolSettingsEntity {
   id: number;
@@ -65,7 +65,7 @@ export interface ToolSettingsPageProps {
   /**
    * The rename/describe mutation. Omit it to drop the built-in details form —
    * projects save those fields through their own richer form, and a document's
-   * name is its title, edited in the editor.
+   * name is edited in the editor.
    */
   update?: ToolMutation<{ name?: string; description?: string | null }>;
   setGrants: ToolMutation<ResourceGrantSchema[]>;

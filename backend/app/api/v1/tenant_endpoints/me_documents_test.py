@@ -18,10 +18,10 @@ from app.testing import (
 )
 
 
-async def _create_document(client, actor, initiative, title="Test Doc"):
+async def _create_document(client, actor, initiative, name="Test Doc"):
     """Create a document via the API (sets created_by automatically)."""
     payload = {
-        "title": title,
+        "name": name,
         "initiative_id": initiative.id,
     }
     response = await client.post(
@@ -115,7 +115,7 @@ async def test_list_global_documents_guild_filter(
 
 @pytest.mark.integration
 async def test_list_global_documents_search(client: AsyncClient, acting_user):
-    """GET /me/documents with search should filter by document title."""
+    """GET /me/documents with search should filter by document name."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
 
     await _create_document(client, a, a.initiative, "Architecture Notes")
@@ -128,7 +128,7 @@ async def test_list_global_documents_search(client: AsyncClient, acting_user):
     assert response.status_code == 200
     items = response.json()["items"]
     assert len(items) == 1
-    assert items[0]["title"] == "Architecture Notes"
+    assert items[0]["name"] == "Architecture Notes"
 
 
 @pytest.mark.integration

@@ -165,7 +165,8 @@ const notificationText = (
       }
       return t("notifications.mentionDocument", {
         mentionedBy: data.mentioned_by_name ?? "Someone",
-        documentTitle: data.document_title ?? "a document",
+        // Notifications stored before the rename still carry `document_title`.
+        documentTitle: data.document_name ?? data.document_title ?? "a document",
       });
     case "comment_on_task":
       return t("notifications.commentOnTask", {
@@ -175,7 +176,8 @@ const notificationText = (
     case "comment_on_document":
       return t("notifications.commentOnDocument", {
         commenterName: data.commenter_name ?? "Someone",
-        documentTitle: data.document_title ?? "your document",
+        // Notifications stored before the rename still carry `document_title`.
+        documentTitle: data.document_name ?? data.document_title ?? "your document",
       });
     case "comment_reply":
       return t("notifications.commentReply", {

@@ -357,7 +357,7 @@ async def notify_document_mention(
     mentioned_user: User,
     mentioned_by: User,
     document_id: int,
-    document_title: str,
+    document_name: str,
     guild_id: int,
 ) -> None:
     """Notify a user they were mentioned in a document."""
@@ -374,7 +374,7 @@ async def notify_document_mention(
         notification_type=NotificationType.mention,
         data={
             "document_id": document_id,
-            "document_title": document_title,
+            "document_name": document_name,
             "mentioned_by_name": mentioned_by_name,
             "mentioned_by_id": mentioned_by.id,
             "guild_id": guild_id,
@@ -391,7 +391,7 @@ async def notify_document_mention(
                 subject=email_t(
                     "mention.document.subject",
                     locale,
-                    document=document_title,
+                    document=document_name,
                     escape=False,
                 ),
                 headline=email_t("mention.document.title", locale),
@@ -399,7 +399,7 @@ async def notify_document_mention(
                     "mention.document.body",
                     locale,
                     actor=mentioned_by_name,
-                    document=document_title,
+                    document=document_name,
                 ),
                 link=smart_link,
             )
@@ -422,7 +422,7 @@ async def notify_document_mention(
                     "mention.document.body",
                     locale,
                     actor=mentioned_by_name,
-                    document=document_title,
+                    document=document_name,
                 ),
                 data={
                     "type": "mention",
@@ -713,7 +713,7 @@ async def notify_comment_on_document(
     commenter: User,
     comment_id: int,
     document_id: int,
-    document_title: str,
+    document_name: str,
     guild_id: int,
 ) -> None:
     """Notify document author that someone commented on their document."""
@@ -733,7 +733,7 @@ async def notify_comment_on_document(
         data={
             "comment_id": comment_id,
             "document_id": document_id,
-            "document_title": document_title,
+            "document_name": document_name,
             "commenter_name": commenter_name,
             "commenter_id": commenter.id,
             "guild_id": guild_id,
@@ -750,7 +750,7 @@ async def notify_comment_on_document(
                 subject=email_t(
                     "comment.onDocument.subject",
                     locale,
-                    document=document_title,
+                    document=document_name,
                     escape=False,
                 ),
                 headline=email_t("comment.onDocument.title", locale),
@@ -758,7 +758,7 @@ async def notify_comment_on_document(
                     "comment.onDocument.body",
                     locale,
                     actor=commenter_name,
-                    document=document_title,
+                    document=document_name,
                 ),
                 link=smart_link,
             )
@@ -780,7 +780,7 @@ async def notify_comment_on_document(
                     "comment.onDocument.body",
                     locale,
                     actor=commenter_name,
-                    document=document_title,
+                    document=document_name,
                 ),
                 data={
                     "type": "comment_on_document",

@@ -82,7 +82,7 @@ class RecentActivityEntry(SanitizedBaseModel):
     task_id: Optional[int] = None
     task_title: Optional[str] = None
     document_id: Optional[int] = None
-    document_title: Optional[str] = None
+    document_name: Optional[str] = None
     project_id: Optional[int] = None
     project_name: Optional[str] = None
     # The initiative the commented-on entity lives in, so the row can link at

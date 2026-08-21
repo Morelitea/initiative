@@ -136,9 +136,9 @@ export const useInitiativeDocuments = (
 };
 
 /**
- * Title typeahead over an initiative's documents, for pickers.
+ * Name typeahead over an initiative's documents, for pickers.
  *
- * Returns a small page of slim ``{id, title}`` rows from the server rather
+ * Returns a small page of slim ``{id, name}`` rows from the server rather
  * than the whole collection, so a picker's cost tracks what the user typed.
  * Pass ``enabled: false`` until the picker is open.
  */
@@ -158,7 +158,7 @@ export const useDocumentAutocomplete = (
 };
 
 /**
- * Guild-wide title typeahead over template documents, for the template pickers.
+ * Guild-wide name typeahead over template documents, for the template pickers.
  *
  * Templates are picked across initiatives, so this deliberately isn't scoped to
  * one — but it's still a bounded, server-filtered page rather than a walk of
@@ -276,7 +276,7 @@ const applyDocumentGrants = async (
 };
 
 export type CreateDocumentInput = {
-  title: string;
+  name: string;
   initiative_id: number;
   is_template?: boolean;
   template_id?: number;
@@ -298,7 +298,7 @@ export const useCreateDocument = (options?: MutationOpts<DocumentRead, CreateDoc
     ...rest,
     mutationFn: async (data: CreateDocumentInput) => {
       const {
-        title,
+        name,
         initiative_id,
         is_template,
         template_id,
@@ -317,7 +317,7 @@ export const useCreateDocument = (options?: MutationOpts<DocumentRead, CreateDoc
           template_id,
           {
             target_initiative_id: initiative_id,
-            title,
+            name,
           }
         );
         // Template copy can't carry grants in payload — apply separately
@@ -328,7 +328,7 @@ export const useCreateDocument = (options?: MutationOpts<DocumentRead, CreateDoc
       } else {
         // Direct create — pass grants in the payload (backend handles them)
         const payload: DocumentCreate = {
-          title,
+          name,
           initiative_id,
           is_template: is_template ?? false,
           ...(document_type ? { document_type } : {}),
@@ -367,7 +367,7 @@ export const useCreateDocument = (options?: MutationOpts<DocumentRead, CreateDoc
 
 export type UploadDocumentInput = {
   file: Blob;
-  title: string;
+  name: string;
   initiative_id: number;
   project_id?: number;
   /** Full non-owner sharing state for the uploaded document. */
@@ -382,11 +382,11 @@ export const useUploadDocument = (options?: MutationOpts<DocumentRead, UploadDoc
   return useMutation({
     ...rest,
     mutationFn: async (data: UploadDocumentInput) => {
-      const { file, title, initiative_id, project_id, grants = [] } = data;
+      const { file, name, initiative_id, project_id, grants = [] } = data;
 
       const uploadBody: BodyUploadDocumentFileApiV1GGuildIdDocumentsUploadPost = {
         file,
-        title,
+        name,
         initiative_id,
       };
       const newDocument = await uploadDocumentFileApiV1GGuildIdDocumentsUploadPost(
@@ -599,7 +599,7 @@ export const useDeleteDocuments = (
 };
 
 export const useCopyDocument = (
-  options?: MutationOpts<DocumentRead[], { id: number; initiative_id: number; title: string }[]>
+  options?: MutationOpts<DocumentRead[], { id: number; initiative_id: number; name: string }[]>
 ) => {
   const { t } = useTranslation("documents");
   const guildId = useActiveGuildId();
@@ -607,12 +607,12 @@ export const useCopyDocument = (
 
   return useMutation({
     ...rest,
-    mutationFn: async (documents: { id: number; initiative_id: number; title: string }[]) => {
+    mutationFn: async (documents: { id: number; initiative_id: number; name: string }[]) => {
       const results = await Promise.all(
         documents.map((doc) =>
           copyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPost(guildId, doc.id, {
             target_initiative_id: doc.initiative_id,
-            title: `${doc.title} (copy)`,
+            name: `${doc.name} (copy)`,
           })
         )
       );
@@ -635,13 +635,13 @@ export const useCopyDocument = (
 
 export const useDuplicateDocument = (
   documentId: number,
-  options?: MutationOpts<DocumentRead, { title: string }>
+  options?: MutationOpts<DocumentRead, { name: string }>
 ) =>
-  useGuildMutation<DocumentRead, { title: string }>(
+  useGuildMutation<DocumentRead, { name: string }>(
     {
-      mutationFn: (guildId, { title }) =>
+      mutationFn: (guildId, { name }) =>
         duplicateDocumentApiV1GGuildIdDocumentsDocumentIdDuplicatePost(guildId, documentId, {
-          title,
+          name,
         }),
       invalidate: () => invalidateAllDocuments(),
     },
@@ -650,9 +650,9 @@ export const useDuplicateDocument = (
 
 export const useCopyDocumentToInitiative = (
   documentId: number,
-  options?: MutationOpts<DocumentRead, { target_initiative_id: number; title: string }>
+  options?: MutationOpts<DocumentRead, { target_initiative_id: number; name: string }>
 ) =>
-  useGuildMutation<DocumentRead, { target_initiative_id: number; title: string }>(
+  useGuildMutation<DocumentRead, { target_initiative_id: number; name: string }>(
     {
       mutationFn: (guildId, data) =>
         copyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPost(guildId, documentId, data),

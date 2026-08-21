@@ -236,7 +236,7 @@ describe("GuildHomePage", () => {
     stubInitiatives();
     stubTools({
       documents: [
-        buildDocumentSummary({ id: 5, title: "Flight Rules", initiative_id: INITIATIVE_ID }),
+        buildDocumentSummary({ id: 5, name: "Flight Rules", initiative_id: INITIATIVE_ID }),
       ],
     });
 

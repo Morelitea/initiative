@@ -32,7 +32,7 @@ async def test_initiative_removal_ends_document_access(
     response = await client.post(
         admin.g("/documents/"),
         headers=admin_headers,
-        json={"title": "Shared Doc", "initiative_id": initiative.id},
+        json={"name": "Shared Doc", "initiative_id": initiative.id},
     )
     assert response.status_code == 201
     doc_id = response.json()["id"]

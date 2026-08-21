@@ -372,7 +372,7 @@ async def get_tag_entities(
     document_summaries = [
         TaggedDocumentSummary(
             id=doc.id,
-            title=doc.title,
+            name=doc.name,
             initiative_id=doc.initiative_id,
             initiative_name=doc.initiative.name if doc.initiative else None,
         )

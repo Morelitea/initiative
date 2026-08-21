@@ -13,9 +13,9 @@ export const MAX_DOCUMENT_IDS = 100;
 export type { DocumentAutocomplete };
 
 /**
- * Search documents by title for typeahead pickers.
+ * Search documents by name for typeahead pickers.
  *
- * Returns lightweight document info (id, title, updated_at, document_type).
+ * Returns lightweight document info (id, name, updated_at, document_type).
  * Pass `initiative_id` to scope to one initiative, or omit it to search the
  * whole guild — templates are picked guild-wide.
  */

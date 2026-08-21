@@ -75,7 +75,7 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
   [Tool.document]: {
     useHeading: () => useGroupHeading(Tool.document),
     useItems: ({ enabled, search }) => {
-      // Default to the 25 most recently updated; swap to a server-side title
+      // Default to the 25 most recently updated; swap to a server-side name
       // search once the input has ≥2 characters.
       const query = useDocumentsList(
         { page_size: 25, ...(search ? { search } : {}) },
@@ -94,7 +94,7 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
         );
         return {
           id: doc.id,
-          label: doc.title,
+          label: doc.name,
           keywords: [doc.initiative?.name ?? "", ...(doc.tags?.map((tag) => tag.name) ?? [])],
           icon: <DocIcon className={cn(color)} />,
           path: `${toolListRoute(Tool.document)}/${doc.id}`,

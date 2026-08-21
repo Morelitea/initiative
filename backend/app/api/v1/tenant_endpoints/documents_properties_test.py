@@ -305,8 +305,8 @@ async def test_list_documents_property_filter_text_eq(
         session, a.initiative, name="Tag", type=PropertyType.text
     )
 
-    doc_match = await create_document(session, a.initiative, a.user, title="Match")
-    doc_other = await create_document(session, a.initiative, a.user, title="Other")
+    doc_match = await create_document(session, a.initiative, a.user, name="Match")
+    doc_other = await create_document(session, a.initiative, a.user, name="Other")
 
     await client.put(
         a.g(f"/documents/{doc_match.id}/properties"),
@@ -341,9 +341,9 @@ async def test_list_documents_property_filter_number_eq(
     )
 
     docs = [
-        await create_document(session, a.initiative, a.user, title="D1"),
-        await create_document(session, a.initiative, a.user, title="D2"),
-        await create_document(session, a.initiative, a.user, title="D3"),
+        await create_document(session, a.initiative, a.user, name="D1"),
+        await create_document(session, a.initiative, a.user, name="D2"),
+        await create_document(session, a.initiative, a.user, name="D3"),
     ]
 
     for doc, score in zip(docs, [10, 20, 30]):
@@ -384,8 +384,8 @@ async def test_list_documents_property_filter_multi_select_contains(
         ],
     )
 
-    doc_with_alpha = await create_document(session, a.initiative, a.user, title="A")
-    doc_no_alpha = await create_document(session, a.initiative, a.user, title="N")
+    doc_with_alpha = await create_document(session, a.initiative, a.user, name="A")
+    doc_no_alpha = await create_document(session, a.initiative, a.user, name="N")
 
     await client.put(
         a.g(f"/documents/{doc_with_alpha.id}/properties"),
@@ -453,7 +453,7 @@ async def test_duplicate_document_same_initiative_carries_property_values(
     """Duplicating a document in place (same initiative) copies its values."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
 
-    doc = await create_document(session, a.initiative, a.user, title="Src")
+    doc = await create_document(session, a.initiative, a.user, name="Src")
     defn = await create_property_definition(
         session, a.initiative, name="Tag", type=PropertyType.text
     )
@@ -467,7 +467,7 @@ async def test_duplicate_document_same_initiative_carries_property_values(
     response = await client.post(
         a.g(f"/documents/{doc.id}/duplicate"),
         headers=a.headers,
-        json={"title": "Dup"},
+        json={"name": "Dup"},
     )
     assert response.status_code == 201
     dup = response.json()
@@ -494,7 +494,7 @@ async def test_copy_document_cross_initiative_drops_property_values(
     init_a = a.initiative
     init_b = await create_initiative(session, a.guild, a.user, name="B")
 
-    doc = await create_document(session, init_a, a.user, title="Src")
+    doc = await create_document(session, init_a, a.user, name="Src")
     defn = await create_property_definition(
         session, init_a, name="Tag", type=PropertyType.text
     )
@@ -508,7 +508,7 @@ async def test_copy_document_cross_initiative_drops_property_values(
     response = await client.post(
         a.g(f"/documents/{doc.id}/copy"),
         headers=a.headers,
-        json={"title": "Copied", "target_initiative_id": init_b.id},
+        json={"name": "Copied", "target_initiative_id": init_b.id},
     )
     assert response.status_code == 201
     copied = response.json()
