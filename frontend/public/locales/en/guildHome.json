@@ -47,6 +47,7 @@
     "unknownAuthor": "Unknown",
     "onTask": "on {{taskTitle}}",
     "onDocument": "on {{documentTitle}}",
+    "onEntity": "on {{entityName}}",
     "inProject": "in {{projectName}}"
   }
 }

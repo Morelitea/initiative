@@ -207,6 +207,60 @@ describe("GuildHomePage", () => {
     );
   });
 
+  it("links a comment left on a tool entity to that entity", async () => {
+    stubInitiatives({ queues_enabled: true });
+    stubTools({ queues: [] });
+    server.use(
+      guildHttp.get("/comments/recent", () =>
+        HttpResponse.json([
+          buildRecentActivityEntry({
+            comment_id: 12,
+            content: "Order looks wrong",
+            entity_type: "queue",
+            entity_id: 8,
+            entity_name: "Combat Order",
+            initiative_id: 5,
+          }),
+        ])
+      )
+    );
+
+    renderHome({ tool: "queues" });
+
+    expect(await screen.findByText("on Combat Order")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Order looks wrong/ })).toHaveAttribute(
+      "href",
+      "/g/1/i/5/queues/8"
+    );
+  });
+
+  it("addresses a guild-level calendar's comment at the guild route", async () => {
+    stubInitiatives({ calendars_enabled: true });
+    stubTools();
+    server.use(
+      guildHttp.get("/comments/recent", () =>
+        HttpResponse.json([
+          buildRecentActivityEntry({
+            comment_id: 13,
+            content: "Moving this to Thursday",
+            entity_type: "calendar",
+            entity_id: 3,
+            entity_name: "Club Nights",
+            initiative_id: null,
+          }),
+        ])
+      )
+    );
+
+    renderHome();
+
+    expect(await screen.findByText("on Club Nights")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Moving this to Thursday/ })).toHaveAttribute(
+      "href",
+      "/g/1/calendars/3"
+    );
+  });
+
   it("keeps the comment feed while the rail switches tools", async () => {
     stubInitiatives({ queues_enabled: true });
     stubTools({ queues: [] });

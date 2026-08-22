@@ -100,6 +100,13 @@ def _project_target_path(project_id: int | None) -> str:
     return _entity_ref_path("project", project_id)
 
 
+def _tool_target_path(entity_type: str, entity_id: int) -> str:
+    """A tool entity's reference path — the ref type is the tool's kebab
+    singular (``counter_group`` → ``counter-group``), which is what the
+    client's resolver speaks."""
+    return _entity_ref_path(entity_type.replace("_", "-"), entity_id)
+
+
 def _event_target_path(event_id: int | None) -> str:
     if event_id is None:
         return "/"
@@ -462,8 +469,12 @@ async def notify_comment_mention(
     document_id: int | None,
     context_title: str,
     guild_id: int,
+    entity_type: str | None = None,
+    entity_id: int | None = None,
 ) -> None:
-    """Notify a user they were mentioned in a comment."""
+    """Notify a user they were mentioned in a comment. ``entity_type``/
+    ``entity_id`` name the parent when it is a tool entity other than a
+    document (a project, queue, counter group, calendar, or dashboard)."""
     if mentioned_user.id == mentioned_by.id:
         return
 
@@ -471,6 +482,8 @@ async def notify_comment_mention(
         target_path = _task_target_path(task_id, None)
     elif document_id:
         target_path = _document_target_path(document_id)
+    elif entity_type and entity_id:
+        target_path = _tool_target_path(entity_type, entity_id)
     else:
         return
 
@@ -487,6 +500,8 @@ async def notify_comment_mention(
             "comment_id": comment_id,
             "task_id": task_id,
             "document_id": document_id,
+            "entity_type": entity_type,
+            "entity_id": entity_id,
             "context_title": context_title,
             "mentioned_by_name": mentioned_by_name,
             "mentioned_by_id": mentioned_by.id,
@@ -557,6 +572,8 @@ async def notify_task_mentioned_in_comment(
     context_document_id: int | None,
     context_title: str,
     guild_id: int,
+    context_entity_type: str | None = None,
+    context_entity_id: int | None = None,
 ) -> None:
     """Notify task assignee that their task was mentioned in a comment."""
     if assignee.id == mentioned_by.id:
@@ -566,6 +583,8 @@ async def notify_task_mentioned_in_comment(
         target_path = _task_target_path(context_task_id, None)
     elif context_document_id:
         target_path = _document_target_path(context_document_id)
+    elif context_entity_type and context_entity_id:
+        target_path = _tool_target_path(context_entity_type, context_entity_id)
     else:
         return
 
@@ -584,6 +603,8 @@ async def notify_task_mentioned_in_comment(
             "mentioned_task_title": mentioned_task_title,
             "context_task_id": context_task_id,
             "context_document_id": context_document_id,
+            "context_entity_type": context_entity_type,
+            "context_entity_id": context_entity_id,
             "context_title": context_title,
             "mentioned_by_name": mentioned_by_name,
             "mentioned_by_id": mentioned_by.id,
@@ -723,34 +744,40 @@ async def notify_comment_on_task(
             logger.error(f"Failed to send push notification: {exc}", exc_info=True)
 
 
-async def notify_comment_on_document(
+async def notify_comment_on_resource(
     session: AsyncSession,
     *,
-    author: User,
+    owner: User,
     commenter: User,
     comment_id: int,
-    document_id: int,
-    document_name: str,
+    entity_type: str,
+    entity_id: int,
+    entity_name: str,
     guild_id: int,
 ) -> None:
-    """Notify document author that someone commented on their document."""
-    if author.id == commenter.id:
+    """Notify a tool entity's creator that someone commented on it.
+
+    One notification for every tool parent — project, document, queue,
+    counter group, calendar, dashboard. ``entity_type`` is the Tool value.
+    """
+    if owner.id == commenter.id:
         return
 
-    target_path = _document_target_path(document_id)
+    target_path = _tool_target_path(entity_type, entity_id)
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
     commenter_name = commenter.full_name or commenter.email
-    locale = _recipient_locale(author)
+    locale = _recipient_locale(owner)
 
     # Always create in-app notification
     await user_notifications.create_notification(
         session,
-        user_id=author.id,
-        notification_type=NotificationType.comment_on_document,
+        user_id=owner.id,
+        notification_type=NotificationType.comment_on_resource,
         data={
             "comment_id": comment_id,
-            "document_id": document_id,
-            "document_name": document_name,
+            "entity_type": entity_type,
+            "entity_id": entity_id,
+            "entity_name": entity_name,
             "commenter_name": commenter_name,
             "commenter_id": commenter.id,
             "guild_id": guild_id,
@@ -759,50 +786,51 @@ async def notify_comment_on_document(
         },
     )
     # Email
-    if getattr(author, "email_mentions", True) is not False:
+    if getattr(owner, "email_mentions", True) is not False:
         try:
             await email_service.send_mention_email(
                 session,
-                author,
+                owner,
                 subject=email_t(
-                    "comment.onDocument.subject",
+                    "comment.onResource.subject",
                     locale,
-                    document=document_name,
+                    context=entity_name,
                     escape=False,
                 ),
-                headline=email_t("comment.onDocument.title", locale),
+                headline=email_t("comment.onResource.title", locale),
                 body_text=email_t(
-                    "comment.onDocument.body",
+                    "comment.onResource.body",
                     locale,
                     actor=commenter_name,
-                    document=document_name,
+                    context=entity_name,
                 ),
                 link=smart_link,
             )
         except email_service.EmailNotConfiguredError:
             logger.warning(
-                "SMTP not configured; skipping comment email for %s", author.email
+                "SMTP not configured; skipping comment email for %s", owner.email
             )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send comment email: %s", exc)
     # Push notification
-    if getattr(author, "push_mentions", True) is not False:
+    if getattr(owner, "push_mentions", True) is not False:
         try:
             await push_notifications.send_push_to_user(
                 session=session,
-                user_id=author.id,
-                notification_type=NotificationType.comment_on_document,
-                title=_nt("comment.onDocument.title", locale),
+                user_id=owner.id,
+                notification_type=NotificationType.comment_on_resource,
+                title=_nt("comment.onResource.title", locale),
                 body=_nt(
-                    "comment.onDocument.body",
+                    "comment.onResource.body",
                     locale,
                     actor=commenter_name,
-                    document=document_name,
+                    context=entity_name,
                 ),
                 data={
-                    "type": "comment_on_document",
+                    "type": "comment_on_resource",
                     "comment_id": str(comment_id),
-                    "document_id": str(document_id),
+                    "entity_type": entity_type,
+                    "entity_id": str(entity_id),
                     "guild_id": str(guild_id),
                     "target_path": target_path,
                 },
@@ -821,6 +849,8 @@ async def notify_comment_reply(
     document_id: int | None,
     context_title: str,
     guild_id: int,
+    entity_type: str | None = None,
+    entity_id: int | None = None,
 ) -> None:
     """Notify parent comment author that someone replied to their comment."""
     if parent_author.id == replier.id:
@@ -830,6 +860,8 @@ async def notify_comment_reply(
         target_path = _task_target_path(task_id, None)
     elif document_id:
         target_path = _document_target_path(document_id)
+    elif entity_type and entity_id:
+        target_path = _tool_target_path(entity_type, entity_id)
     else:
         return
 
@@ -846,6 +878,8 @@ async def notify_comment_reply(
             "comment_id": comment_id,
             "task_id": task_id,
             "document_id": document_id,
+            "entity_type": entity_type,
+            "entity_id": entity_id,
             "context_title": context_title,
             "replier_name": replier_name,
             "replier_id": replier.id,

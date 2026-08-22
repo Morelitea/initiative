@@ -77,10 +77,10 @@
       "title": "Nuevo comentario en tu tarea",
       "body": "<strong>{{actor}}</strong> comentó en <strong>{{task}}</strong>"
     },
-    "onDocument": {
-      "subject": "Nuevo comentario en {{document}}",
-      "title": "Nuevo comentario en tu documento",
-      "body": "<strong>{{actor}}</strong> comentó en <strong>{{document}}</strong>"
+    "onResource": {
+      "subject": "Nuevo comentario en {{context}}",
+      "title": "Nuevo comentario",
+      "body": "<strong>{{actor}}</strong> comentó en <strong>{{context}}</strong>"
     },
     "reply": {
       "subject": "Respuesta a tu comentario",

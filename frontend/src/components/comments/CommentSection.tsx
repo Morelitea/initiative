@@ -2,7 +2,7 @@ import { HelpCircle, MessageSquarePlus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { CommentRead } from "@/api/generated/initiativeAPI.schemas";
+import type { CommentCreate, CommentRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { useAuth } from "@/hooks/useAuth";
@@ -17,7 +17,9 @@ export interface CommentWithReplies extends CommentRead {
   replies: CommentWithReplies[];
 }
 
-type CommentEntity = "task" | "document";
+/** What a comment thread hangs off: any tool entity, plus tasks (a project's
+ *  child, not a tool of its own). */
+export type CommentEntity = "task" | Tool;
 
 interface CommentSectionProps {
   entityType: CommentEntity;
@@ -30,13 +32,6 @@ interface CommentSectionProps {
   isLoading?: boolean;
   canModerate?: boolean;
   initiativeId: number;
-}
-
-interface CommentPayload {
-  content: string;
-  task_id?: number;
-  document_id?: number;
-  parent_comment_id?: number;
 }
 
 // Build comment tree from flat list
@@ -129,15 +124,13 @@ export const CommentSection = ({
     return map;
   }, [comments]);
 
-  const buildPayload = (commentBody: string, parentCommentId?: number): CommentPayload => {
-    const payload: CommentPayload = {
+  // Each entity kind carries its id under its own `<entity>_id` field, and a
+  // comment names exactly one.
+  const buildPayload = (commentBody: string, parentCommentId?: number): CommentCreate => {
+    const payload: CommentCreate = {
       content: commentBody,
     };
-    if (entityType === "task") {
-      payload.task_id = entityId;
-    } else {
-      payload.document_id = entityId;
-    }
+    payload[`${entityType}_id`] = entityId;
     if (parentCommentId) {
       payload.parent_comment_id = parentCommentId;
     }

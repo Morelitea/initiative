@@ -9,6 +9,7 @@ import {
   invalidateProject,
   invalidateProjectTaskStatuses,
 } from "@/api/query-keys";
+import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { ProjectDocumentsSection } from "@/components/projects/ProjectDocumentsSection";
 import { ProjectOverviewCard } from "@/components/projects/ProjectOverviewCard";
@@ -218,6 +219,12 @@ export const ProjectDetailPage = () => {
           onTaskClick={handleTaskClick}
           initialComposerOpen={searchParams.create === "true"}
           onComposerOpenChange={handleComposerOpenChange}
+        />
+        <ToolCommentsPanel
+          entityType={Tool.project}
+          entityId={project.id}
+          initiativeId={project.initiative_id}
+          canModerate={hasWritePermission}
         />
       </div>
     </PullToRefresh>

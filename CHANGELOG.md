@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Every tool has a comment thread.** Comments — previously only on tasks and documents — now live on projects, queues, counter groups, calendars, and dashboards too, guild calendars included. Whoever can see a thing can read and join its discussion, replies and @mentions work everywhere, the guild's recent activity feed carries the new threads, and the thing's creator is notified when someone comments.
+
 ### Changed
 
 - **Tool lists have one control row on a phone.** A project or document list used to stack the create button, the import menu, the view toggle, a "Show filters" header and a lone Select button into four separate rows before the first card — on a phone the list started below the fold. Those controls now share a single row that stays put as you scroll: what's shown on the left, then filters, the view toggle, and an overflow menu holding import and Select. The filter panel starts closed and opens from the button — in a sheet from the bottom on a phone, rather than pushing the list down — and that button carries a count so a narrowed list still says so while the panel is shut. A Clear all button sits in the panel at every screen size, inactive when there is nothing to clear. Every list works this way — projects, documents, queues, counters, calendars and dashboards, a project's task list, a tag's tasks, and the cross-guild My Tasks, My Projects, My Documents and My Calendar. The create button drops out on narrow screens, where the floating add button already does the same job. An initiative's header shrinks to its name and settings gear with the description, badges and counts one tap away under Details, and a project card no longer repeats the initiative name on every card of that initiative's own list.

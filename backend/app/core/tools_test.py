@@ -136,6 +136,31 @@ def test_every_tool_is_taggable():
     assert {t.value for t in TagTarget} == set(TAG_TARGETS)
 
 
+def test_every_tool_is_commentable():
+    # Comments span EVERY tool plus the task: the service registry, the
+    # comments table's parent FKs, the RLS parent declaration, and the create
+    # schema's target fields all agree. A new tool that forgets its
+    # CommentTarget fails here.
+    from sqlalchemy import inspect as sa_inspect
+
+    from app.db.initiative_rls import _COMMENT_PARENTS
+    from app.models.tenant.comment import Comment
+    from app.schemas.tenant.comment import COMMENT_TARGET_FIELDS
+    from app.services.tenant.comments import (
+        COMMENT_PARENT_COLUMNS,
+        TOOL_COMMENT_TARGETS,
+    )
+
+    assert set(TOOL_COMMENT_TARGETS) == set(Tool)
+    assert set(COMMENT_PARENT_COLUMNS) == {"task_id"} | {f"{t.value}_id" for t in Tool}
+
+    model_columns = {c.name for c in sa_inspect(Comment).persist_selectable.columns}
+    assert set(COMMENT_PARENT_COLUMNS) <= model_columns
+
+    assert {col for col, *_ in _COMMENT_PARENTS} == set(COMMENT_PARENT_COLUMNS)
+    assert set(COMMENT_TARGET_FIELDS) == set(COMMENT_PARENT_COLUMNS)
+
+
 def test_tag_link_specs_carry_the_uniform_contract():
     # Every taggable entity honors the structural contract everything derives
     # from: an ``entity.tag_links`` relationship to its junction, a

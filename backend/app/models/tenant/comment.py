@@ -12,9 +12,12 @@ class Comment(CreatedByMixin, SoftDeleteMixin, table=True):
     __tablename__ = "comments"
     _display_field = "content"
     __table_args__ = (
+        # A comment hangs off exactly ONE parent: a task, or one tool entity
+        # (document, project, queue, counter group, calendar, dashboard).
         CheckConstraint(
-            "(task_id IS NULL) <> (document_id IS NULL)",
-            name="ck_comments_task_or_document",
+            "num_nonnulls(task_id, document_id, project_id, queue_id, "
+            "counter_group_id, calendar_id, dashboard_id) = 1",
+            name="ck_comments_single_parent",
         ),
     )
     # Comment authorship is intentionally NOT reassignable on restore.
@@ -44,6 +47,40 @@ class Comment(CreatedByMixin, SoftDeleteMixin, table=True):
         default=None,
         sa_column=Column(
             Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=True
+        ),
+    )
+    # Tool-entity parents: every Tool is commentable (drift-tested against the
+    # enum in comments_test), one nullable FK per tool alongside the original
+    # task/document pair. ``project_id`` means a comment ON the project itself;
+    # a task comment reports its task's project through the read schema only.
+    project_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=True
+        ),
+    )
+    queue_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer, ForeignKey("queues.id", ondelete="CASCADE"), nullable=True
+        ),
+    )
+    counter_group_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer, ForeignKey("counter_groups.id", ondelete="CASCADE"), nullable=True
+        ),
+    )
+    calendar_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer, ForeignKey("calendars.id", ondelete="CASCADE"), nullable=True
+        ),
+    )
+    dashboard_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer, ForeignKey("dashboards.id", ondelete="CASCADE"), nullable=True
         ),
     )
     parent_comment_id: Optional[int] = Field(

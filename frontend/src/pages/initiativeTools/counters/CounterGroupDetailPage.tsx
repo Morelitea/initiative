@@ -28,6 +28,7 @@ import { useTranslation } from "react-i18next";
 
 import type { CounterRead } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { ExportButton } from "@/components/exports/ExportButton";
 import { TOOL_EXPORT_FORMATS } from "@/components/exports/formats";
 import { CounterFormDialog } from "@/components/initiativeTools/counters/CounterFormDialog";
@@ -354,6 +355,13 @@ export function CounterGroupDetailPage() {
           </SortableContext>
         </DndContext>
       )}
+
+      <ToolCommentsPanel
+        entityType={Tool.counter_group}
+        entityId={group.id}
+        initiativeId={group.initiative_id ?? 0}
+        canModerate={!!canWrite}
+      />
 
       {canWrite && (
         <CounterFormDialog

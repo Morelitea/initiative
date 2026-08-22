@@ -1237,6 +1237,11 @@ export interface CommentCreate {
   content: string;
   task_id?: number | null;
   document_id?: number | null;
+  project_id?: number | null;
+  queue_id?: number | null;
+  counter_group_id?: number | null;
+  calendar_id?: number | null;
+  dashboard_id?: number | null;
   parent_comment_id?: number | null;
 }
 
@@ -1246,6 +1251,10 @@ export interface CommentRead {
   created_by: number;
   task_id: number | null;
   document_id: number | null;
+  queue_id: number | null;
+  counter_group_id: number | null;
+  calendar_id: number | null;
+  dashboard_id: number | null;
   parent_comment_id: number | null;
   created_at: string;
   updated_at: string | null;
@@ -2794,7 +2803,7 @@ export const NotificationType = {
   user_pending_approval: "user_pending_approval",
   mention: "mention",
   comment_on_task: "comment_on_task",
-  comment_on_document: "comment_on_document",
+  comment_on_resource: "comment_on_resource",
   comment_reply: "comment_reply",
   access_grant_requested: "access_grant_requested",
   access_grant_approved: "access_grant_approved",
@@ -3470,6 +3479,9 @@ export interface RecentActivityEntry {
   document_name?: string | null;
   project_id?: number | null;
   project_name?: string | null;
+  entity_type?: string | null;
+  entity_id?: number | null;
+  entity_name?: string | null;
   initiative_id?: number | null;
 }
 
@@ -4937,6 +4949,11 @@ export type ArchiveDoneTasksApiV1GGuildIdTasksArchiveDonePostParams = {
 export type ListCommentsApiV1GGuildIdCommentsGetParams = {
   task_id?: number | null;
   document_id?: number | null;
+  project_id?: number | null;
+  queue_id?: number | null;
+  counter_group_id?: number | null;
+  calendar_id?: number | null;
+  dashboard_id?: number | null;
 };
 
 export type RecentCommentsApiV1GGuildIdCommentsRecentGetParams = {

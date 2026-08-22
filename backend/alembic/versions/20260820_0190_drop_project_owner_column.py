@@ -81,7 +81,7 @@ UPDATE projects p
           FROM public.guild_memberships gm
          WHERE gm.guild_id = p.guild_id
            AND gm.role = 'admin'
-         ORDER BY gm.created_at ASC, gm.user_id ASC
+         ORDER BY gm.joined_at ASC, gm.user_id ASC
          LIMIT 1
    )
  WHERE p.owner_id IS NULL

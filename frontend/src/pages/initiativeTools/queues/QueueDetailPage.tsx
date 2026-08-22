@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import type { QueueItemRead } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { ExportButton } from "@/components/exports/ExportButton";
 import { TOOL_EXPORT_FORMATS } from "@/components/exports/formats";
 import { ActHeldButton } from "@/components/initiativeTools/queues/ActHeldButton";
@@ -350,6 +351,13 @@ export function QueueDetailPage() {
           </div>
         )}
       </div>
+
+      <ToolCommentsPanel
+        entityType={Tool.queue}
+        entityId={queue.id}
+        initiativeId={queue.initiative_id ?? 0}
+        canModerate={canEdit}
+      />
 
       {/* Add Item Dialog */}
       <AddQueueItemDialog
