@@ -30,11 +30,6 @@
     "tasksDone": "{{completed}}/{{total}} done",
     "noTasks": "No tasks"
   },
-  "tabs": {
-    "active": "Active Projects",
-    "templates": "Templates",
-    "archive": "Archive"
-  },
   "view": {
     "grid": "Grid",
     "list": "List"
@@ -497,7 +492,10 @@
   "progressLabel": "Project progress",
   "preview": {
     "updated": "Updated {{date}}",
-    "tasksDone": "{{completed}}/{{total}} done"
+    "tasksDone": "{{completed}}/{{total}} done",
+    "templateBadge": "Template",
+    "archivedBadge": "Archived",
+    "archivedOn": "Archived {{date}}"
   },
   "activitySidebar": {
     "title": "Project activity",
@@ -537,5 +535,11 @@
     "warningUnmatchedAssignees_other": "Imported, but {{count}} assignees not in this initiative were dropped: {{emails}}",
     "error": "Could not import the project. Please try again.",
     "queued": "Import started — you'll get a notification when it finishes."
+  },
+  "status": {
+    "label": "Show",
+    "active": "Active",
+    "templates": "Templates",
+    "archived": "Archived"
   }
 }

@@ -30,11 +30,6 @@
     "tasksDone": "{{completed}}/{{total}} erledigt",
     "noTasks": "Keine Aufgaben"
   },
-  "tabs": {
-    "active": "Aktive Projekte",
-    "templates": "Vorlagen",
-    "archive": "Archiv"
-  },
   "view": {
     "grid": "Raster",
     "list": "Liste"
@@ -497,7 +492,10 @@
   "progressLabel": "Projektfortschritt",
   "preview": {
     "updated": "Aktualisiert {{date}}",
-    "tasksDone": "{{completed}}/{{total}} erledigt"
+    "tasksDone": "{{completed}}/{{total}} erledigt",
+    "templateBadge": "Vorlage",
+    "archivedBadge": "Archiviert",
+    "archivedOn": "Archiviert am {{date}}"
   },
   "activitySidebar": {
     "title": "Projektaktivität",
@@ -537,5 +535,11 @@
     "warningUnmatchedAssignees_other": "Importiert, aber {{count}} zuständige Personen, die nicht in dieser Initiative sind, wurden verworfen: {{emails}}",
     "error": "Das Projekt konnte nicht importiert werden. Bitte versuche es erneut.",
     "queued": "Import gestartet — du erhältst eine Benachrichtigung, sobald er abgeschlossen ist."
+  },
+  "status": {
+    "label": "Anzeigen",
+    "active": "Aktiv",
+    "templates": "Vorlagen",
+    "archived": "Archiviert"
   }
 }

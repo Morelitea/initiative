@@ -15,21 +15,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import type { ProjectSortMode } from "@/hooks/useProjectListView";
 
 type ProjectsFilterBarProps = {
   searchQuery: string;
   onSearchQueryChange: (value: string) => void;
   filtersOpen: boolean;
   onFiltersOpenChange: (open: boolean) => void;
-  sortMode: "custom" | "updated" | "created" | "alphabetical" | "recently_viewed";
-  onSortModeChange: (
-    value: "custom" | "updated" | "created" | "alphabetical" | "recently_viewed"
-  ) => void;
+  sortMode: ProjectSortMode;
+  onSortModeChange: (value: ProjectSortMode) => void;
   favoritesOnly: boolean;
   onFavoritesOnlyChange: (value: boolean) => void;
   tagFilters: TagSummary[];
   onTagFiltersChange: (tags: TagSummary[]) => void;
   fixedTagIds?: number[];
+  /** Manual ordering is only offered where the list can actually be dragged. */
+  allowCustomSort?: boolean;
 };
 
 export const ProjectsFilterBar = ({
@@ -44,6 +45,7 @@ export const ProjectsFilterBar = ({
   tagFilters,
   onTagFiltersChange,
   fixedTagIds,
+  allowCustomSort = true,
 }: ProjectsFilterBarProps) => {
   const { t } = useTranslation(["projects", "common"]);
 
@@ -105,17 +107,15 @@ export const ProjectsFilterBar = ({
             </Label>
             <Select
               value={sortMode}
-              onValueChange={(value) =>
-                onSortModeChange(
-                  value as "custom" | "updated" | "created" | "alphabetical" | "recently_viewed"
-                )
-              }
+              onValueChange={(value) => onSortModeChange(value as ProjectSortMode)}
             >
               <SelectTrigger id="project-sort">
                 <SelectValue placeholder={t("filters.selectSortOrder")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="custom">{t("filters.sortCustom")}</SelectItem>
+                {allowCustomSort ? (
+                  <SelectItem value="custom">{t("filters.sortCustom")}</SelectItem>
+                ) : null}
                 <SelectItem value="recently_viewed">{t("filters.sortRecentlyOpened")}</SelectItem>
                 <SelectItem value="updated">{t("filters.sortRecentlyUpdated")}</SelectItem>
                 <SelectItem value="created">{t("filters.sortRecentlyCreated")}</SelectItem>
