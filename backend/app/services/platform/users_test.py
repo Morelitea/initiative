@@ -166,19 +166,13 @@ async def test_check_deletion_eligibility_can_delete(session: AsyncSession):
     )
 
     # Check deletion eligibility
-    (
-        can_delete,
-        blockers,
-        _warnings,
-        owned_projects,
-    ) = await user_service.check_deletion_eligibility(
+    can_delete, blockers = await user_service.check_deletion_eligibility(
         session,
         member.id,
     )
 
     assert can_delete is True
     assert len(blockers) == 0
-    assert len(owned_projects) == 0
 
 
 @pytest.mark.unit
@@ -193,12 +187,7 @@ async def test_check_deletion_eligibility_blocked_last_admin(session: AsyncSessi
     )
 
     # Check deletion eligibility
-    (
-        can_delete,
-        blockers,
-        _warnings,
-        _owned_projects,
-    ) = await user_service.check_deletion_eligibility(
+    can_delete, blockers = await user_service.check_deletion_eligibility(
         session,
         admin.id,
     )
@@ -376,7 +365,7 @@ async def test_soft_delete_user_scrubs_addressed_invites(session: AsyncSession):
     victim_invite = await guild_service.create_guild_invite(
         session,
         guild_id=guild.id,
-        created_by_user_id=admin.id,
+        created_by=admin.id,
         invitee_email="scrubme@example.com",
         max_uses=1,
         expires_at=None,
@@ -385,7 +374,7 @@ async def test_soft_delete_user_scrubs_addressed_invites(session: AsyncSession):
     other_invite = await guild_service.create_guild_invite(
         session,
         guild_id=guild.id,
-        created_by_user_id=admin.id,
+        created_by=admin.id,
         invitee_email="keep@example.com",
         max_uses=1,
         expires_at=None,
@@ -394,7 +383,7 @@ async def test_soft_delete_user_scrubs_addressed_invites(session: AsyncSession):
     open_invite = await guild_service.create_guild_invite(
         session,
         guild_id=guild.id,
-        created_by_user_id=admin.id,
+        created_by=admin.id,
         invitee_email=None,
         max_uses=5,
         expires_at=None,
@@ -440,7 +429,7 @@ async def test_soft_delete_user_scrubs_addressed_invites(session: AsyncSession):
 async def test_hard_delete_user_scrubs_addressed_invites(session: AsyncSession):
     """Hard delete has the same residual-PII gap: an invite addressed to the
     removed user keeps a reversible copy of their email. The invitee address
-    must be scrubbed — distinct from the ``created_by_user_id`` NULLing, which
+    must be scrubbed — distinct from the ``created_by`` NULLing, which
     only covers invites the user *sent* (here the inviter is a different
     admin, so only the invitee-scrub can clear it)."""
     from app.models.platform.guild import GuildInvite
@@ -456,7 +445,7 @@ async def test_hard_delete_user_scrubs_addressed_invites(session: AsyncSession):
     invite = await guild_service.create_guild_invite(
         session,
         guild_id=guild.id,
-        created_by_user_id=admin.id,
+        created_by=admin.id,
         invitee_email="hardscrub@example.com",
         max_uses=1,
         expires_at=None,
@@ -464,7 +453,7 @@ async def test_hard_delete_user_scrubs_addressed_invites(session: AsyncSession):
     invite_id = invite.id
     victim_id = victim.id
 
-    await user_service.hard_delete_user(session, victim_id, {})
+    await user_service.hard_delete_user(session, victim_id)
     session.expunge_all()
 
     # User row is gone...
@@ -588,78 +577,8 @@ async def test_is_last_platform_admin_excludes_plain_admin(session: AsyncSession
 
 @pytest.mark.unit
 @pytest.mark.service
-async def test_transfer_project_ownership_drops_previous_owners_permission_row(
-    session: AsyncSession,
-):
-    """Transferring ownership has to drop the departing owner's
-    ``ProjectPermission`` row. Otherwise that user keeps a stale
-    ``level=owner`` row which, after a reactivation + readd cycle,
-    leaves the project with two "owners" and a broken access
-    dropdown that can't reconcile its value.
-    """
-    from app.models.tenant.resource_grant import ResourceGrant
-    from app.testing.factories import create_initiative, create_project
-
-    admin = await create_user(session, email="admin@example.com")
-    successor = await create_user(session, email="successor@example.com")
-    departing = await create_user(session, email="departing@example.com")
-    guild = await create_guild(session, creator=admin)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-    await create_guild_membership(
-        session, user=successor, guild=guild, role=GuildRole.member
-    )
-    await create_guild_membership(
-        session, user=departing, guild=guild, role=GuildRole.member
-    )
-    initiative = await create_initiative(session, guild=guild, creator=admin)
-    project = await create_project(session, initiative=initiative, owner=departing)
-
-    # Sanity: project factory grants the creator an owner-level
-    # ProjectPermission.
-    pre = (
-        await session.exec(
-            select(ResourceGrant).where(
-                ResourceGrant.resource_type == "project",
-                ResourceGrant.resource_id == project.id,
-                ResourceGrant.user_id == departing.id,
-            )
-        )
-    ).one()
-    assert pre is not None
-
-    await user_service.transfer_project_ownership(session, project.id, successor.id)
-    await session.commit()
-
-    # Departing owner's row is gone.
-    assert (
-        await session.exec(
-            select(ResourceGrant).where(
-                ResourceGrant.resource_type == "project",
-                ResourceGrant.resource_id == project.id,
-                ResourceGrant.user_id == departing.id,
-            )
-        )
-    ).one_or_none() is None
-
-    # Successor has owner-level permission.
-    successor_perm = (
-        await session.exec(
-            select(ResourceGrant).where(
-                ResourceGrant.resource_type == "project",
-                ResourceGrant.resource_id == project.id,
-                ResourceGrant.user_id == successor.id,
-            )
-        )
-    ).one()
-    assert successor_perm.level == "owner"
-
-
-@pytest.mark.unit
-@pytest.mark.service
 async def test_reassign_user_content_moves_file_version_uploads(session: AsyncSession):
-    """reassign_user_content must move document_file_versions.uploaded_by_id to
+    """reassign_user_content must move document_file_versions.created_by to
     the system user so hard-deleting an uploader doesn't violate the RESTRICT FK
     (and version history outlives the user)."""
     from app.models.tenant.document import Document, DocumentFileVersion, DocumentType
@@ -673,11 +592,10 @@ async def test_reassign_user_content_moves_file_version_uploads(session: AsyncSe
     initiative = await create_initiative(session, guild, owner)
 
     doc = Document(
-        title="Versioned",
+        name="Versioned",
         initiative_id=initiative.id,
         guild_id=guild.id,
-        created_by_id=owner.id,
-        updated_by_id=owner.id,
+        created_by=owner.id,
         document_type=DocumentType.file,
         file_url="/uploads/v1.pdf",
         file_content_type="application/pdf",
@@ -694,7 +612,7 @@ async def test_reassign_user_content_moves_file_version_uploads(session: AsyncSe
         file_content_type="application/pdf",
         file_size=10,
         original_filename="v1.pdf",
-        uploaded_by_id=owner.id,
+        created_by=owner.id,
     )
     session.add(version)
     await session.commit()
@@ -708,7 +626,7 @@ async def test_reassign_user_content_moves_file_version_uploads(session: AsyncSe
             select(DocumentFileVersion).where(DocumentFileVersion.id == version.id)
         )
     ).one()
-    assert refreshed.uploaded_by_id == system_user.id
+    assert refreshed.created_by == system_user.id
 
 
 @pytest.mark.integration
@@ -896,7 +814,7 @@ async def test_hard_delete_anonymized_user_cleans_guild_data(session: AsyncSessi
     await user_service.soft_delete_user(session, victim_id)
     session.expunge_all()
 
-    await user_service.hard_delete_user(session, victim_id, {})
+    await user_service.hard_delete_user(session, victim_id)
     session.expunge_all()
 
     # The users row is gone.

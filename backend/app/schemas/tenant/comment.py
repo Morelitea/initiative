@@ -38,18 +38,42 @@ class CommentBase(SanitizedBaseModel):
         return normalized
 
 
+# Every comment parent, in one place: the task plus one field per tool. The
+# comments table carries a matching FK per entry, and the create/list surfaces
+# take exactly one of them.
+COMMENT_TARGET_FIELDS: tuple[str, ...] = (
+    "task_id",
+    "document_id",
+    "project_id",
+    "queue_id",
+    "counter_group_id",
+    "calendar_id",
+    "dashboard_id",
+)
+
+
 class CommentCreate(CommentBase):
     task_id: Optional[int] = Field(default=None, gt=0)
     document_id: Optional[int] = Field(default=None, gt=0)
+    project_id: Optional[int] = Field(default=None, gt=0)
+    queue_id: Optional[int] = Field(default=None, gt=0)
+    counter_group_id: Optional[int] = Field(default=None, gt=0)
+    calendar_id: Optional[int] = Field(default=None, gt=0)
+    dashboard_id: Optional[int] = Field(default=None, gt=0)
     parent_comment_id: Optional[int] = Field(default=None, gt=0)
 
     @model_validator(mode="after")
     def validate_target(self) -> "CommentCreate":
-        has_task = self.task_id is not None
-        has_document = self.document_id is not None
-        if has_task == has_document:
-            raise ValueError("Provide exactly one of task_id or document_id")
+        provided = [
+            field for field in COMMENT_TARGET_FIELDS if getattr(self, field) is not None
+        ]
+        if len(provided) != 1:
+            raise ValueError("Provide exactly one comment target")
         return self
+
+    def target_ids(self) -> dict[str, Optional[int]]:
+        """The target fields as service kwargs."""
+        return {field: getattr(self, field) for field in COMMENT_TARGET_FIELDS}
 
 
 class CommentUpdate(CommentBase):
@@ -64,13 +88,20 @@ class CommentRead(CommentBase):
     )
 
     id: int
-    author_id: int
+    created_by: int
     task_id: Optional[int] = None
     document_id: Optional[int] = None
+    queue_id: Optional[int] = None
+    counter_group_id: Optional[int] = None
+    calendar_id: Optional[int] = None
+    dashboard_id: Optional[int] = None
     parent_comment_id: Optional[int] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
     author: Optional[CommentAuthor] = None
+    # The project this comment lives under: its own for a comment ON a
+    # project, the task's for a task comment (filled by the service's
+    # serializer).
     project_id: Optional[int] = None
 
 
@@ -82,9 +113,19 @@ class RecentActivityEntry(SanitizedBaseModel):
     task_id: Optional[int] = None
     task_title: Optional[str] = None
     document_id: Optional[int] = None
-    document_title: Optional[str] = None
+    document_name: Optional[str] = None
     project_id: Optional[int] = None
     project_name: Optional[str] = None
+    # What the comment is on, uniformly: "task" or a Tool value, with the
+    # entity's id and display name. The task/document/project fields above
+    # stay filled for those parents.
+    entity_type: Optional[str] = None
+    entity_id: Optional[int] = None
+    entity_name: Optional[str] = None
+    # The initiative the commented-on entity lives in, so the row can link at
+    # its real address. None when the parent is gone or unreadable (or the
+    # parent is a guild-level calendar, which belongs to no initiative).
+    initiative_id: Optional[int] = None
 
 
 class MentionSuggestion(SanitizedBaseModel):

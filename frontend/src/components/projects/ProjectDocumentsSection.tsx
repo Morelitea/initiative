@@ -119,7 +119,7 @@ export const ProjectDocumentsSection = ({
     const attached = new Set(attachedDocumentIds);
     return (docSearchQuery.data ?? [])
       .filter((doc) => !attached.has(doc.id))
-      .map((doc) => ({ value: String(doc.id), label: doc.title }));
+      .map((doc) => ({ value: String(doc.id), label: doc.name }));
   }, [docSearchQuery.data, attachedDocumentIds]);
 
   return (
@@ -298,10 +298,9 @@ const createFallbackSummary = (
   id: doc.document_id,
   guild_id: guildId,
   initiative_id: initiativeId,
-  title: doc.title,
+  name: doc.name,
   featured_image_url: null,
-  created_by_id: 0,
-  updated_by_id: 0,
+  created_by: 0,
   created_at: doc.updated_at,
   updated_at: doc.updated_at,
   initiative: null,

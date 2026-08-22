@@ -169,7 +169,7 @@ class TestPlacement:
             listing_version="1.0.0",
             app_kind="service",
             name="WidgetCo",
-            installed_by_id=1,
+            created_by=1,
             placement=placement,
         )
 

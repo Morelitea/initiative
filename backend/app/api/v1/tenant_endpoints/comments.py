@@ -12,7 +12,7 @@ from app.api.deps import (
     get_current_active_user,
     get_guild_membership,
 )
-from app.core.pam_context import has_active_grant
+from app.core.tools import Tool
 from app.models.tenant.comment import Comment
 from app.models.tenant.document import Document
 from app.models.tenant.initiative import Initiative, InitiativeMember
@@ -20,8 +20,7 @@ from app.models.tenant.project import Project
 from app.models.tenant.task import Task
 from app.models.platform.user import User, UserStatus
 from app.services.permissions import (
-    visible_document_ids_subquery,
-    visible_project_ids_subquery,
+    dac_scope_clause,
 )
 from app.schemas.tenant.comment import (
     CommentAuthor,
@@ -44,18 +43,17 @@ GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 async def _broadcast_comment(session, guild_id: int, comment, action: str) -> None:
     """Emit a content-free comment signal to the comment's initiative room.
 
-    A comment hangs off a task (→ project → initiative) or a document
+    A comment hangs off a task (→ project → initiative) or a tool entity
     (→ initiative); the parent is resolved within the guild-routed session, so
     the ``(guild_id, initiative_id)`` room is guild-safe (initiative ids are
     per-guild-schema). The automatic context replay keeps the lookup under the
-    guild context after the commit. The client refetches through the RLS + DAC gated
-    REST path — the bus carries ids only.
+    guild context after the commit. The client refetches through the RLS + DAC
+    gated REST path — the bus carries ids only. A parent that names no
+    initiative (a guild-level calendar) has no room, so nothing is emitted.
     """
-    ids: dict = {
-        "comment_id": comment.id,
-        "task_id": comment.task_id,
-        "document_id": comment.document_id,
-    }
+    ids: dict = {"comment_id": comment.id}
+    for column in comments_service.COMMENT_PARENT_COLUMNS:
+        ids[column] = getattr(comment, column)
     initiative_id = None
     if comment.task_id is not None:
         row = (
@@ -67,12 +65,17 @@ async def _broadcast_comment(session, guild_id: int, comment, action: str) -> No
         ).one_or_none()
         if row is not None:
             ids["project_id"], initiative_id = row
-    elif comment.document_id is not None:
-        initiative_id = (
-            await session.exec(
-                select(Document.initiative_id).where(Document.id == comment.document_id)
-            )
-        ).one_or_none()
+    else:
+        for target in comments_service.TOOL_COMMENT_TARGETS.values():
+            value = getattr(comment, target.column)
+            if value is None:
+                continue
+            initiative_id = (
+                await session.exec(
+                    select(target.model.initiative_id).where(target.model.id == value)
+                )
+            ).one_or_none()
+            break
     if initiative_id is None:
         return
     await broadcast_event(guild_id, initiative_id, "comment", action, ids)
@@ -90,11 +93,9 @@ async def create_comment(
             session,
             author=current_user,
             guild_id=guild_context.guild_id,
-            guild_role=guild_context.role,
             content=comment_in.content,
-            task_id=comment_in.task_id,
-            document_id=comment_in.document_id,
             parent_comment_id=comment_in.parent_comment_id,
+            **comment_in.target_ids(),
         )
     except comments_service.CommentNotFoundError as exc:
         raise HTTPException(
@@ -111,7 +112,7 @@ async def create_comment(
 
     await session.commit()
     await session.refresh(comment)
-    response = CommentRead.model_validate(comment)
+    response = comments_service.serialize_comment(comment)
     await _broadcast_comment(session, guild_context.guild_id, comment, "created")
     return response
 
@@ -125,42 +126,61 @@ async def recent_comments(
 ) -> List[RecentActivityEntry]:
     """Return the most recent comments across the guild.
 
-    Only returns comments on tasks/documents the current user has
-    DAC permission to view (direct user permission or role-based).
-    Initiative-level filtering is handled by RLS on the joined
-    Task/Project/Document tables.
+    Only returns comments on parents the current user has DAC permission to
+    view (direct user permission or role-based). Initiative-level filtering is
+    handled by RLS on the joined parent tables.
     """
     user_id = current_user.id
+    guild_id = guild_context.guild_id
 
     conditions = [
         Comment.parent_comment_id.is_(None),
-        Comment.guild_id == guild_context.guild_id,
+        Comment.guild_id == guild_id,
     ]
-    # A PAM grantee can read all of the guild's content (RLS already scopes the
-    # joined tables to the granted guild), so skip the per-DAC visibility
-    # narrowing that a non-member would otherwise fail. Members still see only
-    # the tasks/documents they have permission for.
-    if not has_active_grant(guild_context.guild_id):
-        visible_projects = visible_project_ids_subquery(user_id).subquery()
-        visible_documents = visible_document_ids_subquery(user_id).subquery()
-        conditions.append(
-            or_(
-                and_(
-                    Project.id.isnot(None),
-                    Project.id.in_(select(visible_projects)),
-                ),
-                and_(
-                    Document.id.isnot(None),
-                    Document.id.in_(select(visible_documents)),
-                ),
-            )
+    # A comment is reached through its parent — the task's project, or the
+    # tool entity itself — so the sharing gate is applied per kind, each leg a
+    # subquery over the parent table (which also drops trashed parents via the
+    # session's soft-delete filter). Each clause is a no-op for a request that
+    # reaches the whole guild, leaving only "attached to some parent".
+    legs = [
+        and_(
+            Comment.task_id.isnot(None),
+            Comment.task_id.in_(
+                select(Task.id)
+                .join(Project, Project.id == Task.project_id)
+                .where(
+                    dac_scope_clause(
+                        Tool.project, Project.id, user_id, guild_id=guild_id
+                    )
+                )
+            ),
         )
+    ]
+    for tool, target in comments_service.TOOL_COMMENT_TARGETS.items():
+        model = target.model
+        fk = getattr(Comment, target.column)
+        parent_ids = select(model.id).where(
+            dac_scope_clause(tool, model.id, user_id, guild_id=guild_id)
+        )
+        if target.feature_disabled is not None:
+            # The tool's master switch gates the thread, so it gates the feed
+            # too. A parent that names no initiative (a guild calendar) has no
+            # switch to answer to.
+            parent_ids = parent_ids.where(
+                or_(
+                    model.initiative_id.is_(None),
+                    model.initiative_id.in_(
+                        select(Initiative.id).where(
+                            getattr(Initiative, tool.view_permission).is_(True)
+                        )
+                    ),
+                )
+            )
+        legs.append(and_(fk.isnot(None), fk.in_(parent_ids)))
+    conditions.append(or_(*legs))
 
     stmt = (
         select(Comment)
-        .outerjoin(Task, Task.id == Comment.task_id)
-        .outerjoin(Project, Project.id == Task.project_id)
-        .outerjoin(Document, Document.id == Comment.document_id)
         .where(*conditions)
         .options(selectinload(Comment.author))
         .order_by(Comment.created_at.desc(), Comment.id.desc())
@@ -169,14 +189,10 @@ async def recent_comments(
     result = await session.exec(stmt)
     comments = result.all()
 
-    # Batch-load related task/document/project info
+    # Batch-load the parents the rows point at
     task_ids = {c.task_id for c in comments if c.task_id}
-    doc_ids = {c.document_id for c in comments if c.document_id}
-
     tasks_by_id: dict[int, Task] = {}
     projects_by_id: dict[int, Project] = {}
-    docs_by_id: dict[int, Document] = {}
-
     if task_ids:
         task_result = await session.exec(select(Task).where(Task.id.in_(task_ids)))
         for task in task_result.all():
@@ -190,34 +206,66 @@ async def recent_comments(
             for proj in proj_result.all():
                 projects_by_id[proj.id] = proj  # ty: ignore[invalid-assignment] — persisted row, id is set
 
-    if doc_ids:
-        doc_result = await session.exec(
-            select(Document).where(Document.id.in_(doc_ids))
+    rows_by_tool: dict[Tool, dict] = {}
+    for tool, target in comments_service.TOOL_COMMENT_TARGETS.items():
+        ids = {
+            value for c in comments if (value := getattr(c, target.column)) is not None
+        }
+        if not ids:
+            rows_by_tool[tool] = {}
+            continue
+        loaded = await session.exec(
+            select(target.model).where(target.model.id.in_(ids))
         )
-        for doc in doc_result.all():
-            docs_by_id[doc.id] = doc  # ty: ignore[invalid-assignment] — persisted row, id is set
+        rows_by_tool[tool] = {row.id: row for row in loaded.all()}
 
     entries: List[RecentActivityEntry] = []
     for comment in comments:
         author = comment.author
         author_payload = CommentAuthor.model_validate(author) if author else None
-        task = tasks_by_id.get(comment.task_id) if comment.task_id else None
-        project = projects_by_id.get(task.project_id) if task else None
-        document = docs_by_id.get(comment.document_id) if comment.document_id else None
-        entries.append(
-            RecentActivityEntry(
-                comment_id=comment.id,
-                content=comment.content,
-                created_at=comment.created_at,
-                author=author_payload,
+        fields: dict = {
+            "comment_id": comment.id,
+            "content": comment.content,
+            "created_at": comment.created_at,
+            "author": author_payload,
+        }
+        if comment.task_id:
+            task = tasks_by_id.get(comment.task_id)
+            project = projects_by_id.get(task.project_id) if task else None
+            fields.update(
                 task_id=task.id if task else None,
                 task_title=task.title if task else None,
-                document_id=document.id if document else None,
-                document_title=document.title if document else None,
                 project_id=project.id if project else None,
                 project_name=project.name if project else None,
+                entity_type="task",
+                entity_id=comment.task_id,
+                entity_name=task.title if task else None,
+                initiative_id=project.initiative_id if project else None,
             )
-        )
+        else:
+            for tool, target in comments_service.TOOL_COMMENT_TARGETS.items():
+                value = getattr(comment, target.column)
+                if value is None:
+                    continue
+                row = rows_by_tool[tool].get(value)
+                fields.update(
+                    entity_type=tool.value,
+                    entity_id=value,
+                    entity_name=row.name if row else None,
+                    initiative_id=row.initiative_id if row else None,
+                )
+                if tool is Tool.document:
+                    fields.update(
+                        document_id=value,
+                        document_name=row.name if row else None,
+                    )
+                elif tool is Tool.project:
+                    fields.update(
+                        project_id=value,
+                        project_name=row.name if row else None,
+                    )
+                break
+        entries.append(RecentActivityEntry(**fields))
     return entries
 
 
@@ -228,15 +276,24 @@ async def list_comments(
     guild_context: GuildContextDep,
     task_id: Optional[int] = Query(default=None, gt=0),
     document_id: Optional[int] = Query(default=None, gt=0),
+    project_id: Optional[int] = Query(default=None, gt=0),
+    queue_id: Optional[int] = Query(default=None, gt=0),
+    counter_group_id: Optional[int] = Query(default=None, gt=0),
+    calendar_id: Optional[int] = Query(default=None, gt=0),
+    dashboard_id: Optional[int] = Query(default=None, gt=0),
 ) -> List[CommentRead]:
     try:
         comments = await comments_service.list_comments(
             session,
             user=current_user,
             guild_id=guild_context.guild_id,
-            guild_role=guild_context.role,
             task_id=task_id,
             document_id=document_id,
+            project_id=project_id,
+            queue_id=queue_id,
+            counter_group_id=counter_group_id,
+            calendar_id=calendar_id,
+            dashboard_id=dashboard_id,
         )
     except comments_service.CommentNotFoundError as exc:
         raise HTTPException(
@@ -251,7 +308,7 @@ async def list_comments(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from exc
 
-    return [CommentRead.model_validate(comment) for comment in comments]
+    return [comments_service.serialize_comment(comment) for comment in comments]
 
 
 @router.get("/{comment_id}", response_model=CommentRead)
@@ -269,7 +326,6 @@ async def read_comment(
             comment_id=comment_id,
             user=current_user,
             guild_id=guild_context.guild_id,
-            guild_role=guild_context.role,
         )
     except comments_service.CommentNotFoundError as exc:
         raise HTTPException(
@@ -279,7 +335,7 @@ async def read_comment(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
         ) from exc
-    return CommentRead.model_validate(comment)
+    return comments_service.serialize_comment(comment)
 
 
 @router.patch("/{comment_id}", response_model=CommentRead)
@@ -312,7 +368,7 @@ async def update_comment(
 
     await session.commit()
     await session.refresh(comment)
-    response = CommentRead.model_validate(comment)
+    response = comments_service.serialize_comment(comment)
     await _broadcast_comment(session, guild_context.guild_id, comment, "updated")
     return response
 
@@ -448,7 +504,7 @@ async def search_mentionables(
             Document.is_template.is_(False),
         )
         if query:
-            base = base.where(Document.title.ilike(f"%{query}%"))
+            base = base.where(Document.name.ilike(f"%{query}%"))
         count_stmt = select(func.count()).select_from(base.subquery())
         data_stmt = base.order_by(Document.updated_at.desc())
         rows, total_count, actual_page = await paginated_query(
@@ -459,7 +515,7 @@ async def search_mentionables(
                 MentionSuggestion(
                     type=MentionEntityType.doc,
                     id=doc.id,
-                    display_text=doc.title,
+                    display_text=doc.name,
                     subtitle=None,
                 )
             )

@@ -357,8 +357,8 @@ async def test_me_aggregate_includes_policy_guild_only_when_satisfied(
 
     open_initiative = await create_initiative(session, open_guild, user)
     gated_initiative = await create_initiative(session, gated_guild, user)
-    await create_document(session, open_initiative, user, title="open doc")
-    await create_document(session, gated_initiative, user, title="gated doc")
+    await create_document(session, open_initiative, user, name="open doc")
+    await create_document(session, gated_initiative, user, name="gated doc")
     await _require_provider(session, gated_guild.id, provider)
     provider_id = provider.id
 
@@ -367,14 +367,14 @@ async def test_me_aggregate_includes_policy_guild_only_when_satisfied(
         "/api/v1/me/documents", headers=get_auth_headers(user)
     )
     assert unsatisfied.status_code == 200, unsatisfied.text
-    assert [d["title"] for d in unsatisfied.json()["items"]] == ["open doc"]
+    assert [d["name"] for d in unsatisfied.json()["items"]] == ["open doc"]
 
     # A session that satisfied the provider sees both guilds' documents.
     satisfied = await client.get(
         "/api/v1/me/documents", headers=_sat_headers(user, [provider_id])
     )
-    titles = {d["title"] for d in satisfied.json()["items"]}
-    assert titles == {"open doc", "gated doc"}
+    names = {d["name"] for d in satisfied.json()["items"]}
+    assert names == {"open doc", "gated doc"}
 
 
 async def test_ws_token_sat_gates_policy_guild(session: AsyncSession):

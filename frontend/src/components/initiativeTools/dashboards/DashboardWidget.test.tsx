@@ -12,7 +12,8 @@ import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "@/__tests__/helpers/render";
-import type { WidgetBinding } from "@/hooks/useWidgetData";
+import type { WidgetBinding, WidgetDataResult } from "@/hooks/useWidgetData";
+import { WidgetErrorCode } from "@/lib/widgets/errors";
 import { emptyDataFor } from "@/lib/widgets/normalize";
 
 const useWidgetData = vi.hoisted(() => vi.fn());
@@ -64,5 +65,58 @@ describe("DashboardWidget", () => {
     render(true);
     expect(await screen.findByText("Beds made")).toBeInTheDocument();
     expect(screen.queryByText(/choose what this widget shows/i)).toBeNull();
+  });
+});
+
+/**
+ * The three ways a widget can have nothing to draw.
+ *
+ * They used to be one notice, and they are three different messages to three
+ * different people: an author who has not finished setting the widget up, a
+ * reader whose access does not reach the data, and anyone at all when the
+ * request simply failed. Collapsing them tells two of the three something
+ * untrue.
+ */
+describe("a widget with nothing to draw", () => {
+  const renderState = (result: Partial<WidgetDataResult>, widgetBinding = binding) => {
+    useWidgetData.mockReturnValue({
+      data: emptyDataFor("counter"),
+      isLoading: false,
+      isUnbound: false,
+      isRestricted: false,
+      refetch: vi.fn(),
+      ...result,
+    });
+    renderWithProviders(
+      <DashboardWidget
+        widget={widget}
+        binding={widgetBinding}
+        initiativeId={7}
+        dashboardId={11}
+        canEdit={false}
+      />
+    );
+  };
+
+  it("asks for the missing choice when the binding was never finished", async () => {
+    renderState({ isUnbound: true });
+    expect(await screen.findByText(/choose what this shows/i)).toBeInTheDocument();
+  });
+
+  it("says the data is out of reach when the target resolved and is not there", async () => {
+    renderState({ isRestricted: true }, { source: "counter", counter_group_id: 3, counter_id: 9 });
+    expect(await screen.findByText(/can't see this widget's data/i)).toBeInTheDocument();
+    // Nothing to configure here, so nothing invites a reader to repoint a
+    // binding that was never wrong.
+    expect(screen.queryByText(/choose what this shows/i)).toBeNull();
+  });
+
+  it("reports a failed fetch as a failure, not as an access decision", async () => {
+    renderState(
+      { errorCode: WidgetErrorCode.DATA_UNAVAILABLE },
+      { source: "counter", counter_group_id: 3, counter_id: 9 }
+    );
+    expect(await screen.findByText(/could not be loaded/i)).toBeInTheDocument();
+    expect(screen.queryByText(/can't see this widget's data/i)).toBeNull();
   });
 });

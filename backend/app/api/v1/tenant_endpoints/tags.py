@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Annotated, List, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, update as sa_update
+from sqlalchemy import ColumnElement, func, update as sa_update
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
@@ -305,10 +305,13 @@ async def get_tag_entities(
     """
     tag = await _get_tag_or_404(session, tag_id, guild_context.guild_id)
 
-    # Build project access subquery (user + role)
-    project_access_subq = permissions_service.visible_project_ids_subquery(
-        current_user.id
-    )
+    # Sharing gate on the project (a no-op for a request that reaches the whole
+    # guild). Two columns name a project here — a task's FK and the project's own
+    # id — so the clause is built against each.
+    def _project_scope(col: ColumnElement[int]) -> ColumnElement[bool]:
+        return permissions_service.dac_scope_clause(
+            Tool.project, col, current_user.id, guild_id=guild_context.guild_id
+        )
 
     # Get tasks with this tag that user can access
     tasks_stmt = (
@@ -316,7 +319,7 @@ async def get_tag_entities(
         .join(TaskTag, TaskTag.task_id == Task.id)
         .where(
             TaskTag.tag_id == tag.id,
-            Task.project_id.in_(project_access_subq),
+            _project_scope(Task.project_id),
         )
         .options(selectinload(Task.project))
     )
@@ -338,7 +341,7 @@ async def get_tag_entities(
         .join(ProjectTag, ProjectTag.project_id == Project.id)
         .where(
             ProjectTag.tag_id == tag.id,
-            Project.id.in_(project_access_subq),
+            _project_scope(Project.id),
         )
         .options(selectinload(Project.initiative))
     )
@@ -354,8 +357,12 @@ async def get_tag_entities(
         for project in projects
     ]
 
-    # Build document access subquery (user + role)
-    doc_access_subq = permissions_service.visible_document_ids_subquery(current_user.id)
+    doc_scope = permissions_service.dac_scope_clause(
+        Tool.document,
+        Document.id,
+        current_user.id,
+        guild_id=guild_context.guild_id,
+    )
 
     # Get documents with this tag that user can access
     documents_stmt = (
@@ -363,7 +370,7 @@ async def get_tag_entities(
         .join(DocumentTag, DocumentTag.document_id == Document.id)
         .where(
             DocumentTag.tag_id == tag.id,
-            Document.id.in_(doc_access_subq),
+            doc_scope,
         )
         .options(selectinload(Document.initiative))
     )
@@ -372,7 +379,7 @@ async def get_tag_entities(
     document_summaries = [
         TaggedDocumentSummary(
             id=doc.id,
-            title=doc.title,
+            name=doc.name,
             initiative_id=doc.initiative_id,
             initiative_name=doc.initiative.name if doc.initiative else None,
         )

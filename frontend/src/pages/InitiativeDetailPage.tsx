@@ -1,6 +1,6 @@
 import { Link, Navigate, useParams } from "@tanstack/react-router";
-import { Loader2, SearchX, Settings } from "lucide-react";
-import { type ComponentType, Suspense, useEffect, useMemo, useState } from "react";
+import { ChevronDown, Loader2, SearchX, Settings } from "lucide-react";
+import { type ComponentType, Suspense, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -8,8 +8,8 @@ import { Markdown } from "@/components/Markdown";
 import { StatusMessage } from "@/components/StatusMessage";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import {
@@ -18,8 +18,9 @@ import {
   useMyInitiativePermissions,
 } from "@/hooks/useInitiativeRoles";
 import { useInitiatives } from "@/hooks/useInitiatives";
+import { useGuildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
-import { toolCamelPlural } from "@/lib/tools";
+import { INITIATIVES_ROUTE, initiativeRoute, toolCamelPlural, toolListRoute } from "@/lib/tools";
 
 import { DocumentsView } from "./DocumentsPage";
 import { CounterGroupsView } from "./initiativeTools/counters/CounterGroupsPage";
@@ -43,13 +44,19 @@ const TOOL_TABS: Array<[Tool, ComponentType<ToolViewProps>]> = [
 
 export const TOOL_TAB_VIEWS: ReadonlyMap<Tool, ComponentType<ToolViewProps>> = new Map(TOOL_TABS);
 
-export const InitiativeDetailPage = () => {
-  const { initiativeId: initiativeIdParam, guildId: guildIdParam } = useParams({
+export interface InitiativeDetailPageProps {
+  /** The tool tab the URL names. Omitted on the bare initiative route, where
+   *  the page falls back to the first tab this member can see. */
+  tool?: Tool;
+}
+
+export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) => {
+  const { initiativeId: initiativeIdParam } = useParams({
     strict: false,
   }) as {
     initiativeId: string;
-    guildId: string;
   };
+  const gp = useGuildPath();
   const parsedInitiativeId = Number(initiativeIdParam);
   const hasValidInitiativeId = Number.isFinite(parsedInitiativeId);
   const initiativeId = hasValidInitiativeId ? parsedInitiativeId : 0;
@@ -78,18 +85,19 @@ export const InitiativeDetailPage = () => {
   // already folds in the initiative's master switches). The advanced tool is
   // additionally gated by the deployment-level runtime config.
   const availableTabs = useMemo<Tool[]>(
-    () => TOOL_TABS.map(([tool]) => tool).filter((tool) => isToolVisible(permissions, tool)),
+    () =>
+      TOOL_TABS.map(([tabTool]) => tabTool).filter((tabTool) =>
+        isToolVisible(permissions, tabTool)
+      ),
     [permissions]
   );
 
-  const [activeTab, setActiveTab] = useState<Tool>(availableTabs[0] ?? Tool.document);
-
-  // Update active tab if current tab becomes unavailable
-  useEffect(() => {
-    if (availableTabs.length > 0 && !availableTabs.includes(activeTab)) {
-      setActiveTab(availableTabs[0]);
-    }
-  }, [availableTabs, activeTab]);
+  // The path names the tab, so it is shareable and survives a reload. A tool
+  // this member can't view falls back to the first one they can, rather than
+  // dead-ending a bookmark the moment a permission changes — the same rule the
+  // guild home applies to its `?tool=` param.
+  const activeTab =
+    tool && availableTabs.includes(tool) ? tool : (availableTabs[0] ?? Tool.document);
 
   const memberCount = initiative?.members.length ?? 0;
 
@@ -100,7 +108,7 @@ export const InitiativeDetailPage = () => {
     (isGuildAdmin ? guildAdminLabel : null);
 
   if (!hasValidInitiativeId) {
-    return <Navigate to="/initiatives" replace />;
+    return <Navigate to={gp(INITIATIVES_ROUTE)} replace />;
   }
 
   if (initiativesQuery.isLoading || permissionsLoading || !initiativesQuery.data) {
@@ -118,7 +126,7 @@ export const InitiativeDetailPage = () => {
         icon={<SearchX />}
         title={t("detail.notFound")}
         description={t("detail.notFoundDescription")}
-        backTo="/initiatives"
+        backTo={gp(INITIATIVES_ROUTE)}
         backLabel={t("detail.backToInitiatives")}
       />
     );
@@ -128,9 +136,6 @@ export const InitiativeDetailPage = () => {
   if (availableTabs.length === 0) {
     return (
       <div className="space-y-4">
-        <Button variant="link" size="sm" asChild className="px-0">
-          <Link to="/initiatives">{t("detail.backToInitiatives")}</Link>
-        </Button>
         <div className="rounded-lg border p-6">
           <div className="flex flex-wrap items-center gap-3">
             <InitiativeColorDot color={initiative.color} className="h-4 w-4" />
@@ -152,63 +157,107 @@ export const InitiativeDetailPage = () => {
     </div>
   );
 
+  // Description + counts, rendered inline on wide screens and inside the
+  // mobile disclosure — one definition, so the two can't drift.
+  const headerDetails = (
+    <>
+      {initiative.description ? (
+        <Markdown content={initiative.description} className="text-muted-foreground" />
+      ) : (
+        <p className="text-muted-foreground text-sm">{t("noDescription")}</p>
+      )}
+      <div className="flex flex-wrap items-center gap-4 text-muted-foreground text-sm">
+        <span>{t("detail.member", { count: memberCount })}</span>
+        <span>
+          {t("detail.updated", { date: new Date(initiative.updated_at).toLocaleDateString() })}
+        </span>
+      </div>
+    </>
+  );
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-4">
-          <Button variant="link" size="sm" asChild className="px-0">
-            <Link to="/initiatives">{t("detail.backToInitiatives")}</Link>
-          </Button>
-          <div className="flex flex-wrap items-center gap-3">
-            <InitiativeColorDot color={initiative.color} className="h-4 w-4" />
-            <h1 className="font-semibold text-3xl tracking-tight">{initiative.name}</h1>
-            {initiative.is_default ? <Badge variant="outline">{t("detail.default")}</Badge> : null}
-            {roleBadgeLabel ? <Badge variant="secondary">{roleBadgeLabel}</Badge> : null}
+    <div className="space-y-4 sm:space-y-6">
+      {/* The header is context, not content. On a phone it stays a title row
+          plus the settings gear; the badges, blurb, and counts sit one tap away
+          in the disclosure rather than pushing the tool's list off screen.
+          The row never wraps — a long name wraps its own text instead (it can
+          shrink past its content, hence min-w-0), so the gear stays put. */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1 space-y-2 sm:space-y-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <InitiativeColorDot color={initiative.color} className="h-4 w-4 shrink-0" />
+            <h1 className="min-w-0 break-words font-semibold text-xl tracking-tight sm:text-3xl">
+              {initiative.name}
+            </h1>
+            <div className="hidden shrink-0 flex-wrap items-center gap-2 sm:flex">
+              {initiative.is_default ? (
+                <Badge variant="outline">{t("detail.default")}</Badge>
+              ) : null}
+              {roleBadgeLabel ? <Badge variant="secondary">{roleBadgeLabel}</Badge> : null}
+            </div>
           </div>
-          {initiative.description ? (
-            <Markdown content={initiative.description} className="text-muted-foreground" />
-          ) : (
-            <p className="text-muted-foreground text-sm">{t("noDescription")}</p>
-          )}
-          <div className="flex flex-wrap items-center gap-4 text-muted-foreground text-sm">
-            <span>{t("detail.member", { count: memberCount })}</span>
-            <span>
-              {t("detail.updated", { date: new Date(initiative.updated_at).toLocaleDateString() })}
-            </span>
-          </div>
+          <div className="hidden space-y-4 sm:block">{headerDetails}</div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex shrink-0 flex-wrap gap-2">
           {canManageInitiative ? (
-            <Button variant="outline" asChild>
+            <Button
+              variant="outline"
+              // Icon-only on a phone: the gear is unambiguous next to a title,
+              // and the label is the widest thing in the header row.
+              className="max-sm:h-9 max-sm:w-9 max-sm:p-0"
+              asChild
+            >
               <Link
-                to="/g/$guildId/initiatives/$initiativeId/settings"
-                params={{ guildId: guildIdParam, initiativeId: String(initiative.id) }}
+                to={gp(`${initiativeRoute(initiative.id)}/settings`)}
+                aria-label={t("detail.initiativeSettings")}
               >
                 <Settings className="h-4 w-4" />
-                {t("detail.initiativeSettings")}
+                <span className="hidden sm:inline">{t("detail.initiativeSettings")}</span>
               </Link>
             </Button>
           ) : null}
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as Tool)}>
+      <Collapsible className="group sm:hidden">
+        <CollapsibleTrigger asChild>
+          <Button variant="ghost" size="sm" className="h-8 px-0 text-muted-foreground">
+            {t("common:toolbar.details")}
+            <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]:rotate-180" />
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-3 pt-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {initiative.is_default ? <Badge variant="outline">{t("detail.default")}</Badge> : null}
+            {roleBadgeLabel ? <Badge variant="secondary">{roleBadgeLabel}</Badge> : null}
+          </div>
+          {headerDetails}
+        </CollapsibleContent>
+      </Collapsible>
+
+      <Tabs value={activeTab}>
         <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <TabsList className="inline-flex w-max">
-            {TOOL_TABS.filter(([tool]) => availableTabs.includes(tool)).map(([tool]) => (
-              <TabsTrigger key={tool} value={tool}>
-                {t(`detail.${toolCamelPlural(tool)}` as never)}
+            {TOOL_TABS.filter(([tabTool]) => availableTabs.includes(tabTool)).map(([tabTool]) => (
+              <TabsTrigger key={tabTool} value={tabTool} asChild>
+                {/* A real link, so a tab is shareable and answers the back
+                    button. `search={{}}` clears the page cursor: all six tabs
+                    now share one search schema, so a ?page from the queue tab
+                    would otherwise follow the reader into documents. */}
+                <Link to={gp(toolListRoute(tabTool, initiative.id))} search={{}}>
+                  {t(`detail.${toolCamelPlural(tabTool)}` as never)}
+                </Link>
               </TabsTrigger>
             ))}
           </TabsList>
         </div>
-        {TOOL_TABS.filter(([tool]) => availableTabs.includes(tool)).map(([tool, View]) => (
-          <TabsContent key={tool} value={tool} className="mt-6">
+        {TOOL_TABS.filter(([tabTool]) => availableTabs.includes(tabTool)).map(([tabTool, View]) => (
+          <TabsContent key={tabTool} value={tabTool} className="mt-6">
             <Suspense fallback={tabFallback}>
               <View
-                key={`${tool}-${initiative.id}`}
+                key={`${tabTool}-${initiative.id}`}
                 fixedInitiativeId={initiative.id}
-                canCreate={canCreateTool(permissions, tool)}
+                canCreate={canCreateTool(permissions, tabTool)}
               />
             </Suspense>
           </TabsContent>

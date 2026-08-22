@@ -142,6 +142,71 @@ const meta = {
 };
 
 /**
+ * This widget's own output, in every language it speaks.
+ *
+ * Beside `meta` and for the same reason: a column heading and an empty-state
+ * line are the widget's words, and there is no app locale file a marketplace
+ * widget could add itself to. The host hands `render` the viewer's language
+ * tag; `say` picks from here. Formatting numbers and dates is still the host's
+ * job — the sandbox has no locale data and no timezone.
+ */
+const strings = {
+  noTasks: {
+    en: "No tasks match",
+    de: "Keine Aufgaben passen",
+    es: "Ninguna tarea coincide",
+    fr: "Aucune tâche ne correspond",
+  },
+  noProjects: {
+    en: "No projects match",
+    de: "Keine Projekte passen",
+    es: "Ningún proyecto coincide",
+    fr: "Aucun projet ne correspond",
+  },
+  nothingScheduled: {
+    en: "Nothing scheduled",
+    de: "Nichts geplant",
+    es: "Nada programado",
+    fr: "Rien de planifié",
+  },
+  nothingSchedYet: {
+    en: "Nothing is scheduled yet",
+    de: "Noch nichts geplant",
+    es: "Aún no hay nada programado",
+    fr: "Rien n'est encore planifié",
+  },
+  cannotDraw: {
+    en: "This widget cannot draw ",
+    de: "Dieses Widget kann das nicht zeichnen: ",
+    es: "Este widget no puede dibujar ",
+    fr: "Ce widget ne peut pas dessiner ",
+  },
+  allTasks: {
+    en: "All tasks",
+    de: "Alle Aufgaben",
+    es: "Todas las tareas",
+    fr: "Toutes les tâches",
+  },
+  allProjects: {
+    en: "All projects",
+    de: "Alle Projekte",
+    es: "Todos los proyectos",
+    fr: "Tous les projets",
+  },
+  everything: { en: "Everything", de: "Alles", es: "Todo", fr: "Tout" },
+  noProject: { en: "No project", de: "Kein Projekt", es: "Sin proyecto", fr: "Sans projet" },
+  noStatus: { en: "No status", de: "Kein Status", es: "Sin estado", fr: "Sans statut" },
+  noPriority: {
+    en: "No priority",
+    de: "Keine Priorität",
+    es: "Sin prioridad",
+    fr: "Sans priorité",
+  },
+  unassigned: { en: "Unassigned", de: "Nicht zugewiesen", es: "Sin asignar", fr: "Non attribué" },
+  calendar: { en: "Calendar", de: "Kalender", es: "Calendario", fr: "Calendrier" },
+};
+
+/**
  * Built-in: Gantt — spans on a time axis, in lanes that fold.
  *
  * The shape it draws is the ordinary one a Gantt has: a work breakdown down the
@@ -157,7 +222,14 @@ const meta = {
  * @param {import("../dataShapes").WidgetData} data
  * @param {import("../dataShapes").WidgetConfig} config
  */
-function render(data, config) {
+function render(data, config, context) {
+  // The viewer's language, and this module's own words in it. An older host
+  // that passes no context leaves this at English rather than failing.
+  const lang = context?.locale || "en";
+  const say = (key) => {
+    const entry = strings[key] || {};
+    return entry[lang] || entry[lang.split("-")[0]] || entry.en || key;
+  };
   const DAY = 86400000;
   const scale = config.scale || "week";
   const grouping = config.group || "project";
@@ -288,12 +360,12 @@ function render(data, config) {
    *  with two owners appears on both rows, which is the whole point of looking
    *  at a schedule that way. */
   const groupKeys = (task) => {
-    if (grouping === "status") return [task.status || "No status"];
-    if (grouping === "priority") return [task.priority || "No priority"];
+    if (grouping === "status") return [task.status || say("noStatus")];
+    if (grouping === "priority") return [task.priority || say("noPriority")];
     if (grouping === "assignee") {
-      return task.assignees?.length ? task.assignees : ["Unassigned"];
+      return task.assignees?.length ? task.assignees : [say("unassigned")];
     }
-    if (grouping === "project") return [task.projectName || "No project"];
+    if (grouping === "project") return [task.projectName || say("noProject")];
     return [];
   };
 
@@ -326,7 +398,7 @@ function render(data, config) {
 
   const timeline = (lanes) => {
     const kept = lanes.filter((lane) => lane && (lane.spans.length || lane.children?.length));
-    if (!kept.length) return empty("Nothing is scheduled yet");
+    if (!kept.length) return empty(say("nothingSchedYet"));
     return { v: 1, scene: { kind: "timeline", lanes: kept, scale: scale, now: today } };
   };
 
@@ -372,15 +444,15 @@ function render(data, config) {
   switch (data.source) {
     case "tasks": {
       const rows = data.rows || [];
-      if (!rows.length) return empty("No tasks match");
+      if (!rows.length) return empty(say("noTasks"));
       const lanes = grouped(rows, taskLane, groupKeys, isDone, isOverdue);
       const done = rows.filter(isDone).length;
-      return timeline(withRollup("All tasks", lanes, done, rows.length));
+      return timeline(withRollup(say("allTasks"), lanes, done, rows.length));
     }
 
     case "projects": {
       const rows = data.rows || [];
-      if (!rows.length) return empty("No projects match");
+      if (!rows.length) return empty(say("noProjects"));
 
       // The tasks arrive on the same envelope the progress columns were counted
       // from, so a project folds open onto its own work without a second
@@ -433,12 +505,12 @@ function render(data, config) {
       const complete = rows.filter(
         (project) => project.taskCount > 0 && project.doneCount >= project.taskCount
       ).length;
-      return timeline(withRollup("All projects", lanes, complete, rows.length));
+      return timeline(withRollup(say("allProjects"), lanes, complete, rows.length));
     }
 
     case "calendar_entries": {
       const rows = data.rows || [];
-      if (!rows.length) return empty("Nothing scheduled");
+      if (!rows.length) return empty(say("nothingScheduled"));
       const past = (entry) => entry.end < today;
       const entryLane = (entry) => {
         const long = entry.allDay || entry.end - entry.start >= DAY;
@@ -459,10 +531,10 @@ function render(data, config) {
       // priority", so every grouping but "none" means the calendar it sits on.
       const keysOf = (entry) => (grouping === "none" ? [] : [entry.calendarName || "Calendar"]);
       const lanes = grouped(rows, entryLane, keysOf, past, () => false);
-      return timeline(withRollup("Everything", lanes, rows.filter(past).length, rows.length));
+      return timeline(withRollup(say("everything"), lanes, rows.filter(past).length, rows.length));
     }
 
     default:
-      return empty("This widget cannot draw " + data.source);
+      return empty(say("cannotDraw") + data.source);
   }
 }

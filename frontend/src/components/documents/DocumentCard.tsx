@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import type { DocumentSummary } from "@/api/generated/initiativeAPI.schemas";
+import { type DocumentSummary, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { PropertyValueCell } from "@/components/properties/PropertyValueCell";
 import { nonEmptyPropertySummaries } from "@/components/properties/propertyHelpers";
 import { TagBadge } from "@/components/tags/TagBadge";
@@ -11,6 +11,7 @@ import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { getDocumentIcon, getDocumentIconColor, getFileTypeLabel } from "@/lib/fileUtils";
 import { useGuildPath } from "@/lib/guildUrl";
 import { matchSmartLinkProvider } from "@/lib/smartLinkProviders";
+import { toolDetailRoute } from "@/lib/tools";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 
@@ -55,14 +56,16 @@ export const DocumentCard = ({ document, className }: DocumentCardProps) => {
 
   return (
     <Link
-      to={gp(`/documents/${document.id}`)}
+      to={gp(toolDetailRoute(Tool.document, document.initiative_id, document.id))}
       className={cn(
         "group block w-full overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-sm transition hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-lg",
         className
       )}
       // style={{ aspectRatio: "2 / 3" }}
     >
-      <div className="relative aspect-square overflow-hidden border-b bg-muted">
+      {/* Squarer thumbnails cost a phone most of a card each while showing, for
+          the usual document, one centred icon. Shorter below `sm`. */}
+      <div className="relative aspect-4/3 overflow-hidden border-b bg-muted sm:aspect-square">
         {document.featured_image_url ? (
           <img
             src={resolveUploadUrl(document.featured_image_url) ?? undefined}
@@ -104,11 +107,11 @@ export const DocumentCard = ({ document, className }: DocumentCardProps) => {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <h3 className="line-clamp-1 font-semibold text-card-foreground text-lg leading-tight">
-                    {document.title}
+                    {document.name}
                   </h3>
                 </TooltipTrigger>
                 <TooltipContent side="top" align="start">
-                  <p>{document.title}</p>
+                  <p>{document.name}</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>

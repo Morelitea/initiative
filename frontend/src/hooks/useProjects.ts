@@ -90,12 +90,31 @@ export const useProjectCountsByInitiative = (
   });
 };
 
-export const useTemplateProjects = () => {
-  return useProjects({ template: true });
+/** Templates in one initiative, or across every one the caller can see — the
+ *  create dialog's "start from a template" picker. The projects list reads its
+ *  own templates through `useProjects`, since the status filter picks which of
+ *  the three states the same query returns. */
+/** Row counts for the three list states, for the status filter's badges. The
+ *  smallest possible page of the slim projection: only `total_count` is read,
+ *  so a state advertises how much it holds without loading any of it. */
+export const useProjectStatusCounts = (initiativeId?: number | null) => {
+  const base = {
+    slim: true,
+    page_size: 1,
+    ...(initiativeId ? { initiative_id: initiativeId } : {}),
+  };
+  const active = useProjects(base);
+  const templates = useProjects({ ...base, template: true });
+  const archived = useProjects({ ...base, archived: true });
+  return {
+    active: active.data?.total_count,
+    templates: templates.data?.total_count,
+    archived: archived.data?.total_count,
+  };
 };
 
-export const useArchivedProjects = () => {
-  return useProjects({ archived: true });
+export const useTemplateProjects = (initiativeId?: number | null) => {
+  return useProjects({ template: true, ...(initiativeId ? { initiative_id: initiativeId } : {}) });
 };
 
 export const useProject = (projectId: number | null, options?: QueryOpts<ProjectRead>) => {
@@ -367,16 +386,11 @@ export const useToggleProjectFavorite = (
     },
     onSuccess: (...args) => {
       const data = args[0];
-      qc.setQueryData<ProjectListResponse>(
-        getListProjectsApiV1GGuildIdProjectsGetQueryKey(guildId),
-        (prev) => updateProjectListFavorite(prev, data)
-      );
-      qc.setQueryData<ProjectListResponse>(
-        getListProjectsApiV1GGuildIdProjectsGetQueryKey(guildId, { template: true }),
-        (prev) => updateProjectListFavorite(prev, data)
-      );
-      qc.setQueryData<ProjectListResponse>(
-        getListProjectsApiV1GGuildIdProjectsGetQueryKey(guildId, { archived: true }),
+      // Every cached project list, whatever it was narrowed by — the keys carry
+      // an initiative and a page now, so naming them one by one silently misses
+      // the list the reader is actually looking at.
+      qc.setQueriesData<ProjectListResponse>(
+        { queryKey: getListProjectsApiV1GGuildIdProjectsGetQueryKey(guildId) },
         (prev) => updateProjectListFavorite(prev, data)
       );
       qc.setQueryData<ProjectRead>(
@@ -424,16 +438,9 @@ export const useToggleProjectPin = (options?: MutationOpts<ProjectRead, TogglePi
     },
     onSuccess: (...args) => {
       const data = args[0];
-      qc.setQueryData<ProjectListResponse>(
-        getListProjectsApiV1GGuildIdProjectsGetQueryKey(guildId),
-        (prev) => replaceProjectInList(prev, data)
-      );
-      qc.setQueryData<ProjectListResponse>(
-        getListProjectsApiV1GGuildIdProjectsGetQueryKey(guildId, { template: true }),
-        (prev) => replaceProjectInList(prev, data)
-      );
-      qc.setQueryData<ProjectListResponse>(
-        getListProjectsApiV1GGuildIdProjectsGetQueryKey(guildId, { archived: true }),
+      // See useToggleProjectFavorite: match the endpoint, not one exact shape.
+      qc.setQueriesData<ProjectListResponse>(
+        { queryKey: getListProjectsApiV1GGuildIdProjectsGetQueryKey(guildId) },
         (prev) => replaceProjectInList(prev, data)
       );
       qc.setQueryData<ProjectRead>(

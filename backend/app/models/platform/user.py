@@ -218,10 +218,6 @@ class User(SQLModel, table=True):
     # them from the platform context at ``session.delete(user)`` time (the
     # tables don't exist in ``public``). hard_delete_user cleans them
     # explicitly, routed into each guild's schema (Phase 1).
-    projects_owned: List["Project"] = Relationship(
-        back_populates="owner",
-        sa_relationship_kwargs={"passive_deletes": "all"},
-    )
     tasks_assigned: List["Task"] = Relationship(
         back_populates="assignees",
         link_model=TaskAssignee,
@@ -249,7 +245,6 @@ class User(SQLModel, table=True):
     )
 
 
-from app.models.tenant.project import Project  # noqa: E402  # isort:skip
 from app.models.tenant.task import Task  # noqa: E402  # isort:skip
 from app.models.tenant.project_order import ProjectOrder  # noqa: E402  # isort:skip
 from app.models.platform.api_key import UserApiKey  # noqa: E402  # isort:skip

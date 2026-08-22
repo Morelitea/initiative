@@ -1,15 +1,27 @@
 /**
- * "What does this widget hook up to?"
+ * "What does this widget hook up to?" — with the answer visible while you decide.
  *
- * Setting up a widget's binding is *authoring* — it writes the dashboard's own
- * row and takes DAC write — as distinct from a widget interacting with the data
- * it shows, which nothing here can do. Every control below chooses a source or
- * an id; none of them can name an endpoint, and the source list comes from the
- * served catalog, so this dialog can only ever offer what the backend validator
- * would accept.
+ * Setting up a binding is *authoring*: it writes the dashboard's own row and
+ * takes DAC write, as distinct from a widget interacting with the data it shows,
+ * which nothing here can do. Every control below chooses a source, an id, or a
+ * comparison; none of them can name an endpoint, and the source list comes from
+ * the served catalog, so this dialog can only ever offer what the backend
+ * validator would accept.
+ *
+ * Two changes from the version that shipped first:
+ *
+ * **It previews.** The right pane runs the real widget over the real data, in
+ * the same sandbox and renderer a placed tile uses. A binding that returns
+ * nothing now shows that here, while it can still be fixed, rather than after
+ * it lands on the canvas.
+ *
+ * **Its controls are generated from the source registry.** The per-source `if`
+ * ladder this file used to be was a second copy of knowledge `sources.ts` now
+ * holds, and it was why `conditions` — accepted and stored since dashboards
+ * shipped — had no control at all.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { WidgetCatalog } from "@/api/generated/initiativeAPI.schemas";
@@ -35,10 +47,20 @@ import { useCalendarsList } from "@/hooks/useCalendars";
 import { useCounterGroup, useCounterGroupsList } from "@/hooks/useCounters";
 import { useDocumentsList } from "@/hooks/useDocuments";
 import { useProjects } from "@/hooks/useProjects";
-import type { WidgetBinding } from "@/hooks/useWidgetData";
+import { useWidgetData, type WidgetBinding } from "@/hooks/useWidgetData";
 import { useWidgetMeta } from "@/hooks/useWidgetMeta";
+import { readConditions } from "@/lib/widgets/conditions";
 import { catalogEntry, type DefinitionWidget } from "@/lib/widgets/definition";
+import {
+  type EntityKind,
+  type EntityParam,
+  type SourceParam,
+  sourceDescriptor,
+} from "@/lib/widgets/sources";
 import { localized } from "@/lib/widgets/widgetMeta";
+
+import { FilterBuilder } from "./FilterBuilder";
+import { WidgetTile } from "./WidgetTile";
 
 export interface WidgetConfigDialogProps {
   widget: DefinitionWidget | null;
@@ -47,26 +69,25 @@ export interface WidgetConfigDialogProps {
    *  content and nothing else — a dashboard is an initiative's tool, and its
    *  bindings cannot reach outside it. */
   initiativeId: number;
+  /** The dashboard row, so the preview resolves exactly as the placed tile
+   *  will. Absent for a widget that is not on a dashboard yet. */
+  dashboardId?: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (patch: Partial<DefinitionWidget>) => void;
 }
 
-/** Count buckets the `task_counts` source understands. Only `day` has a
- *  calendar shape, which is what a heatmap needs. */
-const BUCKETS = ["status_category", "status", "priority", "project", "assignee", "day"] as const;
-
 export function WidgetConfigDialog({
   widget,
   catalog,
   initiativeId,
+  dashboardId,
   open,
   onOpenChange,
   onSave,
 }: WidgetConfigDialogProps) {
-  const { t } = useTranslation(["dashboards", "common"]);
+  const { t, i18n } = useTranslation(["dashboards", "common"]);
   const { meta } = useWidgetMeta(widget?.type ?? "");
-  const { i18n } = useTranslation();
 
   const [title, setTitle] = useState("");
   const [binding, setBinding] = useState<WidgetBinding>({ source: "tasks" });
@@ -84,31 +105,64 @@ export function WidgetConfigDialog({
   const entry = catalogEntry(catalog, widget?.type ?? "");
   const sources = entry?.sources ?? [];
   const source = binding.source;
+  const descriptor = sourceDescriptor(source);
 
-  const needsCounterGroup = source === "counter" || source === "counter_group";
-  const needsDocument = source === "sheet_range";
+  // Which lists this source's controls need. Each is enabled only while its own
+  // control is on screen, so opening the dialog for a counter widget does not
+  // fetch this initiative's documents.
+  const needs = (kind: EntityKind) =>
+    open && (descriptor?.params ?? []).some((p) => p.kind === "entity" && p.entity === kind);
 
-  // All four pickers ask the server for this initiative's content only; the
-  // projects list has no initiative filter of its own, so it narrows below.
   const counterGroups = useCounterGroupsList(
     { initiative_id: initiativeId },
-    { enabled: open && needsCounterGroup }
+    { enabled: needs("counter_group") }
   );
   const documents = useDocumentsList(
     { document_type: "spreadsheet", initiative_id: initiativeId },
-    { enabled: open && needsDocument }
+    { enabled: needs("document") }
   );
-  const projects = useProjects(undefined, { enabled: open && source === "tasks" });
+  const projects = useProjects(undefined, { enabled: needs("project") });
   const calendars = useCalendarsList(
     { initiative_id: initiativeId },
-    { enabled: open && source === "calendar_entries" }
+    { enabled: needs("calendar") }
   );
-
   // The list endpoint returns group summaries; the counters themselves come
   // from the group's own read, which is also the query the widget will use.
   const selectedGroup = useCounterGroup(binding.counter_group_id ?? null, {
-    enabled: open && source === "counter" && Boolean(binding.counter_group_id),
+    enabled: open && needs("counter") && Boolean(binding.counter_group_id),
   });
+
+  const entityOptions = useMemo(
+    (): Record<EntityKind, { value: string; label: string }[]> => ({
+      project: (projects.data?.items ?? [])
+        .filter((project) => project.initiative_id === initiativeId)
+        .map((project) => ({ value: String(project.id), label: project.name })),
+      calendar: (calendars.data?.items ?? []).map((calendar) => ({
+        value: String(calendar.id),
+        label: calendar.name,
+      })),
+      counter_group: (counterGroups.data?.items ?? []).map((group) => ({
+        value: String(group.id),
+        label: group.name,
+      })),
+      counter: (selectedGroup.data?.counters ?? []).map((counter) => ({
+        value: String(counter.id),
+        label: counter.name,
+      })),
+      document: (documents.data?.items ?? []).map((document) => ({
+        value: String(document.id),
+        label: document.name,
+      })),
+    }),
+    [
+      projects.data,
+      calendars.data,
+      counterGroups.data,
+      selectedGroup.data,
+      documents.data,
+      initiativeId,
+    ]
+  );
 
   const setBindingValue = (patch: Partial<WidgetBinding>) =>
     setBinding((current) => ({ ...current, ...patch }));
@@ -126,7 +180,7 @@ export function WidgetConfigDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="max-h-[85vh] overflow-hidden sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{t("dashboards:config.title")}</DialogTitle>
           <DialogDescription>
@@ -134,226 +188,105 @@ export function WidgetConfigDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="widget-title">{t("dashboards:config.widgetTitle")}</Label>
-            <Input
-              id="widget-title"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder={t("dashboards:config.widgetTitlePlaceholder")}
-            />
-          </div>
+        <div className="grid max-h-[60vh] gap-6 overflow-y-auto md:grid-cols-[1fr_18rem]">
+          <div className="space-y-5">
+            <section className="space-y-2">
+              <Label htmlFor="widget-title">{t("dashboards:config.widgetTitle")}</Label>
+              <Input
+                id="widget-title"
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder={t("dashboards:config.widgetTitlePlaceholder")}
+              />
+            </section>
 
-          <div className="space-y-2">
-            <Label>{t("dashboards:config.source")}</Label>
-            <Select
-              value={source}
-              onValueChange={(next) =>
-                // Changing the source drops the old source's ids rather than
-                // carrying a counter id onto a document binding.
-                setBinding({ source: next as WidgetBinding["source"] })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {sources.map((option) => (
-                  <SelectItem key={option} value={option}>
-                    {t(`dashboards:bindingSource.${option}` as const)}
-                  </SelectItem>
+            <section className="space-y-2">
+              <h3 className="font-medium text-sm">{t("dashboards:config.sectionBinding")}</h3>
+              <Label>{t("dashboards:config.source")}</Label>
+              <Select
+                value={source}
+                onValueChange={(next) =>
+                  // Changing the source drops the old source's ids rather than
+                  // carrying a counter id onto a document binding.
+                  setBinding({ source: next as WidgetBinding["source"] })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {sources.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {t(`dashboards:bindingSource.${option}` as const)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {descriptor && (
+                <p className="text-muted-foreground text-xs">
+                  {t("dashboards:config.rowNoun", {
+                    noun: t(`dashboards:provenance.rows_${descriptor.rowNoun}` as const, {
+                      count: 1,
+                    }).replace(/^1\s*/, ""),
+                  })}
+                </p>
+              )}
+            </section>
+
+            {(descriptor?.params ?? []).map((param) => (
+              <ParamControl
+                key={param.key as string}
+                param={param}
+                binding={binding}
+                entityOptions={entityOptions}
+                initiativeId={initiativeId}
+                onChange={setBindingValue}
+              />
+            ))}
+
+            {(entry?.options ?? []).length > 0 && (
+              <section className="space-y-3">
+                <h3 className="font-medium text-sm">{t("dashboards:config.sectionDisplay")}</h3>
+                {/* Labelled by the widget itself, so an installed listing names
+                    its own options without a locale edit here. */}
+                {(entry?.options ?? []).map((option) => (
+                  <div key={option.key} className="space-y-2">
+                    <Label>
+                      {localized(meta?.options?.[option.key]?.label, i18n.language) ?? option.key}
+                    </Label>
+                    <Select
+                      value={options[option.key] ?? option.default}
+                      onValueChange={(next) =>
+                        setOptions((current) => ({ ...current, [option.key]: next }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {option.values.map((value) => (
+                          <SelectItem key={value} value={value}>
+                            {localized(
+                              meta?.options?.[option.key]?.values?.[value],
+                              i18n.language
+                            ) ?? value}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 ))}
-              </SelectContent>
-            </Select>
+              </section>
+            )}
           </div>
 
-          {needsCounterGroup && (
-            <div className="space-y-2">
-              <Label>{t("dashboards:bindingSource.counter_group")}</Label>
-              <Select
-                value={binding.counter_group_id ? String(binding.counter_group_id) : ""}
-                onValueChange={(next) =>
-                  setBindingValue({ counter_group_id: Number(next), counter_id: null })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={t("dashboards:config.choose")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {(counterGroups.data?.items ?? []).map((group) => (
-                    <SelectItem key={group.id} value={String(group.id)}>
-                      {group.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {source === "counter" && selectedGroup.data && (
-            <div className="space-y-2">
-              <Label>{t("dashboards:bindingSource.counter")}</Label>
-              <Select
-                value={binding.counter_id ? String(binding.counter_id) : ""}
-                onValueChange={(next) => setBindingValue({ counter_id: Number(next) })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={t("dashboards:config.choose")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {(selectedGroup.data.counters ?? []).map((counter) => (
-                    <SelectItem key={counter.id} value={String(counter.id)}>
-                      {counter.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {needsDocument && (
-            <>
-              <div className="space-y-2">
-                <Label>{t("dashboards:config.spreadsheet")}</Label>
-                <Select
-                  value={binding.document_id ? String(binding.document_id) : ""}
-                  onValueChange={(next) => setBindingValue({ document_id: Number(next) })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={t("dashboards:config.choose")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(documents.data?.items ?? []).map((document) => (
-                      <SelectItem key={document.id} value={String(document.id)}>
-                        {document.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="sheet-name">{t("dashboards:config.sheet")}</Label>
-                  <Input
-                    id="sheet-name"
-                    value={binding.sheet ?? ""}
-                    onChange={(event) => setBindingValue({ sheet: event.target.value })}
-                    placeholder={t("dashboards:config.sheetPlaceholder")}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sheet-range">{t("dashboards:config.range")}</Label>
-                  <Input
-                    id="sheet-range"
-                    value={binding.range ?? ""}
-                    onChange={(event) => setBindingValue({ range: event.target.value })}
-                    placeholder="A1:B10"
-                  />
-                </div>
-              </div>
-            </>
-          )}
-
-          {source === "tasks" && (
-            <div className="space-y-2">
-              <Label>{t("dashboards:config.project")}</Label>
-              <Select
-                value={binding.project_id ? String(binding.project_id) : "all"}
-                onValueChange={(next) =>
-                  setBindingValue({ project_id: next === "all" ? null : Number(next) })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t("dashboards:config.allProjects")}</SelectItem>
-                  {(projects.data?.items ?? [])
-                    .filter((project) => project.initiative_id === initiativeId)
-                    .map((project) => (
-                      <SelectItem key={project.id} value={String(project.id)}>
-                        {project.name}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {source === "calendar_entries" && (
-            <div className="space-y-2">
-              <Label>{t("dashboards:bindingSource.calendar_entries")}</Label>
-              <Select
-                value={binding.calendar_id ? String(binding.calendar_id) : "all"}
-                onValueChange={(next) =>
-                  setBindingValue({ calendar_id: next === "all" ? null : Number(next) })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t("dashboards:config.allCalendars")}</SelectItem>
-                  {(calendars.data?.items ?? []).map((calendar) => (
-                    <SelectItem key={calendar.id} value={String(calendar.id)}>
-                      {calendar.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {source === "task_counts" && (
-            <div className="space-y-2">
-              <Label>{t("dashboards:config.groupBy")}</Label>
-              <Select
-                value={binding.bucket ?? "status_category"}
-                onValueChange={(next) =>
-                  setBindingValue({ bucket: next as WidgetBinding["bucket"] })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {BUCKETS.map((bucket) => (
-                    <SelectItem key={bucket} value={bucket}>
-                      {t(`dashboards:config.bucket.${bucket}` as const)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {/* Display options, labelled by the widget itself. */}
-          {(entry?.options ?? []).map((option) => (
-            <div key={option.key} className="space-y-2">
-              <Label>
-                {localized(meta?.options?.[option.key]?.label, i18n.language) ?? option.key}
-              </Label>
-              <Select
-                value={options[option.key] ?? option.default}
-                onValueChange={(next) =>
-                  setOptions((current) => ({ ...current, [option.key]: next }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {option.values.map((value) => (
-                    <SelectItem key={value} value={value}>
-                      {localized(meta?.options?.[option.key]?.values?.[value], i18n.language) ??
-                        value}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          ))}
+          <BindingPreview
+            widget={widget}
+            binding={binding}
+            options={options}
+            initiativeId={initiativeId}
+            dashboardId={dashboardId}
+          />
         </div>
 
         <DialogFooter>
@@ -364,5 +297,181 @@ export function WidgetConfigDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** One binding parameter, drawn from what the registry says it is. */
+function ParamControl({
+  param,
+  binding,
+  entityOptions,
+  initiativeId,
+  onChange,
+}: {
+  param: SourceParam;
+  binding: WidgetBinding;
+  entityOptions: Record<EntityKind, { value: string; label: string }[]>;
+  initiativeId: number;
+  onChange: (patch: Partial<WidgetBinding>) => void;
+}) {
+  const { t } = useTranslation(["dashboards", "common"]);
+  const key = param.key as string;
+
+  switch (param.kind) {
+    case "entity": {
+      const entity = param as EntityParam;
+      // A dependent picker waits for its parent: no group chosen, no counters
+      // to choose from.
+      if (entity.within && !binding[entity.within]) return null;
+      const value = binding[param.key];
+      return (
+        <section className="space-y-2">
+          <Label>{t(`dashboards:bindingParam.${entity.entity}` as const)}</Label>
+          <Select
+            value={typeof value === "number" ? String(value) : entity.required ? "" : "all"}
+            onValueChange={(next) => {
+              const id = next === "all" ? null : Number(next);
+              // Repointing a parent invalidates the child that sat inside it.
+              const cleared = entity.entity === "counter_group" ? { counter_id: null } : undefined;
+              onChange({ [param.key]: id, ...cleared } as Partial<WidgetBinding>);
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder={t("dashboards:config.choose")} />
+            </SelectTrigger>
+            <SelectContent>
+              {!entity.required && (
+                <SelectItem value="all">
+                  {t(`dashboards:config.all_${entity.entity}` as const)}
+                </SelectItem>
+              )}
+              {entityOptions[entity.entity].map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </section>
+      );
+    }
+
+    case "enum":
+      return (
+        <section className="space-y-2">
+          <Label>{t(`dashboards:bindingParam.${key}` as const, { defaultValue: key })}</Label>
+          <Select
+            value={(binding[param.key] as string) ?? param.fallback}
+            onValueChange={(next) => onChange({ [param.key]: next } as Partial<WidgetBinding>)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {param.values.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {t(`dashboards:paramValue.${value}` as const, { defaultValue: value })}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </section>
+      );
+
+    case "window":
+      return (
+        <section className="space-y-2">
+          <Label htmlFor={`param-${key}`}>
+            {t(`dashboards:bindingParam.${key}` as const, { defaultValue: key })}
+          </Label>
+          <Input
+            id={`param-${key}`}
+            type="number"
+            min={1}
+            value={(binding[param.key] as number) ?? param.fallback}
+            onChange={(event) =>
+              onChange({
+                [param.key]: Number(event.target.value) || param.fallback,
+              } as Partial<WidgetBinding>)
+            }
+          />
+          <p className="text-muted-foreground text-xs">
+            {t("dashboards:config.windowDays", {
+              count: (binding[param.key] as number) ?? param.fallback,
+            })}
+          </p>
+        </section>
+      );
+
+    case "filters":
+      return (
+        <section className="space-y-2">
+          <h3 className="font-medium text-sm">{t("dashboards:filterBuilder.heading")}</h3>
+          <FilterBuilder
+            value={readConditions(binding.conditions)}
+            initiativeId={initiativeId}
+            onChange={(next) => onChange({ conditions: next.length ? next : undefined })}
+          />
+        </section>
+      );
+
+    default:
+      return (
+        <section className="space-y-2">
+          <Label htmlFor={`param-${key}`}>
+            {t(`dashboards:bindingParam.${key}` as const, { defaultValue: key })}
+          </Label>
+          <Input
+            id={`param-${key}`}
+            value={(binding[param.key] as string) ?? ""}
+            placeholder={param.placeholder}
+            onChange={(event) =>
+              onChange({ [param.key]: event.target.value } as Partial<WidgetBinding>)
+            }
+          />
+        </section>
+      );
+  }
+}
+
+/**
+ * The widget, running against what the controls currently say.
+ *
+ * The viewer's own data through the viewer's own session — the preview is not a
+ * privileged read, and someone configuring a widget sees exactly what they
+ * would see with it placed. It resolves nothing until the widget is on a
+ * dashboard, because `app` bindings are decided against that row.
+ */
+function BindingPreview({
+  widget,
+  binding,
+  options,
+  initiativeId,
+  dashboardId,
+}: {
+  widget: DefinitionWidget;
+  binding: WidgetBinding;
+  options: Record<string, string>;
+  initiativeId: number;
+  dashboardId?: number;
+}) {
+  const { t } = useTranslation("dashboards");
+  const live = useWidgetData(binding, initiativeId, dashboardId);
+
+  return (
+    <aside className="space-y-2">
+      <h3 className="font-medium text-sm">{t("config.preview")}</h3>
+      <div className="h-56 overflow-hidden rounded-lg border bg-card p-2">
+        <WidgetTile
+          type={widget.type}
+          data={live.data}
+          config={options}
+          isLoading={live.isLoading}
+          errorCode={live.errorCode}
+          chromeless
+        />
+      </div>
+      <p className="text-muted-foreground text-xs">{t("config.previewHint")}</p>
+    </aside>
   );
 }

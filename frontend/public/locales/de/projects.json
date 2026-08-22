@@ -30,11 +30,6 @@
     "tasksDone": "{{completed}}/{{total}} erledigt",
     "noTasks": "Keine Aufgaben"
   },
-  "tabs": {
-    "active": "Aktive Projekte",
-    "templates": "Vorlagen",
-    "archive": "Archiv"
-  },
   "view": {
     "grid": "Raster",
     "list": "Liste"
@@ -45,10 +40,7 @@
     "hide": "Filter ausblenden",
     "filterByName": "Nach Name filtern",
     "searchProjects": "Projekte suchen",
-    "initiative": "Initiative",
     "selectedInitiative": "Ausgewählte Initiative",
-    "filterByInitiative": "Nach Initiative filtern",
-    "allInitiatives": "Alle Initiativen",
     "filterByTag": "Nach Tag filtern",
     "allTags": "Alle Tags",
     "sortProjects": "Projekte sortieren",
@@ -97,7 +89,8 @@
     "unarchive": "Archivierung aufheben",
     "noArchived": "Keine archivierten Projekte",
     "noArchivedDescription": "Aktive Projekte bleiben im Tab „Aktiv“.",
-    "noArchivedDescriptionAlt": "Aktive Projekte bleiben im Haupttab für Projekte."
+    "noArchivedDescriptionAlt": "Aktive Projekte bleiben im Haupttab für Projekte.",
+    "sharingUnavailable": "Die Freigabe eines archivierten Projekts kann nicht geändert werden."
   },
   "createDialog": {
     "title": "Projekt erstellen",
@@ -500,7 +493,10 @@
   "progressLabel": "Projektfortschritt",
   "preview": {
     "updated": "Aktualisiert {{date}}",
-    "tasksDone": "{{completed}}/{{total}} erledigt"
+    "tasksDone": "{{completed}}/{{total}} erledigt",
+    "templateBadge": "Vorlage",
+    "archivedBadge": "Archiviert",
+    "archivedOn": "Archiviert am {{date}}"
   },
   "activitySidebar": {
     "title": "Projektaktivität",
@@ -540,5 +536,11 @@
     "warningUnmatchedAssignees_other": "Importiert, aber {{count}} zuständige Personen, die nicht in dieser Initiative sind, wurden verworfen: {{emails}}",
     "error": "Das Projekt konnte nicht importiert werden. Bitte versuche es erneut.",
     "queued": "Import gestartet — du erhältst eine Benachrichtigung, sobald er abgeschlossen ist."
+  },
+  "status": {
+    "label": "Anzeigen",
+    "active": "Aktiv",
+    "templates": "Vorlagen",
+    "archived": "Archiviert"
   }
 }

@@ -1,31 +1,33 @@
 import { keepPreviousData } from "@tanstack/react-query";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
-import { ChevronDown, Filter, Loader2, Search } from "lucide-react";
+import { Loader2, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
-  DocumentSummary,
-  ListMyDocumentsApiV1MeDocumentsGetParams,
+import {
+  type DocumentSummary,
+  type ListMyDocumentsApiV1MeDocumentsGetParams,
+  Tool,
 } from "@/api/generated/initiativeAPI.schemas";
 import { invalidateAllDocuments } from "@/api/query-keys";
+import { ToolFilterPanel } from "@/components/initiativeTools/shared/ToolFilterPanel";
+import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { SortIcon } from "@/components/SortIcon";
 import { TagBadge } from "@/components/tags/TagBadge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { RelativeTime } from "@/components/ui/relative-time";
-import { useDefaultFiltersOpen } from "@/hooks/useDefaultFiltersOpen";
 import { useGlobalDocuments, usePrefetchGlobalDocuments } from "@/hooks/useDocuments";
 import { useGuilds } from "@/hooks/useGuilds";
 import { guildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import type { AppColumnDef } from "@/lib/table";
+import { initiativeRoute, toolDetailRoute } from "@/lib/tools";
 import { useGlobalListFilters } from "@/pages/user/useGlobalListFilters";
 
 const MY_DOCUMENTS_FILTERS_KEY = "initiative-my-documents-filters";
@@ -33,7 +35,7 @@ const PAGE_SIZE = 20;
 
 /** Map DataTable column IDs to backend sort field names */
 const SORT_FIELD_MAP: Record<string, string> = {
-  title: "title",
+  name: "name",
   updatedAt: "updated_at",
 };
 
@@ -55,7 +57,10 @@ export const MyDocumentsPage = () => {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [filtersOpen, setFiltersOpen] = useDefaultFiltersOpen();
+  // Closed until asked for. The filter button carries a count of what's set, so
+  // a narrowed list still says so with the panel shut — and the fields no
+  // longer take the top of the page before the list itself.
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [page, setPageState] = useState(() => searchParams.page ?? 1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
@@ -141,7 +146,7 @@ export const MyDocumentsPage = () => {
         enableSorting: false,
       },
       {
-        accessorKey: "title",
+        accessorKey: "name",
         header: ({ column }) => {
           const isSorted = column.getIsSorted();
           return (
@@ -157,10 +162,10 @@ export const MyDocumentsPage = () => {
           const doc = row.original;
           return (
             <Link
-              to={docGuildPath(doc, `/documents/${doc.id}`)}
+              to={docGuildPath(doc, toolDetailRoute(Tool.document, doc.initiative_id, doc.id))}
               className="flex items-center gap-2 font-medium text-foreground hover:underline"
             >
-              {doc.title}
+              {doc.name}
               {doc.is_template && (
                 <Badge variant="secondary" className="text-xs">
                   {t("type.template")}
@@ -183,7 +188,7 @@ export const MyDocumentsPage = () => {
           }
           return (
             <Link
-              to={docGuildPath(doc, `/initiatives/${initiative.id}`)}
+              to={docGuildPath(doc, initiativeRoute(initiative.id))}
               className="flex items-center gap-2 text-muted-foreground text-sm hover:underline"
             >
               <InitiativeColorDot color={initiative.color} />
@@ -248,6 +253,13 @@ export const MyDocumentsPage = () => {
     [t, guilds, docGuildPath]
   );
 
+  const activeFilterCount = (searchQuery.trim() ? 1 : 0) + guildFilters.length;
+
+  const clearFilters = useCallback(() => {
+    setSearchQuery("");
+    setGuildFilters([]);
+  }, [setGuildFilters]);
+
   const isInitialLoad = documentsQuery.isLoading && !documentsQuery.data;
   const isRefetching = documentsQuery.isFetching && !isInitialLoad;
   const hasError = documentsQuery.isError;
@@ -263,66 +275,64 @@ export const MyDocumentsPage = () => {
           <p className="text-muted-foreground">{t("myDocuments.subtitle")}</p>
         </div>
 
-        <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="space-y-2">
-          <div className="flex items-center justify-between sm:hidden">
-            <div className="inline-flex items-center gap-2 font-medium text-muted-foreground text-sm">
-              <Filter className="h-4 w-4" />
-              {t("myDocuments.filters")}
+        <ToolListToolbar
+          filters={{
+            open: filtersOpen,
+            onOpenChange: setFiltersOpen,
+            activeCount: activeFilterCount,
+          }}
+        />
+
+        <ToolFilterPanel
+          open={filtersOpen}
+          onOpenChange={setFiltersOpen}
+          title={t("myDocuments.filters")}
+          onClear={clearFilters}
+          activeCount={activeFilterCount}
+        >
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="w-full sm:w-60 lg:flex-1">
+              <Label
+                htmlFor="doc-guild-filter"
+                className="mb-2 block font-medium text-muted-foreground text-xs"
+              >
+                {t("myDocuments.filterByGuild")}
+              </Label>
+              <MultiSelect
+                selectedValues={guildFilters.map(String)}
+                options={guilds.map((guild) => ({
+                  value: String(guild.id),
+                  label: guild.name,
+                }))}
+                onChange={(values) => {
+                  const numericValues = values.map(Number).filter(Number.isFinite);
+                  setGuildFilters(numericValues);
+                }}
+                placeholder={t("myDocuments.allGuilds")}
+                emptyMessage={t("myDocuments.noGuilds")}
+              />
             </div>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-8 px-3">
-                {filtersOpen ? t("myDocuments.hideFilters") : t("myDocuments.showFilters")}
-                <ChevronDown
-                  className={`h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
+            <div className="w-full sm:w-60 lg:flex-1">
+              <Label
+                htmlFor="doc-search"
+                className="mb-2 block font-medium text-muted-foreground text-xs"
+              >
+                {t("myDocuments.searchPlaceholder")}
+              </Label>
+              <div className="relative">
+                <Search className="absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="doc-search"
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={t("myDocuments.searchPlaceholder")}
+                  className="pl-9"
                 />
-              </Button>
-            </CollapsibleTrigger>
+              </div>
+            </div>
           </div>
-          <CollapsibleContent forceMount className="data-[state=closed]:hidden">
-            <div className="mt-2 flex flex-wrap items-end gap-4 rounded-md border border-muted bg-background/40 p-3 sm:mt-0">
-              <div className="w-full sm:w-60 lg:flex-1">
-                <Label
-                  htmlFor="doc-guild-filter"
-                  className="mb-2 block font-medium text-muted-foreground text-xs"
-                >
-                  {t("myDocuments.filterByGuild")}
-                </Label>
-                <MultiSelect
-                  selectedValues={guildFilters.map(String)}
-                  options={guilds.map((guild) => ({
-                    value: String(guild.id),
-                    label: guild.name,
-                  }))}
-                  onChange={(values) => {
-                    const numericValues = values.map(Number).filter(Number.isFinite);
-                    setGuildFilters(numericValues);
-                  }}
-                  placeholder={t("myDocuments.allGuilds")}
-                  emptyMessage={t("myDocuments.noGuilds")}
-                />
-              </div>
-              <div className="w-full sm:w-60 lg:flex-1">
-                <Label
-                  htmlFor="doc-search"
-                  className="mb-2 block font-medium text-muted-foreground text-xs"
-                >
-                  {t("myDocuments.searchPlaceholder")}
-                </Label>
-                <div className="relative">
-                  <Search className="absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    id="doc-search"
-                    type="search"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder={t("myDocuments.searchPlaceholder")}
-                    className="pl-9"
-                  />
-                </div>
-              </div>
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
+        </ToolFilterPanel>
 
         <div className="relative">
           {isRefetching ? (

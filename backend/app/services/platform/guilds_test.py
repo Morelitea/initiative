@@ -142,7 +142,7 @@ async def test_create_guild(session: AsyncSession):
     assert guild.id is not None
     assert guild.name == "New Guild"
     assert guild.description == "A test guild"
-    assert guild.created_by_user_id == creator.id
+    assert guild.created_by == creator.id
 
 
 @pytest.mark.unit
@@ -286,7 +286,7 @@ async def test_redeem_invite_blocked_when_full(session: AsyncSession):
         session, guild_id=guild.id, user_id=seat_holder.id, role=GuildRole.member
     )
     invite = await guild_service.create_guild_invite(
-        session, guild_id=guild.id, created_by_user_id=creator.id, max_uses=5
+        session, guild_id=guild.id, created_by=creator.id, max_uses=5
     )
 
     with pytest.raises(guild_service.GuildCapacityError):
@@ -430,7 +430,7 @@ async def test_create_guild_invite(session: AsyncSession):
     invite = await guild_service.create_guild_invite(
         session,
         guild_id=guild.id,
-        created_by_user_id=creator.id,
+        created_by=creator.id,
         invitee_email="invitee@example.com",
         max_uses=1,
         expires_at=None,
@@ -438,7 +438,7 @@ async def test_create_guild_invite(session: AsyncSession):
 
     assert invite.id is not None
     assert invite.guild_id == guild.id
-    assert invite.created_by_user_id == creator.id
+    assert invite.created_by == creator.id
     assert invite.invitee_email == "invitee@example.com"
     assert invite.max_uses == 1
     assert invite.uses == 0
@@ -455,12 +455,12 @@ async def test_invite_code_is_unique(session: AsyncSession):
     invite1 = await guild_service.create_guild_invite(
         session,
         guild_id=guild.id,
-        created_by_user_id=user.id,
+        created_by=user.id,
     )
     invite2 = await guild_service.create_guild_invite(
         session,
         guild_id=guild.id,
-        created_by_user_id=user.id,
+        created_by=user.id,
     )
 
     assert invite1.code != invite2.code
@@ -476,7 +476,7 @@ async def test_invite_is_active_valid(session: AsyncSession):
     invite = await guild_service.create_guild_invite(
         session,
         guild_id=guild.id,
-        created_by_user_id=user.id,
+        created_by=user.id,
         max_uses=5,
         expires_at=datetime.now(timezone.utc) + timedelta(days=7),
     )
@@ -494,7 +494,7 @@ async def test_invite_is_active_expired(session: AsyncSession):
     invite = await guild_service.create_guild_invite(
         session,
         guild_id=guild.id,
-        created_by_user_id=user.id,
+        created_by=user.id,
         expires_at=datetime.now(timezone.utc) - timedelta(days=1),  # Expired
     )
 
@@ -511,7 +511,7 @@ async def test_invite_is_active_max_uses_exceeded(session: AsyncSession):
     invite = await guild_service.create_guild_invite(
         session,
         guild_id=guild.id,
-        created_by_user_id=user.id,
+        created_by=user.id,
         max_uses=1,
     )
 
@@ -535,7 +535,7 @@ async def test_redeem_invite_for_user(session: AsyncSession):
     invite = await guild_service.create_guild_invite(
         session,
         guild_id=guild.id,
-        created_by_user_id=creator.id,
+        created_by=creator.id,
         max_uses=5,
     )
 
@@ -575,7 +575,7 @@ async def test_redeem_invite_expired_raises_error(session: AsyncSession):
     invite = await guild_service.create_guild_invite(
         session,
         guild_id=guild.id,
-        created_by_user_id=creator.id,
+        created_by=creator.id,
         expires_at=datetime.now(timezone.utc) - timedelta(days=1),
     )
 
@@ -598,7 +598,7 @@ async def test_redeem_email_bound_invite_wrong_user_rejected(session: AsyncSessi
     invite = await guild_service.create_guild_invite(
         session,
         guild_id=guild.id,
-        created_by_user_id=creator.id,
+        created_by=creator.id,
         invitee_email="invitee@example.com",
         max_uses=5,
     )
@@ -636,7 +636,7 @@ async def test_redeem_email_bound_invite_matching_user_succeeds(
     invite = await guild_service.create_guild_invite(
         session,
         guild_id=guild.id,
-        created_by_user_id=creator.id,
+        created_by=creator.id,
         invitee_email="Invitee@Example.com",
         max_uses=5,
     )
@@ -671,7 +671,7 @@ async def test_redeem_unbound_invite_any_user_succeeds(session: AsyncSession):
     invite = await guild_service.create_guild_invite(
         session,
         guild_id=guild.id,
-        created_by_user_id=creator.id,
+        created_by=creator.id,
         invitee_email=None,
         max_uses=5,
     )
@@ -701,7 +701,7 @@ async def test_delete_guild_invite(session: AsyncSession):
     invite = await guild_service.create_guild_invite(
         session,
         guild_id=guild.id,
-        created_by_user_id=creator.id,
+        created_by=creator.id,
     )
 
     await guild_service.delete_guild_invite(

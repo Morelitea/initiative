@@ -25,6 +25,15 @@ describe("canPinProject", () => {
     expect(canPinProject(project, USER_ID)).toBe(true);
   });
 
+  it("refuses an archived project, whoever is asking", () => {
+    // The server rejects every edit to an archived project, pinning included,
+    // so the card must not offer it.
+    const managed = projectWithRole({ role_name: "project_manager", is_manager: true });
+    const archived = { ...managed, is_archived: true };
+    expect(canPinProject(archived, USER_ID)).toBe(false);
+    expect(canPinProject(archived, USER_ID, "admin")).toBe(false);
+  });
+
   it("counts a managing role the initiative named itself", () => {
     // The flag is what the server reads, not the role's name: an initiative
     // that renamed its managers, or added a second managing role, still has

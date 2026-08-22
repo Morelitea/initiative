@@ -123,7 +123,7 @@ async def _make_subscription(
     sub = WebhookSubscription(
         guild_id=guild.id,
         initiative_id=initiative_id,
-        created_by_user_id=user.id,
+        created_by=user.id,
         target_url=target_url,
         hmac_secret="test-secret",
         event_types=event_types,

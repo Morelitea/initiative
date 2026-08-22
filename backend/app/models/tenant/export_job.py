@@ -19,7 +19,9 @@ from typing import Any, Optional
 
 from sqlalchemy import Column, DateTime, String
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field
+
+from app.models.tenant._mixins import CreatedByMixin
 
 
 class ExportJobStatus(str, Enum):
@@ -30,12 +32,12 @@ class ExportJobStatus(str, Enum):
     expired = "expired"
 
 
-class ExportJob(SQLModel, table=True):
+class ExportJob(CreatedByMixin, table=True):
     __tablename__ = "export_jobs"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
-    created_by_id: int = Field(foreign_key="users.id", nullable=False)
+    created_by: int = Field(foreign_key="users.id", nullable=False)
 
     source: str = Field(nullable=False)  # "tasks" | "project-report" | …
     template_id: str = Field(nullable=False)

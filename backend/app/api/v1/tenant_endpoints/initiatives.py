@@ -55,7 +55,6 @@ from app.services import notifications as notifications_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.platform import guilds as guilds_service
 from app.services.stream_authz import authority as stream_authority
-from app.services.tenant import documents as documents_service
 from app.services import rls as rls_service
 from app.services.membership import initiative_scope_clause
 
@@ -147,7 +146,7 @@ async def _guard_guild_admin_role(
     """Restrict which initiative roles a guild admin may be assigned.
 
     A guild admin already has complete access to every initiative in their
-    guild (see ``permissions.is_request_guild_admin``), so they are implicit
+    guild (see ``role_context.is_request_guild_admin``), so they are implicit
     full-access members. They may *additionally* hold a manager role — purely
     for manager-style features like notifications — but must never be assigned a
     standard member or custom role. This keeps the admin's standing access
@@ -990,20 +989,12 @@ async def remove_initiative_member(
     membership = result.one_or_none()
 
     if membership:
-        # Check if removing a manager
-        if membership.role_ref and membership.role_ref.is_manager:
-            await _ensure_remaining_manager(
-                session, initiative, exclude_user_ids={user_id}
-            )
+        # Removing a member is never blocked by them being the initiative's last
+        # manager — the initiative is simply left without one until an admin
+        # appoints another. (Demoting the last manager still is blocked; that
+        # edits a live membership rather than ending it.)
         await session.delete(membership)
         await session.flush()
-
-        # Handle orphaned documents when owner is removed
-        await documents_service.handle_owner_removal(
-            session,
-            initiative_id=initiative_id,
-            user_id=user_id,
-        )
 
         project_ids_result = await session.exec(
             select(Project.id).where(Project.initiative_id == initiative_id)
@@ -1011,63 +1002,16 @@ async def remove_initiative_member(
         project_ids = [project_id for project_id in project_ids_result.all()]
 
         if project_ids:
-            # Handle orphaned projects - grant owner access to PMs before deleting
-            owner_permissions_stmt = select(ResourceGrant).where(
-                ResourceGrant.resource_type == "project",
-                ResourceGrant.user_id == user_id,
-                ResourceGrant.resource_id.in_(tuple(project_ids)),
-                ResourceGrant.level == ResourceAccessLevel.owner,
-            )
-            owner_permissions_result = await session.exec(owner_permissions_stmt)
-            owner_permissions = owner_permissions_result.all()
-
-            if owner_permissions:
-                # Get all initiative managers (users with is_manager role)
-                pm_result = await session.exec(
-                    select(InitiativeMember)
-                    .join(
-                        InitiativeRoleModel,
-                        InitiativeRoleModel.id == InitiativeMember.role_id,
-                    )
-                    .where(
-                        InitiativeMember.initiative_id == initiative_id,
-                        InitiativeRoleModel.is_manager.is_(True),
-                    )
-                )
-                pm_user_ids = {
-                    pm.user_id for pm in pm_result.all() if pm.user_id != user_id
-                }
-
-                # For each project where user had owner permission, grant owner to PMs
-                for perm in owner_permissions:
-                    # Get existing user grants for this project
-                    existing_perms_stmt = select(ResourceGrant.user_id).where(
-                        ResourceGrant.resource_type == "project",
-                        ResourceGrant.resource_id == perm.resource_id,
-                        ResourceGrant.user_id.is_not(None),
-                    )
-                    existing_result = await session.exec(existing_perms_stmt)
-                    existing_user_ids = set(existing_result.all())
-
-                    # Grant owner access to PMs who don't have any permission yet
-                    for pm_user_id in pm_user_ids:
-                        if pm_user_id not in existing_user_ids:
-                            pm_permission = ResourceGrant(
-                                resource_type="project",
-                                resource_id=perm.resource_id,
-                                user_id=pm_user_id,
-                                role_id=None,
-                                level=ResourceAccessLevel.owner,
-                                guild_id=initiative.guild_id,
-                                initiative_id=initiative_id,
-                            )
-                            session.add(pm_permission)
-
-            # Remove project grants for this user in all initiative projects
+            # Drop this user's read/write project grants in the initiative —
+            # access that came with the membership goes with it. Owner grants
+            # are excluded: they record who the project belongs to, and grant
+            # nothing on their own once the membership row is gone. A guild
+            # admin re-homes them through the transfer-ownership action.
             delete_permissions_stmt = (
                 delete(ResourceGrant)
                 .where(ResourceGrant.resource_type == "project")
                 .where(ResourceGrant.user_id == user_id)
+                .where(ResourceGrant.level != ResourceAccessLevel.owner)
                 .where(ResourceGrant.resource_id.in_(tuple(project_ids)))
             )
             await session.exec(delete_permissions_stmt)
@@ -1085,13 +1029,12 @@ async def remove_initiative_member(
                 )
                 await session.exec(delete_stmt)
 
-        # Remove the user's document grants in this initiative. With the
-        # DB-level initiative-scope policies gone (schema-per-guild), a stale
-        # row would otherwise remain a live grant after removal.
+        # Same for documents: read/write grants go, the owner grant stays.
         await session.exec(
             delete(ResourceGrant).where(
                 ResourceGrant.resource_type == "document",
                 ResourceGrant.user_id == user_id,
+                ResourceGrant.level != ResourceAccessLevel.owner,
                 ResourceGrant.resource_id.in_(
                     select(Document.id).where(Document.initiative_id == initiative_id)
                 ),

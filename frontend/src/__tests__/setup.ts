@@ -19,6 +19,11 @@ vi.mock("@capacitor/core", () => ({
     getPlatform: () => "web",
     convertFileSrc: (url: string) => url,
   },
+  // Native plugin registration is a no-op on web. Needed by any test that
+  // imports a module graph reaching a registerPlugin call — the route tree
+  // does, via the authenticated layout.
+  registerPlugin: (_name: string, implementations?: { web?: () => unknown }) =>
+    implementations?.web?.() ?? {},
 }));
 
 vi.mock("@capacitor/device", () => ({

@@ -152,7 +152,7 @@ def build_document_item(
     from app.services.export.i18n import et
 
     doc_type = _doc_type(document)
-    stem = f"{safe_filename_component(document.title).lower()}-{date}"
+    stem = f"{safe_filename_component(document.name).lower()}-{date}"
 
     if doc_type == DocumentType.native.value and format != "json":
         from app.services.export.lexical import blocks_from_editor_state
@@ -162,9 +162,9 @@ def build_document_item(
         )
         data = {
             # Title/footer are the document's own name (user data).
-            "title": document.title,
+            "title": document.name,
             "subtitle": et("exported", loc, date=date),
-            "footer": document.title,
+            "footer": document.name,
             "page_of": et("pageOf", loc),
             "stem": stem,
             "blocks": blocks,
@@ -200,7 +200,7 @@ def build_document_item(
             # discriminate file types uniformly.
             data = _envelope(document, content=document.content or {})
         else:
-            data = {"title": document.title, "grid": document.content or {}}
+            data = {"title": document.name, "grid": document.content or {}}
     elif doc_type == DocumentType.file.value:
         storage_key = (document.file_url or "").split("/")[-1]
         data = {
@@ -217,7 +217,7 @@ def build_document_item(
         else:
             data = {
                 "layout": "link",
-                "title": document.title,
+                "title": document.name,
                 "url": (document.content or {}).get("url", ""),
             }
 
@@ -235,7 +235,7 @@ def _envelope(document: Document, *, content: dict) -> dict:
         "type": "initiative-document",
         "schema_version": 1,
         "document_type": _doc_type(document),
-        "title": document.title,
+        "name": document.name,
         "content": content,
         "tags": sorted(
             link.tag.name for link in document.tag_links or [] if link.tag is not None

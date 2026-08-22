@@ -100,7 +100,7 @@ def event_export_dict(event: CalendarEvent) -> dict:
 
     Attendees ride as display name + email + RSVP (informational — user ids
     are guild-local, an import can't rebind them); tags by name; linked
-    documents by title."""
+    documents by name."""
     recurrence: Optional[dict] = None
     if event.recurrence:
         try:
@@ -135,7 +135,7 @@ def event_export_dict(event: CalendarEvent) -> dict:
             link.tag.name for link in event.tag_links or [] if link.tag is not None
         ),
         "documents": sorted(
-            link.document.title
+            link.document.name
             for link in event.document_links or []
             if link.document is not None
         ),
@@ -379,7 +379,7 @@ def build_calendar_events(
     content: str,
     calendar_id: int,
     guild_id: int,
-    created_by_id: int,
+    created_by: int,
 ) -> Tuple[List[CalendarEvent], List[str], int]:
     """Parse .ics content and build CalendarEvent model instances attached to
     the target calendar.
@@ -413,7 +413,7 @@ def build_calendar_events(
                 recurrence=json.dumps(data["recurrence"])
                 if data["recurrence"]
                 else None,
-                created_by_id=created_by_id,
+                created_by=created_by,
             )
             events.append(event)
         except Exception as exc:

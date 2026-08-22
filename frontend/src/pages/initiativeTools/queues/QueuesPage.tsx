@@ -1,6 +1,6 @@
 import { useRouter, useSearch } from "@tanstack/react-router";
 import { Loader2, Plus } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -8,27 +8,28 @@ import { invalidateAllQueues } from "@/api/query-keys";
 import { BulkAccessSection } from "@/components/access/BulkAccessSection";
 import { SelectableGridItem } from "@/components/access/SelectableGridItem";
 import { PaginationBar } from "@/components/documents/PaginationBar";
-import { ToolImportAction } from "@/components/imports/ToolImportAction";
+import { ToolImportAction, useToolImportAction } from "@/components/imports/ToolImportAction";
 import { CreateQueueDialog } from "@/components/initiativeTools/queues/CreateQueueDialog";
 import { QueueCard } from "@/components/initiativeTools/queues/QueueCard";
 import {
   QueuesFilterBar,
   type StatusFilter,
 } from "@/components/initiativeTools/queues/QueuesFilterBar";
+import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
-import { getDefaultFiltersVisibility } from "@/hooks/useDefaultFiltersOpen";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
-import { INITIATIVE_FILTER_ALL, useInitiativeFilter } from "@/hooks/useInitiativeFilter";
-import { useInitiatives } from "@/hooks/useInitiatives";
 import { useQueuesList } from "@/hooks/useQueues";
 import { useGuildPath } from "@/lib/guildUrl";
+import { toolDetailRoute } from "@/lib/tools";
 
 type QueuesViewProps = {
-  fixedInitiativeId?: number;
+  /** The initiative this list belongs to. Required: queues are only ever
+   *  browsed inside one, and the URL says which. */
+  fixedInitiativeId: number;
   canCreate?: boolean;
 };
 
@@ -37,16 +38,9 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
   const router = useRouter();
   const gp = useGuildPath();
   const searchParams = useSearch({ strict: false }) as {
-    initiativeId?: string;
     create?: string;
     page?: number;
   };
-
-  const lockedInitiativeId = typeof fixedInitiativeId === "number" ? fixedInitiativeId : null;
-
-  const { initiativeFilter, setInitiativeFilter, filteredInitiativeId } = useInitiativeFilter({
-    lockedInitiativeId,
-  });
 
   const searchParamsRef = useRef(searchParams);
   searchParamsRef.current = searchParams;
@@ -72,39 +66,16 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
     [router]
   );
 
-  // Reset to page 1 when filters change
-  useEffect(() => {
-    setPage(1);
-  }, [initiativeFilter, setPage]);
-
   const queuesQuery = useQueuesList({
-    ...(initiativeFilter !== INITIATIVE_FILTER_ALL
-      ? { initiative_id: Number(initiativeFilter) }
-      : {}),
+    initiative_id: fixedInitiativeId,
     page,
     page_size: pageSize,
   });
 
-  const initiativesQuery = useInitiatives();
-  const initiatives = useMemo(
-    () => (initiativesQuery.data ?? []).filter((init) => init.queues_enabled),
-    [initiativesQuery.data]
-  );
-
-  // Build initiative name lookup
-  const initiativeNameMap = useMemo(() => {
-    const map = new Map<number, string>();
-    for (const init of initiatives) {
-      map.set(init.id, init.name);
-    }
-    return map;
-  }, [initiatives]);
-
-  // Canonical create answer: the locked/filtered initiative's server-computed
-  // create flag, or (in the "All" view) whether any visible initiative grants
-  // it. An explicit canCreate prop (e.g. from InitiativeDetailPage) wins.
+  // Canonical create answer: this initiative's server-computed create flag. An
+  // explicit canCreate prop (e.g. from InitiativeDetailPage) wins.
   const { canCreate: canCreateDerived } = useToolCreateAccess(Tool.queue, {
-    initiativeId: lockedInitiativeId ?? filteredInitiativeId,
+    initiativeId: fixedInitiativeId,
   });
   const canCreateQueues = canCreate ?? canCreateDerived;
 
@@ -115,7 +86,10 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
   } = useCreateFromSearchParam();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
+  // Closed until asked for. The filter button carries a count of what's set, so
+  // a narrowed list still says so with the panel shut — and the fields no
+  // longer take the top of the page before the list itself.
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Drive the app-wide bottom-nav add button for this route.
   useRegisterPrimaryCreateAction(
@@ -124,7 +98,7 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
 
   const handleQueueCreated = (queue: { id: number }) => {
     void router.navigate({
-      to: gp(`/queues/${queue.id}`),
+      to: gp(toolDetailRoute(Tool.queue, fixedInitiativeId, queue.id)),
     });
   };
 
@@ -145,58 +119,56 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
     });
   }, [queuesQuery.data, searchQuery, statusFilter]);
 
-  const lockedInitiativeName = lockedInitiativeId
-    ? (initiativeNameMap.get(lockedInitiativeId) ?? null)
-    : null;
-
   const selection = useGridSelection<(typeof queues)[number]>();
+
+  const queueImport = useToolImportAction({
+    tool: Tool.queue,
+    canImport: canCreateQueues,
+    fixedInitiativeId,
+  });
+
+  const activeFilterCount = (searchQuery.trim() ? 1 : 0) + (statusFilter === "all" ? 0 : 1);
+
+  const clearFilters = useCallback(() => {
+    setSearchQuery("");
+    setStatusFilter("all");
+  }, []);
 
   return (
     <div className="space-y-6">
-      {!lockedInitiativeId && (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="flex items-baseline gap-4">
-              <h1 className="font-semibold text-3xl tracking-tight">{t("title")}</h1>
-              {canCreateQueues && (
-                <Button size="sm" variant="outline" onClick={() => setCreateDialogOpen(true)}>
-                  <Plus className="h-4 w-4" />
-                  {t("createQueue")}
-                </Button>
-              )}
-              <ToolImportAction tool={Tool.queue} canImport={canCreateQueues} />
-            </div>
-            <p className="text-muted-foreground text-sm">{t("noQueuesDescription")}</p>
-          </div>
-        </div>
-      )}
-
-      {lockedInitiativeId && canCreateQueues && (
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          <Button variant="outline" onClick={() => setCreateDialogOpen(true)}>
-            <Plus className="h-4 w-4" />
-            {t("createQueue")}
-          </Button>
-          <ToolImportAction
-            tool={Tool.queue}
-            canImport={canCreateQueues}
-            fixedInitiativeId={lockedInitiativeId ?? undefined}
-          />
-        </div>
-      )}
+      <ToolListToolbar
+        filters={{
+          open: filtersOpen,
+          onOpenChange: setFiltersOpen,
+          activeCount: activeFilterCount,
+        }}
+        actions={
+          canCreateQueues ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9"
+              onClick={() => setCreateDialogOpen(true)}
+            >
+              <Plus className="h-4 w-4" />
+              {t("createQueue")}
+            </Button>
+          ) : null
+        }
+        menuItems={queueImport.menuItem}
+        onEnterSelection={!selection.active && queues.length > 0 ? selection.enter : undefined}
+      />
+      {queueImport.dialog}
 
       <QueuesFilterBar
         searchQuery={searchQuery}
         onSearchQueryChange={setSearchQuery}
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
-        initiativeFilter={initiativeFilter}
-        onInitiativeFilterChange={setInitiativeFilter}
-        lockedInitiativeId={lockedInitiativeId}
-        lockedInitiativeName={lockedInitiativeName}
-        initiatives={initiatives}
         filtersOpen={filtersOpen}
         onFiltersOpenChange={setFiltersOpen}
+        onClear={clearFilters}
+        activeCount={activeFilterCount}
       />
 
       {/* Content */}
@@ -223,10 +195,7 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
                 onToggle={() => selection.toggle(queue)}
                 label={queue.name}
               >
-                <QueueCard
-                  queue={queue}
-                  initiativeName={initiativeNameMap.get(queue.initiative_id)}
-                />
+                <QueueCard queue={queue} />
               </SelectableGridItem>
             ))}
           </div>
@@ -259,7 +228,7 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
             <ToolImportAction
               tool={Tool.queue}
               canImport={canCreateQueues}
-              fixedInitiativeId={lockedInitiativeId ?? undefined}
+              fixedInitiativeId={fixedInitiativeId}
               variant="button"
             />
           </CardContent>
@@ -269,16 +238,10 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
       <CreateQueueDialog
         open={createDialogOpen}
         onOpenChange={handleCreateDialogOpenChange}
-        initiativeId={lockedInitiativeId ?? undefined}
-        defaultInitiativeId={
-          initiativeFilter !== INITIATIVE_FILTER_ALL ? Number(initiativeFilter) : undefined
-        }
+        initiativeId={fixedInitiativeId}
+        defaultInitiativeId={fixedInitiativeId}
         onSuccess={handleQueueCreated}
       />
     </div>
   );
 };
-
-export function QueuesPage() {
-  return <QueuesView />;
-}

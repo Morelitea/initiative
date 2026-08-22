@@ -67,7 +67,7 @@ async def test_upload_accessible_with_auth_header(
         Upload(
             filename="test_auth_header.txt",
             guild_id=guild.id,
-            uploader_user_id=user.id,
+            created_by=user.id,
             size_bytes=5,
         )
     )
@@ -117,7 +117,7 @@ async def test_upload_accessible_with_scoped_upload_token(
         Upload(
             filename="test_query_upload_token.txt",
             guild_id=guild.id,
-            uploader_user_id=user.id,
+            created_by=user.id,
             size_bytes=5,
         )
     )
@@ -158,7 +158,7 @@ async def test_issue_upload_token_endpoint(
         Upload(
             filename="test_minted_token.txt",
             guild_id=guild.id,
-            uploader_user_id=user.id,
+            created_by=user.id,
             size_bytes=5,
         )
     )
@@ -224,7 +224,7 @@ async def test_upload_guild_member_can_access_file(
     upload = Upload(
         filename="test_guild_access.png",
         guild_id=guild.id,
-        uploader_user_id=user.id,
+        created_by=user.id,
         size_bytes=16,
     )
     session.add(upload)
@@ -255,7 +255,7 @@ async def test_upload_non_member_cannot_access_file(
         upload = Upload(
             filename="test_guild_forbidden.png",
             guild_id=guild.id,
-            uploader_user_id=owner.id,
+            created_by=owner.id,
             size_bytes=16,
         )
         session.add(upload)
@@ -336,7 +336,7 @@ async def test_upload_row_in_guild_schema_is_served(
     await session.exec(
         text(
             f'INSERT INTO "{schema}".uploads'
-            " (filename, guild_id, uploader_user_id, size_bytes, created_at)"
+            " (filename, guild_id, created_by, size_bytes, created_at)"
             " VALUES (:fn, :gid, :uid, 5, now())"
         ),
         params={"fn": "test_guild_schema_row.txt", "gid": guild.id, "uid": user.id},
@@ -391,7 +391,7 @@ async def test_app_admin_needs_set_role_for_guild_schema(session, role_session):
         Upload(
             filename="grant_probe.jpg",
             guild_id=guild.id,
-            uploader_user_id=user.id,
+            created_by=user.id,
             size_bytes=1,
         )
     )
@@ -439,7 +439,7 @@ async def test_upload_suspended_guild_member_404_grant_still_served(
         Upload(
             filename="suspended_guild.txt",
             guild_id=guild.id,
-            uploader_user_id=user.id,
+            created_by=user.id,
             size_bytes=5,
         )
     )

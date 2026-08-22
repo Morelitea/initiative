@@ -22,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCreateQueueItem } from "@/hooks/useQueues";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
+import { entityRefRoute } from "@/lib/tools";
 import type { DialogProps } from "@/types/dialog";
 
 type AddQueueItemDialogProps = DialogProps & {
@@ -213,7 +214,7 @@ export const AddQueueItemDialog = ({
             loading={docsLoading}
             onSearchChange={setDocSearch}
             onOpenChange={setDocPickerOpen}
-            hrefFor={(id) => gp(`/documents/${id}`)}
+            hrefFor={(id) => gp(entityRefRoute("document", id))}
             placeholder={t("selectDocument")}
             emptyMessage={t("noDocuments")}
           />
@@ -226,7 +227,7 @@ export const AddQueueItemDialog = ({
             loading={tasksLoading}
             onSearchChange={setTaskSearch}
             onOpenChange={setTaskPickerOpen}
-            hrefFor={(id) => gp(`/tasks/${id}`)}
+            hrefFor={(id) => gp(entityRefRoute("task", id))}
             placeholder={t("selectTask")}
             emptyMessage={t("noTasks")}
           />

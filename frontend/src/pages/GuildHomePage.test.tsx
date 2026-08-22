@@ -190,6 +190,7 @@ describe("GuildHomePage", () => {
             task_title: "Fuel check",
             project_id: 1,
             project_name: "Lunar Lander",
+            initiative_id: 5,
           }),
         ])
       )
@@ -202,7 +203,61 @@ describe("GuildHomePage", () => {
     expect(screen.getByText("on Fuel check in Lunar Lander")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Ready for the review/ })).toHaveAttribute(
       "href",
-      "/g/1/tasks/4"
+      "/g/1/i/5/projects/1/tasks/4"
+    );
+  });
+
+  it("links a comment left on a tool entity to that entity", async () => {
+    stubInitiatives({ queues_enabled: true });
+    stubTools({ queues: [] });
+    server.use(
+      guildHttp.get("/comments/recent", () =>
+        HttpResponse.json([
+          buildRecentActivityEntry({
+            comment_id: 12,
+            content: "Order looks wrong",
+            entity_type: "queue",
+            entity_id: 8,
+            entity_name: "Combat Order",
+            initiative_id: 5,
+          }),
+        ])
+      )
+    );
+
+    renderHome({ tool: "queues" });
+
+    expect(await screen.findByText("on Combat Order")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Order looks wrong/ })).toHaveAttribute(
+      "href",
+      "/g/1/i/5/queues/8"
+    );
+  });
+
+  it("addresses a guild-level calendar's comment at the guild route", async () => {
+    stubInitiatives({ calendars_enabled: true });
+    stubTools();
+    server.use(
+      guildHttp.get("/comments/recent", () =>
+        HttpResponse.json([
+          buildRecentActivityEntry({
+            comment_id: 13,
+            content: "Moving this to Thursday",
+            entity_type: "calendar",
+            entity_id: 3,
+            entity_name: "Club Nights",
+            initiative_id: null,
+          }),
+        ])
+      )
+    );
+
+    renderHome();
+
+    expect(await screen.findByText("on Club Nights")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Moving this to Thursday/ })).toHaveAttribute(
+      "href",
+      "/g/1/calendars/3"
     );
   });
 
@@ -236,7 +291,7 @@ describe("GuildHomePage", () => {
     stubInitiatives();
     stubTools({
       documents: [
-        buildDocumentSummary({ id: 5, title: "Flight Rules", initiative_id: INITIATIVE_ID }),
+        buildDocumentSummary({ id: 5, name: "Flight Rules", initiative_id: INITIATIVE_ID }),
       ],
     });
 

@@ -207,14 +207,14 @@ async def test_envelope_import_roundtrips_document_types(client, acting_user, se
         session,
         a.initiative,
         a.user,
-        title="Notes",
+        name="Notes",
         content={"root": {"type": "root", "children": []}},
     )
     board = await create_document(
         session,
         a.initiative,
         a.user,
-        title="Map",
+        name="Map",
         document_type=DocumentType.whiteboard,
         content={"elements": [{"type": "rectangle"}], "appState": {}, "files": {}},
     )
@@ -222,7 +222,7 @@ async def test_envelope_import_roundtrips_document_types(client, acting_user, se
         session,
         a.initiative,
         a.user,
-        title="Spec",
+        name="Spec",
         document_type=DocumentType.smart_link,
         content={"url": "https://example.com/spec"},
     )
@@ -241,11 +241,11 @@ async def test_envelope_import_roundtrips_document_types(client, acting_user, se
     imported = list(
         await session.exec(select(Document).where(Document.initiative_id == target.id))
     )
-    by_title = {d.title: d for d in imported}
-    assert set(by_title) == {"Notes", "Map", "Spec"}
-    assert by_title["Map"].content["elements"] == [{"type": "rectangle"}]
-    assert "type" not in by_title["Map"].content  # unwrapped, not the file shape
-    assert by_title["Spec"].content == {"url": "https://example.com/spec"}
+    by_name = {d.name: d for d in imported}
+    assert set(by_name) == {"Notes", "Map", "Spec"}
+    assert by_name["Map"].content["elements"] == [{"type": "rectangle"}]
+    assert "type" not in by_name["Map"].content  # unwrapped, not the file shape
+    assert by_name["Spec"].content == {"url": "https://example.com/spec"}
 
 
 async def test_envelope_import_roundtrips_calendar(client, acting_user, session):
@@ -341,7 +341,8 @@ async def test_envelope_import_project_replaces_legacy_route(
 async def test_envelope_import_accepts_legacy_kind_spelling(
     client, acting_user, session
 ):
-    """0.56.0-era envelopes spell the discriminator `kind` — they import."""
+    """0.56.0-era envelopes spell the discriminator `kind`
+    and the document name `title` — they import."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     envelope = {
         "kind": "initiative-document",
@@ -364,7 +365,7 @@ async def test_envelope_import_authorization_gates(client, acting_user, session)
         "type": "initiative-document",
         "schema_version": 1,
         "document_type": "smart_link",
-        "title": "Doc",
+        "name": "Doc",
         "content": {"url": "https://example.com"},
         "tags": [],
         "properties": [],
@@ -464,7 +465,7 @@ async def test_large_envelope_becomes_job_and_worker_applies_it(
     imported = (
         await session.exec(select(Queue).where(Queue.name == "Big Queue"))
     ).one()
-    assert imported.created_by_id == a.user.id  # applied AS the creator
+    assert imported.created_by == a.user.id  # applied AS the creator
 
     notifications = list(
         await session.exec(
@@ -536,7 +537,7 @@ async def test_stale_running_import_fails_closed_not_reapplied(
     stale_time = datetime.now(timezone.utc) - timedelta(minutes=30)
     job = ImportJob(
         guild_id=a.guild.id,
-        created_by_id=a.user.id,
+        created_by=a.user.id,
         source="initiative-queue",
         params={"initiative_id": a.initiative.id},
         payload_ref="imports/gone.json",
@@ -871,7 +872,7 @@ async def test_backup_import_end_to_end_with_assets(
             )
         )
     ).one()
-    assert file_doc.title == "Handout"
+    assert file_doc.name == "Handout"
     assert file_doc.file_url.endswith("/restore-me.pdf")
     assert file_doc.original_filename == "Handout.pdf"
 

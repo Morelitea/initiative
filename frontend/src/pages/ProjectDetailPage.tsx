@@ -9,6 +9,7 @@ import {
   invalidateProject,
   invalidateProjectTaskStatuses,
 } from "@/api/query-keys";
+import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { ProjectDocumentsSection } from "@/components/projects/ProjectDocumentsSection";
 import { ProjectOverviewCard } from "@/components/projects/ProjectOverviewCard";
@@ -17,12 +18,14 @@ import { StatusMessage } from "@/components/StatusMessage";
 import { clearLastUsedProject } from "@/components/tasks/CreateTaskWizard";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Button } from "@/components/ui/button";
+import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useProject, useProjectTaskStatuses } from "@/hooks/useProjects";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
+import { taskRoute, toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 export const ProjectDetailPage = () => {
   const { t } = useTranslation("projects");
@@ -76,6 +79,10 @@ export const ProjectDetailPage = () => {
   }, [viewedProjectId, recordViewMutation.mutate]);
 
   const project = projectQuery.data;
+  // The path supplies the initiative while this loads, but the entity is the
+  // authority once it arrives — a URL naming a different one is corrected
+  // rather than left to build links into an initiative it isn't in.
+  const initiativeId = useCanonicalInitiativeId(project?.initiative_id);
   const projectName = project?.name;
   useEffect(() => {
     if (typeof document === "undefined" || !projectName) {
@@ -93,7 +100,9 @@ export const ProjectDetailPage = () => {
       <div className="space-y-4">
         <p className="text-destructive">{t("detail.invalidProjectId")}</p>
         <Button asChild variant="link" className="px-0">
-          <Link to={gp("/projects")}>{t("detail.backToProjects")}</Link>
+          <Link to={gp(toolListRoute(Tool.project, initiativeId))}>
+            {t("detail.backToProjects")}
+          </Link>
         </Button>
       </div>
     );
@@ -105,7 +114,7 @@ export const ProjectDetailPage = () => {
 
   if (projectQuery.isError || taskStatusesQuery.isError || !project) {
     const status = getHttpStatus(projectQuery.error) ?? getHttpStatus(taskStatusesQuery.error);
-    const backTo = gp("/projects");
+    const backTo = gp(toolListRoute(Tool.project, initiativeId));
     const backLabel = t("detail.backToProjects");
 
     if (status === 404 || status === 403) {
@@ -166,7 +175,7 @@ export const ProjectDetailPage = () => {
     if (!canViewTaskDetails) {
       return;
     }
-    router.navigate({ to: gp(`/tasks/${taskId}`) });
+    router.navigate({ to: gp(taskRoute(initiativeId, parsedProjectId, taskId)) });
   };
 
   return (
@@ -185,7 +194,7 @@ export const ProjectDetailPage = () => {
               size="sm"
               aria-label={t("detail.openProjectSettings")}
             >
-              <Link to={gp(`/projects/${project.id}/settings`)}>
+              <Link to={gp(toolSettingsRoute(Tool.project, initiativeId, project.id))}>
                 <Settings className="h-5 w-5" /> {t("detail.projectSettings")}
               </Link>
             </Button>
@@ -210,6 +219,12 @@ export const ProjectDetailPage = () => {
           onTaskClick={handleTaskClick}
           initialComposerOpen={searchParams.create === "true"}
           onComposerOpenChange={handleComposerOpenChange}
+        />
+        <ToolCommentsPanel
+          entityType={Tool.project}
+          entityId={project.id}
+          initiativeId={project.initiative_id}
+          canModerate={hasWritePermission}
         />
       </div>
     </PullToRefresh>

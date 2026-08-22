@@ -47,10 +47,9 @@ async def test_pam_read_grant_sees_only_granted_guild(session: AsyncSession):
     doc_a = Document(
         guild_id=guild_a.id,
         initiative_id=init_a.id,
-        title="Alpha Doc",
+        name="Alpha Doc",
         content={},
-        created_by_id=owner.id,
-        updated_by_id=owner.id,
+        created_by=owner.id,
     )
     session.add(doc_a)
     await session.commit()
@@ -199,7 +198,7 @@ async def test_pam_read_grant_does_not_fault_legacy_isolation_tables(
         guild_id=guild.id,
         initiative_id=init.id,
         name="Stats",
-        created_by_id=owner.id,
+        created_by=owner.id,
     )
     session.add(cg)
     await session.commit()

@@ -15,7 +15,6 @@ from app.models.tenant.comment import Comment
 from app.models.tenant.document import (
     Document,
     DocumentLink,
-    DocumentPermissionLevel,
     DocumentType,
     ProjectDocument,
 )
@@ -195,7 +194,6 @@ async def get_document_for_export(
     from fastapi import HTTPException, status as http_status
 
     from app.services import permissions as permissions_service
-    from app.services.platform import guilds as guilds_service
 
     document = await get_document(session, document_id=document_id, guild_id=guild_id)
     if document is None:
@@ -203,14 +201,10 @@ async def get_document_for_export(
             status_code=http_status.HTTP_404_NOT_FOUND,
             detail=DocumentMessages.NOT_FOUND,
         )
-    membership = await guilds_service.get_membership(
-        session, guild_id=guild_id, user_id=current_user.id
-    )
     permissions_service.require_document_access(
         document,
         current_user,
         access="read",
-        guild_role=membership.role if membership else None,
     )
     return document
 
@@ -223,28 +217,21 @@ async def list_document_ids_for_export(
     initiative_ids: list[int],
 ) -> list[int]:
     """Ids of every document the user may export in the given initiatives —
-    DAC-visible to the user (guild admins see all via the membership role).
+    DAC-visible to the user (a request that reaches the whole guild sees all).
     Deterministic order for stable backup output."""
     from sqlmodel import select
 
+    from app.core.tools import Tool
     from app.services import permissions as permissions_service
-    from app.services.platform import guilds as guilds_service
-    from app.services.rls import is_guild_admin
 
     if not initiative_ids:
         return []
-    conditions = [Document.initiative_id.in_(initiative_ids)]
-    membership = await guilds_service.get_membership(
-        session, guild_id=guild_id, user_id=current_user.id
-    )
-    if membership is None or not is_guild_admin(membership.role):
-        conditions.append(
-            Document.id.in_(
-                permissions_service.visible_resource_ids_subquery(
-                    "document", current_user.id
-                )
-            )
-        )
+    conditions = [
+        Document.initiative_id.in_(initiative_ids),
+        permissions_service.dac_scope_clause(
+            Tool.document, Document.id, current_user.id, guild_id=guild_id
+        ),
+    ]
     statement = select(Document.id).where(*conditions).order_by(Document.id.asc())
     return list(await session.exec(statement))
 
@@ -325,7 +312,7 @@ async def duplicate_document(
     *,
     source: Document,
     target_initiative_id: int,
-    title: str,
+    name: str,
     user_id: int,
     guild_id: int | None = None,
 ) -> Document:
@@ -389,7 +376,7 @@ async def duplicate_document(
                     Upload(
                         filename=fname,
                         guild_id=effective_guild_id,
-                        uploader_user_id=user_id,
+                        created_by=user_id,
                         size_bytes=fpath.stat().st_size if fpath.exists() else 0,
                         content_type=content_type,
                         content_hash=content_hash,
@@ -399,13 +386,12 @@ async def duplicate_document(
             session.add_all(new_upload_records)
 
     duplicated = Document(
-        title=title,
+        name=name,
         initiative_id=target_initiative_id,
         guild_id=guild_id or source.guild_id,
         document_type=source.document_type,
         content=content_copy,
-        created_by_id=user_id,
-        updated_by_id=user_id,
+        created_by=user_id,
         featured_image_url=featured_image_url,
         is_template=False,
     )
@@ -463,93 +449,6 @@ async def duplicate_document(
 
     await session.commit()
     return duplicated
-
-
-async def handle_owner_removal(
-    session: AsyncSession,
-    *,
-    initiative_id: int,
-    user_id: int,
-) -> None:
-    """Handle documents when their owner is removed from an initiative.
-
-    When a user is removed from an initiative, any documents they own become
-    "orphaned". This function removes the owner's permission and grants owner
-    access to all initiative PMs so they can fully manage the document.
-    """
-    # Find documents where user is owner (via their resource_grants row)
-    stmt = (
-        select(Document)
-        .join(
-            ResourceGrant,
-            (ResourceGrant.resource_type == "document")
-            & (ResourceGrant.resource_id == Document.id),
-        )
-        .where(
-            Document.initiative_id == initiative_id,
-            ResourceGrant.user_id == user_id,
-            ResourceGrant.level == DocumentPermissionLevel.owner,
-        )
-        .options(selectinload(Document.grants))
-    )
-    result = await session.exec(stmt)
-    documents = result.unique().all()
-
-    if not documents:
-        return
-
-    # Get all initiative PMs (users with is_manager role)
-    pm_result = await session.exec(
-        select(InitiativeMember)
-        .join(InitiativeRoleModel, InitiativeRoleModel.id == InitiativeMember.role_id)
-        .where(
-            InitiativeMember.initiative_id == initiative_id,
-            InitiativeRoleModel.is_manager.is_(True),
-        )
-    )
-    pm_user_ids = {pm.user_id for pm in pm_result.all()}
-
-    for doc in documents:
-        user_grants = [g for g in (doc.grants or []) if g.user_id is not None]
-        # Remove owner's permission
-        owner_permission = next(
-            (
-                g
-                for g in user_grants
-                if g.user_id == user_id and g.level == DocumentPermissionLevel.owner
-            ),
-            None,
-        )
-        if owner_permission:
-            await session.delete(owner_permission)
-
-        # Grant owner access to every PM. PMs who already have a row
-        # (e.g. as "write" / "read") get upgraded — without that, an
-        # initiative where every PM was previously listed at a lower
-        # level would end up with no owner at all once the original
-        # owner's row is dropped.
-        existing_by_user = {g.user_id: g for g in user_grants if g.user_id != user_id}
-        for pm_user_id in pm_user_ids:
-            if pm_user_id == user_id:
-                continue
-            existing = existing_by_user.get(pm_user_id)
-            if existing is None:
-                session.add(
-                    ResourceGrant(
-                        resource_type="document",
-                        resource_id=doc.id,
-                        user_id=pm_user_id,
-                        role_id=None,
-                        level=ResourceAccessLevel.owner,
-                        guild_id=doc.guild_id,
-                        initiative_id=doc.initiative_id,
-                    )
-                )
-            elif existing.level != DocumentPermissionLevel.owner:
-                existing.level = ResourceAccessLevel.owner
-                session.add(existing)
-
-    await session.flush()
 
 
 async def annotate_comment_counts(
@@ -712,24 +611,21 @@ async def get_backlinks(
     *,
     document_id: int,
     user_id: int,
+    guild_id: int,
 ) -> list[Document]:
-    """Get documents that link to the specified document.
-
-    Only returns documents the user has permission to access.
-    """
+    """Documents that link to this one, through the same sharing gate the
+    document list applies."""
+    from app.core.tools import Tool
     from app.services import permissions as permissions_service
-
-    # Subquery: documents where user has explicit or role-based permission
-    has_permission_subq = permissions_service.visible_resource_ids_subquery(
-        "document", user_id
-    )
 
     stmt = (
         select(Document)
         .join(DocumentLink, DocumentLink.source_document_id == Document.id)
         .where(
             DocumentLink.target_document_id == document_id,
-            Document.id.in_(has_permission_subq),
+            permissions_service.dac_scope_clause(
+                Tool.document, Document.id, user_id, guild_id=guild_id
+            ),
         )
         .order_by(Document.updated_at.desc())
     )

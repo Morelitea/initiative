@@ -30,35 +30,21 @@
     "description": "Du verlierst den Zugriff auf alle Initiativen und Projekte in <bold>{{name}}</bold>. Diese Aktion kann nicht rückgängig gemacht werden.",
     "cannotLeaveTitle": "Gilde kann nicht verlassen werden",
     "lastAdminWarning": "Du bist der letzte Projekt Manager dieser Gilde. Befördere zuerst ein anderes Mitglied zum Projekt Manager.",
-    "solePmWarning": "Du bist der einzige Projekt Manager von: <bold>{{initiatives}}</bold>. Befördere zuerst ein anderes Mitglied zum Projekt Manager.",
     "leaving": "Wird verlassen...",
     "leaveButton": "Gilde verlassen",
     "leftGuild": "{{name}} verlassen",
     "failedToLeave": "Gilde konnte nicht verlassen werden. Bitte versuche es erneut.",
     "failedToCheckEligibility": "Berechtigung konnte nicht geprüft werden. Bitte versuche es erneut.",
-    "transferDescription": "Bevor du <bold>{{name}}</bold> verlässt, entscheide, was mit jedem Projekt geschehen soll, das dir gehört — übergib es an ein anderes Mitglied oder lösche es. Andernfalls bliebe das Projekt ohne Mitglied, das darauf zugreifen kann.",
-    "selectNewOwnerPlaceholder": "Neuen Eigentümer auswählen…",
-    "noTransferCandidates": "In dieser Initiative sind keine berechtigten Mitglieder verfügbar.",
-    "dispositionTransferLabel": "Eigentum übertragen",
-    "dispositionDeleteLabel": "Dieses Projekt löschen",
-    "dispositionDeleteHelper": "Verschiebt das Projekt in den Papierkorb dieser Gilde. Gildenadministratoren können es vor Ablauf der Aufbewahrungsfrist wiederherstellen."
+    "ownershipReleased": "Alles, was dir in dieser Gilde gehört, wird herrenlos. Ein Gildenadmin kann es später übernehmen."
   },
   "removeMember": {
     "title": "Mitglied aus der Gilde entfernen",
     "description": "{{email}} aus dieser Gilde entfernen? Die Person verliert den Zugriff auf jede Initiative und jedes Projekt darin.",
-    "cannotRemoveTitle": "Mitglied kann nicht entfernt werden",
-    "solePmWarning": "Die Person ist der einzige Projekt Manager von: {{initiatives}}. Befördere zuerst ein anderes Mitglied zum Projekt Manager.",
-    "transferDescription": "Das Entfernen von {{email}} würde die Projekte verwaisen lassen, die dieser Person in dieser Gilde gehören. Entscheide, was mit jedem Projekt geschehen soll — übergib es an einen anderen Projekt Manager oder lösche es.",
-    "selectNewOwnerPlaceholder": "Neuen Eigentümer auswählen…",
-    "noTransferCandidates": "In dieser Initiative sind keine berechtigten Projektleiter verfügbar.",
-    "dispositionTransferLabel": "Eigentum übertragen",
-    "dispositionDeleteLabel": "Dieses Projekt löschen",
-    "dispositionDeleteHelper": "Verschiebt das Projekt in den Papierkorb dieser Gilde. Gildenadministratoren können es vor Ablauf der Aufbewahrungsfrist wiederherstellen.",
     "removeButton": "Aus der Gilde entfernen",
     "removing": "Wird entfernt…",
     "removed": "{{email}} entfernt",
     "failedToRemove": "Mitglied konnte nicht entfernt werden. Bitte versuche es erneut.",
-    "failedToCheckEligibility": "Berechtigung zum Entfernen konnte nicht geprüft werden. Bitte versuche es erneut."
+    "ownershipReleased": "Alles, was ihnen gehört, wird herrenlos. Du kannst es jederzeit aus der Liste herrenloser Inhalte unten übernehmen."
   },
   "invite": {
     "title": "{{guildName}} beitreten",
@@ -203,7 +189,7 @@
     "mentionComment": "{{mentionedBy}} hat dich in einem Kommentar zu {{contextTitle}} erwähnt.",
     "mentionDocument": "{{mentionedBy}} hat dich in {{documentTitle}} erwähnt.",
     "commentOnTask": "{{commenterName}} hat {{taskTitle}} kommentiert.",
-    "commentOnDocument": "{{commenterName}} hat {{documentTitle}} kommentiert.",
+    "commentOnResource": "{{commenterName}} hat {{entityName}} kommentiert.",
     "commentReply": "{{replierName}} hat auf deinen Kommentar zu {{contextTitle}} geantwortet.",
     "accessGrantRequested": "{{requester}} hat {{level}}-Zugriff auf {{guild}} angefragt.",
     "accessGrantRequestedGeneric": "{{requester}} hat Zugriff auf {{guild}} angefragt.",
@@ -279,5 +265,32 @@
     "selfHosted": "Selbst gehostet",
     "upgrade": "Upgrade",
     "manageBilling": "Abrechnung verwalten"
+  },
+  "transferOwnership": {
+    "title": "Besitz übertragen",
+    "claimTitle": "Herrenlose Inhalte übernehmen",
+    "description": "Alles, was {{name}} in dieser Gilde besitzt, an einen anderen Admin übertragen.",
+    "claimDescription": "Alles, was keinem aktuellen Mitglied gehört, einem Admin geben.",
+    "whatMoves": "Was übertragen wird",
+    "recipientLabel": "Neuer Besitzer",
+    "recipientPlaceholder": "Admin auswählen",
+    "adminsOnly": "Nur Gildenadmins können Besitz erhalten.",
+    "confirm": "Übertragen",
+    "transferring": "Wird übertragen…",
+    "nothingOwned": "Diese Person besitzt nichts in dieser Gilde.",
+    "nothingUnowned": "Alles in dieser Gilde hat einen Besitzer.",
+    "moved_one": "{{count}} Element übertragen",
+    "moved_other": "{{count}} Elemente übertragen",
+    "failed": "Besitz konnte nicht übertragen werden.",
+    "loadFailed": "Der Besitz dieser Person konnte nicht geladen werden.",
+    "action": "Besitz übertragen"
+  },
+  "unownedContent": {
+    "title": "Herrenlose Inhalte",
+    "description": "Inhalte, die keinem aktuellen Mitglied gehören — was zurückbleibt, wenn jemand die Gilde verlässt. Übernimm sie, damit wieder ein Admin zuständig ist.",
+    "empty": "Alles in dieser Gilde hat einen Besitzer.",
+    "claimButton": "Alle übernehmen",
+    "summary_one": "{{count}} Element hat keinen Besitzer",
+    "summary_other": "{{count}} Elemente haben keinen Besitzer"
   }
 }

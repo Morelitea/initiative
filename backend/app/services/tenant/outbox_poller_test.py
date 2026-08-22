@@ -25,7 +25,7 @@ def _subscription(**overrides) -> WebhookSubscription:
         id=7,
         guild_id=1,
         initiative_id=None,
-        created_by_user_id=3,
+        created_by=3,
         target_url="https://example.test/hook",
         hmac_secret="s3cret",
         event_types=["tasks.created", "tasks.updated"],
@@ -112,7 +112,7 @@ async def test_every_subscription_in_a_guild_is_drained(
             WebhookSubscription(
                 guild_id=guild_id,
                 initiative_id=None,
-                created_by_user_id=user_id,
+                created_by=user_id,
                 target_url=f"https://example.test/hook-{index}",
                 hmac_secret=f"secret-{index}",
                 event_types=["tasks.created"],
@@ -168,7 +168,7 @@ async def test_ledger_delivers_each_transaction_once(session, acting_user, monke
         WebhookSubscription(
             guild_id=guild_id,
             initiative_id=None,
-            created_by_user_id=user_id,
+            created_by=user_id,
             target_url="https://example.test/hook",
             hmac_secret="secret",
             event_types=["tasks.created"],
@@ -214,7 +214,7 @@ async def test_a_refused_batch_is_retried_not_lost(session, acting_user, monkeyp
         WebhookSubscription(
             guild_id=guild_id,
             initiative_id=None,
-            created_by_user_id=user_id,
+            created_by=user_id,
             target_url="https://example.test/hook",
             hmac_secret="secret",
             event_types=["tasks.created"],
@@ -270,7 +270,7 @@ async def test_repeated_refusals_escalate_the_backoff(
         WebhookSubscription(
             guild_id=guild_id,
             initiative_id=None,
-            created_by_user_id=user_id,
+            created_by=user_id,
             target_url="https://example.test/hook",
             hmac_secret="secret",
             event_types=["tasks.created"],

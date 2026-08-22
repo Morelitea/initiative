@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import type { QueueItemRead } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { ExportButton } from "@/components/exports/ExportButton";
 import { TOOL_EXPORT_FORMATS } from "@/components/exports/formats";
 import { ActHeldButton } from "@/components/initiativeTools/queues/ActHeldButton";
@@ -21,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import {
   useAdvanceTurn,
   useHoldCurrent,
@@ -41,16 +43,23 @@ import { getHttpStatus } from "@/lib/errorMessage";
 import { exportFilenameStem } from "@/lib/exportDownload";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
-import { toolExportEndpoint } from "@/lib/tools";
+import { toolExportEndpoint, toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 export function QueueDetailPage() {
   const { t } = useTranslation(["queues", "common"]);
-  const { guildId, queueId } = useParams({ strict: false }) as { guildId: string; queueId: string };
+  const { guildId, queueId } = useParams({ strict: false }) as {
+    guildId: string;
+    queueId: string;
+  };
   const parsedId = Number(queueId);
   const gp = useGuildPath();
 
   const queueQuery = useQueue(Number.isFinite(parsedId) ? parsedId : null);
   const queue = queueQuery.data;
+  // The path supplies the initiative while this loads, but the entity is the
+  // authority once it arrives — a URL naming a different one is corrected
+  // rather than left to build links into an initiative it isn't in.
+  const initiativeId = useCanonicalInitiativeId(queue?.initiative_id);
 
   // Track recently viewed queues for the layout header tabs bar.
   const recordViewMutation = useRecordRecentView("queue", Number(guildId));
@@ -155,7 +164,7 @@ export function QueueDetailPage() {
 
   if (queueQuery.isError || !queue) {
     const status = getHttpStatus(queueQuery.error);
-    const backTo = gp("/queues");
+    const backTo = gp(toolListRoute(Tool.queue, initiativeId));
     const backLabel = t("backToQueues");
 
     if (status === 403) {
@@ -205,7 +214,7 @@ export function QueueDetailPage() {
           {canEdit && (
             <Button variant="outline" size="sm" asChild>
               <Link
-                to={gp(`/queues/${queue.id}/settings`)}
+                to={gp(toolSettingsRoute(Tool.queue, initiativeId, queue.id))}
                 className="inline-flex items-center gap-2"
               >
                 <Settings className="h-4 w-4" />
@@ -342,6 +351,13 @@ export function QueueDetailPage() {
           </div>
         )}
       </div>
+
+      <ToolCommentsPanel
+        entityType={Tool.queue}
+        entityId={queue.id}
+        initiativeId={queue.initiative_id ?? 0}
+        canModerate={canEdit}
+      />
 
       {/* Add Item Dialog */}
       <AddQueueItemDialog

@@ -203,14 +203,8 @@ async def _get_counter_for_group(
     return counter
 
 
-def _compute_my_permission(
-    group: CounterGroup,
-    user: User,
-    guild_context: GuildContext,
-) -> str | None:
-    return resource_access.my_permission_level(
-        group, Tool.counter_group, user, guild_context
-    )
+def _compute_my_permission(group: CounterGroup, user: User) -> str | None:
+    return resource_access.my_permission_level(group, Tool.counter_group, user)
 
 
 async def _refetch_group(session: RLSSessionDep, group_id: int) -> CounterGroup:
@@ -259,14 +253,14 @@ async def list_counter_groups(
             )
         )
 
-    # A PAM grantee has no membership/permission rows; the grant already scopes
-    # them to this guild at the RLS layer, so skip the app-layer narrowing
-    # (whose permission-table joins would also fault on the unset guild var).
-    if not rls_service.is_guild_admin(guild_context.role) and not guild_context.is_pam:
-        visible_subq = counters_service.visible_counter_group_ids_subquery(
-            current_user.id
+    conditions.append(
+        permissions_service.dac_scope_clause(
+            Tool.counter_group,
+            CounterGroup.id,
+            current_user.id,
+            guild_id=guild_context.guild_id,
         )
-        conditions.append(CounterGroup.id.in_(visible_subq))
+    )
 
     count_subq = select(CounterGroup.id).where(*conditions).subquery()
     count_stmt = select(func.count()).select_from(count_subq)
@@ -291,7 +285,7 @@ async def list_counter_groups(
     items = [
         serialize_counter_group_summary(
             g,
-            my_permission_level=_compute_my_permission(g, current_user, guild_context),
+            my_permission_level=_compute_my_permission(g, current_user),
         )
         for g in groups
     ]
@@ -324,12 +318,14 @@ async def get_counter_group_counts_by_initiative(
             select(Initiative.id).where(Initiative.counter_groups_enabled == True)  # noqa: E712
         ),
     ]
-    if not rls_service.is_guild_admin(guild_context.role) and not guild_context.is_pam:
-        conditions.append(
-            CounterGroup.id.in_(
-                counters_service.visible_counter_group_ids_subquery(current_user.id)
-            )
+    conditions.append(
+        permissions_service.dac_scope_clause(
+            Tool.counter_group,
+            CounterGroup.id,
+            current_user.id,
+            guild_id=guild_context.guild_id,
         )
+    )
 
     statement = (
         select(CounterGroup.initiative_id, func.count(CounterGroup.id))
@@ -355,7 +351,7 @@ async def read_counter_group(
     )
     return serialize_counter_group(
         group,
-        my_permission_level=_compute_my_permission(group, current_user, guild_context),
+        my_permission_level=_compute_my_permission(group, current_user),
     )
 
 
@@ -385,7 +381,7 @@ async def create_counter_group(
     group = CounterGroup(
         guild_id=guild_context.guild_id,
         initiative_id=initiative.id,
-        created_by_id=current_user.id,
+        created_by=current_user.id,
         name=group_in.name.strip(),
         description=group_in.description,
     )
@@ -420,9 +416,7 @@ async def create_counter_group(
     hydrated = await _refetch_group(session, group.id)
     return serialize_counter_group(
         hydrated,
-        my_permission_level=_compute_my_permission(
-            hydrated, current_user, guild_context
-        ),
+        my_permission_level=_compute_my_permission(hydrated, current_user),
     )
 
 
@@ -459,9 +453,7 @@ async def duplicate_counter_group(
     hydrated = await _refetch_group(session, new_group.id)
     return serialize_counter_group(
         hydrated,
-        my_permission_level=_compute_my_permission(
-            hydrated, current_user, guild_context
-        ),
+        my_permission_level=_compute_my_permission(hydrated, current_user),
     )
 
 
@@ -494,9 +486,7 @@ async def update_counter_group(
     hydrated = await _refetch_group(session, group.id)
     result = serialize_counter_group(
         hydrated,
-        my_permission_level=_compute_my_permission(
-            hydrated, current_user, guild_context
-        ),
+        my_permission_level=_compute_my_permission(hydrated, current_user),
     )
     if updated:
         await _emit_counter(
@@ -518,10 +508,9 @@ async def delete_counter_group(
     group = await _get_counter_group_with_access(
         session, group_id, current_user, guild_context, access="read"
     )
-    if not rls_service.is_guild_admin(guild_context.role):
-        counters_service.require_counter_group_access(
-            group, current_user, require_owner=True
-        )
+    counters_service.require_counter_group_access(
+        group, current_user, require_owner=True
+    )
     retention_days = await guilds_service.get_guild_retention_days(
         session, guild_context.guild_id
     )
@@ -854,9 +843,7 @@ async def reset_all_counters(
     hydrated = await _refetch_group(session, group.id)
     result = serialize_counter_group(
         hydrated,
-        my_permission_level=_compute_my_permission(
-            hydrated, current_user, guild_context
-        ),
+        my_permission_level=_compute_my_permission(hydrated, current_user),
     )
     await _emit_counter(
         session, group_id, "counters_reset", result.model_dump(mode="json")
@@ -883,9 +870,7 @@ async def sort_counters(
     hydrated = await _refetch_group(session, group.id)
     result = serialize_counter_group(
         hydrated,
-        my_permission_level=_compute_my_permission(
-            hydrated, current_user, guild_context
-        ),
+        my_permission_level=_compute_my_permission(hydrated, current_user),
     )
     await _emit_counter(
         session, group_id, "counters_reordered", result.model_dump(mode="json")
@@ -919,9 +904,7 @@ async def set_counter_group_grants(
     hydrated = await _refetch_group(session, group_id)
     result = serialize_counter_group(
         hydrated,
-        my_permission_level=_compute_my_permission(
-            hydrated, current_user, guild_context
-        ),
+        my_permission_level=_compute_my_permission(hydrated, current_user),
     )
     await _emit_counter(
         session,

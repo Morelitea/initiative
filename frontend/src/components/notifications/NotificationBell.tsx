@@ -14,13 +14,17 @@ import {
   useMarkNotificationRead,
   useNotifications,
 } from "@/hooks/useNotifications";
+import { normalizeLegacyTarget } from "@/lib/entityResolver";
 import { downloadExportArtifact } from "@/lib/exportDownload";
 import { guildPath } from "@/lib/guildUrl";
+import { entityRefRoute, INITIATIVES_ROUTE, TOOLS, toolRefRoute } from "@/lib/tools";
 
-// Build guild-scoped URL directly
+// Build guild-scoped URL directly. Notification rows persist their
+// target_path, so one written before tools moved inside their initiative is
+// mapped onto the `/go` resolver on the way out.
 const buildGuildPath = (guildId: number, targetPath: string): string => {
   const normalized = targetPath.startsWith("/") ? targetPath : `/${targetPath}`;
-  return guildPath(guildId, normalized);
+  return guildPath(guildId, normalizeLegacyTarget(normalized));
 };
 
 const resolveSmartLink = (notification: NotificationRead): string | null => {
@@ -56,6 +60,21 @@ const resolveSmartLink = (notification: NotificationRead): string | null => {
   return null;
 };
 
+// The `/go` resolver address for a payload that names its parent generically
+// (`entity_type` + `entity_id`), or null when it names nothing recognizable.
+const entityRefFromData = (data: Record<string, unknown>): string | null => {
+  const entityType = typeof data.entity_type === "string" ? data.entity_type : null;
+  const entityId = Number(data.entity_id);
+  if (!entityType || !Number.isFinite(entityId)) {
+    return null;
+  }
+  if (entityType === "task") {
+    return entityRefRoute("task", entityId);
+  }
+  const tool = TOOLS.find((candidate) => candidate === entityType);
+  return tool ? toolRefRoute(tool, entityId) : null;
+};
+
 const notificationLink = (notification: NotificationRead): string | null => {
   const smartLink = resolveSmartLink(notification);
   if (smartLink) {
@@ -63,25 +82,23 @@ const notificationLink = (notification: NotificationRead): string | null => {
   }
   const data = notification.data || {};
   switch (notification.type) {
-    case "task_assignment":
-      if (typeof data.task_id === "number") {
-        return `/tasks/${data.task_id}`;
-      }
-      if (typeof data.task_id === "string") {
-        const parsedTaskId = Number(data.task_id);
-        if (Number.isFinite(parsedTaskId)) {
-          return `/tasks/${parsedTaskId}`;
-        }
+    // These hold ids and nothing else, so they address the `/go` resolver,
+    // which reads the entity and works out where it lives.
+    case "task_assignment": {
+      const taskId = Number(data.task_id);
+      if (Number.isFinite(taskId) && data.task_id != null) {
+        return entityRefRoute("task", taskId);
       }
       if (typeof data.project_id === "number") {
-        return `/projects/${data.project_id}`;
+        return entityRefRoute("project", data.project_id);
       }
       return null;
+    }
     case "initiative_added":
-      return "/initiatives";
+      return INITIATIVES_ROUTE;
     case "project_added":
       if (typeof data.project_id === "number") {
-        return `/projects/${data.project_id}`;
+        return entityRefRoute("project", data.project_id);
       }
       return null;
     case "import_ready":
@@ -94,10 +111,12 @@ const notificationLink = (notification: NotificationRead): string | null => {
     case "user_pending_approval":
       return "/settings";
     case "mention":
+    case "comment_reply":
+    case "comment_on_resource":
       if (typeof data.document_id === "number") {
-        return `/documents/${data.document_id}`;
+        return entityRefRoute("document", data.document_id);
       }
-      return null;
+      return entityRefFromData(data);
     case "access_grant_requested":
     case "access_grant_approved":
     case "access_grant_denied":
@@ -111,7 +130,7 @@ const notificationLink = (notification: NotificationRead): string | null => {
     case "event_rsvp":
     case "event_reminder": {
       const eventId = Number(data.event_id);
-      return Number.isFinite(eventId) ? `/calendar-events/${eventId}` : null;
+      return Number.isFinite(eventId) ? entityRefRoute("event", eventId) : null;
     }
     default:
       return null;
@@ -165,17 +184,18 @@ const notificationText = (
       }
       return t("notifications.mentionDocument", {
         mentionedBy: data.mentioned_by_name ?? "Someone",
-        documentTitle: data.document_title ?? "a document",
+        // Notifications stored before the rename still carry `document_title`.
+        documentTitle: data.document_name ?? data.document_title ?? "a document",
       });
     case "comment_on_task":
       return t("notifications.commentOnTask", {
         commenterName: data.commenter_name ?? "Someone",
         taskTitle: data.task_title ?? "your task",
       });
-    case "comment_on_document":
-      return t("notifications.commentOnDocument", {
+    case "comment_on_resource":
+      return t("notifications.commentOnResource", {
         commenterName: data.commenter_name ?? "Someone",
-        documentTitle: data.document_title ?? "your document",
+        entityName: data.entity_name ?? "an item",
       });
     case "comment_reply":
       return t("notifications.commentReply", {

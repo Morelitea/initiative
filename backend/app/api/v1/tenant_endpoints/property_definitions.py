@@ -18,6 +18,7 @@ from app.api.deps import (
     get_guild_membership,
 )
 from app.core.messages import PropertyMessages
+from app.core.tools import Tool
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.document import Document
@@ -328,6 +329,7 @@ async def get_property_entities(
     definition_id: int,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
 ) -> PropertyEntitiesResult:
     """List all documents and tasks with a value for this property.
 
@@ -335,17 +337,25 @@ async def get_property_entities(
     """
     defn = await _get_definition_or_404(session, definition_id)
 
-    project_access_subq = permissions_service.visible_project_ids_subquery(
-        current_user.id
+    task_project_scope = permissions_service.dac_scope_clause(
+        Tool.project,
+        Task.project_id,
+        current_user.id,
+        guild_id=guild_context.guild_id,
     )
-    doc_access_subq = permissions_service.visible_document_ids_subquery(current_user.id)
+    doc_scope = permissions_service.dac_scope_clause(
+        Tool.document,
+        Document.id,
+        current_user.id,
+        guild_id=guild_context.guild_id,
+    )
 
     tasks_stmt = (
         select(Task)
         .join(TaskPropertyValue, TaskPropertyValue.task_id == Task.id)
         .where(
             TaskPropertyValue.property_id == defn.id,
-            Task.project_id.in_(project_access_subq),
+            task_project_scope,
         )
         .options(selectinload(Task.project))
     )
@@ -366,7 +376,7 @@ async def get_property_entities(
         .join(DocumentPropertyValue, DocumentPropertyValue.document_id == Document.id)
         .where(
             DocumentPropertyValue.property_id == defn.id,
-            Document.id.in_(doc_access_subq),
+            doc_scope,
         )
         .options(selectinload(Document.initiative))
     )
@@ -375,7 +385,7 @@ async def get_property_entities(
     document_summaries = [
         TaggedDocumentSummary(
             id=doc.id,
-            title=doc.title,
+            name=doc.name,
             initiative_id=doc.initiative_id,
             initiative_name=doc.initiative.name if doc.initiative else None,
         )

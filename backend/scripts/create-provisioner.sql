@@ -125,4 +125,36 @@ ALTER DEFAULT PRIVILEGES FOR ROLE app_provisioner IN SCHEMA public
     GRANT SELECT, USAGE ON SEQUENCES
     TO app_user, app_guild_base, platform_base;
 
+-- 6. Least privilege on the database itself: the app creates no temporary
+--    objects, so it does not need the TEMPORARY grant PUBLIC carries by
+--    default on a new database. Fresh docker-compose installs do this at
+--    database init; this brings an existing deployment in line.
+SELECT format('REVOKE TEMPORARY ON DATABASE %I FROM PUBLIC', current_database())
+\gexec
+
+-- Only a database's owner can change its ACL. A REVOKE issued by any other
+-- role reports success with a WARNING and changes nothing, so confirm the
+-- grant is actually gone rather than trusting the command's exit.
+DO $verify$
+DECLARE
+    db_owner text;
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM pg_database d,
+             aclexplode(coalesce(d.datacl, acldefault('d', d.datdba))) a
+        WHERE d.datname = current_database()
+          AND a.grantee = 0                       -- 0 is PUBLIC
+          AND a.privilege_type = 'TEMPORARY'
+    ) THEN
+        SELECT pg_get_userbyid(datdba) INTO db_owner
+          FROM pg_database WHERE datname = current_database();
+        RAISE EXCEPTION
+            'REVOKE TEMPORARY did not take effect on database %. Re-run this '
+            'script connected as its owner (%).',
+            current_database(), db_owner;
+    END IF;
+END
+$verify$;
+
 \echo 'app_provisioner ready — point DATABASE_URL at it and restart the app.'

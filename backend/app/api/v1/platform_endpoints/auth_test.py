@@ -119,7 +119,7 @@ async def test_register_with_invite_blocked_when_guild_full(
     seat = await create_user(session, email="reg-seat@example.com")
     await guild_service.ensure_membership(session, guild_id=guild.id, user_id=seat.id)
     invite = await guild_service.create_guild_invite(
-        session, guild_id=guild.id, created_by_user_id=seat.id, max_uses=5
+        session, guild_id=guild.id, created_by=seat.id, max_uses=5
     )
     await session.commit()
 

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { DashboardCanvas } from "@/components/initiativeTools/dashboards/DashboardCanvas";
 import { DashboardUpdateBadge } from "@/components/initiativeTools/dashboards/DashboardUpdateBadge";
 import { WidgetConfigDialog } from "@/components/initiativeTools/dashboards/WidgetConfigDialog";
@@ -12,13 +13,14 @@ import { StatusMessage } from "@/components/StatusMessage";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useDashboardEditor } from "@/hooks/useDashboardEditor";
 import { useDashboard, useWidgetCatalog } from "@/hooks/useDashboards";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
-import { toolSettingsRoute } from "@/lib/tools";
+import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 export function DashboardDetailPage() {
   const { t } = useTranslation(["dashboards", "common"]);
@@ -31,6 +33,10 @@ export function DashboardDetailPage() {
 
   const dashboardQuery = useDashboard(Number.isFinite(parsedId) ? parsedId : null);
   const dashboard = dashboardQuery.data;
+  // The path supplies the initiative while this loads, but the entity is the
+  // authority once it arrives — a URL naming a different one is corrected
+  // rather than left to build links into an initiative it isn't in.
+  const initiativeId = useCanonicalInitiativeId(dashboard?.initiative_id);
 
   // Track recently viewed dashboards for the layout header tabs bar — only
   // once the read succeeds (access checks passed).
@@ -56,7 +62,7 @@ export function DashboardDetailPage() {
 
   if (dashboardQuery.isError) {
     const status = getHttpStatus(dashboardQuery.error);
-    const backTo = gp("/dashboards");
+    const backTo = gp(toolListRoute(Tool.dashboard, initiativeId));
     const backLabel = t("backToDashboards");
 
     if (status === 403) {
@@ -120,7 +126,7 @@ export function DashboardDetailPage() {
               {dashboard && (
                 <Button variant="outline" size="sm" asChild>
                   <Link
-                    to={gp(toolSettingsRoute(Tool.dashboard, dashboard.id))}
+                    to={gp(toolSettingsRoute(Tool.dashboard, initiativeId, dashboard.id))}
                     className="inline-flex items-center gap-2"
                   >
                     <Settings className="h-4 w-4" />
@@ -147,10 +153,20 @@ export function DashboardDetailPage() {
       />
 
       {dashboard != null && (
+        <ToolCommentsPanel
+          entityType={Tool.dashboard}
+          entityId={dashboard.id}
+          initiativeId={dashboard.initiative_id ?? 0}
+          canModerate={canEdit}
+        />
+      )}
+
+      {dashboard != null && (
         <WidgetConfigDialog
           widget={configuring}
           catalog={catalogQuery.data}
           initiativeId={dashboard.initiative_id}
+          dashboardId={dashboard.id}
           open={configuring !== null}
           onOpenChange={(next) => !next && setConfiguringId(null)}
           onSave={(patch) => configuringId && editor.updateWidget(configuringId, patch)}

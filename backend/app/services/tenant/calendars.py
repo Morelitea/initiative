@@ -125,7 +125,6 @@ async def get_calendar_for_export(
     taken from a request context, so the seam works transport-free. Events are
     eager-loaded with everything export serialization needs."""
     from app.services import permissions as permissions_service
-    from app.services.platform import guilds as guilds_service
 
     stmt = (
         select(Calendar)
@@ -143,15 +142,11 @@ async def get_calendar_for_export(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=CalendarMessages.FEATURE_DISABLED,
         )
-    membership = await guilds_service.get_membership(
-        session, guild_id=guild_id, user_id=current_user.id
-    )
     permissions_service.require_access(
         permissions_service.DAC_RESOURCES[Tool.calendar],
         calendar,
         current_user,
         access="read",
-        guild_role=membership.role if membership else None,
     )
     return calendar
 
@@ -165,7 +160,7 @@ async def list_calendar_ids_for_export(
 ) -> list[int]:
     """Ids of every calendar the user may export — the enumeration behind
     "export my calendars": calendars whose tool is on, DAC-visible to the user
-    (guild admins see all via the membership role), optionally narrowed to one
+    (a request that reaches the whole guild sees all), optionally narrowed to one
     initiative. Deterministic order for stable output.
 
     Narrowed to an initiative, a guild calendar is not among them: it belongs to
@@ -174,26 +169,16 @@ async def list_calendar_ids_for_export(
     replacing it, so a disabled initiative exports nothing here just as it
     lists nothing everywhere else."""
     from app.services import permissions as permissions_service
-    from app.services.platform import guilds as guilds_service
-    from app.services.rls import is_guild_admin
 
-    conditions = [tool_enabled_clause()]
+    conditions = [
+        tool_enabled_clause(),
+        # The same sharing gate the list endpoint applies.
+        permissions_service.dac_scope_clause(
+            Tool.calendar, Calendar.id, current_user.id, guild_id=guild_id
+        ),
+    ]
     if initiative_id is not None:
         conditions.append(Calendar.initiative_id == initiative_id)
-
-    membership = await guilds_service.get_membership(
-        session, guild_id=guild_id, user_id=current_user.id
-    )
-    if membership is None or not is_guild_admin(membership.role):
-        # Non-admins: only calendars shared with them (the same visible-ids
-        # subquery the list endpoint applies).
-        conditions.append(
-            Calendar.id.in_(
-                permissions_service.visible_resource_ids_subquery(
-                    "calendar", current_user.id
-                )
-            )
-        )
 
     statement = (
         select(Calendar.id)

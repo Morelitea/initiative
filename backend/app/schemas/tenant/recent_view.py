@@ -41,6 +41,9 @@ class RecentItemRead(SanitizedBaseModel):
     entity_type: RecentEntityType
     entity_id: int
     guild_id: int
+    # The initiative the entity lives in, which its URL addresses. NULL for a
+    # guild-level entity — only calendars have any — which keeps a guild route.
+    initiative_id: Optional[int] = None
     name: str
     last_viewed_at: datetime
     # Projects: emoji string stored on the project itself.

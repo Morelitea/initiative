@@ -713,7 +713,7 @@ async def test_lowering_cap_below_count_keeps_members_and_blocks_join(
     )
     invitee = await create_user(session, email="lower-invitee@example.com")
     invite = await guild_service.create_guild_invite(
-        session, guild_id=guild.id, created_by_user_id=owner.id, max_uses=5
+        session, guild_id=guild.id, created_by=owner.id, max_uses=5
     )
     await session.commit()
     headers = get_auth_headers(owner)
@@ -755,7 +755,7 @@ async def test_raising_cap_reopens_joins(
     )
     invitee = await create_user(session, email="raise-invitee@example.com")
     invite = await guild_service.create_guild_invite(
-        session, guild_id=guild.id, created_by_user_id=owner.id, max_uses=5
+        session, guild_id=guild.id, created_by=owner.id, max_uses=5
     )
     await session.commit()
     headers = get_auth_headers(owner)

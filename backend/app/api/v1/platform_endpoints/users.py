@@ -52,9 +52,6 @@ from app.schemas.platform.user import (
     AccountDeletionRequest,
     AccountDeletionResponse,
     DeletionEligibilityResponse,
-    GuildRemovalEligibilityResponse,
-    GuildRemovalProjectInfo,
-    GuildRemovalRequest,
     UserPublic,
 )
 from app.schemas.platform.api_key import (
@@ -62,8 +59,14 @@ from app.schemas.platform.api_key import (
     ApiKeyCreateResponse,
     ApiKeyListResponse,
 )
+from app.schemas.tenant.ownership import (
+    OwnedContentItem,
+    OwnedContentResponse,
+    OwnershipTransferRequest,
+    OwnershipTransferResponse,
+)
 from app.schemas.tenant.stats import UserStatsResponse
-from app.core.messages import AuthMessages, GuildMessages, UserMessages
+from app.core.messages import AuthMessages, UserMessages
 from app.services import notifications as notifications_service
 from app.services.auth import sessions as session_service
 from app.services.auth.identity import has_federated_identity
@@ -71,6 +74,7 @@ from app.services.tenant import app_connections as app_connections_service
 from app.services.tenant import app_delegations as app_delegations_service
 from app.services.tenant import app_revocation as app_revocation_service
 from app.services.tenant import initiatives as initiatives_service
+from app.services.tenant import ownership as ownership_service
 from app.services.platform import guilds as guilds_service
 from app.services.stream_authz import authority as stream_authority
 from app.services.platform import users as users_service
@@ -749,12 +753,9 @@ async def check_deletion_eligibility(
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> DeletionEligibilityResponse:
     """Check if the current user can be deleted and what blockers exist."""
-    (
-        can_delete,
-        blockers,
-        warnings,
-        owned_projects,
-    ) = await users_service.check_deletion_eligibility(session, current_user.id)
+    can_delete, blockers = await users_service.check_deletion_eligibility(
+        session, current_user.id
+    )
 
     last_admin_guilds = await users_service.is_last_guild_admin(
         session, current_user.id
@@ -763,8 +764,6 @@ async def check_deletion_eligibility(
     return DeletionEligibilityResponse(
         can_delete=can_delete,
         blockers=blockers,
-        warnings=warnings,
-        owned_projects=owned_projects,
         last_admin_guilds=last_admin_guilds,
     )
 
@@ -861,64 +860,18 @@ async def delete_own_account(
             detail=UserMessages.CONFIRMATION_MISMATCH,
         )
 
-    # Eligibility check (sole PM, last admin) applies to both actions —
-    # even deactivation leaves projects without an effective manager
-    # until reactivation, so transfer is required before either path.
-    (
-        can_delete,
-        blockers,
-        _,
-        owned_projects,
-    ) = await users_service.check_deletion_eligibility(session, current_user.id)
+    # Being the last admin of a guild is the only blocker. Content the user owns
+    # is released on the way out and left unowned for a guild admin to claim, so
+    # there is nothing to hand over first.
+    can_delete, blockers = await users_service.check_deletion_eligibility(
+        session, current_user.id
+    )
 
     if not can_delete:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Cannot delete account: {'; '.join(blockers)}",
         )
-
-    # Project transfers are required for both actions when the user owns projects.
-    if owned_projects:
-        if not request.project_transfers:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=UserMessages.PROJECT_TRANSFERS_REQUIRED,
-            )
-
-        # Keys are "guild_id:project_id" — a bare project id repeats across
-        # per-guild schemas, so two owned projects could otherwise collide on
-        # one mapping and both transfer to the same recipient.
-        owned_keys = {f"{project.guild_id}:{project.id}" for project in owned_projects}
-        transfer_keys = set(request.project_transfers.keys())
-
-        missing = sorted(owned_keys - transfer_keys)
-        if missing:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Missing transfer recipients for projects: {missing}",
-            )
-
-        # Reject surplus entries — anything in the transfer map that
-        # isn't actually owned by the requester. Without this guard,
-        # a crafted request with extra IDs would silently transfer
-        # ownership of unrelated projects.
-        extra = sorted(transfer_keys - owned_keys)
-        if extra:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"project_transfers contains projects not owned by user: {extra}",
-            )
-
-        try:
-            # Routed per guild — the projects live in per-guild schemas.
-            await users_service.transfer_owned_projects(
-                session, current_user.id, request.project_transfers
-            )
-        except users_service.InvalidTransferRecipient:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=UserMessages.INVALID_TRANSFER_RECIPIENT,
-            )
 
     if request.action == "deactivate":
         await users_service.deactivate_user(session, current_user.id)
@@ -1006,22 +959,65 @@ async def delete_my_api_key(
         )
 
 
-@guild_router.get(
-    "/{user_id}/guild-removal-eligibility",
-    response_model=GuildRemovalEligibilityResponse,
-)
-async def check_guild_removal_eligibility(
-    user_id: int,
+async def _require_receiving_admin(
+    session: AsyncSession, *, guild_id: int, new_owner_id: int
+) -> None:
+    """Ownership may only be handed to an active admin of this guild.
+
+    That restriction is what makes the action safe to expose: a guild admin
+    already reads and writes every part of their guild, so an owner grant can
+    never widen anyone's reach. An ordinary member could end up nominal owner of
+    content in an initiative they are not in, which RLS would then hide from
+    them.
+    """
+    recipient = (
+        await session.exec(
+            select(User)
+            .join(GuildMembership, GuildMembership.user_id == User.id)
+            .where(
+                User.id == new_owner_id,
+                User.status == UserStatus.active,
+                GuildMembership.guild_id == guild_id,
+                GuildMembership.role == GuildRole.admin,
+            )
+        )
+    ).one_or_none()
+    if recipient is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=UserMessages.OWNER_MUST_BE_GUILD_ADMIN,
+        )
+
+
+def _ownership_payload(items: list) -> OwnedContentResponse:
+    counts: dict[str, int] = {}
+    for item in items:
+        counts[item.tool.value] = counts.get(item.tool.value, 0) + 1
+    return OwnedContentResponse(
+        items=[
+            OwnedContentItem(tool=item.tool, id=item.id, name=item.name)
+            for item in items
+        ],
+        counts=counts,
+        total=len(items),
+    )
+
+
+def _transfer_payload(counts: dict) -> OwnershipTransferResponse:
+    by_value = {tool.value: n for tool, n in counts.items()}
+    return OwnershipTransferResponse(counts=by_value, total=sum(by_value.values()))
+
+
+@guild_router.get("/unowned-content", response_model=OwnedContentResponse)
+async def list_unowned_content(
     session: SessionDep,
     current_admin: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
-) -> GuildRemovalEligibilityResponse:
-    """Pre-flight info for the guild admin's remove-member action.
+) -> OwnedContentResponse:
+    """Everything in this guild that no current member owns.
 
-    The SPA calls this before opening the confirm dialog so it knows
-    whether to prompt for project-ownership transfers (the same way
-    self-leave does). Without this, the user table's "Remove" button
-    would silently orphan every project the target user owned.
+    Both the content released when someone left and anything orphaned before
+    that — either way nobody who can act on it owns it.
     """
     await set_rls_context(
         session,
@@ -1029,49 +1025,93 @@ async def check_guild_removal_eligibility(
         guild_id=guild_context.guild_id,
         guild_role="admin",
     )
-
-    sole_pm_initiatives = await initiatives_service.initiatives_requiring_new_pm(
-        session, user_id, guild_id=guild_context.guild_id
-    )
-    sole_pm_names = [initiative.name for initiative in sole_pm_initiatives]
-
-    owned_projects = await users_service.get_owned_projects_in_guild(
-        session, user_id, guild_context.guild_id
-    )
-    # Bundle transfer candidates per-project so the SPA can render the
-    # picker in one round trip. We can't reuse
-    # ``GET /users/me/initiative-members`` because the admin doing the
-    # removal isn't required to be a member of every initiative the
-    # target user belongs to. The candidate query lives in
-    # ``services/users.py`` so the leave-eligibility endpoint can share
-    # the same rules.
-    owned_project_infos: list[GuildRemovalProjectInfo] = []
-    candidate_cache: dict[int, list[UserPublic]] = {}
-    for project in owned_projects:
-        candidates = candidate_cache.get(project.initiative_id)
-        if candidates is None:
-            candidates = await users_service.fetch_pm_candidates(
-                session,
-                initiative_id=project.initiative_id,
-                excluded_user_id=user_id,
-            )
-            candidate_cache[project.initiative_id] = candidates
-        owned_project_infos.append(
-            GuildRemovalProjectInfo(
-                id=project.id,
-                name=project.name,
-                initiative_id=project.initiative_id,
-                candidates=candidates,
-            )
+    return _ownership_payload(
+        await ownership_service.summarize_unowned_content(
+            session, guild_id=guild_context.guild_id
         )
-
-    can_remove = len(sole_pm_names) == 0 and len(owned_project_infos) == 0
-
-    return GuildRemovalEligibilityResponse(
-        can_remove=can_remove,
-        sole_pm_initiatives=sole_pm_names,
-        owned_projects=owned_project_infos,
     )
+
+
+@guild_router.post("/unowned-content/claim", response_model=OwnershipTransferResponse)
+async def claim_unowned_content(
+    payload: OwnershipTransferRequest,
+    session: SessionDep,
+    current_admin: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildAdminContext,
+) -> OwnershipTransferResponse:
+    """Give everything nobody owns to one guild admin."""
+    await set_rls_context(
+        session,
+        user_id=current_admin.id,
+        guild_id=guild_context.guild_id,
+        guild_role="admin",
+    )
+    await _require_receiving_admin(
+        session, guild_id=guild_context.guild_id, new_owner_id=payload.new_owner_id
+    )
+    counts = await ownership_service.claim_unowned_content(
+        session, guild_id=guild_context.guild_id, to_user_id=payload.new_owner_id
+    )
+    await session.commit()
+    return _transfer_payload(counts)
+
+
+@guild_router.get("/{user_id}/owned-content", response_model=OwnedContentResponse)
+async def list_owned_content(
+    user_id: int,
+    session: SessionDep,
+    current_admin: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildAdminContext,
+) -> OwnedContentResponse:
+    """What this user owns in this guild, for the transfer dialog to list.
+
+    Works for anyone the grants still name, member or not — accounts get
+    abandoned as often as they get closed.
+    """
+    await set_rls_context(
+        session,
+        user_id=current_admin.id,
+        guild_id=guild_context.guild_id,
+        guild_role="admin",
+    )
+    return _ownership_payload(
+        await ownership_service.summarize_owned_content(session, user_id)
+    )
+
+
+@guild_router.post(
+    "/{user_id}/transfer-ownership", response_model=OwnershipTransferResponse
+)
+async def transfer_ownership(
+    user_id: int,
+    payload: OwnershipTransferRequest,
+    session: SessionDep,
+    current_admin: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildAdminContext,
+) -> OwnershipTransferResponse:
+    """Move everything ``user_id`` owns in this guild to a guild admin.
+
+    The only place ownership is moved by hand, and guild-admin only.
+    """
+    if user_id == payload.new_owner_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=UserMessages.OWNER_ALREADY_HOLDS_CONTENT,
+        )
+    await set_rls_context(
+        session,
+        user_id=current_admin.id,
+        guild_id=guild_context.guild_id,
+        guild_role="admin",
+    )
+    await _require_receiving_admin(
+        session, guild_id=guild_context.guild_id, new_owner_id=payload.new_owner_id
+    )
+    counts = await ownership_service.transfer_content_ownership(
+        session, from_user_id=user_id, to_user_id=payload.new_owner_id
+    )
+    await session.commit()
+    return _transfer_payload(counts)
 
 
 @guild_router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -1080,8 +1120,14 @@ async def delete_user(
     session: SessionDep,
     current_admin: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
-    body: GuildRemovalRequest | None = None,
 ) -> None:
+    """Remove a member from this guild.
+
+    Ends their memberships and the access those carried. It does not move
+    ownership: content they own stays recorded as theirs and stops being
+    reachable by them, until an admin re-homes it through
+    ``POST /{user_id}/transfer-ownership``.
+    """
     await set_rls_context(
         session,
         user_id=current_admin.id,
@@ -1111,74 +1157,6 @@ async def delete_user(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=UserMessages.NOT_IN_GUILD
         )
-
-    try:
-        await initiatives_service.ensure_user_not_sole_pm(
-            session,
-            user_id=user_id,
-            guild_id=guild_context.guild_id,
-        )
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-        ) from exc
-
-    # Block the admin from orphaning projects: every project the target
-    # user owns in this guild needs an explicit disposition (transfer
-    # to a project manager, or delete). We apply the transfers /
-    # deletions before ``remove_user_from_guild_initiatives`` drops
-    # their membership rows so the new state is in place by the time
-    # RLS evaluates against the guild's surviving members.
-    owned_projects = await users_service.get_owned_projects_in_guild(
-        session, user_id, guild_context.guild_id
-    )
-    if owned_projects:
-        transfers = body.project_transfers if body is not None else {}
-        deletions = set(body.project_deletions) if body is not None else set()
-        owned_ids = {project.id for project in owned_projects}
-        transfer_ids = set(transfers.keys())
-
-        # Every owned project needs exactly one disposition; reject
-        # missing, surplus, or overlapping ids with one stable code so
-        # the SPA can map a single translation string. Distinct from
-        # the self-leave code so the copy can speak in the right voice.
-        missing = owned_ids - transfer_ids - deletions
-        extra = (transfer_ids - owned_ids) | (deletions - owned_ids)
-        overlap = transfer_ids & deletions
-        if missing or extra or overlap:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=GuildMessages.CANNOT_REMOVE_OWNS_PROJECTS,
-            )
-        for project_id, new_owner_id in transfers.items():
-            try:
-                await users_service.transfer_project_ownership(
-                    session, project_id, new_owner_id
-                )
-            except users_service.InvalidTransferRecipient:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=GuildMessages.PROJECT_TRANSFER_RECIPIENT_INVALID,
-                )
-
-        if deletions:
-            # Soft-delete (send to trash) the projects the admin opted
-            # to discard rather than transfer — the escape hatch for
-            # the "no eligible project manager left" case.
-            from app.services.tenant import soft_delete as soft_delete_service
-
-            retention_days = await guilds_service.get_guild_retention_days(
-                session, guild_context.guild_id
-            )
-            projects_by_id = {project.id: project for project in owned_projects}
-            for project_id in deletions:
-                project = projects_by_id[project_id]
-                await soft_delete_service.soft_delete_entity(
-                    session,
-                    project,
-                    deleted_by_user_id=current_admin.id,
-                    retention_days=retention_days,
-                )
 
     await initiatives_service.remove_user_from_guild_initiatives(
         session,

@@ -42,7 +42,9 @@ export const DuplicateCounterGroupCard = ({
     onSuccess: (created) => {
       toast.success(t("duplicate.success"));
       setDialogOpen(false);
-      router.navigate({ to: gp(toolSettingsRoute(Tool.counter_group, created.id)) });
+      router.navigate({
+        to: gp(toolSettingsRoute(Tool.counter_group, created.initiative_id, created.id)),
+      });
     },
   });
 

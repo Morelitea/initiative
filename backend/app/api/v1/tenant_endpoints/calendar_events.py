@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import func
+from sqlalchemy import ColumnElement, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
@@ -32,11 +32,9 @@ from app.models.tenant.calendar_event import (
     CalendarEventTag,
     RSVPStatus,
 )
-from app.models.platform.guild import GuildRole
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.property import CalendarEventPropertyValue
 from app.models.platform.user import User
-from app.core import role_context
 from app.core.messages import CalendarEventMessages
 from app.schemas.tenant.calendar_event import (
     CalendarEventCreate,
@@ -66,7 +64,6 @@ from app.services.tenant import ical_service
 from app.services import notifications as notifications_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
-from app.services import rls as rls_service
 
 router = APIRouter()
 # Cross-guild "my calendar" aggregate (My Calendar page). Mounted under
@@ -157,20 +154,16 @@ async def _exec_events(session, stmt) -> list[CalendarEvent]:
     return list(result.unique().all())
 
 
-def _cross_guild_event_dac_clause(guild_id: int, user_id: int):
-    """DAC visibility clause for the cross-guild ``/me`` calendar views.
+def _cross_guild_event_dac_clause(guild_id: int, user_id: int) -> ColumnElement[bool]:
+    """Sharing gate for the cross-guild ``/me`` calendar views.
 
-    Mirrors the per-guild ``list_calendar_events`` filter: a non-admin member
-    sees only events in calendars granted to them (own user grant or via an
-    initiative role); a guild admin sees all (the ``initiative_access`` admin
-    leg, driven by the role ``gather_across_guilds`` set). Returns ``None`` (no
-    extra filter) for admins. PAM never applies here — ``gather_across_guilds``
-    only visits guilds the user is a real member of.
+    The same clause the per-guild list applies, resolved per guild: the role
+    ``gather_across_guilds`` established for that guild is what it reads. PAM
+    never applies here — the gather only visits guilds the user is a real member
+    of — so the clause resolves to a no-op only for a guild admin.
     """
-    if role_context.active_guild_role(guild_id) == GuildRole.admin.value:
-        return None
-    return CalendarEvent.calendar_id.in_(
-        permissions_service.visible_resource_ids_subquery("calendar", user_id)
+    return permissions_service.dac_scope_clause(
+        Tool.calendar, CalendarEvent.calendar_id, user_id, guild_id=guild_id
     )
 
 
@@ -199,9 +192,7 @@ async def query_my_calendar_events(
             conditions.append(CalendarEvent.start_at >= start_after)
         if start_before is not None:
             conditions.append(CalendarEvent.start_at <= start_before)
-        dac_clause = _cross_guild_event_dac_clause(guild_id, current_user.id)
-        if dac_clause is not None:
-            conditions.append(dac_clause)
+        conditions.append(_cross_guild_event_dac_clause(guild_id, current_user.id))
         stmt = (
             select(CalendarEvent)
             .join(Calendar, Calendar.id == CalendarEvent.calendar_id)
@@ -285,9 +276,7 @@ async def export_my_calendar_events_ics(
             conditions.append(CalendarEvent.start_at >= start_after)
         if start_before is not None:
             conditions.append(CalendarEvent.start_at <= start_before)
-        dac_clause = _cross_guild_event_dac_clause(guild_id, current_user.id)
-        if dac_clause is not None:
-            conditions.append(dac_clause)
+        conditions.append(_cross_guild_event_dac_clause(guild_id, current_user.id))
         stmt = (
             select(CalendarEvent)
             .join(Calendar, Calendar.id == CalendarEvent.calendar_id)
@@ -369,7 +358,7 @@ async def import_ical_events(
             content=body.ics_content,
             calendar_id=calendar.id,
             guild_id=guild_context.guild_id,
-            created_by_id=current_user.id,
+            created_by=current_user.id,
         )
     except Exception:
         raise HTTPException(
@@ -499,16 +488,16 @@ async def query_guild_calendar_events(
                 )
             )
 
-    # DAC: non-admins (and non-PAM) see only events in calendars they're
-    # granted (own or via a role). Admin/PAM see all via the guild scope + RLS.
-    if not rls_service.is_guild_admin(guild_context.role) and not guild_context.is_pam:
-        conditions.append(
-            CalendarEvent.calendar_id.in_(
-                permissions_service.visible_resource_ids_subquery(
-                    "calendar", current_user.id
-                )
-            )
+    # An event is reached through its calendar, so the sharing gate applies to
+    # the calendar the event names.
+    conditions.append(
+        permissions_service.dac_scope_clause(
+            Tool.calendar,
+            CalendarEvent.calendar_id,
+            current_user.id,
+            guild_id=guild_context.guild_id,
         )
+    )
 
     count_subq = select(CalendarEvent.id).where(*conditions).subquery()
     count_stmt = select(func.count()).select_from(count_subq)
@@ -598,7 +587,7 @@ async def create_calendar_event(
     event = CalendarEvent(
         guild_id=guild_context.guild_id,
         calendar_id=event_in.calendar_id,
-        created_by_id=current_user.id,
+        created_by=current_user.id,
         title=event_in.title.strip(),
         description=event_in.description,
         location=event_in.location,
@@ -872,8 +861,8 @@ async def update_rsvp(
     attendee.rsvp_status = rsvp_in.rsvp_status
     session.add(attendee)
 
-    if event.created_by_id != current_user.id:
-        organizers = await _fetch_users(session, [event.created_by_id])
+    if event.created_by != current_user.id:
+        organizers = await _fetch_users(session, [event.created_by])
         if organizers:
             await notifications_service.notify_event_rsvp(
                 session,

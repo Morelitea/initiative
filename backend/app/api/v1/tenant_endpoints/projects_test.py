@@ -255,6 +255,52 @@ async def test_list_projects_with_archived_filter(
 
 
 @pytest.mark.integration
+async def test_list_projects_filters_by_initiative(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A project list is scoped to one initiative in SQL.
+
+    Every tool page is addressed inside its initiative now, so the list it
+    renders must come back already narrowed rather than filtered client-side.
+    """
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    other_initiative = await create_initiative(session, admin.guild, admin.user)
+    mine = await create_project(session, admin.initiative, admin.user, name="Mine")
+    theirs = await create_project(session, other_initiative, admin.user, name="Theirs")
+
+    response = await client.get(
+        admin.g(f"/projects/?initiative_id={admin.initiative.id}"),
+        headers=admin.headers,
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    project_ids = {p["id"] for p in body["items"]}
+    assert mine.id in project_ids
+    assert theirs.id not in project_ids
+    # The count is narrowed too, or the pager would offer empty pages.
+    assert body["total_count"] == 1
+
+
+@pytest.mark.integration
+async def test_list_projects_without_initiative_spans_them_all(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Omitting the filter keeps the cross-initiative behaviour the guild home
+    and the sidebar's project tree depend on."""
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    other_initiative = await create_initiative(session, admin.guild, admin.user)
+    mine = await create_project(session, admin.initiative, admin.user, name="Mine")
+    theirs = await create_project(session, other_initiative, admin.user, name="Theirs")
+
+    response = await client.get(admin.g("/projects/"), headers=admin.headers)
+
+    assert response.status_code == 200
+    project_ids = {p["id"] for p in response.json()["items"]}
+    assert {mine.id, theirs.id} <= project_ids
+
+
+@pytest.mark.integration
 async def test_list_projects_search_filters_by_name(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -840,18 +886,6 @@ async def test_update_project_as_admin(
     )
     project = await create_project(session, admin.initiative, owner.user)
 
-    # Give admin write access to the project (pure DAC requires explicit permission)
-    admin_permission = ResourceGrant(
-        resource_type="project",
-        resource_id=project.id,
-        user_id=admin.user.id,
-        level=ResourceAccessLevel.owner,
-        guild_id=project.guild_id,
-        initiative_id=project.initiative_id,
-    )
-    session.add(admin_permission)
-    await session.commit()
-
     payload = {"name": "Admin Updated"}
 
     response = await client.patch(
@@ -911,18 +945,6 @@ async def test_delete_project_as_admin(
         initiative_role="member",
     )
     project = await create_project(session, admin.initiative, owner.user)
-
-    # Give admin owner access to the project (pure DAC requires explicit permission)
-    admin_permission = ResourceGrant(
-        resource_type="project",
-        resource_id=project.id,
-        user_id=admin.user.id,
-        level=ResourceAccessLevel.owner,
-        guild_id=project.guild_id,
-        initiative_id=project.initiative_id,
-    )
-    session.add(admin_permission)
-    await session.commit()
 
     response = await client.delete(
         admin.g(f"/projects/{project.id}"), headers=admin.headers
@@ -1571,11 +1593,10 @@ async def test_project_shows_all_members_document_to_member(
     project = await create_project(session, initiative, owner.user)
 
     doc = Document(
-        title="Shared with everyone",
+        name="Shared with everyone",
         initiative_id=initiative.id,
         guild_id=guild.id,
-        created_by_id=owner.user.id,
-        updated_by_id=owner.user.id,
+        created_by=owner.user.id,
         document_type=DocumentType.native,
     )
     session.add(doc)

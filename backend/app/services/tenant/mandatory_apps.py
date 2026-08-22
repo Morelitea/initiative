@@ -92,7 +92,7 @@ async def install_mandatory_apps(
     session: AsyncSession,
     *,
     guild_id: int,
-    installed_by_id: Optional[int] = None,
+    created_by: Optional[int] = None,
 ) -> list[str]:
     """Install every mandatory app this guild does not have yet.
 
@@ -110,7 +110,7 @@ async def install_mandatory_apps(
         return []
 
     installer_id = await _installer_user_id(
-        session, guild_id=guild_id, preferred=installed_by_id
+        session, guild_id=guild_id, preferred=created_by
     )
     if installer_id is None:
         logger.warning(
@@ -165,7 +165,7 @@ async def install_mandatory_apps(
             listing_version=version.version,
             definition=definition,
             guild_id=guild_id,
-            installed_by_id=installer_id,
+            created_by=installer_id,
             name=(definition.get("default_name") or listing.name).strip(),
         )
         installed.append(listing.uid)

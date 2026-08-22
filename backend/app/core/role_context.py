@@ -15,7 +15,10 @@ deliberately leave this unset — grant semantics flow through ``pam_context``.
 from __future__ import annotations
 
 import contextvars
-from typing import FrozenSet, Optional, Tuple
+from typing import TYPE_CHECKING, FrozenSet, Optional, Tuple
+
+if TYPE_CHECKING:
+    from app.models.platform.guild import GuildRole
 
 # (guild_id, role) for the request's active guild membership, or None.
 _active_role: contextvars.ContextVar[Optional[Tuple[int, str]]] = (
@@ -49,6 +52,30 @@ def active_guild_role(guild_id: Optional[int]) -> Optional[str]:
         return None
     recorded_guild, role = current
     return role if recorded_guild == guild_id else None
+
+
+def is_request_guild_admin(
+    guild_id: Optional[int],
+    *,
+    guild_role: GuildRole | str | None = None,
+) -> bool:
+    """Whether the request acts as a *guild admin* of ``guild_id``.
+
+    Guild roles are strictly guild-scoped — a guild admin has full authority
+    only within their own guild's schema. The role is taken from ``guild_role``
+    when the caller already holds it, otherwise from the context recorded above
+    (keyed by guild id, so a role recorded for one guild never bleeds into
+    another). This is deliberately independent of app/platform-level roles
+    (``data.bypass``, PAM grants), which reach across guilds through their own
+    separate mechanisms — do not fold those in here.
+    """
+    from app.models.platform.guild import GuildRole
+
+    if guild_id is None:
+        return False
+    role = guild_role if guild_role is not None else active_guild_role(guild_id)
+    role_value = role.value if isinstance(role, GuildRole) else role
+    return role_value == GuildRole.admin.value
 
 
 def set_override_sharing_initiatives(initiative_ids: Optional[FrozenSet[int]]) -> None:

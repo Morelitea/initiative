@@ -27,14 +27,17 @@ from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     UniqueConstraint,
     text,
 )
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship
 
 from app.core.tools import Tool  # noqa: F401  (re-exported for grant callers)
+
+from app.models.tenant._mixins import CreatedByMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.initiative import InitiativeRoleModel
@@ -47,7 +50,7 @@ class ResourceAccessLevel(str, Enum):
     read = "read"
 
 
-class ResourceGrant(SQLModel, table=True):
+class ResourceGrant(CreatedByMixin, table=True):
     __tablename__ = "resource_grants"
 
     __table_args__ = (
@@ -59,6 +62,16 @@ class ResourceGrant(SQLModel, table=True):
             "(user_id IS NOT NULL)::int + (role_id IS NOT NULL)::int "
             "+ (all_initiative_members)::int = 1",
             name="resource_grants_one_grantee",
+        ),
+        # A resource has one owner or none. Nothing else in the schema said so,
+        # and the re-homing paths that used to upgrade every initiative manager
+        # at once left resources with several.
+        Index(
+            "ix_resource_grants_single_owner",
+            "resource_type",
+            "resource_id",
+            unique=True,
+            postgresql_where=text("level = 'owner'"),
         ),
         # NULLS NOT DISTINCT so the unused grantee column (NULL) compares equal —
         # otherwise two identical user grants (role_id NULL) wouldn't collide.

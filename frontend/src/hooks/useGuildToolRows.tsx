@@ -23,7 +23,7 @@ import { useDashboardsList } from "@/hooks/useDashboards";
 import { useDocumentsList } from "@/hooks/useDocuments";
 import { useProjects } from "@/hooks/useProjects";
 import { useQueuesList } from "@/hooks/useQueues";
-import { toolListRoute } from "@/lib/tools";
+import { toolDetailRoute } from "@/lib/tools";
 
 /** One row of the guild home table, in terms every tool can answer. */
 export interface GuildToolRow {
@@ -75,7 +75,10 @@ export function useGuildToolRows(tool: Tool, page: number, pageSize: number) {
   }[tool];
 
   const rows = useMemo<GuildToolRow[]>(() => {
-    const href = (id: number) => `${toolListRoute(tool)}/${id}`;
+    // Each row addresses its own initiative — a guild-wide table spans them,
+    // and a calendar may have none at all.
+    const href = (id: number, initiativeId: number | null) =>
+      toolDetailRoute(tool, initiativeId, id);
     switch (tool) {
       case Tool.project:
         return (projects.data?.items ?? []).map((project) => {
@@ -84,7 +87,7 @@ export function useGuildToolRows(tool: Tool, page: number, pageSize: number) {
           return {
             id: project.id,
             name: project.name,
-            href: href(project.id),
+            href: href(project.id, project.initiative_id),
             glyph: project.icon,
             initiativeId: project.initiative_id,
             tags: project.tags,
@@ -101,8 +104,8 @@ export function useGuildToolRows(tool: Tool, page: number, pageSize: number) {
       case Tool.document:
         return (documents.data?.items ?? []).map((document) => ({
           id: document.id,
-          name: document.title,
-          href: href(document.id),
+          name: document.name,
+          href: href(document.id, document.initiative_id),
           glyph: null,
           initiativeId: document.initiative_id,
           tags: document.tags,
@@ -116,7 +119,7 @@ export function useGuildToolRows(tool: Tool, page: number, pageSize: number) {
         return (queues.data?.items ?? []).map((queue) => ({
           id: queue.id,
           name: queue.name,
-          href: href(queue.id),
+          href: href(queue.id, queue.initiative_id),
           glyph: null,
           initiativeId: queue.initiative_id,
           tags: queue.tags,
@@ -128,7 +131,7 @@ export function useGuildToolRows(tool: Tool, page: number, pageSize: number) {
         return (counterGroups.data?.items ?? []).map((group) => ({
           id: group.id,
           name: group.name,
-          href: href(group.id),
+          href: href(group.id, group.initiative_id),
           glyph: null,
           initiativeId: group.initiative_id,
           tags: group.tags,
@@ -140,7 +143,7 @@ export function useGuildToolRows(tool: Tool, page: number, pageSize: number) {
         return (calendars.data?.items ?? []).map((calendar) => ({
           id: calendar.id,
           name: calendar.name,
-          href: href(calendar.id),
+          href: href(calendar.id, calendar.initiative_id),
           glyph: <ColourDot colour={calendar.color} />,
           initiativeId: calendar.initiative_id,
           tags: calendar.tags,
@@ -152,7 +155,7 @@ export function useGuildToolRows(tool: Tool, page: number, pageSize: number) {
         return (dashboards.data?.items ?? []).map((dashboard) => ({
           id: dashboard.id,
           name: dashboard.name,
-          href: href(dashboard.id),
+          href: href(dashboard.id, dashboard.initiative_id),
           glyph: null,
           initiativeId: dashboard.initiative_id,
           tags: dashboard.tags,

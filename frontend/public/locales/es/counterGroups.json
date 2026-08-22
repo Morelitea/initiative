@@ -101,8 +101,6 @@
     "hide": "Ocultar",
     "searchGroups": "Buscar grupos de contadores...",
     "filterByName": "Filtrar por nombre",
-    "filterByInitiative": "Iniciativa",
-    "allInitiatives": "Todas las iniciativas",
     "noMatchingGroups": "Ningún grupo de contadores coincide con tus filtros."
   },
   "tags": "Etiquetas"

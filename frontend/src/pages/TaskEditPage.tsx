@@ -49,6 +49,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useAuth } from "@/hooks/useAuth";
+import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useComments } from "@/hooks/useComments";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuilds } from "@/hooks/useGuilds";
@@ -68,6 +69,7 @@ import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
 import { queryClient } from "@/lib/queryClient";
+import { taskRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
 import {
   getAvatarSrc,
   getInitialsForUser,
@@ -137,7 +139,10 @@ type MoveTaskVariables = {
 };
 
 export const TaskEditPage = () => {
-  const { taskId } = useParams({ strict: false }) as { taskId: string };
+  const { taskId, projectId: projectIdParam } = useParams({ strict: false }) as {
+    taskId: string;
+    projectId?: string;
+  };
   const parsedTaskId = Number(taskId);
   const router = useRouter();
   const guildId = useActiveGuildId();
@@ -189,7 +194,7 @@ export const TaskEditPage = () => {
 
   const taskQuery = useTask(parsedTaskId);
 
-  const projectId = taskQuery.data?.project_id;
+  const projectId = projectIdParam ? Number(projectIdParam) : taskQuery.data?.project_id;
   const projectQuery = useProject(projectId ?? null);
 
   const taskStatusesQuery = useProjectTaskStatuses(projectId ?? null);
@@ -272,7 +277,9 @@ export const TaskEditPage = () => {
     onSuccess: (newTask) => {
       toast.success(t("edit.taskDuplicated"));
       bypassGuardRef.current = true;
-      router.navigate({ to: gp(`/tasks/${newTask.id}`) });
+      router.navigate({
+        to: gp(taskRoute(initiativeId, newTask.project_id, newTask.id)),
+      });
     },
   });
 
@@ -280,7 +287,9 @@ export const TaskEditPage = () => {
     onSuccess: () => {
       toast.success(t("edit.taskDeleted"));
       bypassGuardRef.current = true;
-      router.navigate({ to: gp(`/projects/${projectId}`) });
+      router.navigate({
+        to: gp(toolListRoute(Tool.project, initiativeId)),
+      });
     },
   });
 
@@ -379,6 +388,9 @@ export const TaskEditPage = () => {
   };
 
   const project = projectQuery.data;
+  // A task's initiative is its project's. The path supplies it while that
+  // loads, and a URL naming a different one is corrected in place.
+  const initiativeId = useCanonicalInitiativeId(project?.initiative_id);
 
   // Creator metadata for the inline "Created by …" chip in the title row.
   // The creator summary rides the task read payload; fall back to
@@ -390,8 +402,8 @@ export const TaskEditPage = () => {
     const anonymized = isAnonymizedUser(creator);
     const displayName = creator
       ? getUserDisplayName(creator)
-      : task.created_by_id != null
-        ? `User #${task.created_by_id}`
+      : task.created_by != null
+        ? `User #${task.created_by}`
         : null;
     const avatarSrc = creator && !anonymized ? getAvatarSrc(creator) : undefined;
     return {
@@ -402,7 +414,7 @@ export const TaskEditPage = () => {
       initials: getInitialsForUser(creator),
       creatorId: creator?.id ?? null,
     };
-  }, [task?.created_at, task?.created_by_id, creator]);
+  }, [task?.created_at, task?.created_by, creator]);
 
   // The relative "N ago" label refreshes in place via the shared clock; the
   // absolute date never changes so it's formatted inline.
@@ -538,7 +550,7 @@ export const TaskEditPage = () => {
           icon={<SearchX />}
           title={t("edit.notFound")}
           description={t("edit.notFoundDescription")}
-          backTo={gp("/projects")}
+          backTo={gp(toolListRoute(Tool.project, initiativeId))}
           backLabel={t("edit.backToProjects")}
         />
       );
@@ -549,7 +561,7 @@ export const TaskEditPage = () => {
           icon={<ShieldAlert />}
           title={t("edit.noAccess")}
           description={t("edit.noAccessDescription")}
-          backTo={gp("/projects")}
+          backTo={gp(toolListRoute(Tool.project, initiativeId))}
           backLabel={t("edit.backToProjects")}
         />
       );
@@ -558,7 +570,7 @@ export const TaskEditPage = () => {
       <StatusMessage
         icon={<AlertCircle />}
         title={t("edit.loadError")}
-        backTo={gp("/projects")}
+        backTo={gp(toolListRoute(Tool.project, initiativeId))}
         backLabel={t("edit.backToProjects")}
       />
     );
@@ -569,7 +581,7 @@ export const TaskEditPage = () => {
       <StatusMessage
         icon={<AlertCircle />}
         title={t("edit.loadProjectError")}
-        backTo={gp("/projects")}
+        backTo={gp(toolListRoute(Tool.project, initiativeId))}
         backLabel={t("edit.backToProjects")}
       />
     );
@@ -682,9 +694,16 @@ export const TaskEditPage = () => {
     <div className="space-y-6">
       <ToolBreadcrumb
         tool={Tool.project}
-        initiativeId={project?.initiative_id}
+        initiativeId={initiativeId}
         trail={[
-          ...(project ? [{ label: project.name, to: `/projects/${project.id}` }] : []),
+          ...(project
+            ? [
+                {
+                  label: project.name,
+                  to: toolDetailRoute(Tool.project, initiativeId, project.id),
+                },
+              ]
+            : []),
           { label: title || task?.title },
         ]}
       />
@@ -768,7 +787,11 @@ export const TaskEditPage = () => {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => router.navigate({ to: gp(`/projects/${projectId}`) })}
+                  onClick={() =>
+                    router.navigate({
+                      to: gp(toolDetailRoute(Tool.project, initiativeId, projectId as number)),
+                    })
+                  }
                 >
                   <X className="h-4 w-4" />
                   {t("common:cancel")}

@@ -8,6 +8,7 @@ Tests cover:
 Uses SimpleNamespace mocks to simulate eagerly-loaded ORM objects.
 """
 
+import pathlib
 from types import SimpleNamespace
 
 import pytest
@@ -17,8 +18,21 @@ from app.core.messages import DocumentMessages, ProjectMessages
 from app.models.tenant.document import DocumentPermissionLevel
 from app.models.tenant.project import ProjectPermissionLevel
 from app.models.platform.user import UserRole
+from sqlalchemy import ColumnElement
+
+from app.core.pam_context import set_active_grant
+from app.core.role_context import set_active_role, set_override_sharing_initiatives
+from app.core.tools import Tool
+from app.models.platform.guild import GuildRole
+from app.models.tenant.document import Document
+from app.models.tenant.project import Project
+from app.models.tenant.queue import Queue
 from app.services.permissions import (
+    DAC_RESOURCES,
     PROJECT_LEVEL_ORDER,
+    compute_permission,
+    dac_scope_clause,
+    require_access,
     compute_document_permission,
     compute_project_permission,
     effective_permission_level,
@@ -599,3 +613,230 @@ def test_membership_without_permission_row_still_denied():
     with pytest.raises(HTTPException) as exc_info:
         require_document_access(doc, user, access="read")
     assert exc_info.value.status_code == 403
+
+
+# ── dac_scope_clause: the query-shaped half of the DAC decision ──────────────
+
+
+def _compiled(clause: ColumnElement[bool]) -> str:
+    return str(clause.compile(compile_kwargs={"literal_binds": True}))
+
+
+def test_dac_scope_clause_is_a_no_op_for_a_guild_wide_request():
+    """A guild admin, or a live PAM grant, reaches the whole guild — so the
+    clause adds nothing and the caller needs no branch around it."""
+    set_active_grant(None, None)
+    set_override_sharing_initiatives(None)
+    try:
+        set_active_role(7, GuildRole.admin.value)
+        assert _compiled(dac_scope_clause(Tool.project, Project.id, 1, guild_id=7)) == (
+            "true"
+        )
+
+        set_active_role(None, None)
+        set_active_grant(7, "read")
+        assert (
+            _compiled(dac_scope_clause(Tool.document, Document.id, 1, guild_id=7))
+            == "true"
+        )
+    finally:
+        set_active_role(None, None)
+        set_active_grant(None, None)
+
+
+def test_dac_scope_clause_respects_the_grant_level():
+    """A grant opens the guild only at the level it was issued at, so a read
+    grant is a no-op for a read but not for a write."""
+    set_active_role(None, None)
+    set_override_sharing_initiatives(None)
+    set_active_grant(7, "read")
+    try:
+        assert (
+            _compiled(dac_scope_clause(Tool.project, Project.id, 1, guild_id=7))
+            == "true"
+        )
+        assert (
+            _compiled(
+                dac_scope_clause(
+                    Tool.project, Project.id, 1, guild_id=7, access="write"
+                )
+            )
+            != "true"
+        )
+        set_active_grant(7, "read_write")
+        assert (
+            _compiled(
+                dac_scope_clause(
+                    Tool.project, Project.id, 1, guild_id=7, access="write"
+                )
+            )
+            == "true"
+        )
+    finally:
+        set_active_grant(None, None)
+
+
+def test_dac_scope_clause_narrows_an_ordinary_member():
+    """A member is scoped to the resources granted to them, and the clause names
+    the tool it was asked about."""
+    set_active_grant(None, None)
+    set_override_sharing_initiatives(None)
+    set_active_role(7, GuildRole.member.value)
+    try:
+        sql = _compiled(dac_scope_clause(Tool.queue, Queue.id, 1, guild_id=7))
+        assert "resource_grants" in sql
+        assert "queue" in sql
+        assert sql != "true"
+    finally:
+        set_active_role(None, None)
+
+
+def test_dac_scope_clause_narrows_when_the_role_is_for_another_guild():
+    """Role context is keyed by guild, so being an admin of guild 8 grants
+    nothing in guild 7."""
+    set_active_grant(None, None)
+    set_override_sharing_initiatives(None)
+    set_active_role(8, GuildRole.admin.value)
+    try:
+        assert (
+            _compiled(dac_scope_clause(Tool.project, Project.id, 1, guild_id=7))
+            != "true"
+        )
+        # ...and no guild at all narrows too, rather than opening up.
+        assert (
+            _compiled(dac_scope_clause(Tool.project, Project.id, 1, guild_id=None))
+            != "true"
+        )
+    finally:
+        set_active_role(None, None)
+
+
+@pytest.mark.parametrize("tool", list(Tool))
+def test_every_tool_can_be_scoped(tool):
+    """Every tool in the registry resolves through the clause, so a tool added
+    later inherits the same listing rule."""
+    set_active_role(None, None)
+    set_active_grant(None, None)
+    set_override_sharing_initiatives(None)
+    sql = _compiled(dac_scope_clause(tool, Project.id, 1, guild_id=7))
+    assert "resource_grants" in sql
+    assert tool.value in sql
+
+
+def test_the_grants_subquery_has_one_caller():
+    """``dac_scope_clause`` is the single entry point for narrowing a listing.
+
+    ``_granted_resource_ids`` is one part of what it composes, and is private so
+    that composition happens in one place.
+    """
+    root = pathlib.Path(__file__).resolve().parents[1]
+    offenders = [
+        str(path.relative_to(root))
+        for path in root.rglob("*.py")
+        if path.name not in {"permissions.py", "permissions_test.py"}
+        and "_granted_resource_ids" in path.read_text()
+    ]
+    assert offenders == [], (
+        "these modules reach for the grants subquery directly instead of "
+        f"permissions.dac_scope_clause: {offenders}"
+    )
+
+
+# ── Every tool resolves sharing through the same engine ─────────────────────
+
+_TOOL_FACTORIES = {
+    Tool.project: "create_project",
+    Tool.document: "create_document",
+    Tool.queue: "create_queue",
+    Tool.counter_group: "create_counter_group",
+    Tool.calendar: "create_calendar",
+    Tool.dashboard: "create_dashboard",
+}
+
+
+async def _only_the_owner_holds_a_grant(session, tool: Tool, resource_id: int) -> None:
+    """Drop the factory's default all-initiative-members grant."""
+    from sqlmodel import delete
+
+    from app.models.tenant.resource_grant import ResourceGrant
+
+    await session.exec(
+        delete(ResourceGrant).where(
+            ResourceGrant.resource_type == tool.value,
+            ResourceGrant.resource_id == resource_id,
+            ResourceGrant.level != "owner",
+        )
+    )
+    await session.commit()
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("tool", list(Tool), ids=lambda t: t.value)
+async def test_every_tool_resolves_sharing_through_one_engine(
+    session, acting_user, tool: Tool
+):
+    """Each tool answers the same four questions the same way.
+
+    A tool reaches the engine through its ``DAC_RESOURCES`` entry and its
+    ``RESOURCE_ACCESS`` loader, so a tool added later inherits this behaviour by
+    registering rather than by re-implementing it.
+    """
+    from app.api import resource_access
+    from app.testing import factories
+
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    initiative, guild = owner.initiative, owner.guild
+    for t in Tool:
+        if hasattr(initiative, t.view_permission):
+            setattr(initiative, t.view_permission, True)
+    session.add(initiative)
+    await session.commit()
+
+    co_member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=guild,
+        initiative=initiative,
+        initiative_role="member",
+    )
+    admin = await acting_user(guild_role=GuildRole.admin, guild=guild)
+
+    factory = getattr(factories, _TOOL_FACTORIES[tool])
+    row = await factory(session, initiative, owner.user)
+    await _only_the_owner_holds_a_grant(session, tool, row.id)
+
+    loader = resource_access.RESOURCE_ACCESS[tool].loader
+    assert loader is not None, f"{tool.value} has no loader"
+    resource = DAC_RESOURCES[tool]
+
+    def _refused(user):
+        with pytest.raises(HTTPException) as exc:
+            require_access(resource, loaded, user, access="read")
+        assert exc.value.status_code == 403
+
+    set_override_sharing_initiatives(None)
+    try:
+        # The holder of the owner grant.
+        set_active_role(guild.id, GuildRole.member.value)
+        set_active_grant(None, None)
+        loaded = await loader(session, row.id)
+        require_access(resource, loaded, owner.user, access="write")
+        assert compute_permission(resource, loaded, owner.user.id) == "owner"
+
+        # An initiative co-member with no grant on this resource.
+        _refused(co_member.user)
+        assert compute_permission(resource, loaded, co_member.user.id) is None
+
+        # A guild admin.
+        set_active_role(guild.id, GuildRole.admin.value)
+        require_access(resource, loaded, admin.user, access="write")
+        assert compute_permission(resource, loaded, admin.user.id) == "owner"
+
+        # A read grant: reads, not writes.
+        set_active_role(None, None)
+        set_active_grant(guild.id, "read")
+        require_access(resource, loaded, co_member.user, access="read")
+        with pytest.raises(HTTPException):
+            require_access(resource, loaded, co_member.user, access="write")
+    finally:
+        set_active_role(None, None)
+        set_active_grant(None, None)

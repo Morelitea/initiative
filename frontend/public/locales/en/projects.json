@@ -30,11 +30,6 @@
     "tasksDone": "{{completed}}/{{total}} done",
     "noTasks": "No tasks"
   },
-  "tabs": {
-    "active": "Active Projects",
-    "templates": "Templates",
-    "archive": "Archive"
-  },
   "view": {
     "grid": "Grid",
     "list": "List"
@@ -45,10 +40,7 @@
     "hide": "Hide filters",
     "filterByName": "Filter by name",
     "searchProjects": "Search projects",
-    "initiative": "Initiative",
     "selectedInitiative": "Selected initiative",
-    "filterByInitiative": "Filter by initiative",
-    "allInitiatives": "All initiatives",
     "filterByTag": "Filter by tag",
     "allTags": "All tags",
     "sortProjects": "Sort projects",
@@ -97,7 +89,8 @@
     "unarchive": "Unarchive",
     "noArchived": "No archived projects",
     "noArchivedDescription": "Active projects stay on the Active tab.",
-    "noArchivedDescriptionAlt": "Active projects stay on the main projects tab."
+    "noArchivedDescriptionAlt": "Active projects stay on the main projects tab.",
+    "sharingUnavailable": "Sharing can't be changed on an archived project."
   },
   "createDialog": {
     "title": "Create project",
@@ -500,7 +493,10 @@
   "progressLabel": "Project progress",
   "preview": {
     "updated": "Updated {{date}}",
-    "tasksDone": "{{completed}}/{{total}} done"
+    "tasksDone": "{{completed}}/{{total}} done",
+    "templateBadge": "Template",
+    "archivedBadge": "Archived",
+    "archivedOn": "Archived {{date}}"
   },
   "activitySidebar": {
     "title": "Project activity",
@@ -540,5 +536,11 @@
     "warningUnmatchedAssignees_other": "Imported, but {{count}} assignees not in this initiative were dropped: {{emails}}",
     "error": "Could not import the project. Please try again.",
     "queued": "Import started — you'll get a notification when it finishes."
+  },
+  "status": {
+    "label": "Show",
+    "active": "Active",
+    "templates": "Templates",
+    "archived": "Archived"
   }
 }

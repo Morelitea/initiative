@@ -7,24 +7,25 @@ import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidateAllCounterGroups } from "@/api/query-keys";
 import { BulkAccessSection } from "@/components/access/BulkAccessSection";
 import { SelectableGridItem } from "@/components/access/SelectableGridItem";
-import { ToolImportAction } from "@/components/imports/ToolImportAction";
+import { ToolImportAction, useToolImportAction } from "@/components/imports/ToolImportAction";
 import { CounterGroupCard } from "@/components/initiativeTools/counters/CounterGroupCard";
 import { CountersFilterBar } from "@/components/initiativeTools/counters/CountersFilterBar";
 import { CreateCounterGroupDialog } from "@/components/initiativeTools/counters/CreateCounterGroupDialog";
+import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCounterGroupsList } from "@/hooks/useCounters";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
-import { getDefaultFiltersVisibility } from "@/hooks/useDefaultFiltersOpen";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
-import { useInitiativeFilter } from "@/hooks/useInitiativeFilter";
-import { useInitiatives } from "@/hooks/useInitiatives";
 import { useGuildPath } from "@/lib/guildUrl";
+import { toolDetailRoute } from "@/lib/tools";
 
 type CountersViewProps = {
-  fixedInitiativeId?: number;
+  /** The initiative this list belongs to. Required: counter groups are only
+   *  ever browsed inside one, and the URL says which. */
+  fixedInitiativeId: number;
   canCreate?: boolean;
 };
 
@@ -33,34 +34,17 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
   const router = useRouter();
   const gp = useGuildPath();
 
-  const lockedInitiativeId = typeof fixedInitiativeId === "number" ? fixedInitiativeId : null;
-
-  const { initiativeFilter, setInitiativeFilter, filteredInitiativeId } = useInitiativeFilter({
-    lockedInitiativeId,
-  });
-  const effectiveInitiativeId = lockedInitiativeId ?? filteredInitiativeId;
-
   const groupsQuery = useCounterGroupsList({
-    ...(effectiveInitiativeId ? { initiative_id: effectiveInitiativeId } : {}),
+    initiative_id: fixedInitiativeId,
     page: 1,
     page_size: 50,
   });
-  const initiativesQuery = useInitiatives();
-  const initiatives = useMemo(
-    () => (initiativesQuery.data ?? []).filter((init) => init.counter_groups_enabled),
-    [initiativesQuery.data]
-  );
-  const initiativeNameMap = useMemo(() => {
-    const map = new Map<number, string>();
-    for (const init of initiatives) map.set(init.id, init.name);
-    return map;
-  }, [initiatives]);
 
   // Canonical create answer: the locked/filtered initiative's server-computed
   // create flag, or (in the "All" view) whether any visible initiative grants
   // it. An explicit canCreate prop (e.g. from InitiativeDetailPage) wins.
   const { canCreate: canCreateDerived } = useToolCreateAccess(Tool.counter_group, {
-    initiativeId: effectiveInitiativeId,
+    initiativeId: fixedInitiativeId,
   });
   const canCreateGroups = canCreate ?? canCreateDerived;
 
@@ -76,7 +60,10 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
     canCreateGroups ? { run: () => setCreateOpen(true), label: t("createGroup") } : null
   );
 
-  const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
+  // Closed until asked for. The filter button carries a count of what's set, so
+  // a narrowed list still says so with the panel shut — and the fields no
+  // longer take the top of the page before the list itself.
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const groups = useMemo(() => {
     const items = groupsQuery.data?.items ?? [];
@@ -87,60 +74,48 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
 
   const totalCount = groupsQuery.data?.total_count ?? 0;
 
-  const lockedInitiativeName = lockedInitiativeId
-    ? (initiativeNameMap.get(lockedInitiativeId) ?? null)
-    : null;
-
   const handleCreated = (group: { id: number }) => {
-    void router.navigate({ to: gp(`/counter-groups/${group.id}`) });
+    void router.navigate({
+      to: gp(toolDetailRoute(Tool.counter_group, fixedInitiativeId, group.id)),
+    });
   };
 
   const selection = useGridSelection<(typeof groups)[number]>();
 
+  const groupImport = useToolImportAction({
+    tool: Tool.counter_group,
+    canImport: canCreateGroups,
+    fixedInitiativeId,
+  });
+
   return (
     <div className="space-y-6">
-      {!lockedInitiativeId && (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="flex items-baseline gap-4">
-              <h1 className="font-semibold text-3xl tracking-tight">{t("title")}</h1>
-              {canCreateGroups && (
-                <Button size="sm" variant="outline" onClick={() => setCreateOpen(true)}>
-                  <Plus className="h-4 w-4" />
-                  {t("createGroup")}
-                </Button>
-              )}
-              <ToolImportAction tool={Tool.counter_group} canImport={canCreateGroups} />
-            </div>
-            <p className="text-muted-foreground text-sm">{t("noGroupsDescription")}</p>
-          </div>
-        </div>
-      )}
-
-      {lockedInitiativeId && canCreateGroups && (
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          <Button variant="outline" onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4" />
-            {t("createGroup")}
-          </Button>
-          <ToolImportAction
-            tool={Tool.counter_group}
-            canImport={canCreateGroups}
-            fixedInitiativeId={lockedInitiativeId ?? undefined}
-          />
-        </div>
-      )}
+      <ToolListToolbar
+        filters={{
+          open: filtersOpen,
+          onOpenChange: setFiltersOpen,
+          activeCount: search.trim() ? 1 : 0,
+        }}
+        actions={
+          canCreateGroups ? (
+            <Button variant="outline" size="sm" className="h-9" onClick={() => setCreateOpen(true)}>
+              <Plus className="h-4 w-4" />
+              {t("createGroup")}
+            </Button>
+          ) : null
+        }
+        menuItems={groupImport.menuItem}
+        onEnterSelection={!selection.active && groups.length > 0 ? selection.enter : undefined}
+      />
+      {groupImport.dialog}
 
       <CountersFilterBar
         searchQuery={search}
         onSearchQueryChange={setSearch}
-        initiativeFilter={initiativeFilter}
-        onInitiativeFilterChange={setInitiativeFilter}
-        lockedInitiativeId={lockedInitiativeId}
-        lockedInitiativeName={lockedInitiativeName}
-        initiatives={initiatives}
         filtersOpen={filtersOpen}
         onFiltersOpenChange={setFiltersOpen}
+        onClear={() => setSearch("")}
+        activeCount={search.trim() ? 1 : 0}
       />
 
       {groupsQuery.isLoading ? (
@@ -166,10 +141,7 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
                 onToggle={() => selection.toggle(group)}
                 label={group.name}
               >
-                <CounterGroupCard
-                  group={group}
-                  initiativeName={initiativeNameMap.get(group.initiative_id)}
-                />
+                <CounterGroupCard group={group} />
               </SelectableGridItem>
             ))}
           </div>
@@ -189,7 +161,7 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
             <ToolImportAction
               tool={Tool.counter_group}
               canImport={canCreateGroups}
-              fixedInitiativeId={lockedInitiativeId ?? undefined}
+              fixedInitiativeId={fixedInitiativeId}
               variant="button"
             />
           </CardContent>
@@ -199,14 +171,10 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
       <CreateCounterGroupDialog
         open={createOpen}
         onOpenChange={handleCreateOpenChange}
-        initiativeId={lockedInitiativeId ?? undefined}
-        defaultInitiativeId={effectiveInitiativeId ?? undefined}
+        initiativeId={fixedInitiativeId}
+        defaultInitiativeId={fixedInitiativeId}
         onSuccess={handleCreated}
       />
     </div>
   );
 };
-
-export function CounterGroupsPage() {
-  return <CounterGroupsView />;
-}

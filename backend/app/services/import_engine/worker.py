@@ -154,7 +154,7 @@ async def _process_guild_jobs(
 
 def _outcome(job: ImportJob, guild_id: int) -> JobOutcome:
     return (
-        job.created_by_id,
+        job.created_by,
         NotificationType.import_ready
         if job.status == ImportJobStatus.done
         else NotificationType.import_failed,
@@ -170,9 +170,7 @@ async def _execute(session: AsyncSession, job: ImportJob, *, guild_id: int) -> d
     """Re-validate the staged payload and apply it as the job's creator."""
     from app.api.deps import establish_guild_access
 
-    user = (
-        await session.exec(select(User).where(User.id == job.created_by_id))
-    ).first()
+    user = (await session.exec(select(User).where(User.id == job.created_by))).first()
     if user is None or user.status != UserStatus.active:
         raise ImportEngineError(ImportEngineMessages.IMPORT_CREATOR_INACTIVE)
 

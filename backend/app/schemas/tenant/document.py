@@ -28,11 +28,14 @@ class DocumentProjectLink(SanitizedBaseModel):
     project_id: int
     project_name: Optional[str] = None
     project_icon: Optional[str] = None
+    # The initiative the project lives in — its URL addresses it, so the link
+    # resolves without a second fetch. None when the project isn't loaded.
+    project_initiative_id: Optional[int] = None
     attached_at: datetime
 
 
 class DocumentBase(SanitizedBaseModel):
-    title: str
+    name: str
     initiative_id: int
     featured_image_url: Optional[str] = None
     is_template: bool = False
@@ -51,19 +54,19 @@ class DocumentCreate(DocumentBase):
 
 
 class DocumentUpdate(SanitizedBaseModel):
-    title: Optional[str] = None
+    name: Optional[str] = None
     content: Optional[LexicalState] = None
     featured_image_url: Optional[str] = None
     is_template: Optional[bool] = None
 
 
 class DocumentDuplicateRequest(SanitizedBaseModel):
-    title: Optional[str] = None
+    name: Optional[str] = None
 
 
 class DocumentCopyRequest(SanitizedBaseModel):
     target_initiative_id: int
-    title: Optional[str] = None
+    name: Optional[str] = None
 
 
 class DocumentAutocomplete(SanitizedBaseModel):
@@ -72,7 +75,7 @@ class DocumentAutocomplete(SanitizedBaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    title: str
+    name: str
     updated_at: datetime
     document_type: DocumentType
 
@@ -83,8 +86,11 @@ class DocumentBacklink(SanitizedBaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    title: str
+    name: str
     updated_at: datetime
+    # The initiative the document lives in — its URL addresses it, so a
+    # backlink can link straight there instead of resolving the id first.
+    initiative_id: int
 
 
 class DocumentSummary(DocumentBase):
@@ -97,8 +103,7 @@ class DocumentSummary(DocumentBase):
     # download, media) by the document's guild rather than ambient context,
     # which matters on cross-guild surfaces like My Documents.
     guild_id: int
-    created_by_id: int
-    updated_by_id: int
+    created_by: int
     created_at: datetime
     updated_at: datetime
     initiative: Optional[InitiativeRead] = None
@@ -160,7 +165,7 @@ class DocumentFileVersionRead(SanitizedBaseModel):
     file_content_type: Optional[str] = None
     file_size: Optional[int] = None
     original_filename: Optional[str] = None
-    uploaded_by_id: int
+    created_by: int
     created_at: datetime
     is_current: bool = False
 
@@ -169,7 +174,7 @@ class ProjectDocumentSummary(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     document_id: int
-    title: str
+    name: str
     updated_at: datetime
     attached_at: datetime
 
@@ -183,6 +188,7 @@ def _serialize_project_links(document: "Document") -> List[DocumentProjectLink]:
                 project_id=link.project_id,
                 project_name=getattr(project, "name", None),
                 project_icon=getattr(project, "icon", None),
+                project_initiative_id=getattr(project, "initiative_id", None),
                 attached_at=link.attached_at,
             )
         )
@@ -223,11 +229,10 @@ def serialize_document_summary(
         id=document.id,
         guild_id=document.guild_id,
         initiative_id=document.initiative_id,
-        title=document.title,
+        name=document.name,
         featured_image_url=document.featured_image_url,
         is_template=document.is_template,
-        created_by_id=document.created_by_id,
-        updated_by_id=document.updated_by_id,
+        created_by=document.created_by,
         created_at=document.created_at,
         updated_at=document.updated_at,
         initiative=initiative,
@@ -278,7 +283,7 @@ def serialize_document_file_version(
         file_content_type=version.file_content_type,
         file_size=version.file_size,
         original_filename=version.original_filename,
-        uploaded_by_id=version.uploaded_by_id,
+        created_by=version.created_by,
         created_at=version.created_at,
         is_current=is_current,
     )
@@ -307,7 +312,7 @@ def serialize_project_document_link(
         return None
     return ProjectDocumentSummary(
         document_id=document.id,
-        title=document.title,
+        name=document.name,
         updated_at=document.updated_at,
         attached_at=link.attached_at,
     )

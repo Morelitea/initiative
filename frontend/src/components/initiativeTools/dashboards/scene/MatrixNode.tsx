@@ -29,20 +29,38 @@ export function MatrixNode({ node }: { node: Node }) {
 
   const color = toneColor(node.tone);
   const labelWidth = node.yLabels?.length ? 30 : 0;
+  // Column labels sit above the grid, so the grid starts a row lower when a
+  // scene supplies them. Sparse by design: a widget labels the columns that
+  // mean something (a month boundary) and leaves the rest empty, so the strip
+  // reads as a few anchors rather than a wall of repeated text.
+  const headerHeight = node.xLabels?.length ? 12 : 0;
 
   return (
     <div className="h-full w-full overflow-auto p-1">
       <svg
         width={labelWidth + columns * (CELL + GAP)}
-        height={rows * (CELL + GAP)}
+        height={headerHeight + rows * (CELL + GAP)}
         role="img"
         aria-label="Activity heatmap"
       >
+        {node.xLabels?.slice(0, columns).map((label, column) =>
+          label ? (
+            <text
+              key={`${label}-${column}`}
+              x={labelWidth + column * (CELL + GAP)}
+              y={headerHeight - 3}
+              className="fill-muted-foreground"
+              fontSize={9}
+            >
+              {label}
+            </text>
+          ) : null
+        )}
         {node.yLabels?.slice(0, rows).map((label, row) => (
           <text
             key={label}
             x={0}
-            y={row * (CELL + GAP) + CELL - 2}
+            y={headerHeight + row * (CELL + GAP) + CELL - 2}
             className="fill-muted-foreground"
             fontSize={9}
           >
@@ -53,7 +71,7 @@ export function MatrixNode({ node }: { node: Node }) {
           <rect
             key={`${cell.x}-${cell.y}`}
             x={labelWidth + cell.x * (CELL + GAP)}
-            y={cell.y * (CELL + GAP)}
+            y={headerHeight + cell.y * (CELL + GAP)}
             width={CELL}
             height={CELL}
             rx={2}

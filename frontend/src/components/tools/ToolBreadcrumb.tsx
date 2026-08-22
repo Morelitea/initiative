@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { useInitiativeName } from "@/hooks/useInitiatives";
 import { useGuildPath } from "@/lib/guildUrl";
-import { toolListRoute, toolNavLabelKey } from "@/lib/tools";
+import { initiativeRoute, toolListRoute, toolNavLabelKey } from "@/lib/tools";
 
 export interface ToolBreadcrumbSegment {
   label: ReactNode;
@@ -47,6 +47,9 @@ export const ToolBreadcrumb = ({ tool, initiativeId, trail = [] }: ToolBreadcrum
   const gp = useGuildPath();
   const initiativeName = useInitiativeName(initiativeId);
   const toolListIsCurrentPage = trail.length === 0;
+  // A guild-level entity (only calendars have any) belongs to no initiative, so
+  // there is no tool tab to go back to — its crumb reads as plain text.
+  const hasInitiative = initiativeId != null;
 
   return (
     <Breadcrumb>
@@ -55,18 +58,20 @@ export const ToolBreadcrumb = ({ tool, initiativeId, trail = [] }: ToolBreadcrum
           <>
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
-                <Link to={gp(`/initiatives/${initiativeId}`)}>{initiativeName}</Link>
+                <Link to={gp(initiativeRoute(initiativeId as number))}>{initiativeName}</Link>
               </BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator />
           </>
         )}
         <BreadcrumbItem>
-          {toolListIsCurrentPage ? (
+          {toolListIsCurrentPage || !hasInitiative ? (
             <BreadcrumbPage>{t(toolNavLabelKey(tool))}</BreadcrumbPage>
           ) : (
             <BreadcrumbLink asChild>
-              <Link to={gp(toolListRoute(tool))}>{t(toolNavLabelKey(tool))}</Link>
+              <Link to={gp(toolListRoute(tool, initiativeId as number))}>
+                {t(toolNavLabelKey(tool))}
+              </Link>
             </BreadcrumbLink>
           )}
         </BreadcrumbItem>

@@ -78,6 +78,43 @@ async def test_list_tasks_in_project(
 
 
 @pytest.mark.integration
+async def test_list_tasks_hides_a_project_the_member_holds_no_grant_on(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The task list resolves a task through its project's sharing.
+
+    Tasks carry no grants of their own, so project sharing is what decides.
+    A ``project_id`` condition narrows the result; it is not how access is
+    resolved.
+    """
+    owner = await acting_user(
+        guild_role=GuildRole.member, initiative=True, project=True
+    )
+    # Same initiative; create_project seeds only the owner's grant.
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=owner.guild,
+        initiative=owner.initiative,
+        initiative_role="member",
+    )
+    task = await _create_task(session, owner.project, "Not Shared")
+
+    conditions = json.dumps(
+        [{"field": "project_id", "op": "eq", "value": owner.project.id}]
+    )
+    response = await client.get(
+        member.g(f"/tasks/?conditions={conditions}"), headers=member.headers
+    )
+    assert response.status_code == 200
+    assert response.json()["items"] == []
+
+    # Unfiltered, too — the gate is not a property of the filter.
+    response = await client.get(member.g("/tasks/"), headers=member.headers)
+    assert response.status_code == 200
+    assert task.id not in {t["id"] for t in response.json()["items"]}
+
+
+@pytest.mark.integration
 async def test_list_tasks_guild_admin_sees_unjoined_project(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1530,7 +1567,7 @@ async def test_read_task_includes_creator_summary(
     response = await client.get(a.g(f"/tasks/{task_id}"), headers=a.headers)
     assert response.status_code == 200
     body = response.json()
-    assert body["created_by_id"] == a.user.id
+    assert body["created_by"] == a.user.id
     assert body["creator"] is not None
     assert body["creator"]["id"] == a.user.id
     assert body["creator"]["full_name"] == "Ada C."

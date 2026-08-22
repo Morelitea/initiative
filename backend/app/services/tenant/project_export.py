@@ -201,30 +201,23 @@ async def list_project_ids_for_export(
     initiative_ids: list[int],
 ) -> list[int]:
     """Ids of every project the user may include in an aggregate export —
-    DAC-visible (guild admins see all via the membership role). The aggregate
+    DAC-visible (a request that reaches the whole guild sees all). The aggregate
     export includes read-accessible projects by design; the per-project seams
     still enforce their own access level per entity."""
     from sqlmodel import select
 
+    from app.core.tools import Tool
     from app.models.tenant.project import Project
     from app.services import permissions as permissions_service
-    from app.services.platform import guilds as guilds_service
-    from app.services.rls import is_guild_admin
 
     if not initiative_ids:
         return []
-    conditions = [Project.initiative_id.in_(initiative_ids)]
-    membership = await guilds_service.get_membership(
-        session, guild_id=guild_id, user_id=current_user.id
-    )
-    if membership is None or not is_guild_admin(membership.role):
-        conditions.append(
-            Project.id.in_(
-                permissions_service.visible_resource_ids_subquery(
-                    "project", current_user.id
-                )
-            )
-        )
+    conditions = [
+        Project.initiative_id.in_(initiative_ids),
+        permissions_service.dac_scope_clause(
+            Tool.project, Project.id, current_user.id, guild_id=guild_id
+        ),
+    ]
     statement = select(Project.id).where(*conditions).order_by(Project.id.asc())
     return list(await session.exec(statement))
 

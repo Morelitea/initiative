@@ -86,13 +86,13 @@ from app.services.tenant.task_completion import sync_completed_at
 from app.services import ai_generation as ai_generation_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
+from app.core.tools import Tool
 from app.core.messages import (
     ProjectMessages,
     QueryMessages,
     TaskMessages,
     SubtaskMessages,
 )
-from app.core.pam_context import has_active_grant
 
 router = APIRouter()
 
@@ -549,7 +549,7 @@ def _task_to_list_read(task: Task) -> TaskListRead:
         completed_at=task.completed_at,
         position=task.position,
         is_archived=task.is_archived,
-        created_by_id=task.created_by_id,
+        created_by=task.created_by,
         assignees=assignees,
         recurrence_occurrence_count=task.recurrence_occurrence_count,
         comment_count=getattr(task, "comment_count", 0),
@@ -864,7 +864,7 @@ async def _advance_recurrence_if_needed(
         recurrence_strategy=strategy,
         position=await _next_position(session, task.project_id),
         recurrence_occurrence_count=task.recurrence_occurrence_count + 1,
-        created_by_id=task.created_by_id,
+        created_by=task.created_by,
     )
     sync_completed_at(new_task, default_status.category, now=now)
     session.add(new_task)
@@ -974,35 +974,16 @@ async def _allowed_project_ids(
     *,
     include_templates: bool = False,
 ) -> Optional[set[int]]:
-    """Get project IDs where user has explicit or role-based permission.
+    """Project ids whose tasks this request may see.
 
-    Returns set of project IDs where user has any permission level.
+    The set stays explicitly guild-scoped either way; ``dac_scope_clause`` adds
+    the sharing gate, which is a no-op for a request that reaches the whole
+    guild — such a request sees tasks in every project of the guild, like a
+    member of every initiative.
     """
-    # A guild admin (full guild access) or a live PAM grant sees tasks in every
-    # project of the guild — like a member of every initiative — regardless of
-    # any explicit DAC permission row. (The projects list grants the same via
-    # ``visible_project_ids_subquery``'s guild-admin branch; without this leg an
-    # admin who holds no permission row on a project sees "no results" for it.)
-    # Return all of the guild's project ids so the task query stays explicitly
-    # guild-scoped; RLS also scopes to the guild / grant guild.
-    if permissions_service.is_request_guild_admin(guild_id) or has_active_grant(
-        guild_id
-    ):
-        full_conditions = [
-            Initiative.guild_id == guild_id,
-            Project.is_archived == False,  # noqa: E712
-        ]
-        if not include_templates:
-            full_conditions.append(Project.is_template == False)  # noqa: E712
-        full_stmt = select(Project.id).join(Project.initiative).where(*full_conditions)
-        full_result = await session.exec(full_stmt)
-        return {pid for pid in full_result.all() if pid is not None}
-
-    # Projects the user has a grant on (own or via an initiative role), scoped to
-    # the guild and (optionally) excluding archived/template projects.
     conditions = [
-        Project.id.in_(
-            permissions_service.visible_resource_ids_subquery("project", user.id)
+        permissions_service.dac_scope_clause(
+            Tool.project, Project.id, user.id, guild_id=guild_id
         ),
         Initiative.guild_id == guild_id,
         Project.is_archived == False,  # noqa: E712
@@ -1166,7 +1147,7 @@ async def _list_global_created_tasks(
     field set as the guild-scoped list), so any Task field filters here too.
     """
     base_conditions = [
-        Task.created_by_id == current_user.id,
+        Task.created_by == current_user.id,
         Project.is_archived.is_(False),
         Project.is_template.is_(False),
     ]
@@ -1904,7 +1885,7 @@ async def create_task(
         **task_data,
         position=position,
         task_status_id=selected_status.id,
-        created_by_id=current_user.id,
+        created_by=current_user.id,
     )
     sync_completed_at(task, selected_status.category, now=datetime.now(timezone.utc))
     session.add(task)
@@ -2282,7 +2263,7 @@ async def duplicate_task(
         recurrence=original_task.recurrence,
         recurrence_strategy=original_task.recurrence_strategy,
         position=position,
-        created_by_id=current_user.id,
+        created_by=current_user.id,
     )
     # The copy keeps the source's status, so a duplicated done task is complete
     # from the moment it exists — stamped now, not inherited: the copy was not

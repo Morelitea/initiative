@@ -44,7 +44,7 @@ export const useQueueItemForm = ({ open, initiativeId, item }: UseQueueItemFormA
   // the live query, so a chip's label can't be looked up from the results.
   // An edited item's own links already ship theirs.
   const [selectedDocs, setSelectedDocs] = useState<LinkedEntity[]>(() =>
-    item ? item.documents.map((d) => ({ id: d.document_id, title: d.title })) : []
+    item ? item.documents.map((d) => ({ id: d.document_id, title: d.name })) : []
   );
   const [selectedTasks, setSelectedTasks] = useState<LinkedEntity[]>(() =>
     item ? item.tasks.map((tk) => ({ id: tk.task_id, title: tk.title })) : []
@@ -68,7 +68,7 @@ export const useQueueItemForm = ({ open, initiativeId, item }: UseQueueItemFormA
         setIsVisible(item.is_visible);
         setSelectedTags(item.tags);
         setUserId(item.user_id);
-        setSelectedDocs(item.documents.map((d) => ({ id: d.document_id, title: d.title })));
+        setSelectedDocs(item.documents.map((d) => ({ id: d.document_id, title: d.name })));
         setSelectedTasks(item.tasks.map((tk) => ({ id: tk.task_id, title: tk.title })));
       }
     } else if (!open) {
@@ -95,7 +95,7 @@ export const useQueueItemForm = ({ open, initiativeId, item }: UseQueueItemFormA
     limit: ENTITY_PICKER_PAGE_SIZE,
   });
   const docResults = useMemo(
-    () => (docsQuery.data ?? []).map((doc) => ({ id: doc.id, title: doc.title })),
+    () => (docsQuery.data ?? []).map((doc) => ({ id: doc.id, title: doc.name })),
     [docsQuery.data]
   );
 

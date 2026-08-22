@@ -17,7 +17,6 @@ from __future__ import annotations
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from fastapi.responses import JSONResponse
 from sqlalchemy.orm import aliased
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -46,15 +45,13 @@ from app.models.tenant.task import Task
 from app.models.platform.user import User
 from app.schemas.tenant.trash import (
     EntityType,
-    RestoreNeedsReassignmentResponse,
-    RestoreRequest,
     RestoreResponse,
     TrashItem,
     TrashListResponse,
 )
 from app.services.platform import guilds as guilds_service
+from app.services.tenant import ownership as ownership_service
 from app.services.tenant.soft_delete import (
-    RestoreResult,
     hard_purge_entity,
     restore_entity,
 )
@@ -73,7 +70,7 @@ GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 ENTITY_REGISTRY: dict[str, tuple[type[SQLModel], str]] = {
     "project": (Project, "name"),
     "task": (Task, "title"),
-    "document": (Document, "title"),
+    "document": (Document, "name"),
     "comment": (Comment, "content"),
     "initiative": (Initiative, "name"),
     "tag": (Tag, "name"),
@@ -290,24 +287,15 @@ async def _load_trash_entity(
     "/{entity_type}/{entity_id}/restore",
     status_code=status.HTTP_200_OK,
     response_model=RestoreResponse,
-    responses={
-        status.HTTP_409_CONFLICT: {
-            "model": RestoreNeedsReassignmentResponse,
-            "description": "The entity's recorded owner is no longer an active member of the relevant initiative; client must resubmit with a new_owner_id from valid_owner_ids.",
-        },
-    },
 )
 async def restore_trash_entity(
     entity_type: EntityType,
     entity_id: int,
-    payload: RestoreRequest,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ):
-    """Restore a trashed entity. Returns 409 with the valid_owner_ids list
-    when the entity's recorded owner has since left the relevant initiative
-    and the caller did not supply a new_owner_id."""
+    """Restore a trashed entity."""
     entity = await _load_trash_entity(
         session,
         entity_type=entity_type,
@@ -325,33 +313,14 @@ async def restore_trash_entity(
             detail=TrashMessages.PURGE_REQUIRES_ADMIN,
         )
 
-    try:
-        result: RestoreResult = await restore_entity(
-            session,
-            entity,
-            new_owner_id=payload.new_owner_id,
-        )
-    except ValueError as exc:
-        if str(exc) == "TRASH_INVALID_OWNER":
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=TrashMessages.INVALID_OWNER,
-            )
-        raise
+    await restore_entity(session, entity)
 
-    if result.needs_reassignment:
-        # 409 — client opens picker seeded with valid_owner_ids and resubmits.
-        # Returned as JSONResponse so the status code overrides the route's
-        # default 200; the response_model on the route still describes the
-        # body shape via the responses={} mapping above.
-        payload_body = RestoreNeedsReassignmentResponse(
-            valid_owner_ids=result.valid_owner_ids or [],
-            valid_owners=result.valid_owners or [],
-        )
-        return JSONResponse(
-            status_code=status.HTTP_409_CONFLICT,
-            content=payload_body.model_dump(),
-        )
+    # Quality-of-life: a tool trashed before its owner left comes back unowned.
+    # If whoever wrote it is still in the guild, give it back to them. If not,
+    # it stays unowned — there is nobody obvious to pick, so nothing is guessed.
+    await ownership_service.restore_ownership_to_author(
+        session, row=entity, guild_id=guild_context.guild_id
+    )
 
     await session.commit()
     return RestoreResponse(restored=True)

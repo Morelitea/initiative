@@ -1,24 +1,39 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { GripVertical } from "lucide-react";
-import type { HTMLAttributes } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { GuildRole, InitiativeRead, ProjectRead } from "@/api/generated/initiativeAPI.schemas";
+import {
+  type GuildRole,
+  type InitiativeRead,
+  type ProjectRead,
+  Tool,
+} from "@/api/generated/initiativeAPI.schemas";
 import { FavoriteProjectButton } from "@/components/projects/FavoriteProjectButton";
 import { PinProjectButton } from "@/components/projects/PinProjectButton";
 import { TagBadge } from "@/components/tags/TagBadge";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ProgressCircle } from "@/components/ui/progress-circle";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useGuildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot, resolveInitiativeColor } from "@/lib/initiativeColors";
+import { initiativeRoute, toolDetailRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 interface ProjectLinkProps {
   project: ProjectRead;
   dragHandleProps?: HTMLAttributes<HTMLButtonElement>;
   userId?: number;
+  /** Extra controls for the card's top-right cluster — rendered outside the
+   *  wrapping link so they stay valid (and clickable) inside a card-as-anchor.
+   *  Used by the Templates and Archive lists for their per-project action. */
+  actions?: ReactNode;
+  /** Whether to name the owning initiative on the card. A list already scoped
+   *  to one initiative repeats the same name on every card, so it says nothing
+   *  and costs a line — the cross-initiative views keep it. */
+  showInitiative?: boolean;
 }
 
 /**
@@ -32,6 +47,11 @@ export const canPinProject = (
 ): boolean => {
   if (!userId) return false;
 
+  // An archived project takes no edits at all, pinning included — the server
+  // refuses the update. A project pinned before it was archived still shows
+  // the read-only indicator.
+  if (project.is_archived) return false;
+
   // Guild admins can always pin
   if (guildRole === "admin") return true;
 
@@ -44,7 +64,13 @@ export const canPinProject = (
   return Boolean(membership?.is_manager);
 };
 
-export const ProjectCardLink = ({ project, dragHandleProps, userId }: ProjectLinkProps) => {
+export const ProjectCardLink = ({
+  project,
+  dragHandleProps,
+  userId,
+  actions,
+  showInitiative = true,
+}: ProjectLinkProps) => {
   const { activeGuild } = useGuilds();
   const { t } = useTranslation("projects");
   const gp = useGuildPath();
@@ -56,6 +82,7 @@ export const ProjectCardLink = ({ project, dragHandleProps, userId }: ProjectLin
   return (
     <div className="relative">
       <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+        {actions}
         <PinProjectButton
           projectId={project.id}
           isPinned={isPinned}
@@ -78,7 +105,10 @@ export const ProjectCardLink = ({ project, dragHandleProps, userId }: ProjectLin
           </button>
         ) : null}
       </div>
-      <Link to={gp(`/projects/${project.id}`)} className="block">
+      <Link
+        to={gp(toolDetailRoute(Tool.project, project.initiative_id, project.id))}
+        className="block"
+      >
         <Card className="overflow-hidden shadow-sm">
           {initiativeColor ? (
             <div
@@ -87,21 +117,29 @@ export const ProjectCardLink = ({ project, dragHandleProps, userId }: ProjectLin
               aria-hidden="true"
             />
           ) : null}
-          <CardHeader className="pr-22">
-            <CardTitle className="flex items-center gap-2 text-xl">
+          <CardHeader className={actions ? "pr-32" : "pr-22"}>
+            <CardTitle className="flex flex-wrap items-center gap-2 text-xl">
               {project.icon ? <span className="text-2xl leading-none">{project.icon}</span> : null}
               <span>{project.name}</span>
+              <ProjectStateBadge project={project} />
             </CardTitle>
           </CardHeader>
           <CardFooter className="flex flex-col gap-3 text-muted-foreground text-sm">
             <div className="flex w-full justify-between gap-6">
               <div>
-                <InitiativeLabel initiative={initiative} nested />
+                {showInitiative ? <InitiativeLabel initiative={initiative} nested /> : null}
                 <p>
                   {t("preview.updated", {
                     date: new Date(project.updated_at).toLocaleDateString(undefined),
                   })}
                 </p>
+                {project.archived_at ? (
+                  <p>
+                    {t("preview.archivedOn", {
+                      date: new Date(project.archived_at).toLocaleDateString(undefined),
+                    })}
+                  </p>
+                ) : null}
               </div>
               <div className="flex-1">
                 <ProjectProgress summary={project.task_summary} />
@@ -124,7 +162,13 @@ export const ProjectCardLink = ({ project, dragHandleProps, userId }: ProjectLin
   );
 };
 
-export const ProjectRowLink = ({ project, dragHandleProps, userId }: ProjectLinkProps) => {
+export const ProjectRowLink = ({
+  project,
+  dragHandleProps,
+  userId,
+  actions,
+  showInitiative = true,
+}: ProjectLinkProps) => {
   const { activeGuild } = useGuilds();
   const { t } = useTranslation("projects");
   const gp = useGuildPath();
@@ -147,6 +191,7 @@ export const ProjectRowLink = ({ project, dragHandleProps, userId }: ProjectLink
       ) : null}
       <div className="absolute top-4 right-4 z-10">
         <div className="flex items-center gap-2">
+          {actions}
           <PinProjectButton
             projectId={project.id}
             isPinned={isPinned}
@@ -162,15 +207,21 @@ export const ProjectRowLink = ({ project, dragHandleProps, userId }: ProjectLink
           />
         </div>
       </div>
-      <Link to={gp(`/projects/${project.id}`)} className="block">
+      <Link
+        to={gp(toolDetailRoute(Tool.project, project.initiative_id, project.id))}
+        className="block"
+      >
         <Card
-          className={`p-4 pr-16 shadow-sm ${initiativeColor ? "border-l-4" : ""}`}
+          className={cn("p-4 pr-16 shadow-sm", actions && "pr-24", initiativeColor && "border-l-4")}
           style={initiativeColor ? { borderLeftColor: initiativeColor } : undefined}
         >
           <div className={`flex flex-wrap items-center gap-4 ${dragHandleProps ? "pl-10" : ""}`}>
             {project.icon ? <span className="text-2xl leading-none">{project.icon}</span> : null}
             <div className="min-w-[200px] flex-1">
-              <p className="font-semibold">{project.name}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="font-semibold">{project.name}</p>
+                <ProjectStateBadge project={project} />
+              </div>
               <div className="flex flex-wrap gap-6">
                 <div className="min-w-30 flex-1">
                   <div className="mt-1 flex flex-wrap items-center gap-3 text-muted-foreground text-xs">
@@ -179,7 +230,16 @@ export const ProjectRowLink = ({ project, dragHandleProps, userId }: ProjectLink
                         date: new Date(project.updated_at).toLocaleDateString(undefined),
                       })}
                     </p>
-                    <InitiativeLabel initiative={project.initiative} nested />
+                    {project.archived_at ? (
+                      <p>
+                        {t("preview.archivedOn", {
+                          date: new Date(project.archived_at).toLocaleDateString(undefined),
+                        })}
+                      </p>
+                    ) : null}
+                    {showInitiative ? (
+                      <InitiativeLabel initiative={project.initiative} nested />
+                    ) : null}
                   </div>
                   {project.tags && project.tags.length > 0 ? (
                     <div className="mt-2 flex flex-wrap gap-1">
@@ -212,6 +272,19 @@ export const ProjectRowLink = ({ project, dragHandleProps, userId }: ProjectLink
   );
 };
 
+/** Marks a card that is not an ordinary active project, so template and
+ *  archived projects stay recognizable wherever they are listed. */
+const ProjectStateBadge = ({ project }: { project: ProjectRead }) => {
+  const { t } = useTranslation("projects");
+  if (project.is_template) {
+    return <Badge variant="outline">{t("preview.templateBadge")}</Badge>;
+  }
+  if (project.is_archived) {
+    return <Badge variant="outline">{t("preview.archivedBadge")}</Badge>;
+  }
+  return null;
+};
+
 export const InitiativeLabel = ({
   initiative,
   nested = false,
@@ -227,7 +300,7 @@ export const InitiativeLabel = ({
   if (!initiative) {
     return null;
   }
-  const to = gp(`/initiatives/${initiative.id}`);
+  const to = gp(initiativeRoute(initiative.id));
   const className = "flex items-center gap-2 font-medium text-muted-foreground text-xs";
 
   if (nested) {

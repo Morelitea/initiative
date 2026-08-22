@@ -269,7 +269,7 @@ async def _drain_subscription(
     """
     await set_rls_context(
         session,
-        user_id=subscription.created_by_user_id,
+        user_id=subscription.created_by,
         guild_id=subscription.guild_id,
         satisfied_providers="system",
     )

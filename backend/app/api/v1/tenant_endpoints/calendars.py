@@ -23,10 +23,8 @@ from app.api.deps import (
     get_current_active_user,
     get_guild_membership,
 )
-from app.core import role_context
 from app.core.messages import CalendarMessages, InitiativeMessages
 from app.db.session import get_admin_session
-from app.models.platform.guild import GuildRole
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.core.tools import Tool
 from app.models.tenant.calendar import Calendar
@@ -151,15 +149,14 @@ async def list_calendars(
     else:
         conditions.append(calendars_service.tool_enabled_clause())
 
-    # DAC: non-admins (and non-PAM) see only calendars shared with them.
-    if not rls_service.is_guild_admin(guild_context.role) and not guild_context.is_pam:
-        conditions.append(
-            Calendar.id.in_(
-                permissions_service.visible_resource_ids_subquery(
-                    "calendar", current_user.id
-                )
-            )
+    conditions.append(
+        permissions_service.dac_scope_clause(
+            Tool.calendar,
+            Calendar.id,
+            current_user.id,
+            guild_id=guild_context.guild_id,
         )
+    )
 
     count_subq = select(Calendar.id).where(*conditions).subquery()
     total_count = (
@@ -208,14 +205,14 @@ async def get_calendar_counts_by_initiative(
             select(Initiative.id).where(Initiative.calendars_enabled == True)  # noqa: E712
         ),
     ]
-    if not rls_service.is_guild_admin(guild_context.role) and not guild_context.is_pam:
-        conditions.append(
-            Calendar.id.in_(
-                permissions_service.visible_resource_ids_subquery(
-                    "calendar", current_user.id
-                )
-            )
+    conditions.append(
+        permissions_service.dac_scope_clause(
+            Tool.calendar,
+            Calendar.id,
+            current_user.id,
+            guild_id=guild_context.guild_id,
         )
+    )
 
     statement = (
         select(Calendar.initiative_id, func.count(Calendar.id))
@@ -262,7 +259,7 @@ async def create_calendar(
     calendar = Calendar(
         guild_id=guild_context.guild_id,
         initiative_id=initiative.id,
-        created_by_id=current_user.id,
+        created_by=current_user.id,
         name=calendar_in.name.strip(),
         description=calendar_in.description,
         color=calendar_in.color,
@@ -365,7 +362,7 @@ async def delete_calendar(
         calendar_id,
         current_user,
         guild_context,
-        require_owner=not rls_service.is_guild_admin(guild_context.role),
+        require_owner=True,
     )
     retention_days = await guilds_service.get_guild_retention_days(
         session, guild_context.guild_id
@@ -404,15 +401,12 @@ async def list_my_calendars(
         # A guild calendar is one of the user's own calendars like any other, so
         # it belongs in this view — it is reached here and from the app, and
         # nowhere that belongs to an initiative.
-        conditions = [calendars_service.tool_enabled_clause()]
-        if role_context.active_guild_role(guild_id) != GuildRole.admin.value:
-            conditions.append(
-                Calendar.id.in_(
-                    permissions_service.visible_resource_ids_subquery(
-                        "calendar", current_user.id
-                    )
-                )
-            )
+        conditions = [
+            calendars_service.tool_enabled_clause(),
+            permissions_service.dac_scope_clause(
+                Tool.calendar, Calendar.id, current_user.id, guild_id=guild_id
+            ),
+        ]
         stmt = (
             select(Calendar)
             .where(*conditions)

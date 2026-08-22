@@ -13,9 +13,10 @@ import {
   UserCog,
   Users,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { getOpenCreateDocumentWizard } from "@/components/documents/CreateDocumentWizard";
 import { getOpenCreateTaskWizard } from "@/components/tasks/CreateTaskWizard";
 import {
@@ -38,7 +39,7 @@ import { canAccessAdminDashboard, canManagePlatformConfig } from "@/lib/permissi
 import { renderRecentIcon } from "@/lib/recentIcon";
 import { recentRoute } from "@/lib/recentRoute";
 import { PALETTE_TOOLS, TOOL_PALETTE } from "@/lib/toolPalette";
-import { TOOL_ICONS } from "@/lib/tools";
+import { entityRefRoute, INITIATIVES_ROUTE, TOOL_ICONS, toolGuildBrowseTarget } from "@/lib/tools";
 
 // Module-level callback so other components can open the command center
 let openCommandCenter: (() => void) | null = null;
@@ -55,6 +56,14 @@ export function CommandCenter() {
   const { activeGuild, activeGuildId } = useGuilds();
   const globalCreate = useGlobalCreateAccess();
   const getGuildPath = useGuildPath();
+  /** The guild home showing one tool — the cross-initiative browse surface. */
+  const guildBrowsePath = useCallback(
+    (tool: Tool) => {
+      const target = toolGuildBrowseTarget(tool);
+      return `${getGuildPath(target.to)}?tool=${target.search.tool}`;
+    },
+    [getGuildPath]
+  );
 
   // Switch into "guild-wide title search" mode once the debounced query is at
   // least 2 characters. Single-character queries fire too noisily and rarely
@@ -171,19 +180,21 @@ export function CommandCenter() {
       { label: t("pages.myDocuments"), path: "/my-documents", icon: ScrollText },
       { label: t("pages.myStats"), path: "/user-stats", icon: BarChart3 },
       { label: t("pages.userSettings"), path: "/profile", icon: UserCog },
+      // Tools are browsed across initiatives on the guild home, which names
+      // the one it is showing in its search — there is no guild-wide list page.
       {
         label: t("pages.allProjects"),
-        path: getGuildPath("/projects"),
+        path: guildBrowsePath(Tool.project),
         icon: ListTodo,
       },
       {
         label: t("pages.allDocuments"),
-        path: getGuildPath("/documents"),
+        path: guildBrowsePath(Tool.document),
         icon: ScrollText,
       },
       {
         label: t("pages.allInitiatives"),
-        path: getGuildPath("/initiatives"),
+        path: getGuildPath(INITIATIVES_ROUTE),
         icon: Users,
       },
     ];
@@ -213,7 +224,7 @@ export function CommandCenter() {
     }
 
     return items;
-  }, [t, getGuildPath, isGuildAdmin, showAdminDashboard, showPlatformSettings]);
+  }, [t, getGuildPath, guildBrowsePath, isGuildAdmin, showAdminDashboard, showPlatformSettings]);
 
   const handleSelect = (path: string) => {
     setOpen(false);
@@ -313,7 +324,11 @@ export function CommandCenter() {
               value={`task-${task.id}-${task.title}`}
               onSelect={() =>
                 handleSelect(
-                  task.guildId ? guildPath(task.guildId, `/tasks/${task.id}`) : `/tasks/${task.id}`
+                  // Cross-guild rows carry no initiative, so the resolver
+                  // works out the address on the way in.
+                  task.guildId
+                    ? guildPath(task.guildId, entityRefRoute("task", task.id))
+                    : entityRefRoute("task", task.id)
                 )
               }
             >

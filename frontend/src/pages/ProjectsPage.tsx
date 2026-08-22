@@ -1,226 +1,99 @@
-import {
-  closestCenter,
-  DndContext,
-  type DragEndEvent,
-  MouseSensor,
-  TouchSensor,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
-import {
-  arrayMove,
-  SortableContext,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { Link, useSearch } from "@tanstack/react-router";
-import {
-  Archive,
-  FileDown,
-  LayoutGrid,
-  List,
-  Pin as PinIcon,
-  Plus,
-  ScrollText,
-} from "lucide-react";
-import { type HTMLAttributes, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearch } from "@tanstack/react-router";
+import { ArchiveRestore, CopyX, Plus } from "lucide-react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { ProjectRead, TagRead, TagSummary } from "@/api/generated/initiativeAPI.schemas";
+import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidateAllProjects } from "@/api/query-keys";
-import { BulkAccessBar, canManageSharing } from "@/components/access/BulkAccessBar";
-import { BulkEditAccessDialog } from "@/components/access/BulkEditAccessDialog";
-import { SelectableGridItem } from "@/components/access/SelectableGridItem";
-import { BulkExportButton } from "@/components/exports/BulkExportButton";
-import { ToolImportAction } from "@/components/imports/ToolImportAction";
-import { Markdown } from "@/components/Markdown";
+import { ToolImportAction, useToolImportAction } from "@/components/imports/ToolImportAction";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { CreateProjectDialog } from "@/components/projects/CreateProjectDialog";
-import { ProjectCardLink, ProjectRowLink } from "@/components/projects/ProjectPreview";
-import { ProjectsFilterBar } from "@/components/projects/ProjectsFilterBar";
-import { Button } from "@/components/ui/button";
+import { ProjectCardActionButton } from "@/components/projects/ProjectCardActionButton";
+import { ProjectListPanel } from "@/components/projects/ProjectListPanel";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+  isProjectStatus,
+  type ProjectStatus,
+  ProjectStatusFilter,
+} from "@/components/projects/ProjectStatusFilter";
+import { Button } from "@/components/ui/button";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
-import { useDefaultFiltersOpen } from "@/hooks/useDefaultFiltersOpen";
-import { useGridSelection } from "@/hooks/useGridSelection";
-import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeAccess, useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import {
-  useArchivedProjects,
+  useProjectStatusCounts,
   useProjects,
   useRemoveProjectTemplate,
-  useReorderProjects,
-  useTemplateProjects,
   useUnarchiveProject,
 } from "@/hooks/useProjects";
-import { useTags } from "@/hooks/useTags";
-import { useViewPreference } from "@/hooks/useViewPreference";
-import { useGuildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
 
-const INITIATIVE_FILTER_ALL = "all";
-const PROJECT_SORT_KEY = "project:list:sort";
-const PROJECT_SEARCH_KEY = "project:list:search";
-const PROJECT_VIEW_KEY = "project:list:view-mode";
-const PROJECT_TAG_FILTERS_KEY = "project:list:tag-filters";
-
-type ProjectsViewProps = {
-  fixedInitiativeId?: number;
-  fixedTagIds?: number[];
-  canCreate?: boolean;
-};
+/**
+ * Scoped one of two ways, never both and never neither: to an initiative (the
+ * initiative page's Projects tab) or to a tag (the cross-initiative tag
+ * browse). Stating it as a union keeps "unscoped is only legal for the tag
+ * browse" a fact the compiler checks rather than a comment that rots.
+ */
+type ProjectsViewProps =
+  | { fixedInitiativeId: number; fixedTagIds?: never; canCreate?: boolean }
+  | { fixedInitiativeId?: never; fixedTagIds: number[]; canCreate?: boolean };
 
 export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: ProjectsViewProps) => {
   const { t } = useTranslation(["projects", "common", "access"]);
   const { user } = useAuth();
-  const { activeGuildId } = useGuilds();
   // Single source of truth for "what can I do in each initiative" — honors
   // guild-admin / PAM / membership so this page never re-derives access from
   // raw membership flags (which would wrongly exclude guild admins).
   const { isGuildAdmin, isGrantGuild } = useInitiativeAccess();
-  const gp = useGuildPath();
-  const searchParams = useSearch({ strict: false }) as { create?: string; initiativeId?: string };
   const lockedInitiativeId = typeof fixedInitiativeId === "number" ? fixedInitiativeId : null;
 
   const handleRefresh = useCallback(async () => {
     await invalidateAllProjects();
   }, []);
-  const [initiativeId, setInitiativeId] = useState<string | null>(null);
   const {
     open: isComposerOpen,
     setOpen: setIsComposerOpen,
     onOpenChange: handleComposerOpenChange,
-  } = useCreateFromSearchParam({
-    onOpenFromUrl: (urlInitiativeId) => {
-      if (urlInitiativeId) setInitiativeId(urlInitiativeId);
-    },
-  });
-  const [searchQuery, setSearchQuery] = useViewPreference<string>(PROJECT_SEARCH_KEY, "");
-  type ProjectSortMode = "custom" | "updated" | "created" | "alphabetical" | "recently_viewed";
-  const [persistedSortMode, setPersistedSortMode] = useViewPreference<ProjectSortMode>(
-    PROJECT_SORT_KEY,
-    "custom"
-  );
-  const sortMode: ProjectSortMode =
-    persistedSortMode === "custom" ||
-    persistedSortMode === "updated" ||
-    persistedSortMode === "created" ||
-    persistedSortMode === "alphabetical" ||
-    persistedSortMode === "recently_viewed"
-      ? persistedSortMode
-      : "custom";
-  const setSortMode = useCallback(
-    (next: ProjectSortMode) => setPersistedSortMode(next),
-    [setPersistedSortMode]
-  );
-  const [customOrder, setCustomOrder] = useState<number[]>([]);
+  } = useCreateFromSearchParam();
+
   const removeTemplate = useRemoveProjectTemplate();
-
-  const [initiativeFilter, setInitiativeFilter] = useState<string>(
-    lockedInitiativeId ? String(lockedInitiativeId) : INITIATIVE_FILTER_ALL
-  );
-  // Parse the filtered initiative ID for permission checks
-  const filteredInitiativeId =
-    initiativeFilter !== INITIATIVE_FILTER_ALL ? Number(initiativeFilter) : null;
-  const [favoritesOnly, setFavoritesOnly] = useState(false);
-  const lastConsumedFilterParams = useRef<string>("");
-  const prevGuildIdRef = useRef<number | null>(activeGuildId);
-
-  // Check for query params to filter by initiative (consume once)
-  useEffect(() => {
-    const urlInitiativeId = searchParams.initiativeId;
-    const paramKey = urlInitiativeId || "";
-
-    if (urlInitiativeId && !lockedInitiativeId && paramKey !== lastConsumedFilterParams.current) {
-      lastConsumedFilterParams.current = paramKey;
-      setInitiativeFilter(urlInitiativeId);
-      // Also set as default for create dialog
-      setInitiativeId(urlInitiativeId);
-    }
-  }, [searchParams, lockedInitiativeId]);
-
-  useEffect(() => {
-    if (lockedInitiativeId) {
-      const lockedValue = String(lockedInitiativeId);
-      setInitiativeFilter((prev) => (prev === lockedValue ? prev : lockedValue));
-      // Also set as default for create dialog
-      setInitiativeId(lockedValue);
-    }
-  }, [lockedInitiativeId]);
-
-  // Reset initiative filter when guild changes (initiative IDs are guild-specific)
-  useEffect(() => {
-    const prevGuildId = prevGuildIdRef.current;
-    prevGuildIdRef.current = activeGuildId;
-    // Only reset if guild actually changed (not on initial mount)
-    if (prevGuildId !== null && prevGuildId !== activeGuildId && !lockedInitiativeId) {
-      setInitiativeFilter(INITIATIVE_FILTER_ALL);
-      setInitiativeId("");
-      lastConsumedFilterParams.current = "";
-    }
-  }, [activeGuildId, lockedInitiativeId]);
-
   const unarchiveProject = useUnarchiveProject();
 
-  const [persistedViewMode, setPersistedViewMode] = useViewPreference<string>(
-    PROJECT_VIEW_KEY,
-    "grid"
-  );
-  const viewMode: "grid" | "list" =
-    persistedViewMode === "list" || persistedViewMode === "grid" ? persistedViewMode : "grid";
-  const setViewMode = useCallback(
-    (next: "grid" | "list") => setPersistedViewMode(next),
-    [setPersistedViewMode]
-  );
-  const [tabValue, setTabValue] = useState<"active" | "templates" | "archive">("active");
-  const [filtersOpen, setFiltersOpen] = useDefaultFiltersOpen();
-
-  const [persistedTagFilters, setPersistedTagFilters] = useViewPreference<number[]>(
-    PROJECT_TAG_FILTERS_KEY,
-    []
-  );
-  const tagFilters = fixedTagIds
-    ? fixedTagIds
-    : Array.isArray(persistedTagFilters)
-      ? persistedTagFilters.filter((n): n is number => typeof n === "number" && Number.isFinite(n))
-      : [];
-  const setTagFilters = useCallback(
-    (next: number[] | ((prev: number[]) => number[])) => {
-      if (fixedTagIds) return;
-      setPersistedTagFilters((prev) => {
-        const safe = Array.isArray(prev) ? prev : [];
-        return typeof next === "function" ? next(safe) : next;
+  // Which state of the list is shown. It lives in the URL so an archive view is
+  // linkable and answers the back button; the cross-initiative tag browse only
+  // ever reads active projects, so it pins the value and hides the control.
+  const router = useRouter();
+  const search = useSearch({ strict: false }) as { status?: string };
+  const status: ProjectStatus =
+    !fixedTagIds && isProjectStatus(search.status) ? search.status : "active";
+  const setStatus = useCallback(
+    (next: ProjectStatus) => {
+      void router.navigate({
+        to: ".",
+        search: { ...search, status: next === "active" ? undefined : next },
+        replace: true,
       });
     },
-    [fixedTagIds, setPersistedTagFilters]
+    [router, search]
   );
 
-  const { data: allTags = [] } = useTags();
-
-  // Convert tag IDs to Tag objects for TagPicker
-  const selectedTagsForFilter = useMemo(() => {
-    const tagMap = new Map(allTags.map((t) => [t.id, t]));
-    return tagFilters.map((id) => tagMap.get(id)).filter((t): t is TagRead => t !== undefined);
-  }, [allTags, tagFilters]);
-
-  const handleTagFiltersChange = (newTags: TagSummary[]) => {
-    setTagFilters(newTags.map((t) => t.id));
+  // Scoped in SQL rather than filtered here: the list only ever shows one
+  // initiative's projects, the tag browse spans them all, and the status picks
+  // which of the three states the server returns.
+  const projectsParams = {
+    ...(lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {}),
+    ...(status === "templates" ? { template: true } : {}),
+    ...(status === "archived" ? { archived: true } : {}),
   };
-
-  const projectsQuery = useProjects();
+  const projectsQuery = useProjects(
+    Object.keys(projectsParams).length > 0 ? projectsParams : undefined
+  );
+  // Totals for all three states, so the filter can say how much sits behind
+  // each one before it is opened.
+  const statusCounts = useProjectStatusCounts(lockedInitiativeId);
 
   // This is a guild-scoped page and the initiatives list is cheap + cached, so
   // fetch it unconditionally. Create access is derived from the same payload
@@ -233,7 +106,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   // create flag, or (in the "All" view) whether any visible initiative grants
   // it. `creatableInitiatives` feeds the create dialog's initiative picker.
   const { canCreate: canCreateDerived, creatableInitiatives } = useToolCreateAccess(Tool.project, {
-    initiativeId: lockedInitiativeId ?? filteredInitiativeId,
+    initiativeId: lockedInitiativeId,
   });
 
   // Check if user can view projects for the filtered initiative
@@ -243,8 +116,8 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     if (isGuildAdmin || isGrantGuild) {
       return true;
     }
-    // If no specific initiative is filtered, user can view the page
-    const effectiveInitiativeId = lockedInitiativeId ?? filteredInitiativeId;
+    // The cross-initiative tag browse has no one initiative to check.
+    const effectiveInitiativeId = lockedInitiativeId;
     if (!effectiveInitiativeId || !user) {
       return true;
     }
@@ -257,18 +130,19 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
       return true; // Not a member, let the backend handle access control
     }
     return membership.can_view_projects !== false;
-  }, [
-    lockedInitiativeId,
-    filteredInitiativeId,
-    user,
-    initiativesQuery.data,
-    isGuildAdmin,
-    isGrantGuild,
-  ]);
+  }, [lockedInitiativeId, user, initiativesQuery.data, isGuildAdmin, isGrantGuild]);
 
   // An explicit canCreate prop (e.g. from InitiativeDetailPage) wins; otherwise
   // use the canonical derivation above.
   const canCreateProjects = canCreate ?? canCreateDerived;
+
+  // Inside an initiative tab the import entry rides in the toolbar's shared
+  // overflow menu; the unscoped page keeps its own kebab beside the heading.
+  const projectImport = useToolImportAction({
+    tool: Tool.project,
+    canImport: canCreateProjects && lockedInitiativeId !== null,
+    fixedInitiativeId: lockedInitiativeId ?? undefined,
+  });
 
   // Drive the app-wide bottom-nav add button for this route.
   useRegisterPrimaryCreateAction(
@@ -281,57 +155,11 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     return hasWriteAccess(project.my_permission_level);
   };
 
-  const templatesQuery = useTemplateProjects();
-  const archivedQuery = useArchivedProjects();
-
   useEffect(() => {
     if (!canCreateProjects) {
       setIsComposerOpen(false);
-      setInitiativeId(null);
-      return;
     }
-    // A locked initiative is managed by the effect above; don't fall back to the
-    // first creatable initiative or we'd desync from the locked one.
-    if (lockedInitiativeId) {
-      return;
-    }
-    // Don't override if we're opening from URL params
-    const urlInitiativeId = searchParams.initiativeId;
-    if (initiativeId || urlInitiativeId) {
-      return;
-    }
-    if (creatableInitiatives.length > 0) {
-      setInitiativeId(String(creatableInitiatives[0].id));
-    }
-  }, [
-    canCreateProjects,
-    initiativeId,
-    creatableInitiatives,
-    searchParams,
-    lockedInitiativeId,
-    setIsComposerOpen,
-  ]);
-
-  const reorderProjects = useReorderProjects();
-
-  useEffect(() => {
-    const projects = projectsQuery.data?.items ?? [];
-    const reorderableProjects = projects.filter((project) => !project.pinned_at);
-    if (reorderableProjects.length === 0) {
-      setCustomOrder((prev) => (prev.length ? [] : prev));
-      return;
-    }
-    const projectIds = reorderableProjects.map((project) => project.id);
-    setCustomOrder((prev) => {
-      if (
-        prev.length === projectIds.length &&
-        prev.every((id, index) => id === projectIds[index])
-      ) {
-        return prev;
-      }
-      return projectIds;
-    });
-  }, [projectsQuery.data]);
+  }, [canCreateProjects, setIsComposerOpen]);
 
   const projects = useMemo(() => projectsQuery.data?.items ?? [], [projectsQuery.data]);
 
@@ -351,233 +179,83 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     });
   }, [availableInitiatives, user]);
 
-  const lockedInitiative = lockedInitiativeId
-    ? (availableInitiatives.find((init) => init.id === lockedInitiativeId) ?? null)
+  const lockedInitiativeName = lockedInitiativeId
+    ? (availableInitiatives.find((init) => init.id === lockedInitiativeId)?.name ?? null)
     : null;
 
   // Get IDs of initiatives where user can view projects
   const viewableInitiativeIds = useMemo(() => {
+    if (!user) return null;
     return new Set(viewableInitiatives.map((i) => i.id));
-  }, [viewableInitiatives]);
+  }, [viewableInitiatives, user]);
 
-  const filteredProjects = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    const tagFilterSet = new Set(tagFilters);
-    return projects.filter((project) => {
-      const projectInitiativeId = project.initiative?.id ?? project.initiative_id ?? null;
-      // Filter by viewable initiatives (role permissions)
-      if (user && projectInitiativeId !== null && !viewableInitiativeIds.has(projectInitiativeId)) {
-        return false;
-      }
-      const matchesSearch = !query ? true : project.name.toLowerCase().includes(query);
-      const matchesInitiative =
-        initiativeFilter === INITIATIVE_FILTER_ALL ||
-        (projectInitiativeId !== null &&
-          projectInitiativeId !== undefined &&
-          initiativeFilter === projectInitiativeId.toString());
-      const matchesFavorites = !favoritesOnly ? true : Boolean(project.is_favorited);
-      const matchesTags =
-        tagFilterSet.size === 0 || (project.tags?.some((tag) => tagFilterSet.has(tag.id)) ?? false);
-      return matchesSearch && matchesInitiative && matchesFavorites && matchesTags;
-    });
-  }, [
-    projects,
-    searchQuery,
-    initiativeFilter,
-    favoritesOnly,
-    tagFilters,
-    user,
-    viewableInitiativeIds,
-  ]);
-
-  const pinnedProjects = useMemo(() => {
-    return filteredProjects
-      .filter((project) => Boolean(project.pinned_at))
-      .sort((a, b) => {
-        const aPinned = a.pinned_at ? new Date(a.pinned_at).getTime() : 0;
-        const bPinned = b.pinned_at ? new Date(b.pinned_at).getTime() : 0;
-        if (aPinned === bPinned) {
-          return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-        }
-        return bPinned - aPinned;
-      });
-  }, [filteredProjects]);
-
-  const unpinnedProjects = useMemo(
-    () => filteredProjects.filter((project) => !project.pinned_at),
-    [filteredProjects]
+  const accessRestricted = (
+    <Card className="border-destructive/50 bg-destructive/5">
+      <CardHeader>
+        <CardTitle className="text-destructive">{t("accessRestricted")}</CardTitle>
+        <CardDescription>{t("accessRestrictedDescription")}</CardDescription>
+      </CardHeader>
+    </Card>
   );
 
-  const sortedProjects = useMemo(() => {
-    const next = [...unpinnedProjects];
-    if (sortMode === "alphabetical") {
-      next.sort((a, b) => a.name.localeCompare(b.name));
-    } else if (sortMode === "created") {
-      next.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    } else if (sortMode === "updated") {
-      next.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
-    } else if (sortMode === "recently_viewed") {
-      next.sort((a, b) => {
-        const aViewed = a.last_viewed_at ? new Date(a.last_viewed_at).getTime() : 0;
-        const bViewed = b.last_viewed_at ? new Date(b.last_viewed_at).getTime() : 0;
-        if (aViewed === bViewed) {
-          return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-        }
-        return bViewed - aViewed;
-      });
-    } else {
-      const orderMap = new Map<number, number>();
-      customOrder.forEach((id, index) => {
-        orderMap.set(id, index);
-      });
-      next.sort((a, b) => {
-        const aIndex = orderMap.has(a.id) ? orderMap.get(a.id)! : Number.MAX_SAFE_INTEGER;
-        const bIndex = orderMap.has(b.id) ? orderMap.get(b.id)! : Number.MAX_SAFE_INTEGER;
-        return aIndex - bIndex;
-      });
-    }
-    return next;
-  }, [unpinnedProjects, sortMode, customOrder]);
+  const emptyStateCard = (title: string, description: string) => (
+    <Card className="shadow-sm">
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+    </Card>
+  );
 
-  const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 200,
-        tolerance: 8,
-      },
-    })
-  ); // Touch drags use a short press to keep scrolling intuitive.
+  // One list, three states: the cards, filters, sorting, and bulk actions are
+  // the same throughout — only the copy and the per-card action change.
+  const statusCopy = {
+    active: { loading: t("loading"), error: t("loadError") },
+    templates: { loading: t("templates.loading"), error: t("templates.loadError") },
+    archived: { loading: t("archived.loading"), error: t("archived.loadError") },
+  }[status];
 
-  const handleProjectDragEnd = (event: DragEndEvent) => {
-    if (sortMode !== "custom") {
-      return;
-    }
-    const { active, over } = event;
-    if (!over || active.id === over.id) {
-      return;
-    }
-    setCustomOrder((prev) => {
-      const activeId = Number(active.id);
-      const overId = Number(over.id);
-      const oldIndex = prev.indexOf(activeId);
-      const newIndex = prev.indexOf(overId);
-      if (oldIndex === -1 || newIndex === -1) {
-        return prev;
-      }
-      const nextOrder = arrayMove(prev, oldIndex, newIndex);
-      reorderProjects.mutate(nextOrder);
-      return nextOrder;
-    });
-  };
-
-  const selection = useGridSelection<(typeof sortedProjects)[number]>();
-  const [bulkAccessOpen, setBulkAccessOpen] = useState(false);
-
-  const projectCards = selection.active ? (
-    viewMode === "list" ? (
-      <div className="space-y-3">
-        {sortedProjects.map((project) => (
-          <SelectableGridItem
-            key={project.id}
-            active
-            selected={selection.selectedIds.has(project.id)}
-            onToggle={() => selection.toggle(project)}
-            label={project.name}
-          >
-            <ProjectRowLink project={project} userId={user?.id} />
-          </SelectableGridItem>
-        ))}
-      </div>
+  const emptyState =
+    status === "templates" ? (
+      emptyStateCard(t("templates.noTemplates"), t("templates.noTemplatesDescription"))
+    ) : status === "archived" ? (
+      emptyStateCard(t("archived.noArchived"), t("archived.noArchivedDescription"))
     ) : (
-      <div className="grid gap-4 md:grid-cols-2">
-        {sortedProjects.map((project) => (
-          <SelectableGridItem
-            key={project.id}
-            active
-            selected={selection.selectedIds.has(project.id)}
-            onToggle={() => selection.toggle(project)}
-            label={project.name}
-          >
-            <ProjectCardLink project={project} userId={user?.id} />
-          </SelectableGridItem>
-        ))}
+      <div className="space-y-3">
+        <p className="text-muted-foreground text-sm">{t("noProjects")}</p>
+        <ToolImportAction
+          tool={Tool.project}
+          canImport={canCreateProjects}
+          fixedInitiativeId={lockedInitiativeId ?? undefined}
+          variant="button"
+        />
       </div>
-    )
-  ) : sortMode === "custom" ? (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragEnd={handleProjectDragEnd}
-    >
-      <SortableContext
-        items={sortedProjects.map((project) => project.id.toString())}
-        strategy={verticalListSortingStrategy}
-      >
-        {viewMode === "list" ? (
-          <div className="space-y-3">
-            {sortedProjects.map((project) => (
-              <SortableProjectRowLink key={project.id} project={project} userId={user?.id} />
-            ))}
-          </div>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2">
-            {sortedProjects.map((project) => (
-              <SortableProjectCardLink key={project.id} project={project} userId={user?.id} />
-            ))}
-          </div>
-        )}
-      </SortableContext>
-    </DndContext>
-  ) : (
-    <>
-      {viewMode === "list" ? (
-        <div className="space-y-3">
-          {sortedProjects.map((project) => (
-            <ProjectRowLink key={project.id} project={project} userId={user?.id} />
-          ))}
-        </div>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2">
-          {sortedProjects.map((project) => (
-            <ProjectCardLink key={project.id} project={project} userId={user?.id} />
-          ))}
-        </div>
-      )}
-    </>
-  );
+    );
 
-  const pinnedProjectsSection =
-    pinnedProjects.length > 0 ? (
-      <div className="border-b pb-4">
-        <div className="inline-flex items-center gap-2 font-medium text-muted-foreground text-sm">
-          <PinIcon className="h-4 w-4" />
-          {t("pinned")}
-        </div>
-
-        {viewMode === "list" ? (
-          <div className="space-y-3">
-            {pinnedProjects.map((project) => (
-              <ProjectRowLink key={`pinned-${project.id}`} project={project} userId={user?.id} />
-            ))}
-          </div>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2">
-            {pinnedProjects.map((project) => (
-              <ProjectCardLink key={`pinned-${project.id}`} project={project} userId={user?.id} />
-            ))}
-          </div>
-        )}
-      </div>
-    ) : null;
-
-  if (projectsQuery.isLoading) {
-    return <p className="text-muted-foreground text-sm">{t("loading")}</p>;
-  }
-
-  if (projectsQuery.isError) {
-    return <p className="text-destructive text-sm">{t("loadError")}</p>;
-  }
+  const renderItemActions =
+    status === "templates"
+      ? (project: ProjectRead, { iconSize }: { iconSize: "sm" | "md" }) =>
+          hasProjectWritePermission(project) ? (
+            <ProjectCardActionButton
+              icon={CopyX}
+              iconSize={iconSize}
+              label={t("templates.stopUsingAsTemplate")}
+              onClick={() => removeTemplate.mutate(project.id)}
+              disabled={removeTemplate.isPending}
+            />
+          ) : null
+      : status === "archived"
+        ? (project: ProjectRead, { iconSize }: { iconSize: "sm" | "md" }) =>
+            hasProjectWritePermission(project) ? (
+              <ProjectCardActionButton
+                icon={ArchiveRestore}
+                iconSize={iconSize}
+                label={t("archived.unarchive")}
+                onClick={() => unarchiveProject.mutate(project.id)}
+                disabled={unarchiveProject.isPending}
+              />
+            ) : null
+        : undefined;
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>
@@ -598,352 +276,67 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
           </div>
         )}
 
-        <Tabs
-          value={tabValue}
-          onValueChange={(value) => setTabValue(value as "active" | "templates" | "archive")}
-          className="space-y-6"
-        >
-          {!fixedTagIds && (
-            <TabsList className="w-full justify-start overflow-x-auto">
-              <TabsTrigger value="active" className="inline-flex items-center gap-2">
-                <LayoutGrid className="h-4 w-4" />
-                {t("tabs.active")}
-              </TabsTrigger>
-              <TabsTrigger value="templates" className="inline-flex items-center gap-2">
-                <ScrollText className="h-4 w-4" />
-                {t("tabs.templates")}
-              </TabsTrigger>
-              <TabsTrigger value="archive" className="inline-flex items-center gap-2">
-                <Archive className="h-4 w-4" />
-                {t("tabs.archive")}
-              </TabsTrigger>
-            </TabsList>
-          )}
-
-          <TabsContent value="active" className="space-y-4">
-            <div className="flex flex-wrap items-center justify-end gap-3">
-              {canCreateProjects && lockedInitiativeId && (
-                <Button variant="outline" onClick={() => setIsComposerOpen(true)}>
+        {!canViewProjects ? (
+          accessRestricted
+        ) : (
+          <ProjectListPanel
+            // Status is a different list, not a different filter of the same
+            // one: remounting drops any in-flight bulk selection with it.
+            key={status}
+            projects={projects}
+            isLoading={projectsQuery.isLoading}
+            isError={projectsQuery.isError}
+            loadingLabel={statusCopy.loading}
+            errorLabel={statusCopy.error}
+            noMatchesLabel={t("noMatchingProjects")}
+            emptyState={emptyState}
+            storagePrefix="project:list"
+            // Inside an initiative every card would carry the same name.
+            showInitiativeLabel={!lockedInitiativeId}
+            sortable={status === "active"}
+            fixedTagIds={fixedTagIds}
+            viewableInitiativeIds={viewableInitiativeIds}
+            userId={user?.id}
+            renderItemActions={renderItemActions}
+            toolbarActions={
+              canCreateProjects && lockedInitiativeId ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9"
+                  onClick={() => setIsComposerOpen(true)}
+                >
                   <Plus className="h-4 w-4" />
                   {t("addProject")}
                 </Button>
-              )}
-              {lockedInitiativeId && (
-                <ToolImportAction
-                  tool={Tool.project}
-                  canImport={canCreateProjects}
-                  fixedInitiativeId={lockedInitiativeId}
-                />
-              )}
-              <Tabs
-                value={viewMode}
-                onValueChange={(value) => setViewMode(value as "grid" | "list")}
-                className="w-auto"
-              >
-                <TabsList className="grid grid-cols-2">
-                  <TabsTrigger value="grid" className="inline-flex items-center gap-2">
-                    <LayoutGrid className="h-4 w-4" />
-                    {t("view.grid")}
-                  </TabsTrigger>
-                  <TabsTrigger value="list" className="inline-flex items-center gap-2">
-                    <List className="h-4 w-4" />
-                    {t("view.list")}
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
-              {canViewProjects && sortedProjects.length > 0 && !selection.active && (
-                <Button variant="outline" onClick={selection.enter}>
-                  {t("access:bulkBar.select")}
-                </Button>
-              )}
-            </div>
-            <ProjectsFilterBar
-              searchQuery={searchQuery}
-              onSearchQueryChange={setSearchQuery}
-              initiativeFilter={initiativeFilter}
-              onInitiativeFilterChange={setInitiativeFilter}
-              lockedInitiativeId={lockedInitiativeId}
-              lockedInitiativeName={lockedInitiative?.name ?? null}
-              viewableInitiatives={viewableInitiatives}
-              filtersOpen={filtersOpen}
-              onFiltersOpenChange={setFiltersOpen}
-              sortMode={sortMode}
-              onSortModeChange={setSortMode}
-              favoritesOnly={favoritesOnly}
-              onFavoritesOnlyChange={setFavoritesOnly}
-              tagFilters={selectedTagsForFilter}
-              onTagFiltersChange={handleTagFiltersChange}
-              fixedTagIds={fixedTagIds}
-            />
-
-            {!canViewProjects ? (
-              <Card className="border-destructive/50 bg-destructive/5">
-                <CardHeader>
-                  <CardTitle className="text-destructive">{t("accessRestricted")}</CardTitle>
-                  <CardDescription>{t("accessRestrictedDescription")}</CardDescription>
-                </CardHeader>
-              </Card>
-            ) : filteredProjects.length === 0 ? (
-              <div className="space-y-3">
-                <p className="text-muted-foreground text-sm">
-                  {projects.length === 0 ? t("noProjects") : t("noMatchingProjects")}
-                </p>
-                {projects.length === 0 && (
-                  <ToolImportAction
-                    tool={Tool.project}
-                    canImport={canCreateProjects}
-                    fixedInitiativeId={lockedInitiativeId ?? undefined}
-                    variant="button"
-                  />
-                )}
-              </div>
-            ) : (
-              <>
-                {selection.active ? (
-                  <BulkAccessBar
-                    count={selection.selectedItems.length}
-                    canManage={canManageSharing(selection.selectedItems)}
-                    onEditAccess={() => setBulkAccessOpen(true)}
-                    onExit={selection.exit}
-                  >
-                    {selection.selectedItems.length > 0 &&
-                      // Project backups require WRITE on every selected
-                      // project (the backend refuses mixed selections).
-                      (canManageSharing(selection.selectedItems) ? (
-                        <BulkExportButton
-                          tool={Tool.project}
-                          ids={selection.selectedItems.map((p) => p.id)}
-                        />
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled
-                          title={t("export.noWriteAccess")}
-                        >
-                          <FileDown className="h-4 w-4" />
-                          <span className="hidden sm:ml-2 sm:inline">
-                            {t("export.exportButton")}
-                          </span>
-                        </Button>
-                      ))}
-                  </BulkAccessBar>
-                ) : (
-                  pinnedProjectsSection
-                )}
-                {sortedProjects.length > 0 ? (
-                  projectCards
-                ) : pinnedProjects.length > 0 ? (
-                  <p className="text-muted-foreground text-sm">{t("onlyPinnedMatch")}</p>
-                ) : null}
-              </>
-            )}
-          </TabsContent>
-
-          <TabsContent value="templates">
-            {!canViewProjects ? (
-              <Card className="border-destructive/50 bg-destructive/5">
-                <CardHeader>
-                  <CardTitle className="text-destructive">{t("accessRestricted")}</CardTitle>
-                  <CardDescription>{t("accessRestrictedDescription")}</CardDescription>
-                </CardHeader>
-              </Card>
-            ) : templatesQuery.isLoading ? (
-              <p className="text-muted-foreground text-sm">{t("templates.loading")}</p>
-            ) : templatesQuery.isError ? (
-              <p className="text-destructive text-sm">{t("templates.loadError")}</p>
-            ) : templatesQuery.data?.items?.length ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                {templatesQuery.data.items.map((template) => (
-                  <Card key={template.id} className="shadow-sm">
-                    <CardHeader>
-                      <CardTitle className="text-xl">{template.name}</CardTitle>
-                      {template.description ? (
-                        <Markdown content={template.description} className="text-sm" />
-                      ) : null}
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-muted-foreground text-sm">
-                      {template.initiative ? (
-                        <p>{t("templates.initiativeLabel", { name: template.initiative.name })}</p>
-                      ) : null}
-                      <p>
-                        {t("templates.lastUpdated", {
-                          date: new Date(template.updated_at).toLocaleString(),
-                        })}
-                      </p>
-                    </CardContent>
-                    <CardFooter className="flex flex-wrap gap-3">
-                      <Button asChild variant="link" className="px-0">
-                        <Link to={gp(`/projects/${template.id}`)}>
-                          {t("templates.viewTemplate")}
-                        </Link>
-                      </Button>
-                      {hasProjectWritePermission(template) ? (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => removeTemplate.mutate(template.id)}
-                          disabled={removeTemplate.isPending}
-                        >
-                          {t("templates.stopUsingAsTemplate")}
-                        </Button>
-                      ) : null}
-                    </CardFooter>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <Card className="shadow-sm">
-                <CardHeader>
-                  <CardTitle>{t("templates.noTemplates")}</CardTitle>
-                  <CardDescription>{t("templates.noTemplatesDescription")}</CardDescription>
-                </CardHeader>
-              </Card>
-            )}
-          </TabsContent>
-
-          <TabsContent value="archive">
-            {!canViewProjects ? (
-              <Card className="border-destructive/50 bg-destructive/5">
-                <CardHeader>
-                  <CardTitle className="text-destructive">{t("accessRestricted")}</CardTitle>
-                  <CardDescription>{t("accessRestrictedDescription")}</CardDescription>
-                </CardHeader>
-              </Card>
-            ) : archivedQuery.isLoading ? (
-              <p className="text-muted-foreground text-sm">{t("archived.loading")}</p>
-            ) : archivedQuery.isError ? (
-              <p className="text-destructive text-sm">{t("archived.loadError")}</p>
-            ) : archivedQuery.data?.items?.length ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                {archivedQuery.data.items.map((archived) => (
-                  <Card key={archived.id} className="shadow-sm">
-                    <CardHeader>
-                      <CardTitle className="text-xl">{archived.name}</CardTitle>
-                      {archived.description ? (
-                        <Markdown content={archived.description} className="text-sm" />
-                      ) : null}
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-muted-foreground text-sm">
-                      {archived.initiative ? (
-                        <p>{t("archived.initiativeLabel", { name: archived.initiative.name })}</p>
-                      ) : null}
-                      <p>
-                        {t("archived.archivedAt", {
-                          date: archived.archived_at
-                            ? new Date(archived.archived_at).toLocaleString()
-                            : t("archived.archivedAtUnknown"),
-                        })}
-                      </p>
-                    </CardContent>
-                    <CardFooter className="flex flex-wrap gap-3">
-                      <Button asChild variant="link" className="px-0">
-                        <Link to={gp(`/projects/${archived.id}`)}>{t("archived.viewDetails")}</Link>
-                      </Button>
-                      {hasProjectWritePermission(archived) ? (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => unarchiveProject.mutate(archived.id)}
-                          disabled={unarchiveProject.isPending}
-                        >
-                          {t("archived.unarchive")}
-                        </Button>
-                      ) : null}
-                    </CardFooter>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <Card className="shadow-sm">
-                <CardHeader>
-                  <CardTitle>{t("archived.noArchived")}</CardTitle>
-                  <CardDescription>{t("archived.noArchivedDescription")}</CardDescription>
-                </CardHeader>
-              </Card>
-            )}
-          </TabsContent>
-        </Tabs>
+              ) : null
+            }
+            toolbarMenuItems={projectImport.menuItem}
+            toolbarMenuDialogs={projectImport.dialog}
+            leadingToolbar={
+              fixedTagIds ? null : (
+                <ProjectStatusFilter value={status} onChange={setStatus} counts={statusCounts} />
+              )
+            }
+          />
+        )}
 
         {canCreateProjects && (
           <CreateProjectDialog
             open={isComposerOpen}
             onOpenChange={handleComposerOpenChange}
             lockedInitiativeId={lockedInitiativeId}
-            lockedInitiativeName={lockedInitiative?.name ?? null}
+            lockedInitiativeName={lockedInitiativeName}
             creatableInitiatives={creatableInitiatives}
             initiativesQuery={{
               isLoading: initiativesQuery.isLoading,
               isError: initiativesQuery.isError,
             }}
-            defaultInitiativeId={initiativeId}
+            defaultInitiativeId={lockedInitiativeId ? String(lockedInitiativeId) : null}
             onCreated={() => handleComposerOpenChange(false)}
           />
         )}
-
-        <BulkEditAccessDialog
-          open={bulkAccessOpen}
-          onOpenChange={setBulkAccessOpen}
-          items={selection.selectedItems}
-          resourceType={Tool.project}
-          invalidate={invalidateAllProjects}
-          onSuccess={selection.exit}
-        />
       </div>
     </PullToRefresh>
-  );
-};
-
-export const ProjectsPage = () => <ProjectsView />;
-
-const SortableProjectCardLink = ({
-  project,
-  userId,
-}: {
-  project: ProjectRead;
-  userId?: number;
-}) => {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: project.id.toString(),
-  });
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-  const dragHandleProps: HTMLAttributes<HTMLButtonElement> = {
-    ...attributes,
-    ...listeners,
-    onClick: (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-    },
-  };
-  return (
-    <div ref={setNodeRef} style={style} className={isDragging ? "opacity-70" : undefined}>
-      <ProjectCardLink project={project} dragHandleProps={dragHandleProps} userId={userId} />
-    </div>
-  );
-};
-
-const SortableProjectRowLink = ({ project, userId }: { project: ProjectRead; userId?: number }) => {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: project.id.toString(),
-  });
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-  const dragHandleProps: HTMLAttributes<HTMLButtonElement> = {
-    ...attributes,
-    ...listeners,
-    onClick: (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-    },
-  };
-  return (
-    <div ref={setNodeRef} style={style} className={isDragging ? "opacity-70" : undefined}>
-      <ProjectRowLink project={project} dragHandleProps={dragHandleProps} userId={userId} />
-    </div>
   );
 };

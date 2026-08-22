@@ -9,7 +9,7 @@ import {
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import type { LucideIcon } from "lucide-react";
-import { Archive, Calendar, ChevronDown, Filter, Kanban, Plus, Table } from "lucide-react";
+import { Archive, Calendar, Kanban, Plus, Table } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -29,6 +29,8 @@ import {
   CalendarView,
   type CalendarViewMode,
 } from "@/components/calendar";
+import { ToolFilterPanel } from "@/components/initiativeTools/shared/ToolFilterPanel";
+import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { ProjectTaskComposer } from "@/components/projects/ProjectTaskComposer";
 import { ProjectTasksFilters } from "@/components/projects/ProjectTasksFilters";
@@ -53,20 +55,11 @@ import {
   type TaskFormValue,
 } from "@/components/tasks/TaskForm";
 import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
-import { useDefaultFiltersOpen } from "@/hooks/useDefaultFiltersOpen";
 import { useTags } from "@/hooks/useTags";
 import {
   useArchiveDoneTasks,
@@ -249,7 +242,34 @@ export const ProjectTasksSection = ({
     // filter pruning lives in the property filter UI itself (it needs the
     // property definitions, which aren't fetched here).
   }, [filtersLoaded, tagsLoaded, tags, sortedTaskStatuses, filters, setStoredFilters]);
-  const [filtersOpen, setFiltersOpen] = useDefaultFiltersOpen();
+  // Closed until asked for. The filter button carries a count of what's set, so
+  // a narrowed list still says so with the panel shut — and the fields no
+  // longer take the top of the page before the list itself.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  // Badges the filter button while the panel is closed. Archived-included
+  // counts: it widens what the list shows, which is as much a departure from
+  // the default as narrowing it.
+  const activeFilterCount =
+    assigneeFilters.length +
+    statusFilters.length +
+    tagFilters.length +
+    propertyFilters.length +
+    (dueFilter !== "all" ? 1 : 0) +
+    (showArchived ? 1 : 0);
+
+  const clearFilters = useCallback(
+    () =>
+      patchFilters({
+        assigneeFilters: [],
+        dueFilter: "all",
+        statusFilters: [],
+        tagFilters: [],
+        propertyFilters: [],
+        showArchived: false,
+      }),
+    [patchFilters]
+  );
+
   const [localOverride, setLocalOverride] = useState<TaskListRead[] | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(initialComposerOpen ?? false);
   useEffect(() => {
@@ -867,14 +887,50 @@ export const ProjectTasksSection = ({
   return (
     <div className="space-y-4">
       <Tabs value={viewMode} onValueChange={handleViewModeChange} className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex gap-2">
-            <h2 className="font-semibold text-xl">{t("tasks.projectTasks")}</h2>
-            {canEditTaskDetails && (
+        <h2 className="font-semibold text-xl">{t("tasks.projectTasks")}</h2>
+
+        <ToolListToolbar
+          filters={{
+            open: filtersOpen,
+            onOpenChange: setFiltersOpen,
+            activeCount: activeFilterCount,
+          }}
+          // The task views ARE this section's `Tabs`, so the picker has to be
+          // the existing triggers rather than a second, nested Tabs.
+          viewControl={
+            <TabsList className="h-9">
+              {TASK_VIEW_OPTIONS.map(({ value, labelKey, icon: Icon }) => (
+                <TabsTrigger
+                  key={value}
+                  value={value}
+                  aria-label={t(labelKey as never)}
+                  className="gap-2 px-2.5 sm:px-3"
+                >
+                  <Icon className="h-4 w-4" />
+                  <span className="hidden sm:inline">{t(labelKey as never)}</span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          }
+          trailing={
+            /* resumePending: this is the view's single adopter of a stored
+               in-flight job (the selection button must not double-handle it). */
+            <ExportTasksButton
+              params={{ conditions, include_archived: showArchived }}
+              resumePending
+            />
+          }
+          actions={
+            canEditTaskDetails ? (
               <TooltipProvider>
                 <Tooltip delayDuration={400}>
                   <TooltipTrigger asChild>
-                    <Button size="sm" variant="outline" onClick={() => setIsComposerOpen(true)}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-9"
+                      onClick={() => setIsComposerOpen(true)}
+                    >
                       <Plus className="h-4 w-4" />
                       {t("tasks.addTask")}
                     </Button>
@@ -884,78 +940,35 @@ export const ProjectTasksSection = ({
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-            )}
-          </div>
-          <div className="flex w-full items-center gap-2 sm:w-auto sm:justify-end sm:gap-3">
-            <div className="min-w-0 flex-1 sm:hidden">
-              <Select value={viewMode} onValueChange={handleViewModeChange}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder={t("tasks.selectView")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {TASK_VIEW_OPTIONS.map(({ value, labelKey, icon: Icon }) => (
-                    <SelectItem key={value} value={value}>
-                      <Icon className="mr-2 inline h-4 w-4" />
-                      {t(labelKey as never)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {/* resumePending: this is the view's single adopter of a stored
-                in-flight job (the selection button must not double-handle it). */}
-            <ExportTasksButton
-              params={{ conditions, include_archived: showArchived }}
-              resumePending
-            />
-            <div className="hidden sm:block">
-              <TabsList>
-                {TASK_VIEW_OPTIONS.map(({ value, labelKey, icon: Icon }) => (
-                  <TabsTrigger key={value} value={value} className="gap-2">
-                    <Icon className="h-4 w-4" />
-                    {t(labelKey as never)}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </div>
-          </div>
-        </div>
+            ) : null
+          }
+        />
 
-        <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="space-y-2">
-          <div className="flex items-center justify-between sm:hidden">
-            <div className="inline-flex items-center gap-2 font-medium text-muted-foreground text-sm">
-              <Filter className="h-4 w-4" />
-              {t("tasks.filtersHeading")}
-            </div>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-8 px-3">
-                {filtersOpen ? t("tasks.hideFilters") : t("tasks.showFilters")}
-                <ChevronDown
-                  className={`h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
-                />
-              </Button>
-            </CollapsibleTrigger>
-          </div>
-          <CollapsibleContent forceMount className="mt-2 data-[state=closed]:hidden sm:mt-0">
-            <ProjectTasksFilters
-              taskStatuses={sortedTaskStatuses}
-              projectId={projectId}
-              tags={tags}
-              assigneeFilters={assigneeFilters}
-              dueFilter={dueFilter}
-              statusFilters={statusFilters}
-              tagFilters={tagFilters}
-              propertyFilters={propertyFilters}
-              showArchived={showArchived}
-              onAssigneeFiltersChange={handleAssigneeFiltersChange}
-              onDueFilterChange={handleDueFilterChange}
-              onStatusFiltersChange={handleStatusFiltersChange}
-              onTagFiltersChange={handleTagFiltersChange}
-              onPropertyFiltersChange={handlePropertyFiltersChange}
-              onShowArchivedChange={handleShowArchivedChange}
-            />
-          </CollapsibleContent>
-        </Collapsible>
+        <ToolFilterPanel
+          open={filtersOpen}
+          onOpenChange={setFiltersOpen}
+          title={t("tasks.filtersHeading")}
+          onClear={clearFilters}
+          activeCount={activeFilterCount}
+        >
+          <ProjectTasksFilters
+            taskStatuses={sortedTaskStatuses}
+            projectId={projectId}
+            tags={tags}
+            assigneeFilters={assigneeFilters}
+            dueFilter={dueFilter}
+            statusFilters={statusFilters}
+            tagFilters={tagFilters}
+            propertyFilters={propertyFilters}
+            showArchived={showArchived}
+            onAssigneeFiltersChange={handleAssigneeFiltersChange}
+            onDueFilterChange={handleDueFilterChange}
+            onStatusFiltersChange={handleStatusFiltersChange}
+            onTagFiltersChange={handleTagFiltersChange}
+            onPropertyFiltersChange={handlePropertyFiltersChange}
+            onShowArchivedChange={handleShowArchivedChange}
+          />
+        </ToolFilterPanel>
 
         <TabsContent value="kanban">
           <ProjectTasksKanbanView

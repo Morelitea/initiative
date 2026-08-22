@@ -5,13 +5,12 @@ from typing import List, Optional, TYPE_CHECKING
 from sqlalchemy import Column, Date, DateTime, Text
 from sqlmodel import Field, Relationship
 
-from app.models.tenant._mixins import SoftDeleteMixin
+from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
 
 
 if TYPE_CHECKING:  # pragma: no cover - imported lazily for type checking only
     from app.models.tenant.project_order import ProjectOrder
     from app.models.tenant.task import Task, TaskStatus
-    from app.models.platform.user import User
     from app.models.tenant.initiative import Initiative
     from app.models.tenant.project_activity import ProjectFavorite
     from app.models.tenant.document import ProjectDocument
@@ -20,9 +19,8 @@ if TYPE_CHECKING:  # pragma: no cover - imported lazily for type checking only
     from app.models.tenant.resource_grant import ResourceGrant
 
 
-class Project(SoftDeleteMixin, table=True):
+class Project(CreatedByMixin, SoftDeleteMixin, table=True):
     __tablename__ = "projects"
-    _owner_field = "owner_id"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: Optional[int] = Field(
@@ -32,7 +30,6 @@ class Project(SoftDeleteMixin, table=True):
     icon: Optional[str] = Field(default=None, max_length=8)
     # TEXT in DDL (unbounded); sa_column keeps autogen quiet vs AutoString
     description: Optional[str] = Field(default=None, sa_column=Column(Text))
-    owner_id: int = Field(foreign_key="users.id", nullable=False)
     initiative_id: int = Field(foreign_key="initiatives.id", nullable=False, index=True)
     # Whole-day schedule for the project itself (both optional, independent of
     # each other). Stored as DATE, not a timestamp: a project runs for calendar
@@ -62,8 +59,8 @@ class Project(SoftDeleteMixin, table=True):
         sa_column=Column(DateTime(timezone=True), nullable=True),
     )
 
-    owner: Optional["User"] = Relationship(back_populates="projects_owned")
     initiative: Optional["Initiative"] = Relationship(back_populates="projects")
+
     guild: Optional["Guild"] = Relationship()
     tasks: List["Task"] = Relationship(
         back_populates="project",

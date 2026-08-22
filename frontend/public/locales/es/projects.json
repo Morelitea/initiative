@@ -30,11 +30,6 @@
     "tasksDone": "{{completed}}/{{total}} terminadas",
     "noTasks": "Sin tareas"
   },
-  "tabs": {
-    "active": "Proyectos activos",
-    "templates": "Plantillas",
-    "archive": "Archivo"
-  },
   "view": {
     "grid": "Cuadrícula",
     "list": "Lista"
@@ -45,10 +40,7 @@
     "hide": "Ocultar filtros",
     "filterByName": "Filtrar por nombre",
     "searchProjects": "Buscar proyectos",
-    "initiative": "Iniciativa",
     "selectedInitiative": "Iniciativa seleccionada",
-    "filterByInitiative": "Filtrar por iniciativa",
-    "allInitiatives": "Todas las iniciativas",
     "filterByTag": "Filtrar por etiqueta",
     "allTags": "Todas las etiquetas",
     "sortProjects": "Ordenar proyectos",
@@ -97,7 +89,8 @@
     "unarchive": "Desarchivar",
     "noArchived": "No hay proyectos archivados",
     "noArchivedDescription": "Los proyectos activos están en la pestaña Activos.",
-    "noArchivedDescriptionAlt": "Los proyectos activos están en la pestaña principal de proyectos."
+    "noArchivedDescriptionAlt": "Los proyectos activos están en la pestaña principal de proyectos.",
+    "sharingUnavailable": "No se puede cambiar el uso compartido de un proyecto archivado."
   },
   "createDialog": {
     "title": "Crear proyecto",
@@ -500,7 +493,10 @@
   "progressLabel": "Progreso del proyecto",
   "preview": {
     "updated": "Actualizado {{date}}",
-    "tasksDone": "{{completed}}/{{total}} completadas"
+    "tasksDone": "{{completed}}/{{total}} completadas",
+    "templateBadge": "Plantilla",
+    "archivedBadge": "Archivado",
+    "archivedOn": "Archivado el {{date}}"
   },
   "activitySidebar": {
     "title": "Actividad del proyecto",
@@ -540,5 +536,11 @@
     "warningUnmatchedAssignees_other": "Importado, pero se descartaron {{count}} responsables que no pertenecen a esta iniciativa: {{emails}}",
     "error": "No se pudo importar el proyecto. Inténtalo de nuevo.",
     "queued": "Importación iniciada: recibirás una notificación cuando termine."
+  },
+  "status": {
+    "label": "Mostrar",
+    "active": "Activos",
+    "templates": "Plantillas",
+    "archived": "Archivados"
   }
 }

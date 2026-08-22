@@ -32,12 +32,12 @@ import { useSetToolTags } from "@/hooks/useToolTags";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
-import { toolDetailRoute, toolListRoute } from "@/lib/tools";
+import { toolDetailRoute, toolGuildBrowseTarget, toolListRoute } from "@/lib/tools";
 
 /**
- * The slice of a tool's read schema this page needs. Queues, counter groups,
- * calendars, dashboards, and projects satisfy it as-is; documents map `title`
- * onto `name` in their wrapper.
+ * The slice of a tool's read schema this page needs. Every tool — queues,
+ * counter groups, calendars, dashboards, projects, and documents — satisfies
+ * it as-is.
  */
 export interface ToolSettingsEntity {
   id: number;
@@ -65,7 +65,7 @@ export interface ToolSettingsPageProps {
   /**
    * The rename/describe mutation. Omit it to drop the built-in details form —
    * projects save those fields through their own richer form, and a document's
-   * name is its title, edited in the editor.
+   * name is edited in the editor.
    */
   update?: ToolMutation<{ name?: string; description?: string | null }>;
   setGrants: ToolMutation<ResourceGrantSchema[]>;
@@ -142,7 +142,15 @@ export const ToolSettingsPage = ({
       onSuccess: () => {
         toast.success(t("common:toolSettings.deleted", { name: entity.name }));
         setDeleteDialogOpen(false);
-        router.navigate({ to: gp(toolListRoute(tool)) });
+        // Back to the tool's tab in the initiative this entity belonged to.
+        // A guild-level entity (an app's calendar) has no tab, so it falls back
+        // to the guild home browsing that tool.
+        if (entity.initiative_id == null) {
+          const browse = toolGuildBrowseTarget(tool);
+          router.navigate({ to: gp(browse.to), search: browse.search });
+        } else {
+          router.navigate({ to: gp(toolListRoute(tool, entity.initiative_id)) });
+        }
       },
     });
   };
@@ -153,7 +161,7 @@ export const ToolSettingsPage = ({
         tool={tool}
         initiativeId={entity.initiative_id}
         trail={[
-          { label: entity.name, to: toolDetailRoute(tool, entity.id) },
+          { label: entity.name, to: toolDetailRoute(tool, entity.initiative_id, entity.id) },
           { label: t("common:toolSettings.title") },
         ]}
       />

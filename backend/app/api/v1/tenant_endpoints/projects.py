@@ -48,6 +48,7 @@ from app.api import resource_access
 from app.core.tools import Tool
 from app.services import notifications as notifications_service
 from app.services.tenant import initiatives as initiatives_service
+from app.services.tenant import ownership as ownership_service
 from app.services.tenant import documents as documents_service
 from app.services import permissions as permissions_service
 from app.services import rls as rls_service
@@ -63,7 +64,6 @@ from app.db.query import (
     page_has_next,
     paginate_sequence,
 )
-from app.core.pam_context import has_active_grant
 from app.services.realtime import broadcast_event
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.project import (
@@ -79,7 +79,7 @@ from app.schemas.tenant.project import (
     ProjectActivityResponse,
 )
 from app.schemas.tenant.task_status import TaskStatusRead
-from app.schemas.platform.user import UserSummary, UserSummaryListResponse
+from app.schemas.platform.user import UserPublic, UserSummary, UserSummaryListResponse
 from app.schemas.tenant.comment import CommentAuthor
 from app.schemas.tenant.initiative import (
     InitiativeGroupedCountsResponse,
@@ -130,7 +130,7 @@ def _project_documents(
         summary = serialize_project_document_link(link)
         if summary:
             documents.append(summary)
-    documents.sort(key=lambda item: (item.title.lower(), item.document_id))
+    documents.sort(key=lambda item: (item.name.lower(), item.document_id))
     return documents
 
 
@@ -191,8 +191,9 @@ async def _get_project_or_404(
         select(Project)
         .where(Project.id == project_id)
         .options(
-            selectinload(Project.grants).selectinload(ResourceGrant.role),
-            selectinload(Project.owner),
+            selectinload(Project.grants).options(
+                selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
+            ),
             selectinload(Project.initiative)
             .selectinload(Initiative.memberships)
             .options(
@@ -473,8 +474,9 @@ def _full_project_load_options() -> list:
     """Eager loads for a fully-serialized ``ProjectRead`` (owner, nested
     initiative + memberships, linked documents with their DAC, tags, grants)."""
     return [
-        selectinload(Project.grants).selectinload(ResourceGrant.role),
-        selectinload(Project.owner),
+        selectinload(Project.grants).options(
+            selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
+        ),
         selectinload(Project.initiative)
         .selectinload(Initiative.memberships)
         .options(
@@ -512,22 +514,24 @@ def _visible_project_conditions(
     archived: Optional[bool],
     template: Optional[bool],
     search: Optional[str] = None,
+    initiative_id: Optional[int] = None,
 ) -> list:
     """WHERE clauses for the guild's DAC-visible projects.
 
-    ``archived``/``template``/``search`` are pushed into SQL (mirroring the old
-    ``_matches_filters``: ``None`` means "exclude" for the boolean flags). DAC
-    scoping is preserved exactly — a guild admin or a live PAM grant sees every
-    project in the guild; otherwise the set is narrowed to the user's
-    explicit/role-granted projects via ``visible_project_ids_subquery``.
+    ``archived``/``template``/``search``/``initiative_id`` are pushed into SQL
+    (mirroring the old ``_matches_filters``: ``None`` means "exclude" for the
+    boolean flags, and "every initiative" for the initiative). ``dac_scope_clause``
+    supplies the sharing gate — it resolves to a no-op for a request that reaches
+    the whole guild, so there is nothing to branch on here.
     """
-    conditions = [Initiative.guild_id == guild_id]
-    if not has_active_grant(
-        guild_id
-    ) and not permissions_service.is_request_guild_admin(guild_id):
-        conditions.append(
-            Project.id.in_(permissions_service.visible_project_ids_subquery(user_id))
-        )
+    conditions = [
+        Initiative.guild_id == guild_id,
+        permissions_service.dac_scope_clause(
+            Tool.project, Project.id, user_id, guild_id=guild_id
+        ),
+    ]
+    if initiative_id is not None:
+        conditions.append(Project.initiative_id == initiative_id)
 
     if template is None:
         conditions.append(Project.is_template.is_(False))
@@ -641,7 +645,7 @@ def _slim_project_reads(projects: List[Project], user_id: int) -> List[ProjectRe
                 name=project.name,
                 description=None,
                 icon=project.icon,
-                owner_id=project.owner_id,
+                owner_id=ownership_service.owner_id_of(project),
                 initiative_id=project.initiative_id,
                 created_at=project.created_at,
                 updated_at=project.updated_at,
@@ -740,8 +744,9 @@ async def _projects_by_ids(
             Initiative.guild_id == guild_id,
         )
         .options(
-            selectinload(Project.grants).selectinload(ResourceGrant.role),
-            selectinload(Project.owner),
+            selectinload(Project.grants).options(
+                selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
+            ),
             selectinload(Project.initiative)
             .selectinload(Initiative.memberships)
             .options(
@@ -780,6 +785,23 @@ def _project_task_statuses(project: Project) -> List[TaskStatusRead]:
     return [TaskStatusRead.model_validate(status) for status in statuses]
 
 
+def _project_owner(project: Project) -> Optional[UserPublic]:
+    """The user holding the project's owner grant, or None when it is unowned.
+
+    Read off the eagerly-loaded grants rather than a column on the project:
+    ``resource_grants`` is where ownership is recorded, so there is nothing to
+    keep in step.
+    """
+    for grant in project.grants or []:
+        if (
+            grant.user_id is not None
+            and grant.level == ResourceAccessLevel.owner
+            and grant.user is not None
+        ):
+            return UserPublic.model_validate(grant.user)
+    return None
+
+
 def _build_project_payload(
     project: Project,
     *,
@@ -807,6 +829,8 @@ def _build_project_payload(
             "tags": tags_service.tag_summaries(project.tag_links),
             "grants": permissions_service.serialize_grants(project),
             "my_permission_level": my_permission_level,
+            "owner_id": ownership_service.owner_id_of(project),
+            "owner": _project_owner(project),
         }
     )
 
@@ -923,34 +947,39 @@ async def _list_global_projects(
     """List projects across every guild the user belongs to.
 
     Visits each guild's schema in turn (per-schema ids mean a single cross-guild
-    query isn't possible) and merges, filtering through the DAC
-    visible-project-ids subquery for permission checks. Membership is implied by
-    only iterating the user's own guilds.
+    query isn't possible) and merges. Membership is implied by only iterating the
+    user's own guilds.
+
+    The sharing gate is resolved per guild, inside ``_fetch``: the answer depends
+    on the caller's role in that guild, which ``gather_across_guilds`` establishes
+    for each one in turn.
     """
     target_guilds = await member_guild_ids(
         session, current_user.id, restrict_to=guild_ids
     )
 
-    has_permission_subq = permissions_service.visible_project_ids_subquery(
-        current_user.id
-    )
     conditions = [
         Project.is_archived.is_(False),
         Project.is_template.is_(False),
-        Project.id.in_(has_permission_subq),
     ]
     if search:
         conditions.append(
             func.lower(Project.name).contains(search.strip().lower(), autoescape=True)
         )
 
-    async def _fetch(guild_session: AsyncSession, _guild_id: int) -> list[ProjectRead]:
+    async def _fetch(guild_session: AsyncSession, guild_id: int) -> list[ProjectRead]:
         statement = (
             select(Project)
-            .where(*conditions)
+            .where(
+                *conditions,
+                permissions_service.dac_scope_clause(
+                    Tool.project, Project.id, current_user.id, guild_id=guild_id
+                ),
+            )
             .options(
-                selectinload(Project.grants).selectinload(ResourceGrant.role),
-                selectinload(Project.owner),
+                selectinload(Project.grants).options(
+                    selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
+                ),
                 selectinload(Project.initiative)
                 .selectinload(Initiative.memberships)
                 .options(
@@ -994,6 +1023,13 @@ async def list_projects(
     search: Optional[str] = Query(
         default=None, description="Case-insensitive substring match on name."
     ),
+    initiative_id: Optional[int] = Query(
+        default=None,
+        description=(
+            "Only projects in this initiative. Omit for every initiative the "
+            "caller can see."
+        ),
+    ),
     slim: bool = Query(
         default=False,
         description=(
@@ -1007,7 +1043,7 @@ async def list_projects(
 ) -> ProjectListResponse:
     # Filtering, ordering, and pagination all happen in SQL: the DAC scope
     # (guild admin / PAM see all, else visible-project-ids) plus archived/
-    # template/search go into the WHERE, and the per-user manual order
+    # template/search/initiative go into the WHERE, and the per-user manual order
     # (project_orders, NULLS last) drives ORDER BY so LIMIT/OFFSET can page the
     # rows instead of loading the whole visible graph.
     conditions = _visible_project_conditions(
@@ -1016,6 +1052,7 @@ async def list_projects(
         archived=archived,
         template=template,
         search=search,
+        initiative_id=initiative_id,
     )
 
     count_stmt = (
@@ -1107,15 +1144,13 @@ async def get_project_counts_by_initiative(
         Initiative.guild_id == guild_context.guild_id,
         Project.is_archived.is_(False),
         Project.is_template.is_(False),
+        permissions_service.dac_scope_clause(
+            Tool.project,
+            Project.id,
+            current_user.id,
+            guild_id=guild_context.guild_id,
+        ),
     ]
-    if not has_active_grant(
-        guild_context.guild_id
-    ) and not permissions_service.is_request_guild_admin(guild_context.guild_id):
-        conditions.append(
-            Project.id.in_(
-                permissions_service.visible_project_ids_subquery(current_user.id)
-            )
-        )
 
     statement = (
         select(Project.initiative_id, func.count(Project.id))
@@ -1229,7 +1264,6 @@ async def create_project(
         name=project_in.name,
         icon=icon_value,
         description=description_value,
-        owner_id=owner_id,
         initiative_id=initiative_id,
         is_template=project_in.is_template,
         guild_id=guild_context.guild_id,
@@ -1395,7 +1429,6 @@ async def duplicate_project(
         name=new_name,
         icon=source_project.icon,
         description=source_project.description,
-        owner_id=owner_id,
         initiative_id=initiative_id,
         is_template=False,
         guild_id=guild_context.guild_id,

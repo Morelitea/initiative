@@ -109,7 +109,7 @@ def _unsaved_event(
     return CalendarEvent(
         guild_id=1,
         calendar_id=1,
-        created_by_id=1,
+        created_by=1,
         title=title,
         start_at=start_at,
         end_at=end_at,
@@ -330,7 +330,7 @@ async def test_notify_initiative_membership_carries_guild_context(
     assert len(notifs) == 1
     data = notifs[0].data
     assert data["guild_id"] == guild.id
-    assert data["target_path"] == f"/initiatives/{initiative.id}"
+    assert data["target_path"] == f"/i/{initiative.id}"
     assert f"guild_id={guild.id}" in data["smart_link"]
 
 
@@ -841,7 +841,7 @@ async def test_assignment_digest_of_one_deep_links_to_the_task(
 
     assert len(pushes) == 1
     assert pushes[0]["data"]["guild_id"] == str(guild.id)
-    assert pushes[0]["data"]["target_path"].startswith("/tasks/")
+    assert pushes[0]["data"]["target_path"].startswith("/go/task/")
 
 
 @pytest.mark.integration

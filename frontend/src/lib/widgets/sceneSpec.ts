@@ -158,6 +158,14 @@ export interface Series {
   tone?: Tone;
 }
 
+/** Where a series draws its values on the marks themselves.
+ *
+ *  Never "every point": a number beside every mark is chaos and goes unread,
+ *  which is why there is no such value here. The axis, the legend, and the
+ *  table view carry the rest. */
+export const SERIES_LABELS = ["none", "extremes", "end"] as const;
+export type SeriesLabels = (typeof SERIES_LABELS)[number];
+
 /** Bars, lines, areas, or slices — the `chart` primitive's shape, and the one
  *  most custom widgets will reach for. */
 export interface SeriesNode {
@@ -169,6 +177,20 @@ export interface SeriesNode {
   xLabel?: string;
   yLabel?: string;
   showLegend?: boolean;
+  /** Direct labels on the marks. Omitted means none. */
+  labels?: SeriesLabels;
+  /** A horizontal reference line — a goal, a budget, a threshold. Drawn on the
+   *  same single axis as the data, because a second scale would let a chart
+   *  invent a relationship the numbers do not have. */
+  target?: number;
+  targetLabel?: string;
+  /** Draw everything except this series in the de-emphasis gray. The honest
+   *  form when the story is one series and the rest are context — a full
+   *  categorical palette buries exactly that. Indexes into `series`. */
+  emphasis?: number;
+  /** Bars along the y-axis instead of the x, so long category names get room
+   *  to be read instead of being turned on their side. */
+  horizontal?: boolean;
 }
 
 /** How a span is drawn.
@@ -263,6 +285,9 @@ export interface ProgressNode {
   caption?: string;
   tone?: Tone;
   format?: NumberFormat;
+  /** A goal marked on the track, so "where we are" reads against "where we
+   *  said we would be" rather than against the bar's own end. */
+  target?: number;
 }
 
 /** A cell in a 2-D grid. `x`/`y` are integer grid coordinates — the widget has
@@ -292,9 +317,19 @@ export interface TableColumn {
   format?: NumberFormat;
 }
 
-/** Cells are scalars only. A cell cannot be a node, so a table can never become
- *  a nesting vector. */
-export type TableCell = string | number | boolean | null;
+/** A cell that carries a state as well as a value — an overdue date in the
+ *  negative tone, a finished count in the positive one.
+ *
+ *  Still a scalar plus a `Tone` name: the tone resolves to a theme token like
+ *  every other, so a table cannot paint itself an arbitrary color. */
+export interface TonedCell {
+  value: string | number | boolean | null;
+  tone?: Tone;
+}
+
+/** Cells are scalars, optionally toned. A cell cannot be a node, so a table can
+ *  never become a nesting vector. */
+export type TableCell = string | number | boolean | null | TonedCell;
 
 export interface TableNode {
   kind: "table";

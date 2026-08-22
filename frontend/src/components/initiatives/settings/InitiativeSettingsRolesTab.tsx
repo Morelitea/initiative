@@ -15,7 +15,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { TabsContent } from "@/components/ui/tabs";
-import { useAppConfig } from "@/hooks/useAppConfig";
 import {
   ADVANCED_PERMISSION_GROUPS,
   CORE_PERMISSION_GROUPS,

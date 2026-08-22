@@ -147,7 +147,7 @@ def _envelope(queue: Queue, items: list[QueueItem]) -> dict[str, Any]:
                 "member": _member(item),
                 "tags": _tags(item),
                 "documents": sorted(
-                    link.document.title
+                    link.document.name
                     for link in item.document_links
                     if link.document is not None
                 ),

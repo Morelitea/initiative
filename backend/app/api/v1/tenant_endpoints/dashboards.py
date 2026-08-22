@@ -235,15 +235,14 @@ async def list_dashboards(
             )
         )
 
-    # DAC: non-admins (and non-PAM) see only dashboards shared with them.
-    if not rls_service.is_guild_admin(guild_context.role) and not guild_context.is_pam:
-        conditions.append(
-            Dashboard.id.in_(
-                permissions_service.visible_resource_ids_subquery(
-                    "dashboard", current_user.id
-                )
-            )
+    conditions.append(
+        permissions_service.dac_scope_clause(
+            Tool.dashboard,
+            Dashboard.id,
+            current_user.id,
+            guild_id=guild_context.guild_id,
         )
+    )
 
     count_subq = select(Dashboard.id).where(*conditions).subquery()
     total_count = (
@@ -293,14 +292,14 @@ async def get_dashboard_counts_by_initiative(
             select(Initiative.id).where(Initiative.dashboards_enabled == True)  # noqa: E712
         ),
     ]
-    if not rls_service.is_guild_admin(guild_context.role) and not guild_context.is_pam:
-        conditions.append(
-            Dashboard.id.in_(
-                permissions_service.visible_resource_ids_subquery(
-                    "dashboard", current_user.id
-                )
-            )
+    conditions.append(
+        permissions_service.dac_scope_clause(
+            Tool.dashboard,
+            Dashboard.id,
+            current_user.id,
+            guild_id=guild_context.guild_id,
         )
+    )
 
     statement = (
         select(Dashboard.initiative_id, func.count(Dashboard.id))
@@ -412,7 +411,7 @@ async def create_dashboard(
     dashboard = Dashboard(
         guild_id=guild_context.guild_id,
         initiative_id=initiative.id,
-        created_by_id=current_user.id,
+        created_by=current_user.id,
         name=dashboard_in.name.strip(),
         description=dashboard_in.description,
         definition=definition,
@@ -578,7 +577,7 @@ async def delete_dashboard(
         dashboard_id,
         current_user,
         guild_context,
-        require_owner=not rls_service.is_guild_admin(guild_context.role),
+        require_owner=True,
     )
     retention_days = await guilds_service.get_guild_retention_days(
         session, guild_context.guild_id

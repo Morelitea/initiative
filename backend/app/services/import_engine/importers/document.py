@@ -71,26 +71,25 @@ class DocumentImporter:
 
         content = _decode_content(env, warnings, guild_id)
 
-        existing_titles = {
+        existing_names = {
             row
             for row in (
                 await session.exec(
-                    select(Document.title).where(
+                    select(Document.name).where(
                         Document.initiative_id == target_initiative.id
                     )
                 )
             ).all()
         }
-        title = unique_name(existing_titles, env.title)
+        name = unique_name(existing_names, env.name)
 
         document = Document(
-            title=title,
+            name=name,
             document_type=DocumentType(env.document_type),
             content=content,
             initiative_id=target_initiative.id,
             guild_id=guild_id,
-            created_by_id=importer.id,
-            updated_by_id=importer.id,
+            created_by=importer.id,
         )
         session.add(document)
         await session.flush()
@@ -138,7 +137,7 @@ class DocumentImporter:
         await session.flush()
         return EnvelopeImportResult(
             entity_id=document.id,
-            entity_title=document.title,
+            entity_title=document.name,
             created={
                 "documents": 1,
                 "tags": tags_created,

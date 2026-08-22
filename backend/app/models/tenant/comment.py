@@ -4,21 +4,24 @@ from typing import Optional
 from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, Integer, Text
 from sqlmodel import Field, Relationship
 
-from app.models.tenant._mixins import SoftDeleteMixin
+from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
 from app.models.platform.user import User
 
 
-class Comment(SoftDeleteMixin, table=True):
+class Comment(CreatedByMixin, SoftDeleteMixin, table=True):
     __tablename__ = "comments"
     _display_field = "content"
     __table_args__ = (
+        # A comment hangs off exactly ONE parent: a task, or one tool entity
+        # (document, project, queue, counter group, calendar, dashboard).
         CheckConstraint(
-            "(task_id IS NULL) <> (document_id IS NULL)",
-            name="ck_comments_task_or_document",
+            "num_nonnulls(task_id, document_id, project_id, queue_id, "
+            "counter_group_id, calendar_id, dashboard_id) = 1",
+            name="ck_comments_single_parent",
         ),
     )
     # Comment authorship is intentionally NOT reassignable on restore.
-    # Comments are first-person speech; transferring author_id to someone
+    # Comments are first-person speech; transferring created_by to someone
     # else would let admins put words in another user's mouth. If the
     # original author has left, the restore goes through and the comment
     # renders as "Deleted user #N" via the existing user-display helpers.
@@ -29,7 +32,7 @@ class Comment(SoftDeleteMixin, table=True):
         sa_column=Column(Integer, ForeignKey("guilds.id"), nullable=True),
     )
     content: str = Field(sa_column=Column(Text, nullable=False))
-    author_id: int = Field(
+    created_by: int = Field(
         sa_column=Column(
             Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
         ),
@@ -46,6 +49,40 @@ class Comment(SoftDeleteMixin, table=True):
             Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=True
         ),
     )
+    # Tool-entity parents: every Tool is commentable (drift-tested against the
+    # enum in comments_test), one nullable FK per tool alongside the original
+    # task/document pair. ``project_id`` means a comment ON the project itself;
+    # a task comment reports its task's project through the read schema only.
+    project_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=True
+        ),
+    )
+    queue_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer, ForeignKey("queues.id", ondelete="CASCADE"), nullable=True
+        ),
+    )
+    counter_group_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer, ForeignKey("counter_groups.id", ondelete="CASCADE"), nullable=True
+        ),
+    )
+    calendar_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer, ForeignKey("calendars.id", ondelete="CASCADE"), nullable=True
+        ),
+    )
+    dashboard_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer, ForeignKey("dashboards.id", ondelete="CASCADE"), nullable=True
+        ),
+    )
     parent_comment_id: Optional[int] = Field(
         default=None,
         sa_column=Column(
@@ -60,4 +97,10 @@ class Comment(SoftDeleteMixin, table=True):
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True),
     )
-    author: User = Relationship()
+    # The API calls this the author; the column is the schema-wide
+    # ``created_by``, which is what a comment's author IS. ``foreign_keys`` is
+    # named rather than inferred so the join survives another user FK landing
+    # on this table.
+    author: User = Relationship(
+        sa_relationship_kwargs={"foreign_keys": "[Comment.created_by]"},
+    )

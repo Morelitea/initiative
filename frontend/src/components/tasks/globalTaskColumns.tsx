@@ -1,10 +1,11 @@
 import { Link } from "@tanstack/react-router";
 import { Pin } from "lucide-react";
 
-import type {
-  TaskListRead,
-  TaskStatusCategory,
-  TaskStatusRead,
+import {
+  type TaskListRead,
+  type TaskStatusCategory,
+  type TaskStatusRead,
+  Tool,
 } from "@/api/generated/initiativeAPI.schemas";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
 import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
@@ -22,6 +23,7 @@ import { summarizeRecurrence } from "@/lib/recurrence";
 import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
 import type { AppColumnDef } from "@/lib/table";
 import { getTaskDateStatus, getTaskDateStatusLabel } from "@/lib/taskDateStatus";
+import { entityRefRoute, initiativeRoute, taskRoute, toolDetailRoute } from "@/lib/tools";
 import type { TranslateFn } from "@/types/i18n";
 
 interface GlobalTaskColumnsOptions {
@@ -194,7 +196,13 @@ export function globalTaskColumns({
           <div className="flex min-w-60 flex-col text-left">
             <div className="flex">
               <Link
-                to={taskGuildPath(task, `/tasks/${task.id}`)}
+                to={taskGuildPath(
+                  task,
+                  // Cross-guild rows without an initiative resolve through /go.
+                  task.initiative_id != null
+                    ? taskRoute(task.initiative_id, task.project_id, task.id)
+                    : entityRefRoute("task", task.id)
+                )}
                 className="flex w-full items-center gap-2 font-medium text-foreground hover:underline"
               >
                 {task.title}
@@ -282,7 +290,7 @@ export function globalTaskColumns({
               {initiativeId && initiativeName ? (
                 <>
                   <Link
-                    to={taskGuildPath(task, `/initiatives/${initiativeId}`)}
+                    to={taskGuildPath(task, initiativeRoute(initiativeId))}
                     className="flex items-center gap-2 text-muted-foreground text-sm"
                   >
                     <InitiativeColorDot color={initiativeColor ?? undefined} />
@@ -295,7 +303,12 @@ export function globalTaskColumns({
                 </>
               ) : null}
               <Link
-                to={taskGuildPath(task, `/projects/${projectIdentifier}`)}
+                to={taskGuildPath(
+                  task,
+                  initiativeId != null
+                    ? toolDetailRoute(Tool.project, initiativeId, projectIdentifier)
+                    : entityRefRoute("project", projectIdentifier)
+                )}
                 className="font-medium text-primary text-sm hover:underline"
               >
                 {projectLabel}

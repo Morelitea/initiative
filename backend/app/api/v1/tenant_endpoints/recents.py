@@ -32,7 +32,7 @@ from app.api.deps import (
 from app.core.tools import RECENTABLE_TOOLS, Tool
 from app.services.tenant.tags import TOOL_TAG_LINKS
 from app.models.tenant.document import Document
-from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.guild import GuildMembership
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.recent_view import RecentView
@@ -40,7 +40,6 @@ from app.models.platform.user import User
 from app.schemas.tenant.recent_view import RecentItemRead
 from app.services import permissions as permissions_service
 from app.services.tenant import recent_views as recent_views_service
-from app.services import rls as rls_service
 from app.services.cross_guild import gather_across_guilds
 from app.services.tenant.recent_views import RecentEntityType
 
@@ -106,15 +105,12 @@ async def _enrich_recent_rows(
     session,
     current_user: User,
     rows: List[RecentView],
-    *,
-    is_guild_admin: bool,
 ) -> List[RecentItemRead]:
     """Resolve one guild's recent_views rows into render-only tab items.
 
-    Must run inside that guild's routed context (relationships and ids are
-    per-schema). Per-entity permission filters drop rows the user has since
-    lost access to; ``is_guild_admin`` mirrors the detail pages' DAC bypass so
-    an admin's recorded views aren't silently dropped.
+    Must run inside that guild's routed context — relationships and ids are
+    per-schema, and ``require_access`` reads the role established for that
+    guild, so a row reaches the same verdict here as on its detail page.
     """
     ids_by_type = recent_views_service.group_ids_by_type(rows)
 
@@ -138,8 +134,6 @@ async def _enrich_recent_rows(
         result = await session.exec(stmt)
         loaded[tool.value] = {row.id: row for row in result.all()}
 
-    guild_role = GuildRole.admin if is_guild_admin else None
-
     items: List[RecentItemRead] = []
     for row in rows:
         entry = RECENT_SPECS_BY_ENTITY_TYPE.get(row.entity_type)
@@ -155,7 +149,6 @@ async def _enrich_recent_rows(
                 entity,
                 current_user,
                 access="read",
-                guild_role=guild_role,
             )
         except HTTPException:
             # Permission denied / not found — drop the row from the bar but let
@@ -170,6 +163,7 @@ async def _enrich_recent_rows(
                 entity_type=tool.value,
                 entity_id=entity.id,
                 guild_id=entity.guild_id,
+                initiative_id=getattr(entity, "initiative_id", None),
                 name=getattr(entity, spec.name_attr),
                 last_viewed_at=row.last_viewed_at,
                 **(spec.extra(entity) if spec.extra else {}),
@@ -189,15 +183,18 @@ async def list_recents(
     Works identically with a guild context or in personal mode: the result
     depends only on who is asking, never on what they're currently viewing.
     """
-    # Guild roles from the shared memberships table (user context shows the
-    # caller's own rows) so each guild's enrichment can apply the admin DAC
-    # bypass its detail pages would.
-    memberships = (
-        await session.exec(
-            select(GuildMembership).where(GuildMembership.user_id == current_user.id)
-        )
-    ).all()
-    role_by_guild = {m.guild_id: m.role for m in memberships}
+    # The guilds to visit, from the shared memberships table (the user context
+    # shows the caller's own rows).
+    member_guilds = [
+        gid
+        for gid in (
+            await session.exec(
+                select(GuildMembership.guild_id).where(
+                    GuildMembership.user_id == current_user.id
+                )
+            )
+        ).all()
+    ]
 
     limit = recent_views_service.clamp_recent_limit(current_user.recent_tabs_limit)
 
@@ -207,17 +204,9 @@ async def list_recents(
         )
         if not rows:
             return []
-        role = role_by_guild.get(guild_id)
-        return await _enrich_recent_rows(
-            guild_session,
-            current_user,
-            list(rows),
-            is_guild_admin=role is not None and rls_service.is_guild_admin(role),
-        )
+        return await _enrich_recent_rows(guild_session, current_user, list(rows))
 
-    items = await gather_across_guilds(
-        session, current_user.id, list(role_by_guild.keys()), _fetch
-    )
+    items = await gather_across_guilds(session, current_user.id, member_guilds, _fetch)
     items.sort(key=lambda item: item.last_viewed_at, reverse=True)
     return items[:limit]
 

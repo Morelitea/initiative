@@ -186,9 +186,12 @@ function AppLayout() {
   const recentItems = recentQuery.data?.slice(0, user?.recent_tabs_limit ?? 20);
 
   const activeRecentKey = getActiveRecentKey(location.pathname);
-  // ProjectActivitySidebar still wants the active project id directly.
+  // ProjectActivitySidebar still wants the active project directly — and the
+  // initiative it sits in, since a task's URL names that too.
   const activeProjectId =
     activeRecentKey?.entityType === "project" ? activeRecentKey.entityId : null;
+  const activeProjectInitiativeId =
+    activeRecentKey?.entityType === "project" ? activeRecentKey.initiativeId : null;
 
   // const isDark = document.documentElement.classList.contains("dark");
 
@@ -262,7 +265,10 @@ function AppLayout() {
                 </main>
               </div>
             </div>
-            <ProjectActivitySidebar projectId={activeProjectId} />
+            <ProjectActivitySidebar
+              projectId={activeProjectId}
+              initiativeId={activeProjectInitiativeId}
+            />
             <BottomNav />
           </SidebarProvider>
         </div>

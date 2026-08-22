@@ -1,6 +1,6 @@
 import { useParams, useRouter, useSearch } from "@tanstack/react-router";
 import { format } from "date-fns";
-import { ChevronDown, Filter, Loader2, Upload } from "lucide-react";
+import { Loader2, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -22,9 +22,10 @@ import {
   type CalendarViewMode,
   calendarVisibleRange,
 } from "@/components/calendar";
+import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { ExportButton } from "@/components/exports/ExportButton";
 import { TOOL_EXPORT_FORMATS } from "@/components/exports/formats";
-import { ToolImportAction } from "@/components/imports/ToolImportAction";
+import { useToolImportAction } from "@/components/imports/ToolImportAction";
 import {
   CalendarPanelDropdown,
   type ProjectTaskCalendar,
@@ -35,13 +36,14 @@ import {
   isWritableCalendar,
 } from "@/components/initiativeTools/events/CreateEventDialog";
 import { ICalImportDialog } from "@/components/initiativeTools/events/ICalImportDialog";
+import { ToolFilterPanel } from "@/components/initiativeTools/shared/ToolFilterPanel";
+import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import {
   PropertyFilter,
   type PropertyFilterCondition,
 } from "@/components/properties/PropertyFilter";
-import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -50,7 +52,6 @@ import { useCalendarEntries } from "@/hooks/useCalendarEntries";
 import { useRescheduleCalendarEvent } from "@/hooks/useCalendarEvents";
 import { useCalendar, useCalendarsList } from "@/hooks/useCalendars";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
-import { getDefaultFiltersVisibility } from "@/hooks/useDefaultFiltersOpen";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useProjects } from "@/hooks/useProjects";
 import { useRecordRecentView } from "@/hooks/useRecents";
@@ -58,10 +59,11 @@ import { useUpdateTask } from "@/hooks/useTasks";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { exportFilenameStem } from "@/lib/exportDownload";
 import { useGuildPath } from "@/lib/guildUrl";
+import { hasWriteAccess } from "@/lib/permissions";
 import { getProjectColor } from "@/lib/projectColor";
 import { PRIORITY_ORDER } from "@/lib/sorting";
 import { getItem, setItem } from "@/lib/storage";
-import { toolExportEndpoint } from "@/lib/tools";
+import { eventRoute, taskRoute, toolExportEndpoint, toolSettingsRoute } from "@/lib/tools";
 
 const STORAGE_KEY = "initiative-calendars-prefs";
 const VISIBILITY_KEY = "initiative-calendar-visibility";
@@ -159,19 +161,26 @@ export const CalendarsView = ({
   const gp = useGuildPath();
   const guildId = useActiveGuildId();
   const searchParams = useSearch({ strict: false }) as {
-    initiativeId?: string;
     create?: string;
+  };
+  // The focus route addresses its calendar inside an initiative, so the path
+  // is the fallback when this view isn't mounted as an initiative tab.
+  const { initiativeId: initiativeIdParam } = useParams({ strict: false }) as {
+    initiativeId?: string;
   };
 
   const weekStartsOn = (user?.week_starts_on ?? 0) as 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
   const solo = soloCalendar != null;
+  // Set only by the initiative page's tool tabs — the deep-link surfaces
+  // resolve their initiative from the URL instead.
+  const isInitiativeTab = fixedInitiativeId != null;
 
   // Resolve initiative from prop or URL param. A solo (guild) calendar belongs
   // to no initiative, so none applies.
   const initiativeId = solo
     ? null
-    : (fixedInitiativeId ?? (searchParams.initiativeId ? Number(searchParams.initiativeId) : null));
+    : (fixedInitiativeId ?? (initiativeIdParam ? Number(initiativeIdParam) : null));
 
   const searchParamsRef = useRef(searchParams);
   searchParamsRef.current = searchParams;
@@ -194,7 +203,10 @@ export const CalendarsView = ({
   const [propertyFilters, setPropertyFilters] = useState<PropertyFilterCondition[]>(
     () => storedPrefs.propertyFilters
   );
-  const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
+  // Closed until asked for. The filter button carries a count of what's set, so
+  // a narrowed list still says so with the panel shut — and the fields no
+  // longer take the top of the page before the list itself.
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Per-calendar / per-project visibility (persisted per guild as hidden sets).
   const storedVisibility = useMemo(() => readStoredVisibility(guildId), [guildId]);
@@ -392,7 +404,7 @@ export const CalendarsView = ({
         properties: event.property_values,
         tags: event.tags,
         draggable: event.my_permission_level === "write" || event.my_permission_level === "owner",
-        meta: { type: "event", eventId: event.id },
+        meta: { type: "event", eventId: event.id, calendarId: event.calendar_id },
       });
     }
 
@@ -437,8 +449,39 @@ export const CalendarsView = ({
         : null
   );
 
-  const handleEventCreated = (event: { id: number }) => {
-    void router.navigate({ to: gp(`/calendar-events/${event.id}`) });
+  const calendarImport = useToolImportAction({
+    tool: Tool.calendar,
+    canImport: !solo && canCreateCalendars,
+    fixedInitiativeId,
+  });
+
+  // Hidden calendars count too: the reader has narrowed what the grid shows,
+  // and nothing else on screen says so once the panel is closed.
+  const activeFilterCount =
+    hiddenCalendarIds.size +
+    hiddenProjectIds.size +
+    statusFilters.length +
+    priorityFilters.length +
+    propertyFilters.length;
+
+  const clearFilters = useCallback(() => {
+    setHiddenCalendarIds(new Set());
+    setHiddenProjectIds(new Set());
+    setStatusFilters([]);
+    setPriorityFilters([]);
+    setPropertyFilters([]);
+  }, [
+    setHiddenCalendarIds,
+    setHiddenProjectIds,
+    setStatusFilters,
+    setPriorityFilters,
+    setPropertyFilters,
+  ]);
+
+  const handleEventCreated = (event: { id: number; calendar_id: number }) => {
+    void router.navigate({
+      to: gp(eventRoute(initiativeId, event.calendar_id, event.id)),
+    });
   };
 
   const handleSlotClick = (date: Date) => {
@@ -448,12 +491,20 @@ export const CalendarsView = ({
   };
 
   const handleEntryClick = (entry: CalendarEntry) => {
-    const meta = entry.meta as { type: string; taskId?: number; eventId?: number } | undefined;
+    const meta = entry.meta as
+      | {
+          type: string;
+          taskId?: number;
+          projectId?: number;
+          eventId?: number;
+          calendarId?: number;
+        }
+      | undefined;
     if (!meta) return;
-    if (meta.type === "event" && meta.eventId) {
-      void router.navigate({ to: gp(`/calendar-events/${meta.eventId}`) });
-    } else if (meta.type === "task" && meta.taskId) {
-      void router.navigate({ to: gp(`/tasks/${meta.taskId}`) });
+    if (meta.type === "event" && meta.eventId && meta.calendarId) {
+      void router.navigate({ to: gp(eventRoute(initiativeId, meta.calendarId, meta.eventId)) });
+    } else if (meta.type === "task" && meta.taskId && meta.projectId) {
+      void router.navigate({ to: gp(taskRoute(initiativeId, meta.projectId, meta.taskId)) });
     }
   };
 
@@ -507,124 +558,128 @@ export const CalendarsView = ({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* Only the standalone surfaces title themselves. Inside an initiative
+          this view is a tab under that initiative's own heading, which already
+          says both where you are and that you're looking at calendars. */}
+      {isInitiativeTab ? null : (
         <h1 className="font-semibold text-3xl tracking-tight">
           {solo ? soloCalendar.name : t("title")}
         </h1>
-        <div className="flex items-center gap-2">
-          {/* Export and tool import aggregate across calendars, which is not
-              what a single guild calendar's surface is; ICS import stays — a
-              club calendar is exactly what one imports events into. */}
-          {!solo && (
+      )}
+
+      <ToolListToolbar
+        filters={
+          solo
+            ? undefined
+            : { open: filtersOpen, onOpenChange: setFiltersOpen, activeCount: activeFilterCount }
+        }
+        trailing={
+          /* Export and tool import aggregate across calendars, which is not
+             what a single guild calendar's surface is; ICS import stays — a
+             club calendar is exactly what one imports events into.
+             `trailing`, not `actions`: export has no bottom-nav equivalent, so
+             the desktop-only slot would put it out of reach on a phone. */
+          !solo ? (
             <ExportButton
               endpoint={toolExportEndpoint(Tool.calendar)}
               params={initiativeId ? { initiative_id: initiativeId } : {}}
               formats={TOOL_EXPORT_FORMATS[Tool.calendar] ?? []}
               filenameStem={exportFilenameStem(t("title"), "calendars")}
             />
-          )}
-          {canCreateEvents && (
-            <Button variant="outline" size="sm" onClick={() => setImportDialogOpen(true)}>
-              <Upload className="h-4 w-4" />
-              {t("import.importIcs")}
-            </Button>
-          )}
-          {!solo && (
-            <ToolImportAction
-              tool={Tool.calendar}
-              canImport={canCreateCalendars}
-              fixedInitiativeId={fixedInitiativeId}
-            />
-          )}
-        </div>
-      </div>
+          ) : null
+        }
+        menuItems={
+          <>
+            {canCreateEvents ? (
+              <DropdownMenuItem onSelect={() => setImportDialogOpen(true)}>
+                <Upload className="h-4 w-4" />
+                {t("import.importIcs")}
+              </DropdownMenuItem>
+            ) : null}
+            {calendarImport.menuItem}
+          </>
+        }
+      />
+      {calendarImport.dialog}
 
       {/* Filters — task- and initiative-shaped, so the solo (guild calendar)
           surface has none of them. */}
       {!solo && (
-        <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="space-y-2">
-          <div className="flex items-center justify-between sm:hidden">
-            <div className="inline-flex items-center gap-2 font-medium text-muted-foreground text-sm">
-              <Filter className="h-4 w-4" />
-              {t("filters.heading")}
-            </div>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-8 px-3">
-                {filtersOpen ? t("filters.hide") : t("filters.show")}
-                <ChevronDown
-                  className={`h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
-                />
-              </Button>
-            </CollapsibleTrigger>
-          </div>
-          <CollapsibleContent forceMount className="data-[state=closed]:hidden">
-            <div className="mt-2 flex flex-wrap items-end gap-4 rounded-md border border-muted bg-background/40 p-3 sm:mt-0">
-              {/* Calendar visibility — real calendars + per-project task
+        <ToolFilterPanel
+          open={filtersOpen}
+          onOpenChange={setFiltersOpen}
+          title={t("filters.heading")}
+          onClear={clearFilters}
+          activeCount={activeFilterCount}
+        >
+          <div className="flex flex-wrap items-end gap-4">
+            {/* Calendar visibility — real calendars + per-project task
                 calendars behind one dropdown, so the grid keeps full width. */}
-              <div className="flex items-end">
-                <CalendarPanelDropdown
-                  calendars={calendars}
-                  projectCalendars={projectCalendars}
-                  isCalendarHidden={(calendar) => hiddenCalendarIds.has(calendar.id)}
-                  isProjectHidden={(project) => hiddenProjectIds.has(project.projectId)}
-                  onToggleCalendar={(calendar) =>
-                    setHiddenCalendarIds((prev) => toggleInSet(prev, calendar.id))
-                  }
-                  onToggleProject={(project) =>
-                    setHiddenProjectIds((prev) => toggleInSet(prev, project.projectId))
-                  }
-                  settingsPathFor={(calendar) => gp(`/calendars/${calendar.id}/settings`)}
-                  canCreate={canCreateCalendars}
-                  onCreate={() => setCreateCalendarOpen(true)}
-                />
-              </div>
+            <div className="flex items-end">
+              <CalendarPanelDropdown
+                calendars={calendars}
+                projectCalendars={projectCalendars}
+                isCalendarHidden={(calendar) => hiddenCalendarIds.has(calendar.id)}
+                isProjectHidden={(project) => hiddenProjectIds.has(project.projectId)}
+                onToggleCalendar={(calendar) =>
+                  setHiddenCalendarIds((prev) => toggleInSet(prev, calendar.id))
+                }
+                onToggleProject={(project) =>
+                  setHiddenProjectIds((prev) => toggleInSet(prev, project.projectId))
+                }
+                settingsPathFor={(calendar) =>
+                  gp(toolSettingsRoute(Tool.calendar, calendar.initiative_id, calendar.id))
+                }
+                canCreate={canCreateCalendars}
+                onCreate={() => setCreateCalendarOpen(true)}
+              />
+            </div>
 
-              {/* Status filter (for tasks) */}
-              <div className="w-full sm:w-48 lg:flex-1">
-                <Label className="mb-2 block font-medium text-muted-foreground text-xs">
-                  {t("tasks:filters.filterByStatusCategory")}
-                </Label>
-                <MultiSelect
-                  selectedValues={statusFilters}
-                  options={statusOptions}
-                  onChange={(values) => setStatusFilters(values as TaskStatusCategory[])}
-                  placeholder={t("tasks:filters.allStatusCategories")}
-                  emptyMessage={t("tasks:filters.noStatusCategories")}
-                />
-              </div>
+            {/* Status filter (for tasks) */}
+            <div className="w-full sm:w-48 lg:flex-1">
+              <Label className="mb-2 block font-medium text-muted-foreground text-xs">
+                {t("tasks:filters.filterByStatusCategory")}
+              </Label>
+              <MultiSelect
+                selectedValues={statusFilters}
+                options={statusOptions}
+                onChange={(values) => setStatusFilters(values as TaskStatusCategory[])}
+                placeholder={t("tasks:filters.allStatusCategories")}
+                emptyMessage={t("tasks:filters.noStatusCategories")}
+              />
+            </div>
 
-              {/* Priority filter (for tasks) */}
-              <div className="w-full sm:w-48 lg:flex-1">
-                <Label className="mb-2 block font-medium text-muted-foreground text-xs">
-                  {t("tasks:filters.filterByPriority")}
-                </Label>
-                <MultiSelect
-                  selectedValues={priorityFilters}
-                  options={PRIORITY_ORDER.map((p) => ({
-                    value: p,
-                    label: t(`tasks:priority.${p}` as never),
-                  }))}
-                  onChange={(values) => setPriorityFilters(values as TaskPriority[])}
-                  placeholder={t("tasks:filters.allPriorities")}
-                  emptyMessage={t("tasks:filters.noPriorities")}
-                />
-              </div>
+            {/* Priority filter (for tasks) */}
+            <div className="w-full sm:w-48 lg:flex-1">
+              <Label className="mb-2 block font-medium text-muted-foreground text-xs">
+                {t("tasks:filters.filterByPriority")}
+              </Label>
+              <MultiSelect
+                selectedValues={priorityFilters}
+                options={PRIORITY_ORDER.map((p) => ({
+                  value: p,
+                  label: t(`tasks:priority.${p}` as never),
+                }))}
+                onChange={(values) => setPriorityFilters(values as TaskPriority[])}
+                placeholder={t("tasks:filters.allPriorities")}
+                emptyMessage={t("tasks:filters.noPriorities")}
+              />
+            </div>
 
-              {/* Custom property filters — applied to both events and tasks
+            {/* Custom property filters — applied to both events and tasks
                 rendered on the calendar. Scoped to the active initiative
                 when one is selected, union across accessible initiatives
                 otherwise. Nested inside the same bordered filter container
                 so it lines up with the other controls. */}
-              <div className="w-full">
-                <PropertyFilter
-                  value={propertyFilters}
-                  onChange={setPropertyFilters}
-                  {...(initiativeId != null ? { initiativeId } : {})}
-                />
-              </div>
+            <div className="w-full">
+              <PropertyFilter
+                value={propertyFilters}
+                onChange={setPropertyFilters}
+                {...(initiativeId != null ? { initiativeId } : {})}
+              />
             </div>
-          </CollapsibleContent>
-        </Collapsible>
+          </div>
+        </ToolFilterPanel>
       )}
 
       {isLoading ? (
@@ -668,10 +723,6 @@ export const CalendarsView = ({
   );
 };
 
-export function CalendarsPage() {
-  return <CalendarsView />;
-}
-
 /** The /calendars/$calendarId deep link (recents tabs, command palette):
  * the same calendar page with that calendar forced visible, recorded as a
  * recent open. */
@@ -699,9 +750,17 @@ export function CalendarFocusPage() {
 
   const isGuildCalendar = calendar.initiative_id == null;
   return (
-    <CalendarsView
-      focusCalendarId={calendar.id}
-      soloCalendar={isGuildCalendar ? calendar : undefined}
-    />
+    <div className="space-y-6">
+      <CalendarsView
+        focusCalendarId={calendar.id}
+        soloCalendar={isGuildCalendar ? calendar : undefined}
+      />
+      <ToolCommentsPanel
+        entityType={Tool.calendar}
+        entityId={calendar.id}
+        initiativeId={calendar.initiative_id ?? 0}
+        canModerate={hasWriteAccess(calendar.my_permission_level)}
+      />
+    </div>
   );
 }

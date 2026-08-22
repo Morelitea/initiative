@@ -34,9 +34,9 @@ from app.core.pam_context import has_active_grant
 from app.core.tools import Tool
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import User
-from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services import permissions as permissions_service
+from app.services.tenant import ownership as ownership_service
 from app.services.tenant import calendars as calendars_service
 from app.services.tenant import counters as counters_service
 from app.services.tenant import dashboards as dashboards_service
@@ -194,13 +194,13 @@ async def load_authorized(
     return row
 
 
-def my_permission_level(
-    row: Any, kind: Tool, user: User, guild_context: GuildContext
-) -> str | None:
-    """`my_permission_level` for the client: guild admin → owner, else DAC."""
+def my_permission_level(row: Any, kind: Tool, user: User) -> str | None:
+    """`my_permission_level` for the client — the DAC engine's answer.
+
+    The engine already reports ``owner`` for a request that reaches the whole
+    guild, so there is nothing to special-case ahead of it.
+    """
     cfg = RESOURCE_ACCESS[kind]
-    if guild_context.role == GuildRole.admin:
-        return "owner"
     return permissions_service.compute_permission(
         permissions_service.DAC_RESOURCES[cfg.dac_kind], row, user.id
     )
@@ -244,17 +244,6 @@ GRANT_HOOKS: dict[Tool, GrantHooks] = {
 }
 
 
-def _resolve_owner_id(row: Any) -> Optional[int]:
-    """The user holding the owner-level grant, else the resource's own owner /
-    creator column. Mirrors the per-resource endpoints' owner handling — the owner
-    grant is preserved server-side and the owner is never written as a non-owner
-    grant."""
-    for g in getattr(row, "grants", None) or []:
-        if g.user_id is not None and g.level == ResourceAccessLevel.owner:
-            return g.user_id
-    return getattr(row, "owner_id", None) or getattr(row, "created_by_id", None)
-
-
 async def set_resource_grants(
     session: Any,
     kind: Tool,
@@ -291,7 +280,7 @@ async def set_resource_grants(
         resource_id=row.id,
         guild_id=row.guild_id,
         initiative_id=row.initiative_id,
-        owner_id=_resolve_owner_id(row),
+        owner_id=ownership_service.owner_id_of(row),
         grants=grants,
     )
     await session.commit()

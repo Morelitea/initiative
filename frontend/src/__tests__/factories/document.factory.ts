@@ -11,11 +11,10 @@ export function buildDocumentSummary(overrides: Partial<DocumentSummary> = {}): 
   return {
     id: counter,
     initiative_id: 1,
-    title: `Document ${counter}`,
+    name: `Document ${counter}`,
     featured_image_url: null,
     is_template: false,
-    created_by_id: 1,
-    updated_by_id: 1,
+    created_by: 1,
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",
     initiative: null,

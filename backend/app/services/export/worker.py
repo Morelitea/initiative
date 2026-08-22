@@ -133,7 +133,7 @@ async def _process_guild_jobs(
         # other notification payloads: ids only plus what the bell displays.
         outcomes.append(
             (
-                job.created_by_id,
+                job.created_by,
                 NotificationType.export_ready
                 if job.status == ExportJobStatus.done
                 else NotificationType.export_failed,
@@ -154,9 +154,7 @@ async def _execute(session: AsyncSession, job: ExportJob, *, guild_id: int) -> s
 
     adapter = export_engine.get_adapter(job.source, job.format)
 
-    user = (
-        await session.exec(select(User).where(User.id == job.created_by_id))
-    ).first()
+    user = (await session.exec(select(User).where(User.id == job.created_by))).first()
     if user is None or user.status != UserStatus.active:
         raise export_engine.ExportError("EXPORT_CREATOR_INACTIVE")
 

@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
-import { getMyInitiativeMembersApiV1UsersMeInitiativeMembersInitiativeIdGet } from "@/api/generated/users/users";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,18 +16,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useMyDeletionEligibility } from "@/hooks/useAdmin";
 import { useDeleteOwnAccount } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { getUserDisplayName } from "@/lib/userDisplay";
 import type { DialogWithSuccessProps } from "@/types/dialog";
 
 /**
@@ -39,20 +30,11 @@ import type { DialogWithSuccessProps } from "@/types/dialog";
  * self-service endpoint rejects ``hard_delete`` with 403.
  */
 type SelfAction = "deactivate" | "soft_delete";
-type DeletionStep = "choose-type" | "check-blockers" | "transfer-projects" | "confirm";
-
-interface ProjectBasic {
-  id: number;
-  name: string;
-  initiative_id: number;
-  guild_id: number;
-}
+type DeletionStep = "choose-type" | "check-blockers" | "confirm";
 
 interface DeletionEligibilityResponse {
   can_delete: boolean;
   blockers: string[];
-  warnings: string[];
-  owned_projects: ProjectBasic[];
   last_admin_guilds: string[];
 }
 
@@ -81,7 +63,6 @@ export function DeleteAccountDialog({
   const [step, setStep] = useState<DeletionStep>(initialAction ? "check-blockers" : "choose-type");
   const [action, setAction] = useState<SelfAction>(initialAction ?? "deactivate");
   const [eligibility, setEligibility] = useState<DeletionEligibilityResponse | null>(null);
-  const [projectTransfers, setProjectTransfers] = useState<Record<string, number>>({});
   const [password, setPassword] = useState("");
   const [confirmationText, setConfirmationText] = useState("");
 
@@ -102,7 +83,6 @@ export function DeleteAccountDialog({
     setAction(initialAction ?? "deactivate");
     if (!open) {
       setEligibility(null);
-      setProjectTransfers({});
       setPassword("");
       setConfirmationText("");
     }
@@ -113,27 +93,6 @@ export function DeleteAccountDialog({
     useMyDeletionEligibility();
 
   // Fetch initiative members for project transfer
-  const [initiativeMembers, setInitiativeMembers] = useState<Record<number, UserRead[]>>({});
-  const fetchInitiativeMembers = useCallback(
-    async (initiativeId: number, guildId: number) => {
-      if (initiativeMembers[initiativeId]) return;
-
-      try {
-        const data = (await getMyInitiativeMembersApiV1UsersMeInitiativeMembersInitiativeIdGet(
-          initiativeId,
-          { guild_id: guildId }
-        )) as unknown as UserRead[];
-        setInitiativeMembers((prev) => ({
-          ...prev,
-          [initiativeId]: data.filter((u) => u.id !== user.id),
-        }));
-      } catch (error) {
-        console.error("Failed to fetch initiative members:", error);
-      }
-    },
-    [initiativeMembers, user.id]
-  );
-
   const deleteAccount = useDeleteOwnAccount({
     onSuccess: () => {
       toast.success(
@@ -156,23 +115,10 @@ export function DeleteAccountDialog({
     const result = await checkEligibility();
     if (!result.data) return;
     setEligibility(result.data);
-
-    // Load initiative members for any projects we'd need to transfer.
-    for (const project of result.data.owned_projects) {
-      await fetchInitiativeMembers(project.initiative_id, project.guild_id);
-    }
-
-    // Project transfers are required for both actions when the user
-    // owns projects — only owners hold certain permissions, and a
-    // deactivated/anonymized owner row can't act on them.
     if (result.data.can_delete) {
-      if (result.data.owned_projects.length > 0) {
-        setStep("transfer-projects");
-      } else {
-        setStep("confirm");
-      }
+      setStep("confirm");
     }
-  }, [checkEligibility, fetchInitiativeMembers]);
+  }, [checkEligibility]);
 
   // When opened with ``initialAction``, the chooser step is bypassed
   // and we land directly on ``check-blockers`` — kick off the check.
@@ -195,25 +141,13 @@ export function DeleteAccountDialog({
       await runEligibilityCheck();
     } else if (step === "check-blockers") {
       if (eligibility?.can_delete) {
-        if (eligibility.owned_projects.length > 0) {
-          setStep("transfer-projects");
-        } else {
-          setStep("confirm");
-        }
+        setStep("confirm");
       }
-    } else if (step === "transfer-projects") {
-      setStep("confirm");
     }
   };
 
   const handleBack = () => {
     if (step === "confirm") {
-      if (eligibility?.owned_projects.length) {
-        setStep("transfer-projects");
-      } else {
-        setStep("check-blockers");
-      }
-    } else if (step === "transfer-projects") {
       setStep("check-blockers");
     } else if (step === "check-blockers" && !initialAction) {
       // Only step back to the chooser if it exists — when the dialog
@@ -228,7 +162,6 @@ export function DeleteAccountDialog({
       action,
       password,
       confirmation_text: confirmationText,
-      project_transfers: eligibility?.owned_projects.length ? projectTransfers : undefined,
     });
   };
 
@@ -242,11 +175,6 @@ export function DeleteAccountDialog({
   // Validation
   const canProceedFromChooseType = action !== null;
   const canProceedFromBlockers = eligibility?.can_delete === true;
-  const canProceedFromTransfers =
-    !eligibility?.owned_projects.length ||
-    eligibility.owned_projects.every(
-      (project) => !!projectTransfers[`${project.guild_id}:${project.id}`]
-    );
   const canConfirm =
     (isOidcUser || password.length > 0) && confirmationText === expectedConfirmation;
 
@@ -271,7 +199,6 @@ export function DeleteAccountDialog({
                   ? "deleteAccount.checkBlockersDeactivateDescription"
                   : "deleteAccount.checkBlockersDescription"
               )}
-            {step === "transfer-projects" && t("deleteAccount.transferProjectsDescription")}
             {step === "confirm" &&
               t(
                 action === "deactivate"
@@ -354,20 +281,6 @@ export function DeleteAccountDialog({
 
               {eligibility?.can_delete && (
                 <>
-                  {eligibility.warnings.length > 0 && (
-                    <Alert>
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription>
-                        <div className="mb-2 font-semibold">{t("deleteAccount.important")}</div>
-                        <ul className="list-inside list-disc space-y-1">
-                          {eligibility.warnings.map((warning) => (
-                            <li key={warning}>{warning}</li>
-                          ))}
-                        </ul>
-                      </AlertDescription>
-                    </Alert>
-                  )}
-
                   <Alert className="border-green-500/50 bg-green-50 dark:bg-green-950">
                     <AlertDescription>
                       {t(
@@ -382,51 +295,7 @@ export function DeleteAccountDialog({
             </div>
           )}
 
-          {/* Step 3: Transfer Projects */}
-          {step === "transfer-projects" && eligibility && (
-            <div className="space-y-4">
-              <p className="text-muted-foreground text-sm">
-                {t(
-                  action === "deactivate"
-                    ? "deleteAccount.selectNewOwnersDeactivate"
-                    : "deleteAccount.selectNewOwners"
-                )}
-              </p>
-
-              {eligibility.owned_projects.map((project) => (
-                <div
-                  key={`${project.guild_id}:${project.id}`}
-                  className="space-y-2 rounded-lg border p-4"
-                >
-                  <Label htmlFor={`project-${project.id}`} className="font-medium">
-                    {project.name}
-                  </Label>
-                  <Select
-                    value={projectTransfers[`${project.guild_id}:${project.id}`]?.toString()}
-                    onValueChange={(value) =>
-                      setProjectTransfers((prev) => ({
-                        ...prev,
-                        [`${project.guild_id}:${project.id}`]: parseInt(value, 10),
-                      }))
-                    }
-                  >
-                    <SelectTrigger id={`project-${project.id}`}>
-                      <SelectValue placeholder={t("deleteAccount.selectNewOwnerPlaceholder")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {initiativeMembers[project.initiative_id]?.map((member) => (
-                        <SelectItem key={member.id} value={member.id.toString()}>
-                          {getUserDisplayName(member)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Step 4: Confirm */}
+          {/* Step 3: Confirm */}
           {step === "confirm" && (
             <div className="space-y-4">
               <Alert variant="destructive">
@@ -503,7 +372,6 @@ export function DeleteAccountDialog({
                   disabled={
                     (step === "choose-type" && !canProceedFromChooseType) ||
                     (step === "check-blockers" && !canProceedFromBlockers) ||
-                    (step === "transfer-projects" && !canProceedFromTransfers) ||
                     isCheckingEligibility
                   }
                 >

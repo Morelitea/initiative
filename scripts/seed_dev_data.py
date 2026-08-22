@@ -18,6 +18,10 @@ Seeded logins (all password "changeme"):
   platform tier, plus seeded PAM access-grant rows (pending / live / denied /
   expired / break-glass) to exercise the privileged-access flows.
 
+Every guild also seeds template projects and archived projects (with a spread of
+archive dates, tags, and tasks) so the Templates and Archive tabs have the same
+variety the active list does.
+
 Sharing variety: resources cover every share status — private (owner-only),
 per-user read/write grants, initiative-role grants, and all-initiative-members
 "general access" rows at both Viewer (read) and Editor (write) levels.
@@ -118,7 +122,7 @@ from app.models.tenant.task import (  # noqa: E402
     TaskStatus,
     TaskStatusCategory,
 )
-from app.models.platform.user import User, UserRole  # noqa: E402
+from app.models.platform.user import User, UserRole, UserStatus  # noqa: E402
 from app.services.platform.app_settings import get_or_create_guild_settings  # noqa: E402
 from app.services.platform.guilds import get_primary_guild  # noqa: E402
 from app.services.tenant.initiatives import (  # noqa: E402
@@ -406,7 +410,7 @@ async def _create_users(
             full_name=ud["full_name"],
             hashed_password=get_password_hash("changeme"),
             role=ud.get("role", UserRole.member),
-            is_active=True,
+            status=UserStatus.active,
             timezone=ud.get("timezone", "UTC"),
             locale=ud.get("locale", "en"),
             color_theme=ud.get("color_theme", "kobold"),
@@ -458,7 +462,7 @@ async def _create_guild(
     guild = Guild(
         name=name,
         description=description,
-        created_by_user_id=creator.id,
+        created_by=creator.id,
     )
     session.add(guild)
     await session.flush()
@@ -596,20 +600,32 @@ async def _create_project(
     read_users: list[User] | None = None,
     role_grants: list[tuple[InitiativeRoleModel, ResourceAccessLevel]] | None = None,
     general_access: ResourceAccessLevel | None = None,
+    is_template: bool = False,
+    archived_days_ago: int | None = None,
 ) -> Project:
     """Create a project with permissions and default task statuses.
 
     Share statuses covered: owner-only (pass no extra grants), per-user
     read/write grants, initiative-role grants, and an all-initiative-members
     general-access row (``general_access`` = read → Viewer, write → Editor).
+
+    ``is_template`` puts the project on the Templates tab; ``archived_days_ago``
+    archives it that many days back so the Archive tab has a spread of dates to
+    sort by.
     """
     project = Project(
         guild_id=guild.id,
         name=name,
         icon=icon,
         description=description,
-        owner_id=owner.id,
         initiative_id=initiative.id,
+        is_template=is_template,
+        is_archived=archived_days_ago is not None,
+        archived_at=(
+            NOW - timedelta(days=archived_days_ago)
+            if archived_days_ago is not None
+            else None
+        ),
     )
     session.add(project)
     await session.flush()
@@ -701,7 +717,7 @@ async def _create_tasks(
             title=td["title"],
             description=td.get("description"),
             priority=td["priority"],
-            sort_order=float(i),
+            position=float(i),
             due_date=(NOW + timedelta(days=due)) if due is not None else None,
             start_date=(NOW + timedelta(days=start)) if start is not None else None,
             is_archived=td.get("archived", False),
@@ -811,10 +827,9 @@ async def _create_documents(
         doc = Document(
             guild_id=guild.id,
             initiative_id=dd["initiative_id"],
-            title=dd["title"],
+            name=dd["title"],
             content=_doc(dd["paragraphs"]),
-            created_by_id=creator.id,
-            updated_by_id=creator.id,
+            created_by=creator.id,
         )
         session.add(doc)
         await session.flush()
@@ -949,7 +964,7 @@ async def _create_comments(
         comment = Comment(
             guild_id=guild.id,
             content=cd["content"],
-            author_id=author.id,
+            created_by=author.id,
             task_id=task.id if task else None,
             document_id=doc.id if doc else None,
         )
@@ -1123,7 +1138,7 @@ async def _create_queues(
             initiative_id=qd["initiative_id"],
             name=qd["name"],
             description=qd.get("description"),
-            created_by_id=creator.id,
+            created_by=creator.id,
             is_active=qd.get("is_active", False),
             current_round=qd.get("current_round", 1),
         )
@@ -1333,7 +1348,7 @@ async def _create_counter_groups(
             initiative_id=gd["initiative_id"],
             name=gd["name"],
             description=gd.get("description"),
-            created_by_id=creator.id,
+            created_by=creator.id,
         )
         session.add(group)
         await session.flush()
@@ -1560,7 +1575,7 @@ async def _create_dashboards(
             name=dd["name"],
             description=dd.get("description"),
             definition=definition,
-            created_by_id=creator.id,
+            created_by=creator.id,
         )
         session.add(dashboard)
         await session.flush()
@@ -1655,7 +1670,7 @@ async def _create_calendar_events(
                 name="Default Calendar",
                 color=(initiative.color if initiative else None)
                 or DEFAULT_CALENDAR_COLOR,
-                created_by_id=creator.id,
+                created_by=creator.id,
             )
             session.add(calendar)
             await session.flush()
@@ -1692,7 +1707,7 @@ async def _create_calendar_events(
             end_at=ed["end_at"],
             all_day=ed.get("all_day", False),
             recurrence=json.dumps(recurrence_raw) if recurrence_raw else None,
-            created_by_id=creator.id,
+            created_by=creator.id,
         )
         session.add(event)
         await session.flush()
@@ -2314,6 +2329,92 @@ async def seed() -> None:
             read_users=[vex, sera],
         )
 
+        # Templates and archived projects — the Templates and Archive tabs
+        # render the same cards/filters as the active list, so they need the
+        # same variety: several initiatives, a spread of archive dates, tags,
+        # tasks (for the progress ring) and mixed share statuses.
+        g1_oneshot_tpl = await _create_project(
+            session,
+            ids,
+            guild=g1,
+            initiative=g1_default_init,
+            name="Template: One-Shot Night",
+            icon="\U0001f3b2",
+            description="Skeleton for a single-session adventure — hook, three scenes, "
+            "a set-piece fight, and a payoff.",
+            owner=dm,
+            write_users=[admin_user],
+            general_access=ResourceAccessLevel.read,
+            is_template=True,
+        )
+
+        g1_dungeon_tpl = await _create_project(
+            session,
+            ids,
+            guild=g1,
+            initiative=g1_strahd,
+            name="Template: Dungeon Prep",
+            icon="\U0001f5fa\ufe0f",
+            description="Room-by-room prep checklist reused for every dungeon in the arc.",
+            owner=dm,
+            write_users=[thorn],
+            role_grants=[(g1_strahd_mem, ResourceAccessLevel.read)],
+            is_template=True,
+        )
+
+        g1_npc_tpl = await _create_project(
+            session,
+            ids,
+            guild=g1,
+            initiative=g1_lmop,
+            name="Template: NPC Workshop",
+            icon="\U0001f3ad",
+            description="Voice, want, secret, and a stat block to reskin. Private to the DM "
+            "until it is polished.",
+            owner=dm,
+            is_template=True,
+        )
+
+        g1_tomb_archived = await _create_project(
+            session,
+            ids,
+            guild=g1,
+            initiative=g1_default_init,
+            name="Tomb of Annihilation (Completed)",
+            icon="\U0001f480",
+            description="Wrapped after 22 sessions. Kept for the recap notes and the loot ledger.",
+            owner=dm,
+            write_users=[admin_user, thorn],
+            read_users=[elara, vex],
+            archived_days_ago=12,
+        )
+
+        g1_planescape_archived = await _create_project(
+            session,
+            ids,
+            guild=g1,
+            initiative=g1_strahd,
+            name="Planescape Detour",
+            icon="\U0001f300",
+            description="Side arc the table voted against. Shelved rather than deleted.",
+            owner=dm,
+            write_users=[thorn],
+            general_access=ResourceAccessLevel.read,
+            archived_days_ago=64,
+        )
+
+        g1_playtest_archived = await _create_project(
+            session,
+            ids,
+            guild=g1,
+            initiative=g1_lmop,
+            name="Rules Playtest: Old Initiative Tracker",
+            icon="\U0001f570\ufe0f",
+            description="Superseded by the queues feature. Archived long enough ago to sort last.",
+            owner=admin_user,
+            archived_days_ago=210,
+        )
+
         # Task statuses
         print("  Creating Guild 1 task statuses...")
         g1_projects = [
@@ -2325,6 +2426,12 @@ async def seed() -> None:
             g1_homebrew,
             g1_secret,
             g1_mega_dungeon,
+            g1_oneshot_tpl,
+            g1_dungeon_tpl,
+            g1_npc_tpl,
+            g1_tomb_archived,
+            g1_planescape_archived,
+            g1_playtest_archived,
         ]
         g1_status_maps: dict[int, dict[str, TaskStatus]] = {}
         for proj in g1_projects:
@@ -2627,6 +2734,112 @@ async def seed() -> None:
                 "category": TaskStatusCategory.backlog,
                 "archived": True,
             },
+            # Template: One-Shot Night — skeletons, so nothing is done yet
+            {
+                "project_id": g1_oneshot_tpl.id,
+                "title": "Write the hook",
+                "description": "Two sentences the table hears in the first five minutes.",
+                "priority": TaskPriority.high,
+                "category": TaskStatusCategory.todo,
+            },
+            {
+                "project_id": g1_oneshot_tpl.id,
+                "title": "Sketch three scenes",
+                "description": "Investigation, complication, confrontation.",
+                "priority": TaskPriority.medium,
+                "category": TaskStatusCategory.todo,
+                "subtasks": ["Investigation", "Complication", "Confrontation"],
+            },
+            {
+                "project_id": g1_oneshot_tpl.id,
+                "title": "Stat the set-piece fight",
+                "description": "One interesting terrain feature, one reason to move.",
+                "priority": TaskPriority.medium,
+                "category": TaskStatusCategory.backlog,
+            },
+            {
+                "project_id": g1_oneshot_tpl.id,
+                "title": "Prep the payoff and handouts",
+                "priority": TaskPriority.low,
+                "category": TaskStatusCategory.backlog,
+            },
+            # Template: Dungeon Prep
+            {
+                "project_id": g1_dungeon_tpl.id,
+                "title": "Draw the map key",
+                "priority": TaskPriority.medium,
+                "category": TaskStatusCategory.todo,
+            },
+            {
+                "project_id": g1_dungeon_tpl.id,
+                "title": "Populate rooms with encounters",
+                "description": "Third empty, third obstacle, third payoff.",
+                "priority": TaskPriority.high,
+                "category": TaskStatusCategory.todo,
+            },
+            {
+                "project_id": g1_dungeon_tpl.id,
+                "title": "Seed two secrets per level",
+                "priority": TaskPriority.low,
+                "category": TaskStatusCategory.backlog,
+            },
+            # Template: NPC Workshop
+            {
+                "project_id": g1_npc_tpl.id,
+                "title": "Pick a voice and a verbal tic",
+                "priority": TaskPriority.medium,
+                "category": TaskStatusCategory.todo,
+            },
+            {
+                "project_id": g1_npc_tpl.id,
+                "title": "Write want, fear, and secret",
+                "priority": TaskPriority.high,
+                "category": TaskStatusCategory.todo,
+            },
+            # Tomb of Annihilation — finished campaign, everything done
+            {
+                "project_id": g1_tomb_archived.id,
+                "title": "Escape the Tomb of the Nine Gods",
+                "priority": TaskPriority.high,
+                "category": TaskStatusCategory.done,
+                "assignees": ["Thorn Ironforge", "Elara Moonwhisper"],
+            },
+            {
+                "project_id": g1_tomb_archived.id,
+                "title": "Destroy the Soulmonger",
+                "priority": TaskPriority.high,
+                "category": TaskStatusCategory.done,
+                "assignees": ["Dungeon Master"],
+            },
+            {
+                "project_id": g1_tomb_archived.id,
+                "title": "Write the campaign post-mortem",
+                "description": "What landed, what dragged, what to reuse.",
+                "priority": TaskPriority.low,
+                "category": TaskStatusCategory.done,
+            },
+            # Planescape Detour — shelved mid-prep
+            {
+                "project_id": g1_planescape_archived.id,
+                "title": "Map Sigil's wards",
+                "priority": TaskPriority.medium,
+                "category": TaskStatusCategory.in_progress,
+                "assignees": ["Dungeon Master"],
+            },
+            {
+                "project_id": g1_planescape_archived.id,
+                "title": "Write the faction primer",
+                "priority": TaskPriority.low,
+                "category": TaskStatusCategory.todo,
+            },
+            # Old initiative tracker playtest
+            {
+                "project_id": g1_playtest_archived.id,
+                "title": "Compare the tracker against queues",
+                "priority": TaskPriority.low,
+                "category": TaskStatusCategory.done,
+                "assignees": ["Admin User"],
+            },
             # Mega Dungeon — 200 rooms generated programmatically
             *_generate_mega_dungeon_tasks(g1_mega_dungeon.id),
         ]
@@ -2705,6 +2918,11 @@ async def seed() -> None:
                 (g1_wave_echo.id, ["quest", "exploration", "items/loot"]),
                 (g1_session_zero.id, ["roleplay"]),
                 (g1_homebrew.id, ["combat", "items/loot"]),
+                (g1_oneshot_tpl.id, ["quest", "roleplay"]),
+                (g1_dungeon_tpl.id, ["exploration", "puzzle"]),
+                (g1_npc_tpl.id, ["NPC", "roleplay"]),
+                (g1_tomb_archived.id, ["quest", "exploration", "boss fight"]),
+                (g1_planescape_archived.id, ["lore", "side quest"]),
             ],
         )
 
@@ -3996,8 +4214,72 @@ async def seed() -> None:
             write_users=[finley],
         )
 
+        g2_mission_tpl = await _create_project(
+            session,
+            ids,
+            guild=g2,
+            initiative=g2_main,
+            name="Template: Away Mission",
+            icon="\U0001f6f0\ufe0f",
+            description="Boilerplate for every planetside excursion — landing party, hazards, "
+            "extraction plan.",
+            owner=finley,
+            write_users=[admin_user, kael],
+            general_access=ResourceAccessLevel.read,
+            is_template=True,
+        )
+
+        g2_ship_tpl = await _create_project(
+            session,
+            ids,
+            guild=g2,
+            initiative=g2_default_init,
+            name="Template: Ship Refit",
+            icon="\U0001f527",
+            description="Checklist for taking a vessel apart and putting it back together.",
+            owner=kael,
+            role_grants=[(g2_main_mem, ResourceAccessLevel.read)],
+            is_template=True,
+        )
+
+        g2_prologue_archived = await _create_project(
+            session,
+            ids,
+            guild=g2,
+            initiative=g2_main,
+            name="Prologue: Leaving Sol",
+            icon="\U0001f31e",
+            description="The first six sessions, closed out when the fleet cleared the heliopause.",
+            owner=admin_user,
+            write_users=[finley],
+            read_users=[kael, aurelia],
+            archived_days_ago=21,
+        )
+
+        g2_derelict_archived = await _create_project(
+            session,
+            ids,
+            guild=g2,
+            initiative=g2_side,
+            name="Derelict Station Heist (Cancelled)",
+            icon="\U0001f6a7",
+            description="Scheduling never worked out. Archived with the prep intact.",
+            owner=finley,
+            archived_days_ago=95,
+        )
+
         # Task statuses
-        g2_projects = [g2_exodus, g2_colony, g2_fringe, g2_engineering, g2_planning]
+        g2_projects = [
+            g2_exodus,
+            g2_colony,
+            g2_fringe,
+            g2_engineering,
+            g2_planning,
+            g2_mission_tpl,
+            g2_ship_tpl,
+            g2_prologue_archived,
+            g2_derelict_archived,
+        ]
         g2_status_maps: dict[int, dict[str, TaskStatus]] = {}
         for proj in g2_projects:
             statuses = await ensure_default_statuses(session, proj.id)
@@ -4185,6 +4467,67 @@ async def seed() -> None:
                 "category": TaskStatusCategory.done,
                 "archived": True,
             },
+            # Template: Away Mission
+            {
+                "project_id": g2_mission_tpl.id,
+                "title": "Pick the landing party",
+                "description": "Two specialists, one liability, one wildcard.",
+                "priority": TaskPriority.medium,
+                "category": TaskStatusCategory.todo,
+            },
+            {
+                "project_id": g2_mission_tpl.id,
+                "title": "Define the environmental hazard",
+                "priority": TaskPriority.high,
+                "category": TaskStatusCategory.todo,
+            },
+            {
+                "project_id": g2_mission_tpl.id,
+                "title": "Write the extraction complication",
+                "priority": TaskPriority.low,
+                "category": TaskStatusCategory.backlog,
+            },
+            # Template: Ship Refit
+            {
+                "project_id": g2_ship_tpl.id,
+                "title": "Inventory the salvage",
+                "priority": TaskPriority.medium,
+                "category": TaskStatusCategory.todo,
+            },
+            {
+                "project_id": g2_ship_tpl.id,
+                "title": "Cost the upgrade in fuel and days",
+                "priority": TaskPriority.medium,
+                "category": TaskStatusCategory.backlog,
+            },
+            # Prologue: Leaving Sol — completed arc
+            {
+                "project_id": g2_prologue_archived.id,
+                "title": "Break orbit ahead of the blockade",
+                "priority": TaskPriority.high,
+                "category": TaskStatusCategory.done,
+                "assignees": ["Finley Goldtongue"],
+            },
+            {
+                "project_id": g2_prologue_archived.id,
+                "title": "Ration the first year of supplies",
+                "priority": TaskPriority.medium,
+                "category": TaskStatusCategory.done,
+                "assignees": ["Kael Windrunner"],
+            },
+            # Derelict Station Heist — cancelled mid-prep
+            {
+                "project_id": g2_derelict_archived.id,
+                "title": "Map the station's power grid",
+                "priority": TaskPriority.medium,
+                "category": TaskStatusCategory.in_progress,
+            },
+            {
+                "project_id": g2_derelict_archived.id,
+                "title": "Decide what the vault actually holds",
+                "priority": TaskPriority.low,
+                "category": TaskStatusCategory.backlog,
+            },
         ]
 
         g2_tasks: dict[str, Task] = {}
@@ -4254,6 +4597,10 @@ async def seed() -> None:
                 (g2_colony.id, ["main quest", "survival"]),
                 (g2_fringe.id, ["side quest", "stealth", "loot"]),
                 (g2_engineering.id, ["engineering"]),
+                (g2_mission_tpl.id, ["exploration", "survival"]),
+                (g2_ship_tpl.id, ["engineering"]),
+                (g2_prologue_archived.id, ["main quest", "survival"]),
+                (g2_derelict_archived.id, ["side quest", "stealth"]),
             ],
         )
 
@@ -5201,8 +5548,71 @@ async def seed() -> None:
             write_users=[admin_user, dm],
         )
 
+        g3_voyage_tpl = await _create_project(
+            session,
+            ids,
+            guild=g3,
+            initiative=g3_main,
+            name="Template: Voyage Leg",
+            icon="\U0001f5fa\ufe0f",
+            description="Every stretch of open water: weather, a sighting, a port, a rumor.",
+            owner=finley,
+            write_users=[dm],
+            general_access=ResourceAccessLevel.read,
+            is_template=True,
+        )
+
+        g3_boarding_tpl = await _create_project(
+            session,
+            ids,
+            guild=g3,
+            initiative=g3_navy,
+            name="Template: Boarding Action",
+            icon="\u2694\ufe0f",
+            description="Ship-to-ship combat beats, from first broadside to the surrender terms.",
+            owner=dm,
+            role_grants=[(g3_navy_mem, ResourceAccessLevel.read)],
+            is_template=True,
+        )
+
+        g3_mutiny_archived = await _create_project(
+            session,
+            ids,
+            guild=g3,
+            initiative=g3_main,
+            name="The Mutiny at Saltmarsh",
+            icon="\U0001f5e1\ufe0f",
+            description="Resolved three sessions ago. Archived once the new quartermaster settled in.",
+            owner=finley,
+            write_users=[admin_user, thorn],
+            read_users=[kael],
+            archived_days_ago=8,
+        )
+
+        g3_privateer_archived = await _create_project(
+            session,
+            ids,
+            guild=g3,
+            initiative=g3_default_init,
+            name="Privateer Paperwork",
+            icon="\U0001f4dc",
+            description="Bookkeeping experiment nobody enjoyed. Archived, not deleted.",
+            owner=admin_user,
+            archived_days_ago=140,
+        )
+
         # Task statuses
-        g3_projects = [g3_ship, g3_treasure, g3_islands, g3_navy_proj, g3_planning]
+        g3_projects = [
+            g3_ship,
+            g3_treasure,
+            g3_islands,
+            g3_navy_proj,
+            g3_planning,
+            g3_voyage_tpl,
+            g3_boarding_tpl,
+            g3_mutiny_archived,
+            g3_privateer_archived,
+        ]
         g3_status_maps: dict[int, dict[str, TaskStatus]] = {}
         for proj in g3_projects:
             statuses = await ensure_default_statuses(session, proj.id)
@@ -5393,6 +5803,66 @@ async def seed() -> None:
                 "assignees": ["Finley Goldtongue"],
                 "due_days": 4,
             },
+            # Template: Voyage Leg
+            {
+                "project_id": g3_voyage_tpl.id,
+                "title": "Roll the weather and the wind",
+                "priority": TaskPriority.medium,
+                "category": TaskStatusCategory.todo,
+            },
+            {
+                "project_id": g3_voyage_tpl.id,
+                "title": "Place one sighting on the horizon",
+                "priority": TaskPriority.medium,
+                "category": TaskStatusCategory.todo,
+            },
+            {
+                "project_id": g3_voyage_tpl.id,
+                "title": "Stock the port with a rumor and a debt",
+                "priority": TaskPriority.low,
+                "category": TaskStatusCategory.backlog,
+            },
+            # Template: Boarding Action
+            {
+                "project_id": g3_boarding_tpl.id,
+                "title": "Set the opening broadside",
+                "priority": TaskPriority.high,
+                "category": TaskStatusCategory.todo,
+            },
+            {
+                "project_id": g3_boarding_tpl.id,
+                "title": "Write the surrender terms",
+                "priority": TaskPriority.low,
+                "category": TaskStatusCategory.backlog,
+            },
+            # The Mutiny at Saltmarsh — resolved arc
+            {
+                "project_id": g3_mutiny_archived.id,
+                "title": "Put down the mutiny",
+                "priority": TaskPriority.high,
+                "category": TaskStatusCategory.done,
+                "assignees": ["Finley Goldtongue", "Thorn Ironforge"],
+            },
+            {
+                "project_id": g3_mutiny_archived.id,
+                "title": "Appoint a new quartermaster",
+                "priority": TaskPriority.medium,
+                "category": TaskStatusCategory.done,
+                "assignees": ["Admin User"],
+            },
+            {
+                "project_id": g3_mutiny_archived.id,
+                "title": "Rewrite the articles of the ship",
+                "priority": TaskPriority.low,
+                "category": TaskStatusCategory.in_progress,
+            },
+            # Privateer Paperwork — abandoned experiment
+            {
+                "project_id": g3_privateer_archived.id,
+                "title": "Track every share of plunder",
+                "priority": TaskPriority.low,
+                "category": TaskStatusCategory.todo,
+            },
         ]
 
         g3_tasks: dict[str, Task] = {}
@@ -5461,6 +5931,9 @@ async def seed() -> None:
                 (g3_treasure.id, ["main quest", "exploration", "boss fight"]),
                 (g3_islands.id, ["exploration", "side quest"]),
                 (g3_navy_proj.id, ["naval combat", "stealth"]),
+                (g3_voyage_tpl.id, ["exploration"]),
+                (g3_boarding_tpl.id, ["naval combat", "boss fight"]),
+                (g3_mutiny_archived.id, ["NPC", "diplomacy"]),
             ],
         )
 

@@ -21,6 +21,7 @@ import {
   SCENE_LIMITS,
   type SceneNode,
   type SceneSpec,
+  SERIES_LABELS,
   SERIES_MARKS,
   type Series,
   type SeriesPoint,
@@ -222,14 +223,25 @@ const parseColumn = (raw: unknown): TableColumn => {
   });
 };
 
-/** Table cells are scalars only. Anything else — including an object that looks
- *  like a node — is dropped to `null`, so a table can never nest. */
-const parseTableCell = (value: unknown): TableCell => {
+/** Table cells are scalars, or a scalar with a tone. Anything else — including
+ *  an object that looks like a node — is dropped to `null`, so a table can
+ *  never nest: the toned form is rebuilt from exactly two fields, and its
+ *  `value` goes through this same function, which has no object branch of its
+ *  own to recurse into. */
+const parseScalarCell = (value: unknown): string | number | boolean | null => {
   if (value === null || value === undefined) return null;
   if (typeof value === "string") return text(value);
   if (typeof value === "number") return num(value);
   if (typeof value === "boolean") return value;
   return null;
+};
+
+const parseTableCell = (value: unknown): TableCell => {
+  if (isPlainObject(value) && "value" in (value as Record<string, unknown>)) {
+    const cell = value as Record<string, unknown>;
+    return compact({ value: parseScalarCell(cell.value), tone: optTone(cell.tone) });
+  }
+  return parseScalarCell(value);
 };
 
 const parseRow = (raw: unknown, columns: TableColumn[]): Record<string, TableCell> => {
@@ -282,6 +294,11 @@ const parseNode = (raw: unknown, depth: number, budget: Budget): SceneNode => {
         xLabel: optText(node.xLabel),
         yLabel: optText(node.yLabel),
         showLegend: optBool(node.showLegend),
+        labels: oneOf(node.labels, SERIES_LABELS),
+        target: optNum(node.target),
+        targetLabel: optText(node.targetLabel),
+        emphasis: optNum(node.emphasis),
+        horizontal: optBool(node.horizontal),
       });
 
     case "timeline": {
@@ -320,6 +337,7 @@ const parseNode = (raw: unknown, depth: number, budget: Budget): SceneNode => {
         caption: optText(node.caption),
         tone: optTone(node.tone),
         format: optFormat(node.format),
+        target: optNum(node.target),
       });
 
     case "matrix":

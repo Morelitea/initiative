@@ -203,7 +203,7 @@ async def create_guild(
     defaults = {
         "name": f"Test Guild {datetime.now(timezone.utc).timestamp()}",
         "description": "A test guild for integration testing",
-        "created_by_user_id": creator.id,
+        "created_by": creator.id,
     }
 
     guild_data = {**defaults, **overrides}
@@ -455,8 +455,11 @@ async def create_project(
         "name": f"Test Project {datetime.now(timezone.utc).timestamp()}",
         "description": "A test project",
         "initiative_id": initiative.id,
-        "owner_id": owner.id,
         "guild_id": initiative.guild_id,
+        # Author and owner are different facts that happen to be the same person
+        # for a freshly made project: the column below records who made it, the
+        # grant further down records who administers it.
+        "created_by": owner.id,
     }
 
     project_data = {**defaults, **overrides}
@@ -467,7 +470,7 @@ async def create_project(
         await session.commit()
         await session.refresh(project)
 
-        # Owner grant so the project is visible via DAC.
+        # The owner grant IS the ownership — projects carry no owner column.
         session.add(
             ResourceGrant(
                 resource_type="project",
@@ -581,7 +584,7 @@ async def create_queue(
         "description": "A test queue",
         "initiative_id": initiative.id,
         "guild_id": initiative.guild_id,
-        "created_by_id": creator.id,
+        "created_by": creator.id,
     }
 
     queue_data = {**defaults, **overrides}
@@ -865,7 +868,7 @@ async def create_calendar(
     defaults = {
         "guild_id": initiative.guild_id,
         "initiative_id": initiative.id,
-        "created_by_id": creator.id,
+        "created_by": creator.id,
         "name": name or f"Calendar {datetime.now(timezone.utc).timestamp()}",
     }
 
@@ -924,7 +927,7 @@ async def create_guild_calendar(
         **{
             "guild_id": guild.id,
             "initiative_id": None,
-            "created_by_id": creator.id,
+            "created_by": creator.id,
             "name": name or "Guild calendar",
             **overrides,
         }
@@ -989,7 +992,7 @@ async def create_guild_app(
             "app_kind": definition.get("app_kind", "service"),
             "name": name,
             "definition": definition,
-            "installed_by_id": creator.id,
+            "created_by": creator.id,
             **overrides,
         }
     )
@@ -1166,7 +1169,7 @@ async def create_dashboard(
     defaults = {
         "guild_id": initiative.guild_id,
         "initiative_id": initiative.id,
-        "created_by_id": creator.id,
+        "created_by": creator.id,
         "name": name or f"Dashboard {datetime.now(timezone.utc).timestamp()}",
         "definition": definition
         if definition is not None
@@ -1238,7 +1241,7 @@ async def create_calendar_event(
     defaults = {
         "guild_id": calendar.guild_id,
         "calendar_id": calendar.id,
-        "created_by_id": creator.id,
+        "created_by": creator.id,
         "title": title or f"Event {now.timestamp()}",
         "start_at": now,
         "end_at": now + timedelta(hours=1),
@@ -1289,7 +1292,7 @@ async def create_document(
     initiative: Initiative,
     creator: User,
     *,
-    title: str | None = None,
+    name: str | None = None,
     commit: bool = True,
     **overrides: Any,
 ) -> Document:
@@ -1303,10 +1306,9 @@ async def create_document(
     defaults = {
         "guild_id": initiative.guild_id,
         "initiative_id": initiative.id,
-        "title": title or f"Test Document {datetime.now(timezone.utc).timestamp()}",
+        "name": name or f"Test Document {datetime.now(timezone.utc).timestamp()}",
         "document_type": DocumentType.native,
-        "created_by_id": creator.id,
-        "updated_by_id": creator.id,
+        "created_by": creator.id,
     }
     document = Document(**{**defaults, **overrides})
     session.add(document)
@@ -1339,22 +1341,36 @@ async def create_comment(
     *,
     task: Task | None = None,
     document: Document | None = None,
+    project: Project | None = None,
+    queue: Queue | None = None,
+    counter_group: CounterGroup | None = None,
+    calendar: Calendar | None = None,
+    dashboard: Dashboard | None = None,
     content: str = "A test comment",
     commit: bool = True,
     **overrides: Any,
 ) -> Comment:
-    """Create a comment on exactly one of ``task`` or ``document``."""
-    if (task is None) == (document is None):
-        raise ValueError("pass exactly one of task= or document=")
-    parent = task if task is not None else document
+    """Create a comment on exactly one parent — a task or any tool entity."""
+    parents = {
+        "task_id": task,
+        "document_id": document,
+        "project_id": project,
+        "queue_id": queue,
+        "counter_group_id": counter_group,
+        "calendar_id": calendar,
+        "dashboard_id": dashboard,
+    }
+    provided = {column: row for column, row in parents.items() if row is not None}
+    if len(provided) != 1:
+        raise ValueError("pass exactly one comment parent")
+    column, parent = next(iter(provided.items()))
     await route_session_to_guild(session, parent.guild_id)
 
     defaults = {
         "guild_id": parent.guild_id,
         "content": content,
-        "author_id": author.id,
-        "task_id": task.id if task else None,
-        "document_id": document.id if document else None,
+        "created_by": author.id,
+        column: parent.id,
     }
     comment = Comment(**{**defaults, **overrides})
     session.add(comment)
@@ -1463,7 +1479,7 @@ async def create_counter_group(
         "guild_id": initiative.guild_id,
         "initiative_id": initiative.id,
         "name": name or f"Test Counters {datetime.now(timezone.utc).timestamp()}",
-        "created_by_id": creator.id,
+        "created_by": creator.id,
     }
     group = CounterGroup(**{**defaults, **overrides})
     session.add(group)
@@ -1527,7 +1543,7 @@ async def create_upload(
 
     defaults = {
         "guild_id": guild.id,
-        "uploader_user_id": uploader.id,
+        "created_by": uploader.id,
         "filename": filename or f"file-{datetime.now(timezone.utc).timestamp()}.txt",
         "size_bytes": 1,
     }

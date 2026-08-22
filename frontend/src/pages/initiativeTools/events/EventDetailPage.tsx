@@ -34,9 +34,11 @@ import {
   useDeleteCalendarEvent,
   useUpdateEventRSVP,
 } from "@/hooks/useCalendarEvents";
+import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { toast } from "@/lib/chesterToast";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
+import { eventSettingsRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
 
 const RSVP_LABEL_KEYS: Record<
   string,
@@ -134,7 +136,11 @@ const rsvpBadgeVariant = (
 
 export function EventDetailPage() {
   const { t } = useTranslation(["calendars", "common"]);
-  const { eventId } = useParams({ strict: false }) as { eventId: string };
+  const { eventId, calendarId: calendarIdParam } = useParams({ strict: false }) as {
+    eventId: string;
+    calendarId?: string;
+  };
+  const calendarId = calendarIdParam ? Number(calendarIdParam) : null;
   const parsedId = Number(eventId);
   const navigate = useNavigate();
   const gp = useGuildPath();
@@ -142,13 +148,22 @@ export function EventDetailPage() {
 
   const eventQuery = useCalendarEvent(Number.isFinite(parsedId) ? parsedId : null);
   const event = eventQuery.data;
+  // The path supplies the initiative while this loads; the entity is the
+  // authority once it arrives, and a URL naming a different one is corrected.
+  const initiativeId = useCanonicalInitiativeId(event?.initiative_id);
 
   // Delete event
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const deleteEvent = useDeleteCalendarEvent({
     onSuccess: () => {
       toast.success(t("eventDeleted"));
-      void navigate({ to: gp("/calendars") });
+      void navigate({
+        to: gp(
+          calendarId == null
+            ? toolListRoute(Tool.calendar, initiativeId)
+            : toolDetailRoute(Tool.calendar, initiativeId, calendarId)
+        ),
+      });
     },
   });
 
@@ -159,7 +174,7 @@ export function EventDetailPage() {
     },
   });
 
-  const isOwner = event?.created_by_id === user?.id;
+  const isOwner = event?.created_by === user?.id;
 
   // Find current user's RSVP status
   const myAttendee = useMemo(() => {
@@ -185,7 +200,11 @@ export function EventDetailPage() {
 
   if (eventQuery.isError || !event) {
     const status = getHttpStatus(eventQuery.error);
-    const backTo = gp("/calendars");
+    const backTo = gp(
+      calendarId == null
+        ? toolListRoute(Tool.calendar, initiativeId)
+        : toolDetailRoute(Tool.calendar, initiativeId, calendarId)
+    );
     const backLabel = t("backToEvents");
 
     if (status === 403) {
@@ -216,14 +235,14 @@ export function EventDetailPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <ToolBreadcrumb
           tool={Tool.calendar}
-          initiativeId={event.initiative_id}
+          initiativeId={initiativeId}
           trail={[{ label: event.title }]}
         />
 
         <div className="flex items-center gap-2">
           {event.all_day && <Badge variant="secondary">{t("allDay")}</Badge>}
           <Button variant="ghost" size="sm" asChild>
-            <Link to={gp(`/calendar-events/${event.id}/settings`)}>
+            <Link to={gp(eventSettingsRoute(initiativeId, event.calendar_id, event.id))}>
               <Settings className="h-4 w-4" />
             </Link>
           </Button>

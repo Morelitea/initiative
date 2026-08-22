@@ -516,7 +516,7 @@ async def test_get_entities_returns_attached_docs_and_tasks(
 
     project = await create_project(session, a.initiative, a.user, name="Proj")
     task = await create_task(session, project, title="Task 1")
-    doc = await create_document(session, a.initiative, a.user, title="Doc 1")
+    doc = await create_document(session, a.initiative, a.user, name="Doc 1")
 
     await create_document_property_value(session, doc, defn, value_text="x")
     await create_task_property_value(session, task, defn, value_text="y")

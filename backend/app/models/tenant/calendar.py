@@ -5,7 +5,7 @@ from pydantic import ConfigDict
 from sqlalchemy import Column, DateTime, String, Text
 from sqlmodel import Field, Relationship, SQLModel
 
-from app.models.tenant._mixins import SoftDeleteMixin
+from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.calendar_event import CalendarEvent
@@ -18,7 +18,7 @@ if TYPE_CHECKING:  # pragma: no cover
 DEFAULT_CALENDAR_COLOR = "#6366f1"
 
 
-class Calendar(SoftDeleteMixin, table=True):
+class Calendar(CreatedByMixin, SoftDeleteMixin, table=True):
     """Initiative-scoped calendar — the shareable container for events.
 
     A calendar is to events what a project is to tasks: DAC grants attach to
@@ -28,7 +28,6 @@ class Calendar(SoftDeleteMixin, table=True):
     """
 
     __tablename__ = "calendars"
-    _owner_field = "created_by_id"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
@@ -50,7 +49,7 @@ class Calendar(SoftDeleteMixin, table=True):
             String(length=32), nullable=False, server_default=DEFAULT_CALENDAR_COLOR
         ),
     )
-    created_by_id: int = Field(foreign_key="users.id", nullable=False)
+    created_by: int = Field(foreign_key="users.id", nullable=False)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -61,7 +60,9 @@ class Calendar(SoftDeleteMixin, table=True):
     )
 
     initiative: Optional["Initiative"] = Relationship(back_populates="calendars")
-    creator: Optional["User"] = Relationship()
+    creator: Optional["User"] = Relationship(
+        sa_relationship_kwargs={"foreign_keys": "[Calendar.created_by]"},
+    )
     events: List["CalendarEvent"] = Relationship(
         back_populates="calendar",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},

@@ -56,10 +56,19 @@ class EnvelopePropertyValue(SanitizedBaseModel):
 class DocumentEnvelope(_EnvelopeBase):
     type: Literal["initiative-document"]
     document_type: str  # native | spreadsheet | smart_link | whiteboard
-    title: str
+    name: str
     content: dict[str, Any] = {}
     tags: list[str] = []
     properties: list[EnvelopePropertyValue] = []
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_legacy_title(cls, data: Any) -> Any:
+        # Exports from before the documents.name rename spelled it `title`;
+        # fill `name` from it when absent (same shape as `kind` above).
+        if isinstance(data, dict) and "name" not in data and "title" in data:
+            data = {**data, "name": data["title"]}
+        return data
 
 
 class QueueEnvelopeItem(SanitizedBaseModel):

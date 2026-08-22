@@ -28,7 +28,9 @@ type LinkedEntityPickerProps = {
   loading?: boolean;
   onSearchChange: (query: string) => void;
   onOpenChange: (open: boolean) => void;
-  /** Route for an entity's chip link, e.g. ``(id) => gp(`/documents/${id}`)``. */
+  /** Route for an entity's chip link. The picker knows only an id, and an
+   *  entity's real URL names its initiative, so this is normally the ``/go``
+   *  resolver: ``(id) => gp(entityRefRoute("document", id))``. */
   hrefFor: (id: number) => string;
   placeholder: string;
   emptyMessage: string;

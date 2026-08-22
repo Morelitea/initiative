@@ -40,7 +40,6 @@ from app.core.messages import (
     InitiativeMessages,
     QueryMessages,
 )
-from app.core.pam_context import has_active_grant
 from app.core.rate_limit import limiter
 from app.db.session import get_admin_session
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
@@ -114,7 +113,7 @@ GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 MAX_DOCUMENT_IDS = 100
 
 DOCUMENT_SORT_FIELDS = {
-    "title": Document.title,
+    "name": Document.name,
     "updated_at": Document.updated_at,
     "created_at": Document.created_at,
 }
@@ -342,18 +341,17 @@ def _build_visible_docs_filters(
     is_template: Optional[bool] = None,
     document_type: Optional[DocumentType] = None,
 ):
-    """Build common WHERE conditions for visible-document queries."""
-    # A guild admin (full access to all guild data) or a live PAM grant sees all
-    # of the guild's documents in one bulk, guild-scoped query; otherwise narrow
-    # to documents the user has explicit/role permission for. Guild scope + RLS
-    # apply either way.
-    conditions = [Initiative.guild_id == guild_id]
-    if not has_active_grant(
-        guild_id
-    ) and not permissions_service.is_request_guild_admin(guild_id):
-        conditions.append(
-            Document.id.in_(permissions_service.visible_document_ids_subquery(user_id))
-        )
+    """Build common WHERE conditions for visible-document queries.
+
+    Guild scope + RLS apply either way; ``dac_scope_clause`` adds the sharing
+    gate, resolving to a no-op for a request that reaches the whole guild.
+    """
+    conditions = [
+        Initiative.guild_id == guild_id,
+        permissions_service.dac_scope_clause(
+            Tool.document, Document.id, user_id, guild_id=guild_id
+        ),
+    ]
 
     if initiative_id is not None:
         conditions.append(Document.initiative_id == initiative_id)
@@ -370,7 +368,7 @@ def _build_visible_docs_filters(
     if search:
         normalized = search.strip().lower()
         if normalized:
-            conditions.append(func.lower(Document.title).contains(normalized))
+            conditions.append(func.lower(Document.name).contains(normalized))
 
     if tag_ids:
         tag_subquery = (
@@ -427,8 +425,8 @@ def _sort_global_document_summaries(
     """Order the merged cross-guild summaries, mirroring _apply_document_sort
     (``id`` desc tiebreak applied as a separate stable pass)."""
     items.sort(key=lambda d: d.id, reverse=True)
-    if sort_by == "title":
-        items.sort(key=lambda d: (d.title or "").lower(), reverse=sort_dir == "desc")
+    if sort_by == "name":
+        items.sort(key=lambda d: (d.name or "").lower(), reverse=sort_dir == "desc")
     elif sort_by == "updated_at":
         items.sort(key=lambda d: d.updated_at, reverse=sort_dir == "desc")
     elif sort_by == "created_at":
@@ -457,11 +455,11 @@ async def _list_global_documents(
     target_guilds = await member_guild_ids(
         session, current_user.id, restrict_to=guild_ids
     )
-    conditions = [Document.created_by_id == current_user.id]
+    conditions = [Document.created_by == current_user.id]
     if search:
         normalized = search.strip().lower()
         if normalized:
-            conditions.append(func.lower(Document.title).contains(normalized))
+            conditions.append(func.lower(Document.name).contains(normalized))
 
     async def _fetch(
         guild_session: AsyncSession, _guild_id: int
@@ -810,9 +808,9 @@ async def autocomplete_documents(
     ),
     limit: int = Query(default=10, ge=1, le=20),
 ) -> List[DocumentAutocomplete]:
-    """Search documents by title for autocomplete/wikilinks and pickers.
+    """Search documents by name for autocomplete/wikilinks and pickers.
 
-    Returns lightweight document info (id, title, updated_at, document_type)
+    Returns lightweight document info (id, name, updated_at, document_type)
     for typeahead. Scoped to one initiative when ``initiative_id`` is given,
     otherwise to the whole guild. Visibility matches the document list —
     only documents the caller can access come back.
@@ -849,7 +847,7 @@ async def autocomplete_documents(
     return [
         DocumentAutocomplete(
             id=doc.id,
-            title=doc.title,
+            name=doc.name,
             updated_at=doc.updated_at,
             document_type=doc.document_type,
         )
@@ -857,21 +855,21 @@ async def autocomplete_documents(
     ]
 
 
-async def _check_duplicate_title(
+async def _check_duplicate_name(
     session: SessionDep,
     *,
     initiative_id: int,
-    title: str,
+    name: str,
     exclude_document_id: int | None = None,
 ) -> None:
-    """Check if a document with the same title already exists in the initiative.
+    """Check if a document with the same name already exists in the initiative.
 
     Raises 400 if a duplicate is found.
     """
-    normalized_title = title.strip().lower()
+    normalized_name = name.strip().lower()
     stmt = select(Document).where(
         Document.initiative_id == initiative_id,
-        func.lower(Document.title) == normalized_title,
+        func.lower(Document.name) == normalized_name,
     )
     if exclude_document_id is not None:
         stmt = stmt.where(Document.id != exclude_document_id)
@@ -881,7 +879,7 @@ async def _check_duplicate_title(
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=DocumentMessages.TITLE_ALREADY_EXISTS,
+            detail=DocumentMessages.NAME_ALREADY_EXISTS,
         )
 
 
@@ -904,15 +902,15 @@ async def create_document(
         guild_role=guild_context.role,
         permission_key=PermissionKey.create_documents,
     )
-    title = document_in.title.strip()
-    if not title:
+    name = document_in.name.strip()
+    if not name:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=DocumentMessages.TITLE_REQUIRED,
+            detail=DocumentMessages.NAME_REQUIRED,
         )
 
-    # Check for duplicate title in initiative
-    await _check_duplicate_title(session, initiative_id=initiative.id, title=title)
+    # Check for duplicate name in initiative
+    await _check_duplicate_name(session, initiative_id=initiative.id, name=name)
 
     requested_type = DocumentType(document_in.document_type)
 
@@ -927,13 +925,12 @@ async def create_document(
         ) from exc
 
     document = Document(
-        title=title,
+        name=name,
         initiative_id=initiative.id,
         guild_id=guild_context.guild_id,
         document_type=requested_type,
         content=normalized_content,
-        created_by_id=current_user.id,
-        updated_by_id=current_user.id,
+        created_by=current_user.id,
         featured_image_url=document_in.featured_image_url,
         is_template=document_in.is_template,
     )
@@ -993,7 +990,7 @@ async def upload_document_file(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-    title: str = Form(...),
+    name: str = Form(...),
     initiative_id: int = Form(...),
     file: UploadFile = File(...),
 ) -> DocumentRead:
@@ -1010,18 +1007,18 @@ async def upload_document_file(
         guild_role=guild_context.role,
         permission_key=PermissionKey.create_documents,
     )
-    title = title.strip()
-    if not title:
+    name = name.strip()
+    if not name:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=DocumentMessages.TITLE_REQUIRED,
+            detail=DocumentMessages.NAME_REQUIRED,
         )
 
     # Pick up a backend/credential change saved in another worker before writing.
     await storage_config.ensure_storage_config_fresh(session)
 
-    # Check for duplicate title in initiative
-    await _check_duplicate_title(session, initiative_id=initiative.id, title=title)
+    # Check for duplicate name in initiative
+    await _check_duplicate_name(session, initiative_id=initiative.id, name=name)
 
     # Read the body with a hard cap so an over-limit upload is rejected before
     # the whole payload is buffered into memory (memory-exhaustion DoS guard).
@@ -1065,7 +1062,7 @@ async def upload_document_file(
     upload_record = Upload(
         filename=file_url.split("/")[-1],
         guild_id=guild_context.guild_id,
-        uploader_user_id=current_user.id,
+        created_by=current_user.id,
         size_bytes=len(contents),
         content_type=mime_type,
         content_hash=attachments_service.compute_content_hash(contents),
@@ -1074,12 +1071,11 @@ async def upload_document_file(
 
     # Create document record
     document = Document(
-        title=title,
+        name=name,
         initiative_id=initiative.id,
         guild_id=guild_context.guild_id,
         content={},  # File documents have empty content
-        created_by_id=current_user.id,
-        updated_by_id=current_user.id,
+        created_by=current_user.id,
         document_type=DocumentType.file,
         file_url=file_url,
         file_content_type=mime_type,
@@ -1109,7 +1105,7 @@ async def upload_document_file(
         file_content_type=mime_type,
         file_size=len(contents),
         original_filename=file.filename,
-        uploaded_by_id=current_user.id,
+        created_by=current_user.id,
     )
     # Auto-set featured image for image uploads (before commit so we avoid expired attrs)
     if mime_type and mime_type.startswith("image/"):
@@ -1231,7 +1227,7 @@ async def upload_document_version(
     upload_record = Upload(
         filename=file_url.split("/")[-1],
         guild_id=guild_context.guild_id,
-        uploader_user_id=current_user.id,
+        created_by=current_user.id,
         size_bytes=len(contents),
         content_type=mime_type,
         content_hash=attachments_service.compute_content_hash(contents),
@@ -1253,7 +1249,7 @@ async def upload_document_version(
         file_content_type=mime_type,
         file_size=len(contents),
         original_filename=file.filename,
-        uploaded_by_id=current_user.id,
+        created_by=current_user.id,
     )
     session.add(version)
 
@@ -1263,7 +1259,6 @@ async def upload_document_version(
     document.file_content_type = mime_type
     document.file_size = len(contents)
     document.original_filename = file.filename
-    document.updated_by_id = current_user.id  # ty: ignore[invalid-assignment] — persisted row, id is set
     document.updated_at = datetime.now(timezone.utc)
     if mime_type and mime_type.startswith("image/"):
         document.featured_image_url = file_url
@@ -1384,7 +1379,6 @@ async def delete_document_version(
             document.file_content_type = promoted.file_content_type
             document.file_size = promoted.file_size
             document.original_filename = promoted.original_filename
-            document.updated_by_id = current_user.id  # ty: ignore[invalid-assignment] — persisted row, id is set
             document.updated_at = datetime.now(timezone.utc)
             # Keep featured image coherent when it referenced the deleted blob.
             if document.featured_image_url == deleted_url:
@@ -1412,7 +1406,7 @@ async def read_document(
             description=(
                 "Include the document body. Pass false for the metadata alone —"
                 " a document's body is the largest thing this API returns, and a"
-                " caller reacting to a change (a title, a tag, a property) does"
+                " caller reacting to a change (a name, a tag, a property) does"
                 " not need it. Everything else is unchanged."
             )
         ),
@@ -1452,13 +1446,15 @@ async def get_backlinks(
         session,
         document_id=document_id,
         user_id=current_user.id,
+        guild_id=guild_context.guild_id,
     )
 
     return [
         DocumentBacklink(
             id=doc.id,
-            title=doc.title,
+            name=doc.name,
             updated_at=doc.updated_at,
+            initiative_id=doc.initiative_id,
         )
         for doc in backlinks
     ]
@@ -1482,21 +1478,21 @@ async def update_document(
     previous_content_urls = attachments_service.extract_upload_urls(document.content)
     previous_featured_url = document.featured_image_url
 
-    if "title" in update_data:
-        title = (update_data["title"] or "").strip()
-        if not title:
+    if "name" in update_data:
+        name = (update_data["name"] or "").strip()
+        if not name:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=DocumentMessages.TITLE_REQUIRED,
+                detail=DocumentMessages.NAME_REQUIRED,
             )
-        # Check for duplicate title in initiative (exclude current document)
-        await _check_duplicate_title(
+        # Check for duplicate name in initiative (exclude current document)
+        await _check_duplicate_name(
             session,
             initiative_id=document.initiative_id,
-            title=title,
+            name=name,
             exclude_document_id=document.id,
         )
-        document.title = title
+        document.name = name
         updated = True
 
     content_updated = False
@@ -1546,7 +1542,6 @@ async def update_document(
 
     if updated:
         document.updated_at = datetime.now(timezone.utc)
-        document.updated_by_id = current_user.id  # ty: ignore[invalid-assignment] — persisted row, id is set
         session.add(document)
         # Sync wikilinks if content was updated
         if content_updated:
@@ -1595,11 +1590,11 @@ async def duplicate_document(
     )
     _require_document_access(document, current_user, access="write")
     payload = payload or DocumentDuplicateRequest()
-    title = (payload.title or f"{document.title} (Copy)").strip()
-    if not title:
+    name = (payload.name or f"{document.name} (Copy)").strip()
+    if not name:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=DocumentMessages.TITLE_REQUIRED,
+            detail=DocumentMessages.NAME_REQUIRED,
         )
 
     try:
@@ -1607,7 +1602,7 @@ async def duplicate_document(
             session,
             source=document,
             target_initiative_id=document.initiative_id,
-            title=title,
+            name=name,
             user_id=current_user.id,
             guild_id=guild_context.guild_id,
         )
@@ -1660,11 +1655,11 @@ async def copy_document(
         guild_role=guild_context.role,
         permission_key=PermissionKey.create_documents,
     )
-    title = (payload.title or document.title).strip()
-    if not title:
+    name = (payload.name or document.name).strip()
+    if not name:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=DocumentMessages.TITLE_REQUIRED,
+            detail=DocumentMessages.NAME_REQUIRED,
         )
 
     try:
@@ -1672,7 +1667,7 @@ async def copy_document(
             session,
             source=document,
             target_initiative_id=target_initiative.id,
-            title=title,
+            name=name,
             user_id=current_user.id,
             guild_id=guild_context.guild_id,
         )
@@ -1762,7 +1757,7 @@ async def notify_mentions(
             mentioned_user=mentioned_user,
             mentioned_by=current_user,
             document_id=document.id,
-            document_title=document.title,
+            document_name=document.name,
             guild_id=guild_context.guild_id,
         )
     await session.commit()
@@ -1800,7 +1795,7 @@ async def generate_summary(
             user=current_user,
             guild_id=guild_context.guild_id,
             document_content=document.content,
-            document_title=document.title,
+            document_name=document.name,
         )
         return GenerateDocumentSummaryResponse(summary=summary)
     except AIGenerationError as e:

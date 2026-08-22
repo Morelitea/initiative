@@ -30,6 +30,22 @@ from app.testing import (
 )
 
 
+async def _drop_all_members_grant(session: AsyncSession, guild, calendar) -> None:
+    """Strip the all-initiative-members read grant, leaving only the creator's
+    owner grant — a calendar shared with nobody else."""
+    schema = guild_schema_name(guild.id)
+    await session.exec(text(f'SET search_path TO "{schema}", public'))
+    await session.exec(
+        delete(ResourceGrant).where(
+            ResourceGrant.resource_type == "calendar",
+            ResourceGrant.resource_id == calendar.id,
+            ResourceGrant.all_initiative_members == True,  # noqa: E712
+        )
+    )
+    await session.exec(text("SET search_path TO public"))
+    await session.commit()
+
+
 async def _notifications_for(
     session: AsyncSession, user_id: int, ntype: NotificationType
 ) -> list[Notification]:
@@ -494,6 +510,46 @@ async def test_global_calendar_events_reads_guild_schema(
 
 
 @pytest.mark.integration
+async def test_list_events_filters_events_without_calendar_grant(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The per-guild list resolves an event through its calendar's sharing.
+
+    Events carry no grants of their own, so calendar sharing is what decides.
+    ``calendar_ids`` narrows the result; it is not how access is resolved.
+    """
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=admin.initiative,
+        initiative_role="member",
+    )
+    calendar = await _enable_calendars(session, admin.initiative, admin.user)
+    event = await create_calendar_event(session, calendar, admin.user, title="NoGrant")
+    await _drop_all_members_grant(session, admin.guild, calendar)
+
+    path = admin.g("/calendar-events/")
+    resp = await client.get(path, headers=get_auth_headers(member.user))
+    assert resp.status_code == 200
+    assert event.id not in {item["id"] for item in resp.json()["items"]}
+
+    # Naming the calendar narrows the result; it does not change the answer.
+    resp = await client.get(
+        path,
+        params={"calendar_ids": [calendar.id]},
+        headers=get_auth_headers(member.user),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["items"] == []
+
+    # The admin reaches it, as they do every calendar in their guild.
+    resp = await client.get(path, headers=get_auth_headers(admin.user))
+    assert resp.status_code == 200
+    assert event.id in {item["id"] for item in resp.json()["items"]}
+
+
+@pytest.mark.integration
 async def test_my_calendar_events_filters_events_without_calendar_grant(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -513,19 +569,7 @@ async def test_my_calendar_events_filters_events_without_calendar_grant(
     calendar = await _enable_calendars(session, initiative, admin.user)
     event = await create_calendar_event(session, calendar, admin.user, title="NoGrant")
 
-    # Strip the all-initiative-members read grant so the member has no path to
-    # this calendar (only the creator-owner grant remains).
-    schema = guild_schema_name(guild.id)
-    await session.exec(text(f'SET search_path TO "{schema}", public'))
-    await session.exec(
-        delete(ResourceGrant).where(
-            ResourceGrant.resource_type == "calendar",
-            ResourceGrant.resource_id == calendar.id,
-            ResourceGrant.all_initiative_members == True,  # noqa: E712
-        )
-    )
-    await session.exec(text("SET search_path TO public"))
-    await session.commit()
+    await _drop_all_members_grant(session, guild, calendar)
 
     # Member: the ungranted event is hidden on /me.
     resp = await client.get(

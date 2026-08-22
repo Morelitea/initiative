@@ -5,7 +5,7 @@ from typing import List, Optional, TYPE_CHECKING
 from sqlalchemy import Boolean, Column, DateTime, Integer, JSON, Numeric, String, Text
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
-from app.models.tenant._mixins import SoftDeleteMixin
+from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.project import Project
@@ -29,7 +29,7 @@ class TaskPriority(str, Enum):
     urgent = "urgent"
 
 
-class TaskStatus(SQLModel, table=True):
+class TaskStatus(CreatedByMixin, table=True):
     __tablename__ = "task_statuses"
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -78,7 +78,7 @@ class TaskAssignee(SQLModel, table=True):
     )
 
 
-class Subtask(SQLModel, table=True):
+class Subtask(CreatedByMixin, table=True):
     __tablename__ = "subtasks"
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -107,9 +107,8 @@ class Subtask(SQLModel, table=True):
     task: Optional["Task"] = Relationship(back_populates="subtasks")
 
 
-class Task(SoftDeleteMixin, table=True):
+class Task(CreatedByMixin, SoftDeleteMixin, table=True):
     __tablename__ = "tasks"
-    _owner_field = "created_by_id"
     _display_field = "title"
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -158,9 +157,6 @@ class Task(SoftDeleteMixin, table=True):
     completed_at: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
-    created_by_id: Optional[int] = Field(
-        default=None, foreign_key="users.id", nullable=True
-    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -175,12 +171,12 @@ class Task(SoftDeleteMixin, table=True):
     assignees: List["User"] = Relationship(
         back_populates="tasks_assigned", link_model=TaskAssignee
     )
-    # Read-only link to the author (``created_by_id``) so reads can expose a
+    # Read-only link to the author (``created_by``) so reads can expose a
     # ``creator`` summary without a separate roster fetch. ``foreign_keys`` is
     # explicit because ``assignees`` also relates Task↔User (via TaskAssignee).
     creator: Optional["User"] = Relationship(
         sa_relationship_kwargs={
-            "foreign_keys": "[Task.created_by_id]",
+            "foreign_keys": "[Task.created_by]",
             "viewonly": True,
         }
     )

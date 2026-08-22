@@ -84,6 +84,11 @@ configs:
       CREATE ROLE app_provisioner WITH LOGIN CREATEROLE NOSUPERUSER NOBYPASSRLS
         PASSWORD '${PROVISIONER_PASSWORD:-provisioner_password}';
       GRANT CREATE, CONNECT ON DATABASE "${POSTGRES_DB:-initiative}" TO app_provisioner;
+      -- Least privilege on the database itself: the app creates no temporary
+      -- objects, so it does not need the TEMPORARY grant PUBLIC carries by
+      -- default on a new database. Existing deployments apply this by
+      -- re-running backend/scripts/create-provisioner.sql.
+      REVOKE TEMPORARY ON DATABASE "${POSTGRES_DB:-initiative}" FROM PUBLIC;
       -- Postgres 15+ made CREATE on the public schema owner-only, and the
       -- baseline migration (running as app_provisioner) builds the shared
       -- schema there — including COMMENT ON SCHEMA, which needs ownership.
