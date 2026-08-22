@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The tag browser on a phone spilled over the documents behind it.** Opening "Browse by tag" on a narrow screen drew the whole tag tree past the bottom of its panel and on top of the document cards. The panel now keeps its tags inside it and scrolls, and its chevron turns over when it opens.
+
 ## [0.63.0] - 2026-08-21
 
 ### Added

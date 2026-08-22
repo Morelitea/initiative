@@ -57,7 +57,7 @@ export const DocumentsTagsView = ({
         <CollapsibleTrigger asChild>
           <button
             type="button"
-            className="flex w-full items-center justify-between px-3 py-2 font-medium text-sm"
+            className="group flex w-full items-center justify-between px-3 py-2 font-medium text-sm"
           >
             <span className="flex items-center gap-2">
               <Tags className="h-4 w-4" />
@@ -68,11 +68,11 @@ export const DocumentsTagsView = ({
                 </Badge>
               )}
             </span>
-            <ChevronDown className="h-4 w-4" />
+            <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]:rotate-180" />
           </button>
         </CollapsibleTrigger>
-        <CollapsibleContent>
-          <div className="max-h-64">
+        <CollapsibleContent className="overflow-hidden">
+          <div className="max-h-64 overflow-y-auto overscroll-contain">
             <TagTreeView
               tags={allTags}
               tagCounts={tagCounts}
