@@ -9,6 +9,9 @@ interface BulkAccessBarProps {
   count: number;
   /** Whether the current user can manage sharing on every selected item. */
   canManage: boolean;
+  /** Why the action is unavailable, when the block isn't about permissions
+   *  (e.g. an archived resource refuses sharing changes). */
+  manageHint?: string;
   onEditAccess: () => void;
   onExit: () => void;
   /** Extra per-page actions rendered before "Edit access" (e.g. Export). */
@@ -23,6 +26,7 @@ interface BulkAccessBarProps {
 export function BulkAccessBar({
   count,
   canManage,
+  manageHint,
   onEditAccess,
   onExit,
   children,
@@ -41,7 +45,7 @@ export function BulkAccessBar({
           disabled={count === 0 || !canManage}
           // Only explain the permission block when something is actually selected;
           // with nothing selected the button is simply inactive.
-          title={count > 0 && !canManage ? t("bulkBar.needManage") : undefined}
+          title={count > 0 && !canManage ? (manageHint ?? t("bulkBar.needManage")) : undefined}
         >
           <Shield className="h-4 w-4" />
           {t("bulkBar.editAccess")}

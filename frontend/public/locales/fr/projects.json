@@ -30,11 +30,6 @@
     "tasksDone": "{{completed}}/{{total}} terminées",
     "noTasks": "Aucune tâche"
   },
-  "tabs": {
-    "active": "Projets actifs",
-    "templates": "Modèles",
-    "archive": "Archive"
-  },
   "view": {
     "grid": "Grille",
     "list": "Liste"
@@ -94,7 +89,8 @@
     "unarchive": "Désarchiver",
     "noArchived": "Aucun projet archivé",
     "noArchivedDescription": "Les projets actifs restent dans l'onglet Actifs.",
-    "noArchivedDescriptionAlt": "Les projets actifs restent dans l'onglet principal des projets."
+    "noArchivedDescriptionAlt": "Les projets actifs restent dans l'onglet principal des projets.",
+    "sharingUnavailable": "Le partage d'un projet archivé ne peut pas être modifié."
   },
   "createDialog": {
     "title": "Créer un projet",
@@ -497,7 +493,10 @@
   "progressLabel": "Progression du projet",
   "preview": {
     "updated": "Mis à jour {{date}}",
-    "tasksDone": "{{completed}}/{{total}} terminées"
+    "tasksDone": "{{completed}}/{{total}} terminées",
+    "templateBadge": "Modèle",
+    "archivedBadge": "Archivé",
+    "archivedOn": "Archivé le {{date}}"
   },
   "activitySidebar": {
     "title": "Activité du projet",
@@ -537,5 +536,11 @@
     "warningUnmatchedAssignees_other": "Importé, mais {{count}} responsables hors de cette initiative ont été ignorés : {{emails}}",
     "error": "Impossible d'importer le projet. Veuillez réessayer.",
     "queued": "Import lancé — vous recevrez une notification quand il sera terminé."
+  },
+  "status": {
+    "label": "Afficher",
+    "active": "Actifs",
+    "templates": "Modèles",
+    "archived": "Archivés"
   }
 }

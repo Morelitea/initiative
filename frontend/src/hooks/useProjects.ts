@@ -90,15 +90,31 @@ export const useProjectCountsByInitiative = (
   });
 };
 
-/** Templates in one initiative, or across every one the caller can see. The
- *  Templates and Archive tabs sit on an initiative-scoped page, so they narrow
- *  the same way the active list does. */
-export const useTemplateProjects = (initiativeId?: number | null) => {
-  return useProjects({ template: true, ...(initiativeId ? { initiative_id: initiativeId } : {}) });
+/** Templates in one initiative, or across every one the caller can see — the
+ *  create dialog's "start from a template" picker. The projects list reads its
+ *  own templates through `useProjects`, since the status filter picks which of
+ *  the three states the same query returns. */
+/** Row counts for the three list states, for the status filter's badges. The
+ *  smallest possible page of the slim projection: only `total_count` is read,
+ *  so a state advertises how much it holds without loading any of it. */
+export const useProjectStatusCounts = (initiativeId?: number | null) => {
+  const base = {
+    slim: true,
+    page_size: 1,
+    ...(initiativeId ? { initiative_id: initiativeId } : {}),
+  };
+  const active = useProjects(base);
+  const templates = useProjects({ ...base, template: true });
+  const archived = useProjects({ ...base, archived: true });
+  return {
+    active: active.data?.total_count,
+    templates: templates.data?.total_count,
+    archived: archived.data?.total_count,
+  };
 };
 
-export const useArchivedProjects = (initiativeId?: number | null) => {
-  return useProjects({ archived: true, ...(initiativeId ? { initiative_id: initiativeId } : {}) });
+export const useTemplateProjects = (initiativeId?: number | null) => {
+  return useProjects({ template: true, ...(initiativeId ? { initiative_id: initiativeId } : {}) });
 };
 
 export const useProject = (projectId: number | null, options?: QueryOpts<ProjectRead>) => {

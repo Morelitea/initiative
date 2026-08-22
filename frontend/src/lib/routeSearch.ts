@@ -19,8 +19,9 @@ export function validatePage(value: unknown): number | undefined {
 }
 
 /**
- * Search shared by the six initiative tool tabs: open the create dialog, and
- * the page cursor for the tools that paginate.
+ * Search shared by the six initiative tool tabs: open the create dialog, the
+ * page cursor for the tools that paginate, and which state of a list is shown
+ * (projects: templates / archived).
  *
  * There is no `initiativeId` any more — the path carries it. Because all six
  * tabs are now routes under one initiative rather than six separate list
@@ -30,9 +31,11 @@ export function validatePage(value: unknown): number | undefined {
 export function validateInitiativeToolSearch(search: Record<string, unknown>): {
   create?: string;
   page?: number;
+  status?: string;
 } {
   return {
     create: typeof search.create === "string" ? search.create : undefined,
     page: validatePage(search.page),
+    status: typeof search.status === "string" ? search.status : undefined,
   };
 }
