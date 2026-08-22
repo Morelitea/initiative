@@ -89,7 +89,8 @@
     "unarchive": "Unarchive",
     "noArchived": "No archived projects",
     "noArchivedDescription": "Active projects stay on the Active tab.",
-    "noArchivedDescriptionAlt": "Active projects stay on the main projects tab."
+    "noArchivedDescriptionAlt": "Active projects stay on the main projects tab.",
+    "sharingUnavailable": "Sharing can't be changed on an archived project."
   },
   "createDialog": {
     "title": "Create project",

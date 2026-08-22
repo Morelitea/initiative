@@ -89,7 +89,8 @@
     "unarchive": "Desarchivar",
     "noArchived": "No hay proyectos archivados",
     "noArchivedDescription": "Los proyectos activos están en la pestaña Activos.",
-    "noArchivedDescriptionAlt": "Los proyectos activos están en la pestaña principal de proyectos."
+    "noArchivedDescriptionAlt": "Los proyectos activos están en la pestaña principal de proyectos.",
+    "sharingUnavailable": "No se puede cambiar el uso compartido de un proyecto archivado."
   },
   "createDialog": {
     "title": "Crear proyecto",

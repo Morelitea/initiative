@@ -89,7 +89,8 @@
     "unarchive": "Désarchiver",
     "noArchived": "Aucun projet archivé",
     "noArchivedDescription": "Les projets actifs restent dans l'onglet Actifs.",
-    "noArchivedDescriptionAlt": "Les projets actifs restent dans l'onglet principal des projets."
+    "noArchivedDescriptionAlt": "Les projets actifs restent dans l'onglet principal des projets.",
+    "sharingUnavailable": "Le partage d'un projet archivé ne peut pas être modifié."
   },
   "createDialog": {
     "title": "Créer un projet",

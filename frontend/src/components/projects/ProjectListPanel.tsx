@@ -94,6 +94,10 @@ export const ProjectListPanel = ({
   const { filteredProjects, pinnedProjects, sortedProjects, viewMode } = view;
 
   const selection = useGridSelection<ProjectRead>();
+  // An archived project refuses sharing changes server-side, so the bulk
+  // action is disabled up front rather than failing when the dialog submits.
+  // Export is unaffected — it only reads.
+  const archivedSelected = selection.selectedItems.some((project) => project.is_archived);
   const [bulkAccessOpen, setBulkAccessOpen] = useState(false);
   const reorderProjects = useReorderProjects();
 
@@ -212,11 +216,6 @@ export const ProjectListPanel = ({
               </TabsTrigger>
             </TabsList>
           </Tabs>
-          {sortedProjects.length > 0 && !selection.active && (
-            <Button variant="outline" onClick={selection.enter}>
-              {t("access:bulkBar.select")}
-            </Button>
-          )}
         </div>
       </div>
 
@@ -235,7 +234,8 @@ export const ProjectListPanel = ({
           {selection.active ? (
             <BulkAccessBar
               count={selection.selectedItems.length}
-              canManage={canManageSharing(selection.selectedItems)}
+              canManage={canManageSharing(selection.selectedItems) && !archivedSelected}
+              manageHint={archivedSelected ? t("archived.sharingUnavailable") : undefined}
               onEditAccess={() => setBulkAccessOpen(true)}
               onExit={selection.exit}
             >
@@ -255,7 +255,16 @@ export const ProjectListPanel = ({
                 ))}
             </BulkAccessBar>
           ) : (
-            pinnedSection
+            <>
+              {sortedProjects.length > 0 && (
+                <div className="flex justify-end">
+                  <Button variant="outline" size="sm" onClick={selection.enter}>
+                    {t("access:bulkBar.select")}
+                  </Button>
+                </div>
+              )}
+              {pinnedSection}
+            </>
           )}
           {sortedProjects.length > 0 ? (
             projectItems

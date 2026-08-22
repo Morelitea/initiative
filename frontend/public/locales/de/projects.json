@@ -89,7 +89,8 @@
     "unarchive": "Archivierung aufheben",
     "noArchived": "Keine archivierten Projekte",
     "noArchivedDescription": "Aktive Projekte bleiben im Tab „Aktiv“.",
-    "noArchivedDescriptionAlt": "Aktive Projekte bleiben im Haupttab für Projekte."
+    "noArchivedDescriptionAlt": "Aktive Projekte bleiben im Haupttab für Projekte.",
+    "sharingUnavailable": "Die Freigabe eines archivierten Projekts kann nicht geändert werden."
   },
   "createDialog": {
     "title": "Projekt erstellen",
