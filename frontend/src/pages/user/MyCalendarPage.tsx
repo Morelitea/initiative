@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { ChevronDown, Download, Filter, Loader2 } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -24,15 +24,15 @@ import {
   CalendarPanelDropdown,
   type ProjectTaskCalendar,
 } from "@/components/initiativeTools/events/CalendarListPanel";
+import { ToolFilterPanel } from "@/components/initiativeTools/shared/ToolFilterPanel";
+import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { useAuth } from "@/hooks/useAuth";
 import { useMyCalendarEntries } from "@/hooks/useCalendarEntries";
 import { useMyCalendars } from "@/hooks/useCalendars";
-import { getDefaultFiltersVisibility } from "@/hooks/useDefaultFiltersOpen";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { toast } from "@/lib/chesterToast";
@@ -150,8 +150,15 @@ export const MyCalendarPage = () => {
       setStoredPrefs((prev) => ({ ...sanitizeStoredPrefs(prev), guildFilters: next })),
     [setStoredPrefs]
   );
-  const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
+  // Closed until asked for. The filter button carries a count of what's set, so
+  // a narrowed list still says so with the panel shut — and the fields no
+  // longer take the top of the page before the list itself.
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [focusDate, setFocusDate] = useState(() => new Date());
+
+  // Badges the filter button while the panel is closed. Hidden calendars count:
+  // the reader has narrowed the grid, and nothing else on screen says so.
+  // (`activeFilterCount` reads the hidden-key sets declared just below.)
 
   // Per-calendar / per-project visibility (persisted, cross-guild keys).
   const storedVisibility = useMemo(() => readStoredVisibility(), []);
@@ -161,6 +168,21 @@ export const MyCalendarPage = () => {
   const [hiddenProjectKeys, setHiddenProjectKeys] = useState<Set<string>>(
     () => new Set(storedVisibility.hiddenProjectKeys)
   );
+
+  const activeFilterCount =
+    hiddenCalendarKeys.size +
+    hiddenProjectKeys.size +
+    statusFilters.length +
+    priorityFilters.length +
+    guildFilters.length;
+
+  const clearFilters = useCallback(() => {
+    setHiddenCalendarKeys(new Set());
+    setHiddenProjectKeys(new Set());
+    setStatusFilters([]);
+    setPriorityFilters([]);
+    setGuildFilters([]);
+  }, [setStatusFilters, setPriorityFilters, setGuildFilters]);
 
   useEffect(() => {
     setItem(
@@ -376,109 +398,105 @@ export const MyCalendarPage = () => {
           </Button>
         </div>
 
-        <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="space-y-2">
-          <div className="flex items-center justify-between sm:hidden">
-            <div className="inline-flex items-center gap-2 font-medium text-muted-foreground text-sm">
-              <Filter className="h-4 w-4" />
-              {t("tasks:filters.heading")}
-            </div>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-8 px-3">
-                {filtersOpen ? t("tasks:filters.hide") : t("tasks:filters.show")}
-                <ChevronDown
-                  className={`h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
-                />
-              </Button>
-            </CollapsibleTrigger>
-          </div>
-          <CollapsibleContent forceMount className="data-[state=closed]:hidden">
-            <div className="mt-2 flex flex-wrap items-end gap-4 rounded-md border border-muted bg-background/40 p-3 sm:mt-0">
-              {/* Calendar visibility — the user's calendars across guilds +
+        <ToolListToolbar
+          filters={{
+            open: filtersOpen,
+            onOpenChange: setFiltersOpen,
+            activeCount: activeFilterCount,
+          }}
+        />
+
+        <ToolFilterPanel
+          open={filtersOpen}
+          onOpenChange={setFiltersOpen}
+          title={t("tasks:filters.heading")}
+          onClear={clearFilters}
+          activeCount={activeFilterCount}
+        >
+          <div className="flex flex-wrap items-end gap-4">
+            {/* Calendar visibility — the user's calendars across guilds +
                   per-project task calendars behind one dropdown. */}
-              <div className="flex items-end">
-                <CalendarPanelDropdown
-                  calendars={calendars}
-                  projectCalendars={projectCalendars}
-                  isCalendarHidden={(calendar) =>
-                    hiddenCalendarKeys.has(`${calendar.guild_id}:${calendar.id}`)
-                  }
-                  isProjectHidden={(project) =>
-                    hiddenProjectKeys.has(taskProjectKey(project.guildId, project.projectId))
-                  }
-                  onToggleCalendar={(calendar) =>
-                    setHiddenCalendarKeys((prev) =>
-                      toggleInSet(prev, `${calendar.guild_id}:${calendar.id}`)
-                    )
-                  }
-                  onToggleProject={(project) =>
-                    setHiddenProjectKeys((prev) =>
-                      toggleInSet(prev, taskProjectKey(project.guildId, project.projectId))
-                    )
-                  }
-                  calendarLabel={(calendar) => {
-                    const guildName = multiGuild
-                      ? guildNamesById.get(calendar.guild_id)
-                      : undefined;
-                    return guildName ? `${calendar.name} · ${guildName}` : calendar.name;
-                  }}
-                  settingsPathFor={(calendar) =>
-                    guildPath(
-                      calendar.guild_id,
-                      toolSettingsRoute(Tool.calendar, calendar.initiative_id, calendar.id)
-                    )
-                  }
-                  canCreate={false}
-                  onCreate={() => {}}
-                />
-              </div>
-              <div className="w-full sm:w-48 lg:flex-1">
-                <Label className="mb-2 block font-medium text-muted-foreground text-xs">
-                  {t("tasks:filters.filterByStatusCategory")}
-                </Label>
-                <MultiSelect
-                  selectedValues={statusFilters}
-                  options={statusOptions.map((o) => ({ value: o.value, label: o.label }))}
-                  onChange={(values) => setStatusFilters(values as TaskStatusCategory[])}
-                  placeholder={t("tasks:filters.allStatusCategories")}
-                  emptyMessage={t("tasks:filters.noStatusCategories")}
-                />
-              </div>
-              <div className="w-full sm:w-48 lg:flex-1">
-                <Label className="mb-2 block font-medium text-muted-foreground text-xs">
-                  {t("tasks:filters.filterByPriority")}
-                </Label>
-                <MultiSelect
-                  selectedValues={priorityFilters}
-                  options={PRIORITY_ORDER.map((p) => ({
-                    value: p,
-                    label: t(`tasks:priority.${p}` as never),
-                  }))}
-                  onChange={(values) => setPriorityFilters(values as TaskPriority[])}
-                  placeholder={t("tasks:filters.allPriorities")}
-                  emptyMessage={t("tasks:filters.noPriorities")}
-                />
-              </div>
-              <div className="w-full sm:w-48 lg:flex-1">
-                <Label className="mb-2 block font-medium text-muted-foreground text-xs">
-                  {t("tasks:filters.filterByGuild")}
-                </Label>
-                <MultiSelect
-                  selectedValues={guildFilters.map(String)}
-                  options={guilds.map((guild) => ({
-                    value: String(guild.id),
-                    label: guild.name,
-                  }))}
-                  onChange={(values) => {
-                    const numericValues = values.map(Number).filter(Number.isFinite);
-                    setGuildFilters(numericValues);
-                  }}
-                  placeholder={t("tasks:filters.allGuilds")}
-                  emptyMessage={t("tasks:filters.noGuilds")}
-                />
-              </div>
+            <div className="flex items-end">
+              <CalendarPanelDropdown
+                calendars={calendars}
+                projectCalendars={projectCalendars}
+                isCalendarHidden={(calendar) =>
+                  hiddenCalendarKeys.has(`${calendar.guild_id}:${calendar.id}`)
+                }
+                isProjectHidden={(project) =>
+                  hiddenProjectKeys.has(taskProjectKey(project.guildId, project.projectId))
+                }
+                onToggleCalendar={(calendar) =>
+                  setHiddenCalendarKeys((prev) =>
+                    toggleInSet(prev, `${calendar.guild_id}:${calendar.id}`)
+                  )
+                }
+                onToggleProject={(project) =>
+                  setHiddenProjectKeys((prev) =>
+                    toggleInSet(prev, taskProjectKey(project.guildId, project.projectId))
+                  )
+                }
+                calendarLabel={(calendar) => {
+                  const guildName = multiGuild ? guildNamesById.get(calendar.guild_id) : undefined;
+                  return guildName ? `${calendar.name} · ${guildName}` : calendar.name;
+                }}
+                settingsPathFor={(calendar) =>
+                  guildPath(
+                    calendar.guild_id,
+                    toolSettingsRoute(Tool.calendar, calendar.initiative_id, calendar.id)
+                  )
+                }
+                canCreate={false}
+                onCreate={() => {}}
+              />
             </div>
-          </CollapsibleContent>
-        </Collapsible>
+            <div className="w-full sm:w-48 lg:flex-1">
+              <Label className="mb-2 block font-medium text-muted-foreground text-xs">
+                {t("tasks:filters.filterByStatusCategory")}
+              </Label>
+              <MultiSelect
+                selectedValues={statusFilters}
+                options={statusOptions.map((o) => ({ value: o.value, label: o.label }))}
+                onChange={(values) => setStatusFilters(values as TaskStatusCategory[])}
+                placeholder={t("tasks:filters.allStatusCategories")}
+                emptyMessage={t("tasks:filters.noStatusCategories")}
+              />
+            </div>
+            <div className="w-full sm:w-48 lg:flex-1">
+              <Label className="mb-2 block font-medium text-muted-foreground text-xs">
+                {t("tasks:filters.filterByPriority")}
+              </Label>
+              <MultiSelect
+                selectedValues={priorityFilters}
+                options={PRIORITY_ORDER.map((p) => ({
+                  value: p,
+                  label: t(`tasks:priority.${p}` as never),
+                }))}
+                onChange={(values) => setPriorityFilters(values as TaskPriority[])}
+                placeholder={t("tasks:filters.allPriorities")}
+                emptyMessage={t("tasks:filters.noPriorities")}
+              />
+            </div>
+            <div className="w-full sm:w-48 lg:flex-1">
+              <Label className="mb-2 block font-medium text-muted-foreground text-xs">
+                {t("tasks:filters.filterByGuild")}
+              </Label>
+              <MultiSelect
+                selectedValues={guildFilters.map(String)}
+                options={guilds.map((guild) => ({
+                  value: String(guild.id),
+                  label: guild.name,
+                }))}
+                onChange={(values) => {
+                  const numericValues = values.map(Number).filter(Number.isFinite);
+                  setGuildFilters(numericValues);
+                }}
+                placeholder={t("tasks:filters.allGuilds")}
+                emptyMessage={t("tasks:filters.noGuilds")}
+              />
+            </div>
+          </div>
+        </ToolFilterPanel>
 
         {isLoading ? (
           <div className="flex items-center justify-center py-12">

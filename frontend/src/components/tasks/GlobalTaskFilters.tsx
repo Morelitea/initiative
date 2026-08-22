@@ -1,4 +1,3 @@
-import { ChevronDown, Filter } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -7,10 +6,9 @@ import type {
   TaskPriority,
   TaskStatusCategory,
 } from "@/api/generated/initiativeAPI.schemas";
+import { ToolFilterPanel } from "@/components/initiativeTools/shared/ToolFilterPanel";
 import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
 import { PropertyFilter } from "@/components/properties/PropertyFilter";
-import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { PRIORITY_ORDER } from "@/lib/sorting";
@@ -27,6 +25,11 @@ interface GlobalTaskFiltersProps {
   filtersOpen: boolean;
   setFiltersOpen: (open: boolean) => void;
   guilds: GuildRead[];
+  /** Resets every filter back to this page's baseline selection. */
+  onClear?: () => void;
+  /** How many filters are currently set — tells "Clear all" whether it has
+   *  anything to do. */
+  activeCount?: number;
 }
 
 export const GlobalTaskFilters = ({
@@ -41,6 +44,8 @@ export const GlobalTaskFilters = ({
   filtersOpen,
   setFiltersOpen,
   guilds,
+  onClear,
+  activeCount,
 }: GlobalTaskFiltersProps) => {
   const { t } = useTranslation("tasks");
 
@@ -55,85 +60,73 @@ export const GlobalTaskFilters = ({
   );
 
   return (
-    <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="space-y-2">
-      <div className="flex items-center justify-between sm:hidden">
-        <div className="inline-flex items-center gap-2 font-medium text-muted-foreground text-sm">
-          <Filter className="h-4 w-4" />
-          {t("filters.heading")}
+    <ToolFilterPanel
+      open={filtersOpen}
+      onOpenChange={setFiltersOpen}
+      title={t("filters.heading")}
+      onClear={onClear}
+      activeCount={activeCount}
+    >
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="w-full sm:w-60 lg:flex-1">
+          <Label
+            htmlFor="task-status-filter"
+            className="mb-2 block font-medium text-muted-foreground text-xs"
+          >
+            {t("filters.filterByStatusCategory")}
+          </Label>
+          <MultiSelect
+            selectedValues={statusFilters}
+            options={statusOptions.map((option) => ({
+              value: option.value,
+              label: option.label,
+            }))}
+            onChange={(values) => setStatusFilters(values as TaskStatusCategory[])}
+            placeholder={t("filters.allStatusCategories")}
+            emptyMessage={t("filters.noStatusCategories")}
+          />
         </div>
-        <CollapsibleTrigger asChild>
-          <Button variant="ghost" size="sm" className="h-8 px-3">
-            {filtersOpen ? t("filters.hide") : t("filters.show")}
-            <ChevronDown
-              className={`h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
-            />
-          </Button>
-        </CollapsibleTrigger>
+        <div className="w-full sm:w-60 lg:flex-1">
+          <Label
+            htmlFor="task-priority-filter"
+            className="mb-2 block font-medium text-muted-foreground text-xs"
+          >
+            {t("filters.filterByPriority")}
+          </Label>
+          <MultiSelect
+            selectedValues={priorityFilters}
+            options={PRIORITY_ORDER.map((priority) => ({
+              value: priority,
+              label: t(`priority.${priority}` as never),
+            }))}
+            onChange={(values) => setPriorityFilters(values as TaskPriority[])}
+            placeholder={t("filters.allPriorities")}
+            emptyMessage={t("filters.noPriorities")}
+          />
+        </div>
+        <div className="w-full sm:w-60 lg:flex-1">
+          <Label
+            htmlFor="task-guild-filter"
+            className="mb-2 block font-medium text-muted-foreground text-xs"
+          >
+            {t("filters.filterByGuild")}
+          </Label>
+          <MultiSelect
+            selectedValues={guildFilters.map(String)}
+            options={guilds.map((guild) => ({
+              value: String(guild.id),
+              label: guild.name,
+            }))}
+            onChange={(values) => {
+              const numericValues = values.map(Number).filter(Number.isFinite);
+              setGuildFilters(numericValues);
+            }}
+            placeholder={t("filters.allGuilds")}
+            emptyMessage={t("filters.noGuilds")}
+          />
+        </div>
       </div>
-      <CollapsibleContent forceMount className="data-[state=closed]:hidden">
-        <div className="mt-2 flex flex-col gap-3 rounded-md border border-muted bg-background/40 p-3 sm:mt-0">
-          <div className="flex flex-wrap items-end gap-4">
-            <div className="w-full sm:w-60 lg:flex-1">
-              <Label
-                htmlFor="task-status-filter"
-                className="mb-2 block font-medium text-muted-foreground text-xs"
-              >
-                {t("filters.filterByStatusCategory")}
-              </Label>
-              <MultiSelect
-                selectedValues={statusFilters}
-                options={statusOptions.map((option) => ({
-                  value: option.value,
-                  label: option.label,
-                }))}
-                onChange={(values) => setStatusFilters(values as TaskStatusCategory[])}
-                placeholder={t("filters.allStatusCategories")}
-                emptyMessage={t("filters.noStatusCategories")}
-              />
-            </div>
-            <div className="w-full sm:w-60 lg:flex-1">
-              <Label
-                htmlFor="task-priority-filter"
-                className="mb-2 block font-medium text-muted-foreground text-xs"
-              >
-                {t("filters.filterByPriority")}
-              </Label>
-              <MultiSelect
-                selectedValues={priorityFilters}
-                options={PRIORITY_ORDER.map((priority) => ({
-                  value: priority,
-                  label: t(`priority.${priority}` as never),
-                }))}
-                onChange={(values) => setPriorityFilters(values as TaskPriority[])}
-                placeholder={t("filters.allPriorities")}
-                emptyMessage={t("filters.noPriorities")}
-              />
-            </div>
-            <div className="w-full sm:w-60 lg:flex-1">
-              <Label
-                htmlFor="task-guild-filter"
-                className="mb-2 block font-medium text-muted-foreground text-xs"
-              >
-                {t("filters.filterByGuild")}
-              </Label>
-              <MultiSelect
-                selectedValues={guildFilters.map(String)}
-                options={guilds.map((guild) => ({
-                  value: String(guild.id),
-                  label: guild.name,
-                }))}
-                onChange={(values) => {
-                  const numericValues = values.map(Number).filter(Number.isFinite);
-                  setGuildFilters(numericValues);
-                }}
-                placeholder={t("filters.allGuilds")}
-                emptyMessage={t("filters.noGuilds")}
-              />
-            </div>
-          </div>
-          <PropertyFilter value={propertyFilters} onChange={setPropertyFilters} />
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
+      <PropertyFilter value={propertyFilters} onChange={setPropertyFilters} />
+    </ToolFilterPanel>
   );
 };

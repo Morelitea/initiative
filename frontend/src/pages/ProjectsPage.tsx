@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidateAllProjects } from "@/api/query-keys";
-import { ToolImportAction } from "@/components/imports/ToolImportAction";
+import { ToolImportAction, useToolImportAction } from "@/components/imports/ToolImportAction";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { CreateProjectDialog } from "@/components/projects/CreateProjectDialog";
@@ -135,6 +135,14 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   // An explicit canCreate prop (e.g. from InitiativeDetailPage) wins; otherwise
   // use the canonical derivation above.
   const canCreateProjects = canCreate ?? canCreateDerived;
+
+  // Inside an initiative tab the import entry rides in the toolbar's shared
+  // overflow menu; the unscoped page keeps its own kebab beside the heading.
+  const projectImport = useToolImportAction({
+    tool: Tool.project,
+    canImport: canCreateProjects && lockedInitiativeId !== null,
+    fixedInitiativeId: lockedInitiativeId ?? undefined,
+  });
 
   // Drive the app-wide bottom-nav add button for this route.
   useRegisterPrimaryCreateAction(
@@ -283,28 +291,28 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
             noMatchesLabel={t("noMatchingProjects")}
             emptyState={emptyState}
             storagePrefix="project:list"
+            // Inside an initiative every card would carry the same name.
+            showInitiativeLabel={!lockedInitiativeId}
             sortable={status === "active"}
             fixedTagIds={fixedTagIds}
             viewableInitiativeIds={viewableInitiativeIds}
             userId={user?.id}
             renderItemActions={renderItemActions}
             toolbarActions={
-              <>
-                {canCreateProjects && lockedInitiativeId && (
-                  <Button variant="outline" onClick={() => setIsComposerOpen(true)}>
-                    <Plus className="h-4 w-4" />
-                    {t("addProject")}
-                  </Button>
-                )}
-                {lockedInitiativeId && (
-                  <ToolImportAction
-                    tool={Tool.project}
-                    canImport={canCreateProjects}
-                    fixedInitiativeId={lockedInitiativeId}
-                  />
-                )}
-              </>
+              canCreateProjects && lockedInitiativeId ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9"
+                  onClick={() => setIsComposerOpen(true)}
+                >
+                  <Plus className="h-4 w-4" />
+                  {t("addProject")}
+                </Button>
+              ) : null
             }
+            toolbarMenuItems={projectImport.menuItem}
+            toolbarMenuDialogs={projectImport.dialog}
             leadingToolbar={
               fixedTagIds ? null : (
                 <ProjectStatusFilter value={status} onChange={setStatus} counts={statusCounts} />

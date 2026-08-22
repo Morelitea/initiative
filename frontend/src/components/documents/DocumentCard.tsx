@@ -63,7 +63,9 @@ export const DocumentCard = ({ document, className }: DocumentCardProps) => {
       )}
       // style={{ aspectRatio: "2 / 3" }}
     >
-      <div className="relative aspect-square overflow-hidden border-b bg-muted">
+      {/* Squarer thumbnails cost a phone most of a card each while showing, for
+          the usual document, one centred icon. Shorter below `sm`. */}
+      <div className="relative aspect-4/3 overflow-hidden border-b bg-muted sm:aspect-square">
         {document.featured_image_url ? (
           <img
             src={resolveUploadUrl(document.featured_image_url) ?? undefined}

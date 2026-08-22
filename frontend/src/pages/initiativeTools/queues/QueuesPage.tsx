@@ -8,18 +8,18 @@ import { invalidateAllQueues } from "@/api/query-keys";
 import { BulkAccessSection } from "@/components/access/BulkAccessSection";
 import { SelectableGridItem } from "@/components/access/SelectableGridItem";
 import { PaginationBar } from "@/components/documents/PaginationBar";
-import { ToolImportAction } from "@/components/imports/ToolImportAction";
+import { ToolImportAction, useToolImportAction } from "@/components/imports/ToolImportAction";
 import { CreateQueueDialog } from "@/components/initiativeTools/queues/CreateQueueDialog";
 import { QueueCard } from "@/components/initiativeTools/queues/QueueCard";
 import {
   QueuesFilterBar,
   type StatusFilter,
 } from "@/components/initiativeTools/queues/QueuesFilterBar";
+import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
-import { getDefaultFiltersVisibility } from "@/hooks/useDefaultFiltersOpen";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useQueuesList } from "@/hooks/useQueues";
@@ -86,7 +86,10 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
   } = useCreateFromSearchParam();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
+  // Closed until asked for. The filter button carries a count of what's set, so
+  // a narrowed list still says so with the panel shut — and the fields no
+  // longer take the top of the page before the list itself.
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Drive the app-wide bottom-nav add button for this route.
   useRegisterPrimaryCreateAction(
@@ -118,21 +121,44 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
 
   const selection = useGridSelection<(typeof queues)[number]>();
 
+  const queueImport = useToolImportAction({
+    tool: Tool.queue,
+    canImport: canCreateQueues,
+    fixedInitiativeId,
+  });
+
+  const activeFilterCount = (searchQuery.trim() ? 1 : 0) + (statusFilter === "all" ? 0 : 1);
+
+  const clearFilters = useCallback(() => {
+    setSearchQuery("");
+    setStatusFilter("all");
+  }, []);
+
   return (
     <div className="space-y-6">
-      {canCreateQueues && (
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          <Button variant="outline" onClick={() => setCreateDialogOpen(true)}>
-            <Plus className="h-4 w-4" />
-            {t("createQueue")}
-          </Button>
-          <ToolImportAction
-            tool={Tool.queue}
-            canImport={canCreateQueues}
-            fixedInitiativeId={fixedInitiativeId}
-          />
-        </div>
-      )}
+      <ToolListToolbar
+        filters={{
+          open: filtersOpen,
+          onOpenChange: setFiltersOpen,
+          activeCount: activeFilterCount,
+        }}
+        actions={
+          canCreateQueues ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9"
+              onClick={() => setCreateDialogOpen(true)}
+            >
+              <Plus className="h-4 w-4" />
+              {t("createQueue")}
+            </Button>
+          ) : null
+        }
+        menuItems={queueImport.menuItem}
+        onEnterSelection={!selection.active && queues.length > 0 ? selection.enter : undefined}
+      />
+      {queueImport.dialog}
 
       <QueuesFilterBar
         searchQuery={searchQuery}
@@ -141,6 +167,8 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
         onStatusFilterChange={setStatusFilter}
         filtersOpen={filtersOpen}
         onFiltersOpenChange={setFiltersOpen}
+        onClear={clearFilters}
+        activeCount={activeFilterCount}
       />
 
       {/* Content */}

@@ -47,15 +47,24 @@ export const ProjectStatusFilter = ({ value, onChange, counts }: ProjectStatusFi
       onValueChange={(next) => next && onChange(next as ProjectStatus)}
       variant="outline"
       aria-label={t("status.label")}
-      className="justify-start"
+      className="h-9 shrink-0 justify-start"
     >
       {PROJECT_STATUSES.map((status) => {
         const Icon = STATUS_ICONS[status];
         const count = counts?.[status];
         return (
-          <ToggleGroupItem key={status} value={status} className="gap-2 px-3">
+          <ToggleGroupItem
+            key={status}
+            value={status}
+            // Below `sm` the label drops and the icon carries the meaning — the
+            // three states plus their totals have to share the row with the
+            // filter, view, and overflow controls. `shrink-0` because a squeezed
+            // toggle clips its own label and count rather than eliding them.
+            aria-label={t(`status.${status}` as const)}
+            className="h-9 shrink-0 gap-1.5 px-2.5 sm:gap-2 sm:px-3"
+          >
             <Icon className="h-4 w-4" />
-            {t(`status.${status}` as const)}
+            <span className="hidden sm:inline">{t(`status.${status}` as const)}</span>
             {typeof count === "number" ? (
               <span className="text-muted-foreground text-xs tabular-nums">{count}</span>
             ) : null}

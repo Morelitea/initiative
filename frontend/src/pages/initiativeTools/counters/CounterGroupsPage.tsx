@@ -7,16 +7,16 @@ import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidateAllCounterGroups } from "@/api/query-keys";
 import { BulkAccessSection } from "@/components/access/BulkAccessSection";
 import { SelectableGridItem } from "@/components/access/SelectableGridItem";
-import { ToolImportAction } from "@/components/imports/ToolImportAction";
+import { ToolImportAction, useToolImportAction } from "@/components/imports/ToolImportAction";
 import { CounterGroupCard } from "@/components/initiativeTools/counters/CounterGroupCard";
 import { CountersFilterBar } from "@/components/initiativeTools/counters/CountersFilterBar";
 import { CreateCounterGroupDialog } from "@/components/initiativeTools/counters/CreateCounterGroupDialog";
+import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCounterGroupsList } from "@/hooks/useCounters";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
-import { getDefaultFiltersVisibility } from "@/hooks/useDefaultFiltersOpen";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -60,7 +60,10 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
     canCreateGroups ? { run: () => setCreateOpen(true), label: t("createGroup") } : null
   );
 
-  const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
+  // Closed until asked for. The filter button carries a count of what's set, so
+  // a narrowed list still says so with the panel shut — and the fields no
+  // longer take the top of the page before the list itself.
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const groups = useMemo(() => {
     const items = groupsQuery.data?.items ?? [];
@@ -79,27 +82,40 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
 
   const selection = useGridSelection<(typeof groups)[number]>();
 
+  const groupImport = useToolImportAction({
+    tool: Tool.counter_group,
+    canImport: canCreateGroups,
+    fixedInitiativeId,
+  });
+
   return (
     <div className="space-y-6">
-      {canCreateGroups && (
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          <Button variant="outline" onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4" />
-            {t("createGroup")}
-          </Button>
-          <ToolImportAction
-            tool={Tool.counter_group}
-            canImport={canCreateGroups}
-            fixedInitiativeId={fixedInitiativeId}
-          />
-        </div>
-      )}
+      <ToolListToolbar
+        filters={{
+          open: filtersOpen,
+          onOpenChange: setFiltersOpen,
+          activeCount: search.trim() ? 1 : 0,
+        }}
+        actions={
+          canCreateGroups ? (
+            <Button variant="outline" size="sm" className="h-9" onClick={() => setCreateOpen(true)}>
+              <Plus className="h-4 w-4" />
+              {t("createGroup")}
+            </Button>
+          ) : null
+        }
+        menuItems={groupImport.menuItem}
+        onEnterSelection={!selection.active && groups.length > 0 ? selection.enter : undefined}
+      />
+      {groupImport.dialog}
 
       <CountersFilterBar
         searchQuery={search}
         onSearchQueryChange={setSearch}
         filtersOpen={filtersOpen}
         onFiltersOpenChange={setFiltersOpen}
+        onClear={() => setSearch("")}
+        activeCount={search.trim() ? 1 : 0}
       />
 
       {groupsQuery.isLoading ? (

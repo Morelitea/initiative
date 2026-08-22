@@ -22,9 +22,6 @@ vi.mock("@/hooks/useViewPreference", () => ({
   ],
 }));
 vi.mock("@/hooks/useTags", () => ({ useTags: () => ({ data: [] }) }));
-vi.mock("@/hooks/useDefaultFiltersOpen", () => ({
-  useDefaultFiltersOpen: () => [true, vi.fn()],
-}));
 
 const PREFIX = "project:list";
 

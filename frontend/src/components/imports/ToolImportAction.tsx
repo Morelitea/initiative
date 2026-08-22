@@ -1,4 +1,5 @@
 import { FileUp, MoreHorizontal } from "lucide-react";
+import type { ReactNode } from "react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -75,4 +76,45 @@ export function ToolImportAction({
       />
     </>
   );
+}
+
+/**
+ * The same import affordance, split so it can live in a toolbar's *shared*
+ * overflow menu: the entry goes inside the menu, the dialog must not — a
+ * dropdown unmounts its content on close, taking a nested dialog with it.
+ *
+ * Returns `null` for both when the tool has no import surface or the user
+ * can't create here, so a caller can spread them in unconditionally.
+ */
+export function useToolImportAction({
+  tool,
+  canImport,
+  fixedInitiativeId,
+  onImported,
+}: Omit<ToolImportActionProps, "variant">): { menuItem: ReactNode; dialog: ReactNode } {
+  const { t } = useTranslation("imports");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const available = !NON_EXPORTABLE_TOOLS.has(tool) && canImport;
+
+  if (!available) {
+    return { menuItem: null, dialog: null };
+  }
+
+  return {
+    menuItem: (
+      <DropdownMenuItem onSelect={() => setDialogOpen(true)}>
+        <FileUp className="h-4 w-4" />
+        {t("entry.importBackup")}
+      </DropdownMenuItem>
+    ),
+    dialog: (
+      <EnvelopeImportDialog
+        tool={tool}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        fixedInitiativeId={fixedInitiativeId}
+        onImported={onImported}
+      />
+    ),
+  };
 }

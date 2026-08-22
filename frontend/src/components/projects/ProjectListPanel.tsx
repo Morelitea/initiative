@@ -24,10 +24,13 @@ import { BulkAccessBar, canManageSharing } from "@/components/access/BulkAccessB
 import { BulkEditAccessDialog } from "@/components/access/BulkEditAccessDialog";
 import { SelectableGridItem } from "@/components/access/SelectableGridItem";
 import { BulkExportButton } from "@/components/exports/BulkExportButton";
+import {
+  ToolListToolbar,
+  type ToolViewOption,
+} from "@/components/initiativeTools/shared/ToolListToolbar";
 import { ProjectCardLink, ProjectRowLink } from "@/components/projects/ProjectPreview";
 import { ProjectsFilterBar } from "@/components/projects/ProjectsFilterBar";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { useProjectListView } from "@/hooks/useProjectListView";
 import { useReorderProjects } from "@/hooks/useProjects";
@@ -50,8 +53,17 @@ type ProjectListPanelProps = {
   fixedTagIds?: number[];
   viewableInitiativeIds?: Set<number> | null;
   userId?: number;
-  /** Buttons shown left of the grid/list toggle (create, import, …). */
+  /** Buttons shown left of the grid/list toggle, from `sm` up only — create
+   *  and friends. The bottom-nav add pill covers them on mobile. */
   toolbarActions?: ReactNode;
+  /** Entries appended to the toolbar's overflow menu (import, …). */
+  toolbarMenuItems?: ReactNode;
+  /** Dialogs owned by {@link toolbarMenuItems}. Rendered outside the menu,
+   *  which unmounts its content on close. */
+  toolbarMenuDialogs?: ReactNode;
+  /** Name each project's initiative on its card. Off inside an initiative,
+   *  where every card would carry the same name. */
+  showInitiativeLabel?: boolean;
   /** Leading control on the toolbar row — the status filter takes this slot,
    *  where the eye lands first rather than at the end of a row of buttons. */
   leadingToolbar?: ReactNode;
@@ -79,10 +91,13 @@ export const ProjectListPanel = ({
   viewableInitiativeIds,
   userId,
   toolbarActions,
+  toolbarMenuItems,
+  toolbarMenuDialogs,
   leadingToolbar,
+  showInitiativeLabel = true,
   renderItemActions,
 }: ProjectListPanelProps) => {
-  const { t } = useTranslation(["projects", "access"]);
+  const { t } = useTranslation(["projects", "access", "common"]);
   const view = useProjectListView({
     projects,
     storagePrefix,
@@ -92,6 +107,11 @@ export const ProjectListPanel = ({
     viewableInitiativeIds,
   });
   const { filteredProjects, pinnedProjects, sortedProjects, viewMode } = view;
+
+  const viewOptions: ToolViewOption<"grid" | "list">[] = [
+    { value: "grid", label: t("view.grid"), icon: LayoutGrid },
+    { value: "list", label: t("view.list"), icon: List },
+  ];
 
   const selection = useGridSelection<ProjectRead>();
   // An archived project refuses sharing changes server-side, so the bulk
@@ -134,6 +154,7 @@ export const ProjectListPanel = ({
       viewMode={viewMode}
       userId={userId}
       actions={itemActions(project)}
+      showInitiative={showInitiativeLabel}
     />
   );
 
@@ -150,7 +171,12 @@ export const ProjectListPanel = ({
           onToggle={() => selection.toggle(project)}
           label={project.name}
         >
-          <ProjectItem project={project} viewMode={viewMode} userId={userId} />
+          <ProjectItem
+            project={project}
+            viewMode={viewMode}
+            userId={userId}
+            showInitiative={showInitiativeLabel}
+          />
         </SelectableGridItem>
       ))}
     </div>
@@ -172,6 +198,7 @@ export const ProjectListPanel = ({
               viewMode={viewMode}
               userId={userId}
               actions={itemActions(project)}
+              showInitiative={showInitiativeLabel}
             />
           ))}
         </div>
@@ -196,28 +223,27 @@ export const ProjectListPanel = ({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {leadingToolbar}
-        <div className="ml-auto flex flex-wrap items-center gap-3">
-          {toolbarActions}
-          <Tabs
-            value={viewMode}
-            onValueChange={(value) => view.setViewMode(value as "grid" | "list")}
-            className="w-auto"
-          >
-            <TabsList className="grid grid-cols-2">
-              <TabsTrigger value="grid" className="inline-flex items-center gap-2">
-                <LayoutGrid className="h-4 w-4" />
-                {t("view.grid")}
-              </TabsTrigger>
-              <TabsTrigger value="list" className="inline-flex items-center gap-2">
-                <List className="h-4 w-4" />
-                {t("view.list")}
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-      </div>
+      <ToolListToolbar
+        leading={leadingToolbar}
+        filters={{
+          open: view.filtersOpen,
+          onOpenChange: view.setFiltersOpen,
+          activeCount: view.activeFilterCount,
+        }}
+        view={{
+          value: viewMode,
+          onChange: view.setViewMode,
+          options: viewOptions,
+          label: t("common:toolbar.view"),
+        }}
+        actions={toolbarActions}
+        menuItems={toolbarMenuItems}
+        // Nothing to select in an empty or already-selecting list.
+        onEnterSelection={
+          !selection.active && sortedProjects.length > 0 ? selection.enter : undefined
+        }
+      />
+      {toolbarMenuDialogs}
 
       <ProjectsFilterBar {...view.filterBarProps} />
 
@@ -255,16 +281,9 @@ export const ProjectListPanel = ({
                 ))}
             </BulkAccessBar>
           ) : (
-            <>
-              {sortedProjects.length > 0 && (
-                <div className="flex justify-end">
-                  <Button variant="outline" size="sm" onClick={selection.enter}>
-                    {t("access:bulkBar.select")}
-                  </Button>
-                </div>
-              )}
-              {pinnedSection}
-            </>
+            // Entering selection now lives in the toolbar's overflow menu, so
+            // the list itself goes straight to the pinned section.
+            pinnedSection
           )}
           {sortedProjects.length > 0 ? (
             projectItems
@@ -291,16 +310,33 @@ type ProjectItemProps = {
   viewMode: "grid" | "list";
   userId?: number;
   actions?: ReactNode;
+  showInitiative?: boolean;
 };
 
-const ProjectItem = ({ project, viewMode, userId, actions }: ProjectItemProps) =>
+const ProjectItem = ({ project, viewMode, userId, actions, showInitiative }: ProjectItemProps) =>
   viewMode === "list" ? (
-    <ProjectRowLink project={project} userId={userId} actions={actions} />
+    <ProjectRowLink
+      project={project}
+      userId={userId}
+      actions={actions}
+      showInitiative={showInitiative}
+    />
   ) : (
-    <ProjectCardLink project={project} userId={userId} actions={actions} />
+    <ProjectCardLink
+      project={project}
+      userId={userId}
+      actions={actions}
+      showInitiative={showInitiative}
+    />
   );
 
-const SortableProjectItem = ({ project, viewMode, userId, actions }: ProjectItemProps) => {
+const SortableProjectItem = ({
+  project,
+  viewMode,
+  userId,
+  actions,
+  showInitiative,
+}: ProjectItemProps) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: project.id.toString(),
   });
@@ -323,6 +359,7 @@ const SortableProjectItem = ({ project, viewMode, userId, actions }: ProjectItem
           project={project}
           userId={userId}
           actions={actions}
+          showInitiative={showInitiative}
           dragHandleProps={dragHandleProps}
         />
       ) : (
@@ -330,6 +367,7 @@ const SortableProjectItem = ({ project, viewMode, userId, actions }: ProjectItem
           project={project}
           userId={userId}
           actions={actions}
+          showInitiative={showInitiative}
           dragHandleProps={dragHandleProps}
         />
       )}

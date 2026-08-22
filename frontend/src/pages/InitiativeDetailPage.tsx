@@ -1,5 +1,5 @@
 import { Link, Navigate, useParams } from "@tanstack/react-router";
-import { Loader2, SearchX, Settings } from "lucide-react";
+import { ChevronDown, Loader2, SearchX, Settings } from "lucide-react";
 import { type ComponentType, Suspense, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -8,6 +8,7 @@ import { Markdown } from "@/components/Markdown";
 import { StatusMessage } from "@/components/StatusMessage";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
@@ -135,9 +136,6 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
   if (availableTabs.length === 0) {
     return (
       <div className="space-y-4">
-        <Button variant="link" size="sm" asChild className="px-0">
-          <Link to={gp(INITIATIVES_ROUTE)}>{t("detail.backToInitiatives")}</Link>
-        </Button>
         <div className="rounded-lg border p-6">
           <div className="flex flex-wrap items-center gap-3">
             <InitiativeColorDot color={initiative.color} className="h-4 w-4" />
@@ -159,42 +157,83 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
     </div>
   );
 
+  // Description + counts, rendered inline on wide screens and inside the
+  // mobile disclosure — one definition, so the two can't drift.
+  const headerDetails = (
+    <>
+      {initiative.description ? (
+        <Markdown content={initiative.description} className="text-muted-foreground" />
+      ) : (
+        <p className="text-muted-foreground text-sm">{t("noDescription")}</p>
+      )}
+      <div className="flex flex-wrap items-center gap-4 text-muted-foreground text-sm">
+        <span>{t("detail.member", { count: memberCount })}</span>
+        <span>
+          {t("detail.updated", { date: new Date(initiative.updated_at).toLocaleDateString() })}
+        </span>
+      </div>
+    </>
+  );
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-4">
-          <Button variant="link" size="sm" asChild className="px-0">
-            <Link to={gp(INITIATIVES_ROUTE)}>{t("detail.backToInitiatives")}</Link>
-          </Button>
-          <div className="flex flex-wrap items-center gap-3">
-            <InitiativeColorDot color={initiative.color} className="h-4 w-4" />
-            <h1 className="font-semibold text-3xl tracking-tight">{initiative.name}</h1>
-            {initiative.is_default ? <Badge variant="outline">{t("detail.default")}</Badge> : null}
-            {roleBadgeLabel ? <Badge variant="secondary">{roleBadgeLabel}</Badge> : null}
+    <div className="space-y-4 sm:space-y-6">
+      {/* The header is context, not content. On a phone it stays a title row
+          plus the settings gear; the badges, blurb, and counts sit one tap away
+          in the disclosure rather than pushing the tool's list off screen.
+          The row never wraps — a long name wraps its own text instead (it can
+          shrink past its content, hence min-w-0), so the gear stays put. */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1 space-y-2 sm:space-y-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <InitiativeColorDot color={initiative.color} className="h-4 w-4 shrink-0" />
+            <h1 className="min-w-0 break-words font-semibold text-xl tracking-tight sm:text-3xl">
+              {initiative.name}
+            </h1>
+            <div className="hidden shrink-0 flex-wrap items-center gap-2 sm:flex">
+              {initiative.is_default ? (
+                <Badge variant="outline">{t("detail.default")}</Badge>
+              ) : null}
+              {roleBadgeLabel ? <Badge variant="secondary">{roleBadgeLabel}</Badge> : null}
+            </div>
           </div>
-          {initiative.description ? (
-            <Markdown content={initiative.description} className="text-muted-foreground" />
-          ) : (
-            <p className="text-muted-foreground text-sm">{t("noDescription")}</p>
-          )}
-          <div className="flex flex-wrap items-center gap-4 text-muted-foreground text-sm">
-            <span>{t("detail.member", { count: memberCount })}</span>
-            <span>
-              {t("detail.updated", { date: new Date(initiative.updated_at).toLocaleDateString() })}
-            </span>
-          </div>
+          <div className="hidden space-y-4 sm:block">{headerDetails}</div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex shrink-0 flex-wrap gap-2">
           {canManageInitiative ? (
-            <Button variant="outline" asChild>
-              <Link to={gp(`${initiativeRoute(initiative.id)}/settings`)}>
+            <Button
+              variant="outline"
+              // Icon-only on a phone: the gear is unambiguous next to a title,
+              // and the label is the widest thing in the header row.
+              className="max-sm:h-9 max-sm:w-9 max-sm:p-0"
+              asChild
+            >
+              <Link
+                to={gp(`${initiativeRoute(initiative.id)}/settings`)}
+                aria-label={t("detail.initiativeSettings")}
+              >
                 <Settings className="h-4 w-4" />
-                {t("detail.initiativeSettings")}
+                <span className="hidden sm:inline">{t("detail.initiativeSettings")}</span>
               </Link>
             </Button>
           ) : null}
         </div>
       </div>
+
+      <Collapsible className="group sm:hidden">
+        <CollapsibleTrigger asChild>
+          <Button variant="ghost" size="sm" className="h-8 px-0 text-muted-foreground">
+            {t("common:toolbar.details")}
+            <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]:rotate-180" />
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-3 pt-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {initiative.is_default ? <Badge variant="outline">{t("detail.default")}</Badge> : null}
+            {roleBadgeLabel ? <Badge variant="secondary">{roleBadgeLabel}</Badge> : null}
+          </div>
+          {headerDetails}
+        </CollapsibleContent>
+      </Collapsible>
 
       <Tabs value={activeTab}>
         <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">

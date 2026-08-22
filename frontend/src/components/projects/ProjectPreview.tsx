@@ -30,6 +30,10 @@ interface ProjectLinkProps {
    *  wrapping link so they stay valid (and clickable) inside a card-as-anchor.
    *  Used by the Templates and Archive lists for their per-project action. */
   actions?: ReactNode;
+  /** Whether to name the owning initiative on the card. A list already scoped
+   *  to one initiative repeats the same name on every card, so it says nothing
+   *  and costs a line — the cross-initiative views keep it. */
+  showInitiative?: boolean;
 }
 
 /**
@@ -65,6 +69,7 @@ export const ProjectCardLink = ({
   dragHandleProps,
   userId,
   actions,
+  showInitiative = true,
 }: ProjectLinkProps) => {
   const { activeGuild } = useGuilds();
   const { t } = useTranslation("projects");
@@ -122,7 +127,7 @@ export const ProjectCardLink = ({
           <CardFooter className="flex flex-col gap-3 text-muted-foreground text-sm">
             <div className="flex w-full justify-between gap-6">
               <div>
-                <InitiativeLabel initiative={initiative} nested />
+                {showInitiative ? <InitiativeLabel initiative={initiative} nested /> : null}
                 <p>
                   {t("preview.updated", {
                     date: new Date(project.updated_at).toLocaleDateString(undefined),
@@ -157,7 +162,13 @@ export const ProjectCardLink = ({
   );
 };
 
-export const ProjectRowLink = ({ project, dragHandleProps, userId, actions }: ProjectLinkProps) => {
+export const ProjectRowLink = ({
+  project,
+  dragHandleProps,
+  userId,
+  actions,
+  showInitiative = true,
+}: ProjectLinkProps) => {
   const { activeGuild } = useGuilds();
   const { t } = useTranslation("projects");
   const gp = useGuildPath();
@@ -226,7 +237,9 @@ export const ProjectRowLink = ({ project, dragHandleProps, userId, actions }: Pr
                         })}
                       </p>
                     ) : null}
-                    <InitiativeLabel initiative={project.initiative} nested />
+                    {showInitiative ? (
+                      <InitiativeLabel initiative={project.initiative} nested />
+                    ) : null}
                   </div>
                   {project.tags && project.tags.length > 0 ? (
                     <div className="mt-2 flex flex-wrap gap-1">

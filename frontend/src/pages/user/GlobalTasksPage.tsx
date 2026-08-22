@@ -12,12 +12,15 @@ import {
   CalendarView,
   type CalendarViewMode,
 } from "@/components/calendar";
+import {
+  ToolListToolbar,
+  type ToolViewOption,
+} from "@/components/initiativeTools/shared/ToolListToolbar";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { buildPropertyColumns, propertyColumnIds } from "@/components/properties/propertyColumns";
 import { FocusSummary } from "@/components/tasks/FocusSummary";
 import { GlobalTaskFilters } from "@/components/tasks/GlobalTaskFilters";
 import { globalTaskColumns } from "@/components/tasks/globalTaskColumns";
-import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { useAuth } from "@/hooks/useAuth";
 import { useFocusSummary } from "@/hooks/useFocusSummary";
@@ -51,7 +54,12 @@ export const GlobalTasksPage = ({
   showAssignees,
   i18nPrefix,
 }: GlobalTasksPageProps) => {
-  const { t } = useTranslation(["tasks", "dates", "common"]);
+  const { t } = useTranslation(["tasks", "dates", "common", "projects"]);
+
+  const viewOptions: ToolViewOption<"table" | "calendar">[] = [
+    { value: "table", label: t("projects:tasks.viewTable"), icon: Table2 },
+    { value: "calendar", label: t("projects:tasks.viewCalendar"), icon: CalendarDays },
+  ];
   const { guilds } = useGuilds();
   const { user } = useAuth();
   const gp = useGuildPath();
@@ -175,25 +183,26 @@ export const GlobalTasksPage = ({
             <h1 className="font-semibold text-3xl tracking-tight">{t(`${i18nPrefix}.title`)}</h1>
             <p className="text-muted-foreground">{t(`${i18nPrefix}.subtitle`)}</p>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 rounded-lg border p-1">
-              <Button
-                variant={viewMode === "table" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setViewMode("table")}
-              >
-                <Table2 className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={viewMode === "calendar" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setViewMode("calendar")}
-              >
-                <CalendarDays className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
         </div>
+
+        <ToolListToolbar
+          filters={
+            // The calendar view reads none of these task-table filters.
+            viewMode === "table"
+              ? {
+                  open: table.filtersOpen,
+                  onOpenChange: table.setFiltersOpen,
+                  activeCount: table.activeFilterCount,
+                }
+              : undefined
+          }
+          view={{
+            value: viewMode,
+            onChange: setViewMode,
+            options: viewOptions,
+            label: t("common:toolbar.view"),
+          }}
+        />
 
         {showFocus ? (
           <FocusSummary
@@ -207,6 +216,8 @@ export const GlobalTasksPage = ({
         {viewMode === "table" && (
           <>
             <GlobalTaskFilters
+              onClear={table.clearFilters}
+              activeCount={table.activeFilterCount}
               statusFilters={table.statusFilters}
               setStatusFilters={table.setStatusFilters}
               priorityFilters={table.priorityFilters}
