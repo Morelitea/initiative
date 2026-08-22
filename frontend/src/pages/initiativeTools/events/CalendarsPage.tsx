@@ -571,10 +571,12 @@ export const CalendarsView = ({
             ? undefined
             : { open: filtersOpen, onOpenChange: setFiltersOpen, activeCount: activeFilterCount }
         }
-        actions={
+        trailing={
           /* Export and tool import aggregate across calendars, which is not
              what a single guild calendar's surface is; ICS import stays — a
-             club calendar is exactly what one imports events into. */
+             club calendar is exactly what one imports events into.
+             `trailing`, not `actions`: export has no bottom-nav equivalent, so
+             the desktop-only slot would put it out of reach on a phone. */
           !solo ? (
             <ExportButton
               endpoint={toolExportEndpoint(Tool.calendar)}

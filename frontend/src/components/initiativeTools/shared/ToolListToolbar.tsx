@@ -34,9 +34,11 @@ type ToolListToolbarProps<V extends string> = {
    *  with no mobile equivalent elsewhere in the app (export, say) — unlike
    *  {@link actions}, which the bottom-nav add pill already covers. */
   trailing?: ReactNode;
-  /** Buttons shown from `sm` up only. The bottom-nav add pill already runs the
-   *  page's create action on mobile, so a create button here would be a second
-   *  copy of it competing for the narrowest row in the app. */
+  /** Buttons shown from `sm` up only — create, and nothing else. The bottom-nav
+   *  add pill already runs the page's create action on mobile, so a create
+   *  button here would be a second copy of it competing for the narrowest row
+   *  in the app. Anything without that mobile equivalent goes in
+   *  {@link trailing} instead, or it simply becomes unreachable on a phone. */
   actions?: ReactNode;
   /** Items appended to the overflow menu — import, export, and anything else
    *  that would otherwise need its own row. */
