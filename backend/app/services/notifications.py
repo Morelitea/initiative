@@ -744,94 +744,6 @@ async def notify_comment_on_task(
             logger.error(f"Failed to send push notification: {exc}", exc_info=True)
 
 
-async def notify_comment_on_document(
-    session: AsyncSession,
-    *,
-    author: User,
-    commenter: User,
-    comment_id: int,
-    document_id: int,
-    document_name: str,
-    guild_id: int,
-) -> None:
-    """Notify document author that someone commented on their document."""
-    if author.id == commenter.id:
-        return
-
-    target_path = _document_target_path(document_id)
-    smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
-    commenter_name = commenter.full_name or commenter.email
-    locale = _recipient_locale(author)
-
-    # Always create in-app notification
-    await user_notifications.create_notification(
-        session,
-        user_id=author.id,
-        notification_type=NotificationType.comment_on_document,
-        data={
-            "comment_id": comment_id,
-            "document_id": document_id,
-            "document_name": document_name,
-            "commenter_name": commenter_name,
-            "commenter_id": commenter.id,
-            "guild_id": guild_id,
-            "target_path": target_path,
-            "smart_link": smart_link,
-        },
-    )
-    # Email
-    if getattr(author, "email_mentions", True) is not False:
-        try:
-            await email_service.send_mention_email(
-                session,
-                author,
-                subject=email_t(
-                    "comment.onDocument.subject",
-                    locale,
-                    document=document_name,
-                    escape=False,
-                ),
-                headline=email_t("comment.onDocument.title", locale),
-                body_text=email_t(
-                    "comment.onDocument.body",
-                    locale,
-                    actor=commenter_name,
-                    document=document_name,
-                ),
-                link=smart_link,
-            )
-        except email_service.EmailNotConfiguredError:
-            logger.warning(
-                "SMTP not configured; skipping comment email for %s", author.email
-            )
-        except RuntimeError as exc:  # pragma: no cover
-            logger.error("Failed to send comment email: %s", exc)
-    # Push notification
-    if getattr(author, "push_mentions", True) is not False:
-        try:
-            await push_notifications.send_push_to_user(
-                session=session,
-                user_id=author.id,
-                notification_type=NotificationType.comment_on_document,
-                title=_nt("comment.onDocument.title", locale),
-                body=_nt(
-                    "comment.onDocument.body",
-                    locale,
-                    actor=commenter_name,
-                    document=document_name,
-                ),
-                data={
-                    "type": "comment_on_document",
-                    "comment_id": str(comment_id),
-                    "document_id": str(document_id),
-                    "guild_id": str(guild_id),
-                    "target_path": target_path,
-                },
-            )
-        except Exception as exc:
-            logger.error(f"Failed to send push notification: {exc}", exc_info=True)
-
-
 async def notify_comment_on_resource(
     session: AsyncSession,
     *,
@@ -845,9 +757,8 @@ async def notify_comment_on_resource(
 ) -> None:
     """Notify a tool entity's creator that someone commented on it.
 
-    The generic sibling of ``notify_comment_on_document``, for the tool
-    parents beyond the original pair (project, queue, counter group, calendar,
-    dashboard). ``entity_type`` is the Tool value.
+    One notification for every tool parent — project, document, queue,
+    counter group, calendar, dashboard. ``entity_type`` is the Tool value.
     """
     if owner.id == commenter.id:
         return

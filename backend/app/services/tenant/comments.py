@@ -623,27 +623,16 @@ async def _process_comment_notifications(
     if ctx.resource is not None:
         owner = await _load_user(session, ctx.resource.created_by)
         if owner and owner.id != author.id and owner.id not in notified_user_ids:
-            if ctx.tool is Tool.document:
-                await notifications.notify_comment_on_document(
-                    session,
-                    author=owner,
-                    commenter=author,
-                    comment_id=cast(int, comment.id),
-                    document_id=ctx.entity_id,
-                    document_name=ctx.title,
-                    guild_id=guild_id,
-                )
-            else:
-                await notifications.notify_comment_on_resource(
-                    session,
-                    owner=owner,
-                    commenter=author,
-                    comment_id=cast(int, comment.id),
-                    entity_type=cast(Tool, ctx.tool).value,
-                    entity_id=ctx.entity_id,
-                    entity_name=ctx.title,
-                    guild_id=guild_id,
-                )
+            await notifications.notify_comment_on_resource(
+                session,
+                owner=owner,
+                commenter=author,
+                comment_id=cast(int, comment.id),
+                entity_type=cast(Tool, ctx.tool).value,
+                entity_id=ctx.entity_id,
+                entity_name=ctx.title,
+                guild_id=guild_id,
+            )
             notified_user_ids.add(cast(int, owner.id))
 
 

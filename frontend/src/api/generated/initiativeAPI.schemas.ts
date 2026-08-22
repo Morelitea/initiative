@@ -2803,7 +2803,6 @@ export const NotificationType = {
   user_pending_approval: "user_pending_approval",
   mention: "mention",
   comment_on_task: "comment_on_task",
-  comment_on_document: "comment_on_document",
   comment_on_resource: "comment_on_resource",
   comment_reply: "comment_reply",
   access_grant_requested: "access_grant_requested",

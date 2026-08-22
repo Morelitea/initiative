@@ -192,12 +192,6 @@ const notificationText = (
         commenterName: data.commenter_name ?? "Someone",
         taskTitle: data.task_title ?? "your task",
       });
-    case "comment_on_document":
-      return t("notifications.commentOnDocument", {
-        commenterName: data.commenter_name ?? "Someone",
-        // Notifications stored before the rename still carry `document_title`.
-        documentTitle: data.document_name ?? data.document_title ?? "your document",
-      });
     case "comment_on_resource":
       return t("notifications.commentOnResource", {
         commenterName: data.commenter_name ?? "Someone",

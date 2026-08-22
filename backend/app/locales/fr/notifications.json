@@ -42,10 +42,6 @@
       "title": "Nouveau commentaire sur votre tâche",
       "body": "{{actor}} a commenté {{task}}"
     },
-    "onDocument": {
-      "title": "Nouveau commentaire sur votre document",
-      "body": "{{actor}} a commenté {{document}}"
-    },
     "onResource": {
       "title": "Nouveau commentaire",
       "body": "{{actor}} a commenté {{context}}"

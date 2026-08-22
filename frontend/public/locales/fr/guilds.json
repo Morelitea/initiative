@@ -189,7 +189,6 @@
     "mentionComment": "{{mentionedBy}} vous a mentionné dans un commentaire sur {{contextTitle}}.",
     "mentionDocument": "{{mentionedBy}} vous a mentionné dans {{documentTitle}}.",
     "commentOnTask": "{{commenterName}} a commenté sur {{taskTitle}}.",
-    "commentOnDocument": "{{commenterName}} a commenté sur {{documentTitle}}.",
     "commentOnResource": "{{commenterName}} a commenté sur {{entityName}}.",
     "commentReply": "{{replierName}} a répondu à votre commentaire sur {{contextTitle}}.",
     "accessGrantRequested": "{{requester}} a demandé un accès {{level}} à {{guild}}.",
