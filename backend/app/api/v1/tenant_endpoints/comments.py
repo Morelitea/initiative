@@ -159,16 +159,24 @@ async def recent_comments(
     for tool, target in comments_service.TOOL_COMMENT_TARGETS.items():
         model = target.model
         fk = getattr(Comment, target.column)
-        legs.append(
-            and_(
-                fk.isnot(None),
-                fk.in_(
-                    select(model.id).where(
-                        dac_scope_clause(tool, model.id, user_id, guild_id=guild_id)
-                    )
-                ),
-            )
+        parent_ids = select(model.id).where(
+            dac_scope_clause(tool, model.id, user_id, guild_id=guild_id)
         )
+        if target.feature_disabled is not None:
+            # The tool's master switch gates the thread, so it gates the feed
+            # too. A parent that names no initiative (a guild calendar) has no
+            # switch to answer to.
+            parent_ids = parent_ids.where(
+                or_(
+                    model.initiative_id.is_(None),
+                    model.initiative_id.in_(
+                        select(Initiative.id).where(
+                            getattr(Initiative, tool.view_permission).is_(True)
+                        )
+                    ),
+                )
+            )
+        legs.append(and_(fk.isnot(None), fk.in_(parent_ids)))
     conditions.append(or_(*legs))
 
     stmt = (

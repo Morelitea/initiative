@@ -442,3 +442,29 @@ async def test_guild_calendar_comments_reach_every_member(client, session, actin
     )
     assert listed.status_code == 200
     assert [c["content"] for c in listed.json()] == ["Game night?"]
+
+
+@pytest.mark.integration
+async def test_recent_drops_comments_of_a_disabled_tool(client, session, acting_user):
+    """Switching a tool off takes its threads out of the recent feed, exactly
+    as it takes the threads themselves away."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    queue = await _tool_entity(session, Tool.queue, a.initiative, a.user)
+
+    posted = await client.post(
+        a.g("/comments/"),
+        headers=a.headers,
+        json={"content": "Queue talk", "queue_id": queue.id},
+    )
+    assert posted.status_code == 201, posted.text
+
+    recent = await client.get(a.g("/comments/recent"), headers=a.headers)
+    assert any(e["entity_type"] == "queue" for e in recent.json())
+
+    setattr(a.initiative, Tool.queue.view_permission, False)
+    session.add(a.initiative)
+    await session.commit()
+
+    recent = await client.get(a.g("/comments/recent"), headers=a.headers)
+    assert recent.status_code == 200
+    assert not any(e["entity_type"] == "queue" for e in recent.json())
