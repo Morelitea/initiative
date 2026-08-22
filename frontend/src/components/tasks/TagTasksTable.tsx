@@ -1,7 +1,7 @@
 import { keepPreviousData } from "@tanstack/react-query";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
 import type { SortingState } from "@tanstack/react-table";
-import { ChevronDown, Filter, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -16,6 +16,8 @@ import {
   Tool,
 } from "@/api/generated/initiativeAPI.schemas";
 import { listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet } from "@/api/generated/task-statuses/task-statuses";
+import { ToolFilterPanel } from "@/components/initiativeTools/shared/ToolFilterPanel";
+import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
 import { SortIcon } from "@/components/SortIcon";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
@@ -24,11 +26,9 @@ import { TaskPrioritySelector } from "@/components/tasks/TaskPrioritySelector";
 import { TaskStatusSelector } from "@/components/tasks/TaskStatusSelector";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DataTable } from "@/components/ui/data-table";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
-import { useDefaultFiltersOpen } from "@/hooks/useDefaultFiltersOpen";
 import { useGuilds } from "@/hooks/useGuilds";
 import { usePrefetchTasks, useTasks, useUpdateTask } from "@/hooks/useTasks";
 import { toast } from "@/lib/chesterToast";
@@ -46,6 +46,10 @@ const statusFallbackOrder: Record<TaskStatusCategory, TaskStatusCategory[]> = {
 };
 
 const DEFAULT_STATUS_FILTERS: TaskStatusCategory[] = ["backlog", "todo", "in_progress"];
+
+/** Order-insensitive comparison of two selections. */
+const sameMembers = <T,>(a: T[], b: T[]): boolean =>
+  a.length === b.length && new Set(a).size === new Set([...a, ...b]).size;
 
 type TagTasksTableProps = {
   tagId: number;
@@ -75,7 +79,9 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
 
   const [statusFilters, setStatusFilters] = useState<TaskStatusCategory[]>(DEFAULT_STATUS_FILTERS);
   const [priorityFilters, setPriorityFilters] = useState<TaskPriority[]>([]);
-  const [filtersOpen, setFiltersOpen] = useDefaultFiltersOpen();
+  // Closed until asked for. The filter button carries a count of what's set, so
+  // a narrowed list still says so with the panel shut.
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [page, setPageState] = useState(() => searchParams.page ?? 1);
   const [pageSize, setPageSize] = useState(TAG_TASKS_PAGE_SIZE);
@@ -453,61 +459,69 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
 
   const hasError = tasksQuery.isError;
 
+  // Status starts on a selection rather than an empty one, so it counts as
+  // "set" only once it differs from that baseline.
+  const activeFilterCount =
+    (sameMembers(statusFilters, DEFAULT_STATUS_FILTERS) ? 0 : 1) + priorityFilters.length;
+
+  const clearFilters = useCallback(() => {
+    setStatusFilters(DEFAULT_STATUS_FILTERS);
+    setPriorityFilters([]);
+  }, []);
+
   const totalCount = tasksQuery.data?.total_count ?? 0;
   const totalPages = pageSize > 0 ? Math.ceil(totalCount / pageSize) : 1;
 
   return (
     <div className="space-y-4">
-      <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="space-y-2">
-        <div className="flex items-center justify-between sm:hidden">
-          <div className="inline-flex items-center gap-2 font-medium text-muted-foreground text-sm">
-            <Filter className="h-4 w-4" />
-            {t("filters.heading")}
+      <ToolListToolbar
+        filters={{
+          open: filtersOpen,
+          onOpenChange: setFiltersOpen,
+          activeCount: activeFilterCount,
+        }}
+      />
+
+      <ToolFilterPanel
+        open={filtersOpen}
+        onOpenChange={setFiltersOpen}
+        title={t("filters.heading")}
+        onClear={clearFilters}
+        activeCount={activeFilterCount}
+      >
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="w-full sm:w-60 lg:flex-1">
+            <Label className="mb-2 block font-medium text-muted-foreground text-xs">
+              {t("filters.statusCategory")}
+            </Label>
+            <MultiSelect
+              selectedValues={statusFilters}
+              options={statusOptions.map((option) => ({
+                value: option.value,
+                label: option.label,
+              }))}
+              onChange={(values) => setStatusFilters(values as TaskStatusCategory[])}
+              placeholder={t("filters.allStatusCategories")}
+              emptyMessage={t("filters.noStatusCategories")}
+            />
           </div>
-          <CollapsibleTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 px-3">
-              {filtersOpen ? t("filters.hide") : t("filters.show")}
-              <ChevronDown
-                className={`h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
-              />
-            </Button>
-          </CollapsibleTrigger>
+          <div className="w-full sm:w-60 lg:flex-1">
+            <Label className="mb-2 block font-medium text-muted-foreground text-xs">
+              {t("filters.priorityLabel")}
+            </Label>
+            <MultiSelect
+              selectedValues={priorityFilters}
+              options={PRIORITY_ORDER.map((priority) => ({
+                value: priority,
+                label: t(`priority.${priority}`),
+              }))}
+              onChange={(values) => setPriorityFilters(values as TaskPriority[])}
+              placeholder={t("filters.allPriorities")}
+              emptyMessage={t("filters.noPriorities")}
+            />
+          </div>
         </div>
-        <CollapsibleContent forceMount className="data-[state=closed]:hidden">
-          <div className="mt-2 flex flex-wrap items-end gap-4 rounded-md border border-muted bg-background/40 p-3 sm:mt-0">
-            <div className="w-full sm:w-60 lg:flex-1">
-              <Label className="mb-2 block font-medium text-muted-foreground text-xs">
-                {t("filters.statusCategory")}
-              </Label>
-              <MultiSelect
-                selectedValues={statusFilters}
-                options={statusOptions.map((option) => ({
-                  value: option.value,
-                  label: option.label,
-                }))}
-                onChange={(values) => setStatusFilters(values as TaskStatusCategory[])}
-                placeholder={t("filters.allStatusCategories")}
-                emptyMessage={t("filters.noStatusCategories")}
-              />
-            </div>
-            <div className="w-full sm:w-60 lg:flex-1">
-              <Label className="mb-2 block font-medium text-muted-foreground text-xs">
-                {t("filters.priorityLabel")}
-              </Label>
-              <MultiSelect
-                selectedValues={priorityFilters}
-                options={PRIORITY_ORDER.map((priority) => ({
-                  value: priority,
-                  label: t(`priority.${priority}`),
-                }))}
-                onChange={(values) => setPriorityFilters(values as TaskPriority[])}
-                placeholder={t("filters.allPriorities")}
-                emptyMessage={t("filters.noPriorities")}
-              />
-            </div>
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
+      </ToolFilterPanel>
 
       <div className="relative">
         {isRefetching ? (

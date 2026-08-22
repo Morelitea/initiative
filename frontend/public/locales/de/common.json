@@ -105,5 +105,15 @@
     "deleted": "„{{name}}“ gelöscht",
     "notFound": "Nicht gefunden",
     "loadError": "Dieses Element konnte nicht geladen werden."
+  },
+  "toolbar": {
+    "filters": "Filter",
+    "filtersActive_one": "Filter ({{count}} aktiv)",
+    "filtersActive_other": "Filter ({{count}} aktiv)",
+    "applyFilters": "Ergebnisse anzeigen",
+    "moreActions": "Weitere Aktionen",
+    "selectItems": "Elemente auswählen",
+    "view": "Ansicht",
+    "details": "Details"
   }
 }

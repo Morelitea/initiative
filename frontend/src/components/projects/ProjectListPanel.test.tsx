@@ -26,9 +26,12 @@ const panel = (projects: ReturnType<typeof buildProject>[]) =>
     />
   ));
 
+// Entering selection lives in the toolbar's overflow menu, alongside import —
+// on a phone it had been claiming a row of its own.
 const selectProject = async (name: string) => {
   const user = userEvent.setup();
-  await user.click(await screen.findByRole("button", { name: /select/i }));
+  await user.click(await screen.findByRole("button", { name: /more actions/i }));
+  await user.click(await screen.findByRole("menuitem", { name: /select items/i }));
   await user.click(await screen.findByRole("button", { name, pressed: false }));
 };
 

@@ -22,16 +22,18 @@ import { DocumentsFilterBar } from "@/components/documents/DocumentsFilterBar";
 import { DocumentsListView } from "@/components/documents/DocumentsListView";
 import { DocumentsTagsView } from "@/components/documents/DocumentsTagsView";
 import { PaginationBar } from "@/components/documents/PaginationBar";
-import { ToolImportAction } from "@/components/imports/ToolImportAction";
+import { ToolImportAction, useToolImportAction } from "@/components/imports/ToolImportAction";
+import {
+  ToolListToolbar,
+  type ToolViewOption,
+} from "@/components/initiativeTools/shared/ToolListToolbar";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
 import { UNTAGGED_PATH } from "@/components/tags/TagTreeView";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
-import { useDefaultFiltersOpen } from "@/hooks/useDefaultFiltersOpen";
 import {
   useCopyDocument,
   useDeleteDocuments,
@@ -86,7 +88,10 @@ export const DocumentsView = ({
   const searchParamsRef = useRef(searchParams);
   searchParamsRef.current = searchParams;
   const [searchQuery, setSearchQuery] = useState("");
-  const [filtersOpen, setFiltersOpen] = useDefaultFiltersOpen();
+  // Closed until asked for. The filter button carries a count of what's set, so
+  // a narrowed list still says so with the panel shut — and the fields no
+  // longer take the top of the page before the list itself.
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // View mode and tag filters are server-persisted in the normal case.
   // When fixedTagIds is provided (tag detail page), the view is forced
@@ -414,6 +419,33 @@ export const DocumentsView = ({
   // use the canonical derivation above.
   const canCreateDocuments = canCreate ?? canCreateDerived;
 
+  // Inside an initiative tab the import entry rides in the toolbar's shared
+  // overflow menu; the unscoped page keeps its own kebab beside the heading.
+  const documentImport = useToolImportAction({
+    tool: Tool.document,
+    canImport: canCreateDocuments && lockedInitiativeId !== null,
+    fixedInitiativeId: lockedInitiativeId ?? undefined,
+  });
+
+  const viewOptions: ToolViewOption<"grid" | "list" | "tags">[] = [
+    { value: "tags", label: t("page.viewTags"), icon: Tags },
+    { value: "grid", label: t("page.viewGrid"), icon: LayoutGrid },
+    { value: "list", label: t("page.viewList"), icon: Table },
+  ];
+
+  // Badges the filter button while the panel is closed. The tag *view* browses
+  // by tag through its own tree, so its tag selection isn't counted here.
+  const activeFilterCount =
+    (searchQuery.trim() ? 1 : 0) +
+    (fixedTagIds || viewMode === "tags" ? 0 : tagFilters.length) +
+    propertyFilters.length;
+
+  const clearFilters = useCallback(() => {
+    setSearchQuery("");
+    setTagFilters([]);
+    setPropertyFilters([]);
+  }, [setTagFilters]);
+
   // Drive the app-wide bottom-nav add button for this route.
   useRegisterPrimaryCreateAction(
     canCreateDocuments
@@ -473,78 +505,60 @@ export const DocumentsView = ({
   return (
     <div className="space-y-6">
       {!lockedInitiativeId && !fixedTagIds && (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="flex items-baseline gap-4">
-              <h1 className="font-semibold text-3xl tracking-tight">{t("page.title")}</h1>
-              {canCreateDocuments ? (
-                <Button size="sm" variant="outline" onClick={() => setCreateDialogOpen(true)}>
-                  <Plus className="h-4 w-4" />
-                  {t("page.newDocument")}
-                </Button>
-              ) : null}
-              <ToolImportAction tool={Tool.document} canImport={canCreateDocuments} />
-            </div>
-            <p className="text-muted-foreground text-sm">{t("page.subtitle")}</p>
+        <div>
+          <div className="flex items-baseline gap-4">
+            <h1 className="font-semibold text-3xl tracking-tight">{t("page.title")}</h1>
+            {canCreateDocuments ? (
+              <Button size="sm" variant="outline" onClick={() => setCreateDialogOpen(true)}>
+                <Plus className="h-4 w-4" />
+                {t("page.newDocument")}
+              </Button>
+            ) : null}
+            <ToolImportAction tool={Tool.document} canImport={canCreateDocuments} />
           </div>
-          <Tabs
-            value={viewMode}
-            onValueChange={(value) => setViewMode(value as "grid" | "list" | "tags")}
-            className="w-auto"
-          >
-            <TabsList className="grid grid-cols-3">
-              <TabsTrigger value="tags" className="inline-flex items-center gap-2">
-                <Tags className="h-4 w-4" />
-                {t("page.viewTags")}
-              </TabsTrigger>
-              <TabsTrigger value="grid" className="inline-flex items-center gap-2">
-                <LayoutGrid className="h-4 w-4" />
-                {t("page.viewGrid")}
-              </TabsTrigger>
-              <TabsTrigger value="list" className="inline-flex items-center gap-2">
-                <Table className="h-4 w-4" />
-                {t("page.viewList")}
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <p className="text-muted-foreground text-sm">{t("page.subtitle")}</p>
         </div>
       )}
 
-      {lockedInitiativeId && (
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          {canCreateDocuments && (
-            <Button variant="outline" onClick={() => setCreateDialogOpen(true)}>
+      <ToolListToolbar
+        filters={{
+          open: filtersOpen,
+          onOpenChange: setFiltersOpen,
+          activeCount: activeFilterCount,
+        }}
+        view={
+          // The tag-detail browse pins the list view, so it has nothing to pick.
+          fixedTagIds
+            ? undefined
+            : {
+                value: viewMode,
+                onChange: setViewMode,
+                options: viewOptions,
+                label: t("common:toolbar.view"),
+              }
+        }
+        actions={
+          canCreateDocuments && lockedInitiativeId ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9"
+              onClick={() => setCreateDialogOpen(true)}
+            >
               <Plus className="h-4 w-4" />
               {t("page.newDocument")}
             </Button>
-          )}
-          <ToolImportAction
-            tool={Tool.document}
-            canImport={canCreateDocuments}
-            fixedInitiativeId={lockedInitiativeId ?? undefined}
-          />
-          <Tabs
-            value={viewMode}
-            onValueChange={(value) => setViewMode(value as "grid" | "list" | "tags")}
-            className="w-auto"
-          >
-            <TabsList className="grid grid-cols-3">
-              <TabsTrigger value="tags" className="inline-flex items-center gap-2">
-                <Tags className="h-4 w-4" />
-                {t("page.viewTags")}
-              </TabsTrigger>
-              <TabsTrigger value="grid" className="inline-flex items-center gap-2">
-                <LayoutGrid className="h-4 w-4" />
-                {t("page.viewGrid")}
-              </TabsTrigger>
-              <TabsTrigger value="list" className="inline-flex items-center gap-2">
-                <Table className="h-4 w-4" />
-                {t("page.viewList")}
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-      )}
+          ) : null
+        }
+        menuItems={documentImport.menuItem}
+        onEnterSelection={
+          // The list view carries its own row selection in the table header.
+          !cardSelectionActive && viewMode !== "list"
+            ? () => setCardSelectionActive(true)
+            : undefined
+        }
+      />
+      {documentImport.dialog}
 
       <DocumentsFilterBar
         searchQuery={searchQuery}
@@ -557,6 +571,8 @@ export const DocumentsView = ({
         fixedTagIds={fixedTagIds}
         propertyFilters={propertyFilters}
         onPropertyFiltersChange={setPropertyFilters}
+        onClear={clearFilters}
+        activeCount={activeFilterCount}
       />
 
       {!canViewDocs ? (
@@ -593,13 +609,7 @@ export const DocumentsView = ({
               isBulkDeleting={deleteDocuments.isPending}
               onExit={exitCardSelection}
             />
-          ) : (
-            <div className="flex justify-end">
-              <Button variant="outline" size="sm" onClick={() => setCardSelectionActive(true)}>
-                {t("access:bulkBar.select")}
-              </Button>
-            </div>
-          )}
+          ) : null}
           <DocumentsTagsView
             documents={displayDocuments}
             allTags={allTags}
@@ -640,13 +650,7 @@ export const DocumentsView = ({
                 isBulkDeleting={deleteDocuments.isPending}
                 onExit={exitCardSelection}
               />
-            ) : (
-              <div className="flex justify-end">
-                <Button variant="outline" size="sm" onClick={() => setCardSelectionActive(true)}>
-                  {t("access:bulkBar.select")}
-                </Button>
-              </div>
-            )}
+            ) : null}
             <div className="animate grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {documents.map((document) => (
                 <SelectableGridItem

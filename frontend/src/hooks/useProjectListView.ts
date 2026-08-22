@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { ProjectRead, TagRead, TagSummary } from "@/api/generated/initiativeAPI.schemas";
-import { useDefaultFiltersOpen } from "@/hooks/useDefaultFiltersOpen";
 import { useTags } from "@/hooks/useTags";
 import { useViewPreference } from "@/hooks/useViewPreference";
 
@@ -64,7 +63,10 @@ export const useProjectListView = ({
 
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [customOrder, setCustomOrder] = useState<number[]>([]);
-  const [filtersOpen, setFiltersOpen] = useDefaultFiltersOpen();
+  // Closed until asked for. The filter button carries a count of what's set, so
+  // a narrowed list still says so with the panel shut — and the fields no
+  // longer take the top of the page before the list itself.
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const sortMode: ProjectSortMode = SORT_MODES.includes(persistedSortMode)
     ? persistedSortMode === "custom" && !allowCustomSort
@@ -108,6 +110,18 @@ export const useProjectListView = ({
     (nextTags: TagSummary[]) => setTagFilters(nextTags.map((tag) => tag.id)),
     [setTagFilters]
   );
+
+  // What the filter button reports while the panel is closed. Sort order is
+  // deliberately excluded — it reorders the list, it doesn't narrow it, so
+  // counting it would badge a list that is showing everything.
+  const activeFilterCount =
+    (searchQuery.trim() ? 1 : 0) + (fixedTagIds ? 0 : tagFilters.length) + (favoritesOnly ? 1 : 0);
+
+  const clearFilters = useCallback(() => {
+    setSearchQuery("");
+    setTagFilters([]);
+    setFavoritesOnly(false);
+  }, [setSearchQuery, setTagFilters]);
 
   const filteredProjects = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -210,6 +224,9 @@ export const useProjectListView = ({
     setViewMode,
     customOrder,
     setCustomOrder,
+    filtersOpen,
+    setFiltersOpen,
+    activeFilterCount,
     /** Spread straight into `<ProjectsFilterBar />`. */
     filterBarProps: {
       searchQuery,
@@ -224,6 +241,8 @@ export const useProjectListView = ({
       onTagFiltersChange: handleTagFiltersChange,
       fixedTagIds,
       allowCustomSort,
+      onClear: clearFilters,
+      activeCount: activeFilterCount,
     },
   };
 };

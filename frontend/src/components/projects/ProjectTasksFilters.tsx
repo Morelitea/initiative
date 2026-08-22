@@ -72,7 +72,9 @@ export const ProjectTasksFilters = ({
   };
 
   return (
-    <div className="flex flex-col gap-4 rounded-md border border-muted bg-background/40 p-3">
+    // Bare fields: the surrounding ToolFilterPanel supplies the box, the way it
+    // does for every other filter bar.
+    <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end gap-4">
         <div className="w-full space-y-2 sm:w-48">
           <Label

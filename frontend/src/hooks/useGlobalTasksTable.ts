@@ -22,7 +22,6 @@ import {
   listMyTasksApiV1MeTasksGet,
 } from "@/api/generated/tasks/tasks";
 import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
-import { useDefaultFiltersOpen } from "@/hooks/useDefaultFiltersOpen";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useUpdateTaskInGuild } from "@/hooks/useTasks";
 import { useViewPreference } from "@/hooks/useViewPreference";
@@ -48,6 +47,10 @@ type StoredPrefs = {
   propertyFilters: PropertyFilterCondition[];
   sorting: SortField[];
 };
+
+/** Order-insensitive comparison of two selections. */
+const sameMembers = <T>(a: T[], b: T[]): boolean =>
+  a.length === b.length && new Set(a).size === new Set([...a, ...b]).size;
 
 const FILTER_DEFAULTS: StoredPrefs = {
   statusFilters: ["backlog", "todo", "in_progress"] as TaskStatusCategory[],
@@ -142,7 +145,25 @@ export function useGlobalTasksTable({ view, storageKeyPrefix }: UseGlobalTasksTa
   const setPropertyFilters = useMemo(() => makeSetter("propertyFilters"), [makeSetter]);
   const setSorting = useMemo(() => makeSetter("sorting"), [makeSetter]);
 
-  const [filtersOpen, setFiltersOpen] = useDefaultFiltersOpen();
+  // Closed until asked for. The filter button carries a count of what's set, so
+  // a narrowed list still says so with the panel shut.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  // This page starts on a status selection rather than an empty one, so status
+  // counts as "set" only once it differs from that baseline — otherwise the
+  // button would badge a list nobody has touched.
+  const activeFilterCount =
+    (sameMembers(statusFilters, FILTER_DEFAULTS.statusFilters) ? 0 : 1) +
+    priorityFilters.length +
+    guildFilters.length +
+    propertyFilters.length;
+
+  const clearFilters = useCallback(() => {
+    setStatusFilters(FILTER_DEFAULTS.statusFilters);
+    setPriorityFilters([]);
+    setGuildFilters([]);
+    setPropertyFilters([]);
+  }, [setStatusFilters, setPriorityFilters, setGuildFilters, setPropertyFilters]);
 
   // --- Pagination state ---
   const [page, setPageState] = useState(() => searchParams.page ?? 1);
@@ -405,6 +426,8 @@ export function useGlobalTasksTable({ view, storageKeyPrefix }: UseGlobalTasksTa
     setPropertyFilters,
     filtersOpen,
     setFiltersOpen,
+    activeFilterCount,
+    clearFilters,
 
     // Query results
     tasksQuery,
