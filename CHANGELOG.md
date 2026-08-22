@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.63.0] - 2026-08-21
+
 ### Added
 
 - **Every tool has a comment thread.** Comments — previously only on tasks and documents — now live on projects, queues, counter groups, calendars, and dashboards too, guild calendars included. Whoever can see a thing can read and join its discussion, replies and @mentions work everywhere, the guild's recent activity feed carries the new threads, and the thing's creator is notified when someone comments.
