@@ -37,6 +37,7 @@ PUSH_CHANNELS: dict[NotificationType, str] = {
     NotificationType.mention: "mention",
     NotificationType.comment_on_task: "comments",
     NotificationType.comment_on_document: "comments",
+    NotificationType.comment_on_resource: "comments",
     NotificationType.comment_reply: "comments",
     NotificationType.event_invitation: "calendar_events",
     NotificationType.event_updated: "calendar_events",
