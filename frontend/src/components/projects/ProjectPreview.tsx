@@ -43,6 +43,11 @@ export const canPinProject = (
 ): boolean => {
   if (!userId) return false;
 
+  // An archived project takes no edits at all, pinning included — the server
+  // refuses the update. A project pinned before it was archived still shows
+  // the read-only indicator.
+  if (project.is_archived) return false;
+
   // Guild admins can always pin
   if (guildRole === "admin") return true;
 
