@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.63.1] - 2026-08-23
+
+### Fixed
+
+- **Updating to 0.63.0 could stop partway with a database error.** The migration that gave every kind of content one `created_by` field also renamed the foreign keys named after the old field — but a guild created recently never had those keys to begin with, so the update failed on `constraint "calendars_created_by_id_fkey" for table "calendars" does not exist` and the app would not start. The rename now skips what a guild's schema does not have. An install stopped by this can simply update again; nothing was left half-applied.
+- **The tag browser on a phone spilled over the documents behind it.** Opening "Browse by tag" on a narrow screen drew the whole tag tree past the bottom of its panel and on top of the document cards. The panel now keeps its tags inside it and scrolls, and its chevron turns over when it opens.
+
 ## [0.63.0] - 2026-08-21
 
 ### Added

@@ -68,6 +68,23 @@ INTENTIONALLY_IRREVERSIBLE = frozenset(
     }
 )
 
+# 20260820_0188 (one author column across the guild schema) and the revision it
+# starts from. Named here because the regression test below replays that one
+# revision over a hand-made database state.
+AUTHOR_RENAME_REVISION = "20260820_0188"
+PRE_AUTHOR_RENAME_REVISION = "20260815_0187"
+
+# The guild-content tables whose foreign key into ``public.users`` is named after
+# the author column 0188 renames — (table, pre-0188 column name).
+AUTHOR_FOREIGN_KEY_TABLES = (
+    ("calendars", "created_by_id"),
+    ("dashboards", "created_by_id"),
+    ("export_jobs", "created_by_id"),
+    ("guild_ai_connections", "created_by_user_id"),
+    ("guild_apps", "installed_by_id"),
+    ("import_jobs", "created_by_id"),
+)
+
 # Per-worker so parallel xdist workers don't drop/recreate the same DB. xdist's
 # worker id is used verbatim ("gw0"/… distributed, "master" standalone).
 _WORKER = os.environ.get("PYTEST_XDIST_WORKER", "master")
@@ -371,6 +388,28 @@ def _constraint_exists(table: str, name: str, schema: str = "public") -> bool:
     return asyncio.run(_constraint_exists_async(table, name, schema))
 
 
+async def _column_exists_async(table: str, column: str, schema: str) -> bool:
+    conn = await _connect_test_db()
+    try:
+        return bool(
+            await conn.fetchval(
+                "SELECT EXISTS ("
+                "  SELECT 1 FROM information_schema.columns "
+                "  WHERE table_schema = $1 AND table_name = $2 AND column_name = $3"
+                ")",
+                schema,
+                table,
+                column,
+            )
+        )
+    finally:
+        await conn.close()
+
+
+def _column_exists(table: str, column: str, schema: str = "public") -> bool:
+    return asyncio.run(_column_exists_async(table, column, schema))
+
+
 async def _execute_sql_async(sql: str) -> None:
     conn = await _connect_test_db()
     try:
@@ -536,6 +575,51 @@ class TestMigrationsAgainstDatabase:
         assert _sequence_exists("user_api_keys_id_seq"), (
             "the shared user_api_keys id sequence must survive the drop"
         )
+
+    def test_author_rename_skips_foreign_keys_a_guild_schema_lacks(
+        self, fresh_migrations_db: str
+    ) -> None:
+        """20260820_0188 renames the foreign keys named after the author column,
+        and a guild schema built by the app's provisioner has none of them.
+
+        ``app.db.guild_ddl`` renders intra-schema references only — a reference
+        to ``public.users`` is left soft, because the schema is the tenant
+        boundary — so a guild created that way carries the author column without
+        the key, while ``guild_template`` and the guilds provisioned before that
+        renderer carry both. Both shapes are live in the field, so the rename has
+        to ask rather than assume: it stopped every upgrade that had one of the
+        first kind (issue #1218).
+
+        A fresh database has only ``guild_template``, which does carry the keys,
+        so the other shape is fabricated here — drop them, then replay the
+        revision over it, in both directions.
+        """
+        _run_alembic("upgrade", "head")
+        _run_alembic("downgrade", PRE_AUTHOR_RENAME_REVISION)
+
+        for table, column in AUTHOR_FOREIGN_KEY_TABLES:
+            name = f"{table}_{column}_fkey"
+            assert _constraint_exists(table, name, schema="guild_template"), (
+                f"expected {name!r} before the fabrication — the shape this test "
+                "removes must be the one the migration chain produces"
+            )
+            _execute_sql(f"ALTER TABLE guild_template.{table} DROP CONSTRAINT {name}")
+
+        _run_alembic("upgrade", "head")
+
+        for table, _column in AUTHOR_FOREIGN_KEY_TABLES:
+            assert _column_exists(table, "created_by", schema="guild_template"), (
+                f"{table}.created_by must be renamed whether or not a foreign "
+                "key carries the old name"
+            )
+            assert not _constraint_exists(
+                table, f"{table}_created_by_fkey", schema="guild_template"
+            ), "a key that wasn't there must not be conjured by the rename"
+
+        # The reverse has the same two shapes to survive.
+        _run_alembic("downgrade", PRE_AUTHOR_RENAME_REVISION)
+        for table, column in AUTHOR_FOREIGN_KEY_TABLES:
+            assert _column_exists(table, column, schema="guild_template")
 
     def test_step_by_step_upgrade_from_base_to_head(
         self, fresh_migrations_db: str
