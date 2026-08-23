@@ -75,20 +75,48 @@ _RENAMES: tuple[tuple[str, str], ...] = (
 #: who changed a document, with the transaction and the columns involved.
 _DROPPED_UPDATED_BY = ("documents", "updated_by_id")
 
+
+def _rename_constraint(table: str, old_name: str, new_name: str) -> str:
+    """Rename a constraint where the schema has one.
+
+    Guild schemas do not all carry the same foreign keys. A schema built by the
+    app's provisioner has only intra-schema ones — a reference to
+    ``public.users`` is left soft, because the schema is the tenant boundary
+    (``app.db.guild_ddl``) — while ``guild_template`` and the guilds provisioned
+    before that renderer existed do have them. Both shapes are live in the
+    field, so this asks before renaming instead of assuming; a schema without
+    the constraint simply has nothing to bring along.
+
+    ``to_regclass`` resolves through the ``search_path`` the per-schema loop
+    sets, so it names the table in the schema currently being migrated.
+    """
+    return (
+        f"DO $rename$ BEGIN "
+        f"IF EXISTS (SELECT 1 FROM pg_constraint "
+        f"WHERE conrelid = to_regclass('{table}') AND conname = '{old_name}') THEN "
+        f"ALTER TABLE {table} RENAME CONSTRAINT {old_name} TO {new_name}; "
+        f"END IF; END $rename$"
+    )
+
+
 #: Constraints and indexes named after a renamed column. Postgres rewrites what
 #: they reference on RENAME COLUMN but keeps their own name, so the name is
-#: brought along by hand — as (forward, reverse) statement pairs.
+#: brought along by hand — as (forward, reverse) statement pairs. Each one is
+#: conditional: which of these objects a given guild schema holds depends on how
+#: it was built (see :func:`_rename_constraint`).
 _RENAMED_OBJECTS: tuple[tuple[str, str], ...] = (
     (
-        "ALTER INDEX ix_comments_author_id RENAME TO ix_comments_created_by",
-        "ALTER INDEX ix_comments_created_by RENAME TO ix_comments_author_id",
+        "ALTER INDEX IF EXISTS ix_comments_author_id RENAME TO ix_comments_created_by",
+        "ALTER INDEX IF EXISTS ix_comments_created_by RENAME TO ix_comments_author_id",
     ),
     *(
         (
-            f"ALTER TABLE {table} RENAME CONSTRAINT "
-            f"{table}_{old}_fkey TO {table}_created_by_fkey",
-            f"ALTER TABLE {table} RENAME CONSTRAINT "
-            f"{table}_created_by_fkey TO {table}_{old}_fkey",
+            _rename_constraint(
+                table, f"{table}_{old}_fkey", f"{table}_created_by_fkey"
+            ),
+            _rename_constraint(
+                table, f"{table}_created_by_fkey", f"{table}_{old}_fkey"
+            ),
         )
         for table, old in (
             ("calendars", "created_by_id"),
