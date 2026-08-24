@@ -10,11 +10,7 @@ Your marketplace holds the listings that ship with Initiative, plus any that the
 
 Open it from **Browse the marketplace** on your dashboards list, or from the **Apps** section at the top of the sidebar.
 
-!!! screenshot "The marketplace"
-    **Show:** the marketplace browse page — the search box and a grid of listing cards, each with its artwork, name, publisher, and description.
-
-    Save as `en/images/marketplace/browse.png`, then use:
-    `![Browsing the marketplace](../images/marketplace/browse.png)`
+![Browsing the marketplace](../images/marketplace/browse.png)
 
 ## Two kinds of listing
 

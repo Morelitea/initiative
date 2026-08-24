@@ -27,11 +27,7 @@ You can grant access to:
 
 Sharing with a **role** is the tidy choice when a whole group should have the same access — you set it once instead of adding people one at a time.
 
-!!! screenshot "Sharing a project"
-    **Show:** the project (or document) "Access" settings, showing people and roles each with a Viewer / Editor / Owner level.
-
-    Save as `en/images/sharing/access-settings.png`, then use:
-    `![Choosing who can access a project](../images/sharing/access-settings.png)`
+![Choosing who can access a project](../images/sharing/access-settings.png)
 
 ## Open to everyone, or restricted
 

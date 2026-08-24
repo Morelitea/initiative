@@ -6,11 +6,7 @@ icon: lucide/map
 
 Let's walk through the screen so everything feels familiar. Don't worry about remembering it all — you'll learn it naturally as you go. Here's the lay of the land.
 
-!!! screenshot "The whole screen, labeled"
-    **Show:** the full app with its regions visible — the **guild rail** (far-left edge), the **sidebar** (right next to it), the **main area** (center), and the **tab bar** (top). If you can add simple labels/arrows pointing to each, even better.
-
-    Save as `en/images/getting-started/tour-overview.png`, then use:
-    `![The Initiative screen, with the guild rail, sidebar, main area, and tab bar labeled](../images/getting-started/tour-overview.png)`
+![The Initiative screen, with the guild rail, sidebar, main area, and tab bar labeled](../images/getting-started/tour-overview.png)
 
 ## The guild rail (far-left edge)
 
@@ -53,11 +49,7 @@ Press ++cmd+k++ (Mac) or ++ctrl+k++ (Windows/Linux) anywhere to open **search**.
 
 Search is often quicker than clicking through the sidebar — it's worth getting into the habit. See [Search & shortcuts](../guides/search-and-shortcuts.md).
 
-!!! screenshot "Search (Command Center)"
-    **Show:** the search box open (after pressing Cmd/Ctrl+K) with a few results listed under headings like "Projects" and "Tasks".
-
-    Save as `en/images/getting-started/search.png`, then use:
-    `![The search box, opened with Cmd or Ctrl + K](../images/getting-started/search.png)`
+![The search box, opened with Cmd or Ctrl + K](../images/getting-started/search.png)
 
 ## Next
 

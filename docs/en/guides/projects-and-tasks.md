@@ -17,11 +17,7 @@ A **project** is a board for tracking work, and **tasks** are the individual to-
     - **Template** — optionally start from a template (see [Templates](#templates) below).
 3. Create it. The board opens, ready for tasks.
 
-!!! screenshot "Creating a project"
-    **Show:** the "Create Project" dialog with the name, icon, description, and initiative fields.
-
-    Save as `en/images/projects/create-project.png`, then use:
-    `![Creating a project](../images/projects/create-project.png)`
+![Creating a project](../images/projects/create-project.png)
 
 ### Favorites and pinning
 
@@ -49,11 +45,7 @@ A task can hold:
 | **Tags** | Labels for grouping and filtering (see [Tags](tags.md)). |
 | **Recurring** | Make the task repeat on a schedule (see below). |
 
-!!! screenshot "A task open for editing"
-    **Show:** the task detail/edit page with the description, status, priority, dates, assignees, and the subtasks checklist.
-
-    Save as `en/images/projects/task-details.png`, then use:
-    `![Editing a task's details](../images/projects/task-details.png)`
+![Editing a task's details](../images/projects/task-details.png)
 
 ### Statuses
 

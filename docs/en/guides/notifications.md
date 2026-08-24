@@ -34,11 +34,7 @@ The categories are:
 | **Events** | You're invited to an event, or one you're attending changes. |
 | **Event reminders** | Shortly before an event you're attending begins. |
 
-!!! screenshot "Notification settings"
-    **Show:** the Notifications settings grid with the categories and the Email / Mobile App toggles.
-
-    Save as `en/images/notifications/settings.png`, then use:
-    `![Notification settings](../images/notifications/settings.png)`
+![Notification settings](../images/notifications/settings.png)
 
 ## Timing
 
