@@ -19,11 +19,7 @@ Start typing and Initiative looks across your current guild for:
 
 Use the arrow keys to move through results and ++enter++ to jump. It's usually quicker than navigating the sidebar — worth making a habit.
 
-!!! screenshot "Searching with the Command Center"
-    **Show:** the search box open, mid-search, with results grouped under headings (Projects, Tasks, Pages, Actions).
-
-    Save as `en/images/search/command-center.png`, then use:
-    `![Searching with the Command Center](../images/search/command-center.png)`
+![Searching with the Command Center](../images/search/command-center.png)
 
 ## The recent-items tab bar
 

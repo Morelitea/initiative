@@ -20,11 +20,7 @@ Opening a guild lands you on its **front page**: a row of the guild's tools acro
 
 Only the tools your initiatives actually use appear, so a guild that doesn't run queues never shows a Queues circle. The tool you're looking at is part of the address, so you can bookmark or share the view you're on.
 
-!!! screenshot "A guild's front page"
-    **Show:** the front page you see right after opening a guild — the row of tool circles with one selected, and the table of that tool's items beneath it.
-
-    Save as `en/images/guilds/guild-front-page.png`, then use:
-    `![A guild's front page](../images/guilds/guild-front-page.png)`
+![A guild's front page](../images/guilds/guild-front-page.png)
 
 !!! tip "Two guilds at once"
     Open Initiative in two browser tabs and you can have each tab in a different guild — handy if you're juggling, say, a work team and a side project.
@@ -42,11 +38,7 @@ Guild administrators bring new people in with **invite links**.
 
 Anyone who opens the link can join the guild after signing in or creating an account.
 
-!!! screenshot "Guild settings — Users and invites"
-    **Show:** the Guild settings "Users" tab, with the member list and the invite-link controls (Max uses, Expires in).
-
-    Save as `en/images/guilds/guild-users.png`, then use:
-    `![Managing members and invites in Guild settings](../images/guilds/guild-users.png)`
+![Managing members and invites in Guild settings](../images/guilds/guild-users.png)
 
 ## Member roles
 

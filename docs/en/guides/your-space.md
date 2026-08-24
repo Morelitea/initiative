@@ -38,11 +38,7 @@ A friendly look at your own activity:
 
 It's just for you — a bit of encouragement and a sense of your own rhythm, not a leaderboard.
 
-!!! screenshot "My Stats"
-    **Show:** the My Stats page with the streak, on-time rate, and the activity heatmap.
-
-    Save as `en/images/your-space/my-stats.png`, then use:
-    `![Your personal stats](../images/your-space/my-stats.png)`
+![Your personal stats](../images/your-space/my-stats.png)
 
 ## Favorites
 

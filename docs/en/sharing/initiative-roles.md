@@ -30,11 +30,7 @@ Permissions are grouped by tool. For each tool, a role can typically allow **vie
 
 So a "Contributor" role might be allowed to view and create projects and documents, while a "Guest" role can only view them, and has no access to queues or counters at all.
 
-!!! screenshot "A role's permissions"
-    **Show:** the initiative "Roles" settings with a role selected and its grid of view/create permission checkboxes.
-
-    Save as `en/images/sharing/role-permissions.png`, then use:
-    `![A role's permissions](../images/sharing/role-permissions.png)`
+![A role's permissions](../images/sharing/role-permissions.png)
 
 ## The built-in Manager role
 

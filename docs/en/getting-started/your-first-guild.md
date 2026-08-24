@@ -27,11 +27,7 @@ If you're starting fresh — setting up a space for your own group — you can c
 2. Give it a **name** — usually just the name of your group, business, or household ("Fairview Bakery," "PTA Committee," "The Nguyens"). You can add an **icon** to make it easy to recognize.
 3. Create it. You're now the guild's first **administrator**.
 
-!!! screenshot "Creating a guild"
-    **Show:** the "Create guild" dialog with the guild name field (and icon option).
-
-    Save as `en/images/getting-started/create-guild.png`, then use:
-    `![Creating a new guild](../images/getting-started/create-guild.png)`
+![Creating a new guild](../images/getting-started/create-guild.png)
 
 !!! info "Don't see a 'Create guild' option?"
     Some servers turn off guild creation on purpose, so that everyone joins through invites instead. If you can't create one, ask an administrator to invite you to a guild — or to create one for you.

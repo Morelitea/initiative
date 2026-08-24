@@ -36,11 +36,7 @@ Initiative shows you the **callback URLs** to register back in your provider:
 
 Copy these into your identity provider's app/client configuration.
 
-!!! screenshot "OIDC settings"
-    **Show:** the Auth settings page with the Issuer, Client ID/secret, Provider name, Scopes fields and the callback URLs.
-
-    Save as `en/images/admin/oidc-settings.png`, then use:
-    `![OIDC single sign-on settings](../images/admin/oidc-settings.png)`
+![OIDC single sign-on settings](../images/admin/oidc-settings.png)
 
 ## Provider-specific setup
 

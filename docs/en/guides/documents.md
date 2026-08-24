@@ -29,11 +29,7 @@ When you create a document, you choose a type:
 4. Optionally start from a **template**.
 5. **Start writing** (or upload your file).
 
-!!! screenshot "Creating a document"
-    **Show:** the "Create Document" dialog with the document-type choices and the title field.
-
-    Save as `en/images/documents/create-document.png`, then use:
-    `![Creating a document](../images/documents/create-document.png)`
+![Creating a document](../images/documents/create-document.png)
 
 ## Writing a text document
 
@@ -48,11 +44,7 @@ The text editor has the tools you'd expect:
 
 Everything **autosaves** as you type, so there's no "save" button to remember.
 
-!!! screenshot "The document editor"
-    **Show:** a text document open with the formatting toolbar visible and some content.
-
-    Save as `en/images/documents/editor.png`, then use:
-    `![The document editor](../images/documents/editor.png)`
+![The document editor](../images/documents/editor.png)
 
 ## Working in a spreadsheet
 

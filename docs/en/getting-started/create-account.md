@@ -13,11 +13,7 @@ There are two common ways to arrive:
 - **You were sent an invite link.** Click it. It opens Initiative and remembers which group you're joining. This is the easiest path — after you create your account, you're taken straight into that group.
 - **You have a web address.** Someone shared the address of your group's Initiative (something like `initiative.yourteam.com`). Open it in your browser.
 
-!!! screenshot "The sign-in screen"
-    **Show:** the welcome/sign-in page with the "Sign in" and "Create account" options visible.
-
-    Save as `en/images/getting-started/sign-in-screen.png`, then replace this box with:
-    `![The Initiative sign-in screen](../images/getting-started/sign-in-screen.png)`
+![The Initiative sign-in screen](../images/getting-started/sign-in-screen.png)
 
 ## Step 2: Choose how to sign up
 

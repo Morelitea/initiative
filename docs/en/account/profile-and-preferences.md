@@ -16,11 +16,7 @@ The **Profile** tab is your account details:
 - **Avatar** — upload a picture or point to an image URL.
 - **Timezone** — important: it's used for due dates, daily reminders, and recurring-task timing. Initiative detects it from your browser when you register; correct it here if it's off.
 
-!!! screenshot "The Profile settings"
-    **Show:** the Profile tab with the name, email, password, avatar, and timezone fields.
-
-    Save as `en/images/account/profile.png`, then use:
-    `![Profile settings](../images/account/profile.png)`
+![Profile settings](../images/account/profile.png)
 
 ## Interface
 

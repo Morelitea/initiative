@@ -29,11 +29,7 @@ AI features run on an AI provider that someone supplies a key for. Depending on 
 
 To set up your own, open **User settings → AI**, enable AI, choose your **provider**, paste your **API key** (and **base URL** if needed), pick a **model**, and use **Test connection** to confirm it works.
 
-!!! screenshot "Personal AI settings"
-    **Show:** the User settings → AI tab with the provider selector, API key field, and Test connection button.
-
-    Save as `en/images/account/ai-settings.png`, then use:
-    `![Personal AI settings](../images/account/ai-settings.png)`
+![Personal AI settings](../images/account/ai-settings.png)
 
 ## Who decides the settings
 

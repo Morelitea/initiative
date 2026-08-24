@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The help center now shows the app.** Every page that had a "screenshot goes here" placeholder now carries a real 1920x1080 screenshot of Initiative — 34 in all, covering signing in, the guild front page and initiative settings, project boards in table and kanban, tasks, documents, tags, the calendar, queues, counters and dashboards, search, the marketplace, sharing and role permissions, your profile, notification and AI settings, API keys, and the SSO, email and access-grant admin pages.
+
 ## [0.63.1] - 2026-08-23
 
 ### Fixed
