@@ -24,11 +24,7 @@ That's it. The tag is attached, and it's now available to use on other things to
 - The **Tags** area in the sidebar lists every tag in the guild.
 - Open a tag's **detail page** to see everything carrying it, split into **Tasks**, **Projects**, and **Documents**.
 
-!!! screenshot "A tag's detail page"
-    **Show:** a tag detail page listing the tasks, projects, and documents that share the tag.
-
-    Save as `en/images/tags/tag-detail.png`, then use:
-    `![Everything sharing a tag](../images/tags/tag-detail.png)`
+![Everything sharing a tag](../images/tags/tag-detail.png)
 
 ## Managing tags
 

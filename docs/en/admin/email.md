@@ -30,11 +30,7 @@ In **Settings → Platform → Email**:
 
 Use the **Send test email** option (enter a recipient and send). If it arrives, you're set. If not, check the host/port/TLS combination first — that's the usual culprit — then the credentials.
 
-!!! screenshot "Email settings"
-    **Show:** the Email settings page with the host, port, TLS, credentials, from-address, and the "Send test email" control.
-
-    Save as `en/images/admin/email-settings.png`, then use:
-    `![SMTP email settings](../images/admin/email-settings.png)`
+![SMTP email settings](../images/admin/email-settings.png)
 
 ## Related
 

@@ -18,11 +18,7 @@ New to the idea? See [How Initiative is organized](../concepts/index.md) first.
 
 Your new initiative appears in the sidebar. Click to expand it and you'll see its projects and documents.
 
-!!! screenshot "Creating an initiative"
-    **Show:** the "Create initiative" form with the name, color, and description fields.
-
-    Save as `en/images/initiatives/create-initiative.png`, then use:
-    `![Creating an initiative](../images/initiatives/create-initiative.png)`
+![Creating an initiative](../images/initiatives/create-initiative.png)
 
 !!! info "The Default Initiative"
     Every guild starts with a **Default Initiative** so there's always somewhere to begin. You can rename it and use it like any other — but it can't be deleted, so your guild is never left without a home for new work.
@@ -62,11 +58,7 @@ So you might give "Volunteer" members permission to *view* projects and document
 
 There's a full walkthrough of roles and how they combine with sharing in [Initiative roles](../sharing/initiative-roles.md).
 
-!!! screenshot "Initiative roles and permissions"
-    **Show:** the initiative's "Roles" settings, with a role selected and its permission checkboxes (Projects, Documents, Queues, etc.) visible.
-
-    Save as `en/images/initiatives/roles.png`, then use:
-    `![Setting permissions for an initiative role](../images/initiatives/roles.png)`
+![Setting permissions for an initiative role](../images/initiatives/roles.png)
 
 !!! tip "Managers can see everything"
     The built-in **Manager** role has full access to the whole initiative — its members reach every project and document without each being shared with them. This is unique to Manager; custom roles don't get it. Give the Manager role only to people who genuinely need the whole picture.

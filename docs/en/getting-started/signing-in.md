@@ -14,11 +14,7 @@ Once you have an account, signing in takes a few seconds.
 
 That's it — you land on your home screen. Initiative keeps you signed in on that device, so you won't have to log in every time.
 
-!!! screenshot "Signing in"
-    **Show:** the sign-in form with the email and password fields and the "Forgot password?" link.
-
-    Save as `en/images/getting-started/login-form.png`, then use:
-    `![Signing in with email and password](../images/getting-started/login-form.png)`
+![Signing in with email and password](../images/getting-started/login-form.png)
 
 ## Sign in with single sign-on
 

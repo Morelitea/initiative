@@ -29,11 +29,7 @@ Invited people can respond — **Accepted**, **Declined**, **Tentative**, or lea
 
 The calendar shows your events by **day, week, month, year, or as a list**, and you can **import and export** events as standard `.ics` files to sync with other calendar apps.
 
-!!! screenshot "The calendar"
-    **Show:** an initiative's calendar in month view with a few events, and an event's detail panel showing attendees and RSVP.
-
-    Save as `en/images/tools/calendar.png`, then use:
-    `![The initiative calendar with events](../images/tools/calendar.png)`
+![The initiative calendar with events](../images/tools/calendar.png)
 
 !!! tip "See every event in one place"
     Your personal [My Calendar](your-space.md) gathers events *and* dated tasks from across all your guilds, so you get one combined view of everything on your plate.
@@ -52,11 +48,7 @@ A queue holds **items** (often people), and each item can have:
 
 You can **Start** the queue, step through **Next turn** / **Previous turn**, **Hold** and **Release** a turn, and track which **round** you're on. When it's done, **Reset** to begin again.
 
-!!! screenshot "A queue in progress"
-    **Show:** a queue with several items, one marked as the current turn, and the round indicator.
-
-    Save as `en/images/tools/queue.png`, then use:
-    `![A turn-tracking queue](../images/tools/queue.png)`
+![A turn-tracking queue](../images/tools/queue.png)
 
 ## Counters
 
@@ -71,11 +63,7 @@ Each counter can have:
 
 **Increment**, **decrement**, or **reset** a counter with a tap, **reset all** in a group at once, and use **Focus** mode for a big, full-screen view — handy when everyone's looking at one screen.
 
-!!! screenshot "A counter group"
-    **Show:** a counter group with two or three counters shown as numbers and a progress bar.
-
-    Save as `en/images/tools/counters.png`, then use:
-    `![A group of counters](../images/tools/counters.png)`
+![A group of counters](../images/tools/counters.png)
 
 ## Dashboards
 
@@ -87,11 +75,7 @@ Each tile shows *you* only what you're already allowed to see, so two people can
 
 You can build one from scratch, or add a ready-made one from the marketplace and adjust it — see [Apps & the marketplace](apps-and-marketplace.md).
 
-!!! screenshot "A dashboard"
-    **Show:** an initiative dashboard with a few tiles — a chart, a couple of single-number tiles, and a timeline.
-
-    Save as `en/images/tools/dashboard.png`, then use:
-    `![An initiative dashboard](../images/tools/dashboard.png)`
+![An initiative dashboard](../images/tools/dashboard.png)
 
 ## Related
 

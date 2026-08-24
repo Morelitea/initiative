@@ -60,11 +60,7 @@ There are two paths:
 !!! info "Why it's built this way"
     Having no permanent cross-guild bypass means a compromised operator account can't silently read every group's data — privileged access has to be deliberately taken, is scoped and short-lived, and leaves a record. This is a deliberate security stance, explained further in [How your data is kept separate](../security/how-your-data-is-kept-separate.md).
 
-!!! screenshot "Access requests and break-glass"
-    **Show:** the Access page with a pending request in the approvals queue and the break-glass control.
-
-    Save as `en/images/admin/access-grants.png`, then use:
-    `![Access requests and break-glass](../images/admin/access-grants.png)`
+![Access requests and break-glass](../images/admin/access-grants.png)
 
 ## Guild storage limits
 

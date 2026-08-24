@@ -6,11 +6,7 @@ icon: lucide/compass
 
 Initiative is where your group's projects, tasks, documents, and plans live together. It's made for small businesses, clubs, committees, event teams, families, and anyone else coordinating work with other people — without needing to learn project management first.
 
-!!! screenshot "The main screen, after signing in"
-    **Show:** the whole app — the guild rail down the far left, the sidebar beside it (the guild's initiatives), and a project board open in the middle.
-
-    When you have the picture, save it to `en/images/home/overview.png` and replace this box with:
-    `![The Initiative home screen](images/home/overview.png)`
+![The Initiative home screen](images/home/overview.png)
 
 ## Start small; it grows with you
 

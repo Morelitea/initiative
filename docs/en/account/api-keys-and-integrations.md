@@ -16,11 +16,7 @@ Most people never need this page — and that's fine. But if you want to connect
 3. Choose its limits (see below).
 4. Generate it, and **copy it right away** — it's shown only once. If you lose it, just delete it and make a new one.
 
-!!! screenshot "Generating an API key"
-    **Show:** the Security tab's "Generate an API key" form, with the name, read-only, guild, and expiration options.
-
-    Save as `en/images/account/api-key.png`, then use:
-    `![Generating an API key](../images/account/api-key.png)`
+![Generating an API key](../images/account/api-key.png)
 
 ## Choosing safe limits
 

@@ -6,11 +6,7 @@ icon: lucide/layout-dashboard
 
 The same tasks can be shown in three different ways. Pick whichever helps you think — switching between them changes nothing about the tasks themselves, just how you look at them. Use the view switcher at the top of any project board.
 
-!!! screenshot "The view switcher"
-    **Show:** the top of a project board with the Table / Kanban / Calendar switcher highlighted.
-
-    Save as `en/images/projects/view-switcher.png`, then use:
-    `![Switching between task views](../images/projects/view-switcher.png)`
+![Switching between task views](../images/projects/view-switcher.png)
 
 ## Table
 
@@ -23,11 +19,7 @@ A clean, spreadsheet-style list — one row per task, with columns for status, p
 - **Filter** to narrow down to exactly what you want.
 - **Select** multiple rows to edit them together.
 
-!!! screenshot "Table view"
-    **Show:** a project in Table view with several tasks, sorted, showing the columns.
-
-    Save as `en/images/projects/view-table.png`, then use:
-    `![A project in Table view](../images/projects/view-table.png)`
+![A project in Table view](../images/projects/view-table.png)
 
 ## Kanban
 
@@ -38,11 +30,7 @@ Cards arranged in columns, one column per status. Drag a card from one column to
 - **Drag and drop** a task between columns to change its status.
 - **Collapse** a column you don't need to focus on the rest.
 
-!!! screenshot "Kanban view"
-    **Show:** a project in Kanban view with cards in the Backlog, To Do, In Progress, and Done columns.
-
-    Save as `en/images/projects/view-kanban.png`, then use:
-    `![A project in Kanban view](../images/projects/view-kanban.png)`
+![A project in Kanban view](../images/projects/view-kanban.png)
 
 ## Calendar
 
