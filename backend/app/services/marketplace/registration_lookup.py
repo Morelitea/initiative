@@ -347,26 +347,26 @@ async def delegation_keys_for(kid: str) -> tuple[DelegationKey, ...]:
     )
 
 
-async def delegate_jwks() -> dict[str, Any]:
-    """Every delegate's public verification keys, as one JWKS document.
+async def delegate_jwks(public_id: str) -> dict[str, Any] | None:
+    """One delegate's public verification keys, as a JWKS document.
 
-    Published under the same rule :func:`delegation_keys_for` resolves a token
-    by — registrations that are ``enabled`` and hold the ``delegation`` grant —
-    so what this document offers and what a token can be verified against stay
-    the same set, and an operator's registration edit reaches both within the
-    cache TTL.
+    Per delegate, never merged. A ``kid`` is an opaque label its owner
+    chooses, unique only within the registration that published it — which is
+    why :func:`delegation_keys_for` resolves a token by trying every candidate
+    and letting the signature decide. A document merging two registrations
+    would hand a consumer two entries under one ``kid``, and a consumer that
+    selects one key per ``kid`` (which is what a JWKS is for) would then reject
+    calls signed with the other. One issuer, one key set.
 
-    An empty ``keys`` array is a real answer here: a deployment with no
-    delegate wired up has published exactly no delegate keys.
+    Served under the same rule that resolves a token: the registration must be
+    ``enabled`` and hold the ``delegation`` grant, so an operator's edit
+    reaches this and verification alike within the cache TTL. ``None`` when no
+    such delegate is published here — the caller answers that as not found.
     """
-    return {
-        "keys": [
-            dict(entry)
-            for snapshot in (await load_registrations()).values()
-            if snapshot.enabled and "delegation" in snapshot.grants
-            for entry in snapshot.delegation_jwk_entries
-        ]
-    }
+    snapshot = (await load_registrations()).get(public_id)
+    if snapshot is None or not snapshot.enabled or "delegation" not in snapshot.grants:
+        return None
+    return {"keys": [dict(entry) for entry in snapshot.delegation_jwk_entries]}
 
 
 async def any_delegate_registered() -> bool:

@@ -18,8 +18,9 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  HTTPValidationError,
   ReadAppPlatformJwksApiV1AppPlatformJwksJsonGet200,
-  ReadDelegateJwksApiV1AppPlatformDelegatesJwksJsonGet200,
+  ReadDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGet200,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -195,84 +196,108 @@ export function useReadAppPlatformJwksApiV1AppPlatformJwksJsonGet<
 }
 
 /**
- * The public verification keys of every delegate, as one JWKS document.
+ * One delegate's public verification keys, as a JWKS document.
  *
- * What an app checks a delegate-signed token against. The set holds the keys
- * of registrations that are enabled and hold the ``delegation`` grant — the
- * same rule Initiative's own token verification resolves by — so an
- * operator's registration edit reaches every consumer of these keys within
- * the registration cache TTL.
+ * What an app checks a delegate-signed token against. Addressed per delegate
+ * rather than served as one merged set, because a ``kid`` is only unique
+ * within the registration that published it: two delegates may pick the same
+ * label, and a consumer selecting one key per ``kid`` out of a merged
+ * document would reject calls that are perfectly valid. One issuer, one key
+ * set — Initiative's own verification handles the collision by trying every
+ * candidate, which is not something a JWKS consumer does.
  *
- * No 503 leg, unlike the signing key above: an empty ``keys`` array is a real
- * state here. A deployment with no delegate wired up has published exactly no
- * delegate keys, and that is what a caller should cache.
+ * Served for registrations that are enabled and hold the ``delegation``
+ * grant — the same rule that resolves a token — so an operator's edit reaches
+ * this and verification alike within the registration cache TTL. Anything
+ * else is a 404: a delegate that is switched off or never held the grant
+ * publishes nothing here, and saying which of those it is would describe the
+ * deployment's wiring to an unauthenticated caller.
+ *
+ * No 503 leg, unlike the signing key above: an enabled delegate with no key
+ * provisioned yet has genuinely published no keys, and an empty ``keys``
+ * array is what a caller should cache for it.
  * @summary Read Delegate Jwks
  */
-export const readDelegateJwksApiV1AppPlatformDelegatesJwksJsonGet = (
+export const readDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGet = (
+  publicId: string,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<ReadDelegateJwksApiV1AppPlatformDelegatesJwksJsonGet200>(
-    { url: `/api/v1/app-platform/delegates/jwks.json`, method: "GET", signal },
+  return apiMutator<ReadDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGet200>(
+    { url: `/api/v1/app-platform/delegates/${publicId}/jwks.json`, method: "GET", signal },
     options
   );
 };
 
-export const getReadDelegateJwksApiV1AppPlatformDelegatesJwksJsonGetQueryKey = () => {
-  return [`/api/v1/app-platform/delegates/jwks.json`] as const;
+export const getReadDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGetQueryKey = (
+  publicId: string
+) => {
+  return [`/api/v1/app-platform/delegates/${publicId}/jwks.json`] as const;
 };
 
-export const getReadDelegateJwksApiV1AppPlatformDelegatesJwksJsonGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesJwksJsonGet>>,
-  TError = ErrorType<unknown>,
->(options?: {
-  query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesJwksJsonGet>>,
-      TError,
-      TData
-    >
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}) => {
+export const getReadDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  publicId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getReadDelegateJwksApiV1AppPlatformDelegatesJwksJsonGetQueryKey();
+    queryOptions?.queryKey ??
+    getReadDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGetQueryKey(publicId);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesJwksJsonGet>>
-  > = ({ signal }) => readDelegateJwksApiV1AppPlatformDelegatesJwksJsonGet(requestOptions, signal);
+    Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGet>>
+  > = ({ signal }) =>
+    readDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGet(publicId, requestOptions, signal);
 
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesJwksJsonGet>>,
+  return {
+    queryKey,
+    queryFn,
+    enabled: publicId !== null && publicId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ReadDelegateJwksApiV1AppPlatformDelegatesJwksJsonGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesJwksJsonGet>>
+export type ReadDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGet>>
 >;
-export type ReadDelegateJwksApiV1AppPlatformDelegatesJwksJsonGetQueryError = ErrorType<unknown>;
+export type ReadDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGetQueryError =
+  ErrorType<HTTPValidationError>;
 
-export function useReadDelegateJwksApiV1AppPlatformDelegatesJwksJsonGet<
-  TData = Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesJwksJsonGet>>,
-  TError = ErrorType<unknown>,
+export function useReadDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGet<
+  TData = Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGet>>,
+  TError = ErrorType<HTTPValidationError>,
 >(
+  publicId: string,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesJwksJsonGet>>,
+        Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesJwksJsonGet>>,
+          Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGet>>,
           TError,
-          Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesJwksJsonGet>>
+          Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGet>>
         >,
         "initialData"
       >;
@@ -280,23 +305,24 @@ export function useReadDelegateJwksApiV1AppPlatformDelegatesJwksJsonGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadDelegateJwksApiV1AppPlatformDelegatesJwksJsonGet<
-  TData = Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesJwksJsonGet>>,
-  TError = ErrorType<unknown>,
+export function useReadDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGet<
+  TData = Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGet>>,
+  TError = ErrorType<HTTPValidationError>,
 >(
+  publicId: string,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesJwksJsonGet>>,
+        Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesJwksJsonGet>>,
+          Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGet>>,
           TError,
-          Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesJwksJsonGet>>
+          Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGet>>
         >,
         "initialData"
       >;
@@ -304,14 +330,15 @@ export function useReadDelegateJwksApiV1AppPlatformDelegatesJwksJsonGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadDelegateJwksApiV1AppPlatformDelegatesJwksJsonGet<
-  TData = Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesJwksJsonGet>>,
-  TError = ErrorType<unknown>,
+export function useReadDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGet<
+  TData = Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGet>>,
+  TError = ErrorType<HTTPValidationError>,
 >(
+  publicId: string,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesJwksJsonGet>>,
+        Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGet>>,
         TError,
         TData
       >
@@ -324,14 +351,15 @@ export function useReadDelegateJwksApiV1AppPlatformDelegatesJwksJsonGet<
  * @summary Read Delegate Jwks
  */
 
-export function useReadDelegateJwksApiV1AppPlatformDelegatesJwksJsonGet<
-  TData = Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesJwksJsonGet>>,
-  TError = ErrorType<unknown>,
+export function useReadDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGet<
+  TData = Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGet>>,
+  TError = ErrorType<HTTPValidationError>,
 >(
+  publicId: string,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesJwksJsonGet>>,
+        Awaited<ReturnType<typeof readDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGet>>,
         TError,
         TData
       >
@@ -340,7 +368,10 @@ export function useReadDelegateJwksApiV1AppPlatformDelegatesJwksJsonGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadDelegateJwksApiV1AppPlatformDelegatesJwksJsonGetQueryOptions(options);
+  const queryOptions = getReadDelegateJwksApiV1AppPlatformDelegatesPublicIdJwksJsonGetQueryOptions(
+    publicId,
+    options
+  );
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
