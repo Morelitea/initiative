@@ -461,6 +461,12 @@ class Emit:
     guild_wide: bool = False
     #: Report against a parent resource instead of naming this table.
     reports_as: ReportsAs | None = None
+    #: Publish this table's own events under this resource type instead of the
+    #: table's name, for a table whose API segment differs from it. Keeps the
+    #: readback rule (``resource_type`` -> the detail route that serves the id)
+    #: derivable without a second route. Meaningless beside ``reports_as``,
+    #: which names its parent instead.
+    resource_type: str | None = None
 
 
 #: table -> how it deviates. Anything absent takes the derived default.
@@ -515,6 +521,13 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     # The trigger is told a NULL is expected here specifically, so an
     # initiative-scoped row whose lookup fails still means "skip".
     "tags": Emit(guild_wide=True),
+    # Installed apps, same reasoning: the install row is guild-wide knowledge
+    # (every member's sidebar lists it), so its lifecycle emits guild-wide too.
+    # A subscriber hears an install appear, change (``config_state`` moving is
+    # the moment an app becomes usable), or go away, and re-reads current state
+    # through the API like any other event. Published as ``apps`` because that
+    # is the segment the install's detail route lives at (``/apps/{id}``).
+    "guild_apps": Emit(guild_wide=True, resource_type="apps"),
     # -- Facets of their parent ---------------------------------------------
     "task_statuses": Emit(reports_as=reports_as("projects", "project_id", "statuses")),
     "document_file_versions": Emit(
