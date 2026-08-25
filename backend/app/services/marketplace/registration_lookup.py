@@ -46,6 +46,7 @@ __all__ = [
     "InstallState",
     "RegistrationSnapshot",
     "any_delegate_registered",
+    "delegate_jwks",
     "delegation_allowed",
     "resolve_delegated_member",
     "delegation_keys_for",
@@ -83,6 +84,10 @@ class RegistrationSnapshot:
     #: ``kid`` a token names. Parsed once when the snapshot is built rather than
     #: per token. Empty on an app that has not been provisioned with one.
     delegation_keys: Mapping[str, Any]
+    #: The same keys as provisioned — public JWK entries, for the published
+    #: delegate key set (:func:`delegate_jwks`). Public halves only: the write
+    #: path refuses anything else (``normalize_delegation_jwks``).
+    delegation_jwk_entries: tuple[Mapping[str, Any], ...]
     #: The deployment installs this app in every guild (§7.7).
     mandatory: bool
     #: The operator's kill switch. False stops every channel this app has.
@@ -126,6 +131,16 @@ def _parse_delegation_keys(row: AppServiceRegistration) -> Mapping[str, Any]:
     return MappingProxyType(parsed)
 
 
+def _public_jwk_entries(row: AppServiceRegistration) -> tuple[Mapping[str, Any], ...]:
+    """The stored key set's entries, as read-only mappings for the snapshot."""
+    key_set = row.delegation_jwks or {}
+    return tuple(
+        MappingProxyType(dict(entry))
+        for entry in key_set.get("keys", []) or []
+        if isinstance(entry, dict)
+    )
+
+
 _cache: dict[str, RegistrationSnapshot] | None = None
 _loaded_at: float = 0.0
 
@@ -166,6 +181,7 @@ async def load_registrations(*, force: bool = False) -> dict[str, RegistrationSn
             allowed_origins=tuple(row.allowed_origins or []),
             grants=tuple(row.grants or []),
             delegation_keys=_parse_delegation_keys(row),
+            delegation_jwk_entries=_public_jwk_entries(row),
             mandatory=bool(row.mandatory),
             enabled=bool(row.enabled),
             status=row.status,
@@ -329,6 +345,28 @@ async def delegation_keys_for(kid: str) -> tuple[DelegationKey, ...]:
         for key in (snapshot.delegation_keys.get(kid),)
         if key is not None
     )
+
+
+async def delegate_jwks() -> dict[str, Any]:
+    """Every delegate's public verification keys, as one JWKS document.
+
+    Published under the same rule :func:`delegation_keys_for` resolves a token
+    by — registrations that are ``enabled`` and hold the ``delegation`` grant —
+    so what this document offers and what a token can be verified against stay
+    the same set, and an operator's registration edit reaches both within the
+    cache TTL.
+
+    An empty ``keys`` array is a real answer here: a deployment with no
+    delegate wired up has published exactly no delegate keys.
+    """
+    return {
+        "keys": [
+            dict(entry)
+            for snapshot in (await load_registrations()).values()
+            if snapshot.enabled and "delegation" in snapshot.grants
+            for entry in snapshot.delegation_jwk_entries
+        ]
+    }
 
 
 async def any_delegate_registered() -> bool:
