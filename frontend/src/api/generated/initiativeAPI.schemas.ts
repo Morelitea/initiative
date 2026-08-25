@@ -5019,6 +5019,14 @@ export type SearchInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersSe
 export type GetDocumentCountsApiV1GGuildIdDocumentsCountsGetParams = {
   initiative_id?: number | null;
   search?: string | null;
+  /**
+   * Filter to template (or non-template) documents
+   */
+  is_template?: boolean | null;
+  /**
+   * Filter by document type
+   */
+  document_type?: DocumentType | null;
 };
 
 export type ListDocumentsApiV1GGuildIdDocumentsGetParams = {

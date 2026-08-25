@@ -28,6 +28,13 @@
     "searchPlaceholder": "Search documents",
     "filterByTag": "Filter by tag",
     "allTags": "All tags",
+    "filterByType": "Filter by type",
+    "allTypes": "All types",
+    "typeNative": "Text document",
+    "typeFile": "File",
+    "typeWhiteboard": "Whiteboard",
+    "typeSpreadsheet": "Spreadsheet",
+    "typeSmartLink": "Smart link",
     "accessRestrictedTitle": "Access Restricted",
     "accessRestrictedDescription": "You don’t have permission to view documents in this initiative. Contact an administrator if you believe this is an error.",
     "loading": "Loading documents…",
@@ -36,6 +43,8 @@
     "browseByTag": "Browse by tag",
     "noDocumentsTitle": "No documents yet",
     "noDocumentsDescription": "Create your first initiative document to share briefs, decisions, or guides.",
+    "noTemplatesTitle": "No templates yet",
+    "noTemplatesDescription": "Mark any document as a template in its settings to reuse it later.",
     "startWriting": "Start writing",
     "filterPlaceholder": "Filter by title…",
     "perPage": "Per page:",
@@ -56,6 +65,11 @@
   "type": {
     "template": "Template",
     "document": "Document"
+  },
+  "status": {
+    "label": "Show",
+    "documents": "Documents",
+    "templates": "Templates"
   },
   "bulk": {
     "delete": "Delete",

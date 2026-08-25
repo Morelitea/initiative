@@ -87,6 +87,13 @@ const SORT_FIELD_MAP: Record<string, string> = {
   priority: "priority",
 };
 
+/** The same map read the other way, to seed the table's headers from the sort
+ *  the preferences restored — otherwise the rows come back sorted but the
+ *  header claims something else. */
+const SORT_COLUMN_MAP: Record<string, string> = Object.fromEntries(
+  Object.entries(SORT_FIELD_MAP).map(([columnId, field]) => [field, columnId])
+);
+
 export type MyTasksView = "assigned" | "created";
 
 interface UseGlobalTasksTableOptions {
@@ -185,6 +192,20 @@ export function useGlobalTasksTable({ view, storageKeyPrefix }: UseGlobalTasksTa
       });
     },
     [router]
+  );
+
+  // The table captures its seed at mount, so this is the sort as it stood when
+  // the preferences first resolved; every later change flows through
+  // handleSortingChange below.
+  const initialSorting = useMemo<SortingState>(
+    () =>
+      sorting
+        .map((entry) => {
+          const columnId = SORT_COLUMN_MAP[entry.field];
+          return columnId ? { id: columnId, desc: entry.dir === "desc" } : null;
+        })
+        .filter((entry): entry is SortingState[number] => entry !== null),
+    [sorting]
   );
 
   const handleSortingChange = useCallback(
@@ -441,6 +462,7 @@ export function useGlobalTasksTable({ view, storageKeyPrefix }: UseGlobalTasksTa
     totalCount,
 
     // Sorting
+    initialSorting,
     handleSortingChange,
 
     // Prefetching

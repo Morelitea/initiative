@@ -73,6 +73,9 @@ export interface DocumentsListViewProps {
   onPageChange: (updater: number | ((prev: number) => number)) => void;
   onPrefetchPage: (page: number) => void;
   onSortingChange: (sorting: SortingState) => void;
+  /** The sort the page restored, so the header agrees with the rows the
+   *  server already sorted. */
+  initialSorting?: SortingState;
 }
 
 export const DocumentsListView = ({
@@ -96,6 +99,7 @@ export const DocumentsListView = ({
   onPageChange,
   onPrefetchPage,
   onSortingChange,
+  initialSorting,
 }: DocumentsListViewProps) => {
   const { t } = useTranslation(["documents", "common"]);
 
@@ -273,6 +277,7 @@ export const DocumentsListView = ({
         }}
         onPrefetchPage={(pageIndex: number) => onPrefetchPage(pageIndex + 1)}
         manualSorting
+        initialSorting={initialSorting}
         onSortingChange={onSortingChange}
         enableResetSorting
         enableRowSelection

@@ -71,7 +71,8 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * Get per-tag document counts for visible documents.
  *
  * Lightweight endpoint for the tag tree sidebar. Does NOT accept tag_ids
- * because counts should reflect all tags.
+ * because counts should reflect all tags. The remaining filters mirror the
+ * list endpoint so the sidebar counts match the list beside it.
  * @summary Get Document Counts
  */
 export const getDocumentCountsApiV1GGuildIdDocumentsCountsGet = (

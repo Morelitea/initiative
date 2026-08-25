@@ -11,7 +11,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, MessageSquare } from "lucide-react";
 import type React from "react";
-import { createContext, memo, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, memo, useCallback, useContext, useMemo } from "react";
 import { Trans, useTranslation } from "react-i18next";
 
 import type { TaskListRead, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/select";
 import { TableRow } from "@/components/ui/table";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
+import { usePersistedTableState } from "@/hooks/usePersistedTableState";
 import { useProperties } from "@/hooks/useProperties";
 import { useGuildPath } from "@/lib/guildUrl";
 import { summarizeRecurrence } from "@/lib/recurrence";
@@ -530,11 +531,15 @@ const ProjectTasksTableViewComponent = ({
 
   const sortableItems = useMemo(() => tasks.map((task) => task.id.toString()), [tasks]);
 
-  // Track sorting/grouping state to know when DnD is possible.
-  // When either is active, we skip useSortable hooks entirely for performance.
-  const [hasSorting, setHasSorting] = useState(false);
-  const [grouping, setGrouping] = useState<string[]>([]);
-  const dndEnabled = canReorderTasks && !hasSorting && grouping.length === 0;
+  // How the reader left the table last time: which column it's grouped and
+  // sorted by, kept beside the column-visibility map above so the whole "how
+  // this list is shown" answer survives a reload together.
+  const tableStorageKey = `initiative-project-${projectId}-task-table`;
+  const [tableState, { setGrouping, setSorting }] = usePersistedTableState(tableStorageKey);
+  const { grouping, sorting } = tableState;
+  // Grouping and sorting each disable drag-to-reorder: a manual order can only
+  // be expressed by the table's own row order.
+  const dndEnabled = canReorderTasks && sorting.length === 0 && grouping.length === 0;
 
   // Grouping by tag means one row per (task, tag) pair — a task with three tags
   // belongs under all three, not under whichever one happens to come first.
@@ -543,12 +548,6 @@ const ProjectTasksTableViewComponent = ({
     () => (isTagGrouped ? fanOutTasksByTag(tasks, untaggedLabel) : tasks),
     [isTagGrouped, tasks, untaggedLabel]
   );
-
-  const handleSortingChange = useCallback(
-    (sorting: { id: string; desc: boolean }[]) => setHasSorting(sorting.length > 0),
-    []
-  );
-  const handleGroupingChange = useCallback((next: string[]) => setGrouping(next), []);
 
   // Selection reports rows; a tag-grouped task holds one row per tag, so
   // collapse them back to the tasks themselves.
@@ -582,6 +581,10 @@ const ProjectTasksTableViewComponent = ({
         strategy={verticalListSortingStrategy}
       >
         <DataTable
+          // The table seeds its grouping and sorting once, at mount. Moving
+          // between projects swaps which saved answer applies, so it has to be
+          // a fresh table rather than the previous project's.
+          key={tableStorageKey}
           columns={columnsWithProperties}
           data={rows}
           enableVirtualization
@@ -590,8 +593,8 @@ const ProjectTasksTableViewComponent = ({
           groupingOptions={groupingOptions}
           columnVisibility={effectiveColumnVisibility}
           onColumnVisibilityChange={setColumnVisibility}
-          onSortingChange={handleSortingChange}
-          onGroupingChange={handleGroupingChange}
+          onSortingChange={setSorting}
+          onGroupingChange={setGrouping}
           helpText={(table) => {
             const sorting = table.atoms.sorting?.get() ?? [];
             const grouping = table.atoms.grouping?.get() ?? [];
@@ -617,8 +620,9 @@ const ProjectTasksTableViewComponent = ({
               </div>
             ) : null;
           }}
+          initialSorting={sorting}
           initialState={{
-            // grouping: ["date group"],
+            grouping,
             expanded: true,
           }}
           rowWrapper={rowWrapper}

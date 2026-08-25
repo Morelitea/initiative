@@ -887,9 +887,8 @@ export const ProjectTasksSection = ({
   return (
     <div className="space-y-4">
       <Tabs value={viewMode} onValueChange={handleViewModeChange} className="space-y-4">
-        <h2 className="font-semibold text-xl">{t("tasks.projectTasks")}</h2>
-
         <ToolListToolbar
+          heading={<h2 className="truncate font-semibold text-xl">{t("tasks.projectTasks")}</h2>}
           filters={{
             open: filtersOpen,
             onOpenChange: setFiltersOpen,

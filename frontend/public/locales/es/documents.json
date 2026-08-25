@@ -28,6 +28,13 @@
     "searchPlaceholder": "Buscar documentos",
     "filterByTag": "Filtrar por etiqueta",
     "allTags": "Todas las etiquetas",
+    "filterByType": "Filtrar por tipo",
+    "allTypes": "Todos los tipos",
+    "typeNative": "Documento de texto",
+    "typeFile": "Archivo",
+    "typeWhiteboard": "Pizarra",
+    "typeSpreadsheet": "Hoja de cálculo",
+    "typeSmartLink": "Enlace inteligente",
     "accessRestrictedTitle": "Acceso restringido",
     "accessRestrictedDescription": "No tienes permiso para ver documentos en esta iniciativa. Contacta a un administrador si crees que esto es un error.",
     "loading": "Cargando documentos…",
@@ -36,6 +43,8 @@
     "browseByTag": "Explorar por etiqueta",
     "noDocumentsTitle": "Aún no hay documentos",
     "noDocumentsDescription": "Crea tu primer documento de iniciativa para compartir resúmenes, decisiones o guías.",
+    "noTemplatesTitle": "Aún no hay plantillas",
+    "noTemplatesDescription": "Marca cualquier documento como plantilla en su configuración para reutilizarlo más adelante.",
     "startWriting": "Comenzar a escribir",
     "filterPlaceholder": "Filtrar por título…",
     "perPage": "Por página:",
@@ -56,6 +65,11 @@
   "type": {
     "template": "Plantilla",
     "document": "Documento"
+  },
+  "status": {
+    "label": "Mostrar",
+    "documents": "Documentos",
+    "templates": "Plantillas"
   },
   "bulk": {
     "delete": "Eliminar",

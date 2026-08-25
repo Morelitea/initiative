@@ -945,6 +945,53 @@ async def test_list_documents_filters_by_template_and_type(
 
 
 @pytest.mark.integration
+async def test_document_counts_filter_by_template_and_type(
+    client: AsyncClient, session, acting_user
+):
+    """The tag-sidebar counts honor the same template/type narrowing as the
+    list, so the two never disagree."""
+    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+
+    await create_document(session, actor.initiative, actor.user, is_template=True)
+    await create_document(
+        session,
+        actor.initiative,
+        actor.user,
+        is_template=True,
+        document_type=DocumentType.whiteboard,
+    )
+    await create_document(session, actor.initiative, actor.user)
+
+    response = await client.get(actor.g("/documents/counts"), headers=actor.headers)
+    assert response.status_code == 200
+    assert response.json()["total_count"] == 3
+
+    response = await client.get(
+        actor.g("/documents/counts"),
+        headers=actor.headers,
+        params={"is_template": True},
+    )
+    assert response.status_code == 200
+    assert response.json()["total_count"] == 2
+
+    response = await client.get(
+        actor.g("/documents/counts"),
+        headers=actor.headers,
+        params={"is_template": True, "document_type": "whiteboard"},
+    )
+    assert response.status_code == 200
+    assert response.json()["total_count"] == 1
+
+    response = await client.get(
+        actor.g("/documents/counts"),
+        headers=actor.headers,
+        params={"document_type": "native"},
+    )
+    assert response.status_code == 200
+    assert response.json()["total_count"] == 2
+
+
+@pytest.mark.integration
 async def test_list_documents_rejects_too_many_ids(client: AsyncClient, acting_user):
     actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
 
