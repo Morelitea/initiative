@@ -248,7 +248,11 @@ export const GlobalTasksPage = ({
                   </div>
                 </div>
               ) : null}
-              {table.isInitialLoad ? (
+              {/* The saved sort has to be in hand before the table mounts: it
+                  seeds its headers once, so a table built on the defaults would
+                  keep claiming them while the rows came back in the saved
+                  order. The filters resolve from the same request. */}
+              {table.isInitialLoad || !table.preferencesLoaded ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="h-8 w-8 animate-spin" />
                 </div>

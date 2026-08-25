@@ -207,6 +207,9 @@ export const DocumentsView = ({
 
   const setStatus = useCallback(
     (next: DocumentStatus) => {
+      // Pushed, not replaced: switching between documents and templates is a
+      // move the reader made, so Back has to take them out of it. (Paging
+      // replaces, because a cursor is not somewhere you went.)
       void router.navigate({
         to: ".",
         search: {
@@ -215,7 +218,6 @@ export const DocumentsView = ({
           // The other state's cursor means nothing in this one.
           page: undefined,
         },
-        replace: true,
       });
       setPageState(1);
     },

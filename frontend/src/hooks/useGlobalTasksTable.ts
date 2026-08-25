@@ -125,10 +125,8 @@ export function useGlobalTasksTable({ view, storageKeyPrefix }: UseGlobalTasksTa
   );
 
   // --- Server-persisted filter + sort preferences ---
-  const [storedPrefsRaw, setStoredPrefs] = useViewPreference<StoredPrefs>(
-    storageKey,
-    FILTER_DEFAULTS
-  );
+  const [storedPrefsRaw, setStoredPrefs, { isLoaded: preferencesLoaded }] =
+    useViewPreference<StoredPrefs>(storageKey, FILTER_DEFAULTS);
   const storedPrefs = useMemo(() => sanitizeStoredPrefs(storedPrefsRaw), [storedPrefsRaw]);
   const { statusFilters, priorityFilters, guildFilters, propertyFilters, sorting } = storedPrefs;
 
@@ -194,9 +192,9 @@ export function useGlobalTasksTable({ view, storageKeyPrefix }: UseGlobalTasksTa
     [router]
   );
 
-  // The table captures its seed at mount, so this is the sort as it stood when
-  // the preferences first resolved; every later change flows through
-  // handleSortingChange below.
+  // The table captures its seed at mount, which is why the caller holds the
+  // table back until `preferencesLoaded` — mounting first would freeze the
+  // headers on the default sort while the rows came back in the saved one.
   const initialSorting = useMemo<SortingState>(
     () =>
       sorting
@@ -464,6 +462,9 @@ export function useGlobalTasksTable({ view, storageKeyPrefix }: UseGlobalTasksTa
     // Sorting
     initialSorting,
     handleSortingChange,
+
+    // False until the saved filters and sort have resolved.
+    preferencesLoaded,
 
     // Prefetching
     prefetchPage,

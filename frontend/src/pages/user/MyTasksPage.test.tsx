@@ -1,6 +1,6 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
+import { delay, HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 
 import { buildTask } from "@/__tests__/factories";
@@ -32,7 +32,37 @@ function renderMyTasks() {
   return renderPage(MyTasksPage, { queryClient });
 }
 
+/** Serve saved preferences, optionally after the tasks request has resolved. */
+function stubPreferences(prefs: unknown, { delayMs = 0 } = {}) {
+  server.use(
+    http.get("/api/v1/user-view-preferences", async () => {
+      if (delayMs > 0) await delay(delayMs);
+      return HttpResponse.json({ items: { "initiative-my-tasks-filters": prefs } });
+    })
+  );
+}
+
 const groupSelect = () => screen.getByRole("combobox", { name: /group by/i });
+
+describe("MyTasksPage saved sort", () => {
+  it("waits for the saved sort before mounting the table", async () => {
+    stubTasks();
+    // Preferences land after the tasks request, which is the case that used to
+    // freeze the headers on the default sort.
+    stubPreferences({ sorting: [{ field: "priority", dir: "desc" }] }, { delayMs: 50 });
+    renderPage(MyTasksPage, { queryClient: createTestQueryClient() });
+
+    // Nothing is drawn on the defaults in the meantime.
+    expect(screen.queryByRole("columnheader")).not.toBeInTheDocument();
+
+    // Once the saved sort is in hand the table mounts seeded with it — the
+    // header carries a direction arrow rather than the unsorted glyph, so it
+    // agrees with the order the rows came back in.
+    const priorityHeader = await screen.findByRole("columnheader", { name: /priority/i });
+    const icon = within(priorityHeader).getByRole("button").querySelector("svg");
+    expect(icon).toHaveClass("lucide-arrow-down");
+  });
+});
 
 describe("MyTasksPage grouping", () => {
   it("remembers the grouping choice for the next visit", async () => {
