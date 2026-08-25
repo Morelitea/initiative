@@ -87,6 +87,13 @@ const SORT_FIELD_MAP: Record<string, string> = {
   priority: "priority",
 };
 
+/** The same map read the other way, to seed the table's headers from the sort
+ *  the preferences restored — otherwise the rows come back sorted but the
+ *  header claims something else. */
+const SORT_COLUMN_MAP: Record<string, string> = Object.fromEntries(
+  Object.entries(SORT_FIELD_MAP).map(([columnId, field]) => [field, columnId])
+);
+
 export type MyTasksView = "assigned" | "created";
 
 interface UseGlobalTasksTableOptions {
@@ -118,10 +125,8 @@ export function useGlobalTasksTable({ view, storageKeyPrefix }: UseGlobalTasksTa
   );
 
   // --- Server-persisted filter + sort preferences ---
-  const [storedPrefsRaw, setStoredPrefs] = useViewPreference<StoredPrefs>(
-    storageKey,
-    FILTER_DEFAULTS
-  );
+  const [storedPrefsRaw, setStoredPrefs, { isLoaded: preferencesLoaded }] =
+    useViewPreference<StoredPrefs>(storageKey, FILTER_DEFAULTS);
   const storedPrefs = useMemo(() => sanitizeStoredPrefs(storedPrefsRaw), [storedPrefsRaw]);
   const { statusFilters, priorityFilters, guildFilters, propertyFilters, sorting } = storedPrefs;
 
@@ -185,6 +190,20 @@ export function useGlobalTasksTable({ view, storageKeyPrefix }: UseGlobalTasksTa
       });
     },
     [router]
+  );
+
+  // The table captures its seed at mount, which is why the caller holds the
+  // table back until `preferencesLoaded` — mounting first would freeze the
+  // headers on the default sort while the rows came back in the saved one.
+  const initialSorting = useMemo<SortingState>(
+    () =>
+      sorting
+        .map((entry) => {
+          const columnId = SORT_COLUMN_MAP[entry.field];
+          return columnId ? { id: columnId, desc: entry.dir === "desc" } : null;
+        })
+        .filter((entry): entry is SortingState[number] => entry !== null),
+    [sorting]
   );
 
   const handleSortingChange = useCallback(
@@ -266,6 +285,11 @@ export function useGlobalTasksTable({ view, storageKeyPrefix }: UseGlobalTasksTa
     queryKey: getMyTasksQueryKey(tasksParams),
     queryFn: () => listMyTasks(tasksParams),
     placeholderData: keepPreviousData,
+    // Nothing is worth asking for until the saved filters and sort are in
+    // hand: a request built on the defaults would be thrown away the moment
+    // they arrive, and its rows would sit under the saved sort's headers in
+    // the meantime.
+    enabled: preferencesLoaded,
   });
 
   const prefetchPage = useCallback(
@@ -441,7 +465,11 @@ export function useGlobalTasksTable({ view, storageKeyPrefix }: UseGlobalTasksTa
     totalCount,
 
     // Sorting
+    initialSorting,
     handleSortingChange,
+
+    // False until the saved filters and sort have resolved.
+    preferencesLoaded,
 
     // Prefetching
     prefetchPage,

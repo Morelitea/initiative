@@ -27,6 +27,7 @@ import { useFocusSummary } from "@/hooks/useFocusSummary";
 import { type MyTasksView, useGlobalTasksTable } from "@/hooks/useGlobalTasksTable";
 import { useGuilds } from "@/hooks/useGuilds";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
+import { usePersistedTableState } from "@/hooks/usePersistedTableState";
 import { useProperties } from "@/hooks/useProperties";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { guildPath, useGuildPath } from "@/lib/guildUrl";
@@ -95,6 +96,13 @@ export const GlobalTasksPage = ({
   const [columnVisibility, setColumnVisibility] = usePersistedColumnVisibility(
     columnsStorageKey,
     propertyHiddenIds
+  );
+  // Grouping is the reader's own arrangement, so it outlives the visit. Sorting
+  // rides along with this list's other preferences (see useGlobalTasksTable),
+  // which is why only the grouping half is kept here.
+  const [tableState, { setGrouping }] = usePersistedTableState(
+    `initiative-${storageKeyPrefix}-table`,
+    { grouping: ["date group"] }
   );
   // Seed the two existing hidden-by-default columns from this page only on
   // first-ever render; after that, persisted state governs everything.
@@ -240,7 +248,11 @@ export const GlobalTasksPage = ({
                   </div>
                 </div>
               ) : null}
-              {table.isInitialLoad ? (
+              {/* The saved sort has to be in hand before the table mounts: it
+                  seeds its headers once, so a table built on the defaults would
+                  keep claiming them while the rows came back in the saved
+                  order. The filters resolve from the same request. */}
+              {table.isInitialLoad || !table.preferencesLoaded ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="h-8 w-8 animate-spin" />
                 </div>
@@ -255,14 +267,12 @@ export const GlobalTasksPage = ({
                   groupingOptions={groupingOptions}
                   columnVisibility={effectiveColumnVisibility}
                   onColumnVisibilityChange={setColumnVisibility}
+                  onGroupingChange={setGrouping}
                   initialState={{
-                    grouping: ["date group"],
+                    grouping: tableState.grouping,
                     expanded: true,
                   }}
-                  initialSorting={[
-                    { id: "date group", desc: false },
-                    { id: "due date", desc: false },
-                  ]}
+                  initialSorting={table.initialSorting}
                   enableFilterInput
                   filterInputColumnKey="title"
                   filterInputPlaceholder={t("filters.filterPlaceholder")}

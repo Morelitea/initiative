@@ -28,6 +28,13 @@
     "searchPlaceholder": "Dokumente suchen",
     "filterByTag": "Nach Tag filtern",
     "allTags": "Alle Tags",
+    "filterByType": "Nach Typ filtern",
+    "allTypes": "Alle Typen",
+    "typeNative": "Textdokument",
+    "typeFile": "Datei",
+    "typeWhiteboard": "Whiteboard",
+    "typeSpreadsheet": "Tabelle",
+    "typeSmartLink": "Smart-Link",
     "accessRestrictedTitle": "Zugriff eingeschränkt",
     "accessRestrictedDescription": "Du hast keine Berechtigung, Dokumente in dieser Initiative anzusehen. Wende dich an einen Administrator, wenn du glaubst, dass dies ein Fehler ist.",
     "loading": "Dokumente werden geladen…",
@@ -36,6 +43,8 @@
     "browseByTag": "Nach Tag durchsuchen",
     "noDocumentsTitle": "Noch keine Dokumente",
     "noDocumentsDescription": "Erstelle dein erstes Initiative-Dokument, um Briefings, Entscheidungen oder Anleitungen zu teilen.",
+    "noTemplatesTitle": "Noch keine Vorlagen",
+    "noTemplatesDescription": "Markiere ein beliebiges Dokument in seinen Einstellungen als Vorlage, um es später wiederzuverwenden.",
     "startWriting": "Mit dem Schreiben beginnen",
     "filterPlaceholder": "Nach Titel filtern…",
     "perPage": "Pro Seite:",
@@ -56,6 +65,11 @@
   "type": {
     "template": "Vorlage",
     "document": "Dokument"
+  },
+  "status": {
+    "label": "Anzeigen",
+    "documents": "Dokumente",
+    "templates": "Vorlagen"
   },
   "bulk": {
     "delete": "Löschen",

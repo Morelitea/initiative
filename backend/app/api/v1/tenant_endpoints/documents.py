@@ -517,11 +517,18 @@ async def get_document_counts(
     guild_context: GuildContextDep,
     initiative_id: Optional[int] = Query(default=None),
     search: Optional[str] = Query(default=None),
+    is_template: Optional[bool] = Query(
+        default=None, description="Filter to template (or non-template) documents"
+    ),
+    document_type: Optional[DocumentType] = Query(
+        default=None, description="Filter by document type"
+    ),
 ) -> DocumentCountsResponse:
     """Get per-tag document counts for visible documents.
 
     Lightweight endpoint for the tag tree sidebar. Does NOT accept tag_ids
-    because counts should reflect all tags.
+    because counts should reflect all tags. The remaining filters mirror the
+    list endpoint so the sidebar counts match the list beside it.
     """
     if initiative_id is not None:
         await _get_initiative_or_404(
@@ -533,6 +540,8 @@ async def get_document_counts(
         current_user.id,
         initiative_id=initiative_id,
         search=search,
+        is_template=is_template,
+        document_type=document_type,
     )
 
     # Subquery: IDs of visible documents

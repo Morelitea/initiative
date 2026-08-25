@@ -18,8 +18,17 @@ import { BulkEditTagsDialog } from "@/components/documents/BulkEditTagsDialog";
 import { CreateDocumentDialog } from "@/components/documents/CreateDocumentDialog";
 import { DocumentCard } from "@/components/documents/DocumentCard";
 import { DocumentsBulkBar } from "@/components/documents/DocumentsBulkBar";
-import { DocumentsFilterBar } from "@/components/documents/DocumentsFilterBar";
+import {
+  ALL_DOCUMENT_TYPES,
+  DocumentsFilterBar,
+  type DocumentTypeFilter,
+} from "@/components/documents/DocumentsFilterBar";
 import { DocumentsListView } from "@/components/documents/DocumentsListView";
+import {
+  type DocumentStatus,
+  DocumentsStatusFilter,
+  isDocumentStatus,
+} from "@/components/documents/DocumentsStatusFilter";
 import { DocumentsTagsView } from "@/components/documents/DocumentsTagsView";
 import { PaginationBar } from "@/components/documents/PaginationBar";
 import { ToolImportAction, useToolImportAction } from "@/components/imports/ToolImportAction";
@@ -43,6 +52,7 @@ import {
 } from "@/hooks/useDocuments";
 import { useInitiativeAccess, useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
+import { usePersistedTableState } from "@/hooks/usePersistedTableState";
 import { useTags } from "@/hooks/useTags";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -58,6 +68,11 @@ const SORT_FIELD_MAP: Record<string, string> = {
   "last updated": "updated_at",
 };
 const DOCUMENT_TAG_FILTERS_KEY = "documents:tag-filters";
+/** Table arrangement (which column the list is sorted by) — one answer for the
+ *  documents list, alongside the column-visibility map the table already keeps. */
+const DOCUMENT_TABLE_STATE_KEY = "initiative-documents-table";
+/** Newest first, the way the list has always opened. */
+const DEFAULT_SORTING: SortingState = [{ id: "last updated", desc: true }];
 
 type DocumentsViewProps = {
   fixedInitiativeId?: number;
@@ -81,6 +96,7 @@ export const DocumentsView = ({
   const searchParams = useSearch({ strict: false }) as {
     create?: string;
     page?: number;
+    status?: string;
   };
   // The initiative comes from the path. It is absent only on the tag browse,
   // which is deliberately cross-initiative.
@@ -139,10 +155,37 @@ export const DocumentsView = ({
 
   const [propertyFilters, setPropertyFilters] = useState<PropertyFilterCondition[]>([]);
 
+  // Session-scoped like the property conditions above: a persisted type filter
+  // would hide most of the list on the next visit with no obvious cause.
+  const [documentTypeFilter, setDocumentTypeFilter] =
+    useState<DocumentTypeFilter>(ALL_DOCUMENT_TYPES);
+  const queryDocumentType =
+    documentTypeFilter === ALL_DOCUMENT_TYPES ? undefined : documentTypeFilter;
+
+  // Documents and templates are two states of one list, the way the projects
+  // list splits its own templates out. It lives in the URL so a templates view
+  // is linkable and answers the back button; the cross-initiative tag browse
+  // only ever reads documents, so it pins the value and hides the control.
+  const status: DocumentStatus =
+    !fixedTagIds && isDocumentStatus(searchParams.status) ? searchParams.status : "documents";
+  const isTemplateView = status === "templates";
+
   const [page, setPageState] = useState(() => searchParams.page ?? 1);
   const [pageSize, setPageSizeState] = useState(20);
-  const [sortBy, setSortBy] = useState<string | undefined>("updated_at");
-  const [sortDir, setSortDir] = useState<string | undefined>("desc");
+
+  // The sort is the reader's, so it outlives the visit. Held in the table's own
+  // column vocabulary and mapped to backend fields for the query, so the header
+  // and the rows can't disagree after a reload.
+  const [tableState, { setSorting: persistSorting }] = usePersistedTableState(
+    DOCUMENT_TABLE_STATE_KEY,
+    { sorting: DEFAULT_SORTING }
+  );
+  const [sortBy, sortDir] = useMemo(() => {
+    const first = tableState.sorting[0];
+    const field = first ? SORT_FIELD_MAP[first.id] : undefined;
+    if (!first || !field) return [undefined, undefined] as const;
+    return [field, first.desc ? "desc" : "asc"] as const;
+  }, [tableState.sorting]);
 
   const setPage = useCallback(
     (updater: number | ((prev: number) => number)) => {
@@ -162,6 +205,33 @@ export const DocumentsView = ({
     [router]
   );
 
+  const setStatus = useCallback(
+    (next: DocumentStatus) => {
+      // Pushed, not replaced: switching between documents and templates is a
+      // move the reader made, so Back has to take them out of it. (Paging
+      // replaces, because a cursor is not somewhere you went.)
+      void router.navigate({
+        to: ".",
+        search: {
+          ...searchParamsRef.current,
+          status: next === "documents" ? undefined : next,
+          // The other state's cursor means nothing in this one.
+          page: undefined,
+        },
+      });
+      setPageState(1);
+    },
+    [router]
+  );
+
+  // The cursor lives in the URL as well as in state, so a history move (Back
+  // out of the templates view, say) has to carry the list with it — otherwise
+  // the address names one page while the list shows another.
+  useEffect(() => {
+    const urlPage = searchParams.page ?? 1;
+    setPageState((prev) => (prev === urlPage ? prev : urlPage));
+  }, [searchParams.page]);
+
   const handlePageSizeChange = useCallback(
     (size: number) => {
       setPageSizeState(size);
@@ -172,23 +242,10 @@ export const DocumentsView = ({
 
   const handleSortingChange = useCallback(
     (sorting: SortingState) => {
-      if (sorting.length > 0) {
-        const col = sorting[0];
-        const field = SORT_FIELD_MAP[col.id];
-        if (field) {
-          setSortBy(field);
-          setSortDir(col.desc ? "desc" : "asc");
-        } else {
-          setSortBy(undefined);
-          setSortDir(undefined);
-        }
-      } else {
-        setSortBy(undefined);
-        setSortDir(undefined);
-      }
+      persistSorting(sorting);
       setPage(1);
     },
-    [setPage]
+    [persistSorting, setPage]
   );
 
   const { data: allTags = [] } = useTags();
@@ -262,12 +319,21 @@ export const DocumentsView = ({
   // In tags view: use tree-derived tag IDs; in other views: use filter bar tag IDs
   const queryTagIds = viewMode === "tags" ? treeTagIds : effectiveTagFilters;
 
-  // Reset to page 1 when filters or view mode change
-  const _queryTagIdsKey = JSON.stringify(queryTagIds);
+  // Reset to page 1 when filters or view mode change — a narrower list can
+  // have fewer pages than the one currently shown.
+  const queryTagIdsKey = JSON.stringify(queryTagIds);
   const propertyFiltersKey = JSON.stringify(propertyFilters);
   useEffect(() => {
     setPage(1);
-  }, [setPage]);
+  }, [
+    setPage,
+    searchQuery,
+    queryTagIdsKey,
+    propertyFiltersKey,
+    treeWantsUntagged,
+    documentTypeFilter,
+    viewMode,
+  ]);
 
   // Serialize property filters for the backend query string. The backend
   // expects a JSON-encoded array on ``property_filters`` and we pre-encode
@@ -281,6 +347,8 @@ export const DocumentsView = ({
     ...(queryTagIds.length > 0 ? { tag_ids: queryTagIds } : {}),
     ...(treeWantsUntagged ? { untagged: true } : {}),
     ...(encodedPropertyFilters ? { property_filters: encodedPropertyFilters } : {}),
+    ...(queryDocumentType ? { document_type: queryDocumentType } : {}),
+    is_template: isTemplateView,
     page,
     page_size: pageSize,
     ...(sortBy ? { sort_by: sortBy } : {}),
@@ -293,9 +361,29 @@ export const DocumentsView = ({
   const countsQueryParams = {
     ...(lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {}),
     ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
+    ...(queryDocumentType ? { document_type: queryDocumentType } : {}),
+    is_template: isTemplateView,
   };
 
   const countsQuery = useDocumentCounts(countsQueryParams, { enabled: viewMode === "tags" });
+
+  // Totals behind each state, so the toggle says how much sits in the other one
+  // before it is opened. Scoped to the initiative only — like the projects
+  // list's status counts, these answer "how many exist", not "how many survive
+  // the current filters". The tag browse hides the toggle, so it skips them.
+  const statusCountsBase = lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {};
+  const documentsCountQuery = useDocumentCounts(
+    { ...statusCountsBase, is_template: false },
+    { enabled: !fixedTagIds }
+  );
+  const templatesCountQuery = useDocumentCounts(
+    { ...statusCountsBase, is_template: true },
+    { enabled: !fixedTagIds }
+  );
+  const statusCounts = {
+    documents: documentsCountQuery.data?.total_count,
+    templates: templatesCountQuery.data?.total_count,
+  };
 
   // Prefetch adjacent page on hover
   const prefetchPage = useCallback(
@@ -307,6 +395,8 @@ export const DocumentsView = ({
         ...(queryTagIds.length > 0 ? { tag_ids: queryTagIds } : {}),
         ...(treeWantsUntagged ? { untagged: true } : {}),
         ...(encodedPropertyFilters ? { property_filters: encodedPropertyFilters } : {}),
+        ...(queryDocumentType ? { document_type: queryDocumentType } : {}),
+        is_template: isTemplateView,
         page: targetPage,
         page_size: pageSize,
         ...(sortBy ? { sort_by: sortBy } : {}),
@@ -320,6 +410,8 @@ export const DocumentsView = ({
       queryTagIds,
       treeWantsUntagged,
       encodedPropertyFilters,
+      queryDocumentType,
+      isTemplateView,
       pageSize,
       sortBy,
       sortDir,
@@ -365,12 +457,13 @@ export const DocumentsView = ({
     setCardSelectionActive(false);
     setSelectedDocuments([]);
   }, []);
-  // Switching views must not strand a hidden selection behind another view's
-  // bulk actions — every view change starts unselected.
+  // Switching views (or between documents and templates) must not strand a
+  // hidden selection behind another view's bulk actions — every change starts
+  // unselected.
   useEffect(() => {
     setCardSelectionActive(false);
     setSelectedDocuments([]);
-  }, [viewMode]);
+  }, [viewMode, status]);
 
   // Check if user owns all selected documents (required for delete)
   const canDeleteSelectedDocuments = useMemo(() => {
@@ -438,12 +531,14 @@ export const DocumentsView = ({
   const activeFilterCount =
     (searchQuery.trim() ? 1 : 0) +
     (fixedTagIds || viewMode === "tags" ? 0 : tagFilters.length) +
+    (queryDocumentType ? 1 : 0) +
     propertyFilters.length;
 
   const clearFilters = useCallback(() => {
     setSearchQuery("");
     setTagFilters([]);
     setPropertyFilters([]);
+    setDocumentTypeFilter(ALL_DOCUMENT_TYPES);
   }, [setTagFilters]);
 
   // Drive the app-wide bottom-nav add button for this route.
@@ -521,6 +616,13 @@ export const DocumentsView = ({
       )}
 
       <ToolListToolbar
+        leading={
+          // The tag browse reads documents across initiatives and has no
+          // templates state to offer.
+          fixedTagIds ? undefined : (
+            <DocumentsStatusFilter value={status} onChange={setStatus} counts={statusCounts} />
+          )
+        }
         filters={{
           open: filtersOpen,
           onOpenChange: setFiltersOpen,
@@ -569,6 +671,8 @@ export const DocumentsView = ({
         tagFilters={selectedTagsForFilter}
         onTagFiltersChange={handleTagFiltersChange}
         fixedTagIds={fixedTagIds}
+        documentTypeFilter={documentTypeFilter}
+        onDocumentTypeFilterChange={setDocumentTypeFilter}
         propertyFilters={propertyFilters}
         onPropertyFiltersChange={setPropertyFilters}
         onClear={clearFilters}
@@ -702,8 +806,18 @@ export const DocumentsView = ({
             onPageChange={setPage}
             onPrefetchPage={prefetchPage}
             onSortingChange={handleSortingChange}
+            initialSorting={tableState.sorting}
           />
         )
+      ) : isTemplateView ? (
+        // A template is made by marking an existing document as one, so this
+        // state has no create action of its own to offer.
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("page.noTemplatesTitle")}</CardTitle>
+            <CardDescription>{t("page.noTemplatesDescription")}</CardDescription>
+          </CardHeader>
+        </Card>
       ) : (
         <Card>
           <CardHeader>

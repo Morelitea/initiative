@@ -28,6 +28,13 @@
     "searchPlaceholder": "Rechercher des documents",
     "filterByTag": "Filtrer par étiquette",
     "allTags": "Toutes les étiquettes",
+    "filterByType": "Filtrer par type",
+    "allTypes": "Tous les types",
+    "typeNative": "Document texte",
+    "typeFile": "Fichier",
+    "typeWhiteboard": "Tableau blanc",
+    "typeSpreadsheet": "Feuille de calcul",
+    "typeSmartLink": "Lien intelligent",
     "accessRestrictedTitle": "Accès restreint",
     "accessRestrictedDescription": "Vous n'avez pas la permission de voir les documents dans cette initiative. Contactez un administrateur si vous pensez qu'il s'agit d'une erreur.",
     "loading": "Chargement des documents…",
@@ -36,6 +43,8 @@
     "browseByTag": "Parcourir par étiquette",
     "noDocumentsTitle": "Aucun document pour l'instant",
     "noDocumentsDescription": "Créez votre premier document d'initiative pour partager des briefs, des décisions ou des guides.",
+    "noTemplatesTitle": "Aucun modèle pour l'instant",
+    "noTemplatesDescription": "Marquez un document comme modèle dans ses paramètres pour le réutiliser plus tard.",
     "startWriting": "Commencer à écrire",
     "filterPlaceholder": "Filtrer par titre…",
     "perPage": "Par page :",
@@ -56,6 +65,11 @@
   "type": {
     "template": "Modèle",
     "document": "Document"
+  },
+  "status": {
+    "label": "Afficher",
+    "documents": "Documents",
+    "templates": "Modèles"
   },
   "bulk": {
     "delete": "Supprimer",

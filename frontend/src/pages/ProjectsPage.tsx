@@ -74,7 +74,6 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
       void router.navigate({
         to: ".",
         search: { ...search, status: next === "active" ? undefined : next },
-        replace: true,
       });
     },
     [router, search]
