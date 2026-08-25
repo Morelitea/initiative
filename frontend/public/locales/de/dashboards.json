@@ -53,6 +53,7 @@
     "SCENE_TOO_LARGE": "Dieses Widget hat mehr Daten zurückgegeben, als eine Kachel anzeigen kann.",
     "SCENE_TOO_MANY_NODES": "Dieses Widget wollte zu viele Elemente zeichnen.",
     "SCENE_VALUE_NOT_FINITE": "Dieses Widget hat eine ungültige Zahl zurückgegeben.",
+    "WIDGET_APP_NOT_INSTALLED": "Die App, mit der dieses Widget verbunden war, ist nicht mehr installiert. Verbinden Sie die App erneut, um das Widget wiederherzustellen.",
     "WIDGET_APP_UNAVAILABLE": "Die App hinter diesem Widget antwortet nicht.",
     "WIDGET_BAD_OUTPUT": "Dieses Widget hat etwas zurückgegeben, das nicht gezeichnet werden kann.",
     "WIDGET_NO_RENDER_EXPORT": "Dieses Widget hat keine Renderfunktion.",

@@ -132,7 +132,8 @@ def build_specs() -> list[CaptureSpec]:
                 f"{table_name} is in EVENTED_TABLES but has no mapped model"
             )
 
-        declared = event_source(table_name).reports_as
+        source = event_source(table_name)
+        declared = source.reports_as
         if declared is not None:
             specs.append(
                 CaptureSpec(
@@ -154,7 +155,9 @@ def build_specs() -> list[CaptureSpec]:
             specs.append(
                 CaptureSpec(
                     table=table_name,
-                    resource_types=frozenset({table_name}),
+                    # Its own resource, under its own name — or the declared
+                    # one, where the API segment differs from the table's.
+                    resource_types=frozenset({source.resource_type or table_name}),
                     resource_id_expr=f'{ROW}."{pk[0].name}"',
                     facet=None,
                 )

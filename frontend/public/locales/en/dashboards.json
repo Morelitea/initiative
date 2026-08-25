@@ -53,6 +53,7 @@
     "SCENE_TOO_LARGE": "This widget returned more data than a tile can show.",
     "SCENE_TOO_MANY_NODES": "This widget tried to draw too many elements.",
     "SCENE_VALUE_NOT_FINITE": "This widget returned a number that is not valid.",
+    "WIDGET_APP_NOT_INSTALLED": "The app this widget was connected to is no longer installed. Reconnect the app to bring this widget back.",
     "WIDGET_APP_UNAVAILABLE": "The app behind this widget is not responding.",
     "WIDGET_BAD_OUTPUT": "This widget returned something that cannot be drawn.",
     "WIDGET_NO_RENDER_EXPORT": "This widget has no render function.",

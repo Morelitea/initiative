@@ -238,6 +238,49 @@ async def test_a_tag_is_captured_as_a_guild_wide_event(session, acting_user):
     assert rows[0].initiative_id is None
 
 
+async def test_an_install_is_captured_as_a_guild_wide_event(session, acting_user):
+    """Installed apps belong to no initiative, so their events carry a NULL one.
+
+    Same disclosure rule as tags: the install row is readable by every member
+    (the sidebar lists it), so an event naming it reveals nothing new. An
+    install appearing, changing state, or going away is what a subscriber
+    connects on, and ``config_state`` moving is the moment an app becomes
+    usable rather than merely present.
+
+    Published as ``apps`` — the segment the install's detail route lives at —
+    so the id every event carries resolves by the derivable route rule.
+    """
+    from app.testing import create_guild_app
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    app = await create_guild_app(
+        session, a.guild, a.user, definition={"app_kind": "service"}
+    )
+
+    rows = [
+        r
+        for r in await _outbox(session, a.guild.id)
+        if r.resource_type == "apps" and r.resource_id == app.id
+    ]
+    assert rows, "installing an app produced no outbox row"
+    assert rows[0].action == "created"
+    assert rows[0].initiative_id is None
+
+    app.config_state = "ok"
+    session.add(app)
+    await session.commit()
+
+    updated = [
+        r
+        for r in await _outbox(session, a.guild.id)
+        if r.resource_type == "apps"
+        and r.resource_id == app.id
+        and r.action == "updated"
+    ]
+    assert updated, "changing config_state produced no outbox row"
+    assert updated[-1].changed == ["config_state"]
+
+
 async def test_an_unresolvable_initiative_still_skips(session, acting_user):
     """A NULL initiative is only ever written where a registry says so.
 
