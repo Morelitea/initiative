@@ -224,6 +224,14 @@ export const DocumentsView = ({
     [router]
   );
 
+  // The cursor lives in the URL as well as in state, so a history move (Back
+  // out of the templates view, say) has to carry the list with it — otherwise
+  // the address names one page while the list shows another.
+  useEffect(() => {
+    const urlPage = searchParams.page ?? 1;
+    setPageState((prev) => (prev === urlPage ? prev : urlPage));
+  }, [searchParams.page]);
+
   const handlePageSizeChange = useCallback(
     (size: number) => {
       setPageSizeState(size);

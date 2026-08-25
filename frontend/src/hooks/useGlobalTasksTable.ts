@@ -285,6 +285,11 @@ export function useGlobalTasksTable({ view, storageKeyPrefix }: UseGlobalTasksTa
     queryKey: getMyTasksQueryKey(tasksParams),
     queryFn: () => listMyTasks(tasksParams),
     placeholderData: keepPreviousData,
+    // Nothing is worth asking for until the saved filters and sort are in
+    // hand: a request built on the defaults would be thrown away the moment
+    // they arrive, and its rows would sit under the saved sort's headers in
+    // the meantime.
+    enabled: preferencesLoaded,
   });
 
   const prefetchPage = useCallback(

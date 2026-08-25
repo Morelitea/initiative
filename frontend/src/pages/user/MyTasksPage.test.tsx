@@ -12,17 +12,20 @@ import { MyTasksPage } from "./MyTasksPage";
 
 /** Serve one page of assigned tasks; the list has to be non-empty to render. */
 function stubTasks() {
+  const requests: URLSearchParams[] = [];
   server.use(
-    http.get("/api/v1/me/tasks", () =>
-      HttpResponse.json({
+    http.get("/api/v1/me/tasks", ({ request }) => {
+      requests.push(new URL(request.url).searchParams);
+      return HttpResponse.json({
         items: [buildTask({ title: "Write the thing" })],
         total_count: 1,
         page: 1,
         page_size: 20,
         has_next: false,
-      })
-    )
+      });
+    })
   );
+  return requests;
 }
 
 function renderMyTasks() {
@@ -44,16 +47,23 @@ function stubPreferences(prefs: unknown, { delayMs = 0 } = {}) {
 
 const groupSelect = () => screen.getByRole("combobox", { name: /group by/i });
 
+/** The table's own requests. The focus summary reads the same endpoint with a
+ *  page size of its own, and asks for its own "due soonest" order. */
+const tableRequests = (requests: URLSearchParams[]) =>
+  requests.filter((params) => params.get("page_size") === "20");
+
 describe("MyTasksPage saved sort", () => {
-  it("waits for the saved sort before mounting the table", async () => {
-    stubTasks();
+  it("waits for the saved sort before asking for rows or mounting the table", async () => {
+    const requests = stubTasks();
     // Preferences land after the tasks request, which is the case that used to
     // freeze the headers on the default sort.
     stubPreferences({ sorting: [{ field: "priority", dir: "desc" }] }, { delayMs: 50 });
     renderPage(MyTasksPage, { queryClient: createTestQueryClient() });
 
-    // Nothing is drawn on the defaults in the meantime.
+    // Nothing is drawn on the defaults in the meantime, and nothing is asked
+    // for in them either.
     expect(screen.queryByRole("columnheader")).not.toBeInTheDocument();
+    expect(tableRequests(requests)).toHaveLength(0);
 
     // Once the saved sort is in hand the table mounts seeded with it — the
     // header carries a direction arrow rather than the unsorted glyph, so it
@@ -61,6 +71,13 @@ describe("MyTasksPage saved sort", () => {
     const priorityHeader = await screen.findByRole("columnheader", { name: /priority/i });
     const icon = within(priorityHeader).getByRole("button").querySelector("svg");
     expect(icon).toHaveClass("lucide-arrow-down");
+
+    // And the rows under them were fetched in that order — one request, in the
+    // saved sort, rather than the default sort followed by a throwaway refetch.
+    expect(tableRequests(requests)).toHaveLength(1);
+    expect(JSON.parse(tableRequests(requests)[0].get("sorting") ?? "[]")).toEqual([
+      { field: "priority", dir: "desc" },
+    ]);
   });
 });
 
