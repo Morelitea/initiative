@@ -90,6 +90,7 @@ from app.services.tenant import app_connections as connections_service
 from app.services.tenant import app_delegations as delegations_service
 from app.services.tenant import app_handoff as handoff_service
 from app.services.tenant import app_revocation as revocation_service
+from app.services.tenant import app_updates as app_updates_service
 from app.services.tenant import guild_apps as guild_apps_service
 
 logger = logging.getLogger(__name__)
@@ -321,6 +322,7 @@ async def get_guild_app(
         delegation_row=await delegations_service.get_delegation(
             session, app_id=app.id, user_id=current_user.id
         ),
+        update_version=await app_updates_service.update_version(session, app),
     )
 
 
@@ -399,11 +401,13 @@ async def upgrade_guild_app(
     current_user: CurrentUser,
     guild_context: GuildContextDep,
 ) -> GuildAppDetail:
-    """Re-pin an installed app to its listing's current version.
+    """Re-pin an installed app to its listing's current version, now.
 
-    Nothing is ever pushed into a guild: a new version sits in the catalog until
-    an admin here asks for it. Applying one replaces this install's definition
-    and leaves everything else alone.
+    The button an admin presses when their guild has turned automatic updates
+    off — and the shortcut past the sweep for one that has not. Either way it is
+    the same re-pin ``services.tenant.app_updates`` performs on its own
+    schedule, so an install cannot end up in a state only one of the two routes
+    can produce.
 
     Stored configuration survives, minus anything the new version stopped
     declaring — a value cannot outlive the field it was typed into. Per-member
@@ -413,6 +417,9 @@ async def upgrade_guild_app(
     _require_guild_admin(guild_context)
     app = await _load(session, app_id)
 
+    # The listing is resolved here rather than inside the shared apply, so a
+    # withdrawn or missing one is reported as the HTTP answer it deserves
+    # instead of reading as "nothing to update to".
     _, version = await _resolve_app_listing(session, app.listing_uid)
     if version.version == app.listing_version:
         raise HTTPException(
@@ -423,49 +430,13 @@ async def upgrade_guild_app(
     definition = dict(version.definition)
     _require_installable_kind(definition)
 
-    # Stored values are pruned to what the new definition still declares, down
-    # to individual fields. A connection it stopped declaring takes its values
-    # with it and is revoked on the way out rather than merely dropped, since
-    # the app is still holding whatever those values bought it.
-    config, config_secrets, dropped = app_config_service.prune_to_definition(
-        definition, app.config, app.config_secrets
+    await app_updates_service.apply_version(
+        session,
+        app,
+        app_updates_service.PendingUpdate(
+            version=version.version, definition=definition
+        ),
     )
-    for connection_id in sorted(dropped):
-        revocation_service.queue_revocation(
-            session,
-            revocation_service.RevocationIntent(
-                guild_id=app.guild_id,
-                app_id=app.id,
-                listing_uid=app.listing_uid,
-                connection_id=connection_id,
-                reason="upgraded",
-            ),
-        )
-    app.config = config
-    app.config_secrets = config_secrets
-    app.definition = definition
-    app.listing_version = version.version
-    # The app has not seen the new configuration shape yet, so whatever it said
-    # about the old one is no longer an answer to the current question.
-    app.config_state = "unverified"
-    app.config_state_detail = None
-    guild_apps_service.touch(app)
-    session.add(app)
-
-    surviving = {
-        connection.get("id")
-        for connection in app_config_service.definition_connections(definition)
-    }
-    for row in await connections_service.list_app_connections(session, app_id=app.id):
-        if row.connection_id not in surviving:
-            await connections_service.disconnect(
-                session,
-                app=app,
-                connection_id=row.connection_id,
-                user_id=row.user_id,
-                reason="upgraded",
-            )
-
     await session.commit()
     await _flush_revocations(session)
     await session.refresh(app)
@@ -474,6 +445,7 @@ async def upgrade_guild_app(
         avatar_url=await _app_avatar(session, app),
         member_rows=await _member_rows(session, app_id=app.id, user_id=current_user.id),
         install_state=await registration_lookup.install_state(app.definition),
+        update_version=await app_updates_service.update_version(session, app),
     )
 
 
@@ -485,11 +457,18 @@ async def update_guild_app(
     current_user: CurrentUser,
     guild_context: GuildContextDep,
 ) -> GuildAppRead:
-    """Rename an app, place it, or turn it off without removing what it created.
+    """Rename an app, place it, choose how it updates, or turn it off.
 
     Renaming is always allowed — a guild may call an app whatever it likes.
     Turning one off is a different matter for an app the deployment provides:
     that switch belongs to the operator, so it is refused by name here.
+
+    ``auto_update`` is the guild's own cadence, and it is on until an admin says
+    otherwise. Turning it off does not freeze the app — it moves the decision to
+    this page, where the Update button applies exactly what the sweep would
+    have. It is offered on every install, provided ones included: the operator
+    decides whether an app exists, and the guild decides when it changes under
+    them.
 
     Placement says which initiatives an app's initiative-scoped surfaces appear
     in; ``{}`` is every one of them, which is where an install starts. It is the
@@ -506,6 +485,8 @@ async def update_guild_app(
         if not data["enabled"]:
             await _require_removable(app)
         app.enabled = data["enabled"]
+    if data.get("auto_update") is not None:
+        app.auto_update = data["auto_update"]
     if "placement" in data:
         app.placement = await _normalized_placement(session, data["placement"])
     app.updated_at = datetime.now(timezone.utc)
@@ -647,6 +628,7 @@ async def update_guild_app_config(
         avatar_url=await _app_avatar(session, app),
         member_rows=await _member_rows(session, app_id=app.id, user_id=current_user.id),
         install_state=await registration_lookup.install_state(app.definition),
+        update_version=await app_updates_service.update_version(session, app),
     )
 
 

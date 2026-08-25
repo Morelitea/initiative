@@ -24,7 +24,12 @@
     "unavailable": "Non configurée sur ce serveur",
     "configure": "Ouvrir les paramètres",
     "version": "Version {{version}}",
-    "upgrade": "Mettre à jour",
+    "autoUpdate": "Mettre à jour automatiquement",
+    "autoUpdateHelp": "Les nouvelles versions de l'éditeur sont appliquées d'elles-mêmes. Désactivez cette option pour lire chacune d'elles avant de mettre à jour manuellement.",
+    "autoUpdateOn": "Les mises à jour seront appliquées automatiquement.",
+    "autoUpdateOff": "Les mises à jour sont désormais appliquées manuellement.",
+    "upgradeTo": "Mettre à jour vers {{version}}",
+    "upToDate": "À jour",
     "upgraded": "Mise à jour vers {{version}}."
   },
   "install": {

@@ -71,6 +71,8 @@ export interface GuildAppDetail {
   app_kind: string;
   name: string;
   enabled: boolean;
+  /** Whether this install tracks its listing. True unless an admin turned it off. */
+  auto_update: boolean;
   artifacts: GuildAppArtifact[];
   needs_config: boolean;
   config_state: "unverified" | "ok" | "invalid" | string;
@@ -98,6 +100,9 @@ export interface GuildAppDetail {
   /** The viewer's own authorization, so the page draws it without a second
    *  request. Says nothing about anybody else. */
   delegation?: AppDelegation | null;
+  /** The version an update would move this install to. Absent when there is
+   *  none — already newest, or nothing published this build can run. */
+  update_version?: string | null;
 }
 
 export interface AppConnectStart {

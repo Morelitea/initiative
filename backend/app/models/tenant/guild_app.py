@@ -69,6 +69,16 @@ class GuildApp(CreatedByMixin, table=True):
     enabled: bool = Field(
         default=True, sa_column=Column(Boolean, nullable=False, server_default="true")
     )
+    # Whether a version the publisher releases is applied on its own.
+    #
+    # On by default, because an install that quietly falls behind its publisher
+    # is the worse resting state: a fix reaches the guild without anyone having
+    # to notice it exists. A guild that would rather read each version first
+    # turns this off in its app settings and applies them by hand — the same
+    # re-pin, asked for rather than swept in.
+    auto_update: bool = Field(
+        default=True, sa_column=Column(Boolean, nullable=False, server_default="true")
+    )
 
     # The pinned snapshot of what was installed, so the app keeps working at the
     # version this guild chose even if the listing changes or goes away.
