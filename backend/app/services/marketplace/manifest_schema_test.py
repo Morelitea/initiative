@@ -40,7 +40,7 @@ from app.services.marketplace.service_apps import (
     FIELD_TYPES,
     GUILD_WIDE_VISIBILITIES,
     MAX_CONNECTIONS,
-    MAX_DATA_SOURCES,
+    MAX_ENDPOINTS,
     MAX_EMBEDS,
     MAX_WIDGETS,
     PARAM_TYPES,
@@ -151,7 +151,7 @@ def test_vocabularies_come_from_the_validator():
 def test_caps_come_from_the_validator():
     props = build_manifest_schema()["properties"]
     assert props["connections"]["maxItems"] == MAX_CONNECTIONS
-    assert props["data_sources"]["maxItems"] == MAX_DATA_SOURCES
+    assert props["endpoints"]["maxItems"] == MAX_ENDPOINTS
     assert props["widgets"]["maxItems"] == MAX_WIDGETS
     assert props["embeds"]["maxItems"] == MAX_EMBEDS
 

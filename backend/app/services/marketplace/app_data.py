@@ -1,6 +1,6 @@
 """External data reaching a widget: the proxy behind the ``app`` binding.
 
-A widget never names an endpoint. It names a *source* on an installed app, and
+A widget never names an endpoint. It names a *endpoint* on an installed app, and
 this module turns that into one bounded call to the app's own service and hands
 back rows. Everything the call needs — where the app lives, which credentials it
 may use, how long an answer is good for — comes from state the guild and the
@@ -10,8 +10,8 @@ operator already own, never from the request.
 under the caller's own guild session, so the install row is reachable only from
 inside that guild and a guild admin's wider reach is inherited rather than
 re-implemented. What is left here is the app-shaped part of the decision: the
-source's declared visibility, the two kill switches (the guild's install and the
-operator's registration), and whether the credentials the source declared it
+endpoint's declared visibility, the two kill switches (the guild's install and the
+operator's registration), and whether the credentials the endpoint declared it
 needs are actually present.
 
 **The cache key contains every credential the response depended on.** That is
@@ -19,7 +19,7 @@ the whole rule, and it is what makes a stored body safe to replay:
 
 * the guild, the install, and the pinned listing version — an entry is
   unreachable from a session that is not already inside that guild;
-* the source and its parameters;
+* the endpoint and its parameters;
 * a fingerprint of the install's stored configuration, so rotating a credential
   retires the answers it produced;
 * the opaque handles of every per-member connection the call used, so two
@@ -84,7 +84,7 @@ __all__ = [
     "AppDataResult",
     "clear_app_data_cache",
     "fetch_app_source",
-    "find_data_source",
+    "find_read_endpoint",
     "service_public_id",
     "validate_params",
 ]
@@ -93,7 +93,7 @@ __all__ = [
 # --- bounds -----------------------------------------------------------------
 #
 # All per worker, all deliberately small. A dashboard is a display surface: a
-# source that cannot answer in five seconds inside a megabyte is not going to
+# endpoint that cannot answer in five seconds inside a megabyte is not going to
 # render usefully, and letting it try costs everyone sharing the process.
 
 #: Wall-clock budget for one upstream call. Connect and read are capped
@@ -130,7 +130,7 @@ class AppDataError(Exception):
 
 @dataclass(frozen=True)
 class AppDataResult:
-    """One source's answer, and when it was actually obtained upstream."""
+    """One endpoint's answer, and when it was actually obtained upstream."""
 
     rows: list[Any]
     fetched_at: datetime
@@ -153,25 +153,29 @@ def service_public_id(definition: Mapping[str, Any] | None) -> Optional[str]:
     return public_id if isinstance(public_id, str) and public_id else None
 
 
-def _data_sources(definition: Mapping[str, Any] | None) -> list[dict[str, Any]]:
-    declared = (definition or {}).get("data_sources")
+def _endpoints(definition: Mapping[str, Any] | None) -> list[dict[str, Any]]:
+    declared = (definition or {}).get("endpoints")
     if not isinstance(declared, list):
         return []
     return [entry for entry in declared if isinstance(entry, dict)]
 
 
-def find_data_source(
-    definition: Mapping[str, Any] | None, source_id: str
+def find_read_endpoint(
+    definition: Mapping[str, Any] | None, endpoint_id: str
 ) -> Optional[dict[str, Any]]:
-    """One source from the *pinned* definition, or None.
+    """One readable endpoint from the *pinned* definition, or None.
 
     Pinned rather than current on purpose: what an install offers is the version
     its guild chose, so publishing a new one never silently widens what an
-    existing install will fetch.
+    existing install will answer.
+
+    Readable rather than declared, because this is the fetch path. A write and
+    an emission are both real endpoints and neither is reachable from here — a
+    dashboard rendering a tile must not be a way to make an app act.
     """
-    for source in _data_sources(definition):
-        if source.get("id") == source_id:
-            return source
+    for endpoint in _endpoints(definition):
+        if endpoint.get("id") == endpoint_id and endpoint.get("direction") == "read":
+            return endpoint
     return None
 
 
@@ -221,12 +225,12 @@ def _coerce_param(field_spec: Mapping[str, Any], value: Any) -> str:
 
 
 def validate_params(
-    source: Mapping[str, Any], raw: str | None
+    endpoint: Mapping[str, Any], raw: str | None
 ) -> tuple[dict[str, str], str]:
-    """Check a request's ``params`` against the source's ``params_schema``.
+    """Check a request's ``params`` against the endpoint's ``params_schema``.
 
     Returns the values to send upstream and their canonical form for the cache
-    key. A parameter the source does not declare is refused rather than
+    key. A parameter the endpoint does not declare is refused rather than
     forwarded: the schema is the whole of what a widget may vary, and anything
     else would be a caller shaping the app's request directly.
     """
@@ -242,7 +246,7 @@ def validate_params(
         if not isinstance(supplied, dict):
             raise AppDataError(AppDataMessages.INVALID_PARAMS, 400)
 
-    declared_raw = source.get("params_schema")
+    declared_raw = endpoint.get("params")
     declared = {
         entry["key"]: entry
         for entry in (declared_raw if isinstance(declared_raw, list) else [])
@@ -264,16 +268,16 @@ def validate_params(
     return values, canonical
 
 
-# --- which credentials this source runs on ----------------------------------
+# --- which credentials this endpoint runs on ----------------------------------
 
 
-def _required_connection_ids(source: Mapping[str, Any]) -> tuple[list[str], bool]:
-    """The connections a source names, and whether all of them are needed.
+def _required_connection_ids(endpoint: Mapping[str, Any]) -> tuple[list[str], bool]:
+    """The connections a endpoint names, and whether all of them are needed.
 
-    ``requires`` is one level with one operator (§7.4). Absent means the source
+    ``requires`` is one level with one operator (§7.4). Absent means the endpoint
     needs no credential at all.
     """
-    requires = source.get("requires")
+    requires = endpoint.get("requires")
     if not isinstance(requires, dict):
         return [], True
     for key, needs_all in (("all_of", True), ("any_of", False)):
@@ -287,10 +291,10 @@ async def _resolve_connections(
     session: AsyncSession,
     *,
     app: GuildApp,
-    source: Mapping[str, Any],
+    endpoint: Mapping[str, Any],
     user_id: int,
 ) -> dict[str, str]:
-    """Decide whether this source can run, and collect the handles it runs with.
+    """Decide whether this endpoint can run, and collect the handles it runs with.
 
     Satisfaction is presence alone — which fields hold a value. This build never
     inspects a credential, calls a vendor, or learns a scope; whether a stored
@@ -301,7 +305,7 @@ async def _resolve_connections(
     someone who has not is told to connect rather than being served the other
     person's view.
     """
-    required, needs_all = _required_connection_ids(source)
+    required, needs_all = _required_connection_ids(endpoint)
     if not required:
         return {}
 
@@ -316,7 +320,7 @@ async def _resolve_connections(
         connection = app_config_service.connection_by_id(app.definition, connection_id)
         if connection is None:
             # The pinned definition names a connection it does not declare —
-            # nothing can satisfy it, so the source cannot run.
+            # nothing can satisfy it, so the endpoint cannot run.
             refusal = refusal or AppDataError(AppDataMessages.NEEDS_CONFIGURATION, 409)
             continue
 
@@ -443,7 +447,7 @@ def clear_app_data_cache(
 def _cache_key(
     *,
     app: GuildApp,
-    source_id: str,
+    endpoint_id: str,
     canonical_params: str,
     refs: Mapping[str, str],
 ) -> str:
@@ -452,7 +456,7 @@ def _cache_key(
     Guild and install lead so an entry is scoped to the same boundary the
     request was, and a prefix drop can retire one install's answers. The
     fingerprint covers the stored configuration as a whole rather than only the
-    connections this source named: rotating a credential is rare next to reading
+    connections this endpoint named: rotating a credential is rare next to reading
     a widget, and narrowing it would trade a cheap hash for the chance of
     serving a body a withdrawn credential produced.
     """
@@ -469,7 +473,7 @@ def _cache_key(
             default=str,
         ).encode("utf-8")
     ).hexdigest()
-    return f"{app.guild_id}:{app.id}:{source_id}:{canonical_params}:{fingerprint}"
+    return f"{app.guild_id}:{app.id}:{endpoint_id}:{canonical_params}:{fingerprint}"
 
 
 def _cache_get(key: str) -> Optional[AppDataResult]:
@@ -497,8 +501,8 @@ def _cache_put(key: str, result: AppDataResult, ttl: int) -> None:
     _cache[key] = _CacheEntry(result=result, expires_at=time.monotonic() + ttl)
 
 
-def _effective_ttl(source: Mapping[str, Any]) -> int:
-    declared = source.get("cache_ttl_seconds")
+def _effective_ttl(endpoint: Mapping[str, Any]) -> int:
+    declared = endpoint.get("cache_ttl_seconds")
     if isinstance(declared, bool) or not isinstance(declared, int):
         return 0
     return max(0, min(declared, MAX_CACHE_TTL_SECONDS))
@@ -507,13 +511,16 @@ def _effective_ttl(source: Mapping[str, Any]) -> int:
 # --- the upstream call ------------------------------------------------------
 
 
-def _source_url(registration: AppServiceRegistration, source: Mapping[str, Any]) -> str:
-    """Where the source lives: the operator's base URL joined to the manifest's
-    path. A manifest states which route; only a registration states where."""
-    path = source.get("path")
-    if not isinstance(path, str) or not path.startswith("/"):
-        raise AppDataError(AppDataMessages.SOURCE_NOT_FOUND, 404)
-    return f"{registration.base_url.rstrip('/')}{path}"
+#: Every app answers every endpoint here. Fixed by the protocol rather than
+#: chosen per app, so a caller that knows an id needs nothing else.
+ENDPOINTS_PATH = "/v1/endpoints"
+
+
+def _endpoints_url(registration: AppServiceRegistration) -> str:
+    """Where this app answers: the operator's base URL joined to the one path
+    every app serves. A manifest names an endpoint; only a registration says
+    where the app is."""
+    return f"{registration.base_url.rstrip('/')}{ENDPOINTS_PATH}"
 
 
 async def _read_rows(
@@ -565,7 +572,13 @@ async def _read_rows(
             AppDataMessages.SERVICE_UNAVAILABLE, 502, "app did not answer with JSON"
         ) from exc
 
-    rows = body.get("rows") if isinstance(body, dict) else None
+    # The app answers with what it did — the endpoint it ran, whose credential
+    # ran it, and the result — so the rows are one level in. Reported as the app
+    # being unavailable rather than as a bad request: from a dashboard's side
+    # "this app is not answering" is true whether the service is down or talking
+    # a shape this build does not accept.
+    result = body.get("result") if isinstance(body, dict) else None
+    rows = result.get("rows") if isinstance(result, dict) else None
     if not isinstance(rows, list):
         raise AppDataError(
             AppDataMessages.SERVICE_UNAVAILABLE, 502, "app answered without rows"
@@ -577,8 +590,8 @@ async def _call_app(
     *,
     registration: AppServiceRegistration,
     app: GuildApp,
-    source: Mapping[str, Any],
-    source_id: str,
+    endpoint: Mapping[str, Any],
+    endpoint_id: str,
     params: Mapping[str, str],
     refs: Mapping[str, str],
     transport: httpx.AsyncBaseTransport | None,
@@ -602,24 +615,32 @@ async def _call_app(
                 public_id=public_id,
                 guild_id=app.guild_id,
                 app_install_id=app.id,
-                scope="data",
-                source_id=source_id,
+                scope="endpoint",
+                endpoint_id=endpoint_id,
                 connection_refs=refs,
             )
         except AppPlatformSigningNotConfiguredError as exc:
             raise AppDataError(AppServiceMessages.SIGNING_NOT_CONFIGURED, 503) from exc
 
-        url = _source_url(registration, source)
-        if params:
-            url = f"{url}?{httpx.QueryParams(dict(params))}"
+        # POST rather than GET, and a body rather than a query string: one
+        # path serves every endpoint, so which one is being called is part of
+        # what is sent rather than part of where it is sent.
         try:
             request = await build_validated_request(
-                "GET",
-                url,
+                "POST",
+                _endpoints_url(registration),
                 headers={
                     "Accept": "application/json",
+                    "Content-Type": "application/json",
                     "Authorization": f"Bearer {token}",
                 },
+                content=json.dumps(
+                    {
+                        "endpoint": endpoint_id,
+                        "guild_id": app.guild_id,
+                        "params": dict(params),
+                    }
+                ).encode("utf-8"),
                 # An app service is an operator-configured destination and is
                 # typically a container on the deployment's own network. Plain
                 # http stays confined to those addresses by the target policy.
@@ -647,38 +668,40 @@ async def fetch_app_source(
     session: AsyncSession,
     *,
     app: GuildApp,
-    source_id: str,
+    endpoint_id: str,
     raw_params: str | None,
     user_id: int,
     is_guild_admin: bool,
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> AppDataResult:
-    """Resolve one source for one caller.
+    """Resolve one endpoint for one caller.
 
     The install has already been loaded under the caller's own guild session, so
     the guild boundary and a guild admin's wider reach are settled before this
-    runs. What is decided here is the app's own vocabulary: the source exists,
+    runs. What is decided here is the app's own vocabulary: the endpoint exists,
     the caller is allowed to see it, both kill switches are open, the parameters
-    are ones the source declared, and the credentials it named are present.
+    are ones the endpoint declared, and the credentials it named are present.
     """
-    source = find_data_source(app.definition, source_id)
+    endpoint = find_read_endpoint(app.definition, endpoint_id)
     public_id = service_public_id(app.definition)
-    if source is None or public_id is None:
+    if endpoint is None or public_id is None:
         raise AppDataError(AppDataMessages.SOURCE_NOT_FOUND, 404)
 
     # Measured against the same ladder a manifest declares on, so the two
     # cannot come to mean different things.
-    if not clears_visibility(source.get("visibility"), is_guild_admin=is_guild_admin):
+    if not clears_visibility(endpoint.get("visibility"), is_guild_admin=is_guild_admin):
         raise AppDataError(AppDataMessages.ADMIN_ONLY, 403)
     if not app.enabled:
         raise AppDataError(AppDataMessages.APP_DISABLED, 409)
 
     registration = await _load_registration(public_id)
-    params, canonical = validate_params(source, raw_params)
-    refs = await _resolve_connections(session, app=app, source=source, user_id=user_id)
+    params, canonical = validate_params(endpoint, raw_params)
+    refs = await _resolve_connections(
+        session, app=app, endpoint=endpoint, user_id=user_id
+    )
 
     key = _cache_key(
-        app=app, source_id=source_id, canonical_params=canonical, refs=refs
+        app=app, endpoint_id=endpoint_id, canonical_params=canonical, refs=refs
     )
     cached = _cache_get(key)
     if cached is not None:
@@ -697,8 +720,8 @@ async def fetch_app_source(
         result = await _call_app(
             registration=registration,
             app=app,
-            source=source,
-            source_id=source_id,
+            endpoint=endpoint,
+            endpoint_id=endpoint_id,
             params=params,
             refs=refs,
             transport=transport,
@@ -713,7 +736,7 @@ async def fetch_app_source(
     else:
         if not future.done():
             future.set_result(result)
-        _cache_put(key, result, _effective_ttl(source))
+        _cache_put(key, result, _effective_ttl(endpoint))
         return result
     finally:
         _pending.pop(key, None)

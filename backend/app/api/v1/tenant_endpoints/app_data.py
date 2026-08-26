@@ -7,8 +7,8 @@ widgets, what each widget draws, and the module the browser will run in its
 sandbox. It comes from each install's **pinned** definition, so a canvas is
 authored against the version the guild chose.
 
-``/apps/{app_id}/data/{source_id}`` is the proxy. A widget never names an
-endpoint — it names a source on an installed app, and this route turns that into
+``/apps/{app_id}/data/{endpoint_id}`` is the proxy. A widget never names an
+endpoint — it names a endpoint on an installed app, and this route turns that into
 one bounded call to the app's own service. The request carries the dashboard the
 widget sits on, and that is what makes the gates run **before** anything else:
 
@@ -17,9 +17,9 @@ widget sits on, and that is what makes the gates run **before** anything else:
 * the dashboard is loaded through the ordinary resource path, so a member of the
   guild who is not in the dashboard's initiative gets the same answer they would
   get for the dashboard itself — nothing;
-* the dashboard has to actually bind this source, so holding one dashboard is
-  not a key to every source an app offers;
-* the source's own ``visibility`` is then checked against the caller's real
+* the dashboard has to actually bind this endpoint, so holding one dashboard is
+  not a key to every endpoint an app offers;
+* the endpoint's own ``visibility`` is then checked against the caller's real
   guild role.
 
 Only after all of that does the service layer look at the response cache, which
@@ -64,9 +64,9 @@ def _binds_source(
     config: dict[str, Any] | None,
     *,
     app_uid: str,
-    source_id: str,
+    endpoint_id: str,
 ) -> bool:
-    """Whether a dashboard actually displays this source.
+    """Whether a dashboard actually displays this endpoint.
 
     The instance config layers over the definition's binding exactly as the
     canvas resolves it, so a slot a listing left open and the guild filled in
@@ -88,7 +88,7 @@ def _binds_source(
         if (
             effective.get("source") == "app"
             and effective.get("app_uid") == app_uid
-            and effective.get("source_id") == source_id
+            and effective.get("endpoint_id") == endpoint_id
         ):
             return True
     return False
@@ -105,8 +105,8 @@ async def read_app_widget_catalog(
     """Which widgets this guild's installed apps contribute.
 
     Every member may read it: an app's existence is guild-wide knowledge and the
-    palette carries no guild data — declarations, module source, and sample
-    rows, all from the pinned definition. A source declared for guild admins is
+    palette carries no guild data — declarations, module endpoint, and sample
+    rows, all from the pinned definition. A endpoint declared for guild admins is
     still listed, and still refused at fetch time to anyone else.
 
     Disabled installs are left out entirely: their widgets have nothing to draw,
@@ -132,15 +132,15 @@ async def read_app_widget_catalog(
         if not widgets:
             continue
 
-        sources = [
+        endpoints = [
             AppDataSourceRead(
-                id=source["id"],
-                visibility=source.get("visibility") or "member",
-                cache_ttl_seconds=source.get("cache_ttl_seconds") or 0,
-                params_schema=source.get("params_schema") or [],
+                id=endpoint["id"],
+                visibility=endpoint.get("visibility") or "member",
+                cache_ttl_seconds=endpoint.get("cache_ttl_seconds") or 0,
+                params_schema=endpoint.get("params") or [],
             )
-            for source in definition.get("data_sources") or []
-            if isinstance(source, dict) and isinstance(source.get("id"), str)
+            for endpoint in definition.get("endpoints") or []
+            if isinstance(endpoint, dict) and isinstance(endpoint.get("id"), str)
         ]
         items.append(
             AppWidgetCatalogEntry(
@@ -154,21 +154,21 @@ async def read_app_widget_catalog(
                         id=widget["id"],
                         meta=widget.get("meta") or {},
                         module_source=widget.get("module_source") or "",
-                        sources=widget.get("sources") or [],
+                        endpoints=widget.get("endpoints") or [],
                         sample_data=widget.get("sample_data") or {},
                     )
                     for widget in widgets
                 ],
-                data_sources=sources,
+                data_sources=endpoints,
             )
         )
     return AppWidgetCatalogResponse(items=items)
 
 
-@router.get("/{app_id}/data/{source_id}", response_model=AppDataResponse)
+@router.get("/{app_id}/data/{endpoint_id}", response_model=AppDataResponse)
 async def read_app_data(
     app_id: int,
-    source_id: str,
+    endpoint_id: str,
     session: RLSSessionDep,
     current_user: CurrentUser,
     guild_context: GuildContextDep,
@@ -186,7 +186,7 @@ async def read_app_data(
         Query(description="The binding's parameters, as a JSON object."),
     ] = None,
 ) -> AppDataResponse:
-    """One app data source, resolved for this viewer.
+    """One app data endpoint, resolved for this viewer.
 
     Returns the app's rows verbatim with the time they were obtained. An app
     that is unreachable, slow, oversized, or answering in a shape this build
@@ -210,7 +210,7 @@ async def read_app_data(
         dashboard.definition,
         dashboard.config,
         app_uid=app.listing_uid,
-        source_id=source_id,
+        endpoint_id=endpoint_id,
     ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -221,7 +221,7 @@ async def read_app_data(
         result = await app_data_service.fetch_app_source(
             session,
             app=app,
-            source_id=source_id,
+            endpoint_id=endpoint_id,
             raw_params=params,
             user_id=current_user.id,
             is_guild_admin=rls_service.is_guild_admin(guild_context.role),

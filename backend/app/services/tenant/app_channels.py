@@ -43,7 +43,7 @@ from app.models.platform.app_service_registration import AppServiceRegistration
 from app.models.platform.guild import Guild, GuildStatus
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
-from app.services.marketplace.service_apps import EVENT_TYPE_PREFIX
+from app.services.marketplace.service_apps import ENDPOINT_ID_PREFIX
 from app.services.tenant import app_config as app_config_service
 from app.services.tenant.webhook_dispatcher import dispatch_event
 
@@ -578,7 +578,7 @@ async def emit_event(
     """
     definition = app.definition if isinstance(app.definition, dict) else {}
     declared = definition.get("events")
-    prefix = f"{EVENT_TYPE_PREFIX}{registration.public_id}."
+    prefix = f"{ENDPOINT_ID_PREFIX}{registration.public_id}."
     if (
         not isinstance(declared, list)
         or event_type not in declared
