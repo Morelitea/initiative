@@ -812,8 +812,19 @@ async def connect_guild_app(
         connect_url=(
             # The member's browser is what follows this, so it is built from
             # the address a browser can resolve.
+            #
+            # The guild travels with the ref because the app's return leg has
+            # no other way to learn it: the channel addresses every install by
+            # guild, and a ref on its own names nothing the app can look up.
+            # Without it each app would sweep its installs guild by guild
+            # looking for the ref — the same sweep, rewritten per app.
+            #
+            # It is a routing hint rather than an authority. Every write still
+            # resolves the ref inside the install the *signature* selected, so
+            # a guild that does not hold this ref simply does not find it.
             f"{registration.browser_base}{connect_path}"
             f"?connection_ref={quote(row.connection_ref, safe='')}"
+            f"&guild_id={app.guild_id}"
         ),
         status=row.status,
     )
