@@ -16,10 +16,10 @@ Two columns exist only because of that split:
   * ``delegation`` — the holder may call Initiative's API as a real user, under
     that user's own gates.
   * ``app_directory`` — the holder may ask where *another* installed app's
-    service answers. Separate from ``delegation`` because they are different
-    powers: an app that acts for its own members has no call to learn the
-    deployment's wiring for anybody else's app. An automation service holds
-    both, because acting on one app's behalf at another is what it is for.
+    service answers. Separate from ``delegation`` because the two confer
+    different things: an app that acts for its own members has no call to read
+    another app's address. An automation service holds both, because acting on
+    one app's behalf at another is what it is for.
 * ``mandatory`` — the deployment asserts this app is part of what it *is*, so
   every guild has it and guild admins cannot remove it. The operator's kill
   switch (``enabled``) still outranks it.

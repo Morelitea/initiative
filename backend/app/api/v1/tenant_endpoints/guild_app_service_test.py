@@ -2,15 +2,12 @@
 
 An automation service acts on apps as well as on Initiative — it asks one to
 open a GitHub issue the way it asks us to create a task — and to do that it has
-to know where the app is. Only the registration says, and that is operator
-wiring rather than anything the install describes.
+to know where the app is. Only the registration carries an address.
 
-So this route hands it over on two conditions and answers everybody else the
-same 404 as an app that does not exist. Both are pinned here: the caller
-arrived as a live delegate, **and** the operator conferred ``app_directory`` on
-it. The second is what separates an automation service from an app that merely
-acts for its own members — the test below holds that line, because a delegate
-is the shape most apps have and the address is not theirs to read.
+The route serves one to a caller holding both ``delegation`` and
+``app_directory``, and answers everybody else the same 404 as an app that does
+not exist. Both grants are pinned here, the second because it is what separates
+an automation service from an app that only acts for its own members.
 """
 
 from __future__ import annotations
@@ -218,18 +215,11 @@ async def test_a_first_party_session_is_refused(
 async def test_a_delegate_that_may_not_act_is_refused(
     client: AsyncClient, session: AsyncSession, scene, grants, enabled, case
 ):
-    """An operator's edit ends the call, and it ends it before the route.
+    """An operator's edit ends the call.
 
-    The same rule decides which keys verify a delegate's tokens, so withdrawing
-    the grant or switching the registration off leaves the token resolving to
-    no key at all — it is not authenticated as a delegation, and the answer is
-    the bare **401** that every refused delegation gets, not this route's 404.
-
-    Asserted rather than assumed, because it is the difference between two
-    kinds of protection. The route's own ``live_delegate`` check is defence in
-    depth for exactly this case; what stops it here is the auth layer, one
-    floor down, and a change that moved the address behind a different auth
-    path would need to keep this property on purpose.
+    Withdrawing the grant or switching the registration off leaves the caller
+    unauthenticated as a delegate, so the answer is the 401 every refused
+    delegation gets rather than this route's 404.
     """
     actor, subject = scene
     guild, installer = actor.guild, actor.user
@@ -265,16 +255,10 @@ async def test_a_delegate_that_may_not_act_is_refused(
 async def test_a_delegate_without_the_directory_grant_is_refused(
     client: AsyncClient, session: AsyncSession, scene
 ):
-    """The line between acting for a member and reading the wiring.
+    """A delegate conferred only ``delegation`` is not told an address.
 
-    This caller is a perfectly good delegate: enabled, holding ``delegation``,
-    its token verifying — so it reaches the route rather than being stopped a
-    floor down, which is what makes this a different assertion from the one
-    above. It is refused here because acting for its own members is all the
-    operator conferred, and where another app answers is not part of that.
-
-    The shape most apps have, and the reason the grant is separate: an app that
-    works one vendor should not learn the deployment's wiring for the rest.
+    The shape most apps have: enabled, acting for its own members, and with no
+    call to read where a different app answers.
     """
     actor, subject = scene
     guild, installer = actor.guild, actor.user
