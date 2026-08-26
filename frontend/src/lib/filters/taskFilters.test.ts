@@ -5,6 +5,7 @@ import {
   buildTaskConditions,
   buildTaskListParams,
   EMPTY_TASK_FILTERS,
+  matchesDueWindow,
   specFromApi,
   type TaskFilterSpec,
   taskFilterCount,
@@ -153,6 +154,39 @@ describe("buildTaskConditions", () => {
     // The endpoint caps leaves at 50 and group depth at 3.
     expect(conditions.length).toBeLessThanOrEqual(50);
     expect(conditions.every((c) => !("conditions" in c) || c.conditions.length <= 2)).toBe(true);
+  });
+});
+
+describe("matchesDueWindow", () => {
+  const iso = (offsetDays: number) => {
+    const d = new Date();
+    d.setHours(12, 0, 0, 0);
+    d.setDate(d.getDate() + offsetDays);
+    return d.toISOString();
+  };
+
+  it("admits everything when no window is set", () => {
+    expect(matchesDueWindow(null, null)).toBe(true);
+    expect(matchesDueWindow(iso(400), null)).toBe(true);
+  });
+
+  it("excludes a task with no due date once a window is set", () => {
+    expect(matchesDueWindow(null, "today")).toBe(false);
+  });
+
+  it("agrees with the conditions sent to the server", () => {
+    expect(matchesDueWindow(iso(-1), "overdue")).toBe(true);
+    expect(matchesDueWindow(iso(0), "overdue")).toBe(false);
+    expect(matchesDueWindow(iso(0), "today")).toBe(true);
+    expect(matchesDueWindow(iso(1), "today")).toBe(false);
+    expect(matchesDueWindow(iso(7), "7_days")).toBe(true);
+    expect(matchesDueWindow(iso(8), "7_days")).toBe(false);
+    expect(matchesDueWindow(iso(30), "30_days")).toBe(true);
+    expect(matchesDueWindow(iso(31), "30_days")).toBe(false);
+  });
+
+  it("rejects an unparseable date rather than admitting it", () => {
+    expect(matchesDueWindow("not-a-date", "today")).toBe(false);
   });
 });
 

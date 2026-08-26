@@ -154,6 +154,34 @@ function dueConditions(due: DueToken): (FilterCondition | FilterGroup)[] {
   }
 }
 
+/**
+ * Whether a due date falls in the window a `due` token names.
+ *
+ * The same day boundaries {@link buildTaskConditions} sends to the server, so
+ * an optimistic local update and the eventual refetch agree about whether an
+ * edited task still belongs in the list.
+ */
+export function matchesDueWindow(
+  dueDate: string | null | undefined,
+  due: DueToken | null
+): boolean {
+  if (!due) return true;
+  if (!dueDate) return false;
+  const value = new Date(dueDate).getTime();
+  if (Number.isNaN(value)) return false;
+  const day = (offset: number) => new Date(startOfLocalDay(offset)).getTime();
+  switch (due) {
+    case "overdue":
+      return value < day(0);
+    case "today":
+      return value >= day(0) && value < day(1);
+    case "7_days":
+      return value >= day(0) && value < day(8);
+    case "30_days":
+      return value >= day(0) && value < day(31);
+  }
+}
+
 function assigneeConditions(assignees: string[]): (FilterCondition | FilterGroup)[] {
   if (assignees.length === 0) return [];
   const wantsUnassigned = assignees.includes(ASSIGNEE_NONE);

@@ -46,6 +46,11 @@ export const useFilterPresets = (
     queryFn: () =>
       listFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet(guildId, projectId!),
     enabled: projectId !== null && Number.isFinite(projectId) && userEnabled,
+    // The client keeps previous data by default, which across a project switch
+    // would show the last project's presets — and its `can_manage`, which gates
+    // the curation controls. Showing one project's permissions while another
+    // loads is not a stale list, it is the wrong answer, so this query opts out.
+    placeholderData: undefined,
     ...rest,
   });
 };

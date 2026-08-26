@@ -11,12 +11,13 @@
  */
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HttpResponse } from "msw";
+import { HttpResponse, http } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   buildDefaultFilterPresets,
   buildDefaultTaskStatuses,
+  buildTag,
   buildTaskListResponse,
 } from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
@@ -58,6 +59,26 @@ const section = (options: { routerSearch?: Record<string, unknown> } = {}) =>
   );
 
 const fieldsUsed = () => lastConditions.map((entry) => entry.field ?? `group:${entry.logic}`);
+
+/** The guild's tags, which the default handler leaves empty. */
+const withTags = (ids: number[]) => {
+  server.use(
+    guildHttp.get("/tags/", () =>
+      HttpResponse.json(ids.map((id) => buildTag({ id, name: `Tag ${id}` })))
+    )
+  );
+};
+
+/** Seed this person's remembered filters for project 1. */
+const rememberFilters = (spec: Record<string, unknown>) => {
+  server.use(
+    http.get("/api/v1/user-view-preferences", () =>
+      HttpResponse.json({
+        items: { "project:1:view-filters": { activePresetSlug: null, ...spec } },
+      })
+    )
+  );
+};
 
 /** The picker is inside the filter panel, which starts closed. */
 const openFilters = async () => {
@@ -229,6 +250,35 @@ describe("ProjectTasksSection presets", () => {
     await waitFor(() =>
       expect(screen.getByRole("tab", { name: /kanban/i })).toHaveAttribute("data-state", "active")
     );
+  });
+
+  it("keeps a remembered tag that still exists", async () => {
+    // The positive control for the next case: this proves the remembered
+    // filter reaches the query at all.
+    withTags([7]);
+    rememberFilters({ tag_ids: [7] });
+    section();
+
+    await waitFor(() =>
+      expect(lastConditions).toContainEqual({ field: "tag_ids", op: "in_", value: [7] })
+    );
+  });
+
+  it("drops a remembered tag that no longer exists rather than emptying the list", async () => {
+    // A deleted tag does not quietly stop narrowing: sent as `tag_ids in (999)`
+    // it matches nothing, so the list goes empty and the control that would
+    // explain why has no option left to render.
+    withTags([7]);
+    rememberFilters({ tag_ids: [999] });
+    section();
+
+    // Both in one tick: the first request goes out before the tag list has
+    // loaded, when there is nothing yet to prune against, and an empty
+    // `lastConditions` would satisfy the negative assertion on its own.
+    await waitFor(() => {
+      expect(fieldsUsed()).toContain("project_id");
+      expect(fieldsUsed()).not.toContain("tag_ids");
+    });
   });
 
   it("says so and still lists tasks when the URL names a preset that is gone", async () => {

@@ -95,6 +95,7 @@ import {
   buildTaskConditions,
   buildTaskListParams,
   EMPTY_TASK_FILTERS,
+  matchesDueWindow,
   specFromApi,
   specToApi,
   TASK_VIEW_MODES,
@@ -300,6 +301,35 @@ export const ProjectTasksSection = ({
     [search, presets, stored, filtersLoaded, projectDefaultViewMode]
   );
 
+  // Fetch guild tags for filtering
+  const { data: tags = [], isSuccess: tagsLoaded } = useTags();
+
+  /**
+   * The filters actually applied, with ids that no longer exist dropped.
+   *
+   * A deleted tag or a removed status does NOT quietly stop narrowing: it is
+   * still sent as `tag_ids in (42)`, which matches nothing, so the list goes
+   * empty and the control that would explain why has no option left to render.
+   * Pruning is derived rather than written back — the values may have come
+   * from a shared preset, and rewriting that on someone's behalf (or marking
+   * it modified) is not this component's call. Editing any filter persists the
+   * pruned set, so it heals on the first change.
+   *
+   * Gated on the lookups having loaded, or the first render would prune
+   * everything against empty sets.
+   */
+  const appliedSpec = useMemo(() => {
+    if (!tagsLoaded || sortedTaskStatuses.length === 0) return spec;
+    const tagIds = new Set(tags.map((tag) => tag.id));
+    const statusIds = new Set(sortedTaskStatuses.map((status) => status.id));
+    const tag_ids = spec.tag_ids.filter((id) => tagIds.has(id));
+    const status_ids = spec.status_ids.filter((id) => statusIds.has(id));
+    if (tag_ids.length === spec.tag_ids.length && status_ids.length === spec.status_ids.length) {
+      return spec;
+    }
+    return { ...spec, tag_ids, status_ids };
+  }, [spec, tags, tagsLoaded, sortedTaskStatuses]);
+
   // A preset named in the URL becomes this person's current view, so coming
   // back without the param finds it as they left it. Written once per slug:
   // the preference write is debounced and optimistic, and re-firing it every
@@ -383,15 +413,12 @@ export const ProjectTasksSection = ({
   const updateActivePreset = useCallback(() => {
     const active = presets.find((preset) => preset.slug === activeSlug);
     if (!active) return;
-    updatePreset.mutate({ presetId: active.id, data: { filters: specToApi(spec) } });
-  }, [presets, activeSlug, spec, updatePreset]);
+    updatePreset.mutate({
+      presetId: active.id,
+      data: { filters: specToApi(appliedSpec) },
+    });
+  }, [presets, activeSlug, appliedSpec, updatePreset]);
 
-  // Fetch guild tags for filtering
-  const { data: tags = [] } = useTags();
-
-  // Stale ids in a saved filter (a deleted tag, a removed status) simply match
-  // nothing in the `in_` conditions, and the preset that named them is shared
-  // rather than personal — so there is nothing to prune here any more.
   // Closed until asked for. The filter button carries a count of what's set, so
   // a narrowed list still says so with the panel shut — and the fields no
   // longer take the top of the page before the list itself.
@@ -399,7 +426,7 @@ export const ProjectTasksSection = ({
   // Badges the filter button while the panel is closed. Archived-included
   // counts: it widens what the list shows, which is as much a departure from
   // the default as narrowing it.
-  const activeFilterCount = taskFilterCount(spec);
+  const activeFilterCount = taskFilterCount(appliedSpec);
 
   const clearFilters = useCallback(() => applySpec(EMPTY_TASK_FILTERS), [applySpec]);
 
@@ -441,7 +468,10 @@ export const ProjectTasksSection = ({
   // Fetch tasks with server-side filtering (page_size=0 fetches all for
   // drag-and-drop). buildTaskListParams is shared with the route loader's
   // prefetch and the CSV export, so all three ask the same question.
-  const taskListParams = useMemo(() => buildTaskListParams(spec, { projectId }), [spec, projectId]);
+  const taskListParams = useMemo(
+    () => buildTaskListParams(appliedSpec, { projectId }),
+    [appliedSpec, projectId]
+  );
 
   const tasksQuery = useTasks(taskListParams, {
     enabled: Number.isFinite(projectId) && filtersLoaded && presetsLoaded,
@@ -566,24 +596,43 @@ export const ProjectTasksSection = ({
     setIsComposerOpen(false);
   }, [defaultStatusId]);
 
+  /**
+   * Whether an updated row still belongs in the filtered list.
+   *
+   * Covers the filters that can be decided from the row on its own — status,
+   * its category, and the due window. Anything needing data the row does not
+   * carry (tags, properties) is left to the refetch; the point is that an edit
+   * which moves a task out of view does not leave it sitting there until the
+   * round trip lands.
+   */
+  const stillMatchesFilters = useCallback(
+    (task: TaskRead) => {
+      const { status_ids, status_categories, due } = appliedSpec;
+      if (status_ids.length > 0 && !status_ids.includes(task.task_status_id)) return false;
+      if (status_categories.length > 0 && !status_categories.includes(task.task_status.category)) {
+        return false;
+      }
+      return matchesDueWindow(task.due_date, due);
+    },
+    [appliedSpec]
+  );
+
   // Patch the locally-overridden task list with a server-confirmed update so
-  // the board/calendar reflects it immediately (and drop the task if it no
-  // longer matches the active status filter).
+  // the board/calendar reflects it immediately, dropping the task when it no
+  // longer belongs.
   const applyTaskUpdateToLocal = useCallback(
     (updatedTask: TaskRead) => {
       setLocalOverride((prev) => {
         const base = prev ?? projectTasks;
         if (!base.length) return prev;
-        const matchesFilters =
-          spec.status_ids.length === 0 || spec.status_ids.includes(updatedTask.task_status_id);
-        if (matchesFilters) {
+        if (stillMatchesFilters(updatedTask)) {
           const row = taskReadToListRow(updatedTask);
           return base.map((task) => (task.id === row.id ? row : task));
         }
         return base.filter((task) => task.id !== updatedTask.id);
       });
     },
-    [projectTasks, spec.status_ids]
+    [projectTasks, stillMatchesFilters]
   );
 
   const updateTaskStatus = useUpdateTask({
@@ -972,8 +1021,8 @@ export const ProjectTasksSection = ({
                in-flight job (the selection button must not double-handle it). */
             <ExportTasksButton
               params={{
-                conditions: buildTaskConditions(spec, { projectId }),
-                include_archived: spec.include_archived,
+                conditions: buildTaskConditions(appliedSpec, { projectId }),
+                include_archived: appliedSpec.include_archived,
               }}
               resumePending
             />
@@ -1067,7 +1116,7 @@ export const ProjectTasksSection = ({
             taskStatuses={sortedTaskStatuses}
             projectId={projectId}
             tags={tags}
-            value={spec}
+            value={appliedSpec}
             onChange={applySpec}
           />
         </ToolFilterPanel>
@@ -1108,7 +1157,7 @@ export const ProjectTasksSection = ({
                 conditions: [{ field: "id", op: "in_", value: selectedTasks.map((t) => t.id) }],
                 // Selection came from the visible list, which may include
                 // archived rows when the toggle is on.
-                include_archived: spec.include_archived,
+                include_archived: appliedSpec.include_archived,
               }}
               onEdit={() => setIsBulkEditDialogOpen(true)}
               onEditTags={() => setIsBulkEditTagsDialogOpen(true)}
@@ -1259,7 +1308,7 @@ export const ProjectTasksSection = ({
               createPreset.mutate({
                 name,
                 is_default: isDefault,
-                filters: specToApi(spec),
+                filters: specToApi(appliedSpec),
               })
             }
           />
