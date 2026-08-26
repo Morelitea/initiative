@@ -92,11 +92,13 @@ from app.services.marketplace.service_apps import (
     MAX_FIELDS_PER_CONNECTION,
     MAX_PARAM_VALUE_LENGTH,
     MAX_PARAMS_PER_ENDPOINT,
+    MAX_RETURNS_PER_ENDPOINT,
     MAX_REQUIRES_TERMS,
     MAX_SELECT_OPTIONS,
     MAX_WIDGET_ENDPOINTS,
     MAX_WIDGETS,
     PARAM_TYPES,
+    RETURN_TYPES,
     SURFACE_SCOPES,
     VISIBILITIES,
 )
@@ -301,12 +303,101 @@ def _access_hint() -> dict[str, Any]:
     }
 
 
+def _endpoint_param() -> dict[str, Any]:
+    """One parameter a caller may send.
+
+    A connection's field with one thing added: a ``picker``, saying which richer
+    control a consumer should draw instead of the bare one the type implies.
+    Not on ``_field`` itself, which connections share — an admin filling in a
+    settings form is typing a credential and has nothing to pick from.
+    """
+    schema = _field(types=PARAM_TYPES, allow_managed=False)
+    schema["properties"]["picker"] = {
+        "$ref": "#/$defs/identifier",
+        "description": (
+            "A hint, not a promise: the value on the wire is the same either "
+            "way, so a consumer that does not know the name draws the plain "
+            "control rather than losing the parameter."
+        ),
+    }
+    return schema
+
+
+def _endpoint_return() -> dict[str, Any]:
+    """One value an endpoint hands back."""
+    return {
+        "type": "object",
+        "required": ["key", "type"],
+        "properties": {
+            "key": {"$ref": "#/$defs/identifier"},
+            "type": {
+                "enum": _enum(RETURN_TYPES),
+                "description": (
+                    "The parameter vocabulary minus 'select', because a select "
+                    "is a control and the value behind one is a string."
+                ),
+            },
+            "label": {"$ref": "#/$defs/localizedText"},
+            "list": {
+                "type": "boolean",
+                "description": (
+                    "Several values rather than one. It matters to a consumer "
+                    "with somewhere to put exactly one — a form field, a tile's "
+                    "number — which is why it is a flag rather than a second "
+                    "set of types."
+                ),
+            },
+        },
+    }
+
+
 def _endpoint() -> dict[str, Any]:
     return {
         "type": "object",
         "required": ["id", "direction"],
         "properties": {
             "id": {"$ref": "#/$defs/namespacedId"},
+            "label": {
+                "$ref": "#/$defs/localizedText",
+                "description": (
+                    "What this endpoint IS, in words somebody picks it out of a "
+                    "list by. Every direction, and an emission most of all: it "
+                    "is the one thing here chosen without ever being called."
+                ),
+            },
+            "description": {
+                "$ref": "#/$defs/localizedText",
+                "description": "A second line, where the label needs one.",
+            },
+            "returns": {
+                "type": "array",
+                "maxItems": MAX_RETURNS_PER_ENDPOINT,
+                "items": {"$ref": "#/$defs/endpointReturn"},
+                "description": (
+                    "What this hands back, by name and type — the response for a "
+                    "read or a write, the payload for an emission. Declared "
+                    "rather than discovered, because a consumer binds one of "
+                    "these before the endpoint has ever run and a bad binding "
+                    "has to be refusable when somebody arranges it."
+                ),
+            },
+            "group": {
+                "$ref": "#/$defs/identifier",
+                "description": (
+                    "Where a consumer that groups an app's endpoints should file "
+                    "this one. Opaque here: the grouping is the consumer's, and "
+                    "an endpoint that says nothing sits in the flat list."
+                ),
+            },
+            "needs_subject": {
+                "$ref": "#/$defs/identifier",
+                "description": (
+                    "What a caller must already have in hand for this to mean "
+                    "anything. Opaque here — the vocabulary belongs to whoever "
+                    "consumes it; the automation service names the subjects a "
+                    "run can be about."
+                ),
+            },
             "direction": {
                 "enum": _enum(DIRECTIONS),
                 "description": (
@@ -656,7 +747,8 @@ def build_manifest_schema() -> dict[str, Any]:
             "requires": _requires(),
             "accessHint": _access_hint(),
             "connectionField": _field(types=FIELD_TYPES, allow_managed=True),
-            "endpointParam": _field(types=PARAM_TYPES, allow_managed=False),
+            "endpointParam": _endpoint_param(),
+            "endpointReturn": _endpoint_return(),
             "connection": _connection(),
             "namespacedId": {
                 "type": "string",

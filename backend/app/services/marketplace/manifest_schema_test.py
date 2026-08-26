@@ -43,9 +43,11 @@ from app.services.marketplace.service_apps import (
     GUILD_WIDE_VISIBILITIES,
     MAX_CONNECTIONS,
     MAX_ENDPOINTS,
+    MAX_RETURNS_PER_ENDPOINT,
     MAX_EMBEDS,
     MAX_WIDGETS,
     PARAM_TYPES,
+    RETURN_TYPES,
     SURFACE_SCOPES,
     VISIBILITIES,
 )
@@ -139,6 +141,7 @@ def test_vocabularies_come_from_the_validator():
     assert set(defs["connection"]["properties"]["scope"]["enum"]) == CONNECTION_SCOPES
     assert set(defs["connectionField"]["properties"]["type"]["enum"]) == FIELD_TYPES
     assert set(defs["endpointParam"]["properties"]["type"]["enum"]) == PARAM_TYPES
+    assert set(defs["endpointReturn"]["properties"]["type"]["enum"]) == RETURN_TYPES
     assert set(defs["endpoint"]["properties"]["direction"]["enum"]) == DIRECTIONS
     assert set(defs["endpoint"]["properties"]["actors"]["items"]["enum"]) == ACTOR_KINDS
     assert set(defs["endpoint"]["properties"]["visibility"]["enum"]) == (
@@ -156,6 +159,12 @@ def test_caps_come_from_the_validator():
     props = build_manifest_schema()["properties"]
     assert props["connections"]["maxItems"] == MAX_CONNECTIONS
     assert props["endpoints"]["maxItems"] == MAX_ENDPOINTS
+    assert (
+        build_manifest_schema()["$defs"]["endpoint"]["properties"]["returns"][
+            "maxItems"
+        ]
+        == MAX_RETURNS_PER_ENDPOINT
+    )
     assert props["widgets"]["maxItems"] == MAX_WIDGETS
     assert props["embeds"]["maxItems"] == MAX_EMBEDS
 
@@ -575,3 +584,35 @@ def test_the_platform_enforces_what_the_schema_cannot(manifest, why, validator):
     assert list(validator.iter_errors(manifest)) == [], f"schema caught it: {why}"
     with pytest.raises(ValueError):
         platform_accepts(manifest)
+
+
+@pytest.mark.unit
+def test_a_return_is_not_a_control():
+    """A select is a control, and the value behind one is a string — so it is a
+    param type and never a return type. The schema must not blur the two."""
+    defs = build_manifest_schema()["$defs"]
+    assert "select" in defs["endpointParam"]["properties"]["type"]["enum"]
+    assert "select" not in defs["endpointReturn"]["properties"]["type"]["enum"]
+    assert "secret" not in defs["endpointReturn"]["properties"]["type"]["enum"]
+
+
+@pytest.mark.unit
+def test_every_direction_may_describe_itself_and_its_answer():
+    """``label`` and ``returns`` sit on the endpoint rather than beside the
+    caller-side keys, because an emission has neither caller nor response and
+    still needs both — it is the one endpoint chosen without being called."""
+    endpoint = build_manifest_schema()["$defs"]["endpoint"]["properties"]
+    for key in ("label", "description", "returns", "group", "needs_subject"):
+        assert key in endpoint, key
+    # None of them is required: an app that says nothing is still a valid app.
+    assert set(build_manifest_schema()["$defs"]["endpoint"]["required"]) == {
+        "id",
+        "direction",
+    }
+
+
+@pytest.mark.unit
+def test_a_param_may_ask_for_a_control_and_a_connection_field_may_not():
+    defs = build_manifest_schema()["$defs"]
+    assert "picker" in defs["endpointParam"]["properties"]
+    assert "picker" not in defs["connectionField"]["properties"]

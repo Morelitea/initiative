@@ -209,6 +209,16 @@ WIDGET_BINDABLE_DIRECTIONS: frozenset[str] = frozenset({"read"})
 #: vocabulary it states its preference in, best first.
 ACTOR_KINDS: frozenset[str] = frozenset({"member", "installation"})
 
+#: What an endpoint may say it hands BACK — the param vocabulary minus
+#: ``select``, because a select is a *control* and the value behind one is a
+#: string. Nothing here is a credential for the same reason a param is not.
+#:
+#: A caller reads these to know what it can do with an answer before it has
+#: one: the automation service offers them as values a later step may bind, and
+#: it has to be able to refuse a bad binding when somebody SAVES rather than
+#: when the thing eventually runs.
+RETURN_TYPES: frozenset[str] = PARAM_TYPES - {"select"}
+
 # --- caps -------------------------------------------------------------------
 #
 # Counts first, then bodies. Together they bound what one published version can
@@ -227,6 +237,10 @@ MAX_WIDGET_ENDPOINTS = 8
 #: together rather than each separately.
 MAX_ENDPOINTS = 64
 MAX_PARAMS_PER_ENDPOINT = 12
+#: What one endpoint may name as coming back. Higher than the param cap on
+#: purpose: describing an answer is cheaper than asking for one, and an app
+#: that returns a dozen fields is ordinary where one taking a dozen is not.
+MAX_RETURNS_PER_ENDPOINT = 24
 MAX_EMBEDS = 12
 #: An app ships a handful of arrangements of its own widgets, not a library of
 #: them. Each becomes a catalog row, so this is also how many listings a single
@@ -526,9 +540,53 @@ def _endpoint(
         if param["key"] in seen:
             fail(f"{what}: two parameters share the key {param['key']!r}")
         seen.add(param["key"])
+        # Which richer control the consumer should draw instead of the bare one
+        # the type implies — "this int is a project". Read here rather than in
+        # ``_field``, which connections share: an admin filling in a settings
+        # form is typing a credential, and has nothing to pick from.
+        #
+        # A HINT, and stored as one: the value on the wire is the same either
+        # way, so a consumer that does not know the name falls back to the plain
+        # control rather than losing the parameter.
+        picker = entry.get("picker") if isinstance(entry, dict) else None
+        if picker is not None:
+            param["picker"] = check_identifier(
+                picker, what=f"{what} param {param['key']!r} picker"
+            )
         params.append(param)
 
     cleaned: dict[str, Any] = {"id": endpoint_id, "direction": direction}
+
+    # What this endpoint IS, in words, and what it hands back. Both belong to
+    # every direction: an emission is the one thing here a person picks out of a
+    # list without ever calling it, so it needs a name more than the others do,
+    # and its payload is exactly as worth describing as a response.
+    #
+    # Stored and never read here. A label is somebody else's to render and a
+    # return is somebody else's to bind, and this build assigns meaning to
+    # neither — it bounds them, which is the whole of what a store owes a
+    # document it passes on.
+    label = localized_text(endpoint.get("label"), MAX_TEXT_LENGTH)
+    if label is not None:
+        cleaned["label"] = label
+    description = localized_text(endpoint.get("description"), MAX_TEXT_LENGTH)
+    if description is not None:
+        cleaned["description"] = description
+    returns = _returns(endpoint.get("returns"), what=what)
+    if returns:
+        cleaned["returns"] = returns
+
+    # Where a consumer that groups an app's endpoints should file this one, and
+    # what it needs to already have in hand. Both are opaque identifiers: the
+    # vocabularies belong to whoever consumes them — the automation service
+    # names the subjects a run can be about — and a second reading of a list
+    # this build does not own would only ever drift from it.
+    group = endpoint.get("group")
+    if group is not None:
+        cleaned["group"] = check_identifier(group, what=f"{what} group")
+    needs = endpoint.get("needs_subject")
+    if needs is not None:
+        cleaned["needs_subject"] = check_identifier(needs, what=f"{what} needs_subject")
 
     # An emission travels the other way: nobody calls it, so there is nothing
     # for a caller to send, nothing to cache and nobody to gate. Carrying any of
@@ -575,6 +633,45 @@ def _endpoint(
     if requires is not None:
         cleaned["requires"] = requires
     return cleaned
+
+
+def _returns(raw: Any, *, what: str) -> list[dict[str, Any]]:
+    """What an endpoint hands back, by name and type.
+
+    Declared rather than discovered, because the consumer needs it before the
+    endpoint has ever run: a widget binds a column and an automation offers a
+    value for a later step to read, and both have to be refusable at the moment
+    somebody arranges them rather than the first time one fires.
+
+    ``list`` says several rather than one. It matters to a caller that has
+    somewhere to put exactly one value — a form field, a tile's number — which
+    is why it is a flag here rather than a second set of types.
+    """
+    if raw is None:
+        return []
+    declared = require_list(raw, f"{what} returns", MAX_RETURNS_PER_ENDPOINT)
+    returns: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for entry in declared:
+        value = require_mapping(entry, f"{what} return")
+        key = check_identifier(value.get("key"), what=f"{what} return key")
+        if key in seen:
+            fail(f"{what}: two returns share the key {key!r}")
+        seen.add(key)
+        value_type = value.get("type")
+        if value_type not in RETURN_TYPES:
+            fail(f"{what} return {key!r}: unknown type {value_type!r}")
+        cleaned: dict[str, Any] = {"key": key, "type": value_type}
+        # Optional, unlike a param's: a param is a control somebody fills in and
+        # needs a word on it, while a return is read by name and is often shown
+        # under one the consumer supplies.
+        label = localized_text(value.get("label"), MAX_TEXT_LENGTH)
+        if label is not None:
+            cleaned["label"] = label
+        if value.get("list") is True:
+            cleaned["list"] = True
+        returns.append(cleaned)
+    return returns
 
 
 def _actors(raw: Any, *, what: str) -> list[str]:

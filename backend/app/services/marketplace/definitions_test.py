@@ -888,3 +888,169 @@ class TestCanonicalShape:
                     for index in range(service_apps.MAX_EMBEDS + 1)
                 ],
             )
+
+
+class TestWhatAnEndpointSaysItIs:
+    """The half a consumer reads before it ever makes a call.
+
+    A widget binds a column and an automation offers a value for a later step,
+    and both have to be arrangeable — and refusable — before the endpoint has
+    run once. None of it means anything to THIS build, which is the point:
+    these are bounded and stored, never interpreted.
+    """
+
+    def test_a_label_and_description_are_kept(self):
+        cleaned = _with_source(
+            label=_label("Open issues"), description=_label("Everything still open")
+        )
+        endpoint = cleaned["endpoints"][0]
+        assert endpoint["label"] == _label("Open issues")
+        assert endpoint["description"] == _label("Everything still open")
+
+    def test_an_emission_may_be_labelled_too(self):
+        """The one endpoint chosen from a list without ever being called, so it
+        needs a name more than the others do — and the branch that strips
+        everything else from an emission must let it through."""
+        cleaned = _normalize(
+            features=["endpoints"],
+            endpoints=[
+                {
+                    "id": "app.tests.widget-co.order-created",
+                    "direction": "emit",
+                    "label": _label("An order is placed"),
+                    "returns": [{"key": "order_id", "type": "int"}],
+                    "group": "orders",
+                }
+            ],
+        )
+        endpoint = cleaned["endpoints"][0]
+        assert endpoint["label"] == _label("An order is placed")
+        assert endpoint["returns"] == [{"key": "order_id", "type": "int"}]
+        assert endpoint["group"] == "orders"
+
+    def test_an_emission_still_has_no_caller_side(self):
+        with pytest.raises(ListingDefinitionError, match="no params"):
+            _normalize(
+                features=["endpoints"],
+                endpoints=[
+                    {
+                        "id": "app.tests.widget-co.order-created",
+                        "direction": "emit",
+                        "label": _label("An order is placed"),
+                        "params": [{"key": "x", "type": "string", "label": _label()}],
+                    }
+                ],
+            )
+
+    def test_saying_nothing_stores_nothing(self):
+        """An absent label is absent, not an empty one — the same rule every
+        other optional block here follows."""
+        endpoint = _with_source()["endpoints"][0]
+        for key in ("label", "description", "returns", "group", "needs_subject"):
+            assert key not in endpoint
+
+
+class TestReturns:
+    def test_a_return_carries_a_key_a_type_and_optionally_a_label(self):
+        cleaned = _with_source(
+            returns=[
+                {"key": "count", "type": "int", "label": _label("How many")},
+                {"key": "url", "type": "url"},
+            ]
+        )
+        assert cleaned["endpoints"][0]["returns"] == [
+            {"key": "count", "type": "int", "label": _label("How many")},
+            {"key": "url", "type": "url"},
+        ]
+
+    def test_several_values_are_flagged_rather_than_typed_apart(self):
+        cleaned = _with_source(
+            returns=[{"key": "labels", "type": "string", "list": True}]
+        )
+        assert cleaned["endpoints"][0]["returns"][0]["list"] is True
+
+    def test_select_is_not_a_return_type(self):
+        """A select is a CONTROL, and the value behind one is a string."""
+        with pytest.raises(ListingDefinitionError, match="unknown type"):
+            _with_source(returns=[{"key": "k", "type": "select"}])
+
+    def test_a_credential_is_not_a_return_type_either(self):
+        with pytest.raises(ListingDefinitionError, match="unknown type"):
+            _with_source(returns=[{"key": "k", "type": "secret"}])
+
+    def test_two_returns_may_not_share_a_key(self):
+        with pytest.raises(ListingDefinitionError, match="share the key"):
+            _with_source(
+                returns=[{"key": "k", "type": "int"}, {"key": "k", "type": "string"}]
+            )
+
+    def test_a_return_needs_a_readable_key(self):
+        with pytest.raises(ListingDefinitionError):
+            _with_source(returns=[{"key": "Not An Id", "type": "int"}])
+
+
+class TestParamPickers:
+    def test_a_param_may_ask_for_a_richer_control(self):
+        cleaned = _with_source(
+            params=[
+                {
+                    "key": "project",
+                    "type": "int",
+                    "label": _label(),
+                    "picker": "project",
+                }
+            ]
+        )
+        assert cleaned["endpoints"][0]["params"][0]["picker"] == "project"
+
+    def test_the_hint_is_bounded_but_not_a_closed_list(self):
+        """The vocabulary belongs to whoever draws the control. A second reading
+        of it here could only ever drift from the one that matters."""
+        cleaned = _with_source(
+            params=[
+                {
+                    "key": "x",
+                    "type": "int",
+                    "label": _label(),
+                    "picker": "something-new",
+                }
+            ]
+        )
+        assert cleaned["endpoints"][0]["params"][0]["picker"] == "something-new"
+
+    def test_a_picker_that_is_not_an_identifier_is_refused(self):
+        with pytest.raises(ListingDefinitionError):
+            _with_source(
+                params=[
+                    {
+                        "key": "x",
+                        "type": "int",
+                        "label": _label(),
+                        "picker": "Not An Id",
+                    }
+                ]
+            )
+
+    def test_a_connection_field_has_no_picker(self):
+        """An admin filling in a settings form is typing a credential, and has
+        nothing to pick from — so the key is dropped rather than stored."""
+        cleaned = _normalize(
+            features=["endpoints"],
+            connections=[
+                {
+                    "id": "shop",
+                    "scope": "static",
+                    "label": _label(),
+                    "fields": [
+                        {
+                            "key": "token",
+                            "type": "secret",
+                            "label": _label(),
+                            "picker": "project",
+                        }
+                    ],
+                }
+            ],
+            endpoints=[{"id": READ_ID, "direction": "read"}],
+        )
+        assert "picker" not in cleaned["connections"][0]["fields"][0]
