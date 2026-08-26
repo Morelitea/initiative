@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Due-date filters now apply everywhere the list does.** Filtering by overdue or due-soon was applied only to the visible list, so the board's per-column counts, the "archive done tasks" count, and CSV exports all quietly ignored it. The filter is now applied when the tasks are fetched, so everything agrees. "Overdue" now means due before today rather than before this exact moment.
+- Adjusted background colors to reduce banding in Chrome based browsers.
 
 ### Fixed
 
