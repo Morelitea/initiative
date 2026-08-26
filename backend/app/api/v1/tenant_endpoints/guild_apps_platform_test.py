@@ -876,6 +876,7 @@ class TestConnectLaunch:
         assert body["connect_url"] == (
             "https://widgetco.example.test/connect/github"
             f"?connection_ref={body['connection_ref']}"
+            f"&guild_id={a.guild.id}"
         )
 
     async def test_the_url_uses_the_browser_address(
@@ -905,9 +906,9 @@ class TestConnectLaunch:
     async def test_no_token_travels_in_the_url(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
-        """The only thing in the query string is the opaque handle. It
-        authorizes nothing: the app writes its result back over its own
-        authenticated channel."""
+        """The query string carries the opaque handle and the guild to write
+        back under, and no credential of any kind: the app writes its result
+        over its own authenticated channel."""
         a = await acting_user(guild_role=GuildRole.admin)
         app = await self._install(session, a)
 
@@ -917,7 +918,10 @@ class TestConnectLaunch:
             )
         ).json()
         query = body["connect_url"].split("?", 1)[1]
-        assert query == f"connection_ref={body['connection_ref']}"
+        # Pinned exactly, so anything added to this URL is added deliberately.
+        assert query == (
+            f"connection_ref={body['connection_ref']}&guild_id={a.guild.id}"
+        )
         for smell in ("token", "jwt", "secret", "Bearer", "eyJ"):
             assert smell not in query
 

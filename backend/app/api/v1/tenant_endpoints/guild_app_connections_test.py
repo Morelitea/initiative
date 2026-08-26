@@ -372,10 +372,13 @@ class TestConnect:
         assert body["status"] == "pending"
         assert body["connection_ref"]
         # Where to actually send them: the operator's address, the manifest's
-        # path, and the handle the app will store its result against.
+        # path, the handle the app will store its result against, and the guild
+        # to write it back under — the app addresses every install by guild and
+        # cannot derive one from the ref.
         assert body["connect_url"] == (
             "https://shop.example.test/connect/github"
             f"?connection_ref={body['connection_ref']}"
+            f"&guild_id={a.guild.id}"
         )
 
     async def test_the_handle_is_opaque_and_carries_nothing_about_the_person(

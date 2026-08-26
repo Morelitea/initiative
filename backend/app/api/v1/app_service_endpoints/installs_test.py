@@ -860,6 +860,37 @@ class TestConnectionWriteBack:
             "access_token": "gho_freshly_minted"
         }
 
+    async def test_a_ref_only_resolves_in_the_guild_it_was_minted_for(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        """A write names a guild, and the handle is looked up inside it.
+
+        Both guilds below have the app installed, so the install resolves and
+        the lookup is the thing being exercised rather than short-circuited by
+        a guild with nothing in it.
+        """
+        await register_app_service(session, listing_uid=SHOP_UID)
+        guild, user, app = await _install(session)
+        row = await _member_connection(
+            session, guild=guild, app=app, user=user, with_secret=False
+        )
+        other_guild, _other_user, _other_app = await _install(session)
+
+        written = await _put(
+            client,
+            f"{BASE}/installs/{other_guild.id}/connections/{row.connection_ref}",
+            {"values": {"access_token": "gho_written_to_the_wrong_guild"}},
+        )
+
+        assert written.status_code == 404, written.text
+        # Named rather than taken as any 404: the handle is what did not
+        # resolve, the install having been found.
+        assert written.json()["detail"] == AppChannelMessages.CONNECTION_NOT_FOUND
+
+        # And the row it named is unchanged where that handle does live.
+        config = await _get(client, f"{BASE}/installs/{guild.id}/config")
+        assert config.json()["member_connections"][0]["values"] == {}
+
     async def test_a_refresh_replaces_the_stored_value(
         self, client: AsyncClient, session: AsyncSession
     ):
