@@ -141,23 +141,79 @@ async def test_an_event_carries_no_initiative(
     assert dispatched[0]["initiative_id"] is None
 
 
-async def test_an_undeclared_event_type_is_refused(
-    client: AsyncClient, session: AsyncSession, dispatched
+@pytest.mark.parametrize(
+    ("case", "registration", "install", "event", "status", "detail"),
+    [
+        (
+            "an event type the app never declared",
+            {},
+            {},
+            {"event_type": "app.tests.shop.never_declared", "payload": {}},
+            400,
+            AppChannelMessages.UNKNOWN_EVENT_TYPE,
+        ),
+        # An event is a notification, not a transfer: an app with more to say
+        # serves it from a data source the platform fetches on demand.
+        (
+            "a payload over the event cap",
+            {},
+            {},
+            {
+                "event_type": ORDER_CREATED,
+                "payload": {
+                    "note": "x" * (channels_service.MAX_EVENT_PAYLOAD_BYTES + 1_000)
+                },
+            },
+            413,
+            AppChannelMessages.EVENT_TOO_LARGE,
+        ),
+        # Measured against the bytes the signature covered, before parsing.
+        (
+            "a body over the request bound",
+            {},
+            {},
+            {"event_type": ORDER_CREATED, "payload": {"note": "x" * (128 * 1024)}},
+            413,
+            AppChannelMessages.EVENT_TOO_LARGE,
+        ),
+        (
+            "a disabled install",
+            {},
+            {"enabled": False},
+            {"event_type": ORDER_CREATED, "payload": {}},
+            409,
+            AppChannelMessages.INSTALL_DISABLED,
+        ),
+        (
+            "a disabled registration",
+            {"enabled": False},
+            {},
+            {"event_type": ORDER_CREATED, "payload": {}},
+            403,
+            AppChannelMessages.APP_DISABLED,
+        ),
+    ],
+    ids=lambda v: v if isinstance(v, str) and " " in v else "",
+)
+async def test_an_event_the_channel_will_not_carry_is_refused(
+    client: AsyncClient,
+    session: AsyncSession,
+    dispatched,
+    case: str,
+    registration: dict,
+    install: dict,
+    event: dict,
+    status: int,
+    detail: str,
 ):
-    await register_app_service(session, listing_uid=SHOP_UID)
-    guild, _ = await _install(session)
+    """Each refusal names what was wrong, and nothing reaches a subscriber."""
+    await register_app_service(session, listing_uid=SHOP_UID, **registration)
+    guild, _ = await _install(session, **install)
 
-    response = await _emit(
-        client,
-        {
-            "guild_id": guild.id,
-            "event_type": "app.tests.shop.never_declared",
-            "payload": {},
-        },
-    )
+    response = await _emit(client, {"guild_id": guild.id, **event})
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == AppChannelMessages.UNKNOWN_EVENT_TYPE
+    assert response.status_code == status, response.text
+    assert response.json()["detail"] == detail
     assert dispatched == []
 
 
@@ -212,50 +268,6 @@ async def test_an_endpoint_that_is_not_an_emit_is_refused(
     assert dispatched == []
 
 
-async def test_an_oversized_event_is_refused(
-    client: AsyncClient, session: AsyncSession, dispatched
-):
-    """An event is a notification, not a transfer: an app with more to say
-    serves it from a data source the platform fetches on demand."""
-    await register_app_service(session, listing_uid=SHOP_UID)
-    guild, _ = await _install(session)
-    oversized = "x" * (channels_service.MAX_EVENT_PAYLOAD_BYTES + 1_000)
-
-    response = await _emit(
-        client,
-        {
-            "guild_id": guild.id,
-            "event_type": ORDER_CREATED,
-            "payload": {"note": oversized},
-        },
-    )
-
-    assert response.status_code == 413
-    assert response.json()["detail"] == AppChannelMessages.EVENT_TOO_LARGE
-    assert dispatched == []
-
-
-async def test_a_body_beyond_the_request_bound_is_refused(
-    client: AsyncClient, session: AsyncSession, dispatched
-):
-    """Checked against the bytes the signature covered, before they are parsed."""
-    await register_app_service(session, listing_uid=SHOP_UID)
-    guild, _ = await _install(session)
-
-    response = await _emit(
-        client,
-        {
-            "guild_id": guild.id,
-            "event_type": ORDER_CREATED,
-            "payload": {"note": "x" * (128 * 1024)},
-        },
-    )
-
-    assert response.status_code == 413
-    assert response.json()["detail"] == AppChannelMessages.EVENT_TOO_LARGE
-    assert dispatched == []
-
-
 async def test_an_event_for_a_guild_without_the_install_is_refused(
     client: AsyncClient, session: AsyncSession, dispatched
 ):
@@ -270,38 +282,6 @@ async def test_an_event_for_a_guild_without_the_install_is_refused(
 
     assert response.status_code == 404
     assert response.json()["detail"] == AppChannelMessages.INSTALL_NOT_FOUND
-    assert dispatched == []
-
-
-async def test_a_disabled_install_refuses_events(
-    client: AsyncClient, session: AsyncSession, dispatched
-):
-    await register_app_service(session, listing_uid=SHOP_UID)
-    guild, _ = await _install(session, enabled=False)
-
-    response = await _emit(
-        client,
-        {"guild_id": guild.id, "event_type": ORDER_CREATED, "payload": {}},
-    )
-
-    assert response.status_code == 409
-    assert response.json()["detail"] == AppChannelMessages.INSTALL_DISABLED
-    assert dispatched == []
-
-
-async def test_a_disabled_registration_refuses_events(
-    client: AsyncClient, session: AsyncSession, dispatched
-):
-    await register_app_service(session, listing_uid=SHOP_UID, enabled=False)
-    guild, _ = await _install(session)
-
-    response = await _emit(
-        client,
-        {"guild_id": guild.id, "event_type": ORDER_CREATED, "payload": {}},
-    )
-
-    assert response.status_code == 403
-    assert response.json()["detail"] == AppChannelMessages.APP_DISABLED
     assert dispatched == []
 
 

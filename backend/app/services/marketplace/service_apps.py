@@ -31,6 +31,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from app.services.marketplace import contract
 from app.services.marketplace.manifest_values import (
     MAX_HINT_LENGTH,
     MAX_LABEL_LENGTH,
@@ -75,49 +76,41 @@ __all__ = [
 
 # --- vocabulary -------------------------------------------------------------
 
-#: Which block backs each feature. The single source for the cross-check that
-#: keeps a declaration and a manifest body from disagreeing — and, below, for
-#: the vocabulary itself.
-FEATURE_BLOCKS: dict[str, str] = {
-    "endpoints": "endpoints",
-    "widgets": "widgets",
-    "embeds": "embeds",
-    "dashboards": "dashboards",
-}
-
 #: Capability classes an app can contribute. Closed: a manifest naming anything
 #: else is refused rather than stored as a claim nothing can act on.
+FEATURES: frozenset[str] = contract.enum("feature")
+
+#: Which block backs each feature. The single source for the cross-check that
+#: keeps a declaration and a manifest body from disagreeing.
 #:
-#: Derived rather than restated. A feature with no block behind it is exactly
-#: what :func:`_check_features` refuses, so a second list could only ever be
-#: wrong — and was, until a feature was added to one of them.
-FEATURES: frozenset[str] = frozenset(FEATURE_BLOCKS)
+#: Derived rather than restated: a feature and its block share a name, so a
+#: second list could only ever be missing one — and was, until a feature was
+#: added to one of them.
+FEATURE_BLOCKS: dict[str, str] = {feature: feature for feature in sorted(FEATURES)}
 
 #: Who supplies a connection's credential, which decides its scope.
 #:
 #: ``static`` — a guild admin types it in, and the whole guild uses it.
 #: ``interactive`` — the app runs a vendor flow behind its ``connect_path`` and
 #: each member connects their own account.
-CONNECTION_SCOPES: frozenset[str] = frozenset({"static", "interactive"})
+CONNECTION_SCOPES: frozenset[str] = contract.enum("connectionScope")
 
 #: Field kinds a connection form can render. The same closed enum the automation
 #: service's node contract settled on, so one generic form renderer draws every
 #: app's settings page.
-FIELD_TYPES: frozenset[str] = frozenset(
-    {"string", "secret", "url", "bool", "select", "int"}
-)
+FIELD_TYPES: frozenset[str] = contract.enum("fieldType")
 
 #: What a data source may take as a query parameter. ``secret`` is absent: a
 #: parameter travels with a request, and credentials are supplied once, held in
 #: custody, and never restated per call.
-PARAM_TYPES: frozenset[str] = FIELD_TYPES - {"secret"}
+PARAM_TYPES: frozenset[str] = contract.enum("paramType")
 
 #: Where a surface renders. Not a choice between the two: a surface may declare
 #: either, or both, and one that declares both gets a guild-wide entry *and* an
 #: entry inside each initiative — the same page, told which initiative it was
 #: opened in. Closed, and defaulting to ``["guild"]``, so an app that says
 #: nothing keeps the placement it already had.
-SURFACE_SCOPES: frozenset[str] = frozenset({"guild", "initiative"})
+SURFACE_SCOPES: frozenset[str] = contract.enum("surfaceScope")
 
 #: Who may open a surface, in order. A ladder rather than a set: a value names
 #: the floor an audience has to clear, and each rung clears the ones below it.
@@ -137,13 +130,13 @@ SURFACE_SCOPES: frozenset[str] = frozenset({"guild", "initiative"})
 #: Deliberately coarser than a tool's permissions. A surface has no grants and
 #: no permission key to hang a per-role dial on, so it names one of three
 #: audiences rather than an arbitrary initiative role.
-VISIBILITY_LADDER: tuple[str, ...] = ("member", "initiative_manager", "guild_admin")
+VISIBILITY_LADDER: tuple[str, ...] = contract.ladder("visibility")
 VISIBILITIES: frozenset[str] = frozenset(VISIBILITY_LADDER)
 
 #: The rungs something opened without an initiative may ask for.
 #: ``initiative_manager`` is absent: outside an initiative there is nothing to
 #: manage, so the value would be stored as a claim nothing could ever evaluate.
-GUILD_WIDE_VISIBILITIES: frozenset[str] = VISIBILITIES - {"initiative_manager"}
+GUILD_WIDE_VISIBILITIES: frozenset[str] = contract.enum("endpointVisibility")
 
 #: Browser features an embedded surface may ask its frame for.
 #:
@@ -156,26 +149,16 @@ GUILD_WIDE_VISIBILITIES: frozenset[str] = VISIBILITIES - {"initiative_manager"}
 #: what a guild admin is shown at install. ``payment`` is deliberately not
 #: namable — an embedded surface takes no money, and the platform processes
 #: payments on its own pages.
-EMBED_CAPABILITIES: frozenset[str] = frozenset(
-    {
-        "camera",
-        "clipboard-read",
-        "clipboard-write",
-        "display-capture",
-        "fullscreen",
-        "geolocation",
-        "microphone",
-    }
-)
+EMBED_CAPABILITIES: frozenset[str] = contract.enum("embedCapability")
 
 #: No surface has a use for the whole vocabulary at once; a manifest reaching
 #: this many is describing something other than an embedded page.
-MAX_EMBED_CAPABILITIES = 8
+MAX_EMBED_CAPABILITIES = contract.cap("embedCapabilities")
 
 #: Protocol versions this build speaks to an app service. A manifest naming a
 #: newer one is refused by name — the version floor (`min_app_version`) is how a
 #: publisher says "this needs a newer Initiative".
-APP_PROTOCOL_VERSIONS: frozenset[int] = frozenset({1})
+APP_PROTOCOL_VERSIONS: frozenset[int] = contract.int_enum("protocol")
 
 #: Widget type ids from an app are namespaced, so an app's widget can never
 #: resolve to a built-in renderer (or the other way round). ``:`` is outside the
@@ -184,7 +167,7 @@ APP_WIDGET_TYPE_PREFIX = "app:"
 
 #: Every endpoint an app declares is namespaced under its own service id.
 ENDPOINT_ID_PREFIX = "app."
-ENDPOINT_ID_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789._-")
+ENDPOINT_ID_CHARS = contract.charset("namespacedId")
 
 #: Which way a call across an endpoint travels.
 #:
@@ -198,7 +181,7 @@ ENDPOINT_ID_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789._-")
 #: automation reads or calls the same one, and a subscriber waits on a third —
 #: they are peers, and the direction describes the endpoint rather than who is
 #: allowed to want it.
-DIRECTIONS: frozenset[str] = frozenset({"read", "write", "emit"})
+DIRECTIONS: frozenset[str] = contract.enum("direction")
 
 #: Which of those a **widget** may bind — a rule about the tile, not about the
 #: endpoint. A widget draws what it is given, so it can only bind one that
@@ -207,7 +190,7 @@ WIDGET_BINDABLE_DIRECTIONS: frozenset[str] = frozenset({"read"})
 
 #: Whose credential an endpoint runs on. The app resolves it; this is the
 #: vocabulary it states its preference in, best first.
-ACTOR_KINDS: frozenset[str] = frozenset({"member", "installation"})
+ACTOR_KINDS: frozenset[str] = contract.enum("actorKind")
 
 #: What an endpoint may say it hands BACK — the param vocabulary minus
 #: ``select``, because a select is a *control* and the value behind one is a
@@ -217,7 +200,7 @@ ACTOR_KINDS: frozenset[str] = frozenset({"member", "installation"})
 #: one: the automation service offers them as values a later step may bind, and
 #: it has to be able to refuse a bad binding when somebody SAVES rather than
 #: when the thing eventually runs.
-RETURN_TYPES: frozenset[str] = PARAM_TYPES - {"select"}
+RETURN_TYPES: frozenset[str] = contract.enum("returnValueType")
 
 # --- caps -------------------------------------------------------------------
 #
@@ -226,50 +209,50 @@ RETURN_TYPES: frozenset[str] = PARAM_TYPES - {"select"}
 # cap bounds the sum, so no combination of legal parts adds up to an illegal
 # document.
 
-MAX_CONNECTIONS = 20
-MAX_FIELDS_PER_CONNECTION = 12
-MAX_SELECT_OPTIONS = 24
-MAX_ACCESS_HINT_SCOPES = 24
-MAX_REQUIRES_TERMS = 10
-MAX_WIDGETS = 12
-MAX_WIDGET_ENDPOINTS = 8
+MAX_CONNECTIONS = contract.cap("connections")
+MAX_FIELDS_PER_CONNECTION = contract.cap("fieldsPerConnection")
+MAX_SELECT_OPTIONS = contract.cap("selectOptions")
+MAX_ACCESS_HINT_SCOPES = contract.cap("accessHintScopes")
+MAX_REQUIRES_TERMS = contract.cap("requiresTerms")
+MAX_WIDGETS = contract.cap("widgets")
+MAX_WIDGET_ENDPOINTS = contract.cap("widgetEndpoints")
 #: Reads, writes and emissions share one list, so this bounds all three
 #: together rather than each separately.
-MAX_ENDPOINTS = 64
-MAX_PARAMS_PER_ENDPOINT = 12
+MAX_ENDPOINTS = contract.cap("endpoints")
+MAX_PARAMS_PER_ENDPOINT = contract.cap("paramsPerEndpoint")
 #: What one endpoint may name as coming back. Higher than the param cap on
 #: purpose: describing an answer is cheaper than asking for one, and an app
 #: that returns a dozen fields is ordinary where one taking a dozen is not.
-MAX_RETURNS_PER_ENDPOINT = 24
-MAX_EMBEDS = 12
+MAX_RETURNS_PER_ENDPOINT = contract.cap("returnsPerEndpoint")
+MAX_EMBEDS = contract.cap("embeds")
 #: An app ships a handful of arrangements of its own widgets, not a library of
 #: them. Each becomes a catalog row, so this is also how many listings a single
 #: publish can create.
-MAX_BUNDLED_DASHBOARDS = 8
+MAX_BUNDLED_DASHBOARDS = contract.cap("bundledDashboards")
 #: The dashboard tool's own limits, restated rather than imported: this is the
 #: manifest vocabulary, and the tool validates the derived definition again on
 #: its own terms when an instance is created from it.
-MAX_DASHBOARD_WIDGETS = 50
-MAX_DASHBOARD_GRID_COLUMNS = 12
-MAX_DASHBOARD_BINDING_PARAMS = 12
+MAX_DASHBOARD_WIDGETS = contract.cap("dashboardWidgets")
+MAX_DASHBOARD_GRID_COLUMNS = contract.cap("dashboardGridColumns")
+MAX_DASHBOARD_BINDING_PARAMS = contract.cap("dashboardBindingParams")
 #: One line under a bundled dashboard's name. Matches the catalog column it
 #: becomes, so a description that publishes here fits the row it derives.
-MAX_DESCRIPTION_LENGTH = 500
+MAX_DESCRIPTION_LENGTH = contract.cap("descriptionLength")
 #: A fixed parameter value on a tile's binding.
-MAX_PARAM_VALUE_LENGTH = 2_000
-MAX_ENDPOINT_ID_LENGTH = 200
+MAX_PARAM_VALUE_LENGTH = contract.cap("paramValueLength")
+MAX_ENDPOINT_ID_LENGTH = contract.cap("endpointIdLength")
 #: A day. A read that wants a longer memory than that is asking for a stale
 #: dashboard rather than a cheaper one.
-MAX_CACHE_TTL_SECONDS = 86_400
+MAX_CACHE_TTL_SECONDS = contract.cap("cacheTtlSeconds")
 
 #: A widget's browser-side module. Never parsed here — only measured.
-MAX_MODULE_SOURCE_BYTES = 64 * 1024
+MAX_MODULE_SOURCE_BYTES = contract.cap("moduleSourceBytes")
 #: Rows powering a preview with no network call.
-MAX_SAMPLE_DATA_BYTES = 32 * 1024
+MAX_SAMPLE_DATA_BYTES = contract.cap("sampleDataBytes")
 #: The canonical definition, after normalization. Checked last, so a publisher
 #: is told the document is too large rather than which cap they happened to hit
 #: first.
-MAX_SERVICE_DEFINITION_BYTES = 512 * 1024
+MAX_SERVICE_DEFINITION_BYTES = contract.cap("serviceDefinitionBytes")
 
 
 # --- shared pieces ----------------------------------------------------------

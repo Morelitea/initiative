@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from app.services.marketplace import widget_meta
+from app.services.marketplace import contract, widget_meta
 from app.services.marketplace.widget_meta import (
     localized_text,
     validate_widget_meta,
@@ -27,77 +27,55 @@ pytestmark = pytest.mark.unit
 # backend/app/services/marketplace/<this file> -> repo root
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 _FRONTEND = _REPO_ROOT / "frontend"
-_MIRROR = _FRONTEND / "src" / "lib" / "widgets" / "widgetMeta.ts"
 
-#: Every entry in the frontend's META_LIMITS, and the constant that mirrors it.
-#: The mapping is asserted to be exhaustive in both directions, so a limit added
-#: on either side has to be added here too.
-_MIRRORED_LIMITS = {
-    "maxTextLength": "MAX_TEXT_LENGTH",
-    "maxDescriptionLength": "MAX_DESCRIPTION_LENGTH",
-    "maxLocales": "MAX_LOCALES",
-    "maxOptions": "MAX_OPTIONS",
-    "maxValuesPerOption": "MAX_VALUES_PER_OPTION",
-    "maxLocaleTagLength": "MAX_LOCALE_TAG_LENGTH",
-}
+#: The two places the vendored contract lands. The backend validator reads one
+#: and the browser's reads the other, and they are written by a single refresh.
+_BACKEND_CONTRACT = (
+    Path(__file__).resolve().parents[3]
+    / "vendor"
+    / "app-kit"
+    / "manifest.contract.json"
+)
+_FRONTEND_CONTRACT = _FRONTEND / "src" / "contract" / "manifest.contract.json"
 
 
-def _read_mirror() -> str:
-    if not _FRONTEND.is_dir():
-        pytest.skip("frontend tree not present in this checkout")
-    # Present but moved or renamed is a real failure: the mirror cannot be
-    # checked, and silently passing is how the two copies would drift.
-    assert _MIRROR.is_file(), f"widget meta mirror not found at {_MIRROR}"
-    return _MIRROR.read_text(encoding="utf-8")
+class TestTheBrowserTrimsByTheSameNumbers:
+    """A widget's meta is validated here over catalog content and in the browser
+    over what a module returns. Neither can call the other, so the numbers they
+    trim by have to be one set — otherwise a widget is accepted by the catalog
+    and then re-trimmed differently on screen.
 
-
-def _parse_limits(source: str) -> dict[str, int]:
-    """The numbers out of ``META_LIMITS = { … } as const``.
-
-    Deliberately a dull scan rather than a parser: the block is a flat list of
-    ``name: number`` lines, and anything that stops being flat should fail the
-    exhaustiveness check below rather than be silently reinterpreted.
+    They used to be two hand-written sets held together by a test that parsed
+    ``META_LIMITS`` out of the TypeScript. Now both sides read the vendored
+    contract, so the only thing left to check is that the two copies of it are
+    the same file.
     """
-    _, _, rest = source.partition("META_LIMITS = {")
-    body, _, _ = rest.partition("} as const")
-    limits: dict[str, int] = {}
-    for line in body.splitlines():
-        stripped = line.strip()
-        if stripped.startswith(("/", "*")) or ":" not in stripped:
-            continue
-        name, _, value = stripped.partition(":")
-        value = value.strip().rstrip(",").strip()
-        if value.isdigit():
-            limits[name.strip()] = int(value)
-    return limits
 
-
-def _parse_locale_chars(source: str) -> str:
-    _, _, rest = source.partition("LOCALE_TAG_CHARS = ")
-    value, _, _ = rest.partition("\n")
-    return value.strip().rstrip(";").strip().strip('"')
-
-
-class TestMirrorsTheFrontend:
-    def test_every_limit_matches(self):
-        limits = _parse_limits(_read_mirror())
-        assert limits, "could not read META_LIMITS out of the mirror"
-        for name, constant in _MIRRORED_LIMITS.items():
-            assert name in limits, f"{name} is gone from the frontend's META_LIMITS"
-            assert limits[name] == getattr(widget_meta, constant), (
-                f"{name} and {constant} disagree"
-            )
-
-    def test_no_limit_exists_on_only_one_side(self):
-        limits = _parse_limits(_read_mirror())
-        assert set(limits) == set(_MIRRORED_LIMITS), (
-            "the frontend's META_LIMITS and this mirror hold different limits"
+    def test_both_copies_are_the_same_contract(self):
+        if not _FRONTEND.is_dir():
+            pytest.skip("frontend tree not present in this checkout")
+        # Present but moved is a real failure: the browser would fall back to
+        # nothing, and silently passing is how the two would drift again.
+        assert _FRONTEND_CONTRACT.is_file(), (
+            f"no vendored contract at {_FRONTEND_CONTRACT}"
         )
+        assert _BACKEND_CONTRACT.read_text(encoding="utf-8") == (
+            _FRONTEND_CONTRACT.read_text(encoding="utf-8")
+        ), "the two vendored copies differ — run backend/scripts/refresh_app_kit.py"
 
-    def test_the_locale_alphabet_matches(self):
-        chars = _parse_locale_chars(_read_mirror())
-        assert chars, "could not read LOCALE_TAG_CHARS out of the mirror"
-        assert frozenset(chars) == widget_meta.LOCALE_TAG_CHARS
+    def test_every_limit_this_module_uses_comes_from_the_contract(self):
+        """Each name below is read by ``validate_widget_meta``; a limit that
+        stopped coming from the contract would be one the browser cannot see."""
+        for constant, cap in (
+            ("MAX_TEXT_LENGTH", "textLength"),
+            ("MAX_DESCRIPTION_LENGTH", "widgetDescriptionLength"),
+            ("MAX_LOCALES", "locales"),
+            ("MAX_OPTIONS", "widgetOptions"),
+            ("MAX_VALUES_PER_OPTION", "valuesPerOption"),
+            ("MAX_LOCALE_TAG_LENGTH", "localeTagLength"),
+        ):
+            assert getattr(widget_meta, constant) == contract.cap(cap), constant
+        assert widget_meta.LOCALE_TAG_CHARS == contract.charset("localeTag")
 
 
 class TestLocalizedText:

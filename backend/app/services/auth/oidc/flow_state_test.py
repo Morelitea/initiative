@@ -118,56 +118,62 @@ def test_expired_state_rejected():
         decode_flow_state(old, max_age_seconds=600)
 
 
-def test_cross_context_token_rejected():
-    """A Fernet token minted under a different salt (e.g. an encrypted client
-    secret) must not decode as flow state."""
-    other = encrypt_field('{"code_verifier":"v","nonce":"n"}', SALT_OIDC_CLIENT_SECRET)
-    with pytest.raises(FlowStateError):
-        decode_flow_state(other)
-
-
-def test_token_from_different_secret_key_rejected():
-    other = encrypt_field(
-        '{"code_verifier":"v","nonce":"n"}',
-        SALT_OIDC_FLOW_STATE,
-        secret_key="a-different-secret-key",
-    )
-    with pytest.raises(FlowStateError):
-        decode_flow_state(other)
-
-
 @pytest.mark.parametrize("state", ["", "garbage", "gAAAAA..not-a-token"])
 def test_missing_or_garbage_state_rejected(state):
     with pytest.raises(FlowStateError):
         decode_flow_state(state)
 
 
-def test_valid_token_with_non_json_payload_rejected():
-    token = encrypt_field("not json", SALT_OIDC_FLOW_STATE)
-    with pytest.raises(FlowStateError):
-        decode_flow_state(token)
-
-
-def test_valid_token_missing_required_field_rejected():
-    token = encrypt_field('{"nonce":"n"}', SALT_OIDC_FLOW_STATE)  # no code_verifier
-    with pytest.raises(FlowStateError):
-        decode_flow_state(token)
-
-
 @pytest.mark.parametrize(
-    "payload",
+    ("case", "payload", "salt", "secret_key"),
     [
-        '{"code_verifier":"","nonce":"n"}',
-        '{"code_verifier":"v","nonce":""}',
-        '{"code_verifier":null,"nonce":"n"}',
-        '{"code_verifier":"v","nonce":42}',
+        # Minted somewhere else: right library, wrong purpose or wrong key.
+        (
+            "another salt",
+            '{"code_verifier":"v","nonce":"n"}',
+            SALT_OIDC_CLIENT_SECRET,
+            None,
+        ),
+        (
+            "another secret key",
+            '{"code_verifier":"v","nonce":"n"}',
+            SALT_OIDC_FLOW_STATE,
+            "a-different-secret-key",
+        ),
+        # Decryptable, but not flow state.
+        ("not json", "not json", SALT_OIDC_FLOW_STATE, None),
+        ("no verifier", '{"nonce":"n"}', SALT_OIDC_FLOW_STATE, None),
+        # Present but unusable: a flow state always carries non-empty string
+        # secrets, so these are a rejected login rather than a caller error
+        # surfacing further downstream.
+        (
+            "empty verifier",
+            '{"code_verifier":"","nonce":"n"}',
+            SALT_OIDC_FLOW_STATE,
+            None,
+        ),
+        ("empty nonce", '{"code_verifier":"v","nonce":""}', SALT_OIDC_FLOW_STATE, None),
+        (
+            "null verifier",
+            '{"code_verifier":null,"nonce":"n"}',
+            SALT_OIDC_FLOW_STATE,
+            None,
+        ),
+        (
+            "non-string nonce",
+            '{"code_verifier":"v","nonce":42}',
+            SALT_OIDC_FLOW_STATE,
+            None,
+        ),
     ],
+    ids=lambda v: v if isinstance(v, str) and " " in v or v is None else "",
 )
-def test_empty_or_non_string_secrets_rejected(payload):
-    """A decoded flow state must always carry non-empty string secrets — an
-    empty nonce/verifier would otherwise surface downstream as a caller error
-    instead of a rejected login."""
-    token = encrypt_field(payload, SALT_OIDC_FLOW_STATE)
+def test_a_token_that_is_not_this_flow_state_is_rejected(
+    case, payload, salt, secret_key
+):
+    """Everything that is not a live flow state minted here — wrong salt, wrong
+    key, wrong payload — comes back as ``FlowStateError``."""
+    token = encrypt_field(payload, salt, secret_key=secret_key)
     with pytest.raises(FlowStateError):
         decode_flow_state(token)
 

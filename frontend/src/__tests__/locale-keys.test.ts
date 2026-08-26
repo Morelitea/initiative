@@ -39,89 +39,50 @@ const getNamespaces = (localesDir: string, locale: string): string[] =>
     .filter((f) => f.endsWith(".json"))
     .map((f) => f.replace(".json", ""));
 
-// --- Frontend locale tests ---
-
-describe("Frontend locale key parity", () => {
-  const locales = getLocales(FRONTEND_LOCALES_DIR);
-  const sourceNamespaces = getNamespaces(FRONTEND_LOCALES_DIR, SOURCE_LOCALE);
-
-  for (const locale of locales) {
-    describe(`${locale} vs ${SOURCE_LOCALE}`, () => {
-      it("should have the same namespace files", () => {
-        const targetNamespaces = getNamespaces(FRONTEND_LOCALES_DIR, locale);
-        const missingInTarget = sourceNamespaces.filter((ns) => !targetNamespaces.includes(ns));
-        const extraInTarget = targetNamespaces.filter((ns) => !sourceNamespaces.includes(ns));
-        expect(missingInTarget, `Missing namespace files in ${locale}`).toEqual([]);
-        expect(extraInTarget, `Extra namespace files in ${locale}`).toEqual([]);
-      });
-
-      for (const namespace of sourceNamespaces) {
-        describe(`${namespace}.json`, () => {
-          const sourcePath = path.join(FRONTEND_LOCALES_DIR, SOURCE_LOCALE, `${namespace}.json`);
-          const targetPath = path.join(FRONTEND_LOCALES_DIR, locale, `${namespace}.json`);
-
-          it("should exist", () => {
-            expect(fs.existsSync(targetPath), `${locale}/${namespace}.json is missing`).toBe(true);
-          });
-
-          it("should have no missing keys", () => {
-            if (!fs.existsSync(targetPath)) return;
-            const sourceKeys = collectKeys(loadJson(sourcePath));
-            const targetKeys = collectKeys(loadJson(targetPath));
-            const missing = sourceKeys.filter((k) => !targetKeys.includes(k));
-            expect(missing, `Keys in ${SOURCE_LOCALE} but missing in ${locale}`).toEqual([]);
-          });
-
-          it("should have no extra keys", () => {
-            if (!fs.existsSync(targetPath)) return;
-            const sourceKeys = collectKeys(loadJson(sourcePath));
-            const targetKeys = collectKeys(loadJson(targetPath));
-            const extra = targetKeys.filter((k) => !sourceKeys.includes(k));
-            expect(extra, `Keys in ${locale} but not in ${SOURCE_LOCALE}`).toEqual([]);
-          });
-
-          it("should preserve interpolation placeholders", () => {
-            if (!fs.existsSync(targetPath)) return;
-            const sourceData = loadJson(sourcePath);
-            const targetData = loadJson(targetPath);
-            const sourceKeys = collectKeys(sourceData);
-            const errors: string[] = [];
-
-            for (const key of sourceKeys) {
-              const sourceVal = getNestedValue(sourceData, key);
-              const targetVal = getNestedValue(targetData, key);
-              if (typeof sourceVal !== "string" || typeof targetVal !== "string") continue;
-
-              // Check {{variable}} placeholders
-              const sourcePlaceholders = (sourceVal.match(/\{\{[^}]+\}\}/g) ?? []).sort();
-              const targetPlaceholders = (targetVal.match(/\{\{[^}]+\}\}/g) ?? []).sort();
-              if (JSON.stringify(sourcePlaceholders) !== JSON.stringify(targetPlaceholders)) {
-                errors.push(
-                  `${key}: expected {{placeholders}} ${JSON.stringify(sourcePlaceholders)}, got ${JSON.stringify(targetPlaceholders)}`
-                );
-              }
-            }
-            expect(errors, "Mismatched interpolation placeholders").toEqual([]);
-          });
-        });
-      }
-    });
+const getNestedValue = (obj: Record<string, unknown>, keyPath: string): unknown => {
+  let current: unknown = obj;
+  for (const part of keyPath.split(".")) {
+    if (current === null || typeof current !== "object") return undefined;
+    current = (current as Record<string, unknown>)[part];
   }
-});
+  return current;
+};
 
-// --- Backend locale tests ---
+/**
+ * Both locale roots answer the same question — does every translation carry
+ * exactly the source locale's keys — so they are checked by one suite.
+ *
+ * `placeholders` is frontend-only: those strings interpolate `{{variables}}`,
+ * and the namespace-file check goes with them.
+ */
+const describeLocaleParity = (
+  label: string,
+  localesDir: string,
+  { placeholders = false }: { placeholders?: boolean } = {}
+) => {
+  describe(label, () => {
+    const sourceNamespaces = getNamespaces(localesDir, SOURCE_LOCALE);
 
-if (fs.existsSync(BACKEND_LOCALES_DIR)) {
-  describe("Backend locale key parity", () => {
-    const locales = getLocales(BACKEND_LOCALES_DIR);
-    const sourceNamespaces = getNamespaces(BACKEND_LOCALES_DIR, SOURCE_LOCALE);
-
-    for (const locale of locales) {
+    for (const locale of getLocales(localesDir)) {
       describe(`${locale} vs ${SOURCE_LOCALE}`, () => {
+        if (placeholders) {
+          it("should have the same namespace files", () => {
+            const targetNamespaces = getNamespaces(localesDir, locale);
+            expect(
+              sourceNamespaces.filter((ns) => !targetNamespaces.includes(ns)),
+              `Missing namespace files in ${locale}`
+            ).toEqual([]);
+            expect(
+              targetNamespaces.filter((ns) => !sourceNamespaces.includes(ns)),
+              `Extra namespace files in ${locale}`
+            ).toEqual([]);
+          });
+        }
+
         for (const namespace of sourceNamespaces) {
           describe(`${namespace}.json`, () => {
-            const sourcePath = path.join(BACKEND_LOCALES_DIR, SOURCE_LOCALE, `${namespace}.json`);
-            const targetPath = path.join(BACKEND_LOCALES_DIR, locale, `${namespace}.json`);
+            const sourcePath = path.join(localesDir, SOURCE_LOCALE, `${namespace}.json`);
+            const targetPath = path.join(localesDir, locale, `${namespace}.json`);
 
             it("should exist", () => {
               expect(fs.existsSync(targetPath), `${locale}/${namespace}.json is missing`).toBe(
@@ -129,36 +90,54 @@ if (fs.existsSync(BACKEND_LOCALES_DIR)) {
               );
             });
 
-            it("should have no missing keys", () => {
+            it("should have exactly the source keys", () => {
               if (!fs.existsSync(targetPath)) return;
               const sourceKeys = collectKeys(loadJson(sourcePath));
               const targetKeys = collectKeys(loadJson(targetPath));
-              const missing = sourceKeys.filter((k) => !targetKeys.includes(k));
-              expect(missing, `Keys in ${SOURCE_LOCALE} but missing in ${locale}`).toEqual([]);
+              expect(
+                sourceKeys.filter((k) => !targetKeys.includes(k)),
+                `Keys in ${SOURCE_LOCALE} but missing in ${locale}`
+              ).toEqual([]);
+              expect(
+                targetKeys.filter((k) => !sourceKeys.includes(k)),
+                `Keys in ${locale} but not in ${SOURCE_LOCALE}`
+              ).toEqual([]);
             });
 
-            it("should have no extra keys", () => {
+            if (!placeholders) return;
+
+            it("should preserve interpolation placeholders", () => {
               if (!fs.existsSync(targetPath)) return;
-              const sourceKeys = collectKeys(loadJson(sourcePath));
-              const targetKeys = collectKeys(loadJson(targetPath));
-              const extra = targetKeys.filter((k) => !sourceKeys.includes(k));
-              expect(extra, `Keys in ${locale} but not in ${SOURCE_LOCALE}`).toEqual([]);
+              const sourceData = loadJson(sourcePath);
+              const targetData = loadJson(targetPath);
+              const errors: string[] = [];
+
+              for (const key of collectKeys(sourceData)) {
+                const sourceVal = getNestedValue(sourceData, key);
+                const targetVal = getNestedValue(targetData, key);
+                if (typeof sourceVal !== "string" || typeof targetVal !== "string") continue;
+
+                const sourcePlaceholders = (sourceVal.match(/\{\{[^}]+\}\}/g) ?? []).sort();
+                const targetPlaceholders = (targetVal.match(/\{\{[^}]+\}\}/g) ?? []).sort();
+                if (JSON.stringify(sourcePlaceholders) !== JSON.stringify(targetPlaceholders)) {
+                  errors.push(
+                    `${key}: expected {{placeholders}} ${JSON.stringify(sourcePlaceholders)}, got ${JSON.stringify(targetPlaceholders)}`
+                  );
+                }
+              }
+              expect(errors, "Mismatched interpolation placeholders").toEqual([]);
             });
           });
         }
       });
     }
   });
-}
-
-// --- Helper ---
-
-const getNestedValue = (obj: Record<string, unknown>, keyPath: string): unknown => {
-  const parts = keyPath.split(".");
-  let current: unknown = obj;
-  for (const part of parts) {
-    if (current === null || typeof current !== "object") return undefined;
-    current = (current as Record<string, unknown>)[part];
-  }
-  return current;
 };
+
+describeLocaleParity("Frontend locale key parity", FRONTEND_LOCALES_DIR, {
+  placeholders: true,
+});
+
+if (fs.existsSync(BACKEND_LOCALES_DIR)) {
+  describeLocaleParity("Backend locale key parity", BACKEND_LOCALES_DIR);
+}

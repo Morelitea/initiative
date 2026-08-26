@@ -7,13 +7,13 @@ supports. The browser reads that meta out of the sandbox and rebuilds it with
 carries the same structure as plain data, and this module is where that data is
 checked before it is stored.
 
-**This is a mirror, and mirrors drift.** The two implementations exist because
+**Two implementations, one set of numbers.** The implementations exist because
 they run in different places on different inputs — one on a sandbox return
-value, one on catalog content — and neither can call the other. So the limits
-below are pinned against the TypeScript file by a test that reads it
-(``definitions_guards_test.py``); changing one side without the other fails
-there rather than in production, where the symptom would be a widget accepted by
-the catalog and then re-trimmed differently in the browser.
+value, one on catalog content — and neither can call the other. That much is
+irreducible. The limits they trim by are not: both read them from the vendored
+app-kit contract, so there is nothing here to keep in step with the mirror and
+no way for a widget to be accepted by the catalog and then re-trimmed
+differently in the browser.
 
 Rebuilt from checked parts rather than inspected in place: unknown keys, unusable
 locales, and over-long strings are dropped by construction, so what is stored is
@@ -23,6 +23,8 @@ exactly what can be rendered.
 from __future__ import annotations
 
 from typing import Any
+
+from app.services.marketplace import contract
 
 __all__ = [
     "LOCALE_TAG_CHARS",
@@ -36,22 +38,27 @@ __all__ = [
     "validate_widget_meta",
 ]
 
-# --- limits (mirrored from META_LIMITS in widgetMeta.ts) --------------------
+# --- limits ------------------------------------------------------------------
+#
+# Every one of these is read from the vendored contract, which is also what the
+# browser's copy reads. None of them refuses anything: an over-long string is
+# truncated and a surplus entry is skipped, so they decide what is *kept* rather
+# than what is allowed. What bounds the payload is the byte cap on the whole
+# definition, not these.
 
-MAX_TEXT_LENGTH = 120
-MAX_DESCRIPTION_LENGTH = 400
+MAX_TEXT_LENGTH = contract.cap("textLength")
+MAX_DESCRIPTION_LENGTH = contract.cap("widgetDescriptionLength")
 #: Languages one string may be supplied in. Generous — the cap only stops a
 #: module from shipping a dictionary.
-MAX_LOCALES = 40
-MAX_OPTIONS = 12
-MAX_VALUES_PER_OPTION = 24
+MAX_LOCALES = contract.cap("locales")
+MAX_OPTIONS = contract.cap("widgetOptions")
+MAX_VALUES_PER_OPTION = contract.cap("valuesPerOption")
 #: `en`, `en-GB`, `pt-BR` — a language tag, not free text.
-MAX_LOCALE_TAG_LENGTH = 12
+MAX_LOCALE_TAG_LENGTH = contract.cap("localeTagLength")
 
-#: Mirrored from LOCALE_TAG_CHARS. An explicit character check rather than a
-#: pattern: the set of things a language tag may contain is short enough to
-#: state outright.
-LOCALE_TAG_CHARS = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-")
+#: An explicit character check rather than a pattern: the set of things a
+#: language tag may contain is short enough to state outright.
+LOCALE_TAG_CHARS = contract.charset("localeTag")
 
 
 def _is_locale_tag(value: str) -> bool:

@@ -303,7 +303,7 @@
         },
         "list": {
           "type": "boolean",
-          "description": "Several values rather than one. It matters to a consumer with somewhere to put exactly one \u2014 a form field, a tile's number \u2014 which is why it is a flag rather than a second set of types."
+          "description": "Several values rather than one. It matters to a consumer with somewhere to put exactly one — a form field, a tile's number — which is why it is a flag rather than a second set of types."
         }
       }
     },
@@ -349,7 +349,7 @@
       "type": "string",
       "maxLength": 200,
       "pattern": "^[\\-.0123456789_abcdefghijklmnopqrstuvwxyz]+$",
-      "description": "Namespaced under the app's own service id \u2014 'app.<public_id>.<name>'. The prefix is checked against the declaring registration at ingress."
+      "description": "Namespaced under the app's own service id — 'app.<public_id>.<name>'. The prefix is checked against the declaring registration at ingress."
     },
     "endpoint": {
       "type": "object",
@@ -375,7 +375,7 @@
           "items": {
             "$ref": "#/$defs/endpointReturn"
           },
-          "description": "What this hands back, by name and type \u2014 the response for a read or a write, the payload for an emission. Declared rather than discovered, because a consumer binds one of these before the endpoint has ever run and a bad binding has to be refusable when somebody arranges it."
+          "description": "What this hands back, by name and type — the response for a read or a write, the payload for an emission. Declared rather than discovered, because a consumer binds one of these before the endpoint has ever run and a bad binding has to be refusable when somebody arranges it."
         },
         "group": {
           "$ref": "#/$defs/identifier",
@@ -383,7 +383,7 @@
         },
         "needs_subject": {
           "$ref": "#/$defs/identifier",
-          "description": "What a caller must already have in hand for this to mean anything. Opaque here \u2014 the vocabulary belongs to whoever consumes it; the automation service names the subjects a run can be about."
+          "description": "What a caller must already have in hand for this to mean anything. Opaque here — the vocabulary belongs to whoever consumes it; the automation service names the subjects a run can be about."
         },
         "direction": {
           "enum": [
@@ -391,7 +391,7 @@
             "read",
             "write"
           ],
-          "description": "'read' and 'write' are called by the deployment or by a delegate and answer in place; 'emit' travels the other way \u2014 the app posts it to a subscriber that registered a URL, so it carries no parameters and nothing to gate."
+          "description": "'read' and 'write' are called by the deployment or by a delegate and answer in place; 'emit' travels the other way — the app posts it to a subscriber that registered a URL, so it carries no parameters and nothing to gate."
         },
         "params": {
           "type": "array",
@@ -419,7 +419,7 @@
         "cache_ttl_seconds": {
           "type": "integer",
           "default": 0,
-          "description": "Read only. How long a response may be reused. Clamped into 0..86400 rather than refused, so a value outside that range is accepted and takes effect at the bound \u2014 which is why no range is asserted here."
+          "description": "Read only. How long a response may be reused. Clamped into 0..86400 rather than refused, so a value outside that range is accepted and takes effect at the bound — which is why no range is asserted here."
         },
         "visibility": {
           "enum": [
@@ -504,7 +504,7 @@
             "initiative_manager",
             "member"
           ],
-          "description": "The floor an audience clears. 'initiative_manager' is only namable by a surface that also renders in an initiative \u2014 a rule the platform enforces, not this schema."
+          "description": "The floor an audience clears. 'initiative_manager' is only namable by a surface that also renders in an initiative — a rule the platform enforces, not this schema."
         },
         "capabilities": {
           "type": "array",
@@ -541,14 +541,14 @@
           "minLength": 14,
           "maxLength": 14,
           "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]+$",
-          "description": "This dashboard's own catalog id \u2014 publisher-assigned, immutable, never reused. It becomes a listing of its own, so this is a real catalog identity and not the app's."
+          "description": "This dashboard's own catalog id — publisher-assigned, immutable, never reused. It becomes a listing of its own, so this is a real catalog identity and not the app's."
         },
         "public_id": {
           "type": "string",
           "minLength": 1,
           "maxLength": 120,
           "pattern": "^[\\-.0123456789_abcdefghijklmnopqrstuvwxyz]+$",
-          "description": "'<publisher>.<slug>', and not the app's own \u2014 a bundled dashboard is a separate listing."
+          "description": "'<publisher>.<slug>', and not the app's own — a bundled dashboard is a separate listing."
         },
         "name": {
           "type": "string",
@@ -591,7 +591,7 @@
         },
         "type": {
           "$ref": "#/$defs/identifier",
-          "description": "One of this manifest's own widget ids \u2014 bare, with no uid. The platform stamps the app's uid on when it publishes, so the two can never disagree."
+          "description": "One of this manifest's own widget ids — bare, with no uid. The platform stamps the app's uid on when it publishes, so the two can never disagree."
         },
         "title": {
           "type": "string",

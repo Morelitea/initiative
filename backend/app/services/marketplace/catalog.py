@@ -43,6 +43,7 @@ from app.services.marketplace.definitions import (
     normalize_listing_definition,
     reserved_prefix_problem,
 )
+from app.services.marketplace import contract
 from app.services.marketplace.manifest_values import check_public_id
 
 __all__ = [
@@ -63,9 +64,10 @@ __all__ = [
 
 #: Characters a version string may use. Deliberately an explicit set rather than
 #: a semver pattern — the catalog stores what the publisher published and only
-#: needs it to be a safe, short, comparable token.
-_VERSION_CHARS = frozenset("0123456789.-+abcdefghijklmnopqrstuvwxyz")
-_MAX_VERSION = 32
+#: needs it to be a safe, short, comparable token. From the vendored contract,
+#: which is what the app-kit checks a listing against before it is published.
+_VERSION_CHARS = contract.charset("version")
+_MAX_VERSION = contract.cap("versionLength")
 
 
 class CatalogError(ValueError):
@@ -93,9 +95,7 @@ def _check_public_id(public_id: str) -> str:
 
 #: Characters an artwork path may use — an explicit allow-list, so a stored
 #: path is exactly what a browser will request.
-_ARTWORK_CHARS = frozenset(
-    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/._-"
-)
+_ARTWORK_CHARS = contract.charset("artwork")
 
 
 #: Shown for a listing that ships no artwork of its own. The app's own mark,
@@ -120,7 +120,7 @@ def _check_artwork_path(value: str, *, field: str) -> str:
 
 def _check_version(version: str) -> str:
     if not version or len(version) > _MAX_VERSION:
-        raise CatalogError("version must be 1..32 characters")
+        raise CatalogError(f"version must be 1..{_MAX_VERSION} characters")
     for char in version:
         if char not in _VERSION_CHARS:
             raise CatalogError(f"version contains {char!r}, which is not allowed")
