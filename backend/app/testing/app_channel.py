@@ -90,6 +90,7 @@ def channel_headers(
     *,
     method: str,
     path: str,
+    query: str = "",
     body: bytes = b"",
     secret: str = APP_CHANNEL_SECRET,
     public_id: str = "tests.shop",
@@ -99,7 +100,10 @@ def channel_headers(
     """The signing headers for one request.
 
     ``path`` is the full request path, ``/api/v1/app-service/…``, because that is
-    what the server sees and therefore what both sides sign.
+    what the server sees and therefore what both sides sign. ``query`` is the
+    query string without its ``?`` — a caller sending one signs it too, so a
+    test that appends parameters after signing is a test of tampering rather
+    than a request that works.
     """
     stamp = str(int(time.time()) if timestamp is None else timestamp)
     value = nonce or secrets.token_urlsafe(12)
@@ -111,6 +115,7 @@ def channel_headers(
             secret,
             method=method,
             path=path,
+            query=query,
             timestamp=stamp,
             nonce=value,
             body=body,

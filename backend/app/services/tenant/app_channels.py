@@ -53,6 +53,7 @@ __all__ = [
     "MAX_EVENT_PAYLOAD_BYTES",
     "AppChannelError",
     "config_payload",
+    "connection_for_member",
     "connection_payload",
     "emit_event",
     "install_summaries",
@@ -335,18 +336,80 @@ async def connection_payload(
     Who the member is stays on this side — the reference is the whole of the
     app's name for them.
     """
-    return [
-        {
-            "connection_id": row.connection_id,
-            "connection_ref": row.connection_ref,
-            "status": row.status,
-            "blocked": row.blocked_at is not None,
-            "account_label": row.account_label,
-            "created_at": row.created_at,
-            "updated_at": row.updated_at,
-        }
-        for row in await _member_rows(session, app)
-    ]
+    return [_connection_read(row) for row in await _member_rows(session, app)]
+
+
+def _connection_read(row: GuildAppUserConnection) -> dict[str, Any]:
+    """One connection as the app is told about it: which of its own
+    connections, the handle to address it by, and where it has got to."""
+    return {
+        "connection_id": row.connection_id,
+        "connection_ref": row.connection_ref,
+        "status": row.status,
+        "blocked": row.blocked_at is not None,
+        "account_label": row.account_label,
+        "created_at": row.created_at,
+        "updated_at": row.updated_at,
+    }
+
+
+async def connection_for_member(
+    session: AsyncSession,
+    app: GuildApp,
+    *,
+    user_id: int,
+    connection_id: Optional[str] = None,
+) -> dict[str, Any]:
+    """The handle this app knows one member's connection by.
+
+    The reverse of every other route here: those address a member by the
+    reference and never learn who it is, while this one starts from a member
+    the platform resolved and answers with the reference — still the whole of
+    the app's name for them. It is scoped to the install passed in, so what
+    comes back is the caller's own handle and never another app's.
+
+    Blocked rows are not answers. The block is what ended that member's access
+    and the custody channel already stops serving their values, so a reference
+    to one names nothing the app could act with.
+
+    ``connection_id`` names which of the install's connections is meant. An
+    install declaring one per-member connection needs no such statement; one
+    declaring several is asked to make it.
+
+    Which of those an install *is* comes from the pinned definition, never from
+    how many rows a member happens to have: an app that declares two and gets an
+    answer only because this member has connected one of them would start being
+    refused the day they connect the other. The question a caller has to answer
+    is a property of its own manifest, so it reads the same on every member.
+    """
+    target = connection_id or _sole_member_connection(app)
+    row = (
+        await session.exec(
+            select(GuildAppUserConnection).where(
+                GuildAppUserConnection.app_id == app.id,
+                GuildAppUserConnection.user_id == user_id,
+                GuildAppUserConnection.connection_id == target,
+                GuildAppUserConnection.blocked_at.is_(None),
+            )
+        )
+    ).first()
+    if row is None:
+        raise AppChannelError(AppChannelMessages.CONNECTION_NOT_FOUND, status_code=404)
+    return _connection_read(row)
+
+
+def _sole_member_connection(app: GuildApp) -> str:
+    """The one per-member connection this install declares, or a refusal.
+
+    An install declaring none has nothing a member could have connected, which
+    is the same answer as a member who has not connected: not found.
+    """
+    declared = app_config_service.member_connection_ids(app.definition)
+    if len(declared) == 1:
+        return declared[0]
+    if not declared:
+        raise AppChannelError(AppChannelMessages.CONNECTION_NOT_FOUND, status_code=404)
+    raise AppChannelError(AppChannelMessages.CONNECTION_UNSPECIFIED, status_code=422)
 
 
 async def _row_by_ref(

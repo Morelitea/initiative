@@ -53,6 +53,7 @@ __all__ = [
     "frame_origins",
     "install_state",
     "invalidate_registrations",
+    "live_delegate",
     "load_registrations",
     "mandatory_registrations",
     "registration_for_definition",
@@ -347,6 +348,25 @@ async def delegation_keys_for(kid: str) -> tuple[DelegationKey, ...]:
     )
 
 
+async def live_delegate(public_id: str) -> Optional[RegistrationSnapshot]:
+    """The registration behind a named delegate, when it may act right now.
+
+    One rule, stated once: the registration must be ``enabled`` and hold the
+    ``delegation`` grant. Both the published key set and any lookup made on a
+    delegate's say-so read it here, so an operator's edit reaches every one of
+    them together within the cache TTL rather than some of them.
+
+    Deliberately ``enabled`` rather than :attr:`RegistrationSnapshot.live`, for
+    the reason :func:`delegation_keys_for` gives: a delegate calls the API
+    directly, so what it may do follows the operator's kill switch rather than
+    whether its manifest was reachable at the last handshake.
+    """
+    snapshot = (await load_registrations()).get(public_id)
+    if snapshot is None or not snapshot.enabled or "delegation" not in snapshot.grants:
+        return None
+    return snapshot
+
+
 async def delegate_jwks(public_id: str) -> dict[str, Any] | None:
     """One delegate's public verification keys, as a JWKS document.
 
@@ -363,8 +383,8 @@ async def delegate_jwks(public_id: str) -> dict[str, Any] | None:
     reaches this and verification alike within the cache TTL. ``None`` when no
     such delegate is published here — the caller answers that as not found.
     """
-    snapshot = (await load_registrations()).get(public_id)
-    if snapshot is None or not snapshot.enabled or "delegation" not in snapshot.grants:
+    snapshot = await live_delegate(public_id)
+    if snapshot is None:
         return None
     return {"keys": [dict(entry) for entry in snapshot.delegation_jwk_entries]}
 

@@ -765,6 +765,9 @@ class AppChannelMessages:
     CONNECTION_NOT_FOUND = "APP_CHANNEL_CONNECTION_NOT_FOUND"
     #: A guild admin stopped this member's connection; the app may not revive it.
     CONNECTION_BLOCKED = "APP_CHANNEL_CONNECTION_BLOCKED"
+    #: This install declares more than one per-member connection, and the
+    #: request did not say which of them it meant.
+    CONNECTION_UNSPECIFIED = "APP_CHANNEL_CONNECTION_UNSPECIFIED"
 
     # --- what the app sent ---
     #: The body is not the JSON object this channel expects.

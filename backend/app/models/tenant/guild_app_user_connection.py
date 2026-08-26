@@ -54,6 +54,10 @@ from sqlmodel import Field, SQLModel
 #: stopped this member reconnecting, and the row is a tombstone.
 CONNECTION_STATUSES: frozenset[str] = frozenset({"pending", "connected", "blocked"})
 
+#: How wide a manifest connection id is stored, and therefore the widest one
+#: any caller can name.
+CONNECTION_ID_LENGTH = 64
+
 
 class GuildAppUserConnection(SQLModel, table=True):
     __tablename__ = "guild_app_user_connections"
@@ -88,7 +92,9 @@ class GuildAppUserConnection(SQLModel, table=True):
         )
     )
     #: Which of the pinned definition's connections this is, by manifest id.
-    connection_id: str = Field(sa_column=Column(String(64), nullable=False))
+    connection_id: str = Field(
+        sa_column=Column(String(CONNECTION_ID_LENGTH), nullable=False)
+    )
 
     user_id: int = Field(
         sa_column=Column(
