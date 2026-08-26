@@ -196,6 +196,19 @@ export const TaskEditPage = () => {
 
   const projectId = projectIdParam ? Number(projectIdParam) : taskQuery.data?.project_id;
   const projectQuery = useProject(projectId ?? null);
+  // Where a delete returns to. Held in a ref because a task opened without a
+  // project in its path resolves its project through the task query, and the
+  // delete clears that before the success handler navigates. The task's own
+  // project wins over the one in the path: moving the task rewrites the former
+  // and leaves the latter behind.
+  const lastProjectIdRef = useRef<number | null>(null);
+  const taskProjectId = taskQuery.data?.project_id;
+  useEffect(() => {
+    const owner = typeof taskProjectId === "number" ? taskProjectId : projectId;
+    if (typeof owner === "number" && Number.isFinite(owner)) {
+      lastProjectIdRef.current = owner;
+    }
+  }, [taskProjectId, projectId]);
 
   const taskStatusesQuery = useProjectTaskStatuses(projectId ?? null);
 
@@ -287,8 +300,15 @@ export const TaskEditPage = () => {
     onSuccess: () => {
       toast.success(t("edit.taskDeleted"));
       bypassGuardRef.current = true;
+      // Back to the project the task lived in — the projects list is a step
+      // further out than the user asked to go.
+      const returnProjectId = lastProjectIdRef.current;
       router.navigate({
-        to: gp(toolListRoute(Tool.project, initiativeId)),
+        to: gp(
+          returnProjectId === null
+            ? toolListRoute(Tool.project, initiativeId)
+            : toolDetailRoute(Tool.project, initiativeId, returnProjectId)
+        ),
       });
     },
   });

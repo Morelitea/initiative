@@ -19,7 +19,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Link, useRouter } from "@tanstack/react-router";
-import { ChevronsLeft, ChevronsRight, Clock, Plus } from "lucide-react";
+import { Check, ChevronsLeft, ChevronsRight, Clock, GripVertical, Plus } from "lucide-react";
 import type { CSSProperties, FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -193,11 +193,16 @@ const SortableGuildButton = ({
   isActive,
   isHomeMode,
   onSelect,
+  reorderMode,
+  onStartReorder,
 }: {
   guild: GuildRead;
   isActive: boolean;
   isHomeMode: boolean;
   onSelect: (guildId: number) => void;
+  reorderMode: boolean;
+  /** Absent when there is nothing to reorder — a lone guild has no order. */
+  onStartReorder?: () => void;
 }) => {
   const { t } = useTranslation("guilds");
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -211,26 +216,39 @@ const SortableGuildButton = ({
     style.opacity = 0.4;
   }
   return (
-    <GuildContextMenu guild={guild}>
+    <GuildContextMenu guild={guild} onReorder={onStartReorder}>
       <Tooltip>
         <TooltipTrigger asChild>
           <button
             type="button"
             ref={setNodeRef}
-            onClick={() => onSelect(guild.id)}
+            // In reorder mode the tap belongs to the drag, not to switching.
+            onClick={() => {
+              if (!reorderMode) onSelect(guild.id);
+            }}
             className={cn(
               "relative flex h-12 w-12 cursor-grab items-center justify-center rounded-2xl border-3 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:cursor-grabbing",
               isActive
                 ? isHomeMode
                   ? "border-transparent bg-muted text-foreground"
                   : "border-primary/60 bg-primary/10 text-primary"
-                : "border-transparent bg-muted text-muted-foreground hover:bg-muted/80"
+                : "border-transparent bg-muted text-muted-foreground hover:bg-muted/80",
+              reorderMode && "ring-2 ring-primary/50 ring-offset-2 ring-offset-sidebar"
             )}
-            aria-label={t("switchTo", { name: guild.name })}
+            aria-label={
+              reorderMode
+                ? t("dragToReorder", { name: guild.name })
+                : t("switchTo", { name: guild.name })
+            }
             style={style}
             {...attributes}
             {...listeners}
           >
+            {reorderMode ? (
+              <span className="absolute -top-1 -right-1 z-10 rounded-full bg-background p-0.5 text-primary">
+                <GripVertical className="h-3 w-3" aria-hidden="true" />
+              </span>
+            ) : null}
             {isActive && isHomeMode ? (
               <span
                 className="absolute -bottom-2 left-1/2 z-10 mt-1 h-1 w-7 -translate-x-1/2 rounded-full bg-primary/60"
@@ -302,8 +320,9 @@ const GrantGuildButton = ({
 };
 
 // Expanded ("Guilds" flyout) row: avatar + name + member count. Member rows are
-// drag-reorderable (via SortableGuildRow); touch reorder is press-and-hold so a
-// horizontal swipe still closes the flyout. Grant rows pass no drag props.
+// drag-reorderable (via SortableGuildRow) — with a mouse always, by touch only
+// in reorder mode, which keeps press-and-hold free for the context menu and a
+// horizontal swipe free to close the flyout. Grant rows pass no drag props.
 const GuildRow = ({
   guild,
   isActive,
@@ -312,6 +331,8 @@ const GuildRow = ({
   innerRef,
   style,
   dragProps,
+  reorderMode = false,
+  onStartReorder,
 }: {
   guild: GuildEntry;
   isActive: boolean;
@@ -320,22 +341,32 @@ const GuildRow = ({
   innerRef?: (node: HTMLElement | null) => void;
   style?: CSSProperties;
   dragProps?: Record<string, unknown>;
+  reorderMode?: boolean;
+  onStartReorder?: () => void;
 }) => {
   const { t } = useTranslation("guilds");
   const isGrant = guild.accessType === "grant";
   const left = isGrant ? grantMinutesLeft(guild.grantExpiresAt) : null;
   return (
-    <GuildContextMenu guild={guild}>
+    <GuildContextMenu guild={guild} onReorder={onStartReorder}>
       <button
         type="button"
         ref={innerRef}
         style={style}
-        onClick={() => onSelect(guild.id)}
+        // In reorder mode the tap belongs to the drag, not to switching.
+        onClick={() => {
+          if (!reorderMode) onSelect(guild.id);
+        }}
         className={cn(
           "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          isActive && !isHomeMode ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted"
+          isActive && !isHomeMode ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted",
+          reorderMode && "ring-2 ring-primary/40"
         )}
-        aria-label={t("switchTo", { name: guild.name })}
+        aria-label={
+          reorderMode
+            ? t("dragToReorder", { name: guild.name })
+            : t("switchTo", { name: guild.name })
+        }
         {...dragProps}
       >
         <span className="relative shrink-0">
@@ -359,6 +390,9 @@ const GuildRow = ({
             </span>
           )}
         </span>
+        {reorderMode ? (
+          <GripVertical className="ml-auto h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+        ) : null}
       </button>
     </GuildContextMenu>
   );
@@ -373,11 +407,16 @@ const SortableGuildRow = ({
   isActive,
   isHomeMode,
   onSelect,
+  reorderMode,
+  onStartReorder,
 }: {
   guild: GuildEntry;
   isActive: boolean;
   isHomeMode: boolean;
   onSelect: (guildId: number) => void;
+  reorderMode: boolean;
+  /** Absent when there is nothing to reorder — a lone guild has no order. */
+  onStartReorder?: () => void;
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `${FLYOUT_DRAG_PREFIX}${guild.id}`,
@@ -396,6 +435,8 @@ const SortableGuildRow = ({
         cursor: "grab",
       }}
       dragProps={{ ...attributes, ...listeners }}
+      reorderMode={reorderMode}
+      onStartReorder={onStartReorder}
     />
   );
 };
@@ -410,25 +451,34 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
   const { t } = useTranslation(["guilds", "nav"]);
   const router = useRouter();
   const [activeDragId, setActiveDragId] = useState<number | null>(null);
-  const sensors = useSensors(
-    // Mouse reorders on a small drag; touch reorders on press-and-hold so a
-    // horizontal swipe is free to open/close the flyout instead of grabbing a
-    // guild to reorder it.
-    useSensor(MouseSensor, {
-      activationConstraint: {
-        distance: 6,
-      },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 250,
-        tolerance: 8,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
+  // Explicit reorder mode. Touch has no spare gesture: press-and-hold is the
+  // context menu, and a horizontal swipe opens/closes the flyout — so touch
+  // dragging is only wired up after the user picks "Reorder guilds" (from the
+  // context menu or the flyout header) and stays on until they tap Done.
+  const [reorderMode, setReorderMode] = useState(false);
+  const reorderModeRef = useRef(reorderMode);
+  useEffect(() => {
+    reorderModeRef.current = reorderMode;
+  }, [reorderMode]);
+  const startReorder = useCallback(() => setReorderMode(true), []);
+  const stopReorder = useCallback(() => setReorderMode(false), []);
+
+  // Mouse always reorders on a small drag; the touch sensor only joins the
+  // context while reorder mode is on (useSensors drops the nulls).
+  const mouseSensor = useSensor(MouseSensor, {
+    activationConstraint: {
+      distance: 6,
+    },
+  });
+  const touchSensor = useSensor(TouchSensor, {
+    activationConstraint: {
+      distance: 8,
+    },
+  });
+  const keyboardSensor = useSensor(KeyboardSensor, {
+    coordinateGetter: sortableKeyboardCoordinates,
+  });
+  const sensors = useSensors(mouseSensor, reorderMode ? touchSensor : null, keyboardSensor);
   const draggedGuild = useMemo(
     () => guilds.find((guild) => guild.id === activeDragId) ?? null,
     [guilds, activeDragId]
@@ -443,6 +493,13 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
     () => guilds.filter((guild) => guild.accessType === "grant"),
     [guilds]
   );
+  // A lone guild has no order, so it is never offered one — and if the list
+  // shrinks to one while reordering, the mode closes itself rather than
+  // leaving taps inert.
+  const canReorder = memberGuilds.length > 1;
+  useEffect(() => {
+    if (!canReorder) setReorderMode(false);
+  }, [canReorder]);
 
   // --- Expandable "Guilds" flyout state machine (mirrors MobileSidebar) ---
   // `expanded` is the desired state; `render`/`atOpen` decouple mount from the
@@ -459,6 +516,15 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
 
   const collapse = useCallback(() => setExpanded(false), []);
 
+  // Reorder mode owns horizontal gestures for its whole duration, not just
+  // while a finger is down on a guild — otherwise a missed grab would swipe
+  // the drawer shut mid-reorder.
+  useEffect(() => {
+    if (!reorderMode) return;
+    setSwipeCloseLocked(true);
+    return () => setSwipeCloseLocked(false);
+  }, [reorderMode, setSwipeCloseLocked]);
+
   useEffect(() => {
     if (expanded) {
       setRender(true);
@@ -470,29 +536,28 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
     return () => clearTimeout(id);
   }, [expanded]);
 
-  // True while a press-and-hold reorder drag is in progress. A fast swipe never
-  // activates dnd (its movement exceeds the TouchSensor tolerance before the
-  // delay), so this guard only fires for deliberate holds — keeping a held drag
-  // from also engaging an open/close swipe.
+  // True while a reorder drag is in progress. Touch drags only exist in reorder
+  // mode (which already suspends the swipe gestures), so this mainly guards the
+  // pen/stylus path from also engaging an open/close swipe.
   const dndActiveRef = useRef(false);
 
   // Swipe-to-open: a rightward swipe on the collapsed rail pulls the flyout in,
-  // following the finger. Reorder is press-and-hold (TouchSensor delay), so a
-  // quick horizontal swipe won't grab a guild icon. A leftward swipe is left to
+  // following the finger. Touch reorder is off unless reorder mode is on, so a
+  // horizontal swipe never grabs a guild icon. A leftward swipe is left to
   // bubble (it closes the mobile drawer); a vertical drag scrolls the rail.
   const openGesture = useRef({ x: 0, y: 0, active: false, engaged: false });
   const handleRailTouchStart = (e: React.TouchEvent) => {
-    if (expandedRef.current) return;
+    if (expandedRef.current || reorderModeRef.current) return;
     const touch = e.touches[0];
     openGesture.current = { x: touch.clientX, y: touch.clientY, active: true, engaged: false };
   };
   const handleRailTouchMove = (e: React.TouchEvent) => {
-    // Check this first: a press-and-hold reorder cancels openGesture.active on
-    // its first (vertical) move, so this must run even after that early return
-    // would have fired. The drawer's swipe-to-close is disabled separately via
-    // the sidebar's swipe-close lock (see handleDragStart) — not stopPropagation,
-    // which would also starve dnd-kit's own document-level move listener.
-    if (dndActiveRef.current) {
+    // Check this first: a reorder drag cancels openGesture.active on its first
+    // move, so this must run even after that early return would have fired. The
+    // drawer's swipe-to-close is disabled separately via the sidebar's
+    // swipe-close lock — not stopPropagation, which would also starve dnd-kit's
+    // own document-level move listener.
+    if (dndActiveRef.current || reorderModeRef.current) {
       openGesture.current.active = false;
       return;
     }
@@ -536,6 +601,10 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
   const closeGesture = useRef({ x: 0, y: 0, active: false, engaged: false });
   const handlePanelTouchStart = (e: React.TouchEvent) => {
     e.stopPropagation();
+    if (reorderModeRef.current) {
+      closeGesture.current.active = false;
+      return;
+    }
     const touch = e.touches[0];
     closeGesture.current = { x: touch.clientX, y: touch.clientY, active: true, engaged: false };
   };
@@ -606,7 +675,7 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       dndActiveRef.current = false;
-      setSwipeCloseLocked(false);
+      if (!reorderModeRef.current) setSwipeCloseLocked(false);
       const { active, over } = event;
       setActiveDragId(null);
       if (!over || active.id === over.id) {
@@ -630,7 +699,7 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
 
   const handleDragCancel = useCallback(() => {
     dndActiveRef.current = false;
-    setSwipeCloseLocked(false);
+    if (!reorderModeRef.current) setSwipeCloseLocked(false);
     setActiveDragId(null);
   }, [setSwipeCloseLocked]);
 
@@ -687,6 +756,8 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
                   isActive={guild.id === activeGuildId}
                   isHomeMode={isHomeMode}
                   onSelect={handleGuildSwitch}
+                  reorderMode={reorderMode}
+                  onStartReorder={canReorder ? startReorder : undefined}
                 />
               ))}
             </SortableContext>
@@ -716,6 +787,23 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
           ) : null}
         </div>
         <div className="flex flex-col items-center gap-2 border-t pt-3">
+          {reorderMode ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  className="h-8 w-8 rounded-full"
+                  onClick={stopReorder}
+                  aria-label={t("guilds:doneReordering")}
+                >
+                  <Check className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right" sideOffset={12}>
+                <p>{t("guilds:doneReordering")}</p>
+              </TooltipContent>
+            </Tooltip>
+          ) : null}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -762,16 +850,41 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
           >
             <div className="flex h-12 shrink-0 items-center justify-between border-b px-4">
               <h2 className="font-semibold text-lg">{t("guilds:guildsHeading")}</h2>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                onClick={collapse}
-                aria-label={t("guilds:collapseGuilds")}
-              >
-                <ChevronsLeft className="h-4 w-4" />
-              </Button>
+              <div className="flex items-center gap-1">
+                {canReorder ? (
+                  <Button
+                    variant={reorderMode ? "default" : "ghost"}
+                    size="sm"
+                    className="h-8 gap-1.5 px-2"
+                    onClick={reorderMode ? stopReorder : startReorder}
+                    aria-pressed={reorderMode}
+                  >
+                    {reorderMode ? (
+                      <Check className="h-4 w-4" />
+                    ) : (
+                      <GripVertical className="h-4 w-4" />
+                    )}
+                    <span className="text-xs">
+                      {reorderMode ? t("guilds:doneReordering") : t("guilds:reorder")}
+                    </span>
+                  </Button>
+                ) : null}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                  onClick={collapse}
+                  aria-label={t("guilds:collapseGuilds")}
+                >
+                  <ChevronsLeft className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
+            {reorderMode ? (
+              <p className="shrink-0 border-b bg-muted/50 px-4 py-2 text-muted-foreground text-xs">
+                {t("guilds:reorderHint")}
+              </p>
+            ) : null}
             <div className="scrollbar-thin flex flex-1 flex-col gap-1 overflow-y-auto p-2">
               <DndContext
                 sensors={sensors}
@@ -791,6 +904,8 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
                       isActive={guild.id === activeGuildId}
                       isHomeMode={isHomeMode}
                       onSelect={handleGuildSwitch}
+                      reorderMode={reorderMode}
+                      onStartReorder={canReorder ? startReorder : undefined}
                     />
                   ))}
                 </SortableContext>
