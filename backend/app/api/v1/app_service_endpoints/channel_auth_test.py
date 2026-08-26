@@ -62,39 +62,91 @@ async def test_a_signed_request_is_accepted(client: AsyncClient, session: AsyncS
     assert response.json() == {"items": []}
 
 
-async def test_an_unsigned_request_is_refused(
-    client: AsyncClient, session: AsyncSession
+@pytest.mark.parametrize(
+    ("case", "registration", "build_headers", "status", "detail"),
+    [
+        ("unsigned", {}, lambda: None, 401, AppChannelMessages.MISSING_SIGNATURE),
+        # Every signing header is required, not just the signature itself.
+        (
+            "a missing nonce header",
+            {},
+            lambda: {k: v for k, v in _headers().items() if k != NONCE_HEADER},
+            401,
+            AppChannelMessages.MISSING_SIGNATURE,
+        ),
+        # Bounded while verifying, so a value the guard column could not hold is
+        # a clean refusal rather than an error at the insert.
+        (
+            "an oversized nonce",
+            {},
+            lambda: _headers(nonce="n" * 200),
+            401,
+            AppChannelMessages.MISSING_SIGNATURE,
+        ),
+        (
+            "the wrong secret",
+            {},
+            lambda: _headers(secret="not-the-secret"),
+            401,
+            AppChannelMessages.INVALID_SIGNATURE,
+        ),
+        # An operator may clear a secret without deleting the row. What is left
+        # has nothing to verify against, so nothing authenticates as it.
+        (
+            "a registration with no secret",
+            {"secret": None},
+            lambda: _headers(),
+            401,
+            AppChannelMessages.INVALID_SIGNATURE,
+        ),
+        (
+            "an unknown app",
+            {},
+            lambda: _headers(public_id="tests.nobody"),
+            401,
+            AppChannelMessages.UNKNOWN_APP,
+        ),
+        (
+            "an unparseable timestamp",
+            {},
+            lambda: {**_headers(), TIMESTAMP_HEADER: "yesterday"},
+            401,
+            AppChannelMessages.STALE_TIMESTAMP,
+        ),
+        # The operator's kill switch: the signature is fine, and the app still
+        # reaches nothing.
+        (
+            "a disabled registration",
+            {"enabled": False},
+            lambda: _headers(),
+            403,
+            AppChannelMessages.APP_DISABLED,
+        ),
+    ],
+    ids=lambda v: v if isinstance(v, str) and " " in v else "",
+)
+async def test_a_request_the_channel_cannot_authenticate_is_refused(
+    client: AsyncClient,
+    session: AsyncSession,
+    case: str,
+    registration: dict,
+    build_headers,
+    status: int,
+    detail: str,
 ):
-    await register_app_service(session)
+    """One refusal path per thing that can be wrong with a signed call, each
+    naming what it was."""
+    await register_app_service(session, **registration)
 
-    response = await client.get(INSTALLS)
+    headers = build_headers()
+    response = (
+        await client.get(INSTALLS, headers=headers)
+        if headers
+        else await client.get(INSTALLS)
+    )
 
-    assert response.status_code == 401
-    assert response.json()["detail"] == AppChannelMessages.MISSING_SIGNATURE
-
-
-async def test_a_partially_signed_request_is_refused(
-    client: AsyncClient, session: AsyncSession
-):
-    """Every signing header is required: dropping the nonce would leave a
-    signature that could be presented repeatedly."""
-    await register_app_service(session)
-    headers = _headers()
-    del headers[NONCE_HEADER]
-
-    response = await client.get(INSTALLS, headers=headers)
-
-    assert response.status_code == 401
-    assert response.json()["detail"] == AppChannelMessages.MISSING_SIGNATURE
-
-
-async def test_the_wrong_secret_is_refused(client: AsyncClient, session: AsyncSession):
-    await register_app_service(session)
-
-    response = await client.get(INSTALLS, headers=_headers(secret="not-the-secret"))
-
-    assert response.status_code == 401
-    assert response.json()["detail"] == AppChannelMessages.INVALID_SIGNATURE
+    assert response.status_code == status, response.text
+    assert response.json()["detail"] == detail
 
 
 async def test_a_body_changed_after_signing_is_refused(
@@ -133,28 +185,6 @@ async def test_a_signature_for_another_path_is_refused(
     assert response.json()["detail"] == AppChannelMessages.INVALID_SIGNATURE
 
 
-async def test_an_unknown_app_is_refused(client: AsyncClient, session: AsyncSession):
-    await register_app_service(session)
-
-    response = await client.get(INSTALLS, headers=_headers(public_id="tests.nobody"))
-
-    assert response.status_code == 401
-    assert response.json()["detail"] == AppChannelMessages.UNKNOWN_APP
-
-
-async def test_a_registration_without_a_secret_cannot_authenticate(
-    client: AsyncClient, session: AsyncSession
-):
-    """An operator may clear a secret without deleting the row. What is left
-    has nothing to verify a signature against, so nothing authenticates as it."""
-    await register_app_service(session, secret=None)
-
-    response = await client.get(INSTALLS, headers=_headers())
-
-    assert response.status_code == 401
-    assert response.json()["detail"] == AppChannelMessages.INVALID_SIGNATURE
-
-
 @pytest.mark.parametrize("offset", [-(SIGNATURE_WINDOW_SECONDS + 60), 3600])
 async def test_a_stale_timestamp_is_refused(
     client: AsyncClient, session: AsyncSession, offset: int
@@ -165,19 +195,6 @@ async def test_a_stale_timestamp_is_refused(
     stale = int(time.time()) + offset
 
     response = await client.get(INSTALLS, headers=_headers(timestamp=stale))
-
-    assert response.status_code == 401
-    assert response.json()["detail"] == AppChannelMessages.STALE_TIMESTAMP
-
-
-async def test_an_unparseable_timestamp_is_refused(
-    client: AsyncClient, session: AsyncSession
-):
-    await register_app_service(session)
-    headers = _headers()
-    headers[TIMESTAMP_HEADER] = "yesterday"
-
-    response = await client.get(INSTALLS, headers=headers)
 
     assert response.status_code == 401
     assert response.json()["detail"] == AppChannelMessages.STALE_TIMESTAMP
@@ -223,32 +240,6 @@ async def test_the_replay_guard_is_scoped_to_one_app(
 
     assert first.status_code == 200, first.text
     assert second.status_code == 200, second.text
-
-
-async def test_an_oversized_nonce_is_refused(
-    client: AsyncClient, session: AsyncSession
-):
-    """Bounded while verifying, so a value the guard column could not hold is a
-    clean refusal rather than an error at the insert."""
-    await register_app_service(session)
-
-    response = await client.get(INSTALLS, headers=_headers(nonce="n" * 200))
-
-    assert response.status_code == 401
-    assert response.json()["detail"] == AppChannelMessages.MISSING_SIGNATURE
-
-
-async def test_a_disabled_registration_is_refused(
-    client: AsyncClient, session: AsyncSession
-):
-    """The operator's kill switch: the signature is fine, and the app still
-    reaches nothing."""
-    await register_app_service(session, enabled=False)
-
-    response = await client.get(INSTALLS, headers=_headers())
-
-    assert response.status_code == 403
-    assert response.json()["detail"] == AppChannelMessages.APP_DISABLED
 
 
 async def test_a_disabled_registration_does_not_spend_a_nonce(

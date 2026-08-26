@@ -123,9 +123,52 @@ async def test_patch_spreadsheet_replaces_cells(
 
 
 @pytest.mark.integration
-async def test_create_spreadsheet_rejects_nested_value(
-    client: AsyncClient, env: _SpreadsheetEnv
+@pytest.mark.parametrize(
+    ("case", "content"),
+    [
+        ("a cell holding an object", {"cells": {"0:0": {"nested": "object"}}}),
+        (
+            "a schema version we do not speak",
+            {"schema_version": 999, "cells": {"0:0": "ok"}},
+        ),
+        # isinstance(True, int) is True in Python, so the version guard has to
+        # refuse a bool rather than read it as the integer 1.
+        (
+            "a bool where the version goes",
+            {"schema_version": True, "cells": {"0:0": "ok"}},
+        ),
+        # Falsy non-dict containers must reach the type guard rather than being
+        # coerced to an empty map.
+        ("cells that are not a map", {"cells": []}),
+        ("dimensions that are not a map", {"cells": {}, "dimensions": []}),
+        (
+            "v2 columns that are not a map",
+            {"schema_version": 2, "cells": {}, "columns": []},
+        ),
+        (
+            "v3 sheets that are not a list",
+            {"schema_version": 3, "kind": "spreadsheet", "sheets": {}},
+        ),
+        # The cell invariant holds on every sheet, not only the first.
+        (
+            "a bad cell on a later v3 sheet",
+            {
+                "schema_version": 3,
+                "kind": "spreadsheet",
+                "sheets": [
+                    {"id": "s1", "name": "Fine", "cells": {"0:0": "ok"}},
+                    {"id": "s2", "name": "Broken", "cells": {"0:0": {"nested": 1}}},
+                ],
+            },
+        ),
+    ],
+    ids=lambda v: v if isinstance(v, str) else "",
+)
+async def test_create_spreadsheet_refuses_a_malformed_payload(
+    client: AsyncClient, env: _SpreadsheetEnv, case: str, content: dict
 ):
+    """Every shape the sheet parser cannot trust is refused the same way, so a
+    malformed payload never lands half-read."""
     response = await client.post(
         f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
@@ -133,88 +176,10 @@ async def test_create_spreadsheet_rejects_nested_value(
             "name": "Bad Sheet",
             "initiative_id": env.initiative.id,
             "document_type": "spreadsheet",
-            "content": {"cells": {"0:0": {"nested": "object"}}},
+            "content": content,
         },
     )
-    assert response.status_code == 400
-    assert response.json()["detail"] == "DOCUMENT_SPREADSHEET_INVALID_PAYLOAD"
-
-
-@pytest.mark.integration
-async def test_create_spreadsheet_rejects_unknown_schema_version(
-    client: AsyncClient, env: _SpreadsheetEnv
-):
-    response = await client.post(
-        f"/api/v1/g/{env.guild.id}/documents/",
-        headers=env.headers,
-        json={
-            "name": "Bad Sheet",
-            "initiative_id": env.initiative.id,
-            "document_type": "spreadsheet",
-            "content": {"schema_version": 999, "cells": {"0:0": "ok"}},
-        },
-    )
-    assert response.status_code == 400
-    assert response.json()["detail"] == "DOCUMENT_SPREADSHEET_INVALID_PAYLOAD"
-
-
-@pytest.mark.integration
-async def test_create_spreadsheet_rejects_bool_schema_version(
-    client: AsyncClient, env: _SpreadsheetEnv
-):
-    """``isinstance(True, int)`` is ``True`` in Python — make sure the
-    version guard rejects ``"schema_version": true`` instead of treating
-    it as the integer ``1``."""
-    response = await client.post(
-        f"/api/v1/g/{env.guild.id}/documents/",
-        headers=env.headers,
-        json={
-            "name": "Bad Sheet",
-            "initiative_id": env.initiative.id,
-            "document_type": "spreadsheet",
-            "content": {"schema_version": True, "cells": {"0:0": "ok"}},
-        },
-    )
-    assert response.status_code == 400
-    assert response.json()["detail"] == "DOCUMENT_SPREADSHEET_INVALID_PAYLOAD"
-
-
-@pytest.mark.integration
-async def test_create_spreadsheet_rejects_non_dict_cells(
-    client: AsyncClient, env: _SpreadsheetEnv
-):
-    """A serialization bug that sends ``"cells": []`` instead of
-    ``{}`` should produce a 400 — falsy non-dict values must reach the
-    isinstance guard, not be silently coerced to an empty map."""
-    response = await client.post(
-        f"/api/v1/g/{env.guild.id}/documents/",
-        headers=env.headers,
-        json={
-            "name": "Bad Sheet",
-            "initiative_id": env.initiative.id,
-            "document_type": "spreadsheet",
-            "content": {"cells": []},
-        },
-    )
-    assert response.status_code == 400
-    assert response.json()["detail"] == "DOCUMENT_SPREADSHEET_INVALID_PAYLOAD"
-
-
-@pytest.mark.integration
-async def test_create_spreadsheet_rejects_non_dict_dimensions(
-    client: AsyncClient, env: _SpreadsheetEnv
-):
-    response = await client.post(
-        f"/api/v1/g/{env.guild.id}/documents/",
-        headers=env.headers,
-        json={
-            "name": "Bad Sheet",
-            "initiative_id": env.initiative.id,
-            "document_type": "spreadsheet",
-            "content": {"cells": {}, "dimensions": []},
-        },
-    )
-    assert response.status_code == 400
+    assert response.status_code == 400, response.text
     assert response.json()["detail"] == "DOCUMENT_SPREADSHEET_INVALID_PAYLOAD"
 
 
@@ -432,24 +397,6 @@ async def test_v2_drops_malformed_formatting(client: AsyncClient, env: _Spreadsh
     # Only the valid ``bold`` survived; the column entry is kept.
     assert _sheet(content)["columns"] == {"0": {"style": {"bold": True}}}
     assert _sheet(content)["cellStyles"] == {}
-
-
-@pytest.mark.integration
-async def test_v2_rejects_non_dict_columns(client: AsyncClient, env: _SpreadsheetEnv):
-    """A serialization bug that sends ``"columns": []`` is a
-    container-type violation → 400 (same strictness as ``cells``)."""
-    response = await client.post(
-        f"/api/v1/g/{env.guild.id}/documents/",
-        headers=env.headers,
-        json={
-            "name": "Bad",
-            "initiative_id": env.initiative.id,
-            "document_type": "spreadsheet",
-            "content": {"schema_version": 2, "cells": {}, "columns": []},
-        },
-    )
-    assert response.status_code == 400
-    assert response.json()["detail"] == "DOCUMENT_SPREADSHEET_INVALID_PAYLOAD"
 
 
 @pytest.mark.integration
@@ -735,22 +682,6 @@ async def test_v3_duplicate_sheet_ids_are_repaired(
 
 
 @pytest.mark.integration
-async def test_v3_rejects_non_list_sheets(client: AsyncClient, env: _SpreadsheetEnv):
-    response = await client.post(
-        f"/api/v1/g/{env.guild.id}/documents/",
-        headers=env.headers,
-        json={
-            "name": "Bad",
-            "initiative_id": env.initiative.id,
-            "document_type": "spreadsheet",
-            "content": {"schema_version": 3, "kind": "spreadsheet", "sheets": {}},
-        },
-    )
-    assert response.status_code == 400
-    assert response.json()["detail"] == "DOCUMENT_SPREADSHEET_INVALID_PAYLOAD"
-
-
-@pytest.mark.integration
 async def test_v3_empty_sheets_list_yields_one_sheet(
     client: AsyncClient, env: _SpreadsheetEnv
 ):
@@ -770,29 +701,3 @@ async def test_v3_empty_sheets_list_yields_one_sheet(
     sheets = response.json()["content"]["sheets"]
     assert len(sheets) == 1
     assert sheets[0]["name"] == "Sheet1"
-
-
-@pytest.mark.integration
-async def test_v3_rejects_bad_cell_on_a_later_sheet(
-    client: AsyncClient, env: _SpreadsheetEnv
-):
-    """The cell invariant is enforced on every sheet, not just the first."""
-    response = await client.post(
-        f"/api/v1/g/{env.guild.id}/documents/",
-        headers=env.headers,
-        json={
-            "name": "Bad",
-            "initiative_id": env.initiative.id,
-            "document_type": "spreadsheet",
-            "content": {
-                "schema_version": 3,
-                "kind": "spreadsheet",
-                "sheets": [
-                    {"id": "s1", "name": "Fine", "cells": {"0:0": "ok"}},
-                    {"id": "s2", "name": "Broken", "cells": {"0:0": {"nested": 1}}},
-                ],
-            },
-        },
-    )
-    assert response.status_code == 400
-    assert response.json()["detail"] == "DOCUMENT_SPREADSHEET_INVALID_PAYLOAD"

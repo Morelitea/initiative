@@ -115,16 +115,6 @@ async def test_validate_checkbox_accepts_bool(session: AsyncSession):
     assert cols["value_boolean"] is True
 
 
-@pytest.mark.unit
-@pytest.mark.service
-async def test_validate_checkbox_rejects_non_bool(session: AsyncSession):
-    """The current impl is strict: only bools pass (no string coercion)."""
-    defn = _make_definition(PropertyType.checkbox)
-    for bad in ("true", "false", 1, 0, "garbage"):
-        with pytest.raises(HTTPException):
-            await _validate_value_for_type(session, defn, bad, initiative_id=1)
-
-
 # ---------------------------------------------------------------------------
 # date
 # ---------------------------------------------------------------------------
@@ -136,14 +126,6 @@ async def test_validate_date_accepts_iso_string(session: AsyncSession):
     defn = _make_definition(PropertyType.date)
     cols = await _validate_value_for_type(session, defn, "2026-04-22", initiative_id=1)
     assert cols["value_date"] == date(2026, 4, 22)
-
-
-@pytest.mark.unit
-@pytest.mark.service
-async def test_validate_date_rejects_malformed(session: AsyncSession):
-    defn = _make_definition(PropertyType.date)
-    with pytest.raises(HTTPException):
-        await _validate_value_for_type(session, defn, "notadate", initiative_id=1)
 
 
 # ---------------------------------------------------------------------------
@@ -162,14 +144,6 @@ async def test_validate_datetime_accepts_iso_with_tz(session: AsyncSession):
     assert cols["value_datetime"].tzinfo is not None
 
 
-@pytest.mark.unit
-@pytest.mark.service
-async def test_validate_datetime_rejects_malformed(session: AsyncSession):
-    defn = _make_definition(PropertyType.datetime)
-    with pytest.raises(HTTPException):
-        await _validate_value_for_type(session, defn, "notadatetime", initiative_id=1)
-
-
 # ---------------------------------------------------------------------------
 # url
 # ---------------------------------------------------------------------------
@@ -183,15 +157,6 @@ async def test_validate_url_accepts_http_https(session: AsyncSession):
     for ok_url in ("https://example.com", "http://example.com/path?q=1"):
         cols = await _validate_value_for_type(session, defn, ok_url, initiative_id=1)
         assert cols["value_text"] == ok_url
-
-
-@pytest.mark.unit
-@pytest.mark.service
-async def test_validate_url_rejects_invalid(session: AsyncSession):
-    defn = _make_definition(PropertyType.url)
-    for bad in ("ftp://example.com", "not a url"):
-        with pytest.raises(HTTPException):
-            await _validate_value_for_type(session, defn, bad, initiative_id=1)
 
 
 @pytest.mark.unit
@@ -365,10 +330,28 @@ async def test_validate_user_reference_accepts_explicit_initiative_member(
 
 @pytest.mark.unit
 @pytest.mark.service
-async def test_validate_user_reference_rejects_non_int(session: AsyncSession):
-    defn = _make_definition(PropertyType.user_reference, initiative_id=1)
+@pytest.mark.parametrize(
+    ("prop_type", "bad"),
+    [
+        # Strict: no string or integer coercion into a bool.
+        *((PropertyType.checkbox, v) for v in ("true", "false", 1, 0, "garbage")),
+        (PropertyType.date, "notadate"),
+        (PropertyType.datetime, "notadatetime"),
+        (PropertyType.url, "ftp://example.com"),
+        (PropertyType.url, "not a url"),
+        # A user reference is an id, not the string form of one.
+        (PropertyType.user_reference, "1"),
+    ],
+    ids=lambda v: str(getattr(v, "value", v)),
+)
+async def test_validate_value_rejects_a_value_of_the_wrong_shape(
+    session: AsyncSession, prop_type: PropertyType, bad
+):
+    """A value the column cannot hold is refused at validation rather than
+    stored in a coerced form."""
+    defn = _make_definition(prop_type)
     with pytest.raises(HTTPException):
-        await _validate_value_for_type(session, defn, "1", initiative_id=1)
+        await _validate_value_for_type(session, defn, bad, initiative_id=1)
 
 
 # ---------------------------------------------------------------------------

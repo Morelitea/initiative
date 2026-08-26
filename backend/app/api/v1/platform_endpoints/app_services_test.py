@@ -157,23 +157,6 @@ async def test_registration_without_a_secret_reports_it(
 # --- operator-conferred fields ------------------------------------------------
 
 
-async def test_create_refuses_a_grant_outside_the_vocabulary(
-    client: AsyncClient, session: AsyncSession
-):
-    """A power no code resolves is refused rather than stored — it would read,
-    in the admin UI, as something this deployment had conferred."""
-    headers = await _owner_headers(session)
-
-    response = await client.post(
-        BASE,
-        headers=headers,
-        json={"base_url": APP_URL, "secret": SECRET, "grants": ["superuser"]},
-    )
-
-    assert response.status_code == 400
-    assert response.json()["detail"] == AppServiceMessages.UNKNOWN_GRANT
-
-
 async def test_patch_sets_the_operator_only_fields(
     client: AsyncClient, session: AsyncSession
 ):
@@ -191,40 +174,6 @@ async def test_patch_sets_the_operator_only_fields(
     assert body["grants"] == ["delegation"]
     assert body["mandatory"] is True
     assert body["enabled"] is False
-
-
-async def test_create_refuses_a_malformed_base_url(
-    client: AsyncClient, session: AsyncSession
-):
-    headers = await _owner_headers(session)
-
-    response = await client.post(
-        BASE, headers=headers, json={"base_url": "ftp://app.example.com", "secret": "s"}
-    )
-
-    assert response.status_code == 400
-    assert response.json()["detail"] == AppServiceMessages.INVALID_BASE_URL
-
-
-async def test_create_refuses_a_malformed_embed_origin(
-    client: AsyncClient, session: AsyncSession
-):
-    """Its own code, so an operator is told which of the two addresses the
-    registry would not take."""
-    headers = await _owner_headers(session)
-
-    response = await client.post(
-        BASE,
-        headers=headers,
-        json={
-            "base_url": APP_URL,
-            "secret": SECRET,
-            "embed_origin": "ftp://app.example.com",
-        },
-    )
-
-    assert response.status_code == 400
-    assert response.json()["detail"] == AppServiceMessages.INVALID_EMBED_ORIGIN
 
 
 async def test_the_browser_address_round_trips_and_clears(
@@ -248,23 +197,54 @@ async def test_the_browser_address_round_trips_and_clears(
     assert cleared.json()["embed_origin"] is None
 
 
-async def test_create_refuses_a_malformed_origin(
-    client: AsyncClient, session: AsyncSession
+@pytest.mark.parametrize(
+    ("case", "body", "detail"),
+    [
+        # A power no code resolves would read in the admin UI as something this
+        # deployment had conferred.
+        (
+            "a grant outside the vocabulary",
+            {"base_url": APP_URL, "secret": SECRET, "grants": ["superuser"]},
+            AppServiceMessages.UNKNOWN_GRANT,
+        ),
+        (
+            "a malformed base url",
+            {"base_url": "ftp://app.example.com", "secret": "s"},
+            AppServiceMessages.INVALID_BASE_URL,
+        ),
+        # Its own code, so an operator is told which of the two addresses the
+        # registry would not take.
+        (
+            "a malformed embed origin",
+            {
+                "base_url": APP_URL,
+                "secret": SECRET,
+                "embed_origin": "ftp://app.example.com",
+            },
+            AppServiceMessages.INVALID_EMBED_ORIGIN,
+        ),
+        (
+            "an origin carrying a path",
+            {
+                "base_url": APP_URL,
+                "secret": SECRET,
+                "allowed_origins": ["https://app.example.com/embed"],
+            },
+            AppServiceMessages.INVALID_ORIGIN,
+        ),
+    ],
+    ids=lambda v: v if isinstance(v, str) and " " in v else "",
+)
+async def test_create_refuses_a_registration_it_cannot_store(
+    client: AsyncClient, session: AsyncSession, case: str, body: dict, detail: str
 ):
+    """Each rejection names the field the operator has to fix."""
     headers = await _owner_headers(session)
 
-    response = await client.post(
-        BASE,
-        headers=headers,
-        json={
-            "base_url": APP_URL,
-            "secret": SECRET,
-            "allowed_origins": ["https://app.example.com/embed"],
-        },
-    )
+    response = await client.post(BASE, headers=headers, json=body)
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == AppServiceMessages.INVALID_ORIGIN
+    assert response.status_code == 400, response.text
+    assert response.json()["detail"] == detail
 
 
 # --- fail-closed without the platform keypair ---------------------------------
