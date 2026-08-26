@@ -1756,3 +1756,111 @@ async def test_autocomplete_tasks_scopes_to_initiative(
     ids = {item["id"] for item in response.json()}
     assert here.id in ids
     assert there.id not in ids
+
+
+# ── Unassigned ────────────────────────────────────────────────────────
+# No list of ids can express "nobody is on this", so ``assignee_ids`` answers
+# ``is_null`` as well. It backs the "Unassigned" filter preset.
+
+
+async def _assignment_fixture(session, actor):
+    from app.models.tenant.task import TaskAssignee
+
+    assigned = await _create_task(session, actor.project, "Assigned Task")
+    unassigned = await _create_task(session, actor.project, "Unassigned Task")
+    session.add(TaskAssignee(task_id=assigned.id, user_id=actor.user.id))
+    await session.commit()
+    return assigned, unassigned
+
+
+@pytest.mark.integration
+async def test_filter_tasks_with_no_assignee(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    assigned, unassigned = await _assignment_fixture(session, a)
+
+    conditions = json.dumps([{"field": "assignee_ids", "op": "is_null", "value": True}])
+    response = await client.get(
+        a.g(f"/tasks/?conditions={conditions}"), headers=a.headers
+    )
+
+    assert response.status_code == 200
+    task_ids = {t["id"] for t in response.json()["items"]}
+    assert unassigned.id in task_ids
+    assert assigned.id not in task_ids
+
+
+@pytest.mark.integration
+async def test_filter_tasks_with_any_assignee(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """``negate`` inverts it, so "has someone on it" comes free."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    assigned, unassigned = await _assignment_fixture(session, a)
+
+    conditions = json.dumps(
+        [{"field": "assignee_ids", "op": "is_null", "value": True, "negate": True}]
+    )
+    response = await client.get(
+        a.g(f"/tasks/?conditions={conditions}"), headers=a.headers
+    )
+
+    assert response.status_code == 200
+    task_ids = {t["id"] for t in response.json()["items"]}
+    assert assigned.id in task_ids
+    assert unassigned.id not in task_ids
+
+
+@pytest.mark.integration
+async def test_unassigned_or_mine_returns_the_union(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The filter panel compiles "none" alongside real ids into one OR group."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    assigned, unassigned = await _assignment_fixture(session, a)
+    other_user = await create_user(session, email="someone-else@example.com")
+    await create_guild_membership(session, user=other_user, guild=a.guild)
+    theirs = await _create_task(session, a.project, "Their Task")
+    from app.models.tenant.task import TaskAssignee
+
+    session.add(TaskAssignee(task_id=theirs.id, user_id=other_user.id))
+    await session.commit()
+
+    conditions = json.dumps(
+        [
+            {
+                "logic": "or",
+                "conditions": [
+                    {"field": "assignee_ids", "op": "is_null", "value": True},
+                    {"field": "assignee_ids", "op": "in_", "value": ["me"]},
+                ],
+            }
+        ]
+    )
+    response = await client.get(
+        a.g(f"/tasks/?conditions={conditions}"), headers=a.headers
+    )
+
+    assert response.status_code == 200
+    task_ids = {t["id"] for t in response.json()["items"]}
+    assert {assigned.id, unassigned.id} <= task_ids
+    assert theirs.id not in task_ids
+
+
+@pytest.mark.integration
+async def test_my_tasks_unassigned_is_vacuous_not_an_error(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """``/me/tasks`` is already the set of tasks assigned to you, so asking it
+    for unassigned ones is empty by construction — but it must not error."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await _assignment_fixture(session, a)
+
+    conditions = json.dumps([{"field": "assignee_ids", "op": "is_null", "value": True}])
+    response = await client.get(
+        f"/api/v1/me/tasks?conditions={conditions}", headers=a.headers
+    )
+
+    assert response.status_code == 200
+    assert response.json()["items"] == []

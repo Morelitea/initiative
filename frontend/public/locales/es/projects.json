@@ -64,7 +64,32 @@
     "filterByStatus": "Filtrar por estado",
     "allStatuses": "Todos los estados",
     "noStatusesAvailable": "No hay estados disponibles",
-    "showArchived": "Mostrar archivados"
+    "showArchived": "Mostrar archivados",
+    "category": {
+      "backlog": "Pendientes",
+      "todo": "Por hacer",
+      "in_progress": "En curso",
+      "done": "Hecho"
+    },
+    "customFilters": "Filtros personalizados",
+    "modified": "modificado",
+    "saveAsPreset": "Guardar preajuste",
+    "updatePreset": "Actualizar «{{name}}»",
+    "presetName": "Nombre del preajuste",
+    "presetNamePlaceholder": "p. ej. Trabajo bloqueado",
+    "presetSetDefault": "Convertir en el predeterminado del proyecto",
+    "presetSaved": "Preajuste guardado",
+    "presetDeleted": "Preajuste eliminado",
+    "presetUnavailable": "Ese preajuste ya no existe en este proyecto, así que se muestra el predeterminado.",
+    "presetSaveError": "No se pudo guardar el preajuste",
+    "presetDeleteError": "No se pudo eliminar el preajuste",
+    "preset": "Preajuste",
+    "resetToPreset": "Restablecer al preajuste",
+    "assignedToMe": "Asignadas a mí",
+    "unassigned": "Sin asignar",
+    "archived": "Archivadas",
+    "statusCategory": "Categoría de estado",
+    "savePresetDescription": "Todos los miembros de este proyecto verán este preajuste."
   },
   "templates": {
     "loading": "Cargando plantillas…",
@@ -300,7 +325,19 @@
     "danger": {
       "title": "Zona de peligro",
       "description": "Eliminar un proyecto lo envía a la papelera junto con sus tareas. Pueden restaurarse antes de que finalice el período de retención."
-    }
+    },
+    "tabFilterPresets": "Vistas",
+    "filterPresetsHeading": "Preajustes de filtro",
+    "filterPresetsDescription": "Conjuntos de filtros guardados que cualquiera del proyecto puede elegir. El predeterminado es con el que se abre el proyecto.",
+    "defaultView": "Vista predeterminada",
+    "defaultViewHint": "Con qué vista de tareas se abre este proyecto para quien no haya elegido una.",
+    "presetDefaultColumn": "Predeterminado",
+    "presetNoFilters": "Sin filtros: todas las tareas",
+    "deletePreset": "Eliminar preajuste",
+    "deletePresetConfirm": "¿Eliminar «{{name}}»? Quien lo use volverá al predeterminado del proyecto.",
+    "noPresets": "Aún no hay preajustes.",
+    "presetMoveUp": "Subir el preajuste",
+    "presetMoveDown": "Bajar el preajuste"
   },
   "documents": {
     "title": "Documentos",

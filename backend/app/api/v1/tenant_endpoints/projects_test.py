@@ -1686,3 +1686,193 @@ async def test_project_counts_by_initiative(
     )
     assert response.status_code == 200
     assert response.json()["counts"] == {str(admin.initiative.id): 1}
+
+
+# ── Default view mode ─────────────────────────────────────────────────
+# Which view a project opens on is project configuration, not content: it takes
+# a project manager, the project owner, or a guild admin — the same bar as
+# pinning.
+
+
+@pytest.mark.integration
+async def test_project_owner_sets_the_default_view(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+
+    response = await client.patch(
+        a.g(f"/projects/{a.project.id}"),
+        json={"default_view_mode": "kanban"},
+        headers=a.headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["default_view_mode"] == "kanban"
+
+
+@pytest.mark.integration
+async def test_guild_admin_sets_the_default_view(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    owner = await acting_user(
+        guild_role=GuildRole.member, initiative=True, project=True
+    )
+    admin = await acting_user(guild_role=GuildRole.admin, guild=owner.guild)
+
+    response = await client.patch(
+        admin.g(f"/projects/{owner.project.id}"),
+        json={"default_view_mode": "calendar"},
+        headers=admin.headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["default_view_mode"] == "calendar"
+
+
+@pytest.mark.integration
+async def test_plain_write_cannot_set_the_default_view(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    owner = await acting_user(
+        guild_role=GuildRole.member, initiative=True, project=True
+    )
+    editor = await acting_user(
+        guild_role=GuildRole.member,
+        guild=owner.guild,
+        initiative=owner.initiative,
+        initiative_role="member",
+    )
+    session.add(
+        ResourceGrant(
+            resource_type="project",
+            resource_id=owner.project.id,
+            user_id=editor.user.id,
+            level=ResourceAccessLevel.write,
+            guild_id=owner.project.guild_id,
+            initiative_id=owner.project.initiative_id,
+        )
+    )
+    await session.commit()
+
+    response = await client.patch(
+        editor.g(f"/projects/{owner.project.id}"),
+        json={"default_view_mode": "kanban"},
+        headers=editor.headers,
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "PROJECT_ADMIN_REQUIRED"
+
+
+@pytest.mark.integration
+async def test_default_view_rejects_an_unknown_mode(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+
+    response = await client.patch(
+        a.g(f"/projects/{a.project.id}"),
+        json={"default_view_mode": "gantt"},
+        headers=a.headers,
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.integration
+async def test_editing_other_fields_still_needs_only_write(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The escalation is per-field: renaming a project is still plain write."""
+    owner = await acting_user(
+        guild_role=GuildRole.member, initiative=True, project=True
+    )
+    editor = await acting_user(
+        guild_role=GuildRole.member,
+        guild=owner.guild,
+        initiative=owner.initiative,
+        initiative_role="member",
+    )
+    session.add(
+        ResourceGrant(
+            resource_type="project",
+            resource_id=owner.project.id,
+            user_id=editor.user.id,
+            level=ResourceAccessLevel.write,
+            guild_id=owner.project.guild_id,
+            initiative_id=owner.project.initiative_id,
+        )
+    )
+    await session.commit()
+
+    response = await client.patch(
+        editor.g(f"/projects/{owner.project.id}"),
+        json={"name": "Renamed by an editor"},
+        headers=editor.headers,
+    )
+
+    assert response.status_code == 200
+
+
+# ── Presets travel with the project ───────────────────────────────────
+
+
+@pytest.mark.integration
+async def test_new_project_is_seeded_with_default_presets(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+
+    created = await client.post(
+        a.g("/projects/"),
+        json={"name": "Fresh", "initiative_id": a.initiative.id},
+        headers=a.headers,
+    )
+    assert created.status_code == 201
+    project_id = created.json()["id"]
+
+    presets = await client.get(
+        a.g(f"/projects/{project_id}/filter-presets/"), headers=a.headers
+    )
+
+    assert [p["slug"] for p in presets.json()["items"]] == [
+        "all",
+        "incomplete",
+        "unassigned",
+        "mine",
+    ]
+
+
+@pytest.mark.integration
+async def test_duplicating_a_project_clones_its_presets(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    from app.services.tenant import filter_presets as filter_presets_service
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    source_status = await create_task_status(session, project=a.project, name="Review")
+    seeded = await filter_presets_service.ensure_default_presets(session, a.project.id)
+    mine = next(p for p in seeded if p.slug == "mine")
+    mine.filters = {"status_ids": [source_status.id], "assignees": ["me"]}
+    session.add(mine)
+    await session.commit()
+
+    duplicated = await client.post(
+        a.g(f"/projects/{a.project.id}/duplicate"),
+        json={"name": "Copy"},
+        headers=a.headers,
+    )
+    assert duplicated.status_code == 201
+    copy_id = duplicated.json()["id"]
+
+    presets = (
+        await client.get(a.g(f"/projects/{copy_id}/filter-presets/"), headers=a.headers)
+    ).json()["items"]
+    by_slug = {p["slug"]: p for p in presets}
+
+    assert set(by_slug) == {"all", "incomplete", "unassigned", "mine"}
+    assert by_slug["all"]["is_default"] is True
+    # The status id was translated to the copy's own status, not carried over.
+    cloned_status_ids = by_slug["mine"]["filters"]["status_ids"]
+    assert cloned_status_ids
+    assert source_status.id not in cloned_status_ids

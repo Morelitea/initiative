@@ -212,6 +212,7 @@ export const ProjectDetailPage = () => {
           projectId={project.id}
           initiativeId={project.initiative_id}
           taskStatuses={taskStatusesQuery.data ?? []}
+          projectDefaultViewMode={project.default_view_mode}
           canEditTaskDetails={canEditTaskDetails}
           canWriteProject={Boolean(canWriteProject)}
           projectIsArchived={projectIsArchived}

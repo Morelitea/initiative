@@ -122,6 +122,9 @@ export const invalidateProject = (projectId: number) =>
 export const invalidateProjectTaskStatuses = (projectId: number) =>
   invalidateGuildExact([`/api/v1/projects/${projectId}/task-statuses/`]);
 
+export const invalidateProjectFilterPresets = (projectId: number) =>
+  invalidateGuildExact([`/api/v1/projects/${projectId}/filter-presets/`]);
+
 export const invalidateProjectActivity = (projectId: number) =>
   invalidateGuildExact([`/api/v1/projects/${projectId}/activity`]);
 

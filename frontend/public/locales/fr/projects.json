@@ -64,7 +64,32 @@
     "filterByStatus": "Filtrer par statut",
     "allStatuses": "Tous les statuts",
     "noStatusesAvailable": "Aucun statut disponible",
-    "showArchived": "Afficher les archivés"
+    "showArchived": "Afficher les archivés",
+    "category": {
+      "backlog": "À traiter",
+      "todo": "À faire",
+      "in_progress": "En cours",
+      "done": "Terminé"
+    },
+    "customFilters": "Filtres personnalisés",
+    "modified": "modifié",
+    "saveAsPreset": "Enregistrer le préréglage",
+    "updatePreset": "Mettre à jour « {{name}} »",
+    "presetName": "Nom du préréglage",
+    "presetNamePlaceholder": "p. ex. Travail bloqué",
+    "presetSetDefault": "En faire le préréglage par défaut du projet",
+    "presetSaved": "Préréglage enregistré",
+    "presetDeleted": "Préréglage supprimé",
+    "presetUnavailable": "Ce préréglage n'existe plus dans ce projet ; le préréglage par défaut est affiché à la place.",
+    "presetSaveError": "Impossible d'enregistrer le préréglage",
+    "presetDeleteError": "Impossible de supprimer le préréglage",
+    "preset": "Préréglage",
+    "resetToPreset": "Revenir au préréglage",
+    "assignedToMe": "Qui me sont attribuées",
+    "unassigned": "Non attribuées",
+    "archived": "Archivées",
+    "statusCategory": "Catégorie de statut",
+    "savePresetDescription": "Tout le monde dans ce projet verra ce préréglage."
   },
   "templates": {
     "loading": "Chargement des modèles…",
@@ -300,7 +325,19 @@
     "danger": {
       "title": "Zone de danger",
       "description": "Supprimer un projet l'envoie à la corbeille avec ses tâches. Ils peuvent être restaurés avant la fin de la période de rétention."
-    }
+    },
+    "tabFilterPresets": "Vues",
+    "filterPresetsHeading": "Préréglages de filtre",
+    "filterPresetsDescription": "Jeux de filtres enregistrés que tout le monde dans ce projet peut choisir. Le préréglage par défaut est celui avec lequel le projet s'ouvre.",
+    "defaultView": "Vue par défaut",
+    "defaultViewHint": "La vue des tâches avec laquelle ce projet s'ouvre pour qui n'en a pas choisi.",
+    "presetDefaultColumn": "Par défaut",
+    "presetNoFilters": "Aucun filtre — toutes les tâches",
+    "deletePreset": "Supprimer le préréglage",
+    "deletePresetConfirm": "Supprimer « {{name}} » ? Ceux qui l'utilisent reviendront au préréglage par défaut du projet.",
+    "noPresets": "Aucun préréglage pour l'instant.",
+    "presetMoveUp": "Monter le préréglage",
+    "presetMoveDown": "Descendre le préréglage"
   },
   "documents": {
     "title": "Documents",

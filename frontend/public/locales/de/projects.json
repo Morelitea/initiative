@@ -64,7 +64,32 @@
     "filterByStatus": "Nach Status filtern",
     "allStatuses": "Alle Status",
     "noStatusesAvailable": "Keine Status verfügbar",
-    "showArchived": "Archivierte anzeigen"
+    "showArchived": "Archivierte anzeigen",
+    "category": {
+      "backlog": "Backlog",
+      "todo": "Zu erledigen",
+      "in_progress": "In Arbeit",
+      "done": "Erledigt"
+    },
+    "customFilters": "Eigene Filter",
+    "modified": "geändert",
+    "saveAsPreset": "Voreinstellung speichern",
+    "updatePreset": "„{{name}}“ aktualisieren",
+    "presetName": "Name der Voreinstellung",
+    "presetNamePlaceholder": "z. B. Blockierte Aufgaben",
+    "presetSetDefault": "Als Standard des Projekts festlegen",
+    "presetSaved": "Voreinstellung gespeichert",
+    "presetDeleted": "Voreinstellung gelöscht",
+    "presetUnavailable": "Diese Voreinstellung gibt es in diesem Projekt nicht mehr; stattdessen wird der Projektstandard angezeigt.",
+    "presetSaveError": "Voreinstellung konnte nicht gespeichert werden",
+    "presetDeleteError": "Voreinstellung konnte nicht gelöscht werden",
+    "preset": "Voreinstellung",
+    "resetToPreset": "Auf Voreinstellung zurücksetzen",
+    "assignedToMe": "Mir zugewiesen",
+    "unassigned": "Nicht zugewiesen",
+    "archived": "Archiviert",
+    "statusCategory": "Statuskategorie",
+    "savePresetDescription": "Alle in diesem Projekt sehen diese Voreinstellung."
   },
   "templates": {
     "loading": "Vorlagen werden geladen…",
@@ -300,7 +325,19 @@
     "danger": {
       "title": "Gefahrenzone",
       "description": "Beim Löschen eines Projekts werden es und seine Aufgaben in den Papierkorb verschoben. Sie können vor Ablauf der Aufbewahrungsfrist wiederhergestellt werden."
-    }
+    },
+    "tabFilterPresets": "Ansichten",
+    "filterPresetsHeading": "Filter-Voreinstellungen",
+    "filterPresetsDescription": "Gespeicherte Filtersätze, aus denen alle in diesem Projekt wählen können. Der Standard bestimmt, womit das Projekt öffnet.",
+    "defaultView": "Standardansicht",
+    "defaultViewHint": "Mit welcher Aufgabenansicht dieses Projekt öffnet, wenn noch keine gewählt wurde.",
+    "presetDefaultColumn": "Standard",
+    "presetNoFilters": "Keine Filter – alle Aufgaben",
+    "deletePreset": "Voreinstellung löschen",
+    "deletePresetConfirm": "„{{name}}“ löschen? Wer sie nutzt, fällt auf den Projektstandard zurück.",
+    "noPresets": "Noch keine Voreinstellungen.",
+    "presetMoveUp": "Voreinstellung nach oben",
+    "presetMoveDown": "Voreinstellung nach unten"
   },
   "documents": {
     "title": "Dokumente",

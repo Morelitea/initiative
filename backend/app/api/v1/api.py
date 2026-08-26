@@ -41,6 +41,7 @@ from app.api.v1.tenant_endpoints import (
     resource_grants,
     storage,
     tags,
+    filter_presets,
     task_statuses,
     tasks,
     tools,
@@ -145,6 +146,7 @@ guild_router = APIRouter(prefix="/g/{guild_id}")
 guild_router.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])
 guild_router.include_router(projects.router, prefix="/projects", tags=["projects"])
 guild_router.include_router(task_statuses.router, tags=["task-statuses"])
+guild_router.include_router(filter_presets.router, tags=["filter-presets"])
 guild_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 guild_router.include_router(tasks.subtasks_router, tags=["subtasks"])
 guild_router.include_router(comments.router, prefix="/comments", tags=["comments"])

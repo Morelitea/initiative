@@ -1,6 +1,14 @@
 import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 
-import type { UserViewPreferencesMap } from "@/api/generated/initiativeAPI.schemas";
+import {
+  getListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGetQueryKey,
+  listFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet,
+} from "@/api/generated/filter-presets/filter-presets";
+import type {
+  FilterPresetListResponse,
+  ProjectRead,
+  UserViewPreferencesMap,
+} from "@/api/generated/initiativeAPI.schemas";
 import {
   getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey,
   readProjectApiV1GGuildIdProjectsProjectIdGet,
@@ -15,46 +23,44 @@ import {
 } from "@/api/generated/tasks/tasks";
 import { VIEW_PREFERENCES_QUERY_KEY } from "@/hooks/useViewPreference";
 import { fetchAllPages } from "@/lib/fetchAllPages";
+import { resolvePresetState } from "@/lib/filters/presets";
+import {
+  buildTaskListParams,
+  EMPTY_TASK_FILTERS,
+  specFromApi,
+  TASK_VIEW_MODES,
+  type TaskFilterSpec,
+  type TaskViewMode,
+  taskFiltersEqual,
+} from "@/lib/filters/taskFilters";
+import { parsePresetSlug, parseViewMode } from "@/lib/filters/viewSearch";
 import { getItem } from "@/lib/storage";
 
-type StoredFilters = {
-  viewMode: string;
-  assigneeFilters: string[];
-  dueFilter: string;
-  statusFilters: number[];
-  showArchived: boolean;
-};
-
-function sanitize(value: unknown) {
-  const defaults = {
-    assigneeFilters: [] as string[],
-    statusFilters: [] as number[],
-    showArchived: false,
-  };
-  if (value === null || typeof value !== "object") return defaults;
-  const parsed = value as Partial<StoredFilters>;
-  return {
-    assigneeFilters: Array.isArray(parsed.assigneeFilters) ? parsed.assigneeFilters : [],
-    statusFilters: Array.isArray(parsed.statusFilters) ? parsed.statusFilters : [],
-    showArchived: typeof parsed.showArchived === "boolean" ? parsed.showArchived : false,
-  };
-}
-
-function getStoredFilters(
+/** The viewer's remembered filter state, from the hydrated preferences cache
+ *  (or legacy localStorage if they haven't written it back yet). */
+function storedSpec(
   queryClient: { getQueryData: <T>(key: readonly unknown[]) => T | undefined },
   projectId: number
-) {
+): { spec: TaskFilterSpec; viewMode?: TaskViewMode; activePresetSlug?: string | null } | null {
   const scopeKey = `project:${projectId}:view-filters`;
-  const fromCache = queryClient.getQueryData<UserViewPreferencesMap>(VIEW_PREFERENCES_QUERY_KEY)
-    ?.items?.[scopeKey];
-  if (fromCache !== undefined) return sanitize(fromCache);
-  try {
-    const raw = getItem(scopeKey);
-    if (!raw) return sanitize(null);
-    return sanitize(JSON.parse(raw));
-  } catch {
-    return sanitize(null);
+  let raw = queryClient.getQueryData<UserViewPreferencesMap>(VIEW_PREFERENCES_QUERY_KEY)?.items?.[
+    scopeKey
+  ];
+  if (raw === undefined) {
+    try {
+      const local = getItem(scopeKey);
+      raw = local ? JSON.parse(local) : undefined;
+    } catch {
+      raw = undefined;
+    }
   }
+  if (raw === null || typeof raw !== "object") return null;
+  const parsed = raw as Record<string, unknown>;
+  return {
+    spec: specFromApi(parsed as never),
+    viewMode: parseViewMode(parsed.viewMode, TASK_VIEW_MODES),
+    activePresetSlug: typeof parsed.activePresetSlug === "string" ? parsed.activePresetSlug : null,
+  };
 }
 
 export const Route = createFileRoute(
@@ -62,41 +68,35 @@ export const Route = createFileRoute(
 )({
   validateSearch: (search: Record<string, unknown>) => ({
     create: typeof search.create === "string" ? search.create : undefined,
+    // What makes a task view linkable: which saved preset it shows, and which
+    // view it is in. Malformed values are dropped, never thrown — a pasted
+    // link with a typo should still render the project.
+    preset: parsePresetSlug(search.preset),
+    view: parseViewMode(search.view, TASK_VIEW_MODES),
   }),
-  loader: async ({ context, params }) => {
+  // The prefetch depends on the search params, so the loader has to see them.
+  loaderDeps: ({ search }) => search,
+  loader: async ({ context, params, deps }) => {
     const projectId = Number(params.projectId);
     const guildId = Number(params.guildId);
     const { queryClient } = context;
 
-    // Read saved filters from the hydrated view-preferences cache (or
-    // legacy localStorage if the user hasn't migrated yet).
-    const { assigneeFilters, statusFilters, showArchived } = getStoredFilters(
-      queryClient,
-      projectId
-    );
-
-    // Build task query params (page_size=0 fetches all for drag-and-drop)
-    const conditions: Array<{ field: string; op: string; value: unknown }> = [
-      { field: "project_id", op: "eq", value: projectId },
-    ];
-    if (assigneeFilters.length > 0)
-      conditions.push({ field: "assignee_ids", op: "in_", value: assigneeFilters });
-    if (statusFilters.length > 0)
-      conditions.push({ field: "task_status_id", op: "in_", value: statusFilters });
-
-    const taskParams: Record<string, number | string | boolean> = {
-      page_size: 0,
-      conditions: JSON.stringify(conditions),
-    };
-    if (showArchived) taskParams.include_archived = true;
-
     // Prefetch in background - don't block navigation on failure
     try {
-      await Promise.all([
-        queryClient.ensureQueryData({
+      const [project, presets] = await Promise.all([
+        queryClient.ensureQueryData<ProjectRead>({
           queryKey: getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey(guildId, projectId),
           queryFn: () => readProjectApiV1GGuildIdProjectsProjectIdGet(guildId, projectId),
           staleTime: 30_000,
+        }),
+        queryClient.ensureQueryData<FilterPresetListResponse>({
+          queryKey: getListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGetQueryKey(
+            guildId,
+            projectId
+          ),
+          queryFn: () =>
+            listFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet(guildId, projectId),
+          staleTime: 60_000,
         }),
         queryClient.ensureQueryData({
           queryKey: getListTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGetQueryKey(
@@ -107,14 +107,36 @@ export const Route = createFileRoute(
             listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet(guildId, projectId),
           staleTime: 60_000,
         }),
-        queryClient.ensureQueryData({
-          queryKey: getListTasksApiV1GGuildIdTasksGetQueryKey(guildId, taskParams),
-          // page_size=0 walks the server's fetch-all windows for the full set
-          // (same queryFn shape as useTasks, which shares this cache key).
-          queryFn: () => fetchAllPages(listTasksApiV1GGuildIdTasksGet, guildId, taskParams),
-          staleTime: 30_000,
-        }),
       ]);
+
+      // Resolve exactly the way the section does, and build the params with the
+      // same function, so the prefetch lands on the key the component asks for.
+      // These used to be two separate implementations that had drifted, and the
+      // prefetched entry was never read.
+      const { spec } = resolvePresetState<TaskFilterSpec, TaskViewMode>({
+        search: deps,
+        presets: (presets.items ?? []).map((preset) => ({
+          ...preset,
+          filters: specFromApi(preset.filters),
+        })),
+        stored: storedSpec(queryClient, projectId),
+        allowedViews: TASK_VIEW_MODES,
+        defaultView: project.default_view_mode,
+        fallbackView: "table",
+        emptySpec: EMPTY_TASK_FILTERS,
+        equals: taskFiltersEqual,
+      });
+      const taskParams = buildTaskListParams(spec, { projectId });
+
+      // Deliberately not awaited: re-running the loader on a preset change must
+      // not block the navigation on a task refetch.
+      void queryClient.ensureQueryData({
+        queryKey: getListTasksApiV1GGuildIdTasksGetQueryKey(guildId, taskParams),
+        // page_size=0 walks the server's fetch-all windows for the full set
+        // (same queryFn shape as useTasks, which shares this cache key).
+        queryFn: () => fetchAllPages(listTasksApiV1GGuildIdTasksGet, guildId, taskParams),
+        staleTime: 30_000,
+      });
     } catch {
       // Silently fail - component will fetch its own data
     }

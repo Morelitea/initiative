@@ -454,5 +454,11 @@
   "APP_DATA_BUSY": "Diese App hat zu viele laufende Anfragen. Versuch es gleich noch einmal.",
   "APP_DATA_RATE_LIMITED": "Diese App wurde zu oft in kurzer Zeit abgefragt. Versuch es gleich noch einmal.",
   "WEBHOOK_UNKNOWN_EVENT_TYPE": "Dieser Ereignistyp existiert nicht. Prüfe die Liste der verfügbaren Ereignisse.",
-  "WEBHOOK_UNKNOWN_FIELD": "Dieses Feld existiert bei den ausgewählten Ereignissen nicht."
+  "WEBHOOK_UNKNOWN_FIELD": "Dieses Feld existiert bei den ausgewählten Ereignissen nicht.",
+  "PROJECT_ADMIN_REQUIRED": "Das können nur Projektleitung, Projektinhaber:in oder Gilden-Admins ändern.",
+  "FILTER_PRESET_NOT_FOUND": "Diese Filter-Voreinstellung gibt es nicht mehr.",
+  "FILTER_PRESET_DUPLICATE_ID": "Dieselbe Voreinstellung wurde zweimal aufgeführt.",
+  "FILTER_PRESET_SLUG_TAKEN": "In diesem Projekt gibt es bereits eine Voreinstellung mit diesem Namen.",
+  "FILTER_PRESET_INVALID_FILTERS": "Diese Filter lassen sich nicht als Voreinstellung speichern.",
+  "FILTER_PRESET_LIMIT_REACHED": "Dieses Projekt hat bereits die maximale Anzahl an Filter-Voreinstellungen."
 }
