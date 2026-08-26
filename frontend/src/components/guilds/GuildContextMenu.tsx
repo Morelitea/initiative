@@ -1,5 +1,14 @@
 import { useRouter } from "@tanstack/react-router";
-import { Copy, FolderOpen, LogOut, Plus, Settings, UserPlus, Users } from "lucide-react";
+import {
+  Copy,
+  FolderOpen,
+  GripVertical,
+  LogOut,
+  Plus,
+  Settings,
+  UserPlus,
+  Users,
+} from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -21,9 +30,15 @@ import { LeaveGuildDialog } from "./LeaveGuildDialog";
 interface GuildContextMenuProps {
   guild: GuildRead;
   children: ReactNode;
+  /**
+   * When provided, the menu offers a "Reorder guilds" action. Touch devices
+   * have no drag affordance of their own (press-and-hold belongs to this
+   * menu), so this is the way in to reorder mode there.
+   */
+  onReorder?: () => void;
 }
 
-export const GuildContextMenu = ({ guild, children }: GuildContextMenuProps) => {
+export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMenuProps) => {
   const router = useRouter();
   const { t } = useTranslation(["guilds", "nav"]);
   const { switchGuild, activeGuildId } = useGuilds();
@@ -123,6 +138,12 @@ export const GuildContextMenu = ({ guild, children }: GuildContextMenuProps) => 
             </>
           )}
           <ContextMenuSeparator />
+          {onReorder ? (
+            <ContextMenuItem onClick={onReorder}>
+              <GripVertical className="mr-2 h-4 w-4" />
+              {t("reorderGuilds")}
+            </ContextMenuItem>
+          ) : null}
           <ContextMenuItem onClick={handleCopyGuildId}>
             <Copy className="mr-2 h-4 w-4" />
             {t("copyGuildId")}
