@@ -56,7 +56,7 @@ __all__ = [
     "ACTOR_KINDS",
     "APP_PROTOCOL_VERSIONS",
     "APP_WIDGET_TYPE_PREFIX",
-    "BINDABLE_DIRECTIONS",
+    "WIDGET_BINDABLE_DIRECTIONS",
     "CONNECTION_SCOPES",
     "DIRECTIONS",
     "EMBED_CAPABILITIES",
@@ -190,14 +190,20 @@ ENDPOINT_ID_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789._-")
 #:
 #: ``read`` and ``write`` are both request/response and differ only in whether
 #: the caller expects the app to change something at its vendor — which decides
-#: whether an answer may be cached and whether a widget may bind it. ``emit`` is
-#: the other direction: a subscriber registers a URL and the app posts to it, so
-#: there is nothing to call and nothing to cache.
+#: whether an answer may be cached. ``emit`` is the other direction: a
+#: subscriber registers a URL and the app posts to it, so there is nothing to
+#: call and nothing to cache.
+#:
+#: An endpoint belongs to no particular consumer. A widget reads one, an
+#: automation reads or calls the same one, and a subscriber waits on a third —
+#: they are peers, and the direction describes the endpoint rather than who is
+#: allowed to want it.
 DIRECTIONS: frozenset[str] = frozenset({"read", "write", "emit"})
 
-#: Only a ``read`` answers with something to draw, so only a ``read`` fills a
-#: tile. Binding a write would declare a widget nothing renders.
-BINDABLE_DIRECTIONS: frozenset[str] = frozenset({"read"})
+#: Which of those a **widget** may bind — a rule about the tile, not about the
+#: endpoint. A widget draws what it is given, so it can only bind one that
+#: answers; nothing constrains an automation the same way.
+WIDGET_BINDABLE_DIRECTIONS: frozenset[str] = frozenset({"read"})
 
 #: Whose credential an endpoint runs on. The app resolves it; this is the
 #: vocabulary it states its preference in, best first.
@@ -1025,7 +1031,7 @@ def normalize_service_app_definition(definition: Any) -> dict[str, Any]:
         if endpoint["id"] in endpoint_ids:
             fail(f"service app: two endpoints share the id {endpoint['id']!r}")
         endpoint_ids.add(endpoint["id"])
-        if endpoint["direction"] in BINDABLE_DIRECTIONS:
+        if endpoint["direction"] in WIDGET_BINDABLE_DIRECTIONS:
             readable_ids.add(endpoint["id"])
 
     widgets = [

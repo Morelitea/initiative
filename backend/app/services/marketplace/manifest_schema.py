@@ -17,7 +17,7 @@ rather than kept as a checked-in document somebody remembers to update.
 necessary, not sufficient. Four classes of rule cannot be expressed in JSON
 Schema and are enforced only by ``normalize_service_app_definition``:
 
-* **Cross-references** — a widget binding a read endpoint that exists, a
+* **Cross-references** — the read endpoint a widget binds existing, a
   ``requires`` term naming a declared connection, an endpoint id prefixed with
   the app's own service id.
 * **The features cross-check** — every declared feature backed by a block, and
@@ -113,12 +113,12 @@ SCHEMA_ID = "https://initiative.morels.me/schemas/app-manifest-v1.json"
 #: reading only the file still learns it.
 _AUTHORITY_NOTE = (
     "A manifest that satisfies this schema is well-formed, not necessarily "
-    "acceptable. Cross-references (a widget's endpoints, a requires term's "
-    "connection, an endpoint's service prefix), the direction-specific rules on "
-    "an endpoint, the features/blocks cross-check in both directions, UTF-8 "
-    "byte-size caps, and the conditional rules for connect_path and initiative "
-    "visibility are enforced by the platform on publish and are not expressible "
-    "here."
+    "acceptable. Cross-references (the endpoint a widget binds, a requires "
+    "term's connection, an endpoint's service prefix), the direction-specific "
+    "rules on an endpoint, the features/blocks cross-check in both directions, "
+    "UTF-8 byte-size caps, and the conditional rules for connect_path and "
+    "initiative visibility are enforced by the platform on publish and are not "
+    "expressible here."
 )
 
 
