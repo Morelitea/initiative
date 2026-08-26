@@ -29,7 +29,7 @@ nothing, whether or not the guild wanted it.
 import logging
 from datetime import datetime, timezone
 from typing import Annotated, Any, Optional
-from urllib.parse import quote
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.exc import IntegrityError
@@ -43,6 +43,7 @@ from app.api.deps import (
     get_guild_membership,
     require_first_party_session,
 )
+from app.core.config import settings
 from app.core.messages import (
     GuildAppMessages,
     InitiativeMessages,
@@ -76,6 +77,7 @@ from app.schemas.tenant.guild_app import (
 from app.services import rls as rls_service
 from app.services.marketplace import catalog as catalog_service
 from app.services.marketplace import registration_lookup
+from app.services.marketplace import registrations as registrations_service
 from app.services.marketplace.definitions import (
     APP_KINDS,
     GUILD_INSTALLABLE_APP_KINDS,
@@ -805,24 +807,61 @@ async def connect_guild_app(
     )
     await session.commit()
     await session.refresh(row)
+
+    # The member's browser is what follows this, so it is built from the address
+    # a browser can resolve.
+    #
+    # The guild travels with the ref because the channel addresses every install
+    # by guild: the app writes its result back to
+    # ``/installs/{guild_id}/connections/{ref}``, and a ref on its own names
+    # nothing it can look up.
+    query = [
+        ("connection_ref", row.connection_ref),
+        ("guild_id", str(app.guild_id)),
+    ]
+    query += await _return_address(registration.public_id, connection_id)
+
     return GuildAppConnectStart(
         connection_id=row.connection_id,
         connection_ref=row.connection_ref,
         connect_path=connect_path,
         connect_url=(
-            # The member's browser is what follows this, so it is built from
-            # the address a browser can resolve.
-            #
-            # The guild travels with the ref because the channel addresses
-            # every install by guild: the app writes its result back to
-            # ``/installs/{guild_id}/connections/{ref}``, and a ref on its own
-            # names nothing it can look up.
-            f"{registration.browser_base}{connect_path}"
-            f"?connection_ref={quote(row.connection_ref, safe='')}"
-            f"&guild_id={app.guild_id}"
+            # ``urlencode`` percent-encodes every reserved character, which
+            # matters for the return address: it carries a query of its own, and
+            # its ``?`` and ``&`` have to survive as data rather than becoming
+            # separators of this one.
+            f"{registration.browser_base}{connect_path}?{urlencode(query)}"
         ),
         status=row.status,
     )
+
+
+async def _return_address(public_id: str, connection_id: str) -> list[tuple[str, str]]:
+    """Where the app sends this member when the vendor is done with them.
+
+    An app knows a ``connection_ref`` and a guild id, and has never been told
+    what language that person reads — so an app that renders the ending renders
+    it in one language, forever. Initiative knows, so Initiative renders it, and
+    what the app does is hand the member back with one word saying how it went.
+
+    Signed with the secret the registration was already wired with. The browser
+    carries this, so anyone can propose an address; an app that followed one it
+    was merely handed would be a redirector on a hostname people trust, reached
+    through a real vendor login. The MAC is what lets the app tell an address
+    Initiative wrote from one somebody typed.
+
+    Empty when there is nothing to sign with. The app then says its piece on its
+    own page, which is the same thing it does for a member who arrived by a
+    hand-copied link — better than an unsigned address it would have to trust.
+    """
+    landing = (
+        f"{settings.APP_URL.rstrip('/')}/apps/connected"
+        f"?{urlencode([('app', public_id), ('connection', connection_id)])}"
+    )
+    signature = await registrations_service.sign_for_app(public_id, landing)
+    if signature is None:
+        return []
+    return [("return_url", landing), ("return_sig", signature)]
 
 
 @router.delete(

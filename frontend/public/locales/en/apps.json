@@ -154,5 +154,24 @@
     "all": "Every initiative",
     "some": "Only the initiatives I choose",
     "none": "No initiatives chosen, so this app appears only guild-wide."
+  },
+  "connected": {
+    "connected": {
+      "title": "Connected",
+      "body": "Your account is linked. Initiative recorded it, so the app's tiles will start answering for you."
+    },
+    "refused": {
+      "title": "Not connected",
+      "body": "The other service did not complete the sign-in. Nothing changed here — try again from the app's settings."
+    },
+    "expired": {
+      "title": "That link has expired",
+      "body": "Connect links are short-lived. Start again from the app's settings."
+    },
+    "not_recorded": {
+      "title": "Nearly there",
+      "body": "The other service signed you in, but Initiative did not record it. Connect again from the app's settings — nothing was lost."
+    },
+    "closeTab": "You can close this tab."
   }
 }

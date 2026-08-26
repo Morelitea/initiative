@@ -154,5 +154,24 @@
     "all": "Toutes les initiatives",
     "some": "Uniquement les initiatives que je choisis",
     "none": "Aucune initiative choisie : cette application n'apparaît qu'à l'échelle de la guilde."
+  },
+  "connected": {
+    "connected": {
+      "title": "Connecté",
+      "body": "Votre compte est lié. Initiative l'a enregistré, les tuiles de l'application vont commencer à vous répondre."
+    },
+    "refused": {
+      "title": "Non connecté",
+      "body": "L'autre service n'a pas terminé la connexion. Rien n'a changé ici — réessayez depuis les réglages de l'application."
+    },
+    "expired": {
+      "title": "Ce lien a expiré",
+      "body": "Les liens de connexion sont de courte durée. Recommencez depuis les réglages de l'application."
+    },
+    "not_recorded": {
+      "title": "Presque",
+      "body": "L'autre service vous a identifié, mais Initiative ne l'a pas enregistré. Reconnectez-vous depuis les réglages de l'application — rien n'a été perdu."
+    },
+    "closeTab": "Vous pouvez fermer cet onglet."
   }
 }
