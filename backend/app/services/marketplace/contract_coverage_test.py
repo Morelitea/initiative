@@ -253,3 +253,60 @@ def test_the_uid_shape_matches_the_contract():
 
     assert UID_LENGTH == contract.cap("uidLength")
     assert frozenset(UID_ALPHABET) == contract.charset("uid")
+
+
+# --- what the registrar reports -------------------------------------------
+
+
+@pytest.mark.unit
+def test_a_term_the_contract_does_not_name_is_reported():
+    """The whole point of the report: a newer app's extra terms are named."""
+    served = maximal_manifest()
+    served["rate_limit"] = 5
+    served["endpoints"][0]["retries"] = 3
+    assert contract.discarded_terms(served) == ["endpoints.0.retries", "rate_limit"]
+
+
+@pytest.mark.unit
+def test_a_term_nested_in_an_inline_object_is_reported():
+    """Not every object a manifest carries is a named definition — `service`,
+    `layout`, `grid` and `binding` are written inline — and a term added inside
+    one is exactly as invisible as a term added at the top.
+
+    This is walked from the contract's own structure rather than from a list of
+    where things nest, because that list is the kind of second copy the contract
+    exists to remove: it was one, it missed all four of these, and nothing said
+    so.
+    """
+    served = maximal_manifest()
+    served["service"]["region"] = "eu"
+    served["dashboards"][0]["layout"]["gutter"] = 4
+    served["dashboards"][0]["widgets"][0]["grid"]["z"] = 9
+    served["dashboards"][0]["widgets"][0]["binding"]["timeout"] = 30
+
+    assert contract.discarded_terms(served) == [
+        "dashboards.0.layout.gutter",
+        "dashboards.0.widgets.0.binding.timeout",
+        "dashboards.0.widgets.0.grid.z",
+        "service.region",
+    ]
+
+
+@pytest.mark.unit
+def test_an_object_the_contract_leaves_open_reports_nothing():
+    """A widget's `meta` and `sample_data` are opaque to the contract, and a
+    binding's `params` are named by the author. Keys inside them are nobody's
+    to declare, so reporting them would be noise on every honest manifest."""
+    served = maximal_manifest()
+    served["widgets"][0]["meta"]["whatever"] = 1
+    served["widgets"][0]["sample_data"][READ_ENDPOINT] = {"anything": 2}
+    served["dashboards"][0]["widgets"][0]["binding"]["params"]["choice"] = "b"
+
+    assert contract.discarded_terms(served) == []
+
+
+@pytest.mark.unit
+def test_a_manifest_this_build_fully_understands_reports_nothing():
+    """The ordinary case. A report on an app written against this contract
+    would be a false alarm on every verification."""
+    assert contract.discarded_terms(maximal_manifest()) == []

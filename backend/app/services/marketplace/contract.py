@@ -148,24 +148,51 @@ def fields(owner: str) -> tuple[str, ...]:
     return tuple(node.get("properties", {}))
 
 
-#: Which contract object describes each list a manifest carries, and each
-#: object nested inside one. Walking a served definition needs this because the
-#: contract's `$ref`s are a schema concern the reader does not resolve.
-_NESTED: dict[str, dict[str, str]] = {
-    "manifest": {
-        "connections": "connection",
-        "endpoints": "endpoint",
-        "widgets": "widget",
-        "embeds": "embed",
-        "dashboards": "bundledDashboard",
-    },
-    "connection": {"fields": "connectionField", "access_hint": "accessHint"},
-    "endpoint": {"params": "endpointParam", "returns": "endpointReturn"},
-    "bundledDashboard": {"widgets": "bundledDashboardWidget"},
-}
+def _shape(node: Any) -> dict[str, Any] | None:
+    """The object a contract node describes, following a ``ref`` to its def."""
+    if not isinstance(node, dict):
+        return None
+    if "ref" in node:
+        return _contract()["defs"].get(node["ref"])
+    return node
 
 
-def discarded_terms(definition: Any, *, owner: str = "manifest") -> list[str]:
+def _undeclared(value: Any, node: Any) -> list[str]:
+    """Keys in ``value`` that ``node`` does not describe, depth first.
+
+    Walks the contract's own structure rather than a second list of where
+    things nest: a node either names a ``ref``, carries ``items``, or carries
+    ``properties``, and each is followed the same way at every depth. An object
+    the contract leaves open — ``additionalProperties`` for a binding's
+    parameters — or opaque — a widget's ``meta`` — declares no properties, and
+    nothing inside it is anyone's to name.
+    """
+    shape = _shape(node)
+    if shape is None:
+        return []
+
+    if "items" in shape:
+        if not isinstance(value, list):
+            return []
+        found: list[str] = []
+        for index, item in enumerate(value):
+            found += [f"{index}.{term}" for term in _undeclared(item, shape["items"])]
+        return found
+
+    properties = shape.get("properties")
+    if properties is None or not isinstance(value, dict):
+        return []
+
+    found = []
+    for key, child in value.items():
+        if key not in properties:
+            found.append(key)
+            continue
+        found += [f"{key}.{term}" for term in _undeclared(child, properties[key])]
+    return found
+
+
+def discarded_terms(definition: Any) -> list[str]:
     """Every key in a served definition that this build's contract does not name.
 
     A deployment reads the contract it shipped with, so an app written against a
@@ -175,27 +202,8 @@ def discarded_terms(definition: Any, *, owner: str = "manifest") -> list[str]:
     This is what the registrar reports back so the skew is visible at
     verification instead of never.
 
-    Paths are dotted and indexed (``endpoints.0.rate_limit``) so a report names
-    the exact term rather than the object it was on.
+    Paths are dotted and indexed (``endpoints.0.rate_limit``,
+    ``dashboards.0.widgets.0.binding.timeout``) so a report names the exact
+    term rather than the object it sat on.
     """
-    if not isinstance(definition, dict):
-        return []
-    declared = set(fields(owner))
-    nested = _NESTED.get(owner, {})
-    found: list[str] = []
-    for key, value in definition.items():
-        if key not in declared:
-            found.append(key)
-            continue
-        child = nested.get(key)
-        if child is None:
-            continue
-        if isinstance(value, list):
-            for index, item in enumerate(value):
-                found += [
-                    f"{key}.{index}.{term}"
-                    for term in discarded_terms(item, owner=child)
-                ]
-        elif isinstance(value, dict):
-            found += [f"{key}.{term}" for term in discarded_terms(value, owner=child)]
-    return sorted(found)
+    return sorted(_undeclared(definition, _contract()["manifest"]))

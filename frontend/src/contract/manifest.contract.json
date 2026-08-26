@@ -1,5 +1,5 @@
 {
-  "$comment": "The Initiative app contract: the vocabulary an app manifest draws on and the shape it takes. Hand-authored HERE and nowhere else. schemas/app-manifest.json and src/contract.ts are generated from it (npm run generate), and Initiative vendors this file to derive its validator's constants and hold its normalizer to the field inventory. Edit this; never the generated output.",
+  "$comment": "The Initiative app contract: the vocabulary an app manifest draws on and the shape it takes. Hand-authored HERE, in the initiative-app-kit repository, and nowhere else. Running `npm run generate` in that repository rewrites schemas/app-manifest.json and src/contract.ts from this file. Initiative vendors this file to derive its validator's constants and hold its normalizer to the field inventory; the copies under initiative's backend/vendor/app-kit and frontend/src/contract are refreshed by backend/scripts/refresh_app_kit.py and are not edited there. Edit this; never the generated output.",
   "schema": {
     "$id": "https://initiative.morels.me/schemas/app-manifest-v1.json",
     "title": "Initiative app manifest (the 'definition' body)",
