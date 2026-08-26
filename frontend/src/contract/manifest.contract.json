@@ -16,17 +16,62 @@
     "artwork": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/._-"
   },
   "enums": {
-    "feature": ["dashboards", "embeds", "endpoints", "widgets"],
-    "protocol": [1],
-    "connectionScope": ["interactive", "static"],
-    "fieldType": ["bool", "int", "secret", "select", "string", "url"],
-    "paramType": ["bool", "int", "select", "string", "url"],
-    "returnValueType": ["bool", "int", "string", "url"],
-    "direction": ["emit", "read", "write"],
-    "actorKind": ["installation", "member"],
-    "endpointVisibility": ["guild_admin", "member"],
-    "visibility": ["guild_admin", "initiative_manager", "member"],
-    "surfaceScope": ["guild", "initiative"],
+    "feature": [
+      "dashboards",
+      "embeds",
+      "endpoints",
+      "widgets"
+    ],
+    "protocol": [
+      1
+    ],
+    "connectionScope": [
+      "interactive",
+      "static"
+    ],
+    "fieldType": [
+      "bool",
+      "int",
+      "secret",
+      "select",
+      "string",
+      "url"
+    ],
+    "paramType": [
+      "bool",
+      "int",
+      "select",
+      "string",
+      "url"
+    ],
+    "returnValueType": [
+      "bool",
+      "int",
+      "string",
+      "url"
+    ],
+    "direction": [
+      "emit",
+      "read",
+      "write"
+    ],
+    "actorKind": [
+      "installation",
+      "member"
+    ],
+    "endpointVisibility": [
+      "guild_admin",
+      "member"
+    ],
+    "visibility": [
+      "guild_admin",
+      "initiative_manager",
+      "member"
+    ],
+    "surfaceScope": [
+      "guild",
+      "initiative"
+    ],
     "embedCapability": [
       "camera",
       "clipboard-read",
@@ -36,10 +81,17 @@
       "geolocation",
       "microphone"
     ],
-    "listingKind": ["app", "dashboard"]
+    "listingKind": [
+      "app",
+      "dashboard"
+    ]
   },
   "ladders": {
-    "visibility": ["member", "initiative_manager", "guild_admin"]
+    "visibility": [
+      "member",
+      "initiative_manager",
+      "guild_admin"
+    ]
   },
   "caps": {
     "connections": 20,
@@ -126,10 +178,14 @@
       },
       "oneOf": [
         {
-          "required": ["all_of"]
+          "required": [
+            "all_of"
+          ]
         },
         {
-          "required": ["any_of"]
+          "required": [
+            "any_of"
+          ]
         }
       ]
     },
@@ -153,7 +209,11 @@
     },
     "connectionField": {
       "type": "object",
-      "required": ["key", "type", "label"],
+      "required": [
+        "key",
+        "type",
+        "label"
+      ],
       "properties": {
         "key": {
           "type": "string",
@@ -191,15 +251,23 @@
             "const": "select"
           }
         },
-        "required": ["type"]
+        "required": [
+          "type"
+        ]
       },
       "then": {
-        "required": ["options"]
+        "required": [
+          "options"
+        ]
       }
     },
     "endpointParam": {
       "type": "object",
-      "required": ["key", "type", "label"],
+      "required": [
+        "key",
+        "type",
+        "label"
+      ],
       "properties": {
         "key": {
           "type": "string",
@@ -236,15 +304,22 @@
             "const": "select"
           }
         },
-        "required": ["type"]
+        "required": [
+          "type"
+        ]
       },
       "then": {
-        "required": ["options"]
+        "required": [
+          "options"
+        ]
       }
     },
     "endpointReturn": {
       "type": "object",
-      "required": ["key", "type"],
+      "required": [
+        "key",
+        "type"
+      ],
       "properties": {
         "key": {
           "ref": "identifier"
@@ -264,7 +339,12 @@
     },
     "connection": {
       "type": "object",
-      "required": ["id", "scope", "label", "fields"],
+      "required": [
+        "id",
+        "scope",
+        "label",
+        "fields"
+      ],
       "properties": {
         "id": {
           "ref": "identifier"
@@ -301,7 +381,10 @@
     },
     "endpoint": {
       "type": "object",
-      "required": ["id", "direction"],
+      "required": [
+        "id",
+        "direction"
+      ],
       "properties": {
         "id": {
           "ref": "namespacedId"
@@ -369,7 +452,11 @@
     },
     "widget": {
       "type": "object",
-      "required": ["id", "meta", "module_source"],
+      "required": [
+        "id",
+        "meta",
+        "module_source"
+      ],
       "properties": {
         "id": {
           "ref": "identifier"
@@ -402,7 +489,11 @@
     },
     "embed": {
       "type": "object",
-      "required": ["id", "path", "name"],
+      "required": [
+        "id",
+        "path",
+        "name"
+      ],
       "properties": {
         "id": {
           "ref": "identifier"
@@ -421,7 +512,9 @@
           "items": {
             "enum": "surfaceScope"
           },
-          "default": ["guild"],
+          "default": [
+            "guild"
+          ],
           "description": "Where the surface renders. Declaring both gives it a guild-wide entry and an entry inside each initiative."
         },
         "visibility": {
@@ -443,7 +536,12 @@
     },
     "bundledDashboard": {
       "type": "object",
-      "required": ["uid", "public_id", "name", "widgets"],
+      "required": [
+        "uid",
+        "public_id",
+        "name",
+        "widgets"
+      ],
       "properties": {
         "uid": {
           "type": "string",
@@ -492,7 +590,10 @@
     },
     "bundledDashboardWidget": {
       "type": "object",
-      "required": ["type", "binding"],
+      "required": [
+        "type",
+        "binding"
+      ],
       "properties": {
         "id": {
           "ref": "identifier"
@@ -530,7 +631,9 @@
         },
         "binding": {
           "type": "object",
-          "required": ["endpoint_id"],
+          "required": [
+            "endpoint_id"
+          ],
           "properties": {
             "endpoint_id": {
               "ref": "namespacedId",
@@ -540,7 +643,11 @@
               "type": "object",
               "maxProperties": "dashboardBindingParams",
               "additionalProperties": {
-                "type": ["string", "integer", "boolean"],
+                "type": [
+                  "string",
+                  "integer",
+                  "boolean"
+                ],
                 "maxLength": "paramValueLength"
               }
             }
@@ -550,7 +657,11 @@
     }
   },
   "manifest": {
-    "required": ["app_kind", "service", "features"],
+    "required": [
+      "app_kind",
+      "service",
+      "features"
+    ],
     "properties": {
       "app_kind": {
         "const": "service",
@@ -558,7 +669,9 @@
       },
       "service": {
         "type": "object",
-        "required": ["public_id"],
+        "required": [
+          "public_id"
+        ],
         "properties": {
           "public_id": {
             "type": "string",
