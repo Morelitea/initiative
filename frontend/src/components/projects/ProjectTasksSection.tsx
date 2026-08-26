@@ -302,33 +302,48 @@ export const ProjectTasksSection = ({
   );
 
   // Fetch guild tags for filtering
-  const { data: tags = [], isSuccess: tagsLoaded } = useTags();
+  const { data: tags = [], isSuccess: tagsLoaded, isError: tagsFailed } = useTags();
 
   /**
-   * The filters actually applied, with ids that no longer exist dropped.
+   * The filters actually applied, with ids that no longer resolve dropped.
    *
    * A deleted tag or a removed status does NOT quietly stop narrowing: it is
    * still sent as `tag_ids in (42)`, which matches nothing, so the list goes
    * empty and the control that would explain why has no option left to render.
+   *
    * Pruning is derived rather than written back — the values may have come
    * from a shared preset, and rewriting that on someone's behalf (or marking
    * it modified) is not this component's call. Editing any filter persists the
    * pruned set, so it heals on the first change.
    *
-   * Gated on the lookups having loaded, or the first render would prune
-   * everything against empty sets.
+   * The two lookups fail differently. Statuses arrive as a prop, so an empty
+   * list means "not loaded yet" and nothing is pruned. Tags are fetched: while
+   * that request is in flight the filter stands, but if it *fails* the tag
+   * filter is dropped rather than trusted, because an id that cannot be
+   * checked is an id that may be hiding every task in the project. Showing
+   * more than was asked for is recoverable; showing an unexplained empty list
+   * is not.
    */
   const appliedSpec = useMemo(() => {
-    if (!tagsLoaded || sortedTaskStatuses.length === 0) return spec;
-    const tagIds = new Set(tags.map((tag) => tag.id));
     const statusIds = new Set(sortedTaskStatuses.map((status) => status.id));
-    const tag_ids = spec.tag_ids.filter((id) => tagIds.has(id));
-    const status_ids = spec.status_ids.filter((id) => statusIds.has(id));
+    const status_ids =
+      sortedTaskStatuses.length > 0
+        ? spec.status_ids.filter((id) => statusIds.has(id))
+        : spec.status_ids;
+
+    let tag_ids = spec.tag_ids;
+    if (tagsLoaded) {
+      const tagIds = new Set(tags.map((tag) => tag.id));
+      tag_ids = spec.tag_ids.filter((id) => tagIds.has(id));
+    } else if (tagsFailed) {
+      tag_ids = [];
+    }
+
     if (tag_ids.length === spec.tag_ids.length && status_ids.length === spec.status_ids.length) {
       return spec;
     }
     return { ...spec, tag_ids, status_ids };
-  }, [spec, tags, tagsLoaded, sortedTaskStatuses]);
+  }, [spec, tags, tagsLoaded, tagsFailed, sortedTaskStatuses]);
 
   // A preset named in the URL becomes this person's current view, so coming
   // back without the param finds it as they left it. Written once per slug:

@@ -281,6 +281,20 @@ describe("ProjectTasksSection presets", () => {
     });
   });
 
+  it("stops trusting a remembered tag when the tag list cannot be loaded", async () => {
+    // An id that cannot be checked may be hiding every task in the project.
+    // Showing more than was asked for is recoverable; an unexplained empty
+    // list is not.
+    server.use(guildHttp.get("/tags/", () => new HttpResponse(null, { status: 500 })));
+    rememberFilters({ tag_ids: [7] });
+    section();
+
+    await waitFor(() => {
+      expect(fieldsUsed()).toContain("project_id");
+      expect(fieldsUsed()).not.toContain("tag_ids");
+    });
+  });
+
   it("says so and still lists tasks when the URL names a preset that is gone", async () => {
     section({ routerSearch: { preset: "long-deleted" } });
 
