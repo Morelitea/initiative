@@ -26,6 +26,7 @@ recorded as unreachable rather than allowed to consume the caller.
 from __future__ import annotations
 
 import hashlib
+import logging
 import hmac
 import json
 import secrets
@@ -36,6 +37,7 @@ import httpx
 
 from app.core.messages import AppServiceMessages
 from app.models.platform.app_service_registration import AppServiceStatus
+from app.services.marketplace import contract
 from app.services.marketplace.definitions import (
     ListingDefinitionError,
     normalize_listing_definition,
@@ -58,6 +60,8 @@ __all__ = [
 #: The wire protocol this build speaks. An app announcing anything else is
 #: refused by number rather than guessed at.
 APP_PROTOCOL_VERSION = 1
+
+logger = logging.getLogger(__name__)
 
 _MANIFEST_PATH = "/.well-known/initiative-app.json"
 _HANDSHAKE_PATH = "/v1/handshake"
@@ -99,6 +103,11 @@ class HandshakeResult:
     manifest_hash: str
     protocol_version: int
     manifest: dict[str, Any]
+    #: Terms the served definition carried that this build's contract does not
+    #: name. Dropped rather than refused — an app may target a newer contract
+    #: than the deployment shipped with — so they are reported here instead of
+    #: disappearing silently. Empty is the ordinary case.
+    discarded: tuple[str, ...] = ()
 
 
 def manifest_path(base_url: str) -> str:
@@ -213,8 +222,10 @@ def _read_manifest_document(document: Any) -> tuple[dict[str, Any], int]:
     return manifest, raw_version
 
 
-def _validate_manifest(manifest: dict[str, Any]) -> tuple[str, Optional[str]]:
-    """Check the manifest this build cares about and return (public_id, uid).
+def _validate_manifest(
+    manifest: dict[str, Any],
+) -> tuple[str, Optional[str], tuple[str, ...]]:
+    """Check the manifest this build cares about and return what it establishes.
 
     The kind-specific body goes through ``normalize_listing_definition`` — the
     one validator — so a served definition is held to exactly the vocabulary an
@@ -245,7 +256,8 @@ def _validate_manifest(manifest: dict[str, Any]) -> tuple[str, Optional[str]]:
 
     uid = manifest.get("uid")
     listing_uid = uid.strip() if isinstance(uid, str) and uid.strip() else None
-    return public_id.strip(), listing_uid
+    discarded = tuple(contract.discarded_terms(manifest.get("definition")))
+    return public_id.strip(), listing_uid, discarded
 
 
 def _expected_signature(secret: str, challenge: str) -> str:
@@ -284,6 +296,27 @@ async def _run_challenge(
         )
 
 
+def _report_discarded(public_id: str, discarded: tuple[str, ...]) -> None:
+    """Say what a served definition carried that this build has no meaning for.
+
+    The contract arrives from the app-kit and a deployment reads the copy it
+    shipped with, so an app written against a newer one can serve terms this
+    build drops. Dropping them is what lets that app install here at all — but
+    dropping them silently leaves the publisher with nothing to see, so the
+    registrar says so on every handshake: at registration, and on each sweep.
+    """
+    if not discarded:
+        return
+    logger.warning(
+        "app service %s served %d term(s) this build does not read: %s "
+        "(contract from app-kit %s)",
+        public_id,
+        len(discarded),
+        ", ".join(discarded),
+        contract.KIT_VERSION,
+    )
+
+
 async def perform_handshake(
     *,
     base_url: str,
@@ -303,7 +336,8 @@ async def perform_handshake(
         transport=transport,
     )
     manifest, protocol_version = _read_manifest_document(document)
-    public_id, listing_uid = _validate_manifest(manifest)
+    public_id, listing_uid, discarded = _validate_manifest(manifest)
+    _report_discarded(public_id, discarded)
     await _run_challenge(base_url, secret, transport=transport)
     return HandshakeResult(
         public_id=public_id,
@@ -311,4 +345,5 @@ async def perform_handshake(
         manifest_hash=canonical_manifest_hash(manifest),
         protocol_version=protocol_version,
         manifest=manifest,
+        discarded=discarded,
     )

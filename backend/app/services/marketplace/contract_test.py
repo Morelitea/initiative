@@ -1,30 +1,30 @@
-"""The schema describes the manifest the validator actually accepts.
+"""The vendored contract, and the manifest this build actually accepts.
 
-Two kinds of case, and the second is the one that earns its keep:
+The vocabulary is declared once, in the app-kit, and vendored here. The kit
+generates a JSON Schema from the same file. So there are three things that must
+agree, and this module is where they are made to:
 
-* **Derivation** — every vocabulary and cap in the schema reads from the
-  constant it came from, so widening a rule in one place cannot leave the schema
-  describing the old one.
+* **Derivation** — every vocabulary and cap this validator enforces reads from
+  the vendored contract, and the vendored schema was built from that same
+  contract. A schema and contract vendored from different kit revisions fail
+  here.
 * **Agreement** — a corpus of manifests run through both. Anything the validator
   accepts must satisfy the schema, or an author would be told their working
   manifest is wrong; anything the schema rejects for a reason it *can* express
   must be refused by the validator too, or the schema would be inventing a rule.
 
-The asymmetry is deliberate and stated in the module: schema-valid is necessary,
-not sufficient. The cases at the bottom pin the specific rules that only the
-validator enforces, so that boundary is written down rather than discovered.
-"""
+The asymmetry is deliberate: schema-valid is necessary, not sufficient. The
+cases at the bottom pin the specific rules that only the validator enforces, so
+that boundary is written down rather than discovered.
 
-import json
-from pathlib import Path
+The field inventory — every term the contract declares having a handler here,
+and every handler having a term — lives in :mod:`contract_coverage_test`.
+"""
 
 import pytest
 from jsonschema import Draft202012Validator
 
-from app.services.marketplace.manifest_schema import (
-    SCHEMA_ID,
-    build_manifest_schema,
-)
+from app.services.marketplace import contract
 from app.services.marketplace.manifest_values import (
     MAX_IDENTIFIER_LENGTH,
     MAX_PATH_LENGTH,
@@ -63,14 +63,11 @@ def platform_accepts(manifest) -> None:
     normalize_listing_definition("app", manifest)
 
 
-SCHEMA_FILE = Path(__file__).resolve().parents[3] / "schemas" / "app-manifest.json"
-
-
 # Unannotated on purpose: `jsonschema` builds its validator classes at runtime,
 # so the name is not a type the checker can resolve.
 @pytest.fixture(scope="module")
 def validator():
-    schema = build_manifest_schema()
+    schema = contract.manifest_schema()
     Draft202012Validator.check_schema(schema)
     return Draft202012Validator(schema)
 
@@ -91,14 +88,14 @@ def _manifest(**overrides):
 
 @pytest.mark.unit
 def test_the_schema_is_a_valid_2020_12_document():
-    Draft202012Validator.check_schema(build_manifest_schema())
+    Draft202012Validator.check_schema(contract.manifest_schema())
 
 
 @pytest.mark.unit
 def test_every_ref_resolves():
     """A `$ref` naming a definition that isn't there fails at use rather than at
     load, so it would survive a test that only validated the happy path."""
-    schema = build_manifest_schema()
+    schema = contract.manifest_schema()
     defs = set(schema["$defs"])
 
     def walk(node):
@@ -117,12 +114,20 @@ def test_every_ref_resolves():
 
 
 @pytest.mark.unit
-def test_the_committed_file_matches_the_generator():
-    """CI regenerates and diffs; this says the same thing where it is cheap to
-    read, so a vocabulary change with no re-export fails beside the change."""
-    assert SCHEMA_FILE.exists(), f"{SCHEMA_FILE} is missing"
-    on_disk = json.loads(SCHEMA_FILE.read_text(encoding="utf-8"))
-    assert on_disk == build_manifest_schema()
+def test_the_vendored_pair_came_from_one_contract():
+    """The schema is generated from the contract, so the two are vendored as a
+    pair. Refreshing one without the other leaves this build enforcing a
+    vocabulary the schema does not describe."""
+    schema_caps = {
+        contract.cap("connections"): contract.manifest_schema()["properties"][
+            "connections"
+        ]["maxItems"],
+        contract.cap("endpoints"): contract.manifest_schema()["properties"][
+            "endpoints"
+        ]["maxItems"],
+    }
+    for from_contract, from_schema in schema_caps.items():
+        assert from_contract == from_schema
 
 
 # --- derived, not restated --------------------------------------------------
@@ -130,7 +135,7 @@ def test_the_committed_file_matches_the_generator():
 
 @pytest.mark.unit
 def test_vocabularies_come_from_the_validator():
-    schema = build_manifest_schema()
+    schema = contract.manifest_schema()
     props = schema["properties"]
     defs = schema["$defs"]
 
@@ -156,11 +161,11 @@ def test_vocabularies_come_from_the_validator():
 
 @pytest.mark.unit
 def test_caps_come_from_the_validator():
-    props = build_manifest_schema()["properties"]
+    props = contract.manifest_schema()["properties"]
     assert props["connections"]["maxItems"] == MAX_CONNECTIONS
     assert props["endpoints"]["maxItems"] == MAX_ENDPOINTS
     assert (
-        build_manifest_schema()["$defs"]["endpoint"]["properties"]["returns"][
+        contract.manifest_schema()["$defs"]["endpoint"]["properties"]["returns"][
             "maxItems"
         ]
         == MAX_RETURNS_PER_ENDPOINT
@@ -173,7 +178,7 @@ def test_caps_come_from_the_validator():
 def test_a_secret_is_not_a_query_parameter():
     """`secret` is a connection field type and deliberately not a param type;
     the schema must not blur the two by sharing one field definition."""
-    defs = build_manifest_schema()["$defs"]
+    defs = contract.manifest_schema()["$defs"]
     assert "secret" in defs["connectionField"]["properties"]["type"]["enum"]
     assert "secret" not in defs["endpointParam"]["properties"]["type"]["enum"]
     # And only a connection field is written back by the app.
@@ -183,11 +188,11 @@ def test_a_secret_is_not_a_query_parameter():
 
 @pytest.mark.unit
 def test_lengths_come_from_the_validator():
-    defs = build_manifest_schema()["$defs"]
+    defs = contract.manifest_schema()["$defs"]
     assert defs["identifier"]["maxLength"] == MAX_IDENTIFIER_LENGTH
     assert defs["path"]["maxLength"] == MAX_PATH_LENGTH
     assert (
-        build_manifest_schema()["properties"]["service"]["properties"]["public_id"][
+        contract.manifest_schema()["properties"]["service"]["properties"]["public_id"][
             "maxLength"
         ]
         == MAX_PUBLIC_ID_LENGTH
@@ -196,8 +201,12 @@ def test_lengths_come_from_the_validator():
 
 @pytest.mark.unit
 def test_the_schema_names_itself_stably():
-    """The SDK keys generated types on this; a drifting `$id` invalidates them."""
-    assert build_manifest_schema()["$id"] == SCHEMA_ID
+    """An author points a `$schema` at this and a generator keys a cache on it,
+    so a drifting `$id` invalidates both."""
+    assert (
+        contract.manifest_schema()["$id"]
+        == "https://initiative.morels.me/schemas/app-manifest-v1.json"
+    )
 
 
 # --- the two agree ----------------------------------------------------------
@@ -590,7 +599,7 @@ def test_the_platform_enforces_what_the_schema_cannot(manifest, why, validator):
 def test_a_return_is_not_a_control():
     """A select is a control, and the value behind one is a string — so it is a
     param type and never a return type. The schema must not blur the two."""
-    defs = build_manifest_schema()["$defs"]
+    defs = contract.manifest_schema()["$defs"]
     assert "select" in defs["endpointParam"]["properties"]["type"]["enum"]
     assert "select" not in defs["endpointReturn"]["properties"]["type"]["enum"]
     assert "secret" not in defs["endpointReturn"]["properties"]["type"]["enum"]
@@ -601,11 +610,11 @@ def test_every_direction_may_describe_itself_and_its_answer():
     """``label`` and ``returns`` sit on the endpoint rather than beside the
     caller-side keys, because an emission has neither caller nor response and
     still needs both — it is the one endpoint chosen without being called."""
-    endpoint = build_manifest_schema()["$defs"]["endpoint"]["properties"]
+    endpoint = contract.manifest_schema()["$defs"]["endpoint"]["properties"]
     for key in ("label", "description", "returns", "group", "needs_subject"):
         assert key in endpoint, key
     # None of them is required: an app that says nothing is still a valid app.
-    assert set(build_manifest_schema()["$defs"]["endpoint"]["required"]) == {
+    assert set(contract.manifest_schema()["$defs"]["endpoint"]["required"]) == {
         "id",
         "direction",
     }
@@ -613,6 +622,6 @@ def test_every_direction_may_describe_itself_and_its_answer():
 
 @pytest.mark.unit
 def test_a_param_may_ask_for_a_control_and_a_connection_field_may_not():
-    defs = build_manifest_schema()["$defs"]
+    defs = contract.manifest_schema()["$defs"]
     assert "picker" in defs["endpointParam"]["properties"]
     assert "picker" not in defs["connectionField"]["properties"]

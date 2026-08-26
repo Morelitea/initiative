@@ -24,6 +24,7 @@ import json
 from typing import Any, NoReturn
 
 from app.models.platform.marketplace import UID_ALPHABET, UID_LENGTH
+from app.services.marketplace import contract
 
 __all__ = [
     "ListingDefinitionError",
@@ -67,30 +68,32 @@ class ListingDefinitionError(ValueError):
 # Every one of these bounds a value a publisher chooses. They are generous
 # enough that no honest manifest meets them and small enough that a stored
 # definition stays a document rather than a payload.
+#
+# Read from the vendored contract rather than declared here: the same numbers
+# are what the app-kit's schema and types are built from, so a cap is raised in
+# one place and both sides of the protocol move together.
 
-MAX_IDENTIFIER_LENGTH = 64
-MAX_PUBLIC_ID_LENGTH = 120
-MAX_PATH_LENGTH = 200
+MAX_IDENTIFIER_LENGTH = contract.cap("identifierLength")
+MAX_PUBLIC_ID_LENGTH = contract.cap("publicIdLength")
+MAX_PATH_LENGTH = contract.cap("pathLength")
 #: A display name for what an install produces; the guild renames it after.
-MAX_NAME_LENGTH = 255
-MAX_LABEL_LENGTH = 120
-MAX_PUBLISHER_NAME_LENGTH = 120
-MAX_URL_LENGTH = 300
+MAX_NAME_LENGTH = contract.cap("nameLength")
+MAX_LABEL_LENGTH = contract.cap("labelLength")
+MAX_PUBLISHER_NAME_LENGTH = contract.cap("publisherNameLength")
+MAX_URL_LENGTH = contract.cap("urlLength")
 #: An `access_hint` string — the API and permission names a connection asks for.
-MAX_HINT_LENGTH = 120
+MAX_HINT_LENGTH = contract.cap("hintLength")
 
 #: What an id inside a manifest may use: connection, widget, data source, embed.
 #: Lowercase only, so two ids cannot differ by case alone.
-IDENTIFIER_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789_-")
+IDENTIFIER_CHARS = contract.charset("identifier")
 
 #: What a `<publisher>.<slug>` id may use. Matches the catalog's own rule.
-PUBLIC_ID_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789.-_")
+PUBLIC_ID_CHARS = contract.charset("publicId")
 
 #: What a path may use. An explicit set, so a stored path is exactly what will
 #: be appended to a registered base URL.
-PATH_CHARS = frozenset(
-    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/._-"
-)
+PATH_CHARS = contract.charset("path")
 
 #: Schemes an author link may use. The server never requests these; they are
 #: shown to a person deciding whether to install.

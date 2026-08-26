@@ -1,0 +1,741 @@
+{
+  "$comment": "The Initiative app contract: the vocabulary an app manifest draws on and the shape it takes. Hand-authored HERE and nowhere else. schemas/app-manifest.json and src/contract.ts are generated from it (npm run generate), and Initiative vendors this file to derive its validator's constants and hold its normalizer to the field inventory. Edit this; never the generated output.",
+  "schema": {
+    "$id": "https://initiative.morels.me/schemas/app-manifest-v1.json",
+    "title": "Initiative app manifest (the 'definition' body)",
+    "description": "What a service app declares it can do. This is the 'definition' field of the document served at /.well-known/initiative-app.json, NOT that whole document: a registrar also requires protocol_version, public_id and kind alongside it, and refuses a definition served bare. Generated from the platform's own validator vocabulary. A manifest that satisfies this schema is well-formed, not necessarily acceptable. Cross-references (the endpoint a widget binds, a requires term's connection, an endpoint's service prefix), the direction-specific rules on an endpoint, the features/blocks cross-check in both directions, UTF-8 byte-size caps, and the conditional rules for connect_path and initiative visibility are enforced by the platform on publish and are not expressible here."
+  },
+  "charsets": {
+    "identifier": "-0123456789_abcdefghijklmnopqrstuvwxyz",
+    "namespacedId": "-.0123456789_abcdefghijklmnopqrstuvwxyz",
+    "publicId": "-.0123456789_abcdefghijklmnopqrstuvwxyz",
+    "uid": "0123456789ABCDEFGHJKMNPQRSTVWXYZ",
+    "path": "-./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz",
+    "localeTag": "-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
+    "version": "0123456789.-+abcdefghijklmnopqrstuvwxyz",
+    "artwork": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/._-"
+  },
+  "enums": {
+    "feature": [
+      "dashboards",
+      "embeds",
+      "endpoints",
+      "widgets"
+    ],
+    "protocol": [
+      1
+    ],
+    "connectionScope": [
+      "interactive",
+      "static"
+    ],
+    "fieldType": [
+      "bool",
+      "int",
+      "secret",
+      "select",
+      "string",
+      "url"
+    ],
+    "paramType": [
+      "bool",
+      "int",
+      "select",
+      "string",
+      "url"
+    ],
+    "returnValueType": [
+      "bool",
+      "int",
+      "string",
+      "url"
+    ],
+    "direction": [
+      "emit",
+      "read",
+      "write"
+    ],
+    "actorKind": [
+      "installation",
+      "member"
+    ],
+    "endpointVisibility": [
+      "guild_admin",
+      "member"
+    ],
+    "visibility": [
+      "guild_admin",
+      "initiative_manager",
+      "member"
+    ],
+    "surfaceScope": [
+      "guild",
+      "initiative"
+    ],
+    "embedCapability": [
+      "camera",
+      "clipboard-read",
+      "clipboard-write",
+      "display-capture",
+      "fullscreen",
+      "geolocation",
+      "microphone"
+    ],
+    "listingKind": [
+      "app",
+      "dashboard"
+    ]
+  },
+  "ladders": {
+    "visibility": [
+      "member",
+      "initiative_manager",
+      "guild_admin"
+    ]
+  },
+  "caps": {
+    "connections": 20,
+    "fieldsPerConnection": 12,
+    "selectOptions": 24,
+    "accessHintScopes": 24,
+    "requiresTerms": 10,
+    "widgets": 12,
+    "widgetEndpoints": 8,
+    "endpoints": 64,
+    "paramsPerEndpoint": 12,
+    "returnsPerEndpoint": 24,
+    "embeds": 12,
+    "embedCapabilities": 8,
+    "bundledDashboards": 8,
+    "dashboardWidgets": 50,
+    "dashboardGridColumns": 12,
+    "dashboardBindingParams": 12,
+    "identifierLength": 64,
+    "publicIdLength": 120,
+    "pathLength": 200,
+    "endpointIdLength": 200,
+    "nameLength": 255,
+    "labelLength": 120,
+    "hintLength": 120,
+    "descriptionLength": 500,
+    "paramValueLength": 2000,
+    "uidLength": 14,
+    "textLength": 120,
+    "locales": 40,
+    "cacheTtlSeconds": 86400,
+    "moduleSourceBytes": 65536,
+    "sampleDataBytes": 32768,
+    "serviceDefinitionBytes": 524288,
+    "versionLength": 32,
+    "publisherNameLength": 120,
+    "urlLength": 300,
+    "localeTagLength": 12,
+    "widgetDescriptionLength": 400,
+    "widgetOptions": 12,
+    "valuesPerOption": 24
+  },
+  "defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": "identifierLength",
+      "patternFrom": "identifier",
+      "patternForm": "plus"
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": "pathLength",
+      "patternFrom": "path",
+      "patternForm": "path",
+      "description": "A route on the app's own service, never an address. The deployment joins it to the base URL its registration supplies."
+    },
+    "localizedText": {
+      "type": "object",
+      "description": "Localized text, keyed by language tag. At least one usable entry; the platform falls back to the reader's language, then to any entry. Values should be strings: text longer than {textLength} characters is truncated, and an entry that is not a string, is not a language tag, or falls past the first {locales} is ignored rather than refused.",
+      "minProperties": 1
+    },
+    "requires": {
+      "type": "object",
+      "description": "Connection ids that must hold a value before this is offered. Exactly one of 'all_of' or 'any_of'; each id must name a connection this manifest declares. Absent means always available.",
+      "properties": {
+        "all_of": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": "requiresTerms",
+          "items": {
+            "ref": "identifier"
+          }
+        },
+        "any_of": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": "requiresTerms",
+          "items": {
+            "ref": "identifier"
+          }
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "all_of"
+          ]
+        },
+        {
+          "required": [
+            "any_of"
+          ]
+        }
+      ]
+    },
+    "accessHint": {
+      "type": "object",
+      "description": "What the credential will be used for. Display-only: it is shown beside the form so an admin can mint a minimal credential, and no other system's permissions are enforced from it.",
+      "properties": {
+        "api": {
+          "type": "string",
+          "maxLength": "hintLength"
+        },
+        "scopes": {
+          "type": "array",
+          "maxItems": "accessHintScopes",
+          "items": {
+            "type": "string",
+            "maxLength": "hintLength"
+          }
+        }
+      }
+    },
+    "connectionField": {
+      "type": "object",
+      "required": [
+        "key",
+        "type",
+        "label"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "ref": "identifier"
+        },
+        "type": {
+          "enum": "fieldType"
+        },
+        "required": {
+          "type": "boolean",
+          "default": false
+        },
+        "label": {
+          "ref": "localizedText"
+        },
+        "options": {
+          "type": "array",
+          "description": "Required when type is 'select'.",
+          "maxItems": "selectOptions",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "maxLength": "labelLength"
+          }
+        },
+        "managed": {
+          "type": "boolean",
+          "default": false,
+          "description": "The app writes this value back itself when it finishes a vendor flow; it is not typed into the settings form."
+        }
+      },
+      "if": {
+        "properties": {
+          "type": {
+            "const": "select"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "required": [
+          "options"
+        ]
+      }
+    },
+    "endpointParam": {
+      "type": "object",
+      "required": [
+        "key",
+        "type",
+        "label"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "ref": "identifier"
+        },
+        "type": {
+          "enum": "paramType"
+        },
+        "required": {
+          "type": "boolean",
+          "default": false
+        },
+        "label": {
+          "ref": "localizedText"
+        },
+        "options": {
+          "type": "array",
+          "description": "Required when type is 'select'.",
+          "maxItems": "selectOptions",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "maxLength": "labelLength"
+          }
+        },
+        "picker": {
+          "ref": "identifier",
+          "description": "A hint, not a promise: the value on the wire is the same either way, so a consumer that does not know the name draws the plain control rather than losing the parameter."
+        }
+      },
+      "if": {
+        "properties": {
+          "type": {
+            "const": "select"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "required": [
+          "options"
+        ]
+      }
+    },
+    "endpointReturn": {
+      "type": "object",
+      "required": [
+        "key",
+        "type"
+      ],
+      "properties": {
+        "key": {
+          "ref": "identifier"
+        },
+        "type": {
+          "enum": "returnValueType",
+          "description": "The parameter vocabulary minus 'select', because a select is a control and the value behind one is a string."
+        },
+        "label": {
+          "ref": "localizedText"
+        },
+        "list": {
+          "type": "boolean",
+          "description": "Several values rather than one. It matters to a consumer with somewhere to put exactly one \u2014 a form field, a tile's number \u2014 which is why it is a flag rather than a second set of types."
+        }
+      }
+    },
+    "connection": {
+      "type": "object",
+      "required": [
+        "id",
+        "scope",
+        "label",
+        "fields"
+      ],
+      "properties": {
+        "id": {
+          "ref": "identifier"
+        },
+        "scope": {
+          "enum": "connectionScope",
+          "description": "'static' is one credential a guild admin supplies for the whole guild; 'interactive' is each member's own account, connected through the app's own vendor flow."
+        },
+        "label": {
+          "ref": "localizedText"
+        },
+        "fields": {
+          "type": "array",
+          "maxItems": "fieldsPerConnection",
+          "items": {
+            "ref": "connectionField"
+          }
+        },
+        "connect_path": {
+          "ref": "path",
+          "description": "Where the member is sent so the app can run the vendor's flow. Interactive connections only."
+        },
+        "access_hint": {
+          "ref": "accessHint"
+        }
+      }
+    },
+    "namespacedId": {
+      "type": "string",
+      "maxLength": "endpointIdLength",
+      "patternFrom": "namespacedId",
+      "patternForm": "plus",
+      "description": "Namespaced under the app's own service id \u2014 'app.<public_id>.<name>'. The prefix is checked against the declaring registration at ingress."
+    },
+    "endpoint": {
+      "type": "object",
+      "required": [
+        "id",
+        "direction"
+      ],
+      "properties": {
+        "id": {
+          "ref": "namespacedId"
+        },
+        "label": {
+          "ref": "localizedText",
+          "description": "What this endpoint IS, in words somebody picks it out of a list by. Every direction, and an emission most of all: it is the one thing here chosen without ever being called."
+        },
+        "description": {
+          "ref": "localizedText",
+          "description": "A second line, where the label needs one."
+        },
+        "returns": {
+          "type": "array",
+          "maxItems": "returnsPerEndpoint",
+          "items": {
+            "ref": "endpointReturn"
+          },
+          "description": "What this hands back, by name and type \u2014 the response for a read or a write, the payload for an emission. Declared rather than discovered, because a consumer binds one of these before the endpoint has ever run and a bad binding has to be refusable when somebody arranges it."
+        },
+        "group": {
+          "ref": "identifier",
+          "description": "Where a consumer that groups an app's endpoints should file this one. Opaque here: the grouping is the consumer's, and an endpoint that says nothing sits in the flat list."
+        },
+        "needs_subject": {
+          "ref": "identifier",
+          "description": "What a caller must already have in hand for this to mean anything. Opaque here \u2014 the vocabulary belongs to whoever consumes it; the automation service names the subjects a run can be about."
+        },
+        "direction": {
+          "enum": "direction",
+          "description": "'read' and 'write' are called by the deployment or by a delegate and answer in place; 'emit' travels the other way \u2014 the app posts it to a subscriber that registered a URL, so it carries no parameters and nothing to gate."
+        },
+        "params": {
+          "type": "array",
+          "maxItems": "paramsPerEndpoint",
+          "items": {
+            "ref": "endpointParam"
+          },
+          "description": "What a caller may send. Read and write only."
+        },
+        "actors": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": {
+            "wholeOf": "actorKind"
+          },
+          "items": {
+            "enum": "actorKind"
+          },
+          "description": "Whose credential the call runs on, best first. Read and write only. An endpoint offering only 'member' refuses when that member has connected nothing, rather than quietly acting as the app instead."
+        },
+        "requires": {
+          "ref": "requires"
+        },
+        "cache_ttl_seconds": {
+          "type": "integer",
+          "default": 0,
+          "description": "Read only. How long a response may be reused. Clamped into 0..{cacheTtlSeconds} rather than refused, so a value outside that range is accepted and takes effect at the bound \u2014 which is why no range is asserted here."
+        },
+        "visibility": {
+          "enum": "endpointVisibility",
+          "description": "Read only. An endpoint is called for a guild rather than an initiative, so the initiative rung is not on offer."
+        }
+      }
+    },
+    "widget": {
+      "type": "object",
+      "required": [
+        "id",
+        "meta",
+        "module_source"
+      ],
+      "properties": {
+        "id": {
+          "ref": "identifier"
+        },
+        "meta": {
+          "type": "object",
+          "description": "The widget's own name and description, as the picker shows them. Must name the widget in at least one language."
+        },
+        "module_source": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The widget's browser-side module. Stored as an opaque string and executed only inside the sandbox; the platform never parses it. Capped in UTF-8 bytes, which this schema cannot express."
+        },
+        "endpoints": {
+          "type": "array",
+          "maxItems": "widgetEndpoints",
+          "items": {
+            "ref": "namespacedId"
+          },
+          "description": "Read endpoint ids this manifest also declares. Only a read answers with something to draw."
+        },
+        "sample_data": {
+          "type": "object",
+          "description": "Rows keyed by declared read endpoint id, so a preview renders with no network call. Keys naming an undeclared endpoint are dropped."
+        },
+        "requires": {
+          "ref": "requires"
+        }
+      }
+    },
+    "embed": {
+      "type": "object",
+      "required": [
+        "id",
+        "path",
+        "name"
+      ],
+      "properties": {
+        "id": {
+          "ref": "identifier"
+        },
+        "path": {
+          "ref": "path"
+        },
+        "name": {
+          "ref": "localizedText"
+        },
+        "scopes": {
+          "type": "array",
+          "maxItems": {
+            "wholeOf": "surfaceScope"
+          },
+          "items": {
+            "enum": "surfaceScope"
+          },
+          "default": [
+            "guild"
+          ],
+          "description": "Where the surface renders. Declaring both gives it a guild-wide entry and an entry inside each initiative."
+        },
+        "visibility": {
+          "enum": "visibility",
+          "description": "The floor an audience clears. 'initiative_manager' is only namable by a surface that also renders in an initiative \u2014 a rule the platform enforces, not this schema."
+        },
+        "capabilities": {
+          "type": "array",
+          "maxItems": "embedCapabilities",
+          "items": {
+            "enum": "embedCapability"
+          },
+          "description": "Browser features the frame is granted. A surface that names nothing is framed with all of them denied."
+        },
+        "requires": {
+          "ref": "requires"
+        }
+      }
+    },
+    "bundledDashboard": {
+      "type": "object",
+      "required": [
+        "uid",
+        "public_id",
+        "name",
+        "widgets"
+      ],
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": "uidLength",
+          "maxLength": "uidLength",
+          "patternFrom": "uid",
+          "patternForm": "plus",
+          "description": "This dashboard's own catalog id \u2014 publisher-assigned, immutable, never reused. It becomes a listing of its own, so this is a real catalog identity and not the app's."
+        },
+        "public_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": "publicIdLength",
+          "patternFrom": "publicId",
+          "patternForm": "plus",
+          "description": "'<publisher>.<slug>', and not the app's own \u2014 a bundled dashboard is a separate listing."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": "nameLength"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": "descriptionLength"
+        },
+        "layout": {
+          "type": "object",
+          "properties": {
+            "columns": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": "dashboardGridColumns"
+            }
+          }
+        },
+        "widgets": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": "dashboardWidgets",
+          "items": {
+            "ref": "bundledDashboardWidget"
+          }
+        }
+      }
+    },
+    "bundledDashboardWidget": {
+      "type": "object",
+      "required": [
+        "type",
+        "binding"
+      ],
+      "properties": {
+        "id": {
+          "ref": "identifier"
+        },
+        "type": {
+          "ref": "identifier",
+          "description": "One of this manifest's own widget ids \u2014 bare, with no uid. The platform stamps the app's uid on when it publishes, so the two can never disagree."
+        },
+        "title": {
+          "type": "string",
+          "maxLength": "nameLength"
+        },
+        "grid": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": "dashboardGridColumns"
+            },
+            "y": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "w": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": "dashboardGridColumns"
+            },
+            "h": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "binding": {
+          "type": "object",
+          "required": [
+            "endpoint_id"
+          ],
+          "properties": {
+            "endpoint_id": {
+              "ref": "namespacedId",
+              "description": "One of this manifest's own read endpoint ids. Only a read answers with something to draw."
+            },
+            "params": {
+              "type": "object",
+              "maxProperties": "dashboardBindingParams",
+              "additionalProperties": {
+                "type": [
+                  "string",
+                  "integer",
+                  "boolean"
+                ],
+                "maxLength": "paramValueLength"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "manifest": {
+    "required": [
+      "app_kind",
+      "service",
+      "features"
+    ],
+    "properties": {
+      "app_kind": {
+        "const": "service",
+        "description": "The only kind that names a container to call."
+      },
+      "service": {
+        "type": "object",
+        "required": [
+          "public_id"
+        ],
+        "properties": {
+          "public_id": {
+            "type": "string",
+            "maxLength": "publicIdLength",
+            "patternFrom": "publicId",
+            "patternForm": "dotted",
+            "description": "'<publisher>.<slug>'. The name the deployment's registration is matched by, and the namespace this app's events are emitted under."
+          },
+          "protocol": {
+            "enum": "protocol",
+            "default": 1
+          }
+        }
+      },
+      "features": {
+        "type": "array",
+        "maxItems": {
+          "wholeOf": "feature"
+        },
+        "items": {
+          "enum": "feature"
+        },
+        "description": "What this app contributes. Cross-checked against the blocks present in both directions: a feature with no block, or a block with no feature, is refused."
+      },
+      "default_name": {
+        "type": "string",
+        "maxLength": "nameLength"
+      },
+      "connections": {
+        "type": "array",
+        "maxItems": "connections",
+        "items": {
+          "ref": "connection"
+        }
+      },
+      "endpoints": {
+        "type": "array",
+        "maxItems": "endpoints",
+        "items": {
+          "ref": "endpoint"
+        }
+      },
+      "widgets": {
+        "type": "array",
+        "maxItems": "widgets",
+        "items": {
+          "ref": "widget"
+        }
+      },
+      "embeds": {
+        "type": "array",
+        "maxItems": "embeds",
+        "items": {
+          "ref": "embed"
+        }
+      },
+      "dashboards": {
+        "type": "array",
+        "maxItems": "bundledDashboards",
+        "items": {
+          "ref": "bundledDashboard"
+        },
+        "description": "Ready-made arrangements of this app's own widgets. Publishing the app publishes one ordinary dashboard listing per entry, offered to guilds that install the app."
+      }
+    }
+  }
+}
