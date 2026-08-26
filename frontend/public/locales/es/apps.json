@@ -154,5 +154,24 @@
     "all": "Todas las iniciativas",
     "some": "Solo las iniciativas que yo elija",
     "none": "No se eligió ninguna iniciativa, así que esta aplicación solo aparece a nivel de gremio."
+  },
+  "connected": {
+    "connected": {
+      "title": "Conectado",
+      "body": "Tu cuenta está vinculada. Initiative lo ha registrado, así que las tarjetas de la aplicación empezarán a mostrarte datos."
+    },
+    "refused": {
+      "title": "Sin conectar",
+      "body": "El otro servicio no completó el inicio de sesión. Aquí no ha cambiado nada: inténtalo de nuevo desde los ajustes de la aplicación."
+    },
+    "expired": {
+      "title": "Ese enlace ha caducado",
+      "body": "Los enlaces de conexión duran poco. Vuelve a empezar desde los ajustes de la aplicación."
+    },
+    "not_recorded": {
+      "title": "Casi",
+      "body": "El otro servicio te ha identificado, pero Initiative no lo ha registrado. Conéctate de nuevo desde los ajustes de la aplicación: no se ha perdido nada."
+    },
+    "closeTab": "Puedes cerrar esta pestaña."
   }
 }

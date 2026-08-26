@@ -154,5 +154,24 @@
     "all": "Alle Initiativen",
     "some": "Nur ausgewählte Initiativen",
     "none": "Keine Initiative ausgewählt – diese App erscheint nur gildenweit."
+  },
+  "connected": {
+    "connected": {
+      "title": "Verbunden",
+      "body": "Dein Konto ist verknüpft. Initiative hat es gespeichert, die Kacheln der App liefern dir ab jetzt Daten."
+    },
+    "refused": {
+      "title": "Nicht verbunden",
+      "body": "Der andere Dienst hat die Anmeldung nicht abgeschlossen. Hier hat sich nichts geändert – versuche es in den Einstellungen der App erneut."
+    },
+    "expired": {
+      "title": "Dieser Link ist abgelaufen",
+      "body": "Verbindungslinks sind nur kurz gültig. Starte in den Einstellungen der App neu."
+    },
+    "not_recorded": {
+      "title": "Fast geschafft",
+      "body": "Der andere Dienst hat dich angemeldet, Initiative hat es aber nicht gespeichert. Verbinde dich in den Einstellungen der App erneut – es ging nichts verloren."
+    },
+    "closeTab": "Du kannst diesen Tab schließen."
   }
 }
