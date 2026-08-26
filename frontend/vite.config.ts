@@ -7,7 +7,7 @@ import { defineConfig, loadEnv } from "vite";
 
 // Load VITE_* vars from .env files (checks backend/.env and frontend/)
 const env = {
-  ...loadEnv("production", path.resolve(__dirname, "../backend"), "VITE_"),
+  ...loadEnv("production", path.resolve(import.meta.dirname, "../backend"), "VITE_"),
   ...loadEnv("production", process.cwd(), "VITE_"),
 };
 
@@ -16,7 +16,7 @@ const devProxyTarget = process.env.VITE_DEV_PROXY_TARGET ?? "http://localhost:80
 // Read version from VERSION file at project root
 const getVersion = () => {
   try {
-    const versionPath = path.resolve(__dirname, "../VERSION");
+    const versionPath = path.resolve(import.meta.dirname, "../VERSION");
     const version = fs.readFileSync(versionPath, "utf-8").trim();
     // Append suffix for dev builds (e.g., "-dev-abc1234")
     const suffix = process.env.VITE_VERSION_SUFFIX || "";
@@ -44,7 +44,7 @@ export default defineConfig({
   plugins: [tanstackRouter(), react(), tailwindcss()],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(import.meta.dirname, "./src"),
     },
   },
   worker: {
