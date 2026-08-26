@@ -53,9 +53,12 @@ from app.services.marketplace.widget_meta import (
 )
 
 __all__ = [
+    "ACTOR_KINDS",
     "APP_PROTOCOL_VERSIONS",
     "APP_WIDGET_TYPE_PREFIX",
+    "BINDABLE_DIRECTIONS",
     "CONNECTION_SCOPES",
+    "DIRECTIONS",
     "EMBED_CAPABILITIES",
     "FEATURES",
     "FEATURE_BLOCKS",
@@ -76,11 +79,9 @@ __all__ = [
 #: keeps a declaration and a manifest body from disagreeing — and, below, for
 #: the vocabulary itself.
 FEATURE_BLOCKS: dict[str, str] = {
-    "data": "data_sources",
+    "endpoints": "endpoints",
     "widgets": "widgets",
     "embeds": "embeds",
-    "events": "events",
-    "automations": "automation",
     "dashboards": "dashboards",
 }
 
@@ -181,9 +182,26 @@ APP_PROTOCOL_VERSIONS: frozenset[int] = frozenset({1})
 #: identifier character set, so the three parts stay separable.
 APP_WIDGET_TYPE_PREFIX = "app:"
 
-#: Every event an app emits is namespaced under its own service id.
-EVENT_TYPE_PREFIX = "app."
-EVENT_TYPE_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789._-")
+#: Every endpoint an app declares is namespaced under its own service id.
+ENDPOINT_ID_PREFIX = "app."
+ENDPOINT_ID_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789._-")
+
+#: Which way a call across an endpoint travels.
+#:
+#: ``read`` and ``write`` are both request/response and differ only in whether
+#: the caller expects the app to change something at its vendor — which decides
+#: whether an answer may be cached and whether a widget may bind it. ``emit`` is
+#: the other direction: a subscriber registers a URL and the app posts to it, so
+#: there is nothing to call and nothing to cache.
+DIRECTIONS: frozenset[str] = frozenset({"read", "write", "emit"})
+
+#: Only a ``read`` answers with something to draw, so only a ``read`` fills a
+#: tile. Binding a write would declare a widget nothing renders.
+BINDABLE_DIRECTIONS: frozenset[str] = frozenset({"read"})
+
+#: Whose credential an endpoint runs on. The app resolves it; this is the
+#: vocabulary it states its preference in, best first.
+ACTOR_KINDS: frozenset[str] = frozenset({"member", "installation"})
 
 # --- caps -------------------------------------------------------------------
 #
@@ -198,9 +216,11 @@ MAX_SELECT_OPTIONS = 24
 MAX_ACCESS_HINT_SCOPES = 24
 MAX_REQUIRES_TERMS = 10
 MAX_WIDGETS = 12
-MAX_WIDGET_SOURCES = 8
-MAX_DATA_SOURCES = 24
-MAX_PARAMS_PER_SOURCE = 12
+MAX_WIDGET_ENDPOINTS = 8
+#: Reads, writes and emissions share one list, so this bounds all three
+#: together rather than each separately.
+MAX_ENDPOINTS = 64
+MAX_PARAMS_PER_ENDPOINT = 12
 MAX_EMBEDS = 12
 #: An app ships a handful of arrangements of its own widgets, not a library of
 #: them. Each becomes a catalog row, so this is also how many listings a single
@@ -217,9 +237,8 @@ MAX_DASHBOARD_BINDING_PARAMS = 12
 MAX_DESCRIPTION_LENGTH = 500
 #: A fixed parameter value on a tile's binding.
 MAX_PARAM_VALUE_LENGTH = 2_000
-MAX_EVENTS = 50
-MAX_EVENT_TYPE_LENGTH = 200
-#: A day. A source that wants a longer memory than that is asking for a stale
+MAX_ENDPOINT_ID_LENGTH = 200
+#: A day. A read that wants a longer memory than that is asking for a stale
 #: dashboard rather than a cheaper one.
 MAX_CACHE_TTL_SECONDS = 86_400
 
@@ -227,8 +246,6 @@ MAX_CACHE_TTL_SECONDS = 86_400
 MAX_MODULE_SOURCE_BYTES = 64 * 1024
 #: Rows powering a preview with no network call.
 MAX_SAMPLE_DATA_BYTES = 32 * 1024
-#: The automation service's own block, stored verbatim.
-MAX_AUTOMATION_BYTES = 64 * 1024
 #: The canonical definition, after normalization. Checked last, so a publisher
 #: is told the document is too large rather than which cap they happened to hit
 #: first.
@@ -445,13 +462,54 @@ def _connection(raw: Any) -> dict[str, Any]:
 # --- what an app offers -----------------------------------------------------
 
 
-def _data_source(raw: Any, *, connection_ids: set[str]) -> dict[str, Any]:
-    source = require_mapping(raw, "data source")
-    source_id = check_identifier(source.get("id"), what="data source id")
-    what = f"data source {source_id!r}"
+def _endpoint_id(raw: Any, *, service_public_id: str, what: str) -> str:
+    """One endpoint id, namespaced under the app's own service id.
+
+    The prefix is checked here and again at ingress against the declaring
+    registration, so an app can answer and announce only under its own name. Two
+    apps offering ``create-issue`` would be two different things under one name,
+    and a caller that resolved the wrong one would do the wrong thing
+    successfully — which is worse than an error.
+    """
+    prefix = f"{ENDPOINT_ID_PREFIX}{service_public_id}."
+    if not isinstance(raw, str) or not raw:
+        fail(f"{what} is required")
+    if len(raw) > MAX_ENDPOINT_ID_LENGTH:
+        fail(f"{what} {raw[:40]!r}… is too long")
+    for character in raw:
+        if character not in ENDPOINT_ID_CHARS:
+            fail(f"{what} {raw!r} contains {character!r}")
+    if not raw.startswith(prefix) or len(raw) == len(prefix):
+        fail(f"{what} {raw!r} must start with {prefix!r}")
+    return raw
+
+
+def _endpoint(
+    raw: Any, *, connection_ids: set[str], service_public_id: str
+) -> dict[str, Any]:
+    """One thing the app will do when something connects to it.
+
+    A single vocabulary for every caller and every direction. A widget filling a
+    tile, an automation service asking the app to act, and a subscriber waiting
+    to be told all name an id from this list, and what separates them is which
+    token they prove themselves with rather than which route they found.
+
+    The id is the address. There is no path to choose, so two apps cannot answer
+    the same question at different URLs and a caller that knows the id needs
+    nothing else to make the call.
+    """
+    endpoint = require_mapping(raw, "endpoint")
+    endpoint_id = _endpoint_id(
+        endpoint.get("id"), service_public_id=service_public_id, what="endpoint id"
+    )
+    what = f"endpoint {endpoint_id!r}"
+
+    direction = endpoint.get("direction")
+    if direction not in DIRECTIONS:
+        fail(f"{what}: direction must be one of {sorted(DIRECTIONS)}")
 
     params_raw = require_list(
-        source.get("params_schema"), f"{what} params_schema", MAX_PARAMS_PER_SOURCE
+        endpoint.get("params"), f"{what} params", MAX_PARAMS_PER_ENDPOINT
     )
     params: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -464,24 +522,75 @@ def _data_source(raw: Any, *, connection_ids: set[str]) -> dict[str, Any]:
         seen.add(param["key"])
         params.append(param)
 
-    cleaned: dict[str, Any] = {
-        "id": source_id,
-        "path": check_path(source.get("path"), what=f"{what} path"),
-        # A source is fetched for a guild, not for an initiative, so the rungs
-        # that need one are not on offer here.
-        "visibility": _visibility(
-            source.get("visibility"), what=what, allowed=GUILD_WIDE_VISIBILITIES
-        ),
-        "cache_ttl_seconds": _cache_ttl(source.get("cache_ttl_seconds"), what=what),
-    }
+    cleaned: dict[str, Any] = {"id": endpoint_id, "direction": direction}
+
+    # An emission travels the other way: nobody calls it, so there is nothing
+    # for a caller to send, nothing to cache and nobody to gate. Carrying any of
+    # it would describe a call that never happens.
+    if direction == "emit":
+        for absent in (
+            "params",
+            "requires",
+            "cache_ttl_seconds",
+            "visibility",
+            "actors",
+        ):
+            if endpoint.get(absent) is not None:
+                fail(f"{what}: an emit endpoint has no {absent}")
+        return cleaned
+
     if params:
-        cleaned["params_schema"] = params
+        cleaned["params"] = params
+
+    actors = _actors(endpoint.get("actors"), what=what)
+    if actors:
+        cleaned["actors"] = actors
+
+    # Only a read is answered from cache, and only a read is reached by an
+    # audience wide enough to need a rung. A write is authorized by the token
+    # that carried it.
+    if direction == "read":
+        # A read is answered for a guild, not for an initiative, so the rungs
+        # that need one are not on offer here.
+        cleaned["visibility"] = _visibility(
+            endpoint.get("visibility"), what=what, allowed=GUILD_WIDE_VISIBILITIES
+        )
+        cleaned["cache_ttl_seconds"] = _cache_ttl(
+            endpoint.get("cache_ttl_seconds"), what=what
+        )
+    else:
+        for absent in ("cache_ttl_seconds", "visibility"):
+            if endpoint.get(absent) is not None:
+                fail(f"{what}: only a read endpoint has {absent}")
+
     requires = _requires(
-        source.get("requires"), connection_ids=connection_ids, what=what
+        endpoint.get("requires"), connection_ids=connection_ids, what=what
     )
     if requires is not None:
         cleaned["requires"] = requires
     return cleaned
+
+
+def _actors(raw: Any, *, what: str) -> list[str]:
+    """Whose credential the app will run this on, best first.
+
+    A list rather than a set because the order is the app's preference, and a
+    caller reads it to know what it is asking for: an endpoint offering only
+    ``member`` refuses when the member has connected nothing, rather than
+    quietly acting as the app instead.
+    """
+    if raw is None:
+        return []
+    declared = require_list(raw, f"{what} actors", len(ACTOR_KINDS))
+    actors: list[str] = []
+    for entry in declared:
+        if entry not in ACTOR_KINDS:
+            fail(f"{what}: actors must be drawn from {sorted(ACTOR_KINDS)}")
+        if entry not in actors:
+            actors.append(entry)
+    if not actors:
+        fail(f"{what}: names no actor it could run as")
+    return actors
 
 
 def _cache_ttl(raw: Any, *, what: str) -> int:
@@ -496,7 +605,7 @@ def _cache_ttl(raw: Any, *, what: str) -> int:
 
 
 def _widget(
-    raw: Any, *, source_ids: set[str], connection_ids: set[str]
+    raw: Any, *, readable_ids: set[str], connection_ids: set[str]
 ) -> dict[str, Any]:
     widget = require_mapping(raw, "widget")
     widget_id = check_identifier(widget.get("id"), what="widget id")
@@ -515,24 +624,28 @@ def _widget(
     if len(encoded) > MAX_MODULE_SOURCE_BYTES:
         fail(f"{what}: module_source is larger than {MAX_MODULE_SOURCE_BYTES} bytes")
 
-    bound = require_list(widget.get("sources"), f"{what} sources", MAX_WIDGET_SOURCES)
-    sources: list[str] = []
+    bound = require_list(
+        widget.get("endpoints"), f"{what} endpoints", MAX_WIDGET_ENDPOINTS
+    )
+    endpoints: list[str] = []
     for entry in bound:
-        source_id = check_identifier(entry, what=f"{what} source")
-        if source_id not in source_ids:
-            fail(f"{what}: binds unknown data source {source_id!r}")
-        if source_id not in sources:
-            sources.append(source_id)
+        if not isinstance(entry, str) or entry not in readable_ids:
+            # Named rather than described: a write and an emission are both real
+            # endpoints, and neither fills a tile, so "unknown" would be the
+            # wrong word for the mistake somebody is most likely making.
+            fail(f"{what}: binds {entry!r}, which is not a declared read endpoint")
+        if entry not in endpoints:
+            endpoints.append(entry)
 
     cleaned: dict[str, Any] = {
         "id": widget_id,
         "meta": meta,
         "module_source": module_source,
     }
-    if sources:
-        cleaned["sources"] = sources
+    if endpoints:
+        cleaned["endpoints"] = endpoints
 
-    sample = _sample_data(widget.get("sample_data"), sources=sources, what=what)
+    sample = _sample_data(widget.get("sample_data"), sources=endpoints, what=what)
     if sample:
         cleaned["sample_data"] = sample
     requires = _requires(
@@ -544,7 +657,7 @@ def _widget(
 
 
 def _bundled_dashboard(
-    raw: Any, *, widget_ids: set[str], source_ids: set[str]
+    raw: Any, *, widget_ids: set[str], readable_ids: set[str]
 ) -> dict[str, Any]:
     """One dashboard an app ships with itself.
 
@@ -589,7 +702,7 @@ def _bundled_dashboard(
 
     widgets = [
         _bundled_dashboard_widget(
-            widget, widget_ids=widget_ids, source_ids=source_ids, what=what
+            widget, widget_ids=widget_ids, readable_ids=readable_ids, what=what
         )
         for widget in require_list(
             entry.get("widgets"), f"{what} widgets", MAX_DASHBOARD_WIDGETS
@@ -627,7 +740,7 @@ def _bundled_dashboard(
 
 
 def _bundled_dashboard_widget(
-    raw: Any, *, widget_ids: set[str], source_ids: set[str], what: str
+    raw: Any, *, widget_ids: set[str], readable_ids: set[str], what: str
 ) -> dict[str, Any]:
     """One tile, naming one of this app's widgets and one of its sources."""
     widget = require_mapping(raw, f"{what} widget")
@@ -636,13 +749,11 @@ def _bundled_dashboard_widget(
         fail(f"{what}: names unknown widget {widget_type!r}")
 
     binding = require_mapping(widget.get("binding"), f"{what} widget binding")
-    source_id = check_identifier(
-        binding.get("source_id"), what=f"{what} widget binding source_id"
-    )
-    if source_id not in source_ids:
-        fail(f"{what}: binds unknown data source {source_id!r}")
+    endpoint_id = binding.get("endpoint_id")
+    if not isinstance(endpoint_id, str) or endpoint_id not in readable_ids:
+        fail(f"{what}: binds {endpoint_id!r}, which is not a declared read endpoint")
 
-    bound: dict[str, Any] = {"source_id": source_id}
+    bound: dict[str, Any] = {"endpoint_id": endpoint_id}
     params = binding.get("params")
     if params is not None:
         bound["params"] = _bundled_binding_params(params, what=what)
@@ -811,46 +922,6 @@ def _embed(raw: Any, *, connection_ids: set[str]) -> dict[str, Any]:
     return cleaned
 
 
-def _events(raw: Any, *, service_public_id: str) -> list[str]:
-    """Event types the app emits, namespaced under its own service id.
-
-    The prefix is checked here and again at ingress against the emitting
-    registration, so an app can announce and emit only under its own name.
-    """
-    prefix = f"{EVENT_TYPE_PREFIX}{service_public_id}."
-    declared = require_list(raw, "events", MAX_EVENTS)
-    events: list[str] = []
-    for entry in declared:
-        if not isinstance(entry, str) or not entry:
-            fail("events must be a list of event type names")
-        if len(entry) > MAX_EVENT_TYPE_LENGTH:
-            fail(f"event type {entry[:40]!r}… is too long")
-        for character in entry:
-            if character not in EVENT_TYPE_CHARS:
-                fail(f"event type {entry!r} contains {character!r}")
-        if not entry.startswith(prefix) or len(entry) == len(prefix):
-            fail(f"event type {entry!r} must start with {prefix!r}")
-        if entry not in events:
-            events.append(entry)
-    return events
-
-
-def _automation(raw: Any) -> dict[str, Any] | None:
-    """The automation service's own block.
-
-    Opaque by design: this build checks that it is a JSON object within a size
-    cap and stores it verbatim. It holds no vocabulary describing what is inside
-    — descriptor shapes, triggers, and execution belong to the service that owns
-    automations, and duplicating any of it here would be a second definition of
-    a contract this repository does not own.
-    """
-    if raw is None:
-        return None
-    automation = require_mapping(raw, "automation")
-    check_json_size(automation, what="automation", limit=MAX_AUTOMATION_BYTES)
-    return automation
-
-
 # --- the definition ---------------------------------------------------------
 
 
@@ -936,20 +1007,29 @@ def normalize_service_app_definition(definition: Any) -> dict[str, Any]:
             fail(f"service app: two connections share the id {connection['id']!r}")
         connection_ids.add(connection["id"])
 
-    data_sources = [
-        _data_source(entry, connection_ids=connection_ids)
+    # One list for every direction, so a caller resolves an id without being
+    # told which kind of thing it is first.
+    endpoints = [
+        _endpoint(
+            entry,
+            connection_ids=connection_ids,
+            service_public_id=service["public_id"],
+        )
         for entry in require_list(
-            body.get("data_sources"), "service app: data_sources", MAX_DATA_SOURCES
+            body.get("endpoints"), "service app: endpoints", MAX_ENDPOINTS
         )
     ]
-    source_ids: set[str] = set()
-    for source in data_sources:
-        if source["id"] in source_ids:
-            fail(f"service app: two data sources share the id {source['id']!r}")
-        source_ids.add(source["id"])
+    endpoint_ids: set[str] = set()
+    readable_ids: set[str] = set()
+    for endpoint in endpoints:
+        if endpoint["id"] in endpoint_ids:
+            fail(f"service app: two endpoints share the id {endpoint['id']!r}")
+        endpoint_ids.add(endpoint["id"])
+        if endpoint["direction"] in BINDABLE_DIRECTIONS:
+            readable_ids.add(endpoint["id"])
 
     widgets = [
-        _widget(entry, source_ids=source_ids, connection_ids=connection_ids)
+        _widget(entry, readable_ids=readable_ids, connection_ids=connection_ids)
         for entry in require_list(
             body.get("widgets"), "service app: widgets", MAX_WIDGETS
         )
@@ -979,18 +1059,18 @@ def normalize_service_app_definition(definition: Any) -> dict[str, Any]:
     # one answer rather than two shapes that mean the same thing.
     if connections:
         cleaned["connections"] = connections
-    if data_sources:
-        cleaned["data_sources"] = data_sources
+    if endpoints:
+        cleaned["endpoints"] = endpoints
     if widgets:
         cleaned["widgets"] = widgets
     if embeds:
         cleaned["embeds"] = embeds
 
-    # After the widgets and sources it can name, because every tile is checked
+    # After the widgets and endpoints it can name, because every tile is checked
     # against them — the whole point of bundling rather than publishing
     # separately is that this cross-check is possible at all.
     dashboards = [
-        _bundled_dashboard(entry, widget_ids=widget_ids, source_ids=source_ids)
+        _bundled_dashboard(entry, widget_ids=widget_ids, readable_ids=readable_ids)
         for entry in require_list(
             body.get("dashboards"), "service app: dashboards", MAX_BUNDLED_DASHBOARDS
         )
@@ -1017,17 +1097,6 @@ def normalize_service_app_definition(definition: Any) -> dict[str, Any]:
             seen_uids.add(dashboard["uid"])
             seen_public_ids.add(dashboard["public_id"])
         cleaned["dashboards"] = dashboards
-
-    events = _events(body.get("events"), service_public_id=service["public_id"])
-    if events:
-        cleaned["events"] = events
-    automation = _automation(body.get("automation"))
-    # Same rule as every block above: an empty one is left out rather than
-    # stored as a second way of saying "none". An automation block that is
-    # present but empty describes nothing, and storing it would let a manifest
-    # carry a block its `features` never declared.
-    if automation:
-        cleaned["automation"] = automation
 
     default_name = clean_text(
         body.get("default_name"),

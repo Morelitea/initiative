@@ -17,14 +17,14 @@ rather than kept as a checked-in document somebody remembers to update.
 necessary, not sufficient. Four classes of rule cannot be expressed in JSON
 Schema and are enforced only by ``normalize_service_app_definition``:
 
-* **Cross-references** — a widget binding a data source that exists, a
-  ``requires`` term naming a declared connection, an event type prefixed with
+* **Cross-references** — a widget binding a read endpoint that exists, a
+  ``requires`` term naming a declared connection, an endpoint id prefixed with
   the app's own service id.
 * **The features cross-check** — every declared feature backed by a block, and
   every block declared as a feature, in both directions.
-* **Byte sizes** — the caps on ``module_source``, ``sample_data``, the
-  ``automation`` body and the whole document are measured in UTF-8 bytes, which
-  a character count cannot stand in for.
+* **Byte sizes** — the caps on ``module_source``, ``sample_data`` and the
+  whole document are measured in UTF-8 bytes, which a character count cannot
+  stand in for.
 * **Conditional vocabulary** — an embed may name ``initiative_manager`` only if
   it also renders in an initiative, and ``connect_path`` belongs to an
   interactive connection alone.
@@ -70,8 +70,10 @@ from app.services.marketplace.service_apps import (
     APP_PROTOCOL_VERSIONS,
     CONNECTION_SCOPES,
     EMBED_CAPABILITIES,
-    EVENT_TYPE_CHARS,
-    EVENT_TYPE_PREFIX,
+    ACTOR_KINDS,
+    DIRECTIONS,
+    ENDPOINT_ID_CHARS,
+    ENDPOINT_ID_PREFIX,
     FEATURES,
     FIELD_TYPES,
     GUILD_WIDE_VISIBILITIES,
@@ -82,18 +84,17 @@ from app.services.marketplace.service_apps import (
     MAX_DASHBOARD_BINDING_PARAMS,
     MAX_DASHBOARD_GRID_COLUMNS,
     MAX_DASHBOARD_WIDGETS,
-    MAX_DATA_SOURCES,
+    MAX_ENDPOINT_ID_LENGTH,
+    MAX_ENDPOINTS,
     MAX_DESCRIPTION_LENGTH,
     MAX_EMBED_CAPABILITIES,
     MAX_EMBEDS,
-    MAX_EVENT_TYPE_LENGTH,
-    MAX_EVENTS,
     MAX_FIELDS_PER_CONNECTION,
     MAX_PARAM_VALUE_LENGTH,
-    MAX_PARAMS_PER_SOURCE,
+    MAX_PARAMS_PER_ENDPOINT,
     MAX_REQUIRES_TERMS,
     MAX_SELECT_OPTIONS,
-    MAX_WIDGET_SOURCES,
+    MAX_WIDGET_ENDPOINTS,
     MAX_WIDGETS,
     PARAM_TYPES,
     SURFACE_SCOPES,
@@ -112,11 +113,12 @@ SCHEMA_ID = "https://initiative.morels.me/schemas/app-manifest-v1.json"
 #: reading only the file still learns it.
 _AUTHORITY_NOTE = (
     "A manifest that satisfies this schema is well-formed, not necessarily "
-    "acceptable. Cross-references (a widget's data sources, a requires term's "
-    "connection, an event's service prefix), the features/blocks cross-check in "
-    "both directions, UTF-8 byte-size caps, and the conditional rules for "
-    "connect_path and initiative visibility are enforced by the platform on "
-    "publish and are not expressible here."
+    "acceptable. Cross-references (a widget's endpoints, a requires term's "
+    "connection, an endpoint's service prefix), the direction-specific rules on "
+    "an endpoint, the features/blocks cross-check in both directions, UTF-8 "
+    "byte-size caps, and the conditional rules for connect_path and initiative "
+    "visibility are enforced by the platform on publish and are not expressible "
+    "here."
 )
 
 
@@ -299,36 +301,57 @@ def _access_hint() -> dict[str, Any]:
     }
 
 
-def _data_source() -> dict[str, Any]:
+def _endpoint() -> dict[str, Any]:
     return {
         "type": "object",
-        "required": ["id", "path"],
+        "required": ["id", "direction"],
         "properties": {
-            "id": {"$ref": "#/$defs/identifier"},
-            "path": {"$ref": "#/$defs/path"},
-            "visibility": {
-                "enum": _enum(GUILD_WIDE_VISIBILITIES),
+            "id": {"$ref": "#/$defs/namespacedId"},
+            "direction": {
+                "enum": _enum(DIRECTIONS),
                 "description": (
-                    "A source is fetched for a guild rather than an initiative, "
-                    "so the initiative rung is not on offer."
+                    "'read' and 'write' are called by the deployment or by a "
+                    "delegate and answer in place; 'emit' travels the other way "
+                    "— the app posts it to a subscriber that registered a URL, "
+                    "so it carries no parameters and nothing to gate."
                 ),
             },
+            "params": {
+                "type": "array",
+                "maxItems": MAX_PARAMS_PER_ENDPOINT,
+                "items": {"$ref": "#/$defs/endpointParam"},
+                "description": "What a caller may send. Read and write only.",
+            },
+            "actors": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": len(ACTOR_KINDS),
+                "items": {"enum": _enum(ACTOR_KINDS)},
+                "description": (
+                    "Whose credential the call runs on, best first. Read and "
+                    "write only. An endpoint offering only 'member' refuses "
+                    "when that member has connected nothing, rather than "
+                    "quietly acting as the app instead."
+                ),
+            },
+            "requires": {"$ref": "#/$defs/requires"},
             "cache_ttl_seconds": {
                 "type": "integer",
                 "default": 0,
                 "description": (
-                    "How long a response may be reused. Clamped into "
+                    "Read only. How long a response may be reused. Clamped into "
                     f"0..{MAX_CACHE_TTL_SECONDS} rather than refused, so a value "
                     "outside that range is accepted and takes effect at the "
                     "bound — which is why no range is asserted here."
                 ),
             },
-            "params_schema": {
-                "type": "array",
-                "maxItems": MAX_PARAMS_PER_SOURCE,
-                "items": {"$ref": "#/$defs/sourceParam"},
+            "visibility": {
+                "enum": _enum(GUILD_WIDE_VISIBILITIES),
+                "description": (
+                    "Read only. An endpoint is called for a guild rather than "
+                    "an initiative, so the initiative rung is not on offer."
+                ),
             },
-            "requires": {"$ref": "#/$defs/requires"},
         },
     }
 
@@ -356,18 +379,21 @@ def _widget() -> dict[str, Any]:
                     "cannot express."
                 ),
             },
-            "sources": {
+            "endpoints": {
                 "type": "array",
-                "maxItems": MAX_WIDGET_SOURCES,
-                "items": {"$ref": "#/$defs/identifier"},
-                "description": "Data source ids this manifest also declares.",
+                "maxItems": MAX_WIDGET_ENDPOINTS,
+                "items": {"$ref": "#/$defs/namespacedId"},
+                "description": (
+                    "Read endpoint ids this manifest also declares. Only a read "
+                    "answers with something to draw."
+                ),
             },
             "sample_data": {
                 "type": "object",
                 "description": (
-                    "Rows keyed by declared source id, so a preview renders with "
-                    "no network call. Keys naming an undeclared source are "
-                    "dropped."
+                    "Rows keyed by declared read endpoint id, so a preview "
+                    "renders with no network call. Keys naming an undeclared "
+                    "endpoint are dropped."
                 ),
             },
             "requires": {"$ref": "#/$defs/requires"},
@@ -457,11 +483,14 @@ def _bundled_dashboard_widget() -> dict[str, Any]:
             },
             "binding": {
                 "type": "object",
-                "required": ["source_id"],
+                "required": ["endpoint_id"],
                 "properties": {
-                    "source_id": {
-                        "$ref": "#/$defs/identifier",
-                        "description": "One of this manifest's own data source ids.",
+                    "endpoint_id": {
+                        "$ref": "#/$defs/namespacedId",
+                        "description": (
+                            "One of this manifest's own read endpoint ids. Only "
+                            "a read answers with something to draw."
+                        ),
                     },
                     "params": {
                         "type": "object",
@@ -579,10 +608,10 @@ def build_manifest_schema() -> dict[str, Any]:
                 "maxItems": MAX_CONNECTIONS,
                 "items": {"$ref": "#/$defs/connection"},
             },
-            "data_sources": {
+            "endpoints": {
                 "type": "array",
-                "maxItems": MAX_DATA_SOURCES,
-                "items": {"$ref": "#/$defs/dataSource"},
+                "maxItems": MAX_ENDPOINTS,
+                "items": {"$ref": "#/$defs/endpoint"},
             },
             "widgets": {
                 "type": "array",
@@ -593,28 +622,6 @@ def build_manifest_schema() -> dict[str, Any]:
                 "type": "array",
                 "maxItems": MAX_EMBEDS,
                 "items": {"$ref": "#/$defs/embed"},
-            },
-            "events": {
-                "type": "array",
-                "maxItems": MAX_EVENTS,
-                "items": {
-                    "type": "string",
-                    "maxLength": MAX_EVENT_TYPE_LENGTH,
-                    "pattern": _pattern(EVENT_TYPE_CHARS),
-                    "description": (
-                        "Namespaced under the app's own service id — "
-                        f"'{EVENT_TYPE_PREFIX}<public_id>.<name>'. The prefix is "
-                        "checked against the emitting registration at ingress."
-                    ),
-                },
-            },
-            "automation": {
-                "type": "object",
-                "description": (
-                    "The automation service's own block. Opaque to the platform: "
-                    "checked for shape and size, stored verbatim, and described "
-                    "by no vocabulary here."
-                ),
             },
             "dashboards": {
                 "type": "array",
@@ -649,9 +656,19 @@ def build_manifest_schema() -> dict[str, Any]:
             "requires": _requires(),
             "accessHint": _access_hint(),
             "connectionField": _field(types=FIELD_TYPES, allow_managed=True),
-            "sourceParam": _field(types=PARAM_TYPES, allow_managed=False),
+            "endpointParam": _field(types=PARAM_TYPES, allow_managed=False),
             "connection": _connection(),
-            "dataSource": _data_source(),
+            "namespacedId": {
+                "type": "string",
+                "maxLength": MAX_ENDPOINT_ID_LENGTH,
+                "pattern": _pattern(ENDPOINT_ID_CHARS),
+                "description": (
+                    "Namespaced under the app's own service id — "
+                    f"'{ENDPOINT_ID_PREFIX}<public_id>.<name>'. The prefix is "
+                    "checked against the declaring registration at ingress."
+                ),
+            },
+            "endpoint": _endpoint(),
             "widget": _widget(),
             "embed": _embed(),
             "bundledDashboard": _bundled_dashboard(),

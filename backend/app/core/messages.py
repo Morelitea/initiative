@@ -701,7 +701,7 @@ class AppDataMessages:
 
     #: The install names no such data source, or the pinned definition is not a
     #: service app's at all.
-    SOURCE_NOT_FOUND = "APP_DATA_SOURCE_NOT_FOUND"
+    ENDPOINT_NOT_FOUND = "APP_DATA_ENDPOINT_NOT_FOUND"
     #: The source is declared for guild admins and the caller is a member.
     ADMIN_ONLY = "APP_DATA_ADMIN_ONLY"
     #: The install is turned off in this guild.

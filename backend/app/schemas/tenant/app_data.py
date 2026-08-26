@@ -37,7 +37,7 @@ class AppDataResponse(SanitizedBaseModel):
 
 
 class AppDataParam(SanitizedBaseModel):
-    """One parameter a source accepts, from its ``params_schema``."""
+    """One parameter an endpoint accepts, from its ``params``."""
 
     key: str
     type: str
@@ -46,8 +46,12 @@ class AppDataParam(SanitizedBaseModel):
     options: Optional[List[str]] = None
 
 
-class AppDataSourceRead(SanitizedBaseModel):
-    """A source a widget may bind to."""
+class AppEndpointRead(SanitizedBaseModel):
+    """A read endpoint a widget may bind to.
+
+    Reads only. A write and an emission are both real endpoints and neither
+    fills a tile, so neither belongs in a widget picker.
+    """
 
     id: str
     #: ``member`` or ``guild_admin`` — enforced again on every fetch under the
@@ -57,7 +61,7 @@ class AppDataSourceRead(SanitizedBaseModel):
     #: What the manifest asks for, already clamped at publish time. The proxy
     #: applies the deployment's own ceiling on top.
     cache_ttl_seconds: int = 0
-    params_schema: List[AppDataParam] = []
+    params: List[AppDataParam] = []
 
 
 class AppWidgetRead(SanitizedBaseModel):
@@ -75,9 +79,9 @@ class AppWidgetRead(SanitizedBaseModel):
     #: something that no longer parses. Nothing on this side reads, compiles, or
     #: evaluates it — the browser's sandbox is the only thing that runs it.
     module_source: RawTextStr
-    #: Which of the app's sources this widget draws.
-    sources: List[str] = []
-    #: Rows for a preview that issues no request at all, keyed by source.
+    #: Which of the app's read endpoints this widget draws.
+    endpoints: List[str] = []
+    #: Rows for a preview that issues no request at all, keyed by endpoint id.
     sample_data: Dict[str, Any] = {}
 
 
@@ -89,7 +93,7 @@ class AppWidgetCatalogEntry(SanitizedBaseModel):
     name: str
     enabled: bool = True
     widgets: List[AppWidgetRead] = []
-    data_sources: List[AppDataSourceRead] = []
+    endpoints: List[AppEndpointRead] = []
 
 
 class AppWidgetCatalogResponse(SanitizedBaseModel):

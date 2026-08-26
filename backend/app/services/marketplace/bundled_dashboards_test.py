@@ -32,6 +32,11 @@ DASH_UID = "J9H7S9T7GP7FAG"
 OTHER_DASH_UID = "P3R9WT5HZ2NM6D"
 
 
+#: The read a tile draws, spelled once. Namespaced under the app's own service
+#: id, which is what every endpoint id has to be.
+OPEN_ITEMS = "app.tests.tracker.open-items"
+
+
 def _dashboard(uid=DASH_UID, public_id="tests.tracker-overview", **overrides):
     entry = {
         "uid": uid,
@@ -44,7 +49,7 @@ def _dashboard(uid=DASH_UID, public_id="tests.tracker-overview", **overrides):
                 "type": "open-items",
                 "title": "Open",
                 "grid": {"x": 0, "y": 0, "w": 4, "h": 3},
-                "binding": {"source_id": "open-items"},
+                "binding": {"endpoint_id": OPEN_ITEMS},
             }
         ],
     }
@@ -56,14 +61,14 @@ def _app_manifest(dashboards=None, version="1.0.0"):
     definition = {
         "app_kind": "service",
         "service": {"public_id": "tests.tracker", "protocol": 1},
-        "features": ["data", "widgets"],
-        "data_sources": [{"id": "open-items", "path": "/data/open-items"}],
+        "features": ["endpoints", "widgets"],
+        "endpoints": [{"id": OPEN_ITEMS, "direction": "read"}],
         "widgets": [
             {
                 "id": "open-items",
                 "meta": {"name": {"en": "Open items"}},
                 "module_source": "export default () => ({});",
-                "sources": ["open-items"],
+                "endpoints": [OPEN_ITEMS],
             }
         ],
     }
@@ -132,7 +137,7 @@ class TestPublishing:
         assert widget["binding"] == {
             "source": "app",
             "app_uid": APP_UID,
-            "source_id": "open-items",
+            "endpoint_id": OPEN_ITEMS,
         }
 
     async def test_it_carries_no_artwork_of_its_own(self, session):

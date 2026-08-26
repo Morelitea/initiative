@@ -162,7 +162,9 @@ class TestFeaturesMatchBlocks:
     def test_shipping_a_block_without_declaring_it_is_refused(self):
         with pytest.raises(ListingDefinitionError, match="is not declared"):
             _normalize(
-                events=["app.tests.widget-co.thing_happened"],
+                endpoints=[
+                    {"id": "app.tests.widget-co.thing-happened", "direction": "emit"}
+                ],
             )
 
     def test_an_unknown_feature_is_refused(self):
@@ -172,16 +174,16 @@ class TestFeaturesMatchBlocks:
     def test_an_empty_block_is_not_a_block(self):
         """Empty means absent, the same way for every block.
 
-        An automation block that is present but empty describes nothing.
-        Storing it would be a second shape meaning "none" — and one the feature
-        cross-check could read differently from the way it was stored, letting a
-        manifest carry a block its own ``features`` never declared.
+        A block that is present but empty describes nothing. Storing it would be
+        a second shape meaning "none" — and one the feature cross-check could
+        read differently from the way it was stored, letting a manifest carry a
+        block its own ``features`` never declared.
         """
-        definition = _normalize(automation={})
-        assert "automation" not in definition
+        definition = _normalize(endpoints=[])
+        assert "endpoints" not in definition
 
         with pytest.raises(ListingDefinitionError, match="is declared but"):
-            _normalize(features=["automations"], automation={})
+            _normalize(features=["endpoints"], endpoints=[])
 
     def test_an_app_may_offer_no_local_features(self):
         definition = _normalize()
@@ -190,11 +192,13 @@ class TestFeaturesMatchBlocks:
 
     def test_features_are_stored_in_a_stable_order(self):
         definition = _normalize(
-            features=["events", "automations", "events"],
-            events=["app.tests.widget-co.thing_happened"],
-            automation={"graph": []},
+            features=["endpoints", "embeds", "endpoints"],
+            endpoints=[
+                {"id": "app.tests.widget-co.thing-happened", "direction": "emit"}
+            ],
+            embeds=[{"id": "main", "path": "/embed", "name": _label()}],
         )
-        assert definition["features"] == ["automations", "events"]
+        assert definition["features"] == ["embeds", "endpoints"]
 
     @pytest.mark.parametrize("feature", sorted(service_apps.FEATURES))
     def test_every_feature_names_a_block(self, feature):
@@ -341,16 +345,21 @@ class TestConnections:
         ]
 
 
-def _with_source(**source_overrides) -> dict:
-    """A service app with one connection and one data source that needs it."""
-    source = {
-        "id": "orders",
-        "path": "/v1/data/orders",
+#: The id the fixtures below read, spelled once. Namespaced under the fixture
+#: app's own service id, which is what every endpoint id has to be.
+READ_ID = "app.tests.widget-co.orders"
+
+
+def _with_source(**endpoint_overrides) -> dict:
+    """A service app with one connection and one read endpoint that needs it."""
+    endpoint = {
+        "id": READ_ID,
+        "direction": "read",
         "requires": {"all_of": ["shop"]},
     }
-    source.update(source_overrides)
+    endpoint.update(endpoint_overrides)
     return _normalize(
-        features=["data"],
+        features=["endpoints"],
         connections=[
             {
                 "id": "shop",
@@ -359,7 +368,7 @@ def _with_source(**source_overrides) -> dict:
                 "fields": [{"key": "token", "type": "secret", "label": _label()}],
             }
         ],
-        data_sources=[source],
+        endpoints=[endpoint],
     )
 
 
@@ -378,39 +387,74 @@ class TestRequires:
 
     def test_omitting_it_means_always_available(self):
         definition = _with_source(requires=None)
-        assert "requires" not in definition["data_sources"][0]
+        assert "requires" not in definition["endpoints"][0]
 
     def test_a_repeated_term_is_stored_once(self):
         definition = _with_source(requires={"any_of": ["shop", "shop"]})
-        assert definition["data_sources"][0]["requires"] == {"any_of": ["shop"]}
+        assert definition["endpoints"][0]["requires"] == {"any_of": ["shop"]}
 
 
-class TestDataSources:
-    def test_a_path_is_a_path_and_not_an_address(self):
-        for value in ("https://widget.test/v1/data", "/v1/../admin", "v1/data"):
-            with pytest.raises(ListingDefinitionError, match="path"):
-                _with_source(path=value)
+class TestEndpoints:
+    def test_an_id_is_namespaced_under_the_app(self):
+        # Two apps offering `create-issue` would be two different things under
+        # one name, and a caller resolving the wrong one would do the wrong
+        # thing successfully.
+        for value in ("orders", "app.someone.else.orders", "app.tests.widget-co."):
+            with pytest.raises(ListingDefinitionError, match="must start with"):
+                _with_source(id=value)
+
+    def test_a_direction_is_required_and_closed(self):
+        # Direction decides who may call it, whether an answer may be cached,
+        # and whether a widget may bind it — so an endpoint without one is not a
+        # partial declaration, it is an unanswerable question.
+        with pytest.raises(ListingDefinitionError, match="direction"):
+            _with_source(direction=None)
+        with pytest.raises(ListingDefinitionError, match="direction"):
+            _with_source(direction="sideways")
 
     def test_an_unknown_visibility_is_refused(self):
         with pytest.raises(ListingDefinitionError, match="unknown visibility"):
             _with_source(visibility="everyone")
 
     def test_visibility_defaults_to_members_of_the_installing_guild(self):
-        assert _with_source()["data_sources"][0]["visibility"] == "member"
+        assert _with_source()["endpoints"][0]["visibility"] == "member"
 
     def test_a_cache_window_is_clamped_rather_than_refused(self):
         definition = _with_source(cache_ttl_seconds=10_000_000)
-        ttl = definition["data_sources"][0]["cache_ttl_seconds"]
+        ttl = definition["endpoints"][0]["cache_ttl_seconds"]
         assert ttl == service_apps.MAX_CACHE_TTL_SECONDS
+
+    def test_only_a_read_is_cached_or_gated(self):
+        # A write is authorized by the token that carried it and answers once,
+        # so neither a rung nor a window means anything on one.
+        for absent in ("cache_ttl_seconds", "visibility"):
+            with pytest.raises(ListingDefinitionError, match="only a read"):
+                _with_source(
+                    direction="write", **{absent: 60 if "cache" in absent else "member"}
+                )
+
+    def test_an_emission_carries_nothing_a_caller_would_send(self):
+        # Nobody calls it, so there is nothing to send, nothing to cache and
+        # nobody to gate. Carrying any of it would describe a call that never
+        # happens.
+        with pytest.raises(ListingDefinitionError, match="has no requires"):
+            _with_source(direction="emit")
+
+    def test_an_actor_list_is_drawn_from_the_closed_set(self):
+        with pytest.raises(ListingDefinitionError, match="actors"):
+            _with_source(actors=["nobody"])
+        with pytest.raises(ListingDefinitionError, match="no actor"):
+            _with_source(actors=[])
+        assert _with_source(actors=["member", "member"])["endpoints"][0]["actors"] == [
+            "member"
+        ]
 
     def test_a_parameter_cannot_be_a_secret(self):
         # A credential is supplied once and held in custody; it is never
         # restated as a query parameter.
         assert "secret" not in service_apps.PARAM_TYPES
         with pytest.raises(ListingDefinitionError, match="unknown field type"):
-            _with_source(
-                params_schema=[{"key": "token", "type": "secret", "label": _label()}]
-            )
+            _with_source(params=[{"key": "token", "type": "secret", "label": _label()}])
 
 
 def _with_widget(**widget_overrides) -> dict:
@@ -444,39 +488,62 @@ class TestWidgets:
         definition = _with_widget(module_source=source)
         assert definition["widgets"][0]["module_source"] == source
 
-    def test_a_widget_may_only_bind_a_source_the_app_declares(self):
-        with pytest.raises(ListingDefinitionError, match="unknown data source"):
-            _with_widget(sources=["orders"])
+    def test_a_widget_may_only_bind_an_endpoint_the_app_declares(self):
+        with pytest.raises(
+            ListingDefinitionError, match="not a declared read endpoint"
+        ):
+            _with_widget(endpoints=[READ_ID])
 
-    def test_sample_rows_are_kept_only_for_declared_sources(self):
+    def test_a_widget_may_only_bind_one_that_answers(self):
+        # A write and an emission are both real endpoints and neither fills a
+        # tile: one changes something and returns, the other is posted
+        # somewhere else entirely.
+        for direction in ("write", "emit"):
+            with pytest.raises(
+                ListingDefinitionError, match="not a declared read endpoint"
+            ):
+                _normalize(
+                    features=["endpoints", "widgets"],
+                    endpoints=[{"id": READ_ID, "direction": direction}],
+                    widgets=[
+                        {
+                            "id": "summary",
+                            "meta": {"name": {"en": "Sales summary"}},
+                            "module_source": "export const render = () => ({});",
+                            "endpoints": [READ_ID],
+                        }
+                    ],
+                )
+
+    def test_sample_rows_are_kept_only_for_declared_endpoints(self):
         definition = _normalize(
-            features=["data", "widgets"],
-            data_sources=[{"id": "orders", "path": "/v1/data/orders"}],
+            features=["endpoints", "widgets"],
+            endpoints=[{"id": READ_ID, "direction": "read"}],
             widgets=[
                 {
                     "id": "summary",
                     "meta": {"name": {"en": "Sales summary"}},
                     "module_source": "export const render = () => ({});",
-                    "sources": ["orders"],
-                    "sample_data": {"orders": [{"n": 1}], "elsewhere": [{"n": 2}]},
+                    "endpoints": [READ_ID],
+                    "sample_data": {READ_ID: [{"n": 1}], "elsewhere": [{"n": 2}]},
                 }
             ],
         )
-        assert definition["widgets"][0]["sample_data"] == {"orders": [{"n": 1}]}
+        assert definition["widgets"][0]["sample_data"] == {READ_ID: [{"n": 1}]}
 
     def test_sample_rows_are_size_capped(self):
         with pytest.raises(ListingDefinitionError, match="sample_data"):
             _normalize(
-                features=["data", "widgets"],
-                data_sources=[{"id": "orders", "path": "/v1/data/orders"}],
+                features=["endpoints", "widgets"],
+                endpoints=[{"id": READ_ID, "direction": "read"}],
                 widgets=[
                     {
                         "id": "summary",
                         "meta": {"name": {"en": "Sales summary"}},
                         "module_source": "export const render = () => ({});",
-                        "sources": ["orders"],
+                        "endpoints": [READ_ID],
                         "sample_data": {
-                            "orders": ["x" * service_apps.MAX_SAMPLE_DATA_BYTES]
+                            READ_ID: ["x" * service_apps.MAX_SAMPLE_DATA_BYTES]
                         },
                     }
                 ],
@@ -710,55 +777,43 @@ class TestVisibilityIsALadder:
         with pytest.raises(ListingDefinitionError, match="initiative audience"):
             self._embed(scopes=["guild"], visibility="initiative_manager")
 
-    def test_a_data_source_may_not_either(self):
+    def test_a_read_endpoint_may_not_either(self):
         with pytest.raises(ListingDefinitionError, match="initiative audience"):
             _with_source(visibility="initiative_manager")
 
 
-class TestEvents:
-    def test_an_event_is_namespaced_under_the_app(self):
+class TestEmissions:
+    def _emit(self, **overrides) -> dict:
+        endpoint = {"id": "app.tests.widget-co.order-created", "direction": "emit"}
+        endpoint.update(overrides)
+        return _normalize(features=["endpoints"], endpoints=[endpoint])
+
+    def test_an_id_is_namespaced_under_the_app(self):
+        for value in ("order_created", "app.someone.else.order_created"):
+            with pytest.raises(ListingDefinitionError, match="must start with"):
+                self._emit(id=value)
+
+    def test_the_namespace_alone_is_not_an_id(self):
         with pytest.raises(ListingDefinitionError, match="must start with"):
-            _normalize(features=["events"], events=["order_created"])
+            self._emit(id="app.tests.widget-co.")
 
-    def test_an_app_cannot_announce_another_app_s_events(self):
-        with pytest.raises(ListingDefinitionError, match="must start with"):
-            _normalize(features=["events"], events=["app.someone.else.order_created"])
+    def test_a_declared_one_is_kept(self):
+        definition = self._emit()
+        assert definition["endpoints"] == [
+            {"id": "app.tests.widget-co.order-created", "direction": "emit"}
+        ]
 
-    def test_the_namespace_alone_is_not_an_event(self):
-        with pytest.raises(ListingDefinitionError, match="must start with"):
-            _normalize(features=["events"], events=["app.tests.widget-co."])
-
-    def test_a_declared_event_is_kept(self):
-        definition = _normalize(
-            features=["events"],
-            events=[
-                "app.tests.widget-co.order_created",
-                "app.tests.widget-co.order_created",
-            ],
-        )
-        assert definition["events"] == ["app.tests.widget-co.order_created"]
-
-
-class TestAutomationIsOpaque:
-    def test_the_block_is_stored_verbatim(self):
-        """Initiative stores automation information and passes it through; the
-        service that owns automations is the only thing that reads it. So the
-        validator checks shape and size, and nothing about the contents."""
-        blob = {
-            "nodes": [{"anything": "at all", "nested": {"deeply": [1, 2, 3]}}],
-            "version": "whatever the service says",
-        }
-        definition = _normalize(features=["automations"], automation=blob)
-        assert definition["automation"] == blob
-
-    def test_it_must_still_be_an_object(self):
-        with pytest.raises(ListingDefinitionError, match="automation must be"):
-            _normalize(features=["automations"], automation=["not", "an", "object"])
-
-    def test_it_is_size_capped(self):
-        oversized = {"graph": "x" * service_apps.MAX_AUTOMATION_BYTES}
-        with pytest.raises(ListingDefinitionError, match="larger than"):
-            _normalize(features=["automations"], automation=oversized)
+    def test_two_of_the_same_id_are_refused(self):
+        # One id, two answers, and which one a caller reaches would depend on
+        # iteration order.
+        with pytest.raises(ListingDefinitionError, match="share the id"):
+            _normalize(
+                features=["endpoints"],
+                endpoints=[
+                    {"id": "app.tests.widget-co.order-created", "direction": "emit"},
+                    {"id": "app.tests.widget-co.order-created", "direction": "read"},
+                ],
+            )
 
 
 class TestCanonicalShape:
@@ -779,7 +834,7 @@ class TestCanonicalShape:
         """The governing rule, asserted on a manifest that tries: an app says
         which route, and the deployment's registration says where."""
         definition = _normalize(
-            features=["data", "embeds"],
+            features=["endpoints", "embeds"],
             service={
                 "public_id": "tests.widget-co",
                 "protocol": 1,
@@ -793,8 +848,8 @@ class TestCanonicalShape:
                     "connect_path": "/connect/shop",
                 }
             ],
-            data_sources=[
-                {"id": "orders", "path": "/v1/data/orders", "base_url": "http://x.test"}
+            endpoints=[
+                {"id": READ_ID, "direction": "read", "base_url": "http://x.test"}
             ],
             embeds=[
                 {

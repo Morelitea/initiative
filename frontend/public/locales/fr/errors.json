@@ -441,7 +441,7 @@
   "APP_CHANNEL_UNKNOWN_EVENT_TYPE": "Ce type d'évènement ne fait pas partie de ceux déclarés par cette application.",
   "APP_CHANNEL_EVENT_TOO_LARGE": "Cet évènement dépasse ce que cette version peut transporter.",
   "APP_CHANNEL_INVALID_CONFIG_STATE": "Ce service applicatif a signalé un état que cette version ne reconnaît pas.",
-  "APP_DATA_SOURCE_NOT_FOUND": "Ce widget est lié à des données que l'application ne propose plus.",
+  "APP_DATA_ENDPOINT_NOT_FOUND": "Ce widget est lié à des données que l'application ne propose plus.",
   "APP_DATA_ADMIN_ONLY": "Seule l'administration de la guilde peut voir les données de cette application.",
   "APP_DATA_APP_DISABLED": "Cette application est désactivée dans cette guilde : ses widgets n'ont rien à afficher.",
   "APP_DATA_SERVICE_NOT_REGISTERED": "Cette application n'est pas configurée sur cette installation. Contactez votre administration.",

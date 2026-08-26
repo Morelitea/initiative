@@ -102,7 +102,7 @@ export function DashboardWidget({
   const labels = useBindingLabels(binding, initiativeId, !sampleData);
   const [view, setView] = useState<"scene" | "table">("scene");
 
-  const appSampleRows = appWidgetSample(appCatalogQuery.data, widget.type, binding.source_id);
+  const appSampleRows = appWidgetSample(appCatalogQuery.data, widget.type, binding.endpoint_id);
   const data = sampleData
     ? isAppWidget
       ? { source: "app" as const, rows: appSampleRows }

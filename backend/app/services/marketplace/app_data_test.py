@@ -23,14 +23,16 @@ from app.services.marketplace import app_data as service
 
 pytestmark = pytest.mark.unit
 
-URL = "http://127.0.0.1:9100/v1/data/orders"
+URL = "http://127.0.0.1:9100/v1/endpoints"
+
+ORDERS = "app.acme.shop.orders"
 
 SOURCE = {
-    "id": "orders",
-    "path": "/v1/data/orders",
+    "id": ORDERS,
+    "direction": "read",
     "visibility": "member",
     "cache_ttl_seconds": 60,
-    "params_schema": [
+    "params": [
         {"key": "range", "type": "select", "options": ["7d", "30d"], "label": {}},
         {"key": "limit", "type": "int", "label": {}},
         {"key": "team", "type": "string", "label": {}},
@@ -42,23 +44,36 @@ SOURCE = {
 
 async def _read(handler) -> list:
     return await service._read_rows(
-        httpx.Request("GET", URL), transport=httpx.MockTransport(handler)
+        httpx.Request("POST", URL), transport=httpx.MockTransport(handler)
     )
 
 
 # --- what an app may answer with --------------------------------------------
 
 
+def _answer(rows) -> dict:
+    """What an app answers a call with: what it ran, whose credential ran it,
+    and the result. The rows are one level in."""
+    return {"endpoint": ORDERS, "actor": "member", "result": {"rows": rows}}
+
+
 class TestUpstreamBounds:
     async def test_rows_come_back_verbatim(self):
         payload = [{"id": 1, "nested": {"deep": [1, 2]}}, {"id": 2}]
-        rows = await _read(lambda request: httpx.Response(200, json={"rows": payload}))
+        rows = await _read(lambda request: httpx.Response(200, json=_answer(payload)))
         assert rows == payload
+
+    async def test_an_answer_without_a_result_is_the_app_being_unavailable(self):
+        # From a dashboard's side "this app is not answering" is true whether
+        # the service is down or talking a shape this build does not accept.
+        with pytest.raises(service.AppDataError) as excinfo:
+            await _read(lambda request: httpx.Response(200, json={"rows": [{"id": 1}]}))
+        assert excinfo.value.code == AppDataMessages.SERVICE_UNAVAILABLE
 
     async def test_a_response_past_the_ceiling_is_abandoned(self):
         oversized = "x" * (service.MAX_RESPONSE_BYTES + 1024)
         with pytest.raises(service.AppDataError) as excinfo:
-            await _read(lambda request: httpx.Response(200, json={"rows": [oversized]}))
+            await _read(lambda request: httpx.Response(200, json=_answer([oversized])))
         assert excinfo.value.code == AppDataMessages.RESPONSE_TOO_LARGE
         assert excinfo.value.status_code == 502
 
@@ -177,7 +192,7 @@ class TestParams:
     def test_a_required_parameter_left_out_is_refused(self):
         source = {
             **SOURCE,
-            "params_schema": [
+            "params": [
                 {"key": "shop", "type": "string", "required": True, "label": {}}
             ],
         }
@@ -197,12 +212,23 @@ class TestParams:
 
 
 class TestDefinitionReading:
-    def test_a_source_is_found_on_the_pinned_definition(self):
-        definition = {"app_kind": "service", "data_sources": [SOURCE]}
-        assert service.find_data_source(definition, "orders") == SOURCE
-        assert service.find_data_source(definition, "other") is None
+    def test_a_read_is_found_on_the_pinned_definition(self):
+        definition = {"app_kind": "service", "endpoints": [SOURCE]}
+        assert service.find_read_endpoint(definition, ORDERS) == SOURCE
+        assert service.find_read_endpoint(definition, "app.acme.shop.other") is None
 
-    def test_a_source_is_read_over_the_wire_surface(self):
+    def test_only_a_read_is_reachable_from_here(self):
+        """A write and an emission are both real endpoints and neither belongs
+        on the fetch path: rendering a dashboard must not be a way to make an
+        app act."""
+        for direction in ("write", "emit"):
+            definition = {
+                "app_kind": "service",
+                "endpoints": [{**SOURCE, "direction": direction}],
+            }
+            assert service.find_read_endpoint(definition, ORDERS) is None
+
+    def test_an_app_is_called_over_the_wire_surface(self):
         """A registration may carry two addresses. This one is Initiative's own
         server calling the app, so it uses the address meant for that — the
         browser address is for what a browser opens."""
@@ -212,8 +238,8 @@ class TestDefinitionReading:
             embed_origin="https://shop.example.com",
         )
 
-        assert service._source_url(registration, SOURCE) == (
-            "http://acme-shop:8200/v1/data/orders"
+        assert service._endpoints_url(registration) == (
+            "http://acme-shop:8200/v1/endpoints"
         )
 
     def test_only_a_service_app_has_a_backing_service(self):

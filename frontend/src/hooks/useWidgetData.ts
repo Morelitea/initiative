@@ -72,7 +72,7 @@ export interface WidgetBinding {
    *  address. Where the app lives comes from the deployment's registration, and
    *  only the server ever reads it. */
   app_uid?: string | null;
-  source_id?: string | null;
+  endpoint_id?: string | null;
   params?: Record<string, unknown> | null;
 }
 
@@ -216,10 +216,10 @@ export function useWidgetData(
   // us what freshness the source asks for.
   const isApp = source === "app";
   const appCatalogQuery = useAppWidgetCatalog(scoped && isApp);
-  const appBinding = resolveAppBinding(appCatalogQuery.data, binding.app_uid, binding.source_id);
+  const appBinding = resolveAppBinding(appCatalogQuery.data, binding.app_uid, binding.endpoint_id);
   const appQuery = useAppData({
     appId: appBinding?.entry.app_id,
-    sourceId: binding.source_id ?? undefined,
+    endpointId: binding.endpoint_id ?? undefined,
     dashboardId,
     params: binding.params ?? undefined,
     cacheTtlSeconds: appBinding?.source.cache_ttl_seconds,
@@ -418,7 +418,7 @@ export function useWidgetData(
       case "app": {
         // A definition that never had the app filled in, or a canvas with no
         // dashboard behind it (a preview). Neither is an error.
-        if (!binding.app_uid || !binding.source_id || typeof dashboardId !== "number") {
+        if (!binding.app_uid || !binding.endpoint_id || typeof dashboardId !== "number") {
           return unbound();
         }
         if (appCatalogQuery.isLoading) {
@@ -448,7 +448,7 @@ export function useWidgetData(
         // switched off. Said plainly rather than rendered as an access outcome
         // — the definition is the guild's and stays stored, and the tile
         // becomes the surface that asks for the app to be reconnected.
-        const appInstalled = appCatalogQuery.data?.items.some(
+        const appInstalled = (appCatalogQuery.data?.items ?? []).some(
           (item) => item.app_uid === binding.app_uid
         );
         if (!appInstalled) {
@@ -519,7 +519,7 @@ export function useWidgetData(
     scoped,
     dashboardId,
     binding.app_uid,
-    binding.source_id,
+    binding.endpoint_id,
     appBinding,
     appCatalogQuery.data,
     appCatalogQuery.isLoading,

@@ -374,7 +374,7 @@ export interface AppConfig {
 export type AppDataParamLabel = { [key: string]: string };
 
 /**
- * One parameter a source accepts, from its ``params_schema``.
+ * One parameter an endpoint accepts, from its ``params``.
  */
 export interface AppDataParam {
   key: string;
@@ -394,13 +394,16 @@ export interface AppDataResponse {
 }
 
 /**
- * A source a widget may bind to.
+ * A read endpoint a widget may bind to.
+ *
+ * Reads only. A write and an emission are both real endpoints and neither
+ * fills a tile, so neither belongs in a widget picker.
  */
-export interface AppDataSourceRead {
+export interface AppEndpointRead {
   id: string;
   visibility?: string;
   cache_ttl_seconds?: number;
-  params_schema?: AppDataParam[];
+  params?: AppDataParam[];
 }
 
 export type AppServiceRegistrationCreateDelegationJwks = { [key: string]: unknown } | null;
@@ -498,7 +501,7 @@ export interface AppWidgetRead {
   id: string;
   meta?: AppWidgetReadMeta;
   module_source: string;
-  sources?: string[];
+  endpoints?: string[];
   sample_data?: AppWidgetReadSampleData;
 }
 
@@ -512,7 +515,7 @@ export interface AppWidgetCatalogEntry {
   name: string;
   enabled?: boolean;
   widgets?: AppWidgetRead[];
-  data_sources?: AppDataSourceRead[];
+  endpoints?: AppEndpointRead[];
 }
 
 export interface AppWidgetCatalogResponse {
@@ -5443,7 +5446,7 @@ export type ReadDashboardApiV1GGuildIdDashboardsDashboardIdGetParams = {
   include_deleted?: boolean;
 };
 
-export type ReadAppDataApiV1GGuildIdAppsAppIdDataSourceIdGetParams = {
+export type ReadAppDataApiV1GGuildIdAppsAppIdEndpointsEndpointIdGetParams = {
   /**
    * The dashboard the widget sits on. Its own gates decide whether this caller may see anything here at all.
    */
