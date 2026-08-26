@@ -26,6 +26,8 @@ let go at the vendor. The teardown tests assert on the rows *and* on the
 recorded revocations, because deleting our copy is only half of it.
 """
 
+from urllib.parse import parse_qs, urlparse
+
 import pytest
 from httpx import AsyncClient
 from sqlmodel import select
@@ -375,11 +377,19 @@ class TestConnect:
         # path, the handle the app will store its result against, and the guild
         # to write it back under — the app addresses every install by guild and
         # cannot derive one from the ref.
-        assert body["connect_url"] == (
+        #
+        # Asserted as those four things rather than as one pasted string. The
+        # connect URL also carries a signed return address, which has its own
+        # tests (``guild_apps_platform_test``) and is not what this one is
+        # about: pinning the whole query here made a test about WHO MAY CONNECT
+        # fail the day the URL grew a parameter.
+        connect = urlparse(body["connect_url"])
+        assert f"{connect.scheme}://{connect.netloc}{connect.path}" == (
             "https://shop.example.test/connect/github"
-            f"?connection_ref={body['connection_ref']}"
-            f"&guild_id={a.guild.id}"
         )
+        query = parse_qs(connect.query)
+        assert query["connection_ref"] == [body["connection_ref"]]
+        assert query["guild_id"] == [str(a.guild.id)]
 
     async def test_the_handle_is_opaque_and_carries_nothing_about_the_person(
         self, client: AsyncClient, acting_user, session: AsyncSession
