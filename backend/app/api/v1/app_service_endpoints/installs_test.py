@@ -705,6 +705,44 @@ class TestResolveDelegatedConnection:
         assert response.status_code == 422
         assert response.json()["detail"] == AppChannelMessages.CONNECTION_UNSPECIFIED
 
+    async def test_the_question_is_asked_of_the_manifest_not_the_rows(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        """The member here has connected only one of the two the app declares.
+        Answering would make the call succeed today and be refused the day they
+        connect the second, so what an install declares is what decides."""
+        definition = _definition()
+        definition["connections"] = [*definition["connections"], SECOND_CONNECTION]
+        guild, _, _, subject = await self._delegated(session, definition=definition)
+
+        response = await _get(
+            client,
+            self._path(guild.id),
+            query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
+        )
+
+        assert response.status_code == 422
+        assert response.json()["detail"] == AppChannelMessages.CONNECTION_UNSPECIFIED
+
+    async def test_an_install_declaring_no_member_connection_is_a_miss(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        """Nothing to name, and nothing a member could have connected."""
+        definition = _definition()
+        definition["connections"] = [ADMIN_CONNECTION]
+        guild, _, _, subject = await self._delegated(
+            session, definition=definition, connected=False
+        )
+
+        response = await _get(
+            client,
+            self._path(guild.id),
+            query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == AppChannelMessages.CONNECTION_NOT_FOUND
+
     async def test_naming_the_connection_settles_it(
         self, client: AsyncClient, session: AsyncSession
     ):

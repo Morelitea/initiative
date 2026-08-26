@@ -374,29 +374,42 @@ async def connection_for_member(
 
     ``connection_id`` names which of the install's connections is meant. An
     install declaring one per-member connection needs no such statement; one
-    declaring several is asked to make it, rather than being handed whichever
-    row sorted first.
-    """
-    statement = select(GuildAppUserConnection).where(
-        GuildAppUserConnection.app_id == app.id,
-        GuildAppUserConnection.user_id == user_id,
-        GuildAppUserConnection.blocked_at.is_(None),
-    )
-    if connection_id is not None:
-        statement = statement.where(
-            GuildAppUserConnection.connection_id == connection_id
-        )
-    rows = (
-        await session.exec(statement.order_by(GuildAppUserConnection.connection_id))
-    ).all()
+    declaring several is asked to make it.
 
-    if not rows:
-        raise AppChannelError(AppChannelMessages.CONNECTION_NOT_FOUND, status_code=404)
-    if len(rows) > 1:
-        raise AppChannelError(
-            AppChannelMessages.CONNECTION_UNSPECIFIED, status_code=422
+    Which of those an install *is* comes from the pinned definition, never from
+    how many rows a member happens to have: an app that declares two and gets an
+    answer only because this member has connected one of them would start being
+    refused the day they connect the other. The question a caller has to answer
+    is a property of its own manifest, so it reads the same on every member.
+    """
+    target = connection_id or _sole_member_connection(app)
+    row = (
+        await session.exec(
+            select(GuildAppUserConnection).where(
+                GuildAppUserConnection.app_id == app.id,
+                GuildAppUserConnection.user_id == user_id,
+                GuildAppUserConnection.connection_id == target,
+                GuildAppUserConnection.blocked_at.is_(None),
+            )
         )
-    return _connection_read(rows[0])
+    ).first()
+    if row is None:
+        raise AppChannelError(AppChannelMessages.CONNECTION_NOT_FOUND, status_code=404)
+    return _connection_read(row)
+
+
+def _sole_member_connection(app: GuildApp) -> str:
+    """The one per-member connection this install declares, or a refusal.
+
+    An install declaring none has nothing a member could have connected, which
+    is the same answer as a member who has not connected: not found.
+    """
+    declared = app_config_service.member_connection_ids(app.definition)
+    if len(declared) == 1:
+        return declared[0]
+    if not declared:
+        raise AppChannelError(AppChannelMessages.CONNECTION_NOT_FOUND, status_code=404)
+    raise AppChannelError(AppChannelMessages.CONNECTION_UNSPECIFIED, status_code=422)
 
 
 async def _row_by_ref(

@@ -42,6 +42,7 @@ __all__ = [
     "definition_connections",
     "has_value_map",
     "is_satisfied",
+    "member_connection_ids",
     "needs_configuration",
     "prune_to_definition",
 ]
@@ -88,6 +89,26 @@ def definition_connections(definition: dict[str, Any] | None) -> list[dict[str, 
     if not isinstance(declared, list):
         return []
     return [entry for entry in declared if isinstance(entry, dict)]
+
+
+def member_connection_ids(definition: dict[str, Any] | None) -> list[str]:
+    """The ids of the connections each member holds their own credential for.
+
+    ``interactive`` is the manifest's word for that half — one credential per
+    person, obtained through the app's own vendor flow — as against ``static``,
+    the single value a guild admin types for everybody.
+
+    Read from the *declaration* rather than from the rows that happen to exist,
+    so what an install is means the same thing before and after any particular
+    member connects.
+    """
+    return [
+        connection_id
+        for connection in definition_connections(definition)
+        if connection.get("scope") == "interactive"
+        for connection_id in (connection.get("id"),)
+        if isinstance(connection_id, str) and connection_id
+    ]
 
 
 def connection_by_id(
