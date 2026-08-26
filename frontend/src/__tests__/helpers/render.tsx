@@ -38,6 +38,12 @@ interface RenderWithProvidersResult extends ReturnType<typeof render> {
   queryClient: QueryClient;
 }
 
+interface RenderPageResult extends RenderWithProvidersResult {
+  /** The memory router the page is mounted in — read
+   *  `router.state.location.pathname` to assert where a flow navigated. */
+  router: ReturnType<typeof createRouter>;
+}
+
 interface RenderPageOptions extends ProviderOptions {
   routerSearch?: Record<string, unknown>;
   /** The route the page is mounted at. Use `$param` segments for a page that
@@ -181,7 +187,7 @@ export function renderWithProviders(
 export function renderPage(
   PageComponent: React.ComponentType,
   options: RenderPageOptions & Omit<RenderOptions, "wrapper"> = {}
-): RenderWithProvidersResult {
+): RenderPageResult {
   const {
     auth,
     guilds,
@@ -239,5 +245,5 @@ export function renderPage(
     renderOptions
   );
 
-  return { ...result, queryClient };
+  return { ...result, queryClient, router };
 }
