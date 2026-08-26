@@ -9,10 +9,17 @@ what this deployment does with it.
 
 Two columns exist only because of that split:
 
-* ``grants`` — powers beyond what any app gets by default. Today the closed
-  vocabulary holds one value, ``delegation``: the holder may call Initiative's
-  API as a real user, under that user's own gates. Conferring it is an operator
-  edit; revoking it is the same edit in reverse.
+* ``grants`` — powers beyond what any app gets by default, from a closed
+  vocabulary. Conferring one is an operator edit; revoking it is the same edit
+  in reverse.
+
+  * ``delegation`` — the holder may call Initiative's API as a real user, under
+    that user's own gates.
+  * ``app_directory`` — the holder may ask where *another* installed app's
+    service answers. Separate from ``delegation`` because the two confer
+    different things: an app that acts for its own members has no call to read
+    another app's address. An automation service holds both, because acting on
+    one app's behalf at another is what it is for.
 * ``mandatory`` — the deployment asserts this app is part of what it *is*, so
   every guild has it and guild admins cannot remove it. The operator's kill
   switch (``enabled``) still outranks it.
@@ -76,7 +83,7 @@ APP_SERVICE_STATUSES: frozenset[str] = frozenset(
 #: The closed vocabulary of operator-conferred powers. A value outside this set
 #: is refused on write rather than stored as something no code resolves — the
 #: same "declare it or it does not exist" rule the listing validator applies.
-APP_SERVICE_GRANTS: frozenset[str] = frozenset({"delegation"})
+APP_SERVICE_GRANTS: frozenset[str] = frozenset({"delegation", "app_directory"})
 
 
 class AppServiceRegistration(SQLModel, table=True):

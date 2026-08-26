@@ -485,6 +485,22 @@ def serialize_delegation(row: Any) -> GuildAppDelegationRead:
     )
 
 
+class GuildAppServiceRead(SanitizedBaseModel):
+    """Where one installed app's service answers.
+
+    Not part of :class:`GuildAppRead`: ``base_url`` is operator wiring rather
+    than anything an install describes, and nothing in the UI draws it.
+    """
+
+    #: The app's registered service id, echoed so a caller can check it got the
+    #: app it meant rather than matching on the install id alone.
+    public_id: str
+    base_url: str
+    #: Whether anything may flow through this app right now: the guild's own
+    #: switch and the operator's, together.
+    available: bool
+
+
 def serialize_member_delegation(row: Any) -> GuildAppMemberDelegation:
     return GuildAppMemberDelegation(
         user_id=row.user_id,

@@ -367,6 +367,21 @@ async def live_delegate(public_id: str) -> Optional[RegistrationSnapshot]:
     return snapshot
 
 
+async def directory_reader(public_id: str) -> Optional[RegistrationSnapshot]:
+    """The registration behind a caller that may ask where other apps answer.
+
+    A live delegate that also holds ``app_directory``. Two grants rather than
+    one because they confer different things: acting for a member is what most
+    delegates are for, and reading another app's address is not part of it. An
+    automation service is conferred both; an app that works its own vendor is
+    conferred at most the first.
+    """
+    snapshot = await live_delegate(public_id)
+    if snapshot is None or "app_directory" not in snapshot.grants:
+        return None
+    return snapshot
+
+
 async def delegate_jwks(public_id: str) -> dict[str, Any] | None:
     """One delegate's public verification keys, as a JWKS document.
 

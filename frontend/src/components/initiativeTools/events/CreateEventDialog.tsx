@@ -33,7 +33,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAuth } from "@/hooks/useAuth";
 import { useCreateCalendarEvent } from "@/hooks/useCalendarEvents";
-import { useCalendarsList } from "@/hooks/useCalendars";
+import { useCalendar, useCalendarsList } from "@/hooks/useCalendars";
 import { getItem, setItem } from "@/lib/storage";
 import type { DialogProps } from "@/types/dialog";
 
@@ -97,22 +97,28 @@ export const CreateEventDialog = ({
   );
 
   // Calendars the current user may author events in (write on the calendar).
+  // Locked to one calendar the picker is hidden, so there is no list to fill:
+  // that calendar is read on its own instead. A guild calendar's surface shows
+  // guild-level content only, and this is the one read on it that would
+  // otherwise span the guild's initiatives.
   const calendarsQuery = useCalendarsList(
     { page_size: 200, ...(initiativeId ? { initiative_id: initiativeId } : {}) },
-    { enabled: open }
+    { enabled: open && calendarId === undefined }
   );
   const writableCalendars = useMemo(
     () => (calendarsQuery.data?.items ?? []).filter(isWritableCalendar),
     [calendarsQuery.data]
   );
+  const lockedCalendarQuery = useCalendar(calendarId ?? null, { enabled: open });
 
   const effectiveCalendarId =
     calendarId ?? (selectedCalendarId ? Number(selectedCalendarId) : null);
   const effectiveCalendar = useMemo(
     () =>
+      lockedCalendarQuery.data ??
       (calendarsQuery.data?.items ?? []).find((calendar) => calendar.id === effectiveCalendarId) ??
       null,
-    [calendarsQuery.data, effectiveCalendarId]
+    [lockedCalendarQuery.data, calendarsQuery.data, effectiveCalendarId]
   );
 
   // Default the picker: explicit default > last-used (per guild) > the only
