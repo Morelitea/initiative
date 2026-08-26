@@ -32,6 +32,7 @@ for real.
 
 from datetime import datetime, timezone
 
+import json
 import httpx
 import jwt
 import pytest
@@ -56,6 +57,13 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
 APP_UID = "SHPAPP00000001"
 PUBLIC_ID = "acme.shop"
+
+#: What the fixture app declares. Namespaced under its own service id, which is
+#: what every endpoint id has to be.
+ORDERS_SUMMARY = f"app.{PUBLIC_ID}.orders-summary"
+REVENUE = f"app.{PUBLIC_ID}.revenue"
+MY_PRS = f"app.{PUBLIC_ID}.my-prs"
+REFUND = f"app.{PUBLIC_ID}.refund"
 BASE_URL = "http://127.0.0.1:9100"
 
 #: A widget module with the characters a plain-text sanitizer would mangle.
@@ -90,32 +98,34 @@ def _definition() -> dict:
     return {
         "app_kind": "service",
         "service": {"public_id": PUBLIC_ID, "protocol": 1},
-        "features": ["data", "widgets"],
+        "features": ["endpoints", "widgets"],
         "connections": [ADMIN_CONNECTION, GITHUB_CONNECTION],
-        "data_sources": [
+        "endpoints": [
             {
-                "id": "orders_summary",
-                "path": "/v1/data/orders_summary",
+                "id": ORDERS_SUMMARY,
+                "direction": "read",
                 "visibility": "member",
                 "cache_ttl_seconds": 60,
-                "params_schema": [
+                "params": [
                     _field("range", "select", options=["7d", "30d"]),
                     _field("limit", "int"),
                 ],
             },
             {
-                "id": "revenue",
-                "path": "/v1/data/revenue",
+                "id": REVENUE,
+                "direction": "read",
                 "visibility": "guild_admin",
                 "cache_ttl_seconds": 0,
             },
             {
-                "id": "my_prs",
-                "path": "/v1/data/my_prs",
+                "id": MY_PRS,
+                "direction": "read",
                 "visibility": "member",
                 "cache_ttl_seconds": 60,
                 "requires": {"all_of": ["github"]},
             },
+            # A write, so a case can prove a tile cannot reach one.
+            {"id": REFUND, "direction": "write", "actors": ["member"]},
         ],
         "widgets": [
             {
@@ -125,14 +135,14 @@ def _definition() -> dict:
                 # JavaScript, and a plain-text sanitizer on the way out would
                 # rewrite these into something that no longer parses.
                 "module_source": MODULE_SOURCE,
-                "sources": ["orders_summary"],
-                "sample_data": {"orders_summary": [{"day": "mon", "total": 4}]},
+                "endpoints": [ORDERS_SUMMARY],
+                "sample_data": {ORDERS_SUMMARY: [{"day": "mon", "total": 4}]},
             }
         ],
     }
 
 
-def _dashboard_definition(*source_ids: str) -> dict:
+def _dashboard_definition(*endpoint_ids: str) -> dict:
     return normalize_dashboard_definition(
         {
             "widgets": [
@@ -142,10 +152,10 @@ def _dashboard_definition(*source_ids: str) -> dict:
                     "binding": {
                         "source": "app",
                         "app_uid": APP_UID,
-                        "source_id": source_id,
+                        "endpoint_id": endpoint_id,
                     },
                 }
-                for index, source_id in enumerate(source_ids)
+                for index, endpoint_id in enumerate(endpoint_ids)
             ]
         }
     )
@@ -252,7 +262,7 @@ async def _workspace(session: AsyncSession, acting_user, *sources: str):
         session,
         a.initiative,
         a.user,
-        definition=_dashboard_definition(*(sources or ("orders_summary",))),
+        definition=_dashboard_definition(*(sources or (ORDERS_SUMMARY,))),
     )
     return a, app, dashboard
 
@@ -276,7 +286,7 @@ class TestGates:
         a, app, dashboard = await _workspace(session, acting_user)
 
         response = await client.get(
-            _url(a, app, "orders_summary", dashboard), headers=a.headers
+            _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers
         )
         assert response.status_code == 200, response.text
         body = response.json()
@@ -295,7 +305,7 @@ class TestGates:
         outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
 
         response = await client.get(
-            _url(outsider, app, "orders_summary", dashboard), headers=outsider.headers
+            _url(outsider, app, ORDERS_SUMMARY, dashboard), headers=outsider.headers
         )
         assert response.status_code == 404
         assert upstream.count == 0
@@ -305,11 +315,9 @@ class TestGates:
     ):
         """The dashboard names which sources it displays; anything else is not
         reachable through it, even though the same app offers it."""
-        a, app, dashboard = await _workspace(session, acting_user, "orders_summary")
+        a, app, dashboard = await _workspace(session, acting_user, ORDERS_SUMMARY)
 
-        response = await client.get(
-            _url(a, app, "revenue", dashboard), headers=a.headers
-        )
+        response = await client.get(_url(a, app, REVENUE, dashboard), headers=a.headers)
         assert response.status_code == 404
         assert response.json()["detail"] == AppDataMessages.SOURCE_NOT_FOUND
         assert upstream.count == 0
@@ -331,11 +339,9 @@ class TestVisibility:
     async def test_a_guild_admin_source_is_open_to_an_admin(
         self, client, acting_user, session, upstream
     ):
-        a, app, dashboard = await _workspace(session, acting_user, "revenue")
+        a, app, dashboard = await _workspace(session, acting_user, REVENUE)
 
-        response = await client.get(
-            _url(a, app, "revenue", dashboard), headers=a.headers
-        )
+        response = await client.get(_url(a, app, REVENUE, dashboard), headers=a.headers)
         assert response.status_code == 200, response.text
 
     async def test_a_guild_admin_source_is_refused_to_a_member(
@@ -343,7 +349,7 @@ class TestVisibility:
     ):
         """Checked against the caller's real guild role, on the pinned
         definition — not against anything the request supplied."""
-        a, app, dashboard = await _workspace(session, acting_user, "revenue")
+        a, app, dashboard = await _workspace(session, acting_user, REVENUE)
         member = await acting_user(
             guild_role=GuildRole.member,
             guild=a.guild,
@@ -352,7 +358,7 @@ class TestVisibility:
         )
 
         response = await client.get(
-            _url(member, app, "revenue", dashboard), headers=member.headers
+            _url(member, app, REVENUE, dashboard), headers=member.headers
         )
         assert response.status_code == 403
         assert response.json()["detail"] == AppDataMessages.ADMIN_ONLY
@@ -370,7 +376,7 @@ class TestKillSwitches:
         await session.commit()
 
         response = await client.get(
-            _url(a, app, "orders_summary", dashboard), headers=a.headers
+            _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers
         )
         assert response.status_code == 409
         assert response.json()["detail"] == AppDataMessages.APP_DISABLED
@@ -386,7 +392,7 @@ class TestKillSwitches:
         await session.commit()
 
         response = await client.get(
-            _url(a, app, "orders_summary", dashboard), headers=a.headers
+            _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers
         )
         assert response.status_code == 409
         assert response.json()["detail"] == AppDataMessages.SERVICE_DISABLED
@@ -399,7 +405,7 @@ class TestKillSwitches:
         moment earlier is not served after the switch flips."""
         a, app, dashboard = await _workspace(session, acting_user)
         first = await client.get(
-            _url(a, app, "orders_summary", dashboard), headers=a.headers
+            _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers
         )
         assert first.status_code == 200
 
@@ -409,7 +415,7 @@ class TestKillSwitches:
         await session.commit()
 
         second = await client.get(
-            _url(a, app, "orders_summary", dashboard), headers=a.headers
+            _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers
         )
         assert second.status_code == 409
 
@@ -425,11 +431,11 @@ class TestKillSwitches:
             session,
             a.initiative,
             a.user,
-            definition=_dashboard_definition("orders_summary"),
+            definition=_dashboard_definition(ORDERS_SUMMARY),
         )
 
         response = await client.get(
-            _url(a, app, "orders_summary", dashboard), headers=a.headers
+            _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers
         )
         assert response.status_code == 404
         assert response.json()["detail"] == AppDataMessages.SERVICE_NOT_REGISTERED
@@ -442,11 +448,15 @@ class TestParams:
         a, app, dashboard = await _workspace(session, acting_user)
 
         response = await client.get(
-            _url(a, app, "orders_summary", dashboard, params='{"range":"30d"}'),
+            _url(a, app, ORDERS_SUMMARY, dashboard, params='{"range":"30d"}'),
             headers=a.headers,
         )
         assert response.status_code == 200, response.text
-        assert upstream.calls[0].url.params["range"] == "30d"
+        # In the body now, not the query string: one path serves every endpoint,
+        # so which one is being called travels with the parameters.
+        body = json.loads(upstream.calls[0].content)
+        assert body["endpoint"] == ORDERS_SUMMARY
+        assert body["params"]["range"] == "30d"
 
     @pytest.mark.parametrize(
         "params",
@@ -465,7 +475,7 @@ class TestParams:
         a, app, dashboard = await _workspace(session, acting_user)
 
         response = await client.get(
-            _url(a, app, "orders_summary", dashboard, params=params),
+            _url(a, app, ORDERS_SUMMARY, dashboard, params=params),
             headers=a.headers,
         )
         assert response.status_code == 400
@@ -478,7 +488,7 @@ class TestContextToken:
         self, client, acting_user, session, upstream
     ):
         a, app, dashboard = await _workspace(session, acting_user)
-        await client.get(_url(a, app, "orders_summary", dashboard), headers=a.headers)
+        await client.get(_url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers)
 
         header = upstream.calls[0].headers["Authorization"]
         assert header.startswith("Bearer ")
@@ -489,8 +499,8 @@ class TestContextToken:
         )
         assert claims["guild_id"] == a.guild.id
         assert claims["app_install_id"] == app.id
-        assert claims["scope"] == "data"
-        assert claims["source_id"] == "orders_summary"
+        assert claims["scope"] == "endpoint"
+        assert claims["endpoint_id"] == ORDERS_SUMMARY
         assert claims["aud"] == f"initiative-app:{PUBLIC_ID}"
         assert claims["exp"] - claims["iat"] == 60
         assert "sub" not in claims
@@ -525,11 +535,9 @@ class TestConnections:
     async def test_a_member_who_has_not_connected_is_told_to(
         self, client, acting_user, session, upstream
     ):
-        a, app, dashboard = await _workspace(session, acting_user, "my_prs")
+        a, app, dashboard = await _workspace(session, acting_user, MY_PRS)
 
-        response = await client.get(
-            _url(a, app, "my_prs", dashboard), headers=a.headers
-        )
+        response = await client.get(_url(a, app, MY_PRS, dashboard), headers=a.headers)
         assert response.status_code == 409
         assert response.json()["detail"] == AppDataMessages.CONNECTION_REQUIRED
         assert upstream.count == 0
@@ -537,7 +545,7 @@ class TestConnections:
     async def test_a_blocked_member_is_refused_by_name(
         self, client, acting_user, session, upstream
     ):
-        a, app, dashboard = await _workspace(session, acting_user, "my_prs")
+        a, app, dashboard = await _workspace(session, acting_user, MY_PRS)
         await route_session_to_guild(session, a.guild.id)
         session.add(
             GuildAppUserConnection(
@@ -552,9 +560,7 @@ class TestConnections:
         )
         await session.commit()
 
-        response = await client.get(
-            _url(a, app, "my_prs", dashboard), headers=a.headers
-        )
+        response = await client.get(_url(a, app, MY_PRS, dashboard), headers=a.headers)
         assert response.status_code == 403
         assert response.json()["detail"] == GuildAppMessages.CONNECTION_BLOCKED
         assert upstream.count == 0
@@ -562,12 +568,10 @@ class TestConnections:
     async def test_the_token_carries_the_opaque_handle_not_the_person(
         self, client, acting_user, session, upstream
     ):
-        a, app, dashboard = await _workspace(session, acting_user, "my_prs")
+        a, app, dashboard = await _workspace(session, acting_user, MY_PRS)
         await _connect(session, app=app, user_id=a.user.id, ref="cr_alice")
 
-        response = await client.get(
-            _url(a, app, "my_prs", dashboard), headers=a.headers
-        )
+        response = await client.get(_url(a, app, MY_PRS, dashboard), headers=a.headers)
         assert response.status_code == 200, response.text
 
         claims = jwt.decode(
@@ -585,7 +589,7 @@ class TestConnections:
         """A source needing the guild's own credential says so rather than
         calling an app that would fail."""
         definition = _definition()
-        definition["data_sources"][0]["requires"] = {"all_of": ["admin"]}
+        definition["endpoints"][0]["requires"] = {"all_of": ["admin"]}
 
         a = await acting_user(guild_role=GuildRole.admin, initiative=True)
         a.initiative.dashboards_enabled = True
@@ -599,11 +603,11 @@ class TestConnections:
             session,
             a.initiative,
             a.user,
-            definition=_dashboard_definition("orders_summary"),
+            definition=_dashboard_definition(ORDERS_SUMMARY),
         )
 
         response = await client.get(
-            _url(a, app, "orders_summary", dashboard), headers=a.headers
+            _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers
         )
         assert response.status_code == 409
         assert response.json()["detail"] == AppDataMessages.NEEDS_CONFIGURATION
@@ -625,10 +629,10 @@ class TestCache:
         )
 
         first = await client.get(
-            _url(a, app, "orders_summary", dashboard), headers=a.headers
+            _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers
         )
         second = await client.get(
-            _url(member, app, "orders_summary", dashboard), headers=member.headers
+            _url(member, app, ORDERS_SUMMARY, dashboard), headers=member.headers
         )
 
         assert first.status_code == 200
@@ -643,11 +647,11 @@ class TestCache:
         a, app, dashboard = await _workspace(session, acting_user)
 
         await client.get(
-            _url(a, app, "orders_summary", dashboard, params='{"range":"7d"}'),
+            _url(a, app, ORDERS_SUMMARY, dashboard, params='{"range":"7d"}'),
             headers=a.headers,
         )
         await client.get(
-            _url(a, app, "orders_summary", dashboard, params='{"range":"30d"}'),
+            _url(a, app, ORDERS_SUMMARY, dashboard, params='{"range":"30d"}'),
             headers=a.headers,
         )
         assert upstream.count == 2
@@ -661,7 +665,7 @@ class TestCache:
         dashboard. Their vendor accounts differ, so their rows differ, and a
         shared entry would show one person the other's data.
         """
-        a, app, dashboard = await _workspace(session, acting_user, "my_prs")
+        a, app, dashboard = await _workspace(session, acting_user, MY_PRS)
         b = await acting_user(
             guild_role=GuildRole.member,
             guild=a.guild,
@@ -672,9 +676,9 @@ class TestCache:
         await _connect(session, app=app, user_id=b.user.id, ref="cr_bob")
 
         upstream.rows = [{"pr": "alice"}]
-        alice = await client.get(_url(a, app, "my_prs", dashboard), headers=a.headers)
+        alice = await client.get(_url(a, app, MY_PRS, dashboard), headers=a.headers)
         upstream.rows = [{"pr": "bob"}]
-        bob = await client.get(_url(b, app, "my_prs", dashboard), headers=b.headers)
+        bob = await client.get(_url(b, app, MY_PRS, dashboard), headers=b.headers)
 
         assert alice.status_code == 200, alice.text
         assert bob.status_code == 200, bob.text
@@ -687,11 +691,11 @@ class TestCache:
     async def test_one_members_repeated_reads_still_collapse(
         self, client, acting_user, session, upstream
     ):
-        a, app, dashboard = await _workspace(session, acting_user, "my_prs")
+        a, app, dashboard = await _workspace(session, acting_user, MY_PRS)
         await _connect(session, app=app, user_id=a.user.id, ref="cr_alice")
 
-        await client.get(_url(a, app, "my_prs", dashboard), headers=a.headers)
-        again = await client.get(_url(a, app, "my_prs", dashboard), headers=a.headers)
+        await client.get(_url(a, app, MY_PRS, dashboard), headers=a.headers)
+        again = await client.get(_url(a, app, MY_PRS, dashboard), headers=a.headers)
 
         assert again.json()["cached"] is True
         assert upstream.count == 1
@@ -700,7 +704,7 @@ class TestCache:
         self, client, acting_user, session, upstream
     ):
         a, app, dashboard = await _workspace(session, acting_user)
-        await client.get(_url(a, app, "orders_summary", dashboard), headers=a.headers)
+        await client.get(_url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers)
         assert upstream.count == 1
 
         await route_session_to_guild(session, a.guild.id)
@@ -709,7 +713,7 @@ class TestCache:
         await session.commit()
 
         response = await client.get(
-            _url(a, app, "orders_summary", dashboard), headers=a.headers
+            _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers
         )
         assert response.json()["cached"] is False
         assert upstream.count == 2
@@ -717,10 +721,10 @@ class TestCache:
     async def test_a_source_asking_for_no_cache_is_not_cached(
         self, client, acting_user, session, upstream
     ):
-        a, app, dashboard = await _workspace(session, acting_user, "revenue")
+        a, app, dashboard = await _workspace(session, acting_user, REVENUE)
 
-        await client.get(_url(a, app, "revenue", dashboard), headers=a.headers)
-        await client.get(_url(a, app, "revenue", dashboard), headers=a.headers)
+        await client.get(_url(a, app, REVENUE, dashboard), headers=a.headers)
+        await client.get(_url(a, app, REVENUE, dashboard), headers=a.headers)
         assert upstream.count == 2
 
 
@@ -734,7 +738,7 @@ class TestFailureIsOneTile:
         )
 
         response = await client.get(
-            _url(a, app, "orders_summary", dashboard), headers=a.headers
+            _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers
         )
         assert response.status_code == 502
         assert response.json()["detail"] == AppDataMessages.SERVICE_UNAVAILABLE
@@ -746,12 +750,12 @@ class TestFailureIsOneTile:
         upstream.error = app_data_service.AppDataError(
             AppDataMessages.SERVICE_UNAVAILABLE, 502, "down"
         )
-        await client.get(_url(a, app, "orders_summary", dashboard), headers=a.headers)
+        await client.get(_url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers)
 
         upstream.error = None
         upstream.rows = [{"id": 2}]
         response = await client.get(
-            _url(a, app, "orders_summary", dashboard), headers=a.headers
+            _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers
         )
         assert response.status_code == 200
         assert response.json()["rows"] == [{"id": 2}]
@@ -769,7 +773,7 @@ class TestFailureIsOneTile:
         )
 
         response = await client.get(
-            _url(a, app, "orders_summary", dashboard), headers=a.headers
+            _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers
         )
         assert response.status_code == 503
         assert response.json()["detail"] == AppDataMessages.BUSY
@@ -794,11 +798,11 @@ class TestWidgetCatalog:
         # Byte-for-byte: the module is JavaScript, and anything that rewrote a
         # ``<`` or an ``&`` on the way out would ship a module that cannot parse.
         assert widget["module_source"] == MODULE_SOURCE
-        assert widget["sample_data"] == {"orders_summary": [{"day": "mon", "total": 4}]}
+        assert widget["sample_data"] == {ORDERS_SUMMARY: [{"day": "mon", "total": 4}]}
 
-        sources = {source["id"]: source for source in entry["data_sources"]}
-        assert sources["revenue"]["visibility"] == "guild_admin"
-        assert sources["orders_summary"]["cache_ttl_seconds"] == 60
+        sources = {source["id"]: source for source in entry["endpoints"]}
+        assert sources[REVENUE]["visibility"] == "guild_admin"
+        assert sources[ORDERS_SUMMARY]["cache_ttl_seconds"] == 60
 
     async def test_a_disabled_install_offers_no_widgets(
         self, client, acting_user, session

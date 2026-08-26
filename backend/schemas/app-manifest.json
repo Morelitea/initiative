@@ -567,12 +567,12 @@
         "binding": {
           "type": "object",
           "required": [
-            "source_id"
+            "endpoint_id"
           ],
           "properties": {
-            "source_id": {
-              "$ref": "#/$defs/identifier",
-              "description": "One of this manifest's own data source ids."
+            "endpoint_id": {
+              "$ref": "#/$defs/namespacedId",
+              "description": "One of this manifest's own read endpoint ids. Only a read answers with something to draw."
             },
             "params": {
               "type": "object",

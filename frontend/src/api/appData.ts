@@ -28,7 +28,7 @@ export interface AppDataParam {
   options?: string[];
 }
 
-export interface AppDataSource {
+export interface AppEndpoint {
   id: string;
   /** `member` or `guild_admin`. Shown by the picker; enforced again on every
    *  fetch under the caller's own session, so this is not what protects it. */
@@ -36,7 +36,7 @@ export interface AppDataSource {
   /** What the app asks for. The proxy applies the deployment's own ceiling on
    *  top, so this is a request rather than a guarantee. */
   cache_ttl_seconds: number;
-  params_schema: AppDataParam[];
+  params: AppDataParam[];
 }
 
 export interface AppWidget {
@@ -47,8 +47,8 @@ export interface AppWidget {
   meta: Record<string, unknown>;
   /** The module the sandbox runs. Text everywhere outside that sandbox. */
   module_source: string;
-  sources: string[];
-  /** Rows for a preview that issues no request at all, keyed by source id. */
+  endpoints: string[];
+  /** Rows for a preview that issues no request at all, keyed by endpoint id. */
   sample_data: Record<string, unknown>;
 }
 
@@ -58,7 +58,8 @@ export interface AppWidgetCatalogEntry {
   name: string;
   enabled: boolean;
   widgets: AppWidget[];
-  data_sources: AppDataSource[];
+  /** Read endpoints only — a write does not fill a tile. */
+  endpoints: AppEndpoint[];
 }
 
 export interface AppWidgetCatalog {
@@ -81,37 +82,37 @@ export const getAppWidgetCatalog = (guildId: number) =>
 export interface AppDataRequest {
   guildId: number;
   appId: number;
-  sourceId: string;
+  endpointId: string;
   /** The dashboard the widget sits on. Required: it is the surface whose gates
    *  decide this read. */
   dashboardId: number;
   params?: Record<string, unknown>;
 }
 
-export const getAppData = ({ guildId, appId, sourceId, dashboardId, params }: AppDataRequest) =>
+export const getAppData = ({ guildId, appId, endpointId, dashboardId, params }: AppDataRequest) =>
   apiClient
-    .get<AppDataResponse>(`/g/${guildId}/apps/${appId}/data/${encodeURIComponent(sourceId)}`, {
+    .get<AppDataResponse>(`/g/${guildId}/apps/${appId}/data/${encodeURIComponent(endpointId)}`, {
       params: {
         dashboard_id: dashboardId,
         // Sent as one encoded object so the server validates it against the
-        // source's own `params_schema` rather than reading loose query keys.
+        // endpoint's own `params` rather than reading loose query keys.
         ...(params && Object.keys(params).length ? { params: JSON.stringify(params) } : {}),
       },
     })
     .then((r) => r.data);
 
-/** Find the install backing a binding's `app_uid`, and the widget/source it
+/** Find the install backing a binding's `app_uid`, and the widget/endpoint it
  *  names. Returns `undefined` for an app that is not installed here, which is
  *  what an imported definition referencing an app this guild does not have
  *  looks like. */
 export const resolveAppBinding = (
   catalog: AppWidgetCatalog | undefined,
   appUid: string | null | undefined,
-  sourceId: string | null | undefined
-): { entry: AppWidgetCatalogEntry; source: AppDataSource } | undefined => {
-  if (!appUid || !sourceId) return undefined;
+  endpointId: string | null | undefined
+): { entry: AppWidgetCatalogEntry; source: AppEndpoint } | undefined => {
+  if (!appUid || !endpointId) return undefined;
   const entry = catalog?.items.find((item) => item.app_uid === appUid);
-  const source = entry?.data_sources.find((candidate) => candidate.id === sourceId);
+  const source = entry?.endpoints.find((candidate) => candidate.id === endpointId);
   return entry && source ? { entry, source } : undefined;
 };
 
@@ -135,12 +136,12 @@ export const appWidgetSource = (
 export const appWidgetSample = (
   catalog: AppWidgetCatalog | undefined,
   widgetType: string,
-  sourceId: string | null | undefined
+  endpointId: string | null | undefined
 ): unknown[] => {
   for (const entry of catalog?.items ?? []) {
     const widget = entry.widgets.find((candidate) => candidate.type === widgetType);
     if (!widget) continue;
-    const rows = sourceId ? widget.sample_data?.[sourceId] : undefined;
+    const rows = endpointId ? widget.sample_data?.[endpointId] : undefined;
     return Array.isArray(rows) ? rows : [];
   }
   return [];

@@ -44,7 +44,7 @@ from app.models.platform.user import User
 from app.models.tenant.guild_app import GuildApp
 from app.schemas.tenant.app_data import (
     AppDataResponse,
-    AppDataSourceRead,
+    AppEndpointRead,
     AppWidgetCatalogEntry,
     AppWidgetCatalogResponse,
     AppWidgetRead,
@@ -132,15 +132,19 @@ async def read_app_widget_catalog(
         if not widgets:
             continue
 
+        # Reads only. A picker offering a write would offer a tile that makes
+        # the app act every time somebody looks at a dashboard.
         endpoints = [
-            AppDataSourceRead(
+            AppEndpointRead(
                 id=endpoint["id"],
                 visibility=endpoint.get("visibility") or "member",
                 cache_ttl_seconds=endpoint.get("cache_ttl_seconds") or 0,
-                params_schema=endpoint.get("params") or [],
+                params=endpoint.get("params") or [],
             )
             for endpoint in definition.get("endpoints") or []
-            if isinstance(endpoint, dict) and isinstance(endpoint.get("id"), str)
+            if isinstance(endpoint, dict)
+            and isinstance(endpoint.get("id"), str)
+            and endpoint.get("direction") == "read"
         ]
         items.append(
             AppWidgetCatalogEntry(
@@ -159,7 +163,7 @@ async def read_app_widget_catalog(
                     )
                     for widget in widgets
                 ],
-                data_sources=endpoints,
+                endpoints=endpoints,
             )
         )
     return AppWidgetCatalogResponse(items=items)

@@ -160,7 +160,7 @@ export const SOURCES: Record<WidgetSource, SourceDescriptor> = {
     // fills: which installed app, and which of its sources.
     params: [
       { kind: "text", key: "app_uid", required: true },
-      { kind: "text", key: "source_id", required: true },
+      { kind: "text", key: "endpoint_id", required: true },
     ],
   },
 };

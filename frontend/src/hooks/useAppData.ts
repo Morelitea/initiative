@@ -40,7 +40,7 @@ export const appWidgetCatalogKey = (guildId: number) => ["app-widget-catalog", g
 export const appDataKey = (
   guildId: number,
   appId: number,
-  sourceId: string,
+  endpointId: string,
   dashboardId: number,
   params: Record<string, unknown> | undefined
 ) =>
@@ -48,7 +48,7 @@ export const appDataKey = (
     "app-data",
     guildId,
     appId,
-    sourceId,
+    endpointId,
     dashboardId,
     // Canonical, so two widgets that bound the same parameters in a different
     // order still share one request. Parameter values are scalars, so a sorted
@@ -72,7 +72,7 @@ export const useAppWidgetCatalog = (enabled = true) => {
 
 export interface AppDataQuery {
   appId: number | undefined;
-  sourceId: string | undefined;
+  endpointId: string | undefined;
   dashboardId: number | undefined;
   params?: Record<string, unknown>;
   /** The source's declared freshness, in seconds. Capped before use. */
@@ -83,7 +83,7 @@ export interface AppDataQuery {
 /** One app data source, for this viewer, on this dashboard. */
 export const useAppData = ({
   appId,
-  sourceId,
+  endpointId,
   dashboardId,
   params,
   cacheTtlSeconds,
@@ -99,18 +99,18 @@ export const useAppData = ({
     guildId > 0 &&
     typeof appId === "number" &&
     typeof dashboardId === "number" &&
-    typeof sourceId === "string" &&
-    sourceId.length > 0;
+    typeof endpointId === "string" &&
+    endpointId.length > 0;
 
   const staleSeconds = Math.max(0, Math.min(cacheTtlSeconds ?? 0, MAX_APP_STALE_SECONDS));
 
   return useQuery<AppDataResponse>({
-    queryKey: appDataKey(guildId, appId ?? 0, sourceId ?? "", dashboardId ?? 0, params),
+    queryKey: appDataKey(guildId, appId ?? 0, endpointId ?? "", dashboardId ?? 0, params),
     queryFn: () =>
       getAppData({
         guildId,
         appId: appId as number,
-        sourceId: sourceId as string,
+        endpointId: endpointId as string,
         dashboardId: dashboardId as number,
         params,
       }),

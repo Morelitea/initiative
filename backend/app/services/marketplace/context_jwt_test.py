@@ -60,7 +60,7 @@ def _mint(**overrides) -> str:
             "public_id": PUBLIC_ID,
             "guild_id": 7,
             "app_install_id": 3,
-            "scope": "data",
+            "scope": "endpoint",
             **overrides,
         }
     )
@@ -81,7 +81,7 @@ class TestClaims:
         claims = _claims(_mint(guild_id=42, app_install_id=9))
         assert claims["guild_id"] == 42
         assert claims["app_install_id"] == 9
-        assert claims["scope"] == "data"
+        assert claims["scope"] == "endpoint"
 
     def test_the_audience_names_exactly_one_app(self):
         token = _mint()
@@ -124,8 +124,7 @@ class TestClaims:
             "guild_id",
             "app_install_id",
             "scope",
-            "source_id",
-            "action_id",
+            "endpoint_id",
             "connection_refs",
         }
         body = json.dumps(claims)
@@ -138,10 +137,12 @@ class TestClaims:
             "connection_refs"
         ] == {"github": "cr_1"}
 
-    def test_the_source_is_named_when_one_is_being_fetched(self):
-        claims = _claims(_mint(source_id="orders_summary"))
-        assert claims["source_id"] == "orders_summary"
-        assert "action_id" not in claims
+    def test_the_endpoint_is_named_on_every_call(self):
+        # One scope covers reads and writes, so the id is what narrows a token:
+        # one minted to read the order summary cannot be spent changing an order.
+        claims = _claims(_mint(endpoint_id="app.acme.tracker.orders-summary"))
+        assert claims["endpoint_id"] == "app.acme.tracker.orders-summary"
+        assert "endpoint_id" not in _claims(_mint())
 
     def test_every_token_has_its_own_jti(self):
         assert _claims(_mint())["jti"] != _claims(_mint())["jti"]
@@ -149,7 +150,7 @@ class TestClaims:
     def test_the_key_id_is_stamped_so_a_rotation_can_be_followed(self):
         assert jwt.get_unverified_header(_mint())["kid"] == KEY_ID
 
-    @pytest.mark.parametrize("scope", ["data", "action", "lifecycle"])
+    @pytest.mark.parametrize("scope", ["endpoint", "lifecycle"])
     def test_the_scope_vocabulary_is_what_it_declares(self, scope):
         assert _claims(_mint(scope=scope))["scope"] == scope
 

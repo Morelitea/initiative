@@ -33,8 +33,10 @@ from app.services.marketplace.manifest_values import (
 from app.services.marketplace.definitions import normalize_listing_definition
 from app.services.marketplace.widget_meta import MAX_LOCALES, MAX_TEXT_LENGTH
 from app.services.marketplace.service_apps import (
+    ACTOR_KINDS,
     APP_PROTOCOL_VERSIONS,
     CONNECTION_SCOPES,
+    DIRECTIONS,
     EMBED_CAPABILITIES,
     FEATURES,
     FIELD_TYPES,
@@ -136,8 +138,10 @@ def test_vocabularies_come_from_the_validator():
     )
     assert set(defs["connection"]["properties"]["scope"]["enum"]) == CONNECTION_SCOPES
     assert set(defs["connectionField"]["properties"]["type"]["enum"]) == FIELD_TYPES
-    assert set(defs["sourceParam"]["properties"]["type"]["enum"]) == PARAM_TYPES
-    assert set(defs["dataSource"]["properties"]["visibility"]["enum"]) == (
+    assert set(defs["endpointParam"]["properties"]["type"]["enum"]) == PARAM_TYPES
+    assert set(defs["endpoint"]["properties"]["direction"]["enum"]) == DIRECTIONS
+    assert set(defs["endpoint"]["properties"]["actors"]["items"]["enum"]) == ACTOR_KINDS
+    assert set(defs["endpoint"]["properties"]["visibility"]["enum"]) == (
         GUILD_WIDE_VISIBILITIES
     )
     assert set(defs["embed"]["properties"]["visibility"]["enum"]) == VISIBILITIES
@@ -162,10 +166,10 @@ def test_a_secret_is_not_a_query_parameter():
     the schema must not blur the two by sharing one field definition."""
     defs = build_manifest_schema()["$defs"]
     assert "secret" in defs["connectionField"]["properties"]["type"]["enum"]
-    assert "secret" not in defs["sourceParam"]["properties"]["type"]["enum"]
+    assert "secret" not in defs["endpointParam"]["properties"]["type"]["enum"]
     # And only a connection field is written back by the app.
     assert "managed" in defs["connectionField"]["properties"]
-    assert "managed" not in defs["sourceParam"]["properties"]
+    assert "managed" not in defs["endpointParam"]["properties"]
 
 
 @pytest.mark.unit
@@ -193,7 +197,7 @@ ACCEPTED = [
     pytest.param(_manifest(), id="minimal"),
     pytest.param(
         _manifest(
-            features=["data"],
+            features=["endpoints"],
             connections=[
                 {
                     "id": "api",
@@ -205,13 +209,13 @@ ACCEPTED = [
                     "access_hint": {"api": "GitHub", "scopes": ["repo:read"]},
                 }
             ],
-            data_sources=[
+            endpoints=[
                 {
-                    "id": "issues",
-                    "path": "/data/issues",
+                    "id": "app.acme.tracker.issues",
+                    "direction": "read",
                     "visibility": "member",
                     "cache_ttl_seconds": 300,
-                    "params_schema": [
+                    "params": [
                         {
                             "key": "state",
                             "type": "select",
@@ -223,7 +227,7 @@ ACCEPTED = [
                 }
             ],
         ),
-        id="static-connection-and-source",
+        id="static-connection-and-read",
     ),
     pytest.param(
         _manifest(
@@ -253,11 +257,20 @@ ACCEPTED = [
     ),
     pytest.param(
         _manifest(
-            features=["events", "automations"],
-            events=["app.acme.tracker.issue-opened"],
-            automation={"nodes": [{"anything": "the service understands"}]},
+            features=["endpoints"],
+            endpoints=[
+                {"id": "app.acme.tracker.issue-opened", "direction": "emit"},
+                {
+                    "id": "app.acme.tracker.issue-open",
+                    "direction": "write",
+                    "actors": ["member", "installation"],
+                    "params": [
+                        {"key": "title", "type": "string", "label": {"en": "T"}}
+                    ],
+                },
+            ],
         ),
-        id="events-and-opaque-automation",
+        id="every-direction-in-one-block",
     ),
     # The three the platform takes rather than refuses. Each was a real
     # over-strict rule in the first cut of this schema, caught in review: a
@@ -265,15 +278,27 @@ ACCEPTED = [
     # is broken.
     pytest.param(
         _manifest(
-            features=["data"],
-            data_sources=[{"id": "s", "path": "/d", "cache_ttl_seconds": 10_000_000}],
+            features=["endpoints"],
+            endpoints=[
+                {
+                    "id": "app.acme.tracker.s",
+                    "direction": "read",
+                    "cache_ttl_seconds": 10_000_000,
+                }
+            ],
         ),
         id="cache-ttl-clamped-not-refused",
     ),
     pytest.param(
         _manifest(
-            features=["data"],
-            data_sources=[{"id": "s", "path": "/d", "invented_by_a_newer_app": 1}],
+            features=["endpoints"],
+            endpoints=[
+                {
+                    "id": "app.acme.tracker.s",
+                    "direction": "read",
+                    "invented_by_a_newer_app": 1,
+                }
+            ],
             some_future_block={"whatever": True},
         ),
         id="unknown-keys-dropped-not-refused",
@@ -289,7 +314,7 @@ ACCEPTED = [
     ),
     pytest.param(
         _manifest(
-            features=["data"],
+            features=["endpoints"],
             connections=[
                 {
                     "id": "api",
@@ -298,10 +323,10 @@ ACCEPTED = [
                     "fields": [{"key": "t", "type": "secret", "label": {"en": "T"}}],
                 }
             ],
-            data_sources=[
+            endpoints=[
                 {
-                    "id": "s",
-                    "path": "/d",
+                    "id": "app.acme.tracker.s",
+                    "direction": "read",
                     # One operator plus a key from a newer manifest revision.
                     # The platform reads the operator and drops the rest, so a
                     # rule that counted properties would refuse this.
@@ -313,14 +338,14 @@ ACCEPTED = [
     ),
     pytest.param(
         _manifest(
-            features=["data", "widgets", "dashboards"],
-            data_sources=[{"id": "s", "path": "/d"}],
+            features=["endpoints", "widgets", "dashboards"],
+            endpoints=[{"id": "app.acme.tracker.s", "direction": "read"}],
             widgets=[
                 {
                     "id": "w",
                     "meta": {"name": {"en": "W"}},
                     "module_source": "export default () => ({});",
-                    "sources": ["s"],
+                    "endpoints": ["app.acme.tracker.s"],
                 }
             ],
             dashboards=[
@@ -339,7 +364,7 @@ ACCEPTED = [
                             "title": "One",
                             "grid": {"x": 0, "y": 0, "w": 4, "h": 3},
                             "binding": {
-                                "source_id": "s",
+                                "endpoint_id": "app.acme.tracker.s",
                                 "params": {"label": "bug", "limit": 5, "open": True},
                             },
                         }
@@ -351,14 +376,14 @@ ACCEPTED = [
     ),
     pytest.param(
         _manifest(
-            features=["data", "widgets", "dashboards"],
-            data_sources=[{"id": "s", "path": "/d"}],
+            features=["endpoints", "widgets", "dashboards"],
+            endpoints=[{"id": "app.acme.tracker.s", "direction": "read"}],
             widgets=[
                 {
                     "id": "w",
                     "meta": {"name": {"en": "W"}},
                     "module_source": "export default () => ({});",
-                    "sources": ["s"],
+                    "endpoints": ["app.acme.tracker.s"],
                 }
             ],
             dashboards=[
@@ -368,7 +393,9 @@ ACCEPTED = [
                     "name": "Overview",
                     # No description, layout, widget id or grid: a publisher who
                     # wants one tile per widget writes almost nothing.
-                    "widgets": [{"type": "w", "binding": {"source_id": "s"}}],
+                    "widgets": [
+                        {"type": "w", "binding": {"endpoint_id": "app.acme.tracker.s"}}
+                    ],
                 }
             ],
         ),
@@ -402,17 +429,22 @@ REFUSED_BY_BOTH = [
     ),
     pytest.param(
         _manifest(
-            features=["data"],
-            data_sources=[{"id": "s", "path": "https://elsewhere.test/data"}],
+            features=["endpoints"],
+            # Direction decides who may call it and whether an answer may be
+            # cached, so a value outside the closed set is not a nuance the
+            # platform could resolve later.
+            endpoints=[{"id": "app.acme.tracker.s", "direction": "sideways"}],
         ),
-        id="path-that-is-an-address",
+        id="direction-outside-the-vocabulary",
     ),
     pytest.param(
-        _manifest(features=["data"], data_sources=[{"id": "s", "path": "/a/../b"}]),
+        _manifest(features=["endpoints"], endpoints=[{"id": "app.acme.tracker.s"}]),
         id="path-climbing-out",
     ),
     pytest.param(
-        _manifest(features=["data"], data_sources=[{"id": "UPPER", "path": "/x"}]),
+        _manifest(
+            features=["endpoints"], endpoints=[{"id": "UPPER", "direction": "read"}]
+        ),
         id="identifier-out-of-charset",
     ),
     pytest.param(
@@ -433,11 +465,11 @@ REFUSED_BY_BOTH = [
     # counts its properties.
     pytest.param(
         _manifest(
-            features=["data"],
-            data_sources=[
+            features=["endpoints"],
+            endpoints=[
                 {
-                    "id": "s",
-                    "path": "/d",
+                    "id": "app.acme.tracker.s",
+                    "direction": "read",
                     "requires": {"all_of": ["a"], "any_of": ["b"]},
                 }
             ],
@@ -446,8 +478,10 @@ REFUSED_BY_BOTH = [
     ),
     pytest.param(
         _manifest(
-            features=["data"],
-            data_sources=[{"id": "s", "path": "/d", "requires": {}}],
+            features=["endpoints"],
+            endpoints=[
+                {"id": "app.acme.tracker.s", "direction": "read", "requires": {}}
+            ],
         ),
         id="requires-naming-no-operator",
     ),
@@ -508,27 +542,30 @@ def test_a_localized_object_with_nothing_usable_is_refused(validator):
     "manifest,why",
     [
         (
-            _manifest(features=["data"]),
+            _manifest(features=["endpoints"]),
             "a declared feature with no block behind it",
         ),
         (
             _manifest(
-                features=["widgets", "data"],
-                data_sources=[{"id": "known", "path": "/d"}],
+                features=["widgets", "endpoints"],
+                endpoints=[{"id": "app.acme.tracker.known", "direction": "read"}],
                 widgets=[
                     {
                         "id": "w",
                         "meta": {"name": {"en": "W"}},
                         "module_source": "export default () => ({})",
-                        "sources": ["absent"],
+                        "endpoints": ["app.acme.tracker.absent"],
                     }
                 ],
             ),
-            "a widget binding a data source that does not exist",
+            "a widget binding a read endpoint that does not exist",
         ),
         (
-            _manifest(features=["events"], events=["app.someone-else.thing"]),
-            "an event namespaced under another app",
+            _manifest(
+                features=["endpoints"],
+                endpoints=[{"id": "app.someone-else.thing", "direction": "emit"}],
+            ),
+            "an endpoint namespaced under another app",
         ),
     ],
 )
