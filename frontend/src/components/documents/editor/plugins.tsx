@@ -109,13 +109,18 @@ export function Plugins({
   };
 
   return (
-    <div className="relative">
+    // A column that fills the editor's scrollport (which has a definite height
+    // only in fullscreen; elsewhere `min-h-full` resolves to auto and this is a
+    // plain block). The content region below grows into the leftover space so
+    // the actions bar's `sticky bottom-0` has somewhere to stick to even when
+    // the document is shorter than the viewport.
+    <div className="relative flex min-h-full flex-col">
       {showToolbar && (
         <ToolbarPlugin>
           {({ blockType }) => (
             <>
               {/* Desktop toolbar - all options inline */}
-              <div className="vertical-align-middle sticky top-0 z-10 hidden flex-wrap items-center gap-2 overflow-auto border-b bg-background p-1 lg:flex">
+              <div className="vertical-align-middle sticky top-0 z-10 hidden flex-wrap items-center gap-2 overflow-auto border-b bg-muted/20 p-1 lg:flex">
                 <HistoryToolbarPlugin />
                 <Separator orientation="vertical" className="h-7!" />
                 <BlockFormatDropDown>
@@ -157,7 +162,7 @@ export function Plugins({
               </div>
 
               {/* Compact toolbar - overflow menu */}
-              <div className="vertical-align-middle sticky top-0 z-10 flex items-center gap-2 border-b bg-background p-1 lg:hidden">
+              <div className="vertical-align-middle sticky top-0 z-10 flex items-center gap-2 border-b bg-muted/20 p-1 lg:hidden">
                 <HistoryToolbarPlugin />
                 <Separator orientation="vertical" className="h-7!" />
                 <BlockFormatDropDown>
@@ -175,7 +180,7 @@ export function Plugins({
           )}
         </ToolbarPlugin>
       )}
-      <div className="relative">
+      <div className="relative grow">
         <div className="relative">
           {/* Horizontal padding lives on this wrapper, not the ContentEditable root:
               lexical 0.45 writes an inline `padding-inline-start` on the editable
@@ -260,7 +265,7 @@ export function Plugins({
       </div>
       {showToolbar && (
         <ActionsPlugin>
-          <div className="sticky bottom-0 z-10 clear-both flex items-center justify-between gap-2 overflow-auto border-t bg-background p-1">
+          <div className="sticky bottom-0 z-10 clear-both flex items-center justify-between gap-2 overflow-auto border-t bg-muted/20 p-1">
             <div className="flex flex-1 justify-start"></div>
             <div>
               <CounterCharacterPlugin charset="UTF-16" />
