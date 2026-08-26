@@ -863,14 +863,11 @@ class TestConnectionWriteBack:
     async def test_a_ref_only_resolves_in_the_guild_it_was_minted_for(
         self, client: AsyncClient, session: AsyncSession
     ):
-        """The guild in a write selects an install; the ref is what has to match.
+        """A write names a guild, and the handle is looked up inside it.
 
-        A member is handed ``?connection_ref=…&guild_id=…`` in their own browser
-        and can change either before the app ever sees them, so the pairing is
-        checked rather than trusted: the ref is looked up inside the install the
-        named guild holds, and one minted elsewhere is not in it. Both guilds
-        below have the app installed, which is the case where a guild id on its
-        own would otherwise name something real.
+        Both guilds below have the app installed, so the install resolves and
+        the lookup is the thing being exercised rather than short-circuited by
+        a guild with nothing in it.
         """
         await register_app_service(session, listing_uid=SHOP_UID)
         guild, user, app = await _install(session)
@@ -886,12 +883,11 @@ class TestConnectionWriteBack:
         )
 
         assert written.status_code == 404, written.text
-        # Named, so this pins the ref lookup refusing rather than the install
-        # one — the other guild really does have the app, and the write got as
-        # far as looking the handle up in it.
+        # Named rather than taken as any 404: the handle is what did not
+        # resolve, the install having been found.
         assert written.json()["detail"] == AppChannelMessages.CONNECTION_NOT_FOUND
 
-        # And the row it named is untouched where that ref actually lives.
+        # And the row it named is unchanged where that handle does live.
         config = await _get(client, f"{BASE}/installs/{guild.id}/config")
         assert config.json()["member_connections"][0]["values"] == {}
 
