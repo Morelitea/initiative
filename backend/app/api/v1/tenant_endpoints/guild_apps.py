@@ -31,7 +31,7 @@ from datetime import datetime, timezone
 from typing import Annotated, Any, Optional
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -54,6 +54,7 @@ from app.models.platform.user import User
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.initiative import Initiative
 from app.schemas.tenant.guild_app import (
+    GuildAppServiceRead,
     GuildAppConfigUpdate,
     GuildAppConnectionSummary,
     GuildAppConnectStart,
@@ -899,6 +900,70 @@ async def _require_delegating_app(app: GuildApp) -> None:
             status_code=status.HTTP_404_NOT_FOUND,
             detail=GuildAppMessages.DELEGATION_NOT_OFFERED,
         )
+
+
+@router.get("/{app_id}/service", response_model=GuildAppServiceRead)
+async def read_app_service_address(
+    app_id: int,
+    request: Request,
+    session: RLSSessionDep,
+    guild_context: GuildContextDep,
+) -> GuildAppServiceRead:
+    """Where this install's service answers — for a delegate about to call it.
+
+    An automation service acts on apps as well as on Initiative: it asks one to
+    open a GitHub issue the same way it asks us to create a task. To do that it
+    has to know where the app *is*, and only the registration says — which is
+    the operator's wiring, held here and deliberately absent from
+    :class:`GuildAppRead` so it never travels to a browser.
+
+    **Delegates only, and every miss is the same 404.** The caller must have
+    arrived on a delegation token (``request.state.delegating_app``) whose
+    registration is enabled and holds the ``delegation`` grant — the identical
+    rule that decides which keys verify its tokens, read through
+    :func:`registration_lookup.live_delegate` so an operator's edit reaches
+    this and the key set together. A first-party session reaching this route
+    gets the same 404 as an unknown app: the address is not a member's to read,
+    and answering the two apart would describe the deployment's wiring to a
+    caller with no standing to ask about it.
+
+    What is *not* flattened into the 404 is ``available``. Once the caller is
+    established as a live delegate, "installed but switched off" is an answer it
+    can act on — it can park a run and say why — where an address it cannot tell
+    from a missing app leaves it guessing.
+    """
+    delegate = getattr(request.state, "delegating_app", None)
+    if not delegate or await registration_lookup.live_delegate(delegate) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=GuildAppMessages.NOT_FOUND,
+        )
+
+    app = await _load(session, app_id)
+    public_id = registration_lookup.service_public_id(app.definition)
+    if public_id is None:
+        # A tool instance or an embed: installed, but with no container behind
+        # it, so there is no address for one to be given.
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=GuildAppMessages.NOT_FOUND,
+        )
+
+    snapshot = (await registration_lookup.load_registrations()).get(public_id)
+    if snapshot is None:
+        # Installed here, but this deployment never wired the service up (or no
+        # longer does). Nothing it offers can be reached, and there is no
+        # address to hand over.
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=GuildAppMessages.NOT_FOUND,
+        )
+
+    return GuildAppServiceRead(
+        public_id=public_id,
+        base_url=snapshot.base_url,
+        available=bool(app.enabled) and snapshot.live,
+    )
 
 
 @router.get("/{app_id}/delegation", response_model=GuildAppDelegationRead)

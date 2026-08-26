@@ -485,6 +485,28 @@ def serialize_delegation(row: Any) -> GuildAppDelegationRead:
     )
 
 
+class GuildAppServiceRead(SanitizedBaseModel):
+    """Where one installed app's service answers, for a delegate to call it.
+
+    Served only to a delegate (see the route), and deliberately not part of
+    :class:`GuildAppRead`: ``base_url`` is where Initiative's *server* reaches
+    the app, which on a cluster is an internal address. It is operator wiring,
+    so it has no business travelling to a browser alongside the rest of an
+    install — a member reading the sidebar has no use for it and every reason
+    not to be told.
+    """
+
+    #: The app's registered service id, echoed so a caller can check it got the
+    #: app it meant rather than matching on the install id alone.
+    public_id: str
+    base_url: str
+    #: Whether anything may flow through this app right now — the guild's own
+    #: switch and the operator's kill switch, together. False is a real answer
+    #: rather than a 404: a caller that knows the app is switched off can say
+    #: so, where a missing address is indistinguishable from a missing app.
+    available: bool
+
+
 def serialize_member_delegation(row: Any) -> GuildAppMemberDelegation:
     return GuildAppMemberDelegation(
         user_id=row.user_id,
