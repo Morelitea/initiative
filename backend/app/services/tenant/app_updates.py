@@ -166,15 +166,35 @@ async def _update_guild(session: AsyncSession, guild_id: int) -> int:
     updated too: ``auto_update`` says this guild tracks the listing, and an app
     switched back on months later should not come back on a version its
     publisher has long since replaced.
+
+    **An admin editing an install always wins.** The pass reads ids first and
+    then takes each row again under ``FOR UPDATE``, rather than working from the
+    snapshot the scan produced. Two things follow, and both matter because
+    resolving the catalog takes real time between the two reads: the values this
+    prunes are the ones the install holds *now*, so a credential saved in the
+    meantime is pruned rather than overwritten by a stale copy; and
+    ``auto_update`` is read again under the lock, so a guild that opted out in
+    the meantime is not updated one last time. An edit arriving while the lock
+    is held waits and then applies on top, which is the order it happened in.
     """
-    apps = (
+    candidates = (
         await session.exec(
-            select(GuildApp).where(GuildApp.auto_update.is_(True)).order_by(GuildApp.id)
+            select(GuildApp.id)
+            .where(GuildApp.auto_update.is_(True))
+            .order_by(GuildApp.id)
         )
     ).all()
 
     applied = 0
-    for app in apps:
+    for app_id in candidates:
+        app = (
+            await session.exec(
+                select(GuildApp).where(GuildApp.id == app_id).with_for_update()
+            )
+        ).first()
+        # Gone, or no longer tracking, since the scan.
+        if app is None or not app.auto_update:
+            continue
         pending = await _resolve_pending(session, app)
         if pending is None:
             continue
