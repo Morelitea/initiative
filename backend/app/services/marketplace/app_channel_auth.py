@@ -2,8 +2,9 @@
 
 An app holds one thing: the shared secret its registration was wired with. Every
 call it makes carries a signature computed from that secret over the request's
-method, path, timestamp, nonce, and body — so the caller is established by the
-signature rather than by anything it says about itself. The ``X-Initiative-App``
+method, path, query string, timestamp, nonce, and body — so the caller is
+established by the signature rather than by anything it says about itself, and
+every input the request carries is inside the MAC rather than beside it. The ``X-Initiative-App``
 header names which registration to check against; it selects a key, and a
 request that does not then verify under that key is refused. Nothing downstream
 reads an app identity out of a body field.
@@ -11,7 +12,8 @@ reads an app identity out of a body field.
 Three properties the verifier keeps:
 
 * **Signed over the raw bytes, before any parsing.** The body is hashed exactly
-  as it arrived, so what was signed and what is acted on cannot differ.
+  as it arrived, and the query string enters verbatim, so what was signed and
+  what is acted on cannot differ.
 * **Bounded freshness.** A signed timestamp more than
   :data:`SIGNATURE_WINDOW_SECONDS` from now is refused, which is what bounds how
   long the replay guard has to remember anything.
@@ -131,7 +133,7 @@ def app_channel_possible() -> bool:
 
 
 def signing_material(
-    *, method: str, path: str, timestamp: str, nonce: str, body: bytes
+    *, method: str, path: str, query: str, timestamp: str, nonce: str, body: bytes
 ) -> bytes:
     """The bytes both sides run the MAC over.
 
@@ -139,11 +141,22 @@ def signing_material(
     the billing envelope uses, with the nonce folded in so the value that makes
     a request one-shot is covered by the signature rather than swappable beside
     it.
+
+    ``query`` is the request target's query string without its ``?``, empty on
+    a request that carries none. It is signed **verbatim**, in the order the
+    caller sends it — neither side sorts or re-encodes it, so a client builds
+    the string once and signs exactly what it puts on the wire. Every input a
+    request carries therefore sits inside the MAC: the path names the guild,
+    the query names what to look up, and the body carries what to write.
+
+    Both parameters are required rather than defaulted, so a new call site has
+    to say what it is signing instead of quietly signing an empty field.
     """
     return "\n".join(
         [
             method.upper(),
             path,
+            query,
             timestamp,
             nonce,
             hashlib.sha256(body).hexdigest(),
@@ -152,7 +165,14 @@ def signing_material(
 
 
 def sign_request(
-    secret: str, *, method: str, path: str, timestamp: str, nonce: str, body: bytes
+    secret: str,
+    *,
+    method: str,
+    path: str,
+    query: str,
+    timestamp: str,
+    nonce: str,
+    body: bytes,
 ) -> str:
     """The header value a caller holding ``secret`` would send.
 
@@ -162,7 +182,12 @@ def sign_request(
     digest = hmac.new(
         secret.encode("utf-8"),
         signing_material(
-            method=method, path=path, timestamp=timestamp, nonce=nonce, body=body
+            method=method,
+            path=path,
+            query=query,
+            timestamp=timestamp,
+            nonce=nonce,
+            body=body,
         ),
         hashlib.sha256,
     ).hexdigest()
@@ -251,6 +276,7 @@ async def authenticate_caller(
     *,
     method: str,
     path: str,
+    query: str,
     headers: Mapping[str, str],
     body: bytes,
 ) -> CallingApp:
@@ -267,6 +293,7 @@ async def authenticate_caller(
         secret,
         method=method,
         path=path,
+        query=query,
         timestamp=str(envelope.timestamp),
         nonce=envelope.nonce,
         body=body,

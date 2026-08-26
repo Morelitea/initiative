@@ -156,11 +156,12 @@ async def _member_connection(
 
 
 async def _get(client: AsyncClient, path: str, *, query: str = "", **kwargs):
-    """A signed GET. The signature covers the path the server reads
-    (``request.url.path``), so the query string is appended after signing
-    rather than folded into it."""
+    """A signed GET. ``query`` is given without its ``?`` and is signed along
+    with the path, the way a caller sending parameters would."""
+    target = f"{path}?{query}" if query else path
     return await client.get(
-        f"{path}{query}", headers=channel_headers(method="GET", path=path, **kwargs)
+        target,
+        headers=channel_headers(method="GET", path=path, query=query, **kwargs),
     )
 
 
@@ -514,7 +515,7 @@ class TestResolveDelegatedConnection:
         response = await _get(
             client,
             self._path(guild.id),
-            query=f"?delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
+            query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
         )
 
         assert response.status_code == 200, response.text
@@ -533,7 +534,7 @@ class TestResolveDelegatedConnection:
         response = await _get(
             client,
             self._path(guild.id),
-            query=f"?delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
+            query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
         )
 
         assert response.status_code == 200, response.text
@@ -551,7 +552,7 @@ class TestResolveDelegatedConnection:
         response = await _get(
             client,
             self._path(guild.id),
-            query=f"?delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
+            query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
         )
 
         assert response.status_code == 404
@@ -567,7 +568,7 @@ class TestResolveDelegatedConnection:
         response = await _get(
             client,
             self._path(guild.id),
-            query=f"?delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
+            query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
         )
 
         assert response.status_code == 404
@@ -584,7 +585,7 @@ class TestResolveDelegatedConnection:
         response = await _get(
             client,
             self._path(guild.id),
-            query=f"?delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
+            query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
         )
 
         assert response.status_code == 404
@@ -600,7 +601,7 @@ class TestResolveDelegatedConnection:
         response = await _get(
             client,
             self._path(guild.id),
-            query=f"?delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
+            query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
         )
 
         assert response.status_code == 404
@@ -620,7 +621,7 @@ class TestResolveDelegatedConnection:
         response = await _get(
             client,
             self._path(guild.id),
-            query=f"?delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
+            query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
         )
 
         assert response.status_code == 404
@@ -635,7 +636,7 @@ class TestResolveDelegatedConnection:
         response = await _get(
             client,
             self._path(guild.id),
-            query=f"?delegate=tests.shop&subject={subject}",
+            query=f"delegate=tests.shop&subject={subject}",
         )
 
         assert response.status_code == 404
@@ -648,7 +649,7 @@ class TestResolveDelegatedConnection:
         response = await _get(
             client,
             self._path(guild.id),
-            query=f"?delegate={DELEGATE_PUBLIC_ID}&subject=notasubjectatall",
+            query=f"delegate={DELEGATE_PUBLIC_ID}&subject=notasubjectatall",
         )
 
         assert response.status_code == 404
@@ -670,7 +671,7 @@ class TestResolveDelegatedConnection:
         response = await _get(
             client,
             self._path(theirs.id),
-            query=f"?delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
+            query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
         )
 
         assert response.status_code == 404
@@ -698,7 +699,7 @@ class TestResolveDelegatedConnection:
         response = await _get(
             client,
             self._path(guild.id),
-            query=f"?delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
+            query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
         )
 
         assert response.status_code == 422
@@ -725,12 +726,49 @@ class TestResolveDelegatedConnection:
             client,
             self._path(guild.id),
             query=(
-                f"?delegate={DELEGATE_PUBLIC_ID}&subject={subject}&connection=gitlab"
+                f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}&connection=gitlab"
             ),
         )
 
         assert response.status_code == 200, response.text
         assert response.json()["connection_ref"] == "cr_member_two"
+
+    async def test_a_swapped_subject_does_not_verify(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        """The query is inside the signature, so the parameters that arrive are
+        the ones the caller signed. Two members are connected here and both
+        subjects resolve on their own — what is refused is presenting one and
+        signing the other."""
+        guild, app, _, mine = await self._delegated(session)
+        theirs_member = await create_user(session)
+        await create_guild_membership(session, user=theirs_member, guild=guild)
+        theirs = await delegate_subject(session, guild, theirs_member)
+        await authorize_delegate(session, guild, theirs_member)
+        await _member_connection(
+            session,
+            guild=guild,
+            app=app,
+            user=theirs_member,
+            connection_ref="cr_member_two",
+        )
+        path = self._path(guild.id)
+        signed = f"delegate={DELEGATE_PUBLIC_ID}&subject={mine}"
+        sent = f"delegate={DELEGATE_PUBLIC_ID}&subject={theirs}"
+
+        response = await client.get(
+            f"{path}?{sent}",
+            headers=channel_headers(method="GET", path=path, query=signed),
+        )
+
+        assert response.status_code == 401
+        assert response.json()["detail"] == AppChannelMessages.INVALID_SIGNATURE
+
+        # ...and the same request, signed over what it sends, is fine — so the
+        # refusal above is the swap and not the setup.
+        honest = await _get(client, path, query=sent)
+        assert honest.status_code == 200, honest.text
+        assert honest.json()["connection_ref"] == "cr_member_two"
 
     async def test_an_unsigned_request_resolves_nothing(
         self, client: AsyncClient, session: AsyncSession
