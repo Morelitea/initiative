@@ -441,7 +441,7 @@
   "APP_CHANNEL_UNKNOWN_EVENT_TYPE": "That event type isn't one this app declared.",
   "APP_CHANNEL_EVENT_TOO_LARGE": "That event is larger than this version will carry.",
   "APP_CHANNEL_INVALID_CONFIG_STATE": "That app service reported a status this version doesn't recognize.",
-  "APP_DATA_SOURCE_NOT_FOUND": "This widget is bound to data the app no longer offers.",
+  "APP_DATA_ENDPOINT_NOT_FOUND": "This widget is bound to data the app no longer offers.",
   "APP_DATA_ADMIN_ONLY": "Only guild admins can see this app's data.",
   "APP_DATA_APP_DISABLED": "This app is turned off in this guild, so its widgets have nothing to show.",
   "APP_DATA_SERVICE_NOT_REGISTERED": "This app isn't set up on this deployment. Contact your administrator.",

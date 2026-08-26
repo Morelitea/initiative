@@ -7,9 +7,9 @@ widgets, what each widget draws, and the module the browser will run in its
 sandbox. It comes from each install's **pinned** definition, so a canvas is
 authored against the version the guild chose.
 
-``/apps/{app_id}/data/{endpoint_id}`` is the proxy. A widget never names an
-endpoint — it names a endpoint on an installed app, and this route turns that into
-one bounded call to the app's own service. The request carries the dashboard the
+``/apps/{app_id}/endpoints/{endpoint_id}`` is the proxy. A widget never names
+an address — it names a read endpoint on an installed app, and this route turns
+that into one bounded call to the app's own service. The request carries the dashboard the
 widget sits on, and that is what makes the gates run **before** anything else:
 
 * the URL is ``/g/{guild_id}/…`` under a session that assumes the guild's own
@@ -59,7 +59,7 @@ CurrentUser = Annotated[User, Depends(get_current_active_user)]
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
-def _binds_source(
+def _binds_endpoint(
     definition: dict[str, Any] | None,
     config: dict[str, Any] | None,
     *,
@@ -105,9 +105,9 @@ async def read_app_widget_catalog(
     """Which widgets this guild's installed apps contribute.
 
     Every member may read it: an app's existence is guild-wide knowledge and the
-    palette carries no guild data — declarations, module endpoint, and sample
-    rows, all from the pinned definition. A endpoint declared for guild admins is
-    still listed, and still refused at fetch time to anyone else.
+    palette carries no guild data — declarations, module source, and sample
+    rows, all from the pinned definition. An endpoint declared for guild admins
+    is still listed, and still refused at fetch time to anyone else.
 
     Disabled installs are left out entirely: their widgets have nothing to draw,
     so offering them would be offering a binding that cannot resolve.
@@ -169,7 +169,7 @@ async def read_app_widget_catalog(
     return AppWidgetCatalogResponse(items=items)
 
 
-@router.get("/{app_id}/data/{endpoint_id}", response_model=AppDataResponse)
+@router.get("/{app_id}/endpoints/{endpoint_id}", response_model=AppDataResponse)
 async def read_app_data(
     app_id: int,
     endpoint_id: str,
@@ -190,7 +190,7 @@ async def read_app_data(
         Query(description="The binding's parameters, as a JSON object."),
     ] = None,
 ) -> AppDataResponse:
-    """One app data endpoint, resolved for this viewer.
+    """One of an app's read endpoints, resolved for this viewer.
 
     Returns the app's rows verbatim with the time they were obtained. An app
     that is unreachable, slow, oversized, or answering in a shape this build
@@ -208,9 +208,9 @@ async def read_app_data(
     if app is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=AppDataMessages.SOURCE_NOT_FOUND,
+            detail=AppDataMessages.ENDPOINT_NOT_FOUND,
         )
-    if not _binds_source(
+    if not _binds_endpoint(
         dashboard.definition,
         dashboard.config,
         app_uid=app.listing_uid,
@@ -218,7 +218,7 @@ async def read_app_data(
     ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=AppDataMessages.SOURCE_NOT_FOUND,
+            detail=AppDataMessages.ENDPOINT_NOT_FOUND,
         )
 
     try:

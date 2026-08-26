@@ -24,7 +24,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import {
   type AppDataResponse,
-  type AppWidgetCatalog,
+  type AppWidgetCatalogResponse,
   getAppData,
   getAppWidgetCatalog,
 } from "@/api/appData";
@@ -60,7 +60,7 @@ export const appDataKey = (
  *  a disabled app's widgets have nothing to draw. */
 export const useAppWidgetCatalog = (enabled = true) => {
   const guildId = useActiveGuildId();
-  return useQuery<AppWidgetCatalog>({
+  return useQuery<AppWidgetCatalogResponse>({
     queryKey: appWidgetCatalogKey(guildId),
     queryFn: () => getAppWidgetCatalog(guildId),
     enabled: enabled && Number.isFinite(guildId) && guildId > 0,

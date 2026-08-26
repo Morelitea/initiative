@@ -267,11 +267,11 @@ async def _workspace(session: AsyncSession, acting_user, *sources: str):
     return a, app, dashboard
 
 
-def _url(actor, app, source_id: str, dashboard, **params) -> str:
+def _url(actor, app, endpoint_id: str, dashboard, **params) -> str:
     query = f"dashboard_id={dashboard.id}"
     for key, value in params.items():
         query = f"{query}&{key}={value}"
-    return actor.g(f"/apps/{app.id}/data/{source_id}?{query}")
+    return actor.g(f"/apps/{app.id}/endpoints/{endpoint_id}?{query}")
 
 
 # ---------------------------------------------------------------------------
@@ -319,7 +319,7 @@ class TestGates:
 
         response = await client.get(_url(a, app, REVENUE, dashboard), headers=a.headers)
         assert response.status_code == 404
-        assert response.json()["detail"] == AppDataMessages.SOURCE_NOT_FOUND
+        assert response.json()["detail"] == AppDataMessages.ENDPOINT_NOT_FOUND
         assert upstream.count == 0
 
     async def test_a_source_the_app_does_not_declare_is_refused(
@@ -331,7 +331,7 @@ class TestGates:
             _url(a, app, "made_up", dashboard), headers=a.headers
         )
         assert response.status_code == 404
-        assert response.json()["detail"] == AppDataMessages.SOURCE_NOT_FOUND
+        assert response.json()["detail"] == AppDataMessages.ENDPOINT_NOT_FOUND
         assert upstream.count == 0
 
 

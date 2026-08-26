@@ -448,7 +448,7 @@ export function useWidgetData(
         // switched off. Said plainly rather than rendered as an access outcome
         // — the definition is the guild's and stays stored, and the tile
         // becomes the surface that asks for the app to be reconnected.
-        const appInstalled = appCatalogQuery.data?.items.some(
+        const appInstalled = (appCatalogQuery.data?.items ?? []).some(
           (item) => item.app_uid === binding.app_uid
         );
         if (!appInstalled) {

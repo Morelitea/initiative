@@ -37,11 +37,12 @@ ORDER_CREATED = "app.tests.shop.order_created"
 
 
 def _definition(public_id: str = "tests.shop", events: list[str] | None = None) -> dict:
+    declared = [ORDER_CREATED] if events is None else events
     return {
         "app_kind": "service",
         "service": {"public_id": public_id, "protocol": 1},
-        "features": ["events"],
-        "events": [ORDER_CREATED] if events is None else events,
+        "features": ["endpoints"],
+        "endpoints": [{"id": event, "direction": "emit"} for event in declared],
     }
 
 
@@ -177,6 +178,33 @@ async def test_another_apps_namespace_is_refused(
             "event_type": "app.tests.other.order_created",
             "payload": {},
         },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == AppChannelMessages.UNKNOWN_EVENT_TYPE
+    assert dispatched == []
+
+
+async def test_an_endpoint_that_is_not_an_emit_is_refused(
+    client: AsyncClient, session: AsyncSession, dispatched
+):
+    """Reads, writes and emissions share one id space, so being declared is not
+    enough — an app announcing under a read's id would be emitting something no
+    subscriber could have asked for, because only emissions are subscribable."""
+    await register_app_service(session, listing_uid=SHOP_UID)
+    guild, _ = await _install(
+        session,
+        definition={
+            "app_kind": "service",
+            "service": {"public_id": "tests.shop", "protocol": 1},
+            "features": ["endpoints"],
+            "endpoints": [{"id": ORDER_CREATED, "direction": "read"}],
+        },
+    )
+
+    response = await _emit(
+        client,
+        {"guild_id": guild.id, "event_type": ORDER_CREATED, "payload": {}},
     )
 
     assert response.status_code == 400

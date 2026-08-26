@@ -79,7 +79,7 @@ const CATALOG = {
 };
 
 const catalogUrl = (url: string) => url.endsWith("/apps/widget-catalog");
-const dataUrl = (url: string) => url.includes("/data/");
+const dataUrl = (url: string) => url.includes("/endpoints/");
 
 beforeEach(() => {
   apiGet.mockReset();
@@ -143,7 +143,7 @@ describe("DashboardWidget with an app source", () => {
       string,
       { params: Record<string, unknown> },
     ];
-    expect(url).toBe("/g/2/apps/3/data/app.acme.shop.orders-summary");
+    expect(url).toBe("/g/2/apps/3/endpoints/app.acme.shop.orders-summary");
     expect(config.params.dashboard_id).toBe(11);
   });
 

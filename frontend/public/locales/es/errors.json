@@ -441,7 +441,7 @@
   "APP_CHANNEL_UNKNOWN_EVENT_TYPE": "Ese tipo de evento no es uno de los que declaró esta aplicación.",
   "APP_CHANNEL_EVENT_TOO_LARGE": "Ese evento es más grande de lo que esta versión puede transportar.",
   "APP_CHANNEL_INVALID_CONFIG_STATE": "Ese servicio de aplicación informó de un estado que esta versión no reconoce.",
-  "APP_DATA_SOURCE_NOT_FOUND": "Este widget está vinculado a datos que la aplicación ya no ofrece.",
+  "APP_DATA_ENDPOINT_NOT_FOUND": "Este widget está vinculado a datos que la aplicación ya no ofrece.",
   "APP_DATA_ADMIN_ONLY": "Solo la administración del gremio puede ver los datos de esta aplicación.",
   "APP_DATA_APP_DISABLED": "Esta aplicación está desactivada en este gremio, así que sus widgets no tienen nada que mostrar.",
   "APP_DATA_SERVICE_NOT_REGISTERED": "Esta aplicación no está configurada en esta instalación. Habla con tu administración.",

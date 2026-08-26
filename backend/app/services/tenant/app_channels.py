@@ -568,8 +568,12 @@ async def emit_event(
 
     The app has verified the third party's signature and worked out which of its
     installs the event belongs to; what this adds is the platform's half —
-    the event type is one the *pinned* definition declares, namespaced under the
-    calling app, and the guild has that app installed and enabled.
+    the type is an `emit` endpoint the *pinned* definition declares, namespaced
+    under the calling app, and the guild has that app installed and enabled.
+
+    `emit` and not merely declared: reads and writes share the id space, and an
+    app that could announce under a read's id would be emitting something a
+    subscriber has no way to have asked for.
 
     From there it is an ordinary event: the existing dispatcher delivers it to
     whatever the automation delegate subscribed to. Delivery targets are the
@@ -577,13 +581,18 @@ async def emit_event(
     subscribe.
     """
     definition = app.definition if isinstance(app.definition, dict) else {}
-    declared = definition.get("events")
+    declared = definition.get("endpoints")
     prefix = f"{ENDPOINT_ID_PREFIX}{registration.public_id}."
-    if (
-        not isinstance(declared, list)
-        or event_type not in declared
-        or not event_type.startswith(prefix)
-    ):
+    emitted = (
+        {
+            endpoint.get("id")
+            for endpoint in declared
+            if isinstance(endpoint, dict) and endpoint.get("direction") == "emit"
+        }
+        if isinstance(declared, list)
+        else set()
+    )
+    if event_type not in emitted or not event_type.startswith(prefix):
         raise AppChannelError(AppChannelMessages.UNKNOWN_EVENT_TYPE)
 
     if _payload_size(payload) > MAX_EVENT_PAYLOAD_BYTES:

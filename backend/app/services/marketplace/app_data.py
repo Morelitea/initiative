@@ -1,18 +1,18 @@
 """External data reaching a widget: the proxy behind the ``app`` binding.
 
-A widget never names an endpoint. It names a *endpoint* on an installed app, and
-this module turns that into one bounded call to the app's own service and hands
-back rows. Everything the call needs — where the app lives, which credentials it
-may use, how long an answer is good for — comes from state the guild and the
-operator already own, never from the request.
+A widget never names an address. It names a *read endpoint* on an installed
+app, and this module turns that into one bounded call to the app's own service
+and hands back rows. Everything the call needs — where the app lives, which
+credentials it may use, how long an answer is good for — comes from state the
+guild and the operator already own, never from the request.
 
-**Authorization happens before this module caches anything.** The endpoint runs
+**Authorization happens before this module caches anything.** The route runs
 under the caller's own guild session, so the install row is reachable only from
 inside that guild and a guild admin's wider reach is inherited rather than
 re-implemented. What is left here is the app-shaped part of the decision: the
-endpoint's declared visibility, the two kill switches (the guild's install and the
-operator's registration), and whether the credentials the endpoint declared it
-needs are actually present.
+endpoint's declared visibility, the two kill switches (the guild's install and
+the operator's registration), and whether the credentials the endpoint declared
+it needs are actually present.
 
 **The cache key contains every credential the response depended on.** That is
 the whole rule, and it is what makes a stored body safe to replay:
@@ -227,7 +227,7 @@ def _coerce_param(field_spec: Mapping[str, Any], value: Any) -> str:
 def validate_params(
     endpoint: Mapping[str, Any], raw: str | None
 ) -> tuple[dict[str, str], str]:
-    """Check a request's ``params`` against the endpoint's ``params_schema``.
+    """Check a request's parameters against the ones the endpoint declares.
 
     Returns the values to send upstream and their canonical form for the cache
     key. A parameter the endpoint does not declare is refused rather than
@@ -268,11 +268,11 @@ def validate_params(
     return values, canonical
 
 
-# --- which credentials this endpoint runs on ----------------------------------
+# --- which credentials this endpoint runs on --------------------------------
 
 
 def _required_connection_ids(endpoint: Mapping[str, Any]) -> tuple[list[str], bool]:
-    """The connections a endpoint names, and whether all of them are needed.
+    """The connections an endpoint names, and whether all of them are needed.
 
     ``requires`` is one level with one operator (§7.4). Absent means the endpoint
     needs no credential at all.
@@ -685,7 +685,7 @@ async def fetch_app_source(
     endpoint = find_read_endpoint(app.definition, endpoint_id)
     public_id = service_public_id(app.definition)
     if endpoint is None or public_id is None:
-        raise AppDataError(AppDataMessages.SOURCE_NOT_FOUND, 404)
+        raise AppDataError(AppDataMessages.ENDPOINT_NOT_FOUND, 404)
 
     # Measured against the same ladder a manifest declares on, so the two
     # cannot come to mean different things.
