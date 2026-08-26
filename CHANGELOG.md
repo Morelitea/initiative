@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Deleting a task drops you back in its project.** Confirming a delete on a task's page sent you out to the initiative's projects list, away from the sibling tasks you were working through. It now returns to the project the task was in.
 - **Holding a guild on a phone opens its menu again.** Press-and-hold on a guild in the left rail was being taken as the start of a drag, so the guild menu — invite members, guild settings, leave guild — could not be reached by touch at all. Holding now opens the menu, and reordering has its own way in: pick "Reorder guilds" from that menu, or tap Reorder in the expanded guild list. While reordering, guilds can be dragged with a finger and a tap moves a guild instead of switching to it, until you tap Done. Reordering with a mouse is unchanged.
 
 ## [0.63.2] - 2026-08-25
