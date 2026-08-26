@@ -35,10 +35,17 @@ from app.testing import (
     channel_headers,
     create_guild,
     create_guild_app,
+    create_guild_membership,
     create_user,
     encode_body,
     register_app_service,
     route_session_to_guild,
+)
+from app.testing.delegation import (
+    DELEGATE_PUBLIC_ID,
+    authorize_delegate,
+    delegate_subject,
+    register_delegate,
 )
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
@@ -118,6 +125,7 @@ async def _member_connection(
     guild,
     app,
     user,
+    connection_id: str = "github",
     connection_ref: str = "cr_member_one",
     with_secret: bool = True,
     blocked: bool = False,
@@ -126,7 +134,7 @@ async def _member_connection(
     row = GuildAppUserConnection(
         guild_id=guild.id,
         app_id=app.id,
-        connection_id="github",
+        connection_id=connection_id,
         user_id=user.id,
         connection_ref=connection_ref,
         config={},
@@ -147,9 +155,13 @@ async def _member_connection(
     return row
 
 
-async def _get(client: AsyncClient, path: str, **kwargs):
+async def _get(client: AsyncClient, path: str, *, query: str = "", **kwargs):
+    """A signed GET. ``query`` is given without its ``?`` and is signed along
+    with the path, the way a caller sending parameters would."""
+    target = f"{path}?{query}" if query else path
     return await client.get(
-        path, headers=channel_headers(method="GET", path=path, **kwargs)
+        target,
+        headers=channel_headers(method="GET", path=path, query=query, **kwargs),
     )
 
 
@@ -169,6 +181,25 @@ async def _put(client: AsyncClient, path: str, payload, **kwargs):
         headers=channel_headers(method="PUT", path=path, body=body, **kwargs),
         content=body,
     )
+
+
+async def _disable_delegate(session: AsyncSession) -> None:
+    """The operator's kill switch on the delegating app, as an edit to its
+    registration — which is the only place that decision lives."""
+    from app.models.platform.app_service_registration import AppServiceRegistration
+    from app.services.marketplace.registration_lookup import invalidate_registrations
+
+    row = (
+        await session.exec(
+            select(AppServiceRegistration).where(
+                AppServiceRegistration.public_id == DELEGATE_PUBLIC_ID
+            )
+        )
+    ).one()
+    row.enabled = False
+    session.add(row)
+    await session.commit()
+    invalidate_registrations()
 
 
 async def _reload(session: AsyncSession, guild_id: int, app_id: int) -> GuildApp:
@@ -429,6 +460,370 @@ class TestConnectionsChannel:
 
 
 # ---------------------------------------------------------------------------
+# Resolving a delegate's subject to this app's own handle
+# ---------------------------------------------------------------------------
+
+
+SECOND_CONNECTION = {
+    "id": "gitlab",
+    "scope": "interactive",
+    "label": {"en": "GitLab"},
+    "connect_path": "/connect/gitlab",
+    "fields": [_field("access_token", "secret", managed=True)],
+}
+
+
+class TestResolveDelegatedConnection:
+    """One app is handed a token naming a member by another app's subject, and
+    has to find its *own* credential for that person. Both sides hold an
+    identifier and neither can turn one into the other, so this is the lookup —
+    and everything it will not answer matters as much as what it will."""
+
+    async def _delegated(
+        self,
+        session: AsyncSession,
+        *,
+        definition: dict | None = None,
+        authorize: bool = True,
+        connected: bool = True,
+        blocked: bool = False,
+    ):
+        """A guild where the delegate may act as a member who has also
+        connected their own account to the calling app."""
+        await register_app_service(session, listing_uid=SHOP_UID)
+        guild, owner, app = await _install(session, definition=definition)
+        member = await create_user(session)
+        await create_guild_membership(session, user=member, guild=guild)
+        await register_delegate(session)
+        subject = await delegate_subject(session, guild, member)
+        if authorize:
+            await authorize_delegate(session, guild, member)
+        if connected:
+            await _member_connection(
+                session, guild=guild, app=app, user=member, blocked=blocked
+            )
+        return guild, app, member, subject
+
+    def _path(self, guild_id: int) -> str:
+        return f"{BASE}/installs/{guild_id}/connections/resolve"
+
+    async def test_a_subject_resolves_to_this_apps_own_reference(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        guild, _, _, subject = await self._delegated(session)
+
+        response = await _get(
+            client,
+            self._path(guild.id),
+            query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
+        )
+
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["connection_ref"] == "cr_member_one"
+        assert body["connection_id"] == "github"
+        assert body["status"] == "connected"
+
+    async def test_the_answer_names_nobody(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        """The app learns one thing: that it already knew this person by that
+        reference. Not a name, not an address, not a user id."""
+        guild, _, member, subject = await self._delegated(session)
+
+        response = await _get(
+            client,
+            self._path(guild.id),
+            query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
+        )
+
+        assert response.status_code == 200, response.text
+        assert "user_id" not in response.text
+        assert member.email not in response.text
+        assert MEMBER_TOKEN not in response.text
+
+    async def test_a_member_who_has_not_connected_is_a_miss(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        """The ordinary steady state for somebody who never connected an
+        account, and it reads the same as every other miss."""
+        guild, _, _, subject = await self._delegated(session, connected=False)
+
+        response = await _get(
+            client,
+            self._path(guild.id),
+            query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == AppChannelMessages.CONNECTION_NOT_FOUND
+
+    async def test_a_blocked_connection_does_not_resolve(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        """A block ended that member's access. The tombstone must not hand back
+        a handle for the app to act with."""
+        guild, _, _, subject = await self._delegated(session, blocked=True)
+
+        response = await _get(
+            client,
+            self._path(guild.id),
+            query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == AppChannelMessages.CONNECTION_NOT_FOUND
+
+    async def test_a_member_who_has_not_authorized_the_delegate_is_a_miss(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        """Installing the delegate is the guild's decision; carrying one
+        person's name is that person's, and it is asked here rather than
+        assumed from the subject existing."""
+        guild, _, _, subject = await self._delegated(session, authorize=False)
+
+        response = await _get(
+            client,
+            self._path(guild.id),
+            query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
+        )
+
+        assert response.status_code == 404
+
+    async def test_a_switched_off_delegate_resolves_nothing(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        """The operator's kill switch reaches this the way it reaches the
+        published key set: an edit, not a key rotation."""
+        guild, _, _, subject = await self._delegated(session)
+        await _disable_delegate(session)
+
+        response = await _get(
+            client,
+            self._path(guild.id),
+            query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
+        )
+
+        assert response.status_code == 404
+
+    async def test_a_registration_without_the_delegation_grant_resolves_nothing(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        """An app the operator never granted delegation cannot be the reason
+        another app acts as somebody."""
+        await register_app_service(session, listing_uid=SHOP_UID)
+        guild, owner, app = await _install(session)
+        await register_delegate(session, grants=())
+        subject = await delegate_subject(session, guild, owner)
+        await authorize_delegate(session, guild, owner)
+        await _member_connection(session, guild=guild, app=app, user=owner)
+
+        response = await _get(
+            client,
+            self._path(guild.id),
+            query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
+        )
+
+        assert response.status_code == 404
+
+    async def test_a_subject_minted_for_another_app_does_not_resolve(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        """A subject is pairwise: it resolves for the delegate it was minted
+        for and for no other, so the delegate named has to be that one."""
+        guild, _, _, subject = await self._delegated(session)
+
+        response = await _get(
+            client,
+            self._path(guild.id),
+            query=f"delegate=tests.shop&subject={subject}",
+        )
+
+        assert response.status_code == 404
+
+    async def test_an_unknown_subject_is_a_miss(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        guild, _, _, _ = await self._delegated(session)
+
+        response = await _get(
+            client,
+            self._path(guild.id),
+            query=f"delegate={DELEGATE_PUBLIC_ID}&subject=notasubjectatall",
+        )
+
+        assert response.status_code == 404
+
+    async def test_another_apps_install_cannot_be_resolved_against(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        """The install bounds the answer, so a caller never learns a handle
+        belonging to somebody else's install."""
+        await register_app_service(session, listing_uid=SHOP_UID)
+        theirs, owner, app = await _install(
+            session, definition=_definition("tests.other"), listing_uid=OTHER_UID
+        )
+        await register_delegate(session)
+        subject = await delegate_subject(session, theirs, owner)
+        await authorize_delegate(session, theirs, owner)
+        await _member_connection(session, guild=theirs, app=app, user=owner)
+
+        response = await _get(
+            client,
+            self._path(theirs.id),
+            query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == AppChannelMessages.INSTALL_NOT_FOUND
+
+    async def test_two_connections_are_not_guessed_between(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        """An app declaring several per-member connections is asked which one
+        it means rather than handed whichever sorted first."""
+        definition = _definition()
+        definition["connections"] = [*definition["connections"], SECOND_CONNECTION]
+        guild, app, member, subject = await self._delegated(
+            session, definition=definition
+        )
+        await _member_connection(
+            session,
+            guild=guild,
+            app=app,
+            user=member,
+            connection_id="gitlab",
+            connection_ref="cr_member_two",
+        )
+
+        response = await _get(
+            client,
+            self._path(guild.id),
+            query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
+        )
+
+        assert response.status_code == 422
+        assert response.json()["detail"] == AppChannelMessages.CONNECTION_UNSPECIFIED
+
+    async def test_the_question_is_asked_of_the_manifest_not_the_rows(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        """The member here has connected only one of the two the app declares.
+        Answering would make the call succeed today and be refused the day they
+        connect the second, so what an install declares is what decides."""
+        definition = _definition()
+        definition["connections"] = [*definition["connections"], SECOND_CONNECTION]
+        guild, _, _, subject = await self._delegated(session, definition=definition)
+
+        response = await _get(
+            client,
+            self._path(guild.id),
+            query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
+        )
+
+        assert response.status_code == 422
+        assert response.json()["detail"] == AppChannelMessages.CONNECTION_UNSPECIFIED
+
+    async def test_an_install_declaring_no_member_connection_is_a_miss(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        """Nothing to name, and nothing a member could have connected."""
+        definition = _definition()
+        definition["connections"] = [ADMIN_CONNECTION]
+        guild, _, _, subject = await self._delegated(
+            session, definition=definition, connected=False
+        )
+
+        response = await _get(
+            client,
+            self._path(guild.id),
+            query=f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}",
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == AppChannelMessages.CONNECTION_NOT_FOUND
+
+    async def test_naming_the_connection_settles_it(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        definition = _definition()
+        definition["connections"] = [*definition["connections"], SECOND_CONNECTION]
+        guild, app, member, subject = await self._delegated(
+            session, definition=definition
+        )
+        await _member_connection(
+            session,
+            guild=guild,
+            app=app,
+            user=member,
+            connection_id="gitlab",
+            connection_ref="cr_member_two",
+        )
+
+        response = await _get(
+            client,
+            self._path(guild.id),
+            query=(
+                f"delegate={DELEGATE_PUBLIC_ID}&subject={subject}&connection=gitlab"
+            ),
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["connection_ref"] == "cr_member_two"
+
+    async def test_a_swapped_subject_does_not_verify(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        """The query is inside the signature, so the parameters that arrive are
+        the ones the caller signed. Two members are connected here and both
+        subjects resolve on their own — what is refused is presenting one and
+        signing the other."""
+        guild, app, _, mine = await self._delegated(session)
+        theirs_member = await create_user(session)
+        await create_guild_membership(session, user=theirs_member, guild=guild)
+        theirs = await delegate_subject(session, guild, theirs_member)
+        await authorize_delegate(session, guild, theirs_member)
+        await _member_connection(
+            session,
+            guild=guild,
+            app=app,
+            user=theirs_member,
+            connection_ref="cr_member_two",
+        )
+        path = self._path(guild.id)
+        signed = f"delegate={DELEGATE_PUBLIC_ID}&subject={mine}"
+        sent = f"delegate={DELEGATE_PUBLIC_ID}&subject={theirs}"
+
+        response = await client.get(
+            f"{path}?{sent}",
+            headers=channel_headers(method="GET", path=path, query=signed),
+        )
+
+        assert response.status_code == 401
+        assert response.json()["detail"] == AppChannelMessages.INVALID_SIGNATURE
+
+        # ...and the same request, signed over what it sends, is fine — so the
+        # refusal above is the swap and not the setup.
+        honest = await _get(client, path, query=sent)
+        assert honest.status_code == 200, honest.text
+        assert honest.json()["connection_ref"] == "cr_member_two"
+
+    async def test_an_unsigned_request_resolves_nothing(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        """The caller is established before anything is read — the query names
+        what to look up, never who is asking."""
+        guild, _, _, subject = await self._delegated(session)
+        path = self._path(guild.id)
+
+        response = await client.get(
+            f"{path}?delegate={DELEGATE_PUBLIC_ID}&subject={subject}"
+        )
+
+        assert response.status_code == 401
+
+
+# ---------------------------------------------------------------------------
 # Writing back what a vendor flow produced
 # ---------------------------------------------------------------------------
 
@@ -464,6 +859,37 @@ class TestConnectionWriteBack:
         assert config.json()["member_connections"][0]["values"] == {
             "access_token": "gho_freshly_minted"
         }
+
+    async def test_a_ref_only_resolves_in_the_guild_it_was_minted_for(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        """A write names a guild, and the handle is looked up inside it.
+
+        Both guilds below have the app installed, so the install resolves and
+        the lookup is the thing being exercised rather than short-circuited by
+        a guild with nothing in it.
+        """
+        await register_app_service(session, listing_uid=SHOP_UID)
+        guild, user, app = await _install(session)
+        row = await _member_connection(
+            session, guild=guild, app=app, user=user, with_secret=False
+        )
+        other_guild, _other_user, _other_app = await _install(session)
+
+        written = await _put(
+            client,
+            f"{BASE}/installs/{other_guild.id}/connections/{row.connection_ref}",
+            {"values": {"access_token": "gho_written_to_the_wrong_guild"}},
+        )
+
+        assert written.status_code == 404, written.text
+        # Named rather than taken as any 404: the handle is what did not
+        # resolve, the install having been found.
+        assert written.json()["detail"] == AppChannelMessages.CONNECTION_NOT_FOUND
+
+        # And the row it named is unchanged where that handle does live.
+        config = await _get(client, f"{BASE}/installs/{guild.id}/config")
+        assert config.json()["member_connections"][0]["values"] == {}
 
     async def test_a_refresh_replaces_the_stored_value(
         self, client: AsyncClient, session: AsyncSession

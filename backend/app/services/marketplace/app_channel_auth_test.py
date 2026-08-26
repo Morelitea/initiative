@@ -32,6 +32,7 @@ SECRET = "shared"
 ARGS = {
     "method": "post",
     "path": "/api/v1/app-service/events",
+    "query": "",
     "timestamp": "1755000000",
     "nonce": "abc123",
     "body": b'{"guild_id":1}',
@@ -52,17 +53,37 @@ def _headers(**overrides) -> dict[str, str]:
 
 class TestSigningMaterial:
     def test_the_material_is_the_documented_field_order(self):
-        """Method, path, timestamp, nonce, body digest — newline separated, with
-        the method upper-cased so a client's spelling does not decide."""
+        """Method, path, query, timestamp, nonce, body digest — newline
+        separated, with the method upper-cased so a client's spelling does not
+        decide."""
         material = signing_material(**ARGS).decode()
 
         assert material.split("\n") == [
             "POST",
             "/api/v1/app-service/events",
+            "",
             "1755000000",
             "abc123",
             hashlib.sha256(ARGS["body"]).hexdigest(),
         ]
+
+    def test_a_query_string_occupies_its_own_field(self):
+        """Signed verbatim and in its own field, so it is never folded into the
+        path and never has to be split back out of one."""
+        material = signing_material(
+            **{**ARGS, "query": "delegate=acme.auto&subject=abc"}
+        ).decode()
+
+        assert material.split("\n")[1] == "/api/v1/app-service/events"
+        assert material.split("\n")[2] == "delegate=acme.auto&subject=abc"
+
+    def test_the_query_is_not_reordered_before_signing(self):
+        """Both sides sign the string as it goes on the wire, so a caller that
+        writes its parameters in one order and sends them in another is the one
+        that has to be consistent — nothing here canonicalizes for it."""
+        assert sign_request(SECRET, **{**ARGS, "query": "a=1&b=2"}) != sign_request(
+            SECRET, **{**ARGS, "query": "b=2&a=1"}
+        )
 
     def test_the_body_enters_as_a_digest_not_verbatim(self):
         """A large body costs the same to sign as a small one, and the material
@@ -78,6 +99,7 @@ class TestSigningMaterial:
         [
             {"method": "get"},
             {"path": "/api/v1/app-service/installs"},
+            {"query": "subject=somebody-else"},
             {"timestamp": "1755000001"},
             {"nonce": "different"},
             {"body": b'{"guild_id":2}'},

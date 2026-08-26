@@ -372,10 +372,13 @@ class TestConnect:
         assert body["status"] == "pending"
         assert body["connection_ref"]
         # Where to actually send them: the operator's address, the manifest's
-        # path, and the handle the app will store its result against.
+        # path, the handle the app will store its result against, and the guild
+        # to write it back under — the app addresses every install by guild and
+        # cannot derive one from the ref.
         assert body["connect_url"] == (
             "https://shop.example.test/connect/github"
             f"?connection_ref={body['connection_ref']}"
+            f"&guild_id={a.guild.id}"
         )
 
     async def test_the_handle_is_opaque_and_carries_nothing_about_the_person(
@@ -849,9 +852,15 @@ class TestUpgrade:
             definition={**_tool_definition(), "default_name": "Cal v2"},
         )
 
+        # What the settings page draws its Update button from.
+        offered = await client.get(a.g(f"/apps/{app_id}"), headers=a.headers)
+        assert offered.json()["update_version"] == "1.1.0"
+
         response = await client.post(a.g(f"/apps/{app_id}/upgrade"), headers=a.headers)
         assert response.status_code == 200, response.text
         assert response.json()["listing_version"] == "1.1.0"
+        # And the button goes away rather than offering the version just taken.
+        assert response.json()["update_version"] is None
 
     async def test_upgrading_to_the_pinned_version_is_refused(
         self, client: AsyncClient, acting_user, session: AsyncSession

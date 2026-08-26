@@ -20,6 +20,10 @@ export type ToolViewOption<V extends string> = {
 };
 
 type ToolListToolbarProps<V extends string> = {
+  /** The list's own heading, kept on the control row instead of a line of its
+   *  own above it. It shares the row's wrapping: when the two no longer fit,
+   *  the controls drop to a second line rather than squeezing against it. */
+  heading?: ReactNode;
   /** Leading control — the scope or status the list is showing. */
   leading?: ReactNode;
   /** Filter disclosure state, shared with the page's {@link ToolFilterPanel}.
@@ -58,6 +62,7 @@ type ToolListToolbarProps<V extends string> = {
  * keeps the row reachable forty cards into a scroll.
  */
 export const ToolListToolbar = <V extends string>({
+  heading,
   leading,
   filters,
   view,
@@ -75,6 +80,9 @@ export const ToolListToolbar = <V extends string>({
       className="sticky z-30 -mx-4 flex flex-wrap items-center gap-2 bg-background/90 px-4 py-2 backdrop-blur supports-backdrop-filter:bg-background/70 max-sm:border-b sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:backdrop-blur-none"
       style={{ top: "var(--safe-area-inset-top)" }}
     >
+      {/* Shrinkable and truncating, so a long title gives way to the controls
+          rather than pushing them off the row. */}
+      {heading ? <div className="min-w-0 shrink truncate">{heading}</div> : null}
       {/* Two different ways to run out of room. Below `sm` the controls are
           icon-only and the leading group claims no width of its own (basis-0),
           so it scrolls sideways and the row stays one line. From `sm` up the

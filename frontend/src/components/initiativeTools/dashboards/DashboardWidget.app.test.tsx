@@ -182,6 +182,23 @@ describe("DashboardWidget with an app source", () => {
     expect(WidgetErrorCode.APP_UNAVAILABLE).toBe("WIDGET_APP_UNAVAILABLE");
   });
 
+  it("asks for the app to be reconnected when the catalog no longer lists it", async () => {
+    // The definition is kept as-is when its app goes away; the tile is the
+    // surface that says so. Distinct from both the restricted state (this is
+    // not an access outcome) and the unavailable state (the catalog answered).
+    apiGet.mockImplementation((url: string) => {
+      if (catalogUrl(url)) return Promise.resolve({ data: { items: [] } });
+      return Promise.reject(new Error("nothing should be fetched for it"));
+    });
+
+    mount({ dashboardId: 11 });
+
+    expect(await screen.findByText(/no longer installed/i)).toBeInTheDocument();
+    expect(renderWidget).not.toHaveBeenCalled();
+    // Only the catalog was read; the data plane was never asked.
+    expect(apiGet.mock.calls.every(([url]) => catalogUrl(url))).toBe(true);
+  });
+
   it("says the app is unavailable when its catalog will not load", async () => {
     // A catalog that failed says nothing about whether the app is installed.
     // Reading it as "not installed" would mark every app widget on the board

@@ -24,7 +24,12 @@
     "unavailable": "Auf diesem Server nicht eingerichtet",
     "configure": "Einstellungen öffnen",
     "version": "Version {{version}}",
-    "upgrade": "Aktualisieren",
+    "autoUpdate": "Automatisch aktualisieren",
+    "autoUpdateHelp": "Neue Versionen des Anbieters werden von selbst übernommen. Schalte dies aus, um jede Version zuerst zu lesen und manuell zu aktualisieren.",
+    "autoUpdateOn": "Updates werden künftig automatisch übernommen.",
+    "autoUpdateOff": "Updates werden jetzt manuell übernommen.",
+    "upgradeTo": "Auf {{version}} aktualisieren",
+    "upToDate": "Aktuell",
     "upgraded": "Auf {{version}} aktualisiert."
   },
   "install": {

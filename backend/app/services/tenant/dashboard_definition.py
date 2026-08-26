@@ -253,6 +253,12 @@ ALL_SOURCES: frozenset[str] = frozenset().union(
 # parameters, its visibility, its freshness — lives in the installed app's
 # pinned definition and is enforced when the data is fetched, under the caller's
 # own session.
+#
+# The check here is deliberately shape, not an install lookup: a well-formed
+# ``app:<uid>:<widget>`` stores whether or not that app is installed, so a
+# stored dashboard outlives the app it drew from. What a guild built is the
+# guild's; the client renders the not-installed state and asks for the app to
+# be reconnected. Only a malformed type is a rejection.
 
 #: The one binding source an app widget may name.
 APP_BINDING_SOURCE = "app"

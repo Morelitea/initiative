@@ -24,7 +24,12 @@
     "unavailable": "Not set up on this server",
     "configure": "Open settings",
     "version": "Version {{version}}",
-    "upgrade": "Update",
+    "autoUpdate": "Update automatically",
+    "autoUpdateHelp": "New versions from the publisher are applied on their own. Turn this off to read each one first and update by hand.",
+    "autoUpdateOn": "Updates will be applied automatically.",
+    "autoUpdateOff": "Updates are now applied by hand.",
+    "upgradeTo": "Update to {{version}}",
+    "upToDate": "Up to date",
     "upgraded": "Updated to {{version}}."
   },
   "install": {

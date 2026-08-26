@@ -159,3 +159,72 @@ describe("CalendarsView calendar-entries query", () => {
     await waitFor(() => expect(screen.queryByText("Apollo task")).toBeNull());
   });
 });
+
+describe("CalendarsView on a guild calendar", () => {
+  /** The calendar the app mounts: guild-level, so it belongs to no initiative. */
+  const guildCalendar = {
+    id: 42,
+    name: "Guild calendar",
+    description: null,
+    color: "#6366f1",
+    initiative_id: null,
+    guild_id: 1,
+    created_by: 1,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    my_permission_level: "write",
+    tags: [],
+    grants: [],
+  };
+
+  it("asks for its own events only, and reads nothing initiative-shaped", async () => {
+    const entries: URLSearchParams[] = [];
+    const calendarList: string[] = [];
+    const projectList: string[] = [];
+    server.use(
+      guildHttp.get("/calendar-entries/", ({ request }) => {
+        entries.push(new URL(request.url).searchParams);
+        return HttpResponse.json({ events: [], tasks: [] });
+      }),
+      guildHttp.get("/calendars/", ({ request }) => {
+        calendarList.push(request.url);
+        return HttpResponse.json({
+          items: [],
+          total_count: 0,
+          page: 1,
+          page_size: 100,
+          has_next: false,
+        });
+      }),
+      guildHttp.get("/projects/", ({ request }) => {
+        projectList.push(request.url);
+        return HttpResponse.json({
+          items: [],
+          total_count: 0,
+          page: 1,
+          page_size: 0,
+          has_next: false,
+        });
+      })
+    );
+
+    const queryClient = createTestQueryClient();
+    queryClient.setQueryData(VIEW_PREFERENCES_QUERY_KEY, {
+      items: { [CALENDAR_VIEW_MODE_KEY]: "list" },
+    });
+    const Page = () => <CalendarsView soloCalendar={guildCalendar} />;
+    renderPage(Page, { queryClient });
+
+    await waitFor(() => expect(entries.length).toBeGreaterThan(0));
+
+    // Exactly this calendar, no task leg, and no initiative to narrow to.
+    expect(entries[0].getAll("calendar_ids")).toEqual([String(guildCalendar.id)]);
+    expect(entries[0].get("include_tasks")).toBe("false");
+    expect(entries[0].get("initiative_id")).toBeNull();
+
+    // The panel, the task-calendar rows and the filter bar are all initiative-
+    // shaped, so the surface never lists the guild's calendars or projects.
+    expect(calendarList).toEqual([]);
+    expect(projectList).toEqual([]);
+  });
+});

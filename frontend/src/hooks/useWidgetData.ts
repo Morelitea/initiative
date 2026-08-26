@@ -444,10 +444,24 @@ export function useWidgetData(
             errorCode: WidgetErrorCode.APP_UNAVAILABLE,
           };
         }
-        // The app is not installed in this guild, or its pinned version stopped
-        // offering this source. Same rendering as a deleted counter: absent, not
-        // broken — nothing here is the app's fault.
-        // Not installed, or the pinned version stopped offering this source —
+        // The catalog answered and the app is not in it: uninstalled, or
+        // switched off. Said plainly rather than rendered as an access outcome
+        // — the definition is the guild's and stays stored, and the tile
+        // becomes the surface that asks for the app to be reconnected.
+        const appInstalled = appCatalogQuery.data?.items.some(
+          (item) => item.app_uid === binding.app_uid
+        );
+        if (!appInstalled) {
+          return {
+            data: emptyDataFor(source),
+            isLoading: false,
+            isUnbound: false,
+            isRestricted: false,
+            refetch,
+            errorCode: WidgetErrorCode.APP_NOT_INSTALLED,
+          };
+        }
+        // Installed, but its pinned version stopped offering this source —
         // the catalog answered, so this is absence rather than a failure.
         if (!appBinding) return absent({ isLoading: false, isError: false });
         // An app that stopped answering does not blank a tile that already has
@@ -507,6 +521,7 @@ export function useWidgetData(
     binding.app_uid,
     binding.source_id,
     appBinding,
+    appCatalogQuery.data,
     appCatalogQuery.isLoading,
     appCatalogQuery.isError,
     appQuery.data,

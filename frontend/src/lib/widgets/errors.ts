@@ -22,6 +22,10 @@ export const WidgetErrorCode = {
    *  proxy will not pass on. One tile says so; the rest of the canvas is
    *  unaffected, and the last good rows keep showing for their stale window. */
   APP_UNAVAILABLE: "WIDGET_APP_UNAVAILABLE",
+  /** The catalog answered and the app this widget draws from is not in it —
+   *  uninstalled, or switched off. The definition is kept as-is; the tile asks
+   *  for the app to be reconnected rather than posing as an access outcome. */
+  APP_NOT_INSTALLED: "WIDGET_APP_NOT_INSTALLED",
   /** This widget's own fetch failed — the network, or the server. Deliberately
    *  distinct from the tile's "you can't see this" state: a request that never
    *  completed says nothing about what the viewer is allowed to see, and

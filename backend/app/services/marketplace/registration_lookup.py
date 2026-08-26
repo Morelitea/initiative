@@ -46,12 +46,14 @@ __all__ = [
     "InstallState",
     "RegistrationSnapshot",
     "any_delegate_registered",
+    "delegate_jwks",
     "delegation_allowed",
     "resolve_delegated_member",
     "delegation_keys_for",
     "frame_origins",
     "install_state",
     "invalidate_registrations",
+    "live_delegate",
     "load_registrations",
     "mandatory_registrations",
     "registration_for_definition",
@@ -83,6 +85,10 @@ class RegistrationSnapshot:
     #: ``kid`` a token names. Parsed once when the snapshot is built rather than
     #: per token. Empty on an app that has not been provisioned with one.
     delegation_keys: Mapping[str, Any]
+    #: The same keys as provisioned — public JWK entries, for the published
+    #: delegate key set (:func:`delegate_jwks`). Public halves only: the write
+    #: path refuses anything else (``normalize_delegation_jwks``).
+    delegation_jwk_entries: tuple[Mapping[str, Any], ...]
     #: The deployment installs this app in every guild (§7.7).
     mandatory: bool
     #: The operator's kill switch. False stops every channel this app has.
@@ -126,6 +132,16 @@ def _parse_delegation_keys(row: AppServiceRegistration) -> Mapping[str, Any]:
     return MappingProxyType(parsed)
 
 
+def _public_jwk_entries(row: AppServiceRegistration) -> tuple[Mapping[str, Any], ...]:
+    """The stored key set's entries, as read-only mappings for the snapshot."""
+    key_set = row.delegation_jwks or {}
+    return tuple(
+        MappingProxyType(dict(entry))
+        for entry in key_set.get("keys", []) or []
+        if isinstance(entry, dict)
+    )
+
+
 _cache: dict[str, RegistrationSnapshot] | None = None
 _loaded_at: float = 0.0
 
@@ -166,6 +182,7 @@ async def load_registrations(*, force: bool = False) -> dict[str, RegistrationSn
             allowed_origins=tuple(row.allowed_origins or []),
             grants=tuple(row.grants or []),
             delegation_keys=_parse_delegation_keys(row),
+            delegation_jwk_entries=_public_jwk_entries(row),
             mandatory=bool(row.mandatory),
             enabled=bool(row.enabled),
             status=row.status,
@@ -329,6 +346,62 @@ async def delegation_keys_for(kid: str) -> tuple[DelegationKey, ...]:
         for key in (snapshot.delegation_keys.get(kid),)
         if key is not None
     )
+
+
+async def live_delegate(public_id: str) -> Optional[RegistrationSnapshot]:
+    """The registration behind a named delegate, when it may act right now.
+
+    One rule, stated once: the registration must be ``enabled`` and hold the
+    ``delegation`` grant. Both the published key set and any lookup made on a
+    delegate's say-so read it here, so an operator's edit reaches every one of
+    them together within the cache TTL rather than some of them.
+
+    Deliberately ``enabled`` rather than :attr:`RegistrationSnapshot.live`, for
+    the reason :func:`delegation_keys_for` gives: a delegate calls the API
+    directly, so what it may do follows the operator's kill switch rather than
+    whether its manifest was reachable at the last handshake.
+    """
+    snapshot = (await load_registrations()).get(public_id)
+    if snapshot is None or not snapshot.enabled or "delegation" not in snapshot.grants:
+        return None
+    return snapshot
+
+
+async def directory_reader(public_id: str) -> Optional[RegistrationSnapshot]:
+    """The registration behind a caller that may ask where other apps answer.
+
+    A live delegate that also holds ``app_directory``. Two grants rather than
+    one because they confer different things: acting for a member is what most
+    delegates are for, and reading another app's address is not part of it. An
+    automation service is conferred both; an app that works its own vendor is
+    conferred at most the first.
+    """
+    snapshot = await live_delegate(public_id)
+    if snapshot is None or "app_directory" not in snapshot.grants:
+        return None
+    return snapshot
+
+
+async def delegate_jwks(public_id: str) -> dict[str, Any] | None:
+    """One delegate's public verification keys, as a JWKS document.
+
+    Per delegate, never merged. A ``kid`` is an opaque label its owner
+    chooses, unique only within the registration that published it — which is
+    why :func:`delegation_keys_for` resolves a token by trying every candidate
+    and letting the signature decide. A document merging two registrations
+    would hand a consumer two entries under one ``kid``, and a consumer that
+    selects one key per ``kid`` (which is what a JWKS is for) would then reject
+    calls signed with the other. One issuer, one key set.
+
+    Served under the same rule that resolves a token: the registration must be
+    ``enabled`` and hold the ``delegation`` grant, so an operator's edit
+    reaches this and verification alike within the cache TTL. ``None`` when no
+    such delegate is published here — the caller answers that as not found.
+    """
+    snapshot = await live_delegate(public_id)
+    if snapshot is None:
+        return None
+    return {"keys": [dict(entry) for entry in snapshot.delegation_jwk_entries]}
 
 
 async def any_delegate_registered() -> bool:

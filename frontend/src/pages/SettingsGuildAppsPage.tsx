@@ -19,6 +19,10 @@
  * — and, for an admin, who has connected to it. Both live behind the expander
  * rather than on the row, because most visits here are to rename or turn
  * something off.
+ *
+ * That is also where an app's update cadence lives. An install takes new
+ * versions on its own unless a guild admin turns that off here, after which the
+ * Update button beside it is how they land.
  */
 
 import { Link } from "@tanstack/react-router";
@@ -28,6 +32,7 @@ import { useTranslation } from "react-i18next";
 
 import { AppConnectionsPanel } from "@/components/apps/AppConnectionsPanel";
 import { AppMembersPanel } from "@/components/apps/AppMembersPanel";
+import { AppUpdatesPanel } from "@/components/apps/AppUpdatesPanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,7 +40,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useGuildAppDetail, useUpgradeApp } from "@/hooks/useGuildAppDetail";
+import { useGuildAppDetail } from "@/hooks/useGuildAppDetail";
 import { useGuildApps, useUninstallGuildApp, useUpdateGuildApp } from "@/hooks/useGuildApps";
 import { useGuilds } from "@/hooks/useGuilds";
 import { toast } from "@/lib/chesterToast";
@@ -221,11 +226,13 @@ function AppRow({ app, canManage }: { app: AppListItem; canManage: boolean }) {
   );
 }
 
-/** The app's connections, and — for an admin — who has connected to them. */
+/**
+ * The app's connections, and — for an admin — who has connected to it and how
+ * it takes new versions.
+ */
 function AppDetailPanels({ appId, canManage }: { appId: number; canManage: boolean }) {
   const { t } = useTranslation(["apps", "common"]);
   const detail = useGuildAppDetail(appId);
-  const upgrade = useUpgradeApp(appId);
 
   if (detail.isLoading) return <Skeleton className="m-3 h-24" />;
   if (!detail.data) return null;
@@ -245,26 +252,7 @@ function AppDetailPanels({ appId, canManage }: { appId: number; canManage: boole
             <AppMembersPanel appId={appId} enabled={canManage} />
           </section>
 
-          <section className="flex flex-wrap items-center gap-2">
-            <span className="text-muted-foreground text-xs">
-              {t("apps:manage.version", { version: detail.data.listing_version })}
-            </span>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={upgrade.isPending}
-              onClick={() =>
-                upgrade.mutate(undefined, {
-                  onSuccess: (updated) =>
-                    toast.success(t("apps:manage.upgraded", { version: updated.listing_version })),
-                  onError: (error) => toast.error(getErrorMessage(error, "apps:error")),
-                })
-              }
-            >
-              {upgrade.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-              {t("apps:manage.upgrade")}
-            </Button>
-          </section>
+          <AppUpdatesPanel app={detail.data} />
         </>
       )}
     </div>

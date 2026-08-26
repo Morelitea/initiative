@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.63.2] - 2026-08-25
+
+### Added
+
+- **Task and document tables remember how you left them.** The column you sorted by, the grouping you chose, and the columns you showed or hid now come back on your next visit — on a project's task list (kept per project, so one project's arrangement doesn't follow you into the next), My Tasks and Created Tasks, a tag's task list, and the documents list. My Tasks also stops claiming it is sorted by date window when your saved sort says otherwise. Settings and admin tables are unchanged: they are places you pass through, not arrange.
+- **Documents and templates are listed separately, and the list filters by type.** An initiative's Documents tab now opens on a Documents / Templates toggle carrying each state's total, the way the projects list splits its own templates out; the templates view is linkable and answers the back button, and a tag's document browse lists documents only. The filter panel gains a document-type filter, so a list can be narrowed to text documents, files, whiteboards, spreadsheets or smart links; it counts toward the filter button's badge and Clear all.
+- **An app being installed is an event.** A guild's installed apps now emit on the event bus like any other change — a webhook subscription can name `apps.created`, `apps.updated` and `apps.deleted`, and hear an install appear, its configuration state move, or it go away.
+
+### Changed
+
+- **Installed apps keep themselves up to date.** When a publisher releases a new version, your guild's install now moves to it on its own, so a fix arrives without anyone having to notice it exists. A guild that would rather read each version first can turn that off per app under Settings → Apps and update by hand from the same place — the button there names the version it will apply, and says "Up to date" when there is none. Apps you already have start out keeping themselves current. A version this server is too old to run is never applied, and neither is anything from a listing its publisher has withdrawn.
+
 ## [0.63.1] - 2026-08-23
 
 ### Fixed

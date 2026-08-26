@@ -53,6 +53,7 @@
     "SCENE_TOO_LARGE": "Este widget devolvió más datos de los que puede mostrar una tarjeta.",
     "SCENE_TOO_MANY_NODES": "Este widget intentó dibujar demasiados elementos.",
     "SCENE_VALUE_NOT_FINITE": "Este widget devolvió un número que no es válido.",
+    "WIDGET_APP_NOT_INSTALLED": "La aplicación a la que estaba conectado este widget ya no está instalada. Vuelve a conectar la aplicación para recuperar este widget.",
     "WIDGET_APP_UNAVAILABLE": "La aplicación que hay detrás de este widget no responde.",
     "WIDGET_BAD_OUTPUT": "Este widget devolvió algo que no se puede dibujar.",
     "WIDGET_NO_RENDER_EXPORT": "Este widget no tiene función de renderizado.",

@@ -30,6 +30,8 @@ import { DataTable } from "@/components/ui/data-table";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { useGuilds } from "@/hooks/useGuilds";
+import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
+import { usePersistedTableState } from "@/hooks/usePersistedTableState";
 import { usePrefetchTasks, useTasks, useUpdateTask } from "@/hooks/useTasks";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -64,6 +66,22 @@ const SORT_FIELD_MAP: Record<string, string> = {
   priority: "priority",
 };
 
+/** Table arrangement is per tag list, not per tag — every tag's task list is
+ *  the same list of the same columns. */
+const TABLE_STATE_KEY = "initiative-tag-tasks-table";
+const COLUMNS_KEY = "initiative-tag-tasks-columns";
+const DEFAULT_SORTING: SortingState = [{ id: "due date", desc: false }];
+
+/** The backend fields behind the table's own column sorting. */
+const toSortFields = (tableSorting: SortingState): SortField[] =>
+  tableSorting
+    .map((col) => {
+      const field = SORT_FIELD_MAP[col.id];
+      if (!field) return null;
+      return { field, dir: col.desc ? "desc" : "asc" } as SortField;
+    })
+    .filter((f): f is SortField => f !== null);
+
 export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
   const { t } = useTranslation("tasks");
   const { activeGuildId } = useGuilds();
@@ -85,7 +103,13 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
 
   const [page, setPageState] = useState(() => searchParams.page ?? 1);
   const [pageSize, setPageSize] = useState(TAG_TASKS_PAGE_SIZE);
-  const [sorting, setSorting] = useState<SortField[]>([{ field: "due_date", dir: "asc" }]);
+  // How the reader left the table: which column it is sorted by, and which
+  // columns are showing. Both come back on the next visit.
+  const [tableState, { setSorting: persistSorting }] = usePersistedTableState(TABLE_STATE_KEY, {
+    sorting: DEFAULT_SORTING,
+  });
+  const [columnVisibility, setColumnVisibility] = usePersistedColumnVisibility(COLUMNS_KEY, []);
+  const sorting = useMemo(() => toSortFields(tableState.sorting), [tableState.sorting]);
 
   const statusOptions = useMemo(
     () => [
@@ -117,21 +141,10 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
 
   const handleSortingChange = useCallback(
     (tableSorting: SortingState) => {
-      if (tableSorting.length > 0) {
-        const fields: SortField[] = tableSorting
-          .map((col) => {
-            const field = SORT_FIELD_MAP[col.id];
-            if (!field) return null;
-            return { field, dir: col.desc ? "desc" : "asc" } as SortField;
-          })
-          .filter((f): f is SortField => f !== null);
-        setSorting(fields);
-      } else {
-        setSorting([]);
-      }
+      persistSorting(tableSorting);
       setPage(1);
     },
-    [setPage]
+    [persistSorting, setPage]
   );
 
   // Reset to page 1 when filters change
@@ -542,7 +555,9 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
           <DataTable
             columns={columns}
             data={tasks}
-            initialSorting={[{ id: "due date", desc: false }]}
+            initialSorting={tableState.sorting}
+            columnVisibility={columnVisibility}
+            onColumnVisibilityChange={setColumnVisibility}
             enableFilterInput
             filterInputColumnKey="title"
             filterInputPlaceholder={t("filters.filterPlaceholder")}

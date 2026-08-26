@@ -59,6 +59,11 @@ async def signed_caller(request: Request, session: AdminSessionDep) -> CallingAp
     Raises before any route body runs, so an unauthenticated call never reaches
     a guild lookup. The verified caller is the *only* statement of who is
     calling — no route reads an app identity out of a payload.
+
+    Path and query are handed over as the server parsed them, separately and
+    never rejoined: the two are distinct fields in the signing material, so
+    there is nothing to reconstruct and no spelling of a request target for the
+    two sides to disagree about.
     """
     body = await request.body()
     setattr(request.state, _BODY_STATE_KEY, body)
@@ -67,6 +72,7 @@ async def signed_caller(request: Request, session: AdminSessionDep) -> CallingAp
             session,
             method=request.method,
             path=request.url.path,
+            query=request.url.query,
             headers=request.headers,
             body=body,
         )

@@ -378,6 +378,22 @@ def test_an_app_widget_keeps_its_namespaced_type():
 
 
 @pytest.mark.unit
+def test_a_definition_outlives_the_app_its_widgets_came_from():
+    """The check on an app widget is shape, never an install lookup.
+
+    A stored dashboard is the guild's, so re-normalizing it — an edit, an
+    upgrade — must keep accepting its app widgets whether or not the app is
+    still installed. `app:<uid>:<widget>` with valid parts stores verbatim; the
+    client renders the not-installed state and asks for the app to be
+    reconnected. Only a malformed type is a rejection (the tests below).
+    """
+    definition = _definition(_app_widget())
+    first = normalize_dashboard_definition(definition)
+    # Idempotent under re-normalization: what was stored stays storable.
+    assert normalize_dashboard_definition(first) == first
+
+
+@pytest.mark.unit
 def test_declared_parameters_are_kept_as_the_scalars_they_are():
     """Not coerced: the source's own params_schema declares the type, and
     turning a bool into an int here would satisfy a check the fetch path is
