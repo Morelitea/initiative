@@ -4,7 +4,7 @@ The schema-per-guild cutover removed the DB-level RESTRICTIVE
 ``is_initiative_member`` policies; these tests pin the app-level replacement:
 removal from an initiative must end document access — the permission rows are
 cleaned up, and a stale row alone would not grant access anyway
-(``initiative_scope_ok`` gate, unit-tested in ``services/permissions_test``).
+(``initiative_scope_ok`` gate, covered in ``services/permissions_test``).
 """
 
 import pytest
