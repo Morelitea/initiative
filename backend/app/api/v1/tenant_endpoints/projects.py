@@ -53,6 +53,7 @@ from app.services.tenant import documents as documents_service
 from app.services import permissions as permissions_service
 from app.services import rls as rls_service
 from app.services.tenant import tags as tags_service
+from app.services.tenant import filter_presets as filter_presets_service
 from app.services.tenant import task_statuses as task_statuses_service
 from app.services.tenant import task_completion
 from app.core.messages import ProjectMessages
@@ -1287,6 +1288,15 @@ async def create_project(
     statuses = await task_statuses_service.ensure_default_statuses(session, project.id)
     fallback_status_ids = {status.category: status.id for status in statuses}
 
+    if template_project:
+        await filter_presets_service.clone_presets(
+            session,
+            source_project_id=template_project.id,
+            target_project_id=project.id,
+            status_mapping=status_mapping,
+        )
+    await filter_presets_service.ensure_default_presets(session, project.id)
+
     owner_permission = ResourceGrant(
         resource_type="project",
         resource_id=project.id,
@@ -1486,6 +1496,16 @@ async def duplicate_project(
         session, new_project.id
     )
     fallback_status_ids = {status.category: status.id for status in statuses}
+
+    # Presets travel with the project. Their status-id filters are rewritten
+    # through the clone's status mapping, since those ids are per-project.
+    await filter_presets_service.clone_presets(
+        session,
+        source_project_id=source_project.id,
+        target_project_id=new_project.id,
+        status_mapping=status_mapping,
+    )
+    await filter_presets_service.ensure_default_presets(session, new_project.id)
 
     await _duplicate_template_tasks(
         session,
@@ -1853,23 +1873,29 @@ async def update_project(
     _ensure_not_archived(project)
 
     update_data = project_in.model_dump(exclude_unset=True)
-    pinned_sentinel = object()
-    pinned_value = update_data.pop("pinned", pinned_sentinel)
-    if pinned_value is not pinned_sentinel:
-        # Only guild admins and initiative managers can pin/unpin projects
-        can_pin = rls_service.is_guild_admin(guild_context.role)
-        if not can_pin and project.initiative_id:
-            can_pin = await rls_service.is_initiative_manager(
-                session,
-                initiative_id=project.initiative_id,
-                user=current_user,
-            )
-        if not can_pin:
+    # Fields that configure the project itself rather than describe it: they
+    # need a project manager, the project owner, or a guild admin, where plain
+    # write access is enough for the rest of the payload.
+    sentinel = object()
+    pinned_value = update_data.pop("pinned", sentinel)
+    view_mode_value = update_data.pop("default_view_mode", sentinel)
+    if pinned_value is not sentinel or view_mode_value is not sentinel:
+        can_administer = await permissions_service.can_administer_project(
+            session, project, current_user, guild_role=guild_context.role
+        )
+        if not can_administer:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=ProjectMessages.PIN_PERMISSION_REQUIRED,
+                detail=(
+                    ProjectMessages.PIN_PERMISSION_REQUIRED
+                    if view_mode_value is sentinel
+                    else ProjectMessages.ADMIN_REQUIRED
+                ),
             )
+    if pinned_value is not sentinel:
         project.pinned_at = datetime.now(timezone.utc) if bool(pinned_value) else None
+    if view_mode_value is not sentinel:
+        project.default_view_mode = view_mode_value
 
     for field, value in update_data.items():
         setattr(project, field, value)

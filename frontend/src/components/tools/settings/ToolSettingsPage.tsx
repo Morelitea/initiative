@@ -76,6 +76,9 @@ export interface ToolSettingsPageProps {
   advancedExtra?: ReactNode;
   /** Whole extra tabs, for settings too large to sit in a card (project task statuses). */
   extraTabs?: { value: string; label: string; content: ReactNode }[];
+  /** Which tab to open on, for a link that points at a specific one. Falls back
+   *  to Details when it names a tab this tool doesn't have. */
+  defaultTab?: string;
   /** Rendered outside the tabs — dialogs a tool's extras need. */
   children?: ReactNode;
 }
@@ -91,6 +94,7 @@ export const ToolSettingsPage = ({
   detailsExtra,
   advancedExtra,
   extraTabs = [],
+  defaultTab,
   children,
 }: ToolSettingsPageProps) => {
   const { t } = useTranslation(["common", "nav", "access"]);
@@ -171,7 +175,10 @@ export const ToolSettingsPage = ({
         <p className="text-muted-foreground text-sm">{t("common:toolSettings.description")}</p>
       </div>
 
-      <Tabs defaultValue="details" className="space-y-4">
+      <Tabs
+        defaultValue={extraTabs.some((tab) => tab.value === defaultTab) ? defaultTab : "details"}
+        className="space-y-4"
+      >
         <TabsList className="w-full max-w-xl justify-start">
           <TabsTrigger value="details">{t("common:toolSettings.tabDetails")}</TabsTrigger>
           {canManage && (

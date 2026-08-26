@@ -578,6 +578,50 @@ def require_project_access(
     )
 
 
+async def can_administer_project(
+    session,
+    project: Project,
+    user: User,
+    *,
+    guild_role: GuildRole | str | None = None,
+) -> bool:
+    """Whether the user may configure the project itself.
+
+    Configuring a project — pinning it, setting its default view, curating its
+    filter presets — is a step above being able to edit its content. Three ways
+    to hold it: a guild admin, a manager of the owning initiative, or the
+    project's own owner. Plain write access is deliberately not enough.
+    """
+    from app.services import rls as rls_service  # local: rls imports this module
+
+    if rls_service.is_guild_admin(guild_role):
+        return True
+    if compute_project_permission(project, user.id) == "owner":
+        return True
+    if project.initiative_id:
+        return await rls_service.is_initiative_manager(
+            session,
+            initiative_id=project.initiative_id,
+            user=user,
+        )
+    return False
+
+
+async def require_project_admin(
+    session,
+    project: Project,
+    user: User,
+    *,
+    guild_role: GuildRole | str | None = None,
+) -> None:
+    """Raise 403 unless the user may configure the project (see above)."""
+    if not await can_administer_project(session, project, user, guild_role=guild_role):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ProjectMessages.ADMIN_REQUIRED,
+        )
+
+
 def has_project_write_access(
     project: Project,
     user: User,

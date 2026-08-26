@@ -1903,6 +1903,105 @@ export interface FCMConfigResponse {
 }
 
 /**
+ * Comparison operators for filter conditions.
+ *
+ * Negation is handled by the ``negate`` flag on FilterCondition,
+ * not by separate operators.
+ */
+export type FilterOp = (typeof FilterOp)[keyof typeof FilterOp];
+
+export const FilterOp = {
+  eq: "eq",
+  lt: "lt",
+  lte: "lte",
+  gt: "gt",
+  gte: "gte",
+  in_: "in_",
+  ilike: "ilike",
+  is_null: "is_null",
+} as const;
+
+export interface PresetPropertyFilter {
+  property_id: number;
+  op?: FilterOp;
+  value?: unknown;
+}
+
+export type TaskFilterSpecDue = (typeof TaskFilterSpecDue)[keyof typeof TaskFilterSpecDue] | null;
+
+export const TaskFilterSpecDue = {
+  overdue: "overdue",
+  today: "today",
+  "7_days": "7_days",
+  "30_days": "30_days",
+} as const;
+
+/**
+ * The filter values a task preset holds. Unknown keys are rejected.
+ */
+export interface TaskFilterSpec {
+  /** @maxItems 50 */
+  status_ids?: number[];
+  status_categories?: TaskStatusCategory[];
+  /** @maxItems 25 */
+  assignees?: string[];
+  /** @maxItems 25 */
+  tag_ids?: number[];
+  /** @maxItems 5 */
+  properties?: PresetPropertyFilter[];
+  due?: TaskFilterSpecDue;
+  include_archived?: boolean;
+}
+
+export interface FilterPresetCreate {
+  /**
+   * @minLength 1
+   * @maxLength 100
+   */
+  name: string;
+  filters?: TaskFilterSpec;
+  is_default?: boolean;
+  position?: number | null;
+}
+
+export interface FilterPresetRead {
+  id: number;
+  project_id: number;
+  slug: string;
+  name: string;
+  position: number;
+  is_default: boolean;
+  filters: TaskFilterSpec;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FilterPresetListResponse {
+  items: FilterPresetRead[];
+  can_manage: boolean;
+}
+
+export interface FilterPresetReorderItem {
+  id: number;
+  /** @minimum 0 */
+  position: number;
+}
+
+export interface FilterPresetReorderRequest {
+  items: FilterPresetReorderItem[];
+}
+
+/**
+ * Everything but ``slug`` — a slug is what a shared link carries.
+ */
+export interface FilterPresetUpdate {
+  name?: string | null;
+  filters?: TaskFilterSpec | null;
+  is_default?: boolean | null;
+  position?: number | null;
+}
+
+/**
  * Response schema for description generation.
  */
 export interface GenerateDescriptionResponse {
@@ -3159,6 +3258,7 @@ export interface ProjectRead {
   is_template: boolean;
   archived_at: string | null;
   pinned_at: string | null;
+  default_view_mode: string | null;
   owner: UserPublic | null;
   initiative: InitiativeRead | null;
   sort_order: number | null;
@@ -3184,12 +3284,23 @@ export interface ProjectReorderRequest {
   project_ids?: number[];
 }
 
+export type ProjectUpdateDefaultViewMode =
+  | (typeof ProjectUpdateDefaultViewMode)[keyof typeof ProjectUpdateDefaultViewMode]
+  | null;
+
+export const ProjectUpdateDefaultViewMode = {
+  table: "table",
+  kanban: "kanban",
+  calendar: "calendar",
+} as const;
+
 export interface ProjectUpdate {
   name?: string | null;
   description?: string | null;
   icon?: string | null;
   is_template?: boolean | null;
   pinned?: boolean | null;
+  default_view_mode?: ProjectUpdateDefaultViewMode;
   start_date?: string | null;
   end_date?: string | null;
 }
@@ -4627,25 +4738,6 @@ export interface WidgetCatalog {
   widgets: WidgetCatalogEntry[];
   presets: WidgetPresetEntry[];
 }
-
-/**
- * Comparison operators for filter conditions.
- *
- * Negation is handled by the ``negate`` flag on FilterCondition,
- * not by separate operators.
- */
-export type FilterOp = (typeof FilterOp)[keyof typeof FilterOp];
-
-export const FilterOp = {
-  eq: "eq",
-  lt: "lt",
-  lte: "lte",
-  gt: "gt",
-  gte: "gte",
-  in_: "in_",
-  ilike: "ilike",
-  is_null: "is_null",
-} as const;
 
 /**
  * A single field comparison.

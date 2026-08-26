@@ -12,6 +12,7 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  CommandSeparator,
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -101,11 +102,32 @@ const MemberAvatar = ({ user, className }: { user: MemberLike; className?: strin
 
 // ── Multi-select (assignees, linked members) ─────────────────────────────────
 
+/**
+ * A non-person entry listed above the people.
+ *
+ * Some assignee filters don't name a user at all: "me" is whoever is asking,
+ * "unassigned" is nobody. Both are resolved server-side per request, which is
+ * what lets a saved filter — and a link to it — mean the same thing for
+ * everyone. They belong in the same control as the people, since they answer
+ * the same question, but they are not ids and can't go through `selectedIds`.
+ */
+export type MemberToken = {
+  value: string;
+  label: string;
+  selected: boolean;
+  onToggle: (selected: boolean) => void;
+};
+
 interface MemberMultiSelectProps {
   /** Which RLS-scoped roster to search (guild / initiative / project). */
   scope: MemberSearchScope;
+  /** Ties the trigger to a `<Label htmlFor>`. A `combobox` takes no accessible
+   *  name from its own contents, so without this the control is unnamed. */
+  id?: string;
   selectedIds: number[];
   onChange: (ids: number[]) => void;
+  /** Entries listed above the people — see {@link MemberToken}. */
+  tokens?: readonly MemberToken[];
   /** Display info for already-selected users (e.g. a task's `assignees`) so
    *  chips render before/without a search. */
   selectedUsers?: MemberLike[];
@@ -126,8 +148,10 @@ interface MemberMultiSelectProps {
 
 export const MemberMultiSelect = ({
   scope,
+  id,
   selectedIds,
   onChange,
+  tokens = [],
   selectedUsers,
   currentUserId,
   disabled = false,
@@ -190,13 +214,18 @@ export const MemberMultiSelect = ({
   // Compact summary for the filter variant: placeholder / the single name /
   // "N selected".
   const filterSummary = useMemo(() => {
-    if (selectedIds.length === 0) return resolvedPlaceholder;
-    if (selectedIds.length === 1) {
+    // Tokens count toward the summary: with only "Unassigned" on, a trigger
+    // still reading "All assignees" would misdescribe the list.
+    const chosenTokens = tokens.filter((token) => token.selected);
+    const total = chosenTokens.length + selectedIds.length;
+    if (total === 0) return resolvedPlaceholder;
+    if (total === 1) {
+      if (chosenTokens.length === 1) return chosenTokens[0].label;
       const only = seen.get(selectedIds[0]);
       return getUserDisplayName(only ?? { id: selectedIds[0] }, `User #${selectedIds[0]}`);
     }
-    return t("common:countSelected", { count: selectedIds.length });
-  }, [selectedIds, seen, resolvedPlaceholder, t]);
+    return t("common:countSelected", { count: total });
+  }, [selectedIds, tokens, seen, resolvedPlaceholder, t]);
 
   return (
     <div className={cn(variant === "default" && "space-y-3", className)}>
@@ -205,12 +234,15 @@ export const MemberMultiSelect = ({
           {variant === "filter" ? (
             <button
               type="button"
+              id={id}
               role="combobox"
               aria-expanded={!disabled && open}
               disabled={disabled}
               className={cn(
                 "flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
-                selectedIds.length === 0 && "text-muted-foreground"
+                selectedIds.length === 0 &&
+                  !tokens.some((token) => token.selected) &&
+                  "text-muted-foreground"
               )}
             >
               <span className="truncate">{filterSummary}</span>
@@ -224,7 +256,9 @@ export const MemberMultiSelect = ({
               disabled={disabled}
               className={cn(
                 "h-auto min-h-10 w-full justify-start",
-                selectedIds.length === 0 && "text-muted-foreground"
+                selectedIds.length === 0 &&
+                  !tokens.some((token) => token.selected) &&
+                  "text-muted-foreground"
               )}
             >
               <Users className="h-4 w-4 shrink-0 opacity-50" />
@@ -279,6 +313,33 @@ export const MemberMultiSelect = ({
               ) : (
                 <>
                   <CommandEmpty>{resolvedEmpty}</CommandEmpty>
+                  {tokens.length > 0 ? (
+                    <>
+                      <CommandGroup>
+                        {tokens.map((token) => (
+                          <CommandItem
+                            key={token.value}
+                            value={token.value}
+                            onSelect={() => token.onToggle(!token.selected)}
+                            className="cursor-pointer"
+                          >
+                            <div
+                              className={cn(
+                                "mr-2 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border border-primary",
+                                token.selected
+                                  ? "bg-primary text-primary-foreground"
+                                  : "opacity-50 [&_svg]:invisible"
+                              )}
+                            >
+                              <Check className="h-3 w-3" />
+                            </div>
+                            <span className="truncate">{token.label}</span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                      <CommandSeparator />
+                    </>
+                  ) : null}
                   <CommandGroup>
                     {orderedResults.map((user) => {
                       const isSelected = selectedSet.has(user.id);

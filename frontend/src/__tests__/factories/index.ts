@@ -5,6 +5,11 @@ export {
 } from "./comment.factory";
 export { buildDocumentSummary, resetCounter as resetDocumentCounter } from "./document.factory";
 export {
+  buildDefaultFilterPresets,
+  buildFilterPreset,
+  resetCounter as resetFilterPresetCounter,
+} from "./filterPreset.factory";
+export {
   buildGuild,
   buildGuildInviteStatus,
   resetCounter as resetGuildCounter,
@@ -68,6 +73,7 @@ export {
 
 import { resetCounter as resetCommentCounter } from "./comment.factory";
 import { resetCounter as resetDocumentCounter } from "./document.factory";
+import { resetCounter as resetFilterPresetCounter } from "./filterPreset.factory";
 import { resetCounter as resetGuildCounter } from "./guild.factory";
 import { resetCounter as resetInitiativeCounter } from "./initiative.factory";
 import { resetCounter as resetMarketplaceCounter } from "./marketplace.factory";
@@ -98,4 +104,5 @@ export function resetFactories(): void {
   resetPropertyCounter();
   resetRecentCounter();
   resetMarketplaceCounter();
+  resetFilterPresetCounter();
 }

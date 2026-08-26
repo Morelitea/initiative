@@ -454,5 +454,11 @@
   "APP_DATA_BUSY": "This app has too many requests in flight. Try again shortly.",
   "APP_DATA_RATE_LIMITED": "This app has been asked for too much too quickly. Try again shortly.",
   "WEBHOOK_UNKNOWN_EVENT_TYPE": "That event type doesn't exist. Check the list of available events.",
-  "WEBHOOK_UNKNOWN_FIELD": "That field doesn't exist on the events you selected."
+  "WEBHOOK_UNKNOWN_FIELD": "That field doesn't exist on the events you selected.",
+  "PROJECT_ADMIN_REQUIRED": "Only a project manager, the project owner, or a guild admin can change this.",
+  "FILTER_PRESET_NOT_FOUND": "That filter preset no longer exists.",
+  "FILTER_PRESET_DUPLICATE_ID": "The same preset was listed twice.",
+  "FILTER_PRESET_SLUG_TAKEN": "A preset with that name already exists in this project.",
+  "FILTER_PRESET_INVALID_FILTERS": "Those filters can’t be saved as a preset.",
+  "FILTER_PRESET_LIMIT_REACHED": "This project already has the maximum number of filter presets."
 }

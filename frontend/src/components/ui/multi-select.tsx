@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -14,9 +16,15 @@ import {
 export interface MultiSelectOption {
   value: string;
   label: string;
+  /** Heading to list this option under. Ungrouped options come first, then
+   *  each group in the order it first appears. */
+  group?: string;
 }
 
 interface MultiSelectProps {
+  /** Ties the trigger to a `<Label htmlFor>`. A `combobox` takes no accessible
+   *  name from its own contents, so without this the control is unnamed. */
+  id?: string;
   selectedValues: string[];
   options: MultiSelectOption[];
   onChange: (values: string[]) => void;
@@ -27,6 +35,7 @@ interface MultiSelectProps {
 }
 
 export const MultiSelect = ({
+  id,
   selectedValues,
   options,
   onChange,
@@ -68,13 +77,51 @@ export const MultiSelect = ({
     return t("countSelected", { count: selectedValues.length });
   }, [selectedValues, options, resolvedPlaceholder, t]);
 
+  // Ungrouped first, then each group in the order it first appears — the
+  // caller's ordering is the one the reader sees.
+  const ungrouped = useMemo(() => options.filter((option) => !option.group), [options]);
+  const groups = useMemo(() => {
+    const byHeading = new Map<string, MultiSelectOption[]>();
+    for (const option of options) {
+      if (!option.group) continue;
+      const existing = byHeading.get(option.group);
+      if (existing) existing.push(option);
+      else byHeading.set(option.group, [option]);
+    }
+    return [...byHeading.entries()];
+  }, [options]);
+
   if (options.length === 0) {
     return <p className="text-muted-foreground text-sm">{resolvedEmptyMessage}</p>;
   }
 
+  const renderOption = (option: MultiSelectOption) => {
+    const isSelected = selectedValues.includes(option.value);
+    return (
+      <SelectItem
+        key={option.value}
+        value={option.value}
+        onPointerUp={(e) => {
+          e.preventDefault();
+          toggleValue(option.value);
+        }}
+        onPointerDown={(e) => {
+          e.preventDefault();
+        }}
+      >
+        <div className="flex w-full items-center gap-2">
+          <div className="flex h-4 w-4 items-center justify-center">
+            {isSelected ? <Check className="h-4 w-4" /> : null}
+          </div>
+          <span>{option.label}</span>
+        </div>
+      </SelectItem>
+    );
+  };
+
   return (
     <Select value="__multiselect__" disabled={disabled}>
-      <SelectTrigger className={className}>
+      <SelectTrigger id={id} className={className}>
         <SelectValue>
           <span className={selectedValues.length === 0 ? "text-muted-foreground" : ""}>
             {displayValue}
@@ -107,29 +154,13 @@ export const MultiSelect = ({
             {t("clearAll")}
           </Button>
         </div>
-        {options.map((option) => {
-          const isSelected = selectedValues.includes(option.value);
-          return (
-            <SelectItem
-              key={option.value}
-              value={option.value}
-              onPointerUp={(e) => {
-                e.preventDefault();
-                toggleValue(option.value);
-              }}
-              onPointerDown={(e) => {
-                e.preventDefault();
-              }}
-            >
-              <div className="flex w-full items-center gap-2">
-                <div className="flex h-4 w-4 items-center justify-center">
-                  {isSelected ? <Check className="h-4 w-4" /> : null}
-                </div>
-                <span>{option.label}</span>
-              </div>
-            </SelectItem>
-          );
-        })}
+        {ungrouped.map(renderOption)}
+        {groups.map(([heading, groupOptions]) => (
+          <SelectGroup key={heading}>
+            <SelectLabel>{heading}</SelectLabel>
+            {groupOptions.map(renderOption)}
+          </SelectGroup>
+        ))}
       </SelectContent>
     </Select>
   );

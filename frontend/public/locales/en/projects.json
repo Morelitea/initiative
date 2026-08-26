@@ -64,7 +64,32 @@
     "filterByStatus": "Filter by status",
     "allStatuses": "All statuses",
     "noStatusesAvailable": "No statuses available",
-    "showArchived": "Show archived"
+    "showArchived": "Show archived",
+    "category": {
+      "backlog": "Backlog",
+      "todo": "To do",
+      "in_progress": "In progress",
+      "done": "Done"
+    },
+    "customFilters": "Custom filters",
+    "modified": "modified",
+    "saveAsPreset": "Save preset",
+    "updatePreset": "Update “{{name}}”",
+    "presetName": "Preset name",
+    "presetNamePlaceholder": "e.g. Blocked work",
+    "presetSetDefault": "Make this the project's default",
+    "presetSaved": "Preset saved",
+    "presetDeleted": "Preset deleted",
+    "presetUnavailable": "That preset no longer exists on this project, so the project default is shown instead.",
+    "presetSaveError": "Couldn't save the preset",
+    "presetDeleteError": "Couldn't delete the preset",
+    "preset": "Preset",
+    "resetToPreset": "Reset to preset",
+    "assignedToMe": "Assigned to me",
+    "unassigned": "Unassigned",
+    "archived": "Archived",
+    "statusCategory": "Status category",
+    "savePresetDescription": "Everyone in this project will see this preset."
   },
   "templates": {
     "loading": "Loading templates…",
@@ -300,7 +325,19 @@
     "danger": {
       "title": "Danger zone",
       "description": "Deleting a project sends it and its tasks to the trash. They can be restored before the retention period ends."
-    }
+    },
+    "tabFilterPresets": "Views",
+    "filterPresetsHeading": "Filter presets",
+    "filterPresetsDescription": "Saved filter sets everyone in this project can pick from. The default is what the project opens on.",
+    "defaultView": "Default view",
+    "defaultViewHint": "Which task view this project opens on for someone who hasn't chosen one.",
+    "presetDefaultColumn": "Default",
+    "presetNoFilters": "No filters — every task",
+    "deletePreset": "Delete preset",
+    "deletePresetConfirm": "Delete “{{name}}”? Anyone using it will fall back to the project default.",
+    "noPresets": "No presets yet.",
+    "presetMoveUp": "Move preset up",
+    "presetMoveDown": "Move preset down"
   },
   "documents": {
     "title": "Documents",

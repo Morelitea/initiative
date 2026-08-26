@@ -308,6 +308,7 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     # One hop -> projects
     "tasks": via("projects", "project_id"),
     "task_statuses": via("projects", "project_id"),
+    "project_filter_presets": via("projects", "project_id"),
     "project_documents": via("projects", "project_id"),
     "project_tags": via("projects", "project_id"),
     # One hop -> documents
@@ -530,6 +531,9 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     "guild_apps": Emit(guild_wide=True, resource_type="apps"),
     # -- Facets of their parent ---------------------------------------------
     "task_statuses": Emit(reports_as=reports_as("projects", "project_id", "statuses")),
+    "project_filter_presets": Emit(
+        reports_as=reports_as("projects", "project_id", "filter_presets")
+    ),
     "document_file_versions": Emit(
         reports_as=reports_as("documents", "document_id", "versions")
     ),

@@ -454,5 +454,11 @@
   "APP_DATA_BUSY": "Cette application a trop de requêtes en cours. Réessayez dans un instant.",
   "APP_DATA_RATE_LIMITED": "Cette application a été sollicitée trop souvent en peu de temps. Réessayez dans un instant.",
   "WEBHOOK_UNKNOWN_EVENT_TYPE": "Ce type d'événement n'existe pas. Consultez la liste des événements disponibles.",
-  "WEBHOOK_UNKNOWN_FIELD": "Ce champ n'existe pas pour les événements sélectionnés."
+  "WEBHOOK_UNKNOWN_FIELD": "Ce champ n'existe pas pour les événements sélectionnés.",
+  "PROJECT_ADMIN_REQUIRED": "Seuls un chef de projet, le propriétaire du projet ou un administrateur de guilde peuvent modifier cela.",
+  "FILTER_PRESET_NOT_FOUND": "Ce préréglage de filtre n’existe plus.",
+  "FILTER_PRESET_DUPLICATE_ID": "Le même préréglage a été listé deux fois.",
+  "FILTER_PRESET_SLUG_TAKEN": "Un préréglage portant ce nom existe déjà dans ce projet.",
+  "FILTER_PRESET_INVALID_FILTERS": "Ces filtres ne peuvent pas être enregistrés comme préréglage.",
+  "FILTER_PRESET_LIMIT_REACHED": "Ce projet a déjà atteint le nombre maximal de préréglages de filtre."
 }
