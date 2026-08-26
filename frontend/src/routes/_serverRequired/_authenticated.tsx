@@ -213,7 +213,7 @@ function AppLayout() {
             }
           >
             <AppSidebar />
-            <div className="flex min-w-0 flex-1 flex-col bg-muted/50 md:pl-0">
+            <div className="flex min-w-0 flex-1 flex-col md:pl-0">
               <div
                 className="sticky top-0 z-50 flex flex-col bg-card/70 backdrop-blur supports-backdrop-filter:bg-card/60 lg:border-b"
                 style={{ paddingTop: "var(--safe-area-inset-top)" }}
