@@ -367,6 +367,25 @@ async def live_delegate(public_id: str) -> Optional[RegistrationSnapshot]:
     return snapshot
 
 
+async def directory_reader(public_id: str) -> Optional[RegistrationSnapshot]:
+    """The registration behind a caller allowed to ask where other apps answer.
+
+    A live delegate that *also* holds ``app_directory``. Two grants rather than
+    one because they are two powers: acting for a member is what most delegates
+    are for, and learning the deployment's wiring for somebody else's app is
+    not part of it. An automation service is conferred both; an app that only
+    ever works its own vendor holds at most the first, and asking gets it the
+    same nothing as an app the operator never registered.
+
+    Reads through the same snapshot :func:`live_delegate` does, so revoking
+    either grant lands on both within the cache TTL.
+    """
+    snapshot = await live_delegate(public_id)
+    if snapshot is None or "app_directory" not in snapshot.grants:
+        return None
+    return snapshot
+
+
 async def delegate_jwks(public_id: str) -> dict[str, Any] | None:
     """One delegate's public verification keys, as a JWKS document.
 

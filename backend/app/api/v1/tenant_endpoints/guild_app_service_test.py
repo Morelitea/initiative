@@ -2,13 +2,15 @@
 
 An automation service acts on apps as well as on Initiative — it asks one to
 open a GitHub issue the way it asks us to create a task — and to do that it has
-to know where the app is. Only the registration says, and the registration is
-operator wiring: an internal Service address on a cluster.
+to know where the app is. Only the registration says, and that is operator
+wiring rather than anything the install describes.
 
-So this route hands it over on one condition and hides it from everybody else.
-What is pinned here is that condition, both halves of it: the caller must have
-arrived as a live delegate, and every way of not being one answers the same 404
-as an app that does not exist.
+So this route hands it over on two conditions and answers everybody else the
+same 404 as an app that does not exist. Both are pinned here: the caller
+arrived as a live delegate, **and** the operator conferred ``app_directory`` on
+it. The second is what separates an automation service from an app that merely
+acts for its own members — the test below holds that line, because a delegate
+is the shape most apps have and the address is not theirs to read.
 """
 
 from __future__ import annotations
@@ -34,7 +36,7 @@ from app.testing.schema_harness import route_session_to_guild
 #: the whole point is one app learning where a *different* one lives.
 TARGET_PUBLIC_ID = "morelitea.github"
 TARGET_LISTING_UID = "TESTGITHUB0001"
-TARGET_BASE_URL = "http://initiative-github.svc.cluster.local:8080"
+TARGET_BASE_URL = "http://initiative-github.internal:8080"
 
 
 @pytest.fixture(autouse=True)
@@ -45,7 +47,9 @@ async def _enable_delegation(session: AsyncSession):
             "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM",
             "-----BEGIN PRIVATE KEY-----",
         )
-        await register_delegate(session)
+        # Both grants: acting for a member is what authenticates the call, and
+        # ``app_directory`` is what this route additionally asks for.
+        await register_delegate(session, grants=("delegation", "app_directory"))
         yield
     invalidate_registrations()
 
@@ -254,6 +258,49 @@ async def test_a_delegate_that_may_not_act_is_refused(
     )
 
     assert response.status_code == 401
+    assert TARGET_BASE_URL not in response.text
+
+
+@pytest.mark.integration
+async def test_a_delegate_without_the_directory_grant_is_refused(
+    client: AsyncClient, session: AsyncSession, scene
+):
+    """The line between acting for a member and reading the wiring.
+
+    This caller is a perfectly good delegate: enabled, holding ``delegation``,
+    its token verifying — so it reaches the route rather than being stopped a
+    floor down, which is what makes this a different assertion from the one
+    above. It is refused here because acting for its own members is all the
+    operator conferred, and where another app answers is not part of that.
+
+    The shape most apps have, and the reason the grant is separate: an app that
+    works one vendor should not learn the deployment's wiring for the rest.
+    """
+    actor, subject = scene
+    guild, installer = actor.guild, actor.user
+    await _register_target(session)
+    app = await _install_target(session, guild, installer)
+    headers = _headers(subject, guild.id, "svc-no-directory")
+
+    from sqlmodel import delete
+
+    from app.models.platform.app_service_registration import AppServiceRegistration
+    from app.testing.delegation import DELEGATE_PUBLIC_ID
+
+    await session.exec(
+        delete(AppServiceRegistration).where(
+            AppServiceRegistration.public_id == DELEGATE_PUBLIC_ID
+        )
+    )
+    await session.commit()
+    await register_delegate(session, grants=("delegation",))
+
+    response = await client.get(
+        f"/api/v1/g/{guild.id}/apps/{app.id}/service", headers=headers
+    )
+
+    # The route's own gate, not the auth layer's: this token authenticated.
+    assert response.status_code == 404, response.text
     assert TARGET_BASE_URL not in response.text
 
 

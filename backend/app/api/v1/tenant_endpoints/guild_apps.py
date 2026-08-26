@@ -902,7 +902,14 @@ async def _require_delegating_app(app: GuildApp) -> None:
         )
 
 
-@router.get("/{app_id}/service", response_model=GuildAppServiceRead)
+# Off the schema, like every other route only a machine calls
+# (``app_service_endpoints`` excludes its whole router the same way). No browser
+# reaches this one, so publishing it would put a delegate-only address in the
+# SPA's generated client and this route's reasoning in a file the frontend
+# ships.
+@router.get(
+    "/{app_id}/service", response_model=GuildAppServiceRead, include_in_schema=False
+)
 async def read_app_service_address(
     app_id: int,
     request: Request,
@@ -917,15 +924,18 @@ async def read_app_service_address(
     the operator's wiring, held here and deliberately absent from
     :class:`GuildAppRead` so it never travels to a browser.
 
-    **Delegates only, and every miss is the same 404.** The caller must have
+    **Two grants, and every miss is the same 404.** The caller must have
     arrived on a delegation token (``request.state.delegating_app``) whose
-    registration is enabled and holds the ``delegation`` grant — the identical
-    rule that decides which keys verify its tokens, read through
-    :func:`registration_lookup.live_delegate` so an operator's edit reaches
-    this and the key set together. A first-party session reaching this route
-    gets the same 404 as an unknown app: the address is not a member's to read,
-    and answering the two apart would describe the deployment's wiring to a
-    caller with no standing to ask about it.
+    registration is enabled, holds ``delegation``, and holds ``app_directory``
+    — read through :func:`registration_lookup.directory_reader` so an
+    operator's edit to either reaches this and the key set together.
+
+    The second grant is the point of this route's gate. Acting for a member and
+    learning where another app answers are different powers, so an app that
+    works its own vendor holds at most the first and gets nothing here; an
+    automation service, whose whole job is acting on one app's behalf at
+    another, is conferred both. A first-party session gets the same 404: the
+    address is operator wiring rather than a member's to read.
 
     What is *not* flattened into the 404 is ``available``. Once the caller is
     established as a live delegate, "installed but switched off" is an answer it
@@ -933,7 +943,7 @@ async def read_app_service_address(
     from a missing app leaves it guessing.
     """
     delegate = getattr(request.state, "delegating_app", None)
-    if not delegate or await registration_lookup.live_delegate(delegate) is None:
+    if not delegate or await registration_lookup.directory_reader(delegate) is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=GuildAppMessages.NOT_FOUND,

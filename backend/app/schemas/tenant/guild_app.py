@@ -488,12 +488,12 @@ def serialize_delegation(row: Any) -> GuildAppDelegationRead:
 class GuildAppServiceRead(SanitizedBaseModel):
     """Where one installed app's service answers, for a delegate to call it.
 
-    Served only to a delegate (see the route), and deliberately not part of
-    :class:`GuildAppRead`: ``base_url`` is where Initiative's *server* reaches
-    the app, which on a cluster is an internal address. It is operator wiring,
-    so it has no business travelling to a browser alongside the rest of an
-    install — a member reading the sidebar has no use for it and every reason
-    not to be told.
+    Served only to a caller the operator conferred ``app_directory`` on (see
+    the route), and deliberately not part of :class:`GuildAppRead`:
+    ``base_url`` is where Initiative's *server* reaches the app, which is the
+    operator's own wiring rather than anything an install describes. It has no
+    business travelling to a browser alongside the rest of an install — a
+    member reading the sidebar has no use for it.
     """
 
     #: The app's registered service id, echoed so a caller can check it got the
