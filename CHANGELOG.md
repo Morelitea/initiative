@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.63.2] - 2026-08-25
+
 ### Added
 
 - **Task and document tables remember how you left them.** The column you sorted by, the grouping you chose, and the columns you showed or hid now come back on your next visit — on a project's task list (kept per project, so one project's arrangement doesn't follow you into the next), My Tasks and Created Tasks, a tag's task list, and the documents list. My Tasks also stops claiming it is sorted by date window when your saved sort says otherwise. Settings and admin tables are unchanged: they are places you pass through, not arrange.
