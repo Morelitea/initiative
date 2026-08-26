@@ -24,9 +24,14 @@ const TASK_ID = 2726;
 
 const TASK_ROUTE = "/g/$guildId/i/$initiativeId/projects/$projectId/tasks/$taskId";
 
-const renderTaskPage = () => {
-  const task = buildTask({ id: TASK_ID, project_id: PROJECT_ID, title: "Wire the doorbell" });
-  const project = buildProject({ id: PROJECT_ID, initiative_id: INITIATIVE_ID, name: "Rewiring" });
+/** The project the task actually belongs to, which a move can change. */
+const renderTaskPage = ({ taskProjectId = PROJECT_ID }: { taskProjectId?: number } = {}) => {
+  const task = buildTask({ id: TASK_ID, project_id: taskProjectId, title: "Wire the doorbell" });
+  const project = buildProject({
+    id: taskProjectId,
+    initiative_id: INITIATIVE_ID,
+    name: "Rewiring",
+  });
   const deleted = vi.fn();
 
   server.use(
@@ -56,18 +61,38 @@ const renderTaskPage = () => {
 };
 
 describe("TaskEditPage", () => {
-  it("returns to the task's project after deleting it", async () => {
-    const { router, deleted } = renderTaskPage();
-
+  const deleteTheTask = async () => {
     fireEvent.click(await screen.findByRole("button", { name: /delete task/i }));
     // The confirm dialog repeats the label; the last match is its button.
     const confirms = await screen.findAllByRole("button", { name: /delete/i });
     fireEvent.click(confirms[confirms.length - 1]);
+  };
+
+  it("returns to the task's project after deleting it", async () => {
+    const { router, deleted } = renderTaskPage();
+
+    await deleteTheTask();
 
     await waitFor(() => expect(deleted).toHaveBeenCalled());
     await waitFor(() =>
       expect(router.state.location.pathname).toBe(
         `/g/${GUILD_ID}/i/${INITIATIVE_ID}/projects/${PROJECT_ID}`
+      )
+    );
+  });
+
+  it("follows the task's own project, not the one left in the path", async () => {
+    // Moving the open task rewrites its project without touching the URL, so
+    // the path still names the project it came from.
+    const MOVED_TO = PROJECT_ID + 1;
+    const { router, deleted } = renderTaskPage({ taskProjectId: MOVED_TO });
+
+    await deleteTheTask();
+
+    await waitFor(() => expect(deleted).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe(
+        `/g/${GUILD_ID}/i/${INITIATIVE_ID}/projects/${MOVED_TO}`
       )
     );
   });

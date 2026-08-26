@@ -198,13 +198,17 @@ export const TaskEditPage = () => {
   const projectQuery = useProject(projectId ?? null);
   // Where a delete returns to. Held in a ref because a task opened without a
   // project in its path resolves its project through the task query, and the
-  // delete clears that before the success handler navigates.
+  // delete clears that before the success handler navigates. The task's own
+  // project wins over the one in the path: moving the task rewrites the former
+  // and leaves the latter behind.
   const lastProjectIdRef = useRef<number | null>(null);
+  const taskProjectId = taskQuery.data?.project_id;
   useEffect(() => {
-    if (typeof projectId === "number" && Number.isFinite(projectId)) {
-      lastProjectIdRef.current = projectId;
+    const owner = typeof taskProjectId === "number" ? taskProjectId : projectId;
+    if (typeof owner === "number" && Number.isFinite(owner)) {
+      lastProjectIdRef.current = owner;
     }
-  }, [projectId]);
+  }, [taskProjectId, projectId]);
 
   const taskStatusesQuery = useProjectTaskStatuses(projectId ?? null);
 

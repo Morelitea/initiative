@@ -201,7 +201,8 @@ const SortableGuildButton = ({
   isHomeMode: boolean;
   onSelect: (guildId: number) => void;
   reorderMode: boolean;
-  onStartReorder: () => void;
+  /** Absent when there is nothing to reorder — a lone guild has no order. */
+  onStartReorder?: () => void;
 }) => {
   const { t } = useTranslation("guilds");
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -414,7 +415,8 @@ const SortableGuildRow = ({
   isHomeMode: boolean;
   onSelect: (guildId: number) => void;
   reorderMode: boolean;
-  onStartReorder: () => void;
+  /** Absent when there is nothing to reorder — a lone guild has no order. */
+  onStartReorder?: () => void;
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `${FLYOUT_DRAG_PREFIX}${guild.id}`,
@@ -491,6 +493,13 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
     () => guilds.filter((guild) => guild.accessType === "grant"),
     [guilds]
   );
+  // A lone guild has no order, so it is never offered one — and if the list
+  // shrinks to one while reordering, the mode closes itself rather than
+  // leaving taps inert.
+  const canReorder = memberGuilds.length > 1;
+  useEffect(() => {
+    if (!canReorder) setReorderMode(false);
+  }, [canReorder]);
 
   // --- Expandable "Guilds" flyout state machine (mirrors MobileSidebar) ---
   // `expanded` is the desired state; `render`/`atOpen` decouple mount from the
@@ -748,7 +757,7 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
                   isHomeMode={isHomeMode}
                   onSelect={handleGuildSwitch}
                   reorderMode={reorderMode}
-                  onStartReorder={startReorder}
+                  onStartReorder={canReorder ? startReorder : undefined}
                 />
               ))}
             </SortableContext>
@@ -842,7 +851,7 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
             <div className="flex h-12 shrink-0 items-center justify-between border-b px-4">
               <h2 className="font-semibold text-lg">{t("guilds:guildsHeading")}</h2>
               <div className="flex items-center gap-1">
-                {memberGuilds.length > 1 ? (
+                {canReorder ? (
                   <Button
                     variant={reorderMode ? "default" : "ghost"}
                     size="sm"
@@ -896,7 +905,7 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
                       isHomeMode={isHomeMode}
                       onSelect={handleGuildSwitch}
                       reorderMode={reorderMode}
-                      onStartReorder={startReorder}
+                      onStartReorder={canReorder ? startReorder : undefined}
                     />
                   ))}
                 </SortableContext>

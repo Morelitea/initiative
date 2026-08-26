@@ -73,6 +73,15 @@ describe("GuildSidebar reorder mode", () => {
     expect(screen.queryByRole("menuitem", { name: "Reorder guilds" })).not.toBeInTheDocument();
   });
 
+  it("does not offer it when there is only one guild to order", async () => {
+    setup([entry({ name: "Alpha" })]);
+
+    fireEvent.contextMenu(await railButton("Alpha"));
+
+    expect(await screen.findByRole("menuitem", { name: "Copy guild ID" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Reorder guilds" })).not.toBeInTheDocument();
+  });
+
   it("turns taps into drags while reordering, and hands them back on Done", async () => {
     const guilds = [entry({ name: "Alpha" }), entry({ name: "Beta" })];
     const { switchGuild } = setup(guilds);
