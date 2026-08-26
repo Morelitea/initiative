@@ -37,6 +37,9 @@ class GuildAppUpdate(SanitizedBaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=255)
     #: Turning an app off hides it without touching what it created.
     enabled: Optional[bool] = None
+    #: Whether published versions are applied on their own. On until a guild
+    #: admin turns it off, after which the Update button is how they land.
+    auto_update: Optional[bool] = None
     #: Which initiatives this app's initiative-scoped surfaces appear in.
     #: ``{}`` is every one of them; ``{"initiatives": [12, 15]}`` narrows it.
     #: Left out entirely, the current placement is untouched.
@@ -117,6 +120,9 @@ class GuildAppRead(SanitizedBaseModel):
     app_kind: str
     name: str
     enabled: bool
+    #: Whether this install tracks its listing. True unless a guild admin chose
+    #: to apply versions by hand.
+    auto_update: bool = True
     #: What the install produced — for a tool instance, the row it created, so
     #: the sidebar can link straight to it.
     artifacts: List[GuildAppArtifact] = []
@@ -224,6 +230,13 @@ class GuildAppDetail(GuildAppRead):
     #: install so the settings page can draw the question without a second
     #: request; it says nothing about anybody else.
     delegation: Optional[GuildAppDelegationRead] = None
+    #: The version this install would move to if it updated now, and absent
+    #: when there is none — an install already on the newest, and one whose
+    #: listing is gone or has published nothing this build can run, are one
+    #: answer to the only question being asked. Only the detail read carries it:
+    #: it costs a catalog lookup, and it is the page offering the Update button
+    #: that needs the answer.
+    update_version: Optional[str] = None
 
 
 class GuildAppListResponse(SanitizedBaseModel):
@@ -347,6 +360,7 @@ def serialize_guild_app(
         app_kind=app.app_kind,
         name=app.name,
         enabled=app.enabled,
+        auto_update=app.auto_update,
         artifacts=[GuildAppArtifact(**artifact) for artifact in app_artifacts(app)],
         needs_config=state.needs_config,
         config_state=state.state,
@@ -417,8 +431,13 @@ def serialize_guild_app_detail(
     install_state: Optional[InstallState] = None,
     avatar_url: Optional[str] = None,
     delegation_row: Any = None,
+    update_version: Optional[str] = None,
 ) -> GuildAppDetail:
-    """The install and its connections, from the viewer's own perspective."""
+    """The install and its connections, from the viewer's own perspective.
+
+    ``update_version`` is resolved by the caller, which is the layer holding a
+    session that can read the catalog.
+    """
     base = serialize_guild_app(app, install_state=install_state, avatar_url=avatar_url)
     connections = [
         serialize_connection(
@@ -430,6 +449,7 @@ def serialize_guild_app_detail(
         **base.model_dump(),
         connections=connections,
         delegation=serialize_delegation(delegation_row),
+        update_version=update_version,
     )
 
 

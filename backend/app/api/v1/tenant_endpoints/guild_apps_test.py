@@ -256,6 +256,57 @@ class TestManage:
         assert response.json()["name"] == "Renamed"
         assert response.json()["enabled"] is False
 
+    async def test_an_install_tracks_its_listing_by_default(
+        self, client: AsyncClient, acting_user, calendar_app
+    ):
+        """Nobody opts in. An install takes what its publisher ships until a
+        guild admin says it should not."""
+        a = await acting_user(guild_role=GuildRole.admin)
+        app = await _install(client, a)
+        assert app["auto_update"] is True
+
+    async def test_an_admin_can_switch_to_manual_updates(
+        self, client: AsyncClient, acting_user, calendar_app
+    ):
+        a = await acting_user(guild_role=GuildRole.admin)
+        app = await _install(client, a)
+
+        response = await client.patch(
+            a.g(f"/apps/{app['id']}"), headers=a.headers, json={"auto_update": False}
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["auto_update"] is False
+
+        # And it is what the next reader sees, not just what the write echoed.
+        (listed,) = (await client.get(a.g("/apps/"), headers=a.headers)).json()["items"]
+        assert listed["auto_update"] is False
+
+    async def test_the_cadence_is_a_guild_admin_s_to_set(
+        self, client: AsyncClient, acting_user, calendar_app
+    ):
+        a = await acting_user(guild_role=GuildRole.admin)
+        app = await _install(client, a)
+        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+
+        response = await client.patch(
+            member.g(f"/apps/{app['id']}"),
+            headers=member.headers,
+            json={"auto_update": False},
+        )
+        assert response.status_code == 403
+
+    async def test_the_detail_read_offers_nothing_when_there_is_nothing_to_take(
+        self, client: AsyncClient, acting_user, calendar_app
+    ):
+        """``update_version`` is what draws the Update button, so an install on
+        the newest version has to come back without one."""
+        a = await acting_user(guild_role=GuildRole.admin)
+        app = await _install(client, a)
+
+        response = await client.get(a.g(f"/apps/{app['id']}"), headers=a.headers)
+        assert response.status_code == 200, response.text
+        assert response.json()["update_version"] is None
+
     async def test_disabling_leaves_the_content_alone(
         self, client: AsyncClient, acting_user, calendar_app
     ):

@@ -849,9 +849,15 @@ class TestUpgrade:
             definition={**_tool_definition(), "default_name": "Cal v2"},
         )
 
+        # What the settings page draws its Update button from.
+        offered = await client.get(a.g(f"/apps/{app_id}"), headers=a.headers)
+        assert offered.json()["update_version"] == "1.1.0"
+
         response = await client.post(a.g(f"/apps/{app_id}/upgrade"), headers=a.headers)
         assert response.status_code == 200, response.text
         assert response.json()["listing_version"] == "1.1.0"
+        # And the button goes away rather than offering the version just taken.
+        assert response.json()["update_version"] is None
 
     async def test_upgrading_to_the_pinned_version_is_refused(
         self, client: AsyncClient, acting_user, session: AsyncSession

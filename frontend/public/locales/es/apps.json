@@ -24,7 +24,12 @@
     "unavailable": "No está configurada en este servidor",
     "configure": "Abrir los ajustes",
     "version": "Versión {{version}}",
-    "upgrade": "Actualizar",
+    "autoUpdate": "Actualizar automáticamente",
+    "autoUpdateHelp": "Las nuevas versiones del editor se aplican solas. Desactívalo para leer cada una primero y actualizar a mano.",
+    "autoUpdateOn": "Las actualizaciones se aplicarán automáticamente.",
+    "autoUpdateOff": "Las actualizaciones ahora se aplican a mano.",
+    "upgradeTo": "Actualizar a {{version}}",
+    "upToDate": "Actualizada",
     "upgraded": "Actualizada a {{version}}."
   },
   "install": {

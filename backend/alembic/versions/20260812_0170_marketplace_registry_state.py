@@ -82,10 +82,8 @@ def upgrade() -> None:
     # --- registry state: system engine only --------------------------------
     _run(
         [
-            "ALTER TABLE public.marketplace_registry_state "
-            "ENABLE ROW LEVEL SECURITY",
-            "ALTER TABLE public.marketplace_registry_state "
-            "FORCE ROW LEVEL SECURITY",
+            "ALTER TABLE public.marketplace_registry_state ENABLE ROW LEVEL SECURITY",
+            "ALTER TABLE public.marketplace_registry_state FORCE ROW LEVEL SECURITY",
             "REVOKE ALL ON TABLE public.marketplace_registry_state "
             f'FROM app_guild_base, "{base}", app_user',
             "GRANT SELECT, INSERT, UPDATE ON TABLE "
@@ -116,8 +114,7 @@ def upgrade() -> None:
             f'FROM app_guild_base, "{base}", app_user',
             "GRANT USAGE, SELECT ON SEQUENCE "
             "public.marketplace_media_id_seq TO app_admin",
-            "DROP POLICY IF EXISTS marketplace_media_read "
-            "ON public.marketplace_media",
+            "DROP POLICY IF EXISTS marketplace_media_read ON public.marketplace_media",
             # A read policy and no write policy, matching the catalog tables:
             # artwork is public the way the shipped image files are, and the
             # only writer is the system engine.
@@ -131,11 +128,9 @@ def upgrade() -> None:
 def downgrade() -> None:
     _run(
         [
-            "DROP POLICY IF EXISTS marketplace_media_read "
-            "ON public.marketplace_media",
+            "DROP POLICY IF EXISTS marketplace_media_read ON public.marketplace_media",
             "ALTER TABLE public.marketplace_media DISABLE ROW LEVEL SECURITY",
-            "ALTER TABLE public.marketplace_registry_state "
-            "DISABLE ROW LEVEL SECURITY",
+            "ALTER TABLE public.marketplace_registry_state DISABLE ROW LEVEL SECURITY",
         ]
     )
     op.drop_table("marketplace_media")

@@ -2061,6 +2061,7 @@ export interface GuildAppDetail {
   app_kind: string;
   name: string;
   enabled: boolean;
+  auto_update: boolean;
   artifacts: GuildAppArtifact[];
   needs_config: boolean;
   config_state: string;
@@ -2078,6 +2079,7 @@ export interface GuildAppDetail {
   updated_at: string;
   connections: GuildAppConnectionRead[];
   delegation: GuildAppDelegationRead | null;
+  update_version: string | null;
 }
 
 /**
@@ -2120,6 +2122,7 @@ export interface GuildAppRead {
   app_kind: string;
   name: string;
   enabled: boolean;
+  auto_update: boolean;
   artifacts: GuildAppArtifact[];
   needs_config: boolean;
   config_state: string;
@@ -2184,6 +2187,7 @@ export type GuildAppUpdatePlacement = { [key: string]: unknown } | null;
 export interface GuildAppUpdate {
   name?: string | null;
   enabled?: boolean | null;
+  auto_update?: boolean | null;
   placement?: GuildAppUpdatePlacement;
 }
 

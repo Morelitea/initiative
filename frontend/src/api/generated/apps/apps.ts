@@ -853,11 +853,18 @@ export function useGetGuildAppApiV1GGuildIdAppsAppIdGet<
 }
 
 /**
- * Rename an app, place it, or turn it off without removing what it created.
+ * Rename an app, place it, choose how it updates, or turn it off.
  *
  * Renaming is always allowed — a guild may call an app whatever it likes.
  * Turning one off is a different matter for an app the deployment provides:
  * that switch belongs to the operator, so it is refused by name here.
+ *
+ * ``auto_update`` is the guild's own cadence, and it is on until an admin says
+ * otherwise. Turning it off does not freeze the app — it moves the decision to
+ * this page, where the Update button applies exactly what the sweep would
+ * have. It is offered on every install, provided ones included: the operator
+ * decides whether an app exists, and the guild decides when it changes under
+ * them.
  *
  * Placement says which initiatives an app's initiative-scoped surfaces appear
  * in; ``{}`` is every one of them, which is where an install starts. It is the
@@ -1052,11 +1059,13 @@ export const useUninstallGuildAppApiV1GGuildIdAppsAppIdDelete = <
   );
 };
 /**
- * Re-pin an installed app to its listing's current version.
+ * Re-pin an installed app to its listing's current version, now.
  *
- * Nothing is ever pushed into a guild: a new version sits in the catalog until
- * an admin here asks for it. Applying one replaces this install's definition
- * and leaves everything else alone.
+ * The button an admin presses when their guild has turned automatic updates
+ * off — and the shortcut past the sweep for one that has not. Either way it is
+ * the same re-pin ``services.tenant.app_updates`` performs on its own
+ * schedule, so an install cannot end up in a state only one of the two routes
+ * can produce.
  *
  * Stored configuration survives, minus anything the new version stopped
  * declaring — a value cannot outlive the field it was typed into. Per-member

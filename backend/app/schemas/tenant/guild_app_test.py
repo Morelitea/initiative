@@ -54,6 +54,9 @@ def _app(**overrides) -> SimpleNamespace:
             "app_kind": "service",
             "name": "Shop",
             "enabled": True,
+            # Tracking its listing, which is what an install that never opted
+            # out says and what the serializer reads.
+            "auto_update": True,
             "definition": DEFINITION,
             "config": {},
             "config_secrets": {"admin": {"admin_token": SECRET_CIPHERTEXT}},
