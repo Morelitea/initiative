@@ -17,6 +17,7 @@ import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { GuildSidebar } from "@/components/guilds/GuildSidebar";
 import { AppsSection } from "@/components/sidebar/AppsSection";
+import { CommunityDirectorySidebar } from "@/components/sidebar/CommunityDirectorySidebar";
 import { HomeSidebarContent } from "@/components/sidebar/HomeSidebarContent";
 import { InitiativeSection } from "@/components/sidebar/InitiativeSection";
 import { SidebarUserFooter } from "@/components/sidebar/SidebarUserFooter";
@@ -83,6 +84,10 @@ export const AppSidebar = () => {
 
   // Determine sidebar mode from route
   const isGuildRoute = location.pathname.startsWith("/g/");
+  // The community directory brings its own: what narrows it belongs beside the
+  // cards it narrows, not on the page with them.
+  const isCommunityRoute =
+    location.pathname === "/communities" || location.pathname.startsWith("/communities/");
 
   // Which project row to highlight. A project is addressed inside its
   // initiative, so the pattern has to carry that segment too.
@@ -309,7 +314,9 @@ export const AppSidebar = () => {
         <div className="flex min-h-0 max-w-full flex-1">
           <GuildSidebar isHomeMode={!isGuildRoute} />
           <div className="flex min-w-0 max-w-full flex-1 flex-col overflow-hidden border-r">
-            {!isGuildRoute ? (
+            {isCommunityRoute ? (
+              <CommunityDirectorySidebar />
+            ) : !isGuildRoute ? (
               <HomeSidebarContent />
             ) : (
               <>

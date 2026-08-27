@@ -46,7 +46,8 @@ const community = (overrides: Partial<CommunityGuildRead> = {}): CommunityGuildR
   ...overrides,
 });
 
-const renderDirectory = () => renderPage(CommunitiesPage, { initialRoute: "/communities" });
+const renderDirectory = (search: Record<string, unknown> = {}) =>
+  renderPage(CommunitiesPage, { initialRoute: "/communities", routerSearch: search });
 
 /** The infinite-query shape the page reads: pages of items plus the paging
  *  flags. `total` is how many matched, so it can exceed what is loaded. */
@@ -72,7 +73,6 @@ describe("CommunitiesPage", () => {
     renderDirectory();
 
     expect(await screen.findByText("No community directory here")).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText("Search communities")).not.toBeInTheDocument();
     // The endpoint refuses the request there, so the page must not make it.
     expect(directoryFor).toHaveBeenCalledWith(expect.anything(), { enabled: false });
   });
@@ -108,9 +108,7 @@ describe("CommunitiesPage", () => {
     expect(await screen.findByText("Riverside Players")).toBeInTheDocument();
     expect(screen.getByText("Community theatre.")).toBeInTheDocument();
     expect(screen.getByText("12 members")).toBeInTheDocument();
-    // The same label is also a filter in the rail, so pin this to the card
-    // badge (a div) rather than the rail entry (a button).
-    expect(screen.getByText("Art & design", { selector: "div" })).toBeInTheDocument();
+    expect(screen.getByText("Art & design")).toBeInTheDocument();
   });
 
   it("asks for everything until a category is picked", async () => {
@@ -123,32 +121,34 @@ describe("CommunitiesPage", () => {
     );
   });
 
-  it("narrows the request when a category is picked", async () => {
-    renderDirectory();
+  // The filters are the sidebar's, and the address is what carries them here,
+  // so what this page owes is that it asks for what the address says.
+  it("narrows the request to the category in the address", async () => {
+    renderDirectory({ category: "ttrpg" });
+
     await screen.findByText("Riverside Players");
-
-    await userEvent.click(screen.getByRole("button", { name: "Tabletop RPG" }));
-
-    await waitFor(() => {
-      expect(directoryFor).toHaveBeenCalledWith(
-        expect.objectContaining({ category: "ttrpg" }),
-        expect.anything()
-      );
-    });
+    expect(directoryFor).toHaveBeenCalledWith(
+      expect.objectContaining({ category: "ttrpg" }),
+      expect.anything()
+    );
   });
 
-  it("narrows the request when a search is typed", async () => {
-    renderDirectory();
+  it("narrows the request to the search in the address", async () => {
+    renderDirectory({ q: "dice" });
+
     await screen.findByText("Riverside Players");
+    expect(directoryFor).toHaveBeenCalledWith(
+      expect.objectContaining({ q: "dice" }),
+      expect.anything()
+    );
+  });
 
-    await userEvent.type(screen.getByLabelText("Search communities"), "dice");
+  it("says what nothing matched, naming the search it came from", async () => {
+    directoryFor.mockReturnValue(directoryResult([]));
+    renderDirectory({ q: "dice" });
 
-    await waitFor(() => {
-      expect(directoryFor).toHaveBeenCalledWith(
-        expect.objectContaining({ q: "dice" }),
-        expect.anything()
-      );
-    });
+    expect(await screen.findByText("Nothing matched")).toBeInTheDocument();
+    expect(screen.getByText(/dice/)).toBeInTheDocument();
   });
 
   it("joins a community from its card", async () => {

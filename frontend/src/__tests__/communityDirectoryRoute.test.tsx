@@ -17,6 +17,7 @@ import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CommunityGuildRead } from "@/api/generated/initiativeAPI.schemas";
+import { AppSidebar } from "@/components/AppSidebar";
 import { GuildSidebar } from "@/components/guilds/GuildSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import type { GuildEntry } from "@/hooks/useGuilds";
@@ -113,8 +114,35 @@ describe("the community directory's way in", () => {
 
     renderPage(Page, { initialRoute: "/communities" });
 
+    expect(await screen.findByText("Riverside Players")).toBeInTheDocument();
+    expect(screen.getByText("1 community")).toBeInTheDocument();
+  });
+
+  it("puts what narrows it in the sidebar, on this route and not the next", async () => {
+    // The filters and the cards sit on opposite sides of the app layout, so
+    // the shell has to switch the sidebar over on the way in — a page of cards
+    // with no way to narrow them is the failure this catches.
+    const { unmount } = renderPage(
+      () => (
+        <SidebarProvider>
+          <AppSidebar />
+        </SidebarProvider>
+      ),
+      { initialRoute: "/communities" }
+    );
     expect(await screen.findByLabelText("Search communities")).toBeInTheDocument();
-    expect(screen.getByRole("navigation", { name: "Categories" })).toBeInTheDocument();
-    expect(screen.getByText("Riverside Players")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Tabletop RPG" })).toBeInTheDocument();
+    unmount();
+
+    renderPage(
+      () => (
+        <SidebarProvider>
+          <AppSidebar />
+        </SidebarProvider>
+      ),
+      { initialRoute: "/my-projects" }
+    );
+    expect(await screen.findByRole("link", { name: "My Projects" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Search communities")).not.toBeInTheDocument();
   });
 });
