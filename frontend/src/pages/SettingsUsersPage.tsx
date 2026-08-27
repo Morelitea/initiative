@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
+import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import {
@@ -75,17 +76,21 @@ export const SettingsUsersPage = () => {
   const { t } = useTranslation("guilds");
 
   const { activeGuild } = useGuilds();
+  const { billing, openPortal } = useBillingPortal();
   // Guild admin check is based on guild membership role only (independent from platform role)
   const isGuildAdmin = activeGuild?.role === "admin";
 
   const activeGuildId = activeGuild?.id ?? null;
 
-  // Operator-set seat cap, admin-only on the payload and null when uncapped.
-  // A full guild mints no invite (the server refuses), so the form says so
-  // up front instead of failing on submit.
+  // Seat cap, admin-only on the payload and null when uncapped. A full guild
+  // mints no invite (the server refuses), so the form says so up front instead
+  // of failing on submit. Where a billing portal exists the cap travels with
+  // the plan — raising it is an upgrade, not a request to an operator — so the
+  // message and its action differ from the self-hosted one.
   const maxUsers = activeGuild?.max_users ?? null;
   const usedSeats = activeGuild?.member_count ?? 0;
   const atUserLimit = maxUsers !== null && usedSeats >= maxUsers;
+  const planName = activeGuild?.tier_name ?? null;
 
   const [invites, setInvites] = useState<GuildInviteRead[]>([]);
   const [invitesLoading, setInvitesLoading] = useState(false);
@@ -407,7 +412,18 @@ export const SettingsUsersPage = () => {
               </Button>
             </div>
           </form>
-          {atUserLimit ? (
+          {atUserLimit && billing && activeGuildId ? (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-muted-foreground text-sm">
+                {planName
+                  ? t("users.inviteSeatsFullPlan", { plan: planName, count: maxUsers ?? 0 })
+                  : t("users.inviteSeatsFullUpgrade", { count: maxUsers ?? 0 })}
+              </p>
+              <Button size="sm" onClick={() => void openPortal(activeGuildId, "upgrade")}>
+                {t("usagePanel.upgrade")}
+              </Button>
+            </div>
+          ) : atUserLimit ? (
             <p className="text-muted-foreground text-sm">
               {t("users.inviteSeatsFull", { max: maxUsers })}
             </p>
