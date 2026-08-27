@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.63.3] - 2026-08-26
+
 ### Added
 
 - **Projects have saved filter presets, and a task view can be linked.** Every project now starts with four presets — All, Incomplete, Unassigned, and Mine — at the top of the task filters, and picking one puts it in the address bar, so a link shows a teammate the same tasks it showed you. The view (table, board, calendar) is linkable the same way. Edit the filters of a preset you are showing and it says so; "Reset to preset" puts them back. Project managers, the project's owner, and guild admins can save the filters currently on screen as a new preset for everyone, fold changes back into an existing one, rename or reorder them, and set which preset and which view the project opens on, under the project's Views settings. Everyone else picks from them and keeps their own filters as before.
