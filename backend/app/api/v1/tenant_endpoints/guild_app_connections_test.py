@@ -36,6 +36,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.messages import GuildAppMessages, MarketplaceMessages
 from app.models.platform.guild import GuildRole
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
+from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.services.tenant import app_revocation
 from app.testing import (
     create_app_service_registration,
@@ -871,6 +872,55 @@ class TestUpgrade:
         assert response.json()["listing_version"] == "1.1.0"
         # And the button goes away rather than offering the version just taken.
         assert response.json()["update_version"] is None
+
+    async def test_a_switched_off_service_still_upgrades_its_installs(
+        self,
+        client: AsyncClient,
+        acting_user,
+        session: AsyncSession,
+        wired_app_services,
+    ):
+        """Whether this deployment runs the service decides whether a guild may
+        *take* the app. The install this guild already has stays theirs, and
+        keeps following the versions its publisher ships, so switching the
+        service back on finds it current rather than a version behind."""
+        uid = marketplace_uid("offbutinstalled")
+        await create_marketplace_listing(
+            session,
+            uid=uid,
+            public_id="tests.offbutinstalled",
+            kind="app",
+            version="1.0.0",
+            definition=SERVICE_DEFINITION,
+        )
+        a = await acting_user(guild_role=GuildRole.admin)
+        installed = await client.post(
+            a.g("/apps/"), headers=a.headers, json={"listing_uid": uid}
+        )
+        app_id = installed.json()["id"]
+
+        shop, _ = wired_app_services
+        shop.enabled = False
+        session.add(shop)
+        await session.commit()
+        invalidate_registrations()
+
+        await create_marketplace_listing(
+            session,
+            uid=uid,
+            public_id="tests.offbutinstalled",
+            kind="app",
+            version="1.1.0",
+            definition=SERVICE_DEFINITION,
+        )
+
+        detail = await client.get(a.g(f"/apps/{app_id}"), headers=a.headers)
+        assert detail.json()["update_version"] == "1.1.0"
+        assert detail.json()["available"] is False
+
+        response = await client.post(a.g(f"/apps/{app_id}/upgrade"), headers=a.headers)
+        assert response.status_code == 200, response.text
+        assert response.json()["listing_version"] == "1.1.0"
 
     async def test_upgrading_to_the_pinned_version_is_refused(
         self, client: AsyncClient, acting_user, session: AsyncSession
