@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, redirect, useLocation } from "@tanstack/react-router";
-import { Compass, Loader2, LogOut, Plus, Search, Settings, Ticket, UserCog } from "lucide-react";
+import { Loader2, LogOut, Plus, Search, Settings, Ticket, UserCog, UsersRound } from "lucide-react";
 import { Suspense, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -372,7 +372,7 @@ function NoGuildState({
         {communityDirectoryEnabled && (
           <Button variant="outline" asChild className="w-full">
             <Link to="/communities">
-              <Compass className="h-4 w-4" />
+              <UsersRound className="h-4 w-4" />
               {t("noGuild.browseCommunities")}
             </Link>
           </Button>
