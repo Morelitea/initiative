@@ -17,6 +17,7 @@ import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { GuildSidebar } from "@/components/guilds/GuildSidebar";
 import { AppsSection } from "@/components/sidebar/AppsSection";
+import { CommunityDirectorySidebar } from "@/components/sidebar/CommunityDirectorySidebar";
 import { HomeSidebarContent } from "@/components/sidebar/HomeSidebarContent";
 import { InitiativeSection } from "@/components/sidebar/InitiativeSection";
 import { SidebarUserFooter } from "@/components/sidebar/SidebarUserFooter";
@@ -39,6 +40,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { useAutoCloseSidebar } from "@/hooks/useAutoCloseSidebar";
 import { useCalendarCountsByInitiative } from "@/hooks/useCalendars";
@@ -63,6 +65,7 @@ import { resolveUploadUrl } from "@/lib/uploadUrl";
 
 export const AppSidebar = () => {
   const { user, logout } = useAuth();
+  const { communityDirectoryEnabled, isLoading: configLoading } = useAppConfig();
   const { activeGuild, activeGuildId } = useGuilds();
   const isMobile = useIsMobile();
   const location = useLocation();
@@ -83,6 +86,16 @@ export const AppSidebar = () => {
 
   // Determine sidebar mode from route
   const isGuildRoute = location.pathname.startsWith("/g/");
+  // The community directory brings its own: what narrows it belongs beside the
+  // cards it narrows, not on the page with them. Only where there is a
+  // directory to narrow, though — where the owner runs none, the page says so
+  // and the sidebar stays the personal one, rather than offering a search and
+  // twelve shelves that answer nothing. While the config is still loading the
+  // directory gets the benefit of the doubt, so the two halves of the screen
+  // arrive at the same answer at the same time.
+  const isCommunityRoute =
+    location.pathname === "/communities" || location.pathname.startsWith("/communities/");
+  const showDirectorySidebar = isCommunityRoute && (communityDirectoryEnabled || configLoading);
 
   // Which project row to highlight. A project is addressed inside its
   // initiative, so the pattern has to carry that segment too.
@@ -309,7 +322,9 @@ export const AppSidebar = () => {
         <div className="flex min-h-0 max-w-full flex-1">
           <GuildSidebar isHomeMode={!isGuildRoute} />
           <div className="flex min-w-0 max-w-full flex-1 flex-col overflow-hidden border-r">
-            {!isGuildRoute ? (
+            {showDirectorySidebar ? (
+              <CommunityDirectorySidebar />
+            ) : !isGuildRoute ? (
               <HomeSidebarContent />
             ) : (
               <>
