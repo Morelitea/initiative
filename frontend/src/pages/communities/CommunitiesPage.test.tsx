@@ -17,6 +17,7 @@ import { CommunitiesPage } from "./CommunitiesPage";
 
 const directoryFor = vi.fn();
 const join = vi.fn();
+const fetchNextPage = vi.fn();
 
 vi.mock("@/hooks/useCommunities", () => ({
   useCommunityGuilds: (params: unknown) => directoryFor(params),
@@ -36,14 +37,21 @@ const community = (overrides: Partial<CommunityGuildRead> = {}): CommunityGuildR
 
 const renderDirectory = () => renderPage(CommunitiesPage, { initialRoute: "/communities" });
 
+/** The infinite-query shape the page reads: pages of items plus the paging
+ *  flags. `total` is how many matched, so it can exceed what is loaded. */
+const directoryResult = (items: CommunityGuildRead[], overrides: Record<string, unknown> = {}) => ({
+  data: { pages: [{ items, total: items.length }] },
+  isLoading: false,
+  isError: false,
+  hasNextPage: false,
+  isFetchingNextPage: false,
+  fetchNextPage,
+  ...overrides,
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
-  directoryFor.mockReturnValue({
-    data: { items: [community()], total: 1 },
-    isLoading: false,
-    isError: false,
-    isFetching: false,
-  });
+  directoryFor.mockReturnValue(directoryResult([community()]));
 });
 
 describe("CommunitiesPage", () => {
@@ -62,7 +70,7 @@ describe("CommunitiesPage", () => {
     renderDirectory();
 
     await screen.findByText("Riverside Players");
-    expect(directoryFor).toHaveBeenCalledWith(expect.objectContaining({ category: undefined }));
+    expect(directoryFor).toHaveBeenCalledWith({ q: undefined, category: undefined });
   });
 
   it("narrows the request when a category is picked", async () => {
@@ -98,12 +106,7 @@ describe("CommunitiesPage", () => {
   });
 
   it("offers a way in, not a second join, for a guild already joined", async () => {
-    directoryFor.mockReturnValue({
-      data: { items: [community({ already_member: true })], total: 1 },
-      isLoading: false,
-      isError: false,
-      isFetching: false,
-    });
+    directoryFor.mockReturnValue(directoryResult([community({ already_member: true })]));
     renderDirectory();
 
     expect(await screen.findByRole("button", { name: "Open" })).toBeInTheDocument();
@@ -111,12 +114,7 @@ describe("CommunitiesPage", () => {
   });
 
   it("distinguishes an unreachable directory from an empty one", async () => {
-    directoryFor.mockReturnValue({
-      data: undefined,
-      isLoading: false,
-      isError: true,
-      isFetching: false,
-    });
+    directoryFor.mockReturnValue(directoryResult([], { data: undefined, isError: true }));
     renderDirectory();
 
     expect(await screen.findByText("Directory unavailable")).toBeInTheDocument();
@@ -124,30 +122,31 @@ describe("CommunitiesPage", () => {
   });
 
   it("says nobody has listed a guild when the directory is genuinely empty", async () => {
-    directoryFor.mockReturnValue({
-      data: { items: [], total: 0 },
-      isLoading: false,
-      isError: false,
-      isFetching: false,
-    });
+    directoryFor.mockReturnValue(directoryResult([]));
     renderDirectory();
 
     expect(await screen.findByText("No communities yet")).toBeInTheDocument();
   });
 
-  it("offers more only while results are being held back", async () => {
-    directoryFor.mockReturnValue({
-      data: { items: [community()], total: 30 },
-      isLoading: false,
-      isError: false,
-      isFetching: false,
-    });
+  it("fetches the next page rather than asking for a bigger one", async () => {
+    // A growing page_size runs into the endpoint's 60-per-page ceiling and
+    // takes the whole grid down with it, so "show more" pages instead.
+    directoryFor.mockReturnValue(directoryResult([community()], { hasNextPage: true }));
     renderDirectory();
 
     await userEvent.click(await screen.findByRole("button", { name: "Show more" }));
 
-    await waitFor(() => {
-      expect(directoryFor).toHaveBeenCalledWith(expect.objectContaining({ page_size: 48 }));
-    });
+    await waitFor(() => expect(fetchNextPage).toHaveBeenCalled());
+    expect(directoryFor).not.toHaveBeenCalledWith(
+      expect.objectContaining({ page_size: expect.anything() })
+    );
+  });
+
+  it("offers no more once every match is on screen", async () => {
+    directoryFor.mockReturnValue(directoryResult([community()], { hasNextPage: false }));
+    renderDirectory();
+
+    await screen.findByText("Riverside Players");
+    expect(screen.queryByRole("button", { name: "Show more" })).not.toBeInTheDocument();
   });
 });

@@ -28,7 +28,6 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { asGuildCategory, GUILD_CATEGORIES, guildCategoryLabel } from "@/lib/guildCategories";
 import { cn } from "@/lib/utils";
 
-const PAGE_SIZE = 24;
 /** Stable keys for the loading placeholders — an index key on a list that can
  *  change is the lint rule this avoids. */
 const SKELETON_KEYS = ["a", "b", "c", "d", "e", "f"];
@@ -47,19 +46,13 @@ export function CommunitiesPage() {
   const category = asGuildCategory(rawSearch.category);
   const [query, setQuery] = useState("");
   const search = useDebouncedValue(query, 250);
-  // Grows a page at a time rather than paginating: the grid is a shelf, and
-  // sending someone to page 2 to see three more guilds is a worse answer.
-  const [pageSize, setPageSize] = useState(PAGE_SIZE);
 
   const directory = useCommunityGuilds({
     q: search.trim() || undefined,
     category: category ?? undefined,
-    page: 1,
-    page_size: pageSize,
   });
 
   const selectCategory = (next: GuildCategory | undefined) => {
-    setPageSize(PAGE_SIZE);
     void navigate({
       to: "/communities",
       search: next ? { category: next } : {},
@@ -67,9 +60,11 @@ export function CommunitiesPage() {
     });
   };
 
-  const guilds = directory.data?.items ?? [];
-  const total = directory.data?.total ?? 0;
-  const hasMore = guilds.length < total;
+  // The grid is a shelf that grows, so the loaded pages are shown as one list.
+  const guilds = directory.data?.pages.flatMap((page) => page.items) ?? [];
+  // How many matched, not how many are on screen — every page carries the
+  // same figure, so the first one answers it.
+  const total = directory.data?.pages[0]?.total ?? 0;
 
   const categoryButton = (value: GuildCategory | undefined, label: string) => {
     const selected = category === value || (!category && !value);
@@ -102,10 +97,7 @@ export function CommunitiesPage() {
         <aside className="lg:sticky lg:top-20 lg:w-56 lg:shrink-0">
           <Input
             value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setPageSize(PAGE_SIZE);
-            }}
+            onChange={(event) => setQuery(event.target.value)}
             placeholder={t("guilds:community.searchPlaceholder")}
             aria-label={t("guilds:community.searchPlaceholder")}
           />
@@ -146,12 +138,12 @@ export function CommunitiesPage() {
                   <CommunityCard key={guild.id} guild={guild} />
                 ))}
               </div>
-              {hasMore ? (
+              {directory.hasNextPage ? (
                 <div className="flex justify-center pt-2">
                   <Button
                     variant="outline"
-                    onClick={() => setPageSize((size) => size + PAGE_SIZE)}
-                    disabled={directory.isFetching}
+                    onClick={() => void directory.fetchNextPage()}
+                    disabled={directory.isFetchingNextPage}
                   >
                     {t("guilds:community.showMore")}
                   </Button>
