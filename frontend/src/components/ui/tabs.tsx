@@ -20,6 +20,33 @@ const TabsList = React.forwardRef<
 ));
 TabsList.displayName = TabsPrimitive.List.displayName;
 
+/**
+ * The page-level tab bar: spans the width of its container, keeps its triggers
+ * at their label width and left-aligned, and scrolls horizontally (scrollbar
+ * hidden) once they stop fitting. Use this for every navigation-style tab bar;
+ * inline segmented controls (a view picker sitting in a toolbar) keep a bare
+ * `TabsList` so they stay sized to their content.
+ */
+const TabsBar = React.forwardRef<
+  React.ElementRef<typeof TabsPrimitive.List>,
+  React.ComponentPropsWithoutRef<typeof TabsPrimitive.List> & {
+    /** Extra classes for the scroll container wrapping the list. */
+    containerClassName?: string;
+  }
+>(({ className, containerClassName, ...props }, ref) => (
+  <div
+    className={cn(
+      "-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+      containerClassName
+    )}
+  >
+    {/* `min-w-max` keeps the triggers at their label width once they overflow,
+        so the container scrolls rather than the labels shrinking. */}
+    <TabsList ref={ref} className={cn("w-full min-w-max justify-start", className)} {...props} />
+  </div>
+));
+TabsBar.displayName = "TabsBar";
+
 const TabsTrigger = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>
@@ -50,4 +77,4 @@ const TabsContent = React.forwardRef<
 ));
 TabsContent.displayName = TabsPrimitive.Content.displayName;
 
-export { Tabs, TabsContent, TabsList, TabsTrigger };
+export { Tabs, TabsBar, TabsContent, TabsList, TabsTrigger };

@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { getItem, setItem } from "@/lib/storage";
 
 const STORAGE_KEY = "document-side-panel-open";
@@ -63,14 +63,12 @@ export const DocumentSidePanel = ({
           className="flex flex-1 flex-col overflow-hidden"
         >
           {showSummaryTab && (
-            <TabsList className="mx-4 mt-3">
-              <TabsTrigger value="comments" className="flex-1">
-                {t("sidePanel.commentsTab")}
-              </TabsTrigger>
-              <TabsTrigger value="summary" className="flex-1">
-                {t("sidePanel.summaryTab")}
-              </TabsTrigger>
-            </TabsList>
+            <div className="px-3 pt-3">
+              <TabsBar>
+                <TabsTrigger value="comments">{t("sidePanel.commentsTab")}</TabsTrigger>
+                <TabsTrigger value="summary">{t("sidePanel.summaryTab")}</TabsTrigger>
+              </TabsBar>
+            </div>
           )}
 
           <div className="flex-1 overflow-y-auto">

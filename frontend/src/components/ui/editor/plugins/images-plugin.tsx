@@ -6,7 +6,7 @@ import { DialogFooter } from "@/components/ui/dialog";
 import type { ImagePayload } from "@/components/ui/editor/nodes/image-node";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { uploadAttachment } from "@/lib/attachmentUtils";
 
@@ -156,14 +156,10 @@ export function InsertImageDialog({
 
   return (
     <Tabs defaultValue="url">
-      <TabsList className="w-full">
-        <TabsTrigger value="url" className="w-full">
-          URL
-        </TabsTrigger>
-        <TabsTrigger value="file" className="w-full">
-          File
-        </TabsTrigger>
-      </TabsList>
+      <TabsBar>
+        <TabsTrigger value="url">URL</TabsTrigger>
+        <TabsTrigger value="file">File</TabsTrigger>
+      </TabsBar>
       <TabsContent value="url">
         <InsertImageUriDialogBody onClick={onClick} />
       </TabsContent>
