@@ -28,6 +28,7 @@ from app.core.messages import GuildAppMessages, MarketplaceMessages
 from app.models.platform.guild import GuildRole
 from app.models.tenant.calendar import Calendar
 from app.testing import (
+    create_app_service_registration,
     create_marketplace_listing,
     marketplace_uid,
     route_session_to_guild,
@@ -382,14 +383,19 @@ class TestKindsThisBuildCanMount:
     container the operator registered. So the assertion that matters is that
     installing one records the row and creates no artifact — quietly mounting
     something would be the bug.
+
+    Which is also why one can only be installed where its service is
+    registered: with no registration there is no container, and the install
+    would be a row standing for nothing.
     """
 
-    async def test_a_service_app_installs_and_creates_no_artifact(
-        self, client: AsyncClient, acting_user, session: AsyncSession
-    ):
-        await create_marketplace_listing(
+    SERVICE_UID = marketplace_uid("servicekind")
+
+    @pytest.fixture
+    async def service_listing(self, session: AsyncSession):
+        return await create_marketplace_listing(
             session,
-            uid=marketplace_uid("servicekind"),
+            uid=self.SERVICE_UID,
             public_id="tests.service-kind",
             kind="app",
             name="A service app",
@@ -399,19 +405,49 @@ class TestKindsThisBuildCanMount:
                 "features": [],
             },
         )
+
+    async def test_a_service_app_installs_and_creates_no_artifact(
+        self, client: AsyncClient, acting_user, session: AsyncSession, service_listing
+    ):
+        # Wired up but not verified yet: the operator has said this deployment
+        # runs the app, and its container has not answered a handshake — which
+        # is the ordinary state of a service that has just been registered.
+        await create_app_service_registration(
+            session, public_id="tests.service-kind", status="unverified"
+        )
         a = await acting_user(guild_role=GuildRole.admin)
 
         response = await client.post(
             a.g("/apps/"),
             headers=a.headers,
-            json={"listing_uid": marketplace_uid("servicekind")},
+            json={"listing_uid": self.SERVICE_UID},
         )
 
         assert response.status_code == 201, response.text
         body = response.json()
         assert body["app_kind"] == "service"
         assert body["artifacts"] == []
-        # Nothing registered for it on this deployment, so there is nothing to
-        # reach yet — the install is valid and says so rather than pretending.
+        # Registered, but nothing has answered for it yet — the install is
+        # valid and says so rather than pretending.
         assert body["available"] is False
         assert body["mandatory"] is False
+
+    async def test_a_service_nobody_registered_is_not_installable(
+        self, client: AsyncClient, acting_user, service_listing
+    ):
+        """The same answer the marketplace gives by leaving it out.
+
+        The catalog is published to every deployment; running the service is
+        what makes one carry the app. Until an operator has wired it up, the
+        uid names nothing this deployment installs.
+        """
+        a = await acting_user(guild_role=GuildRole.admin)
+
+        response = await client.post(
+            a.g("/apps/"),
+            headers=a.headers,
+            json={"listing_uid": self.SERVICE_UID},
+        )
+
+        assert response.status_code == 404, response.text
+        assert response.json()["detail"] == MarketplaceMessages.LISTING_NOT_FOUND

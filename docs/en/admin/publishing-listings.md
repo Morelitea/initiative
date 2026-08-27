@@ -174,6 +174,7 @@ Work down this list — the scan result above answers most of it directly.
 | "reserved" in the reason | The `public_id` starts with `core.` — publish under your own prefix. |
 | "already published by the builtin catalog" | The `uid` or `public_id` belongs to another listing. Pick a new uid. |
 | A listing appears but can't be installed | Its `min_app_version` is newer than this Initiative, or a guild already has it. |
+| An app listing never appears on the Apps shelf | An app is served by a program you run, and this server offers one only where that app service is registered and switched on. Register it (or switch it back on) and the listing appears. Dashboards need nothing of the sort. |
 | Artwork is a broken image | The file isn't under the static `marketplace/` directory, or the path in the manifest doesn't match its name. |
 
 ## Related

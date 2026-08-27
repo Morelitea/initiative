@@ -51,6 +51,8 @@ An **app** adds something to the guild as a whole rather than to one effort — 
 2. Choose **Add to guild** and name it.
 3. If the app needs setting up, it's marked **Needs setup** — open its settings to finish.
 
+The Apps shelf lists the apps your server actually runs. An app is served by a program the person running your server sets up, so one they haven't set up — or have switched off — isn't offered here at all. If you were expecting a particular app and can't find it, they're the person to ask.
+
 Installed apps appear in the **Apps** section at the top of the sidebar, above your initiatives, and are managed under **Guild settings → Apps**.
 
 ### Setting an app up

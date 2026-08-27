@@ -9,6 +9,11 @@ Browsing is read-only. The catalog's only writer is the system engine (boot
 seeding, the operator's own catalog directory, and the registry refresh);
 installing writes a guild's own schema through the tool's endpoints, never here.
 
+What this deployment *carries* is narrower than what its catalog holds. An app
+is realized by a service the operator runs, so a listing for one is offered only
+where that service is registered and switched on: browse leaves the rest out and
+these routes answer 404 for them, which is the same answer the install gives.
+
 Two write routes and one public one live on this surface: the operator's rescan
 of their catalog directory, their "refresh now" for the signed registry — both
 gated on the capability that governs deployment configuration, because that is
@@ -48,6 +53,7 @@ from app.schemas.platform.marketplace_registry import (
     RegistryStatusRead,
 )
 from app.services.marketplace import catalog as catalog_service
+from app.services.marketplace import registration_lookup
 from app.services.marketplace import registry as registry_service
 from app.services.marketplace import operator_catalog as operator_catalog_service
 
@@ -135,6 +141,17 @@ async def _detail(session, listing: MarketplaceListing) -> MarketplaceListingDet
     latest = await catalog_service.get_listing_version(
         session, listing.latest_version_id
     )
+    if not await registration_lookup.app_is_offered(
+        latest.definition if latest else None
+    ):
+        # The same answer browse gives by leaving it out. A catalog is
+        # published to every deployment; running the service behind an app is
+        # what makes this one carry it, so until an operator has wired that up
+        # there is nothing here to read or install.
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=MarketplaceMessages.LISTING_NOT_FOUND,
+        )
     summary = _summary(listing, latest)
     return MarketplaceListingDetail(
         **summary.model_dump(),

@@ -46,10 +46,12 @@ __all__ = [
     "InstallState",
     "RegistrationSnapshot",
     "any_delegate_registered",
+    "app_is_offered",
     "delegate_jwks",
     "delegation_allowed",
     "resolve_delegated_member",
     "delegation_keys_for",
+    "enabled_service_ids",
     "frame_origins",
     "install_state",
     "invalidate_registrations",
@@ -290,6 +292,45 @@ async def install_state(definition: dict[str, Any] | None) -> InstallState:
         available=snapshot.live,
         delegates="delegation" in snapshot.grants,
     )
+
+
+async def enabled_service_ids() -> frozenset[str]:
+    """Every app service this deployment has wired up and switched on.
+
+    What the catalog reads to decide which app listings it offers: an app is
+    published to everyone, and registering it is how a deployment says it runs
+    that one. A listing naming a service that is not in here is not offered,
+    because installing it would produce an app with nothing behind it.
+
+    Deliberately ``enabled`` rather than :attr:`RegistrationSnapshot.live`, for
+    the reason :func:`mandatory_registrations` gives: whether a container has
+    answered a handshake yet is not something the operator said about the app,
+    and a shelf that emptied while a service restarted would say it for them.
+    What an unverified service still stops is everything that flows *through*
+    it, which is what ``live`` gates.
+    """
+    return frozenset(
+        snapshot.public_id
+        for snapshot in (await load_registrations()).values()
+        if snapshot.enabled
+    )
+
+
+async def app_is_offered(definition: dict[str, Any] | None) -> bool:
+    """Whether this deployment offers the app a listing describes.
+
+    The per-listing spelling of :func:`enabled_service_ids`, for the paths that
+    hold one definition rather than a query: the listing page and the install.
+
+    An app with no service behind it — one that mounts one of this build's own
+    tools — is always offered, because there is no registration for it to
+    depend on.
+    """
+    public_id = service_public_id(definition)
+    if public_id is None:
+        return True
+    snapshot = (await load_registrations()).get(public_id)
+    return snapshot is not None and snapshot.enabled
 
 
 async def mandatory_registrations() -> list[RegistrationSnapshot]:

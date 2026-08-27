@@ -24,6 +24,7 @@ from app.models.platform.marketplace import (
 )
 from app.models.tenant.guild_app import GuildApp
 from app.services.marketplace import catalog as catalog_service
+from app.services.marketplace import registration_lookup
 
 __all__ = ["ListingInstallError", "resolve_listing_install"]
 
@@ -75,6 +76,13 @@ async def resolve_listing_install(
         # app. Silently installing an older one would be worse: the guild would
         # get something other than what the listing page showed them.
         raise ListingInstallError(MarketplaceMessages.LISTING_VERSION_INCOMPATIBLE)
+    if not await registration_lookup.app_is_offered(version.definition):
+        # An app whose service this deployment does not run is not in this
+        # marketplace at all — browse leaves it out and its page answers 404 —
+        # so a uid naming one names nothing installable here, and says so with
+        # the same answer rather than a second one reachable only by asking
+        # directly.
+        raise ListingInstallError(MarketplaceMessages.LISTING_NOT_FOUND, not_found=True)
     return listing, version
 
 
