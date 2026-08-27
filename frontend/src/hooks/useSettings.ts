@@ -12,6 +12,8 @@ import type {
   AuthProviderCreate,
   AuthProviderUpdate,
   ChangelogResponse,
+  CommunitySettingsResponse,
+  CommunitySettingsUpdate,
   EmailSettingsResponse,
   EmailSettingsUpdate,
   FCMConfigResponse,
@@ -57,6 +59,7 @@ import {
   sendTestEmailApiV1SettingsEmailTestPost,
   startStorageBackfillApiV1SettingsStorageBackfillPost,
   testStorageConnectionApiV1SettingsStorageTestPost,
+  updateCommunitySettingsApiV1SettingsCommunityPut,
   updateEmailSettingsApiV1SettingsEmailPut,
   updateInterfaceSettingsApiV1SettingsInterfacePut,
   updateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut,
@@ -70,6 +73,7 @@ import {
   getGetChangelogApiV1ChangelogGetQueryKey,
 } from "@/api/generated/version/version";
 import {
+  invalidateAppConfig,
   invalidateAuthProviders,
   invalidateAuthSettings,
   invalidateEmailSettings,
@@ -237,6 +241,27 @@ export const useUpdateInterfaceSettings = (
           data as Parameters<typeof updateInterfaceSettingsApiV1SettingsInterfacePut>[0]
         ),
       invalidate: () => invalidateInterfaceSettings(),
+    },
+    options
+  );
+
+/**
+ * Turn the community directory on or off for the whole deployment (owner only).
+ *
+ * There is no matching query: the value is public and every signed-in page
+ * needs it, so it rides along with the SPA's boot config — which is what this
+ * invalidates, so the owner's own session reflects the switch immediately.
+ */
+export const useUpdateCommunitySettings = (
+  options?: MutationOpts<CommunitySettingsResponse, CommunitySettingsUpdate>
+) =>
+  useApiMutation<CommunitySettingsResponse, CommunitySettingsUpdate>(
+    {
+      mutationFn: (data) =>
+        updateCommunitySettingsApiV1SettingsCommunityPut(
+          data as Parameters<typeof updateCommunitySettingsApiV1SettingsCommunityPut>[0]
+        ),
+      invalidate: () => invalidateAppConfig(),
     },
     options
   );

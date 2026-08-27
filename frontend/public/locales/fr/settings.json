@@ -733,11 +733,12 @@
   },
   "platformLayout": {
     "title": "Paramètres de la plateforme",
-    "subtitle": "Configurez l'authentification, la personnalisation, l'email, l'IA, le stockage des guildes et les services applicatifs pour toute la plateforme.",
+    "subtitle": "Configurez l'authentification, la personnalisation, l'email, l'annuaire des communautés, l'IA, le stockage des guildes et les services applicatifs pour toute la plateforme.",
     "tabs": {
       "auth": "Authentification",
       "branding": "Image de marque",
       "email": "E-mail",
+      "community": "Communauté",
       "ai": "IA",
       "storage": "Stockage",
       "appServices": "Services applicatifs"
@@ -1074,5 +1075,16 @@
     "prefError": "Impossible de mettre à jour la préférence",
     "test": "Tester",
     "testSuccess": "Connexion réussie"
+  },
+  "community": {
+    "title": "Annuaire des communautés",
+    "description": "Permettez aux guildes de se référencer là où toute personne connectée peut les trouver et les rejoindre sans invitation.",
+    "toggleLabel": "Proposer un annuaire des communautés",
+    "helpText": "Tant que c'est activé, un administrateur de guilde peut référencer sa guilde depuis les paramètres de la guilde, et « Rejoindre une communauté » apparaît à côté des guildes de chacun. Une fois désactivé, il n'y a rien à parcourir et aucune guilde ne peut se référencer.",
+    "reversibleNote": "Désactiver masque l'annuaire ; les guildes référencées le restent. En le réactivant, les mêmes guildes réapparaissent.",
+    "enabledToast": "L'annuaire des communautés est activé.",
+    "disabledToast": "L'annuaire des communautés est désactivé.",
+    "saveError": "Impossible de modifier l'annuaire des communautés. Veuillez réessayer.",
+    "adminOnly": "Vous devez avoir le rôle de propriétaire de la plateforme pour proposer un annuaire des communautés."
   }
 }

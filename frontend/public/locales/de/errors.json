@@ -465,5 +465,6 @@
   "GUILD_COMMUNITY_REQUIRES_CATEGORY": "Eine eingetragene Gilde braucht mindestens eine Kategorie.",
   "GUILD_COMMUNITY_CONTENT_NOT_DECLARED": "Bestätige, dass diese Gilde keine Inhalte für Erwachsene enthält, bevor du sie einträgst.",
   "GUILD_COMMUNITY_ADULT_CONTENT": "Eine als 18+ markierte Gilde kann nicht im Community-Verzeichnis eingetragen werden.",
-  "GUILD_COMMUNITY_REQUIRES_CAPACITY": "Diese Gilde hat nur für eine Person Platz und kann deshalb nicht im Community-Verzeichnis eingetragen werden."
+  "GUILD_COMMUNITY_REQUIRES_CAPACITY": "Diese Gilde hat nur für eine Person Platz und kann deshalb nicht im Community-Verzeichnis eingetragen werden.",
+  "COMMUNITY_DIRECTORY_DISABLED": "Diese Instanz betreibt kein Community-Verzeichnis."
 }

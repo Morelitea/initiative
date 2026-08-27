@@ -20,8 +20,19 @@ const join = vi.fn();
 const fetchNextPage = vi.fn();
 
 vi.mock("@/hooks/useCommunities", () => ({
-  useCommunityGuilds: (params: unknown) => directoryFor(params),
+  useCommunityGuilds: (params: unknown, options?: unknown) => directoryFor(params, options),
   useJoinCommunityGuild: () => ({ mutateAsync: join, isPending: false }),
+}));
+
+// Whether this deployment has a directory at all is the platform owner's
+// setting; everything below is about one that does, bar the test that says so.
+const config = vi.hoisted(() => ({ communityDirectory: true }));
+
+vi.mock("@/hooks/useAppConfig", () => ({
+  useAppConfig: () => ({
+    communityDirectoryEnabled: config.communityDirectory,
+    isLoading: false,
+  }),
 }));
 
 const community = (overrides: Partial<CommunityGuildRead> = {}): CommunityGuildRead => ({
@@ -51,10 +62,21 @@ const directoryResult = (items: CommunityGuildRead[], overrides: Record<string, 
 
 beforeEach(() => {
   vi.clearAllMocks();
+  config.communityDirectory = true;
   directoryFor.mockReturnValue(directoryResult([community()]));
 });
 
 describe("CommunitiesPage", () => {
+  it("says so, and asks nothing, where the owner runs no directory", async () => {
+    config.communityDirectory = false;
+    renderDirectory();
+
+    expect(await screen.findByText("No community directory here")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Search communities")).not.toBeInTheDocument();
+    // The endpoint refuses the request there, so the page must not make it.
+    expect(directoryFor).toHaveBeenCalledWith(expect.anything(), { enabled: false });
+  });
+
   it("shows a card per community", async () => {
     renderDirectory();
 
@@ -70,7 +92,10 @@ describe("CommunitiesPage", () => {
     renderDirectory();
 
     await screen.findByText("Riverside Players");
-    expect(directoryFor).toHaveBeenCalledWith({ q: undefined, category: undefined });
+    expect(directoryFor).toHaveBeenCalledWith(
+      { q: undefined, category: undefined },
+      { enabled: true }
+    );
   });
 
   it("narrows the request when a category is picked", async () => {
@@ -80,7 +105,10 @@ describe("CommunitiesPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Tabletop RPG" }));
 
     await waitFor(() => {
-      expect(directoryFor).toHaveBeenCalledWith(expect.objectContaining({ category: "ttrpg" }));
+      expect(directoryFor).toHaveBeenCalledWith(
+        expect.objectContaining({ category: "ttrpg" }),
+        expect.anything()
+      );
     });
   });
 
@@ -91,7 +119,10 @@ describe("CommunitiesPage", () => {
     await userEvent.type(screen.getByLabelText("Search communities"), "dice");
 
     await waitFor(() => {
-      expect(directoryFor).toHaveBeenCalledWith(expect.objectContaining({ q: "dice" }));
+      expect(directoryFor).toHaveBeenCalledWith(
+        expect.objectContaining({ q: "dice" }),
+        expect.anything()
+      );
     });
   });
 
@@ -138,7 +169,8 @@ describe("CommunitiesPage", () => {
 
     await waitFor(() => expect(fetchNextPage).toHaveBeenCalled());
     expect(directoryFor).not.toHaveBeenCalledWith(
-      expect.objectContaining({ page_size: expect.anything() })
+      expect.objectContaining({ page_size: expect.anything() }),
+      expect.anything()
     );
   });
 

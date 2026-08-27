@@ -19,6 +19,14 @@ import { GuildDiscoveryPanel } from "./GuildDiscoveryPanel";
 
 const patchGuild = vi.fn();
 
+// Listing is offered only where the platform owner runs a directory; the tests
+// below are about a deployment that does, except the one that says otherwise.
+const config = vi.hoisted(() => ({ communityDirectory: true }));
+
+vi.mock("@/hooks/useAppConfig", () => ({
+  useAppConfig: () => ({ communityDirectoryEnabled: config.communityDirectory }),
+}));
+
 vi.mock("@/api/generated/guilds/guilds", () => ({
   updateGuildApiV1GuildsGuildIdPatch: (...args: unknown[]) => patchGuild(...args),
 }));
@@ -51,10 +59,18 @@ const certify = () => within(dialog()).getByLabelText("This guild contains no ad
 
 beforeEach(() => {
   vi.clearAllMocks();
+  config.communityDirectory = true;
   patchGuild.mockResolvedValue(adminGuild({ is_community: true }));
 });
 
 describe("GuildDiscoveryPanel", () => {
+  it("is absent where the platform owner runs no directory", () => {
+    config.communityDirectory = false;
+    renderPanel(adminGuild());
+
+    expect(screen.queryByLabelText("List this guild")).not.toBeInTheDocument();
+  });
+
   it("is absent for a member", () => {
     renderPanel(buildGuild({ id: 7, role: "member" }));
 

@@ -53,6 +53,15 @@ class AppSetting(SQLModel, table=True):
         default=None, sa_column=Column(String(255), nullable=True)
     )
 
+    # Whether this deployment runs a community directory at all: the browsable
+    # list of guilds that have opted in, and the invite-free join that goes with
+    # it. Off until an owner turns it on, so a deployment that never wanted a
+    # public front door does not grow one on upgrade.
+    community_directory_enabled: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+
     # AI config ownership mode: "platform" (the operator's connections apply to
     # every guild), "guild" (each guild admin configures its own), or "disabled".
     # Provider config itself lives in platform_ai_connections /

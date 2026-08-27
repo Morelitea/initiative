@@ -14,9 +14,11 @@ import type { AppConfig } from "@/api/generated/initiativeAPI.schemas";
  * bundle at build time and can't change between deployments. One image,
  * many envs.
  *
- * Stays cached effectively forever within a session — the values only
+ * Stays cached effectively forever within a session — most of the values only
  * change when the operator restarts the backend with new env vars, at
- * which point a page reload will re-fetch.
+ * which point a page reload will re-fetch. The one setting stored in the
+ * database rather than the environment (the community directory) invalidates
+ * this query when an owner writes it, so their own session updates at once.
  */
 export const useAppConfig = () => {
   const query = useQuery<AppConfig>({
@@ -41,5 +43,9 @@ export const useAppConfig = () => {
      *  config loads — skip the client-side check then; the server still
      *  rejects oversized uploads. */
     maxUploadBytes: query.data?.max_upload_bytes ?? null,
+    /** Whether this deployment runs a community directory. False until the
+     *  config loads, and false is also the default — every way into the
+     *  directory stays hidden unless the platform owner turned it on. */
+    communityDirectoryEnabled: query.data?.community_directory_enabled ?? false,
   };
 };

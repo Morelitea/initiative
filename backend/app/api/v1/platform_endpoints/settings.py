@@ -27,6 +27,8 @@ from app.models.platform.oidc_claim_mapping import (
     OIDCMappingTargetType,
 )
 from app.schemas.platform.settings import (
+    CommunitySettingsResponse,
+    CommunitySettingsUpdate,
     EmailSettingsResponse,
     EmailSettingsUpdate,
     EmailTestRequest,
@@ -185,6 +187,32 @@ async def update_interface_settings(
         light_accent_color=settings_obj.light_accent_color,
         dark_accent_color=settings_obj.dark_accent_color,
         auth_scope=app_config.AUTH_SCOPE,
+    )
+
+
+@router.put("/community", response_model=CommunitySettingsResponse)
+async def update_community_settings(
+    payload: CommunitySettingsUpdate,
+    session: UserSessionDep,
+    _admin: ConfigManageDep,
+) -> CommunitySettingsResponse:
+    """Turn the community directory on or off for the whole deployment.
+
+    Write-only on purpose: the current value is public — every signed-in page
+    needs it to decide whether to offer the directory — so it is served from
+    ``GET /config`` with the rest of the SPA's boot configuration rather than
+    from a second, capability-gated read of the same boolean.
+
+    Switching it off hides the directory and refuses new listings; it does not
+    clear the opt-in a guild already made, so switching it back on restores the
+    same set of listed guilds.
+    """
+    settings_obj = await app_settings_service.update_community_settings(
+        session,
+        community_directory_enabled=payload.community_directory_enabled,
+    )
+    return CommunitySettingsResponse(
+        community_directory_enabled=settings_obj.community_directory_enabled,
     )
 
 

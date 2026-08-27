@@ -371,6 +371,10 @@ export const useReorderGuildsApiV1GuildsOrderPut = <
  * active, always), and :class:`CommunityGuildRead` carries only what a guild
  * published by opting in: no lifecycle status, no administration, no roster,
  * and nothing at all from inside the guild's own schema.
+ *
+ * The directory is a deployment-level feature an owner switches on; where it
+ * is off there is nothing to browse and the request is refused rather than
+ * answered with an empty page.
  * @summary List Community Guilds
  */
 export const listCommunityGuildsApiV1GuildsCommunitiesGet = (

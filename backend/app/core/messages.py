@@ -70,6 +70,10 @@ class GuildMessages:
     GUILD_COMMUNITY_CONTENT_NOT_DECLARED = "GUILD_COMMUNITY_CONTENT_NOT_DECLARED"
     GUILD_COMMUNITY_ADULT_CONTENT = "GUILD_COMMUNITY_ADULT_CONTENT"
     GUILD_COMMUNITY_REQUIRES_CAPACITY = "GUILD_COMMUNITY_REQUIRES_CAPACITY"
+    # The deployment runs no community directory: an owner has not switched it
+    # on. Distinct from the four rules above, which are about one guild — this
+    # one says the surface does not exist here at all.
+    COMMUNITY_DIRECTORY_DISABLED = "COMMUNITY_DIRECTORY_DISABLED"
     CANNOT_CHANGE_OWN_ROLE = "CANNOT_CHANGE_OWN_ROLE"
     # 'support' is synthesized for PAM grantees only; it is never a stored
     # guild-membership role, so it cannot be assigned via the role endpoints.

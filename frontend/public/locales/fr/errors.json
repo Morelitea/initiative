@@ -465,5 +465,6 @@
   "GUILD_COMMUNITY_REQUIRES_CATEGORY": "Une guilde inscrite doit avoir au moins une catégorie.",
   "GUILD_COMMUNITY_CONTENT_NOT_DECLARED": "Confirmez que cette guilde ne contient aucun contenu pour adultes avant de l’inscrire.",
   "GUILD_COMMUNITY_ADULT_CONTENT": "Une guilde marquée 18+ ne peut pas être inscrite à l’annuaire des communautés.",
-  "GUILD_COMMUNITY_REQUIRES_CAPACITY": "Cette guilde n’a de place que pour une personne : elle ne peut pas être inscrite à l’annuaire des communautés."
+  "GUILD_COMMUNITY_REQUIRES_CAPACITY": "Cette guilde n’a de place que pour une personne : elle ne peut pas être inscrite à l’annuaire des communautés.",
+  "COMMUNITY_DIRECTORY_DISABLED": "Cette instance ne propose pas d'annuaire des communautés."
 }

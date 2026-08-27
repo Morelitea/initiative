@@ -733,11 +733,12 @@
   },
   "platformLayout": {
     "title": "Plattformeinstellungen",
-    "subtitle": "Konfiguriere Authentifizierung, Branding, E-Mail, KI, Gildenspeicher und App-Dienste für die gesamte Plattform.",
+    "subtitle": "Konfiguriere Authentifizierung, Branding, E-Mail, das Community-Verzeichnis, KI, Gildenspeicher und App-Dienste für die gesamte Plattform.",
     "tabs": {
       "auth": "Authentifizierung",
       "branding": "Branding",
       "email": "E-Mail",
+      "community": "Community",
       "ai": "KI",
       "storage": "Speicher",
       "appServices": "App-Dienste"
@@ -1074,5 +1075,16 @@
     "prefError": "Einstellung konnte nicht aktualisiert werden",
     "test": "Testen",
     "testSuccess": "Verbindung erfolgreich"
+  },
+  "community": {
+    "title": "Community-Verzeichnis",
+    "description": "Erlaube Gilden, sich dort einzutragen, wo alle Angemeldeten sie finden und ohne Einladung beitreten können.",
+    "toggleLabel": "Community-Verzeichnis betreiben",
+    "helpText": "Solange dies aktiv ist, können Gildenadministratoren ihre Gilde in den Gildeneinstellungen eintragen, und „Einer Community beitreten“ erscheint neben den Gilden aller. Ist es deaktiviert, gibt es nichts zu durchsuchen und keine Gilde kann sich eintragen.",
+    "reversibleNote": "Deaktivieren blendet das Verzeichnis aus; die Einträge der Gilden bleiben bestehen. Wird es wieder aktiviert, sind dieselben Gilden erneut gelistet.",
+    "enabledToast": "Das Community-Verzeichnis ist aktiv.",
+    "disabledToast": "Das Community-Verzeichnis ist deaktiviert.",
+    "saveError": "Das Community-Verzeichnis konnte nicht geändert werden. Bitte versuche es erneut.",
+    "adminOnly": "Du benötigst die Plattform-Eigentümerrolle, um ein Community-Verzeichnis zu betreiben."
   }
 }
