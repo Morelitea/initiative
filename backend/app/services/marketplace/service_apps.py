@@ -65,6 +65,9 @@ __all__ = [
     "FEATURE_BLOCKS",
     "FIELD_TYPES",
     "GUILD_WIDE_VISIBILITIES",
+    "RESOURCE_KINDS",
+    "MAX_SOURCE_PARAMS",
+    "MAX_IDENTITY_KEY_PARTS",
     "PARAM_TYPES",
     "SURFACE_SCOPES",
     "VISIBILITIES",
@@ -202,6 +205,17 @@ ACTOR_KINDS: frozenset[str] = contract.enum("actorKind")
 #: when the thing eventually runs.
 RETURN_TYPES: frozenset[str] = contract.enum("returnValueType")
 
+#: What a value NAMES inside Initiative, by the table its change log spells it
+#: with. A statement about the value rather than about a control, so what gets
+#: drawn for it is decided downstream and can change without an app republishing.
+#:
+#: Published by the automation service rather than invented here or in the kit:
+#: the party that draws a control owns the list of things it can draw.
+RESOURCE_KINDS: frozenset[str] = contract.enum("resourceKind")
+
+#: Bounds a consumer's control already has. No expression language on purpose.
+PARAM_CONSTRAINTS: frozenset[str] = frozenset({"min", "max", "max_length", "pattern"})
+
 # --- caps -------------------------------------------------------------------
 #
 # Counts first, then bodies. Together they bound what one published version can
@@ -244,6 +258,10 @@ MAX_ENDPOINT_ID_LENGTH = contract.cap("endpointIdLength")
 #: A day. A read that wants a longer memory than that is asking for a stale
 #: dashboard rather than a cheaper one.
 MAX_CACHE_TTL_SECONDS = contract.cap("cacheTtlSeconds")
+#: Arguments the read behind a value source may be called with.
+MAX_SOURCE_PARAMS = contract.cap("sourceParams")
+#: Returns that may be joined into one identity. An address, not a record.
+MAX_IDENTITY_KEY_PARTS = contract.cap("identityKeyParts")
 
 #: A widget's browser-side module. Never parsed here — only measured.
 MAX_MODULE_SOURCE_BYTES = contract.cap("moduleSourceBytes")
@@ -342,14 +360,169 @@ def clears_visibility(
     return False
 
 
+def _select_options(raw: Any, *, what: str) -> list[Any]:
+    """The choices a select offers.
+
+    A bare string is its own label, which is right for a value nobody would
+    translate (``asc``, ``desc``); an object carries written text, which is what
+    a choice somebody reads needs. Both forms are kept as given rather than
+    normalized to one — a consumer that finds a string has nothing to look up,
+    and rewriting every string into an object would put an untranslated value
+    where a label belongs.
+    """
+    options = require_list(raw, f"{what} options", MAX_SELECT_OPTIONS)
+    cleaned: list[Any] = []
+    for option in options:
+        if isinstance(option, dict):
+            value = clean_text(
+                option.get("value"), what=f"{what} option", limit=MAX_LABEL_LENGTH
+            )
+            entry: dict[str, Any] = {"value": value}
+            label = localized_text(option.get("label"), MAX_TEXT_LENGTH)
+            if label is not None:
+                entry["label"] = label
+            cleaned.append(entry)
+            continue
+        cleaned.append(
+            clean_text(option, what=f"{what} option", limit=MAX_LABEL_LENGTH)
+        )
+    if not cleaned:
+        fail(f"{what}: a select field must offer at least one option")
+    return cleaned
+
+
+def _param_constraints(raw: Any, *, what: str) -> dict[str, Any] | None:
+    """Bounds the control carries.
+
+    Each is an attribute a consumer's control already has. There is deliberately
+    no expression language: a rule the consumer cannot apply at its own write
+    door would read as enforced without being it.
+    """
+    if raw is None:
+        return None
+    supplied = require_mapping(raw, f"{what} constraints")
+    cleaned: dict[str, Any] = {}
+    for key in ("min", "max"):
+        value = supplied.get(key)
+        if value is None:
+            continue
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            fail(f"{what} constraints.{key}: must be a number")
+        cleaned[key] = value
+    max_length = supplied.get("max_length")
+    if max_length is not None:
+        if isinstance(max_length, bool) or not isinstance(max_length, int):
+            fail(f"{what} constraints.max_length: must be a whole number")
+        if max_length < 1:
+            fail(f"{what} constraints.max_length: must be at least 1")
+        cleaned["max_length"] = max_length
+    pattern = supplied.get("pattern")
+    if pattern is not None:
+        # Advisory, and never compiled here: a consumer may show it, and this
+        # build has no use for it beyond passing it on.
+        cleaned["pattern"] = clean_text(
+            pattern, what=f"{what} constraints.pattern", limit=MAX_LABEL_LENGTH
+        )
+    return cleaned or None
+
+
+def _value_source(
+    raw: Any, *, service_public_id: str, what: str
+) -> dict[str, Any] | None:
+    """Where a field's choices come from, when they are not a fixed list.
+
+    Shape only. Which endpoint it names and which of that endpoint's returns
+    carry the values are cross-references, checked once every endpoint is known
+    — the read may be declared after the one pointing at it.
+    """
+    if raw is None:
+        return None
+    source = require_mapping(raw, f"{what} source")
+    cleaned: dict[str, Any] = {
+        # One of the app's own reads, so it is namespaced the same way the
+        # endpoint declaring it is: a source pointing outside the app would name
+        # something this app cannot be asked to answer.
+        "endpoint": _endpoint_id(
+            source.get("endpoint"),
+            service_public_id=service_public_id,
+            what=f"{what} source.endpoint",
+        ),
+        "values": check_identifier(source.get("values"), what=f"{what} source.values"),
+    }
+    labels = source.get("labels")
+    if labels is not None:
+        cleaned["labels"] = check_identifier(labels, what=f"{what} source.labels")
+
+    params = source.get("params")
+    if params is not None:
+        supplied = require_mapping(params, f"{what} source.params")
+        if len(supplied) > MAX_SOURCE_PARAMS:
+            fail(f"{what} source.params: at most {MAX_SOURCE_PARAMS}")
+        arguments: dict[str, Any] = {}
+        for name, argument in supplied.items():
+            key = check_identifier(name, what=f"{what} source.params key")
+            entry = require_mapping(argument, f"{what} source.params[{key!r}]")
+            has_from = "from" in entry
+            has_value = "value" in entry
+            if has_from == has_value:
+                fail(
+                    f"{what} source.params[{key!r}]: name exactly one of "
+                    "'from' (a sibling parameter) or 'value' (a literal)"
+                )
+            if has_from:
+                arguments[key] = {
+                    "from": check_identifier(
+                        entry.get("from"),
+                        what=f"{what} source.params[{key!r}].from",
+                    )
+                }
+                continue
+            literal = entry.get("value")
+            if not isinstance(literal, (str, int, float, bool)):
+                fail(f"{what} source.params[{key!r}].value: must be a scalar")
+            arguments[key] = {"value": literal}
+        if arguments:
+            cleaned["params"] = arguments
+    return cleaned
+
+
+def _endpoint_identity(raw: Any, *, what: str) -> dict[str, Any] | None:
+    """Which of an endpoint's returns identify the thing it touched.
+
+    Shape only; that each part names a single-valued return of this endpoint is
+    checked where the returns are known.
+    """
+    if raw is None:
+        return None
+    identity = require_mapping(raw, f"{what} identity")
+    parts = require_list(
+        identity.get("key"), f"{what} identity.key", MAX_IDENTITY_KEY_PARTS
+    )
+    if not parts:
+        fail(f"{what} identity.key: name at least one return")
+    return {
+        "kind": check_identifier(identity.get("kind"), what=f"{what} identity.kind"),
+        "key": [
+            check_identifier(part, what=f"{what} identity.key entry") for part in parts
+        ],
+    }
+
+
 def _field(
     raw: Any,
     *,
     types: frozenset[str],
     allow_managed: bool,
     what: str,
+    allow_value_shape: bool = False,
 ) -> dict[str, Any]:
-    """One typed input, in a connection form or a data source's parameters."""
+    """One typed input, in a connection form or an endpoint's parameters.
+
+    ``allow_value_shape`` is what separates the two. A connection's field is a
+    credential an admin types once; an endpoint's parameter is a value a
+    consumer builds a control for, and only that one carries cardinality, a
+    default, optionality and bounds.
+    """
     field = require_mapping(raw, what)
     key = check_identifier(field.get("key"), what=f"{what} key")
     field_type = field.get("type")
@@ -363,16 +536,34 @@ def _field(
         "label": _label(field.get("label"), what=f"{what} {key!r}"),
     }
     if field_type == "select":
-        options = require_list(
-            field.get("options"), f"{what} {key!r} options", MAX_SELECT_OPTIONS
+        cleaned["options"] = _select_options(
+            field.get("options"), what=f"{what} {key!r}"
         )
-        values = [
-            clean_text(option, what=f"{what} {key!r} option", limit=MAX_LABEL_LENGTH)
-            for option in options
-        ]
-        if not values:
-            fail(f"{what} {key!r}: a select field must offer at least one option")
-        cleaned["options"] = values
+    if allow_value_shape:
+        # Cardinality is a fact about the value, so it is the app's to state;
+        # what to draw for several of something is the consumer's. Without it an
+        # app wanting a list declares a string and documents a comma, which
+        # nothing downstream can validate.
+        if field.get("list") is True:
+            cleaned["list"] = True
+        # Leaving it out means leaving that thing alone, which is a different
+        # statement from sending it empty.
+        if field.get("optional") is True:
+            cleaned["optional"] = True
+        default = field.get("default")
+        if default is not None:
+            if not isinstance(default, (str, int, float, bool, list)):
+                fail(f"{what} {key!r} default: must be a scalar or a list of them")
+            if isinstance(default, list) and any(
+                not isinstance(item, (str, int, float, bool)) for item in default
+            ):
+                fail(f"{what} {key!r} default: a list default holds scalars")
+            cleaned["default"] = default
+        constraints = _param_constraints(
+            field.get("constraints"), what=f"{what} {key!r}"
+        )
+        if constraints is not None:
+            cleaned["constraints"] = constraints
     # Keys the app writes back itself, rather than the admin typing them: an
     # interactive flow returns its result through the app's own write path.
     if allow_managed and field.get("managed") is True:
@@ -465,6 +656,127 @@ def _connection(raw: Any) -> dict[str, Any]:
 # --- what an app offers -----------------------------------------------------
 
 
+def _check_value_sources(endpoints: list[dict[str, Any]]) -> None:
+    """Every value source names a read of this app, and returns it really has.
+
+    Checked here rather than where the source is read, because the read behind
+    one may be declared after the endpoint pointing at it — an app should not
+    have to order its own manifest to satisfy a validator.
+
+    A source that names a read this app does not answer, or a return that read
+    does not hand back, is a control that publishes, registers, verifies, and
+    then offers nothing. That is the failure this catches at the one moment
+    somebody can still fix it.
+    """
+    reads = {
+        endpoint["id"]: endpoint
+        for endpoint in endpoints
+        if endpoint["direction"] == "read"
+    }
+
+    def check(source: dict[str, Any], *, siblings: set[str], what: str) -> None:
+        read = reads.get(source["endpoint"])
+        if read is None:
+            fail(
+                f"{what} source names {source['endpoint']!r}, "
+                "which is not a read endpoint this manifest declares"
+            )
+        lists = {value["key"] for value in read.get("returns", []) if value.get("list")}
+        for role in ("values", "labels"):
+            named = source.get(role)
+            if named is None:
+                continue
+            if named not in lists:
+                fail(
+                    f"{what} source.{role} names {named!r}, which "
+                    f"{source['endpoint']!r} does not return as a list"
+                )
+        # The sibling half is what makes a source worth declaring: labels are
+        # one repository's labels, so the argument comes from the field beside
+        # it rather than being fixed.
+        accepted = {param["key"] for param in read.get("params", [])}
+        for name, argument in (source.get("params") or {}).items():
+            if name not in accepted:
+                fail(
+                    f"{what} source.params names {name!r}, which "
+                    f"{source['endpoint']!r} does not take"
+                )
+            sibling = argument.get("from")
+            if sibling is not None and sibling not in siblings:
+                fail(
+                    f"{what} source.params[{name!r}] reads {sibling!r}, "
+                    "which is not another parameter on this endpoint"
+                )
+
+    for endpoint in endpoints:
+        what = f"endpoint {endpoint['id']!r}"
+        siblings = {param["key"] for param in endpoint.get("params", [])}
+        for param in endpoint.get("params", []):
+            if "source" in param:
+                check(
+                    param["source"],
+                    siblings=siblings,
+                    what=f"{what} param {param['key']!r}",
+                )
+        for value in endpoint.get("returns", []):
+            if "source" in value:
+                # A return has no siblings to read: nobody is filling in a form
+                # beside it, so a narrowing control's arguments are fixed.
+                check(
+                    value["source"],
+                    siblings=set(),
+                    what=f"{what} return {value['key']!r}",
+                )
+
+
+def _check_identity_returns(
+    identity: dict[str, Any], *, returns: list[dict[str, Any]], what: str
+) -> None:
+    """Every part of an address names a single value this endpoint hands back.
+
+    Half an address matches nothing, and one built from whichever parts happened
+    to be present matches the wrong thing — so a part naming a return that is
+    not declared, or one that is a list, is refused here rather than producing a
+    key nothing lines up with.
+    """
+    single = {value["key"] for value in returns if not value.get("list")}
+    declared = {value["key"] for value in returns}
+    for part in identity["key"]:
+        if part not in declared:
+            fail(f"{what} identity.key names {part!r}, which it does not return")
+        if part not in single:
+            fail(
+                f"{what} identity.key names {part!r}, which is a list — "
+                "an address is built from single values"
+            )
+
+
+def _describe_value(
+    raw: Any, cleaned: dict[str, Any], *, service_public_id: str, what: str
+) -> None:
+    """What a value names, and where its choices come from.
+
+    Shared by a parameter and a return because they are the same statement made
+    about the same kind of thing: this integer is a project's id; these choices
+    come from that read. A consumer decides what to draw from it, which is what
+    lets the drawing change without an app republishing — and is why nothing
+    here is a control name.
+    """
+    supplied = raw if isinstance(raw, dict) else {}
+
+    resource = supplied.get("resource")
+    if resource is not None:
+        if resource not in RESOURCE_KINDS:
+            fail(f"{what}: unknown resource {resource!r}")
+        cleaned["resource"] = resource
+
+    source = _value_source(
+        supplied.get("source"), service_public_id=service_public_id, what=what
+    )
+    if source is not None:
+        cleaned["source"] = source
+
+
 def _endpoint_id(raw: Any, *, service_public_id: str, what: str) -> str:
     """One endpoint id, namespaced under the app's own service id.
 
@@ -518,24 +830,24 @@ def _endpoint(
     seen: set[str] = set()
     for entry in params_raw:
         param = _field(
-            entry, types=PARAM_TYPES, allow_managed=False, what=f"{what} param"
+            entry,
+            types=PARAM_TYPES,
+            allow_managed=False,
+            what=f"{what} param",
+            allow_value_shape=True,
         )
         if param["key"] in seen:
             fail(f"{what}: two parameters share the key {param['key']!r}")
         seen.add(param["key"])
-        # Which richer control the consumer should draw instead of the bare one
-        # the type implies — "this int is a project". Read here rather than in
-        # ``_field``, which connections share: an admin filling in a settings
-        # form is typing a credential, and has nothing to pick from.
-        #
-        # A HINT, and stored as one: the value on the wire is the same either
-        # way, so a consumer that does not know the name falls back to the plain
-        # control rather than losing the parameter.
-        picker = entry.get("picker") if isinstance(entry, dict) else None
-        if picker is not None:
-            param["picker"] = check_identifier(
-                picker, what=f"{what} param {param['key']!r} picker"
-            )
+        # What the value IS, and where its choices come from. Read here rather
+        # than in ``_field``, which connections share: an admin filling in a
+        # settings form is typing a credential and has nothing to pick from.
+        _describe_value(
+            entry,
+            param,
+            service_public_id=service_public_id,
+            what=f"{what} param {param['key']!r}",
+        )
         params.append(param)
 
     cleaned: dict[str, Any] = {"id": endpoint_id, "direction": direction}
@@ -555,7 +867,11 @@ def _endpoint(
     description = localized_text(endpoint.get("description"), MAX_TEXT_LENGTH)
     if description is not None:
         cleaned["description"] = description
-    returns = _returns(endpoint.get("returns"), what=what)
+    returns = _returns(
+        endpoint.get("returns"),
+        service_public_id=service_public_id,
+        what=what,
+    )
     if returns:
         cleaned["returns"] = returns
 
@@ -570,6 +886,27 @@ def _endpoint(
     needs = endpoint.get("needs_subject")
     if needs is not None:
         cleaned["needs_subject"] = check_identifier(needs, what=f"{what} needs_subject")
+
+    # What this touched, or what it is about. A read has none — it touched
+    # nothing — and declaring the same kind and key on a write and on the
+    # emission about it is what lets the two resolve to one address.
+    identity = _endpoint_identity(endpoint.get("identity"), what=what)
+    if identity is not None:
+        if direction == "read":
+            fail(f"{what}: a read endpoint has no identity — it touched nothing")
+        _check_identity_returns(identity, returns=returns, what=what)
+        cleaned["identity"] = identity
+
+    # A subscriber narrows an emission on what it declares it carries. A read or
+    # a write already has parameters for that, and two ways to say one thing is
+    # one too many.
+    if direction != "emit":
+        for value in returns:
+            if value.get("filter"):
+                fail(
+                    f"{what} return {value['key']!r}: only an emit endpoint's "
+                    "returns are filterable"
+                )
 
     # An emission travels the other way: nobody calls it, so there is nothing
     # for a caller to send, nothing to cache and nobody to gate. Carrying any of
@@ -618,7 +955,7 @@ def _endpoint(
     return cleaned
 
 
-def _returns(raw: Any, *, what: str) -> list[dict[str, Any]]:
+def _returns(raw: Any, *, service_public_id: str, what: str) -> list[dict[str, Any]]:
     """What an endpoint hands back, by name and type.
 
     Declared rather than discovered, because the consumer needs it before the
@@ -653,6 +990,18 @@ def _returns(raw: Any, *, what: str) -> list[dict[str, Any]]:
             cleaned["label"] = label
         if value.get("list") is True:
             cleaned["list"] = True
+        # An emission carries no parameters — nobody calls it — so a
+        # subscription is narrowed on what the emission declares it CARRIES.
+        # Refused elsewhere on a read or a write, where a parameter already says
+        # this and two ways to say one thing is one too many.
+        if value.get("filter") is True:
+            cleaned["filter"] = True
+        _describe_value(
+            value,
+            cleaned,
+            service_public_id=service_public_id,
+            what=f"{what} return {key!r}",
+        )
         returns.append(cleaned)
     return returns
 
@@ -1113,6 +1462,8 @@ def normalize_service_app_definition(definition: Any) -> dict[str, Any]:
         endpoint_ids.add(endpoint["id"])
         if endpoint["direction"] in WIDGET_BINDABLE_DIRECTIONS:
             readable_ids.add(endpoint["id"])
+
+    _check_value_sources(endpoints)
 
     widgets = [
         _widget(entry, readable_ids=readable_ids, connection_ids=connection_ids)

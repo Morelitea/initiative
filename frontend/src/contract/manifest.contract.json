@@ -1,5 +1,5 @@
 {
-  "$comment": "The Initiative app contract: the vocabulary an app manifest draws on and the shape it takes. Hand-authored HERE, in the initiative-app-kit repository, and nowhere else. Running `npm run generate` in that repository rewrites schemas/app-manifest.json and src/contract.ts from this file. Initiative vendors this file to derive its validator's constants and hold its normalizer to the field inventory; the copies under initiative's backend/vendor/app-kit and frontend/src/contract are refreshed by backend/scripts/refresh_app_kit.py and are not edited there. Edit this; never the generated output.",
+  "$comment": "The Initiative app contract: the vocabulary an app manifest draws on and the shape it takes. Hand-authored HERE, in the initiative-app-kit repository, and nowhere else — with ONE exception, stated because it is the point: the parameter and return vocabulary an automation consumer can render is not this package's to invent. It is published by initiative-auto, vendored at schemas/automation-vocabulary.json at the revision schemas/AUTOMATION_VOCABULARY_REF names, and folded in by scripts/generate.mjs — the terms marked \"fromVocabulary\" below. Running `npm run generate` rewrites schemas/app-manifest.json and src/contract.ts from this file plus that one. Initiative vendors this file to derive its validator's constants and hold its normalizer to the field inventory; the copies under initiative's backend/vendor/app-kit and frontend/src/contract are refreshed by backend/scripts/refresh_app_kit.py and are not edited there. Edit this; never the generated output.",
   "schema": {
     "$id": "https://initiative.morels.me/schemas/app-manifest-v1.json",
     "title": "Initiative app manifest (the 'definition' body)",
@@ -37,19 +37,12 @@
       "string",
       "url"
     ],
-    "paramType": [
-      "bool",
-      "int",
-      "select",
-      "string",
-      "url"
-    ],
-    "returnValueType": [
-      "bool",
-      "int",
-      "string",
-      "url"
-    ],
+    "paramType": {
+      "fromVocabulary": "param_types"
+    },
+    "returnValueType": {
+      "fromVocabulary": "return_types"
+    },
     "direction": [
       "emit",
       "read",
@@ -84,7 +77,10 @@
     "listingKind": [
       "app",
       "dashboard"
-    ]
+    ],
+    "resourceKind": {
+      "fromVocabulary": "resource_kinds"
+    }
   },
   "ladders": {
     "visibility": [
@@ -132,7 +128,9 @@
     "localeTagLength": 12,
     "widgetDescriptionLength": 400,
     "widgetOptions": 12,
-    "valuesPerOption": 24
+    "valuesPerOption": 24,
+    "sourceParams": 8,
+    "identityKeyParts": 4
   },
   "defs": {
     "identifier": {
@@ -289,13 +287,38 @@
           "maxItems": "selectOptions",
           "minItems": 1,
           "items": {
-            "type": "string",
-            "maxLength": "labelLength"
+            "ref": "selectOption"
           }
         },
-        "picker": {
-          "ref": "identifier",
-          "description": "A hint, not a promise: the value on the wire is the same either way, so a consumer that does not know the name draws the plain control rather than losing the parameter."
+        "list": {
+          "type": "boolean",
+          "default": false,
+          "description": "Several values rather than one. Cardinality is a fact about the value, so it is yours; what to draw for it is the consumer's. Without it, an app wanting several of something declares a string and documents a comma — which nothing downstream can validate or complete."
+        },
+        "resource": {
+          "enum": "resourceKind",
+          "description": "What this value NAMES inside Initiative, by the table name their change log spells it with. A statement about the value, not about a control: every one of these is named by an integer id, so a resource parameter is an 'int' and the picker is what the consumer chooses to draw for one. This replaced 'picker', which named a control in the consumer's own words — so the vocabulary belonged to whoever drew it and you could not say anything they had not already thought of."
+        },
+        "source": {
+          "ref": "valueSource",
+          "description": "Where the choices come from, when your app answers them itself."
+        },
+        "default": {
+          "description": "What the control is born holding. Any JSON scalar, or a list of them.",
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "array"
+          ]
+        },
+        "optional": {
+          "type": "boolean",
+          "default": false,
+          "description": "The caller may leave this out entirely, and leaving it out means your app leaves that thing alone — so a step's settings ARE the patch it sends. The opposite of 'required', and the two together are refused by validateManifest."
+        },
+        "constraints": {
+          "ref": "paramConstraints"
         }
       },
       "if": {
@@ -333,7 +356,20 @@
         },
         "list": {
           "type": "boolean",
-          "description": "Several values rather than one. It matters to a consumer with somewhere to put exactly one \u2014 a form field, a tile's number \u2014 which is why it is a flag rather than a second set of types."
+          "description": "Several values rather than one. It matters to a consumer with somewhere to put exactly one — a form field, a tile's number — which is why it is a flag rather than a second set of types."
+        },
+        "filter": {
+          "type": "boolean",
+          "default": false,
+          "description": "An 'emit' endpoint only: a subscriber may narrow to deliveries carrying a particular value here. This is the honest place to narrow from — an emission carries no parameters, because nobody calls it, so what you declare it CARRIES is the only thing both sides already agree about. A list return cannot be one: a filter asks 'is it this one', and a column of answers has no answer to that."
+        },
+        "resource": {
+          "enum": "resourceKind",
+          "description": "What this value names inside Initiative, if it names one."
+        },
+        "source": {
+          "ref": "valueSource",
+          "description": "Where a narrowing control's choices come from. Same shape a parameter's takes: 'only this repository' wants the list of repositories, which your app can already answer."
         }
       }
     },
@@ -377,7 +413,7 @@
       "maxLength": "endpointIdLength",
       "patternFrom": "namespacedId",
       "patternForm": "plus",
-      "description": "Namespaced under the app's own service id \u2014 'app.<public_id>.<name>'. The prefix is checked against the declaring registration at ingress."
+      "description": "Namespaced under the app's own service id — 'app.<public_id>.<name>'. The prefix is checked against the declaring registration at ingress."
     },
     "endpoint": {
       "type": "object",
@@ -403,7 +439,7 @@
           "items": {
             "ref": "endpointReturn"
           },
-          "description": "What this hands back, by name and type \u2014 the response for a read or a write, the payload for an emission. Declared rather than discovered, because a consumer binds one of these before the endpoint has ever run and a bad binding has to be refusable when somebody arranges it."
+          "description": "What this hands back, by name and type — the response for a read or a write, the payload for an emission. Declared rather than discovered, because a consumer binds one of these before the endpoint has ever run and a bad binding has to be refusable when somebody arranges it."
         },
         "group": {
           "ref": "identifier",
@@ -411,11 +447,11 @@
         },
         "needs_subject": {
           "ref": "identifier",
-          "description": "What a caller must already have in hand for this to mean anything. Opaque here \u2014 the vocabulary belongs to whoever consumes it; the automation service names the subjects a run can be about."
+          "description": "What a caller must already have in hand for this to mean anything. Opaque here — the vocabulary belongs to whoever consumes it; the automation service names the subjects a run can be about."
         },
         "direction": {
           "enum": "direction",
-          "description": "'read' and 'write' are called by the deployment or by a delegate and answer in place; 'emit' travels the other way \u2014 the app posts it to a subscriber that registered a URL, so it carries no parameters and nothing to gate."
+          "description": "'read' and 'write' are called by the deployment or by a delegate and answer in place; 'emit' travels the other way — the app posts it to a subscriber that registered a URL, so it carries no parameters and nothing to gate."
         },
         "params": {
           "type": "array",
@@ -442,11 +478,15 @@
         "cache_ttl_seconds": {
           "type": "integer",
           "default": 0,
-          "description": "Read only. How long a response may be reused. Clamped into 0..{cacheTtlSeconds} rather than refused, so a value outside that range is accepted and takes effect at the bound \u2014 which is why no range is asserted here."
+          "description": "Read only. How long a response may be reused. Clamped into 0..{cacheTtlSeconds} rather than refused, so a value outside that range is accepted and takes effect at the bound — which is why no range is asserted here."
         },
         "visibility": {
           "enum": "endpointVisibility",
           "description": "Read only. An endpoint is called for a guild rather than an initiative, so the initiative rung is not on offer."
+        },
+        "identity": {
+          "ref": "endpointIdentity",
+          "description": "'write' and 'emit': what this touched, or what it is about. Read endpoints have none — they touched nothing, so there is no echo to suppress."
         }
       }
     },
@@ -519,7 +559,7 @@
         },
         "visibility": {
           "enum": "visibility",
-          "description": "The floor an audience clears. 'initiative_manager' is only namable by a surface that also renders in an initiative \u2014 a rule the platform enforces, not this schema."
+          "description": "The floor an audience clears. 'initiative_manager' is only namable by a surface that also renders in an initiative — a rule the platform enforces, not this schema."
         },
         "capabilities": {
           "type": "array",
@@ -549,7 +589,7 @@
           "maxLength": "uidLength",
           "patternFrom": "uid",
           "patternForm": "plus",
-          "description": "This dashboard's own catalog id \u2014 publisher-assigned, immutable, never reused. It becomes a listing of its own, so this is a real catalog identity and not the app's."
+          "description": "This dashboard's own catalog id — publisher-assigned, immutable, never reused. It becomes a listing of its own, so this is a real catalog identity and not the app's."
         },
         "public_id": {
           "type": "string",
@@ -557,7 +597,7 @@
           "maxLength": "publicIdLength",
           "patternFrom": "publicId",
           "patternForm": "plus",
-          "description": "'<publisher>.<slug>', and not the app's own \u2014 a bundled dashboard is a separate listing."
+          "description": "'<publisher>.<slug>', and not the app's own — a bundled dashboard is a separate listing."
         },
         "name": {
           "type": "string",
@@ -600,7 +640,7 @@
         },
         "type": {
           "ref": "identifier",
-          "description": "One of this manifest's own widget ids \u2014 bare, with no uid. The platform stamps the app's uid on when it publishes, so the two can never disagree."
+          "description": "One of this manifest's own widget ids — bare, with no uid. The platform stamps the app's uid on when it publishes, so the two can never disagree."
         },
         "title": {
           "type": "string",
@@ -654,6 +694,142 @@
           }
         }
       }
+    },
+    "sourceParam": {
+      "type": "object",
+      "description": "One argument the read behind a value source is called with. Exactly one of 'from' and 'value' — a sibling field's answer, or a literal you fixed.",
+      "oneOf": [
+        {
+          "required": [
+            "from"
+          ]
+        },
+        {
+          "required": [
+            "value"
+          ]
+        }
+      ],
+      "properties": {
+        "from": {
+          "ref": "identifier",
+          "description": "A sibling parameter on the SAME endpoint, whose value is passed along. This is the half that makes a source worth declaring: labels are one repository's labels, a board field's options are one board's."
+        },
+        "value": {
+          "description": "A literal you fixed. Any JSON scalar.",
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "valueSource": {
+      "type": "object",
+      "description": "Where a field's choices come from, when they are not a fixed list. A READ endpoint of your own app, plus which of its list returns carry the values and which carry the labels — read side by side, so the third label names the third value. The consumer invokes it as the person editing, so an app is reached at edit time, not only when an automation fires.",
+      "required": [
+        "endpoint",
+        "values"
+      ],
+      "properties": {
+        "endpoint": {
+          "ref": "namespacedId",
+          "description": "One of your own 'read' endpoints. Checked by validateManifest."
+        },
+        "params": {
+          "type": "object",
+          "description": "What to call it with, keyed by that endpoint's own parameter names.",
+          "maxProperties": "sourceParams",
+          "additionalProperties": {
+            "ref": "sourceParam"
+          }
+        },
+        "values": {
+          "ref": "identifier",
+          "description": "A list return of that endpoint, carrying the values to store."
+        },
+        "labels": {
+          "ref": "identifier",
+          "description": "A parallel list return carrying what to show. Omit it and the values are their own labels, which is right for a feed of names."
+        }
+      },
+      "additionalProperties": false
+    },
+    "paramConstraints": {
+      "type": "object",
+      "description": "Bounds the control carries. Each is an attribute a consumer's control already has — there is deliberately no expression language, because a rule the consumer cannot enforce at its write door reads as enforced and is not.",
+      "properties": {
+        "min": {
+          "type": "number",
+          "description": "Numbers only."
+        },
+        "max": {
+          "type": "number",
+          "description": "Numbers only."
+        },
+        "max_length": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Strings only."
+        },
+        "pattern": {
+          "type": "string",
+          "maxLength": "labelLength",
+          "description": "Advisory. A consumer may show it; it will not silently refuse what somebody types, because a value rejected as you type is worse than one your app rejects with a sentence."
+        }
+      },
+      "additionalProperties": false
+    },
+    "selectOption": {
+      "description": "One choice. A bare string is its own label, which is right for a value nobody would translate ('asc', 'desc'); an object carries written text, which is what a choice somebody READS needs.",
+      "oneOf": [
+        {
+          "type": "string",
+          "maxLength": "labelLength"
+        },
+        {
+          "type": "object",
+          "required": [
+            "value"
+          ],
+          "properties": {
+            "value": {
+              "type": "string",
+              "maxLength": "labelLength"
+            },
+            "label": {
+              "ref": "localizedText"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "endpointIdentity": {
+      "type": "object",
+      "description": "Which of this endpoint's returns identify the thing it touched. A consumer keeps a change an automation made from firing that automation again, and for an app there was no key — so guessing would silently drop a fire somebody was waiting on, and a rate cap was the only guard. Declare the SAME kind and key on the write and on the emission about it, and the two produce the same address.",
+      "required": [
+        "kind",
+        "key"
+      ],
+      "properties": {
+        "kind": {
+          "ref": "identifier",
+          "description": "Your own word for what sort of thing this is ('issue'). Namespaced by your public id downstream, because two apps declaring the same kind mean two different things."
+        },
+        "key": {
+          "type": "array",
+          "description": "Returns of this endpoint, in order, joined to form the address. Every one must be a single value rather than a list — half an address matches nothing, and one built from the parts that happened to be there matches the wrong thing.",
+          "minItems": 1,
+          "maxItems": "identityKeyParts",
+          "items": {
+            "ref": "identifier"
+          }
+        }
+      },
+      "additionalProperties": false
     }
   },
   "manifest": {
