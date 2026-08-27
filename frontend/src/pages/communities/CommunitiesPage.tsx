@@ -13,7 +13,9 @@
  *
  * Whether there is a directory at all is the platform owner's setting. Where it
  * is off the page still exists — it can be linked to, and a link should say
- * what happened — but it says so instead of searching.
+ * what happened — but it says so instead of searching. A client that had not
+ * heard yet asks and is refused, which lands in the same place: the server's
+ * answer is what settles it, not the config this page loaded with.
  */
 
 import { useNavigate, useSearch } from "@tanstack/react-router";
@@ -30,6 +32,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useCommunityGuilds } from "@/hooks/useCommunities";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { getErrorCode } from "@/lib/errorMessage";
 import { asGuildCategory, GUILD_CATEGORIES, guildCategoryLabel } from "@/lib/guildCategories";
 import { cn } from "@/lib/utils";
 
@@ -96,6 +99,13 @@ export function CommunitiesPage() {
     );
   };
 
+  // Either this client was told there is no directory, or it asked and was told
+  // so. The second is how a tab that was open when an owner switched it off
+  // finds out — a refusal is an answer, not the momentary failure the
+  // unavailable message describes.
+  const directoryOff =
+    !communityDirectoryEnabled || getErrorCode(directory.error) === "COMMUNITY_DIRECTORY_DISABLED";
+
   const heading = (
     <div className="space-y-1">
       <h1 className="font-semibold text-3xl tracking-tight">{t("guilds:community.title")}</h1>
@@ -104,7 +114,7 @@ export function CommunitiesPage() {
   );
 
   // No directory on this deployment: no search box, no shelves, and no request.
-  if (!configLoading && !communityDirectoryEnabled) {
+  if (!configLoading && directoryOff) {
     return (
       <div className="space-y-6">
         {heading}

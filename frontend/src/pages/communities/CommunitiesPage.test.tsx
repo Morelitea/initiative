@@ -77,6 +77,31 @@ describe("CommunitiesPage", () => {
     expect(directoryFor).toHaveBeenCalledWith(expect.anything(), { enabled: false });
   });
 
+  it("reads a refusal as the off state, not a failed load", async () => {
+    // A tab that was open when the owner switched the directory off still has
+    // it cached as on: it asks, and the answer settles it.
+    directoryFor.mockReturnValue(
+      directoryResult([], {
+        isError: true,
+        error: {
+          isAxiosError: true,
+          response: { status: 403, data: { detail: "COMMUNITY_DIRECTORY_DISABLED" } },
+        },
+      })
+    );
+    renderDirectory();
+
+    expect(await screen.findByText("No community directory here")).toBeInTheDocument();
+    expect(screen.queryByText("Directory unavailable")).not.toBeInTheDocument();
+  });
+
+  it("still reports a directory that failed to load", async () => {
+    directoryFor.mockReturnValue(directoryResult([], { isError: true, error: new Error("boom") }));
+    renderDirectory();
+
+    expect(await screen.findByText("Directory unavailable")).toBeInTheDocument();
+  });
+
   it("shows a card per community", async () => {
     renderDirectory();
 
