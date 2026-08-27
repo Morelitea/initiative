@@ -10,8 +10,8 @@
  * A guild reached through a temporary access grant is not part of the user's
  * order, so it offers no reorder action.
  */
-import { fireEvent, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildGuild } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
@@ -19,6 +19,21 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import type { GuildEntry } from "@/hooks/useGuilds";
 
 import { GuildSidebar } from "./GuildSidebar";
+
+// Billing config and the handoff mint, mocked so a test can put the sidebar in
+// either deployment shape: no portal (self-hosted) or one configured.
+const state = vi.hoisted(() => ({ billing: null as { url: string } | null }));
+const mintMock = vi.hoisted(() => vi.fn());
+vi.mock("@/hooks/useAppConfig", () => ({ useAppConfig: () => ({ billing: state.billing }) }));
+vi.mock("@/api/generated/guilds/guilds", async () => {
+  const actual = await vi.importActual<typeof import("@/api/generated/guilds/guilds")>(
+    "@/api/generated/guilds/guilds"
+  );
+  return { ...actual, createGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPost: mintMock };
+});
+vi.mock("@/lib/chesterToast", () => ({
+  toast: { info: vi.fn(), error: vi.fn(), success: vi.fn() },
+}));
 
 const entry = (overrides: Partial<GuildEntry> = {}): GuildEntry =>
   ({ ...buildGuild(), accessType: "member", ...overrides }) as GuildEntry;
@@ -111,5 +126,78 @@ describe("GuildSidebar reorder mode", () => {
       "aria-pressed",
       "true"
     );
+  });
+});
+
+/**
+ * Creating a guild on a deployment that has a billing portal.
+ *
+ * A new guild starts on the deployment's default plan, so the flow hands the
+ * creator straight to the portal to see that plan and add payment details.
+ * With no portal configured (the self-hosted default) creation just finishes.
+ */
+describe("GuildSidebar guild creation", () => {
+  const createNamedGuild = async (createGuild: ReturnType<typeof vi.fn>) => {
+    renderPage(
+      () => (
+        <SidebarProvider>
+          <GuildSidebar />
+        </SidebarProvider>
+      ),
+      { guilds: { guilds: [entry({ name: "Alpha" })], activeGuildId: 1, createGuild } }
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Create Guild" }));
+    fireEvent.change(await screen.findByLabelText("Guild name"), {
+      target: { value: "Beta" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create guild" }));
+  };
+
+  beforeEach(() => {
+    state.billing = null;
+    mintMock.mockReset();
+  });
+
+  it("sends the creator to the portal with the minted token in the fragment", async () => {
+    state.billing = { url: "https://billing.example.com" };
+    mintMock.mockResolvedValue({ handoff_token: "TOK", expires_in_seconds: 60 });
+    const createGuild = vi.fn().mockResolvedValue(buildGuild({ id: 42, name: "Beta" }));
+    const tab = { location: { href: "" }, opener: {} as unknown, close: vi.fn() };
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+
+    await createNamedGuild(createGuild);
+
+    await waitFor(() => expect(mintMock).toHaveBeenCalledWith(42));
+    await waitFor(() =>
+      expect(tab.location.href).toBe(
+        "https://billing.example.com/upgrade?guild=42&lang=en#handoff=TOK"
+      )
+    );
+    openSpy.mockRestore();
+  });
+
+  it("opens nothing when the deployment has no billing portal", async () => {
+    const createGuild = vi.fn().mockResolvedValue(buildGuild({ id: 42, name: "Beta" }));
+    const openSpy = vi.spyOn(window, "open");
+
+    await createNamedGuild(createGuild);
+
+    await waitFor(() => expect(createGuild).toHaveBeenCalled());
+    expect(openSpy).not.toHaveBeenCalled();
+    expect(mintMock).not.toHaveBeenCalled();
+    openSpy.mockRestore();
+  });
+
+  it("closes the reserved tab when creation fails", async () => {
+    state.billing = { url: "https://billing.example.com" };
+    const createGuild = vi.fn().mockRejectedValue(new Error("nope"));
+    const tab = { location: { href: "" }, opener: {} as unknown, close: vi.fn() };
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+
+    await createNamedGuild(createGuild);
+
+    await waitFor(() => expect(tab.close).toHaveBeenCalled());
+    expect(mintMock).not.toHaveBeenCalled();
+    openSpy.mockRestore();
   });
 });
