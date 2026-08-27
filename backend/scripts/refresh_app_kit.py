@@ -34,17 +34,11 @@ FRONTEND_CONTRACT = (
 )
 RAW = "https://raw.githubusercontent.com/Morelitea/initiative-app-kit"
 
-#: What the kit publishes and this build reads: the contract, the schema
-#: generated from it that the conformance tests run, and the one document the
-#: contract does not own — the parameter and return vocabulary that
-#: initiative-auto publishes, which the kit vendors and the contract folds in
-#: through its ``fromVocabulary`` terms. Both halves have to travel together or
-#: this build reads a placeholder where an enum should be.
+#: What the kit publishes and this build reads: the contract, and the schema
+#: generated from it that the conformance tests run.
 FILES = {
     "manifest.contract.json": "manifest.contract.json",
     "app-manifest.json": "schemas/app-manifest.json",
-    "automation-vocabulary.json": "schemas/automation-vocabulary.json",
-    "AUTOMATION_VOCABULARY_REF": "schemas/AUTOMATION_VOCABULARY_REF",
 }
 
 
@@ -103,9 +97,8 @@ def main() -> int:
         args.ref = (VENDOR / "KIT_REVISION").read_text(encoding="utf-8").strip()
 
     bodies = from_checkout(args.checkout) if args.checkout else from_ref(args.ref)
-    for name, body in bodies.items():
-        if name.endswith(".json"):
-            json.loads(body)  # refuse to write something that is not JSON at all
+    for body in bodies.values():
+        json.loads(body)  # refuse to write something that is not JSON at all
     bodies.update({k: f"{v}\n" for k, v in stamp(args.checkout, args.ref).items()})
 
     stale = False

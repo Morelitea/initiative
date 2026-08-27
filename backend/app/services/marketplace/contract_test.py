@@ -621,11 +621,13 @@ def test_every_direction_may_describe_itself_and_its_answer():
 
 
 @pytest.mark.unit
-def test_a_param_says_what_its_value_names_and_a_connection_field_does_not():
-    """An endpoint's parameter is a value somebody builds a control for; a
-    connection's field is a credential an admin types once, with nothing to pick
-    from and nothing for the value to name."""
+def test_a_param_says_what_it_takes_and_not_what_to_draw_for_it():
+    """A manifest describes the API. The control a consumer draws is the
+    consumer's, written in its own words — so nothing here names one."""
     defs = contract.manifest_schema()["$defs"]
-    for owned in ("resource", "source", "list", "default", "optional", "constraints"):
-        assert owned in defs["endpointParam"]["properties"], owned
-        assert owned not in defs["connectionField"]["properties"], owned
+    param = defs["endpointParam"]["properties"]
+    assert "list" in param
+    for drawn in ("picker", "resource", "source", "constraints"):
+        assert drawn not in param, drawn
+    # A credential is typed once; there is no list of them.
+    assert "list" not in defs["connectionField"]["properties"]
