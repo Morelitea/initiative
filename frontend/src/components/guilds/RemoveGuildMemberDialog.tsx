@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { deleteUserApiV1GGuildIdUsersUserIdDelete } from "@/api/generated/users/users";
-import { invalidateGuildMembers } from "@/api/query-keys";
+import { invalidateAllGuilds, invalidateGuildMembers } from "@/api/query-keys";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,6 +51,8 @@ export const RemoveGuildMemberDialog = ({
     try {
       await deleteUserApiV1GGuildIdUsersUserIdDelete(guildId, userId);
       void invalidateGuildMembers();
+      // The guild list carries member_count, which the seat counter reads.
+      void invalidateAllGuilds();
       toast.success(t("removeMember.removed", { email }));
       onSuccess?.();
       onOpenChange(false);

@@ -282,11 +282,13 @@ async def test_redeem_invite_blocked_when_full(session: AsyncSession):
     seat_holder = await create_user(session, email="full-seat@example.com")
     invitee = await create_user(session, email="full-invitee@example.com")
 
-    await guild_service.ensure_membership(
-        session, guild_id=guild.id, user_id=seat_holder.id, role=GuildRole.member
-    )
+    # Minted while the seat is still free, redeemed after it is taken — minting
+    # itself is capacity-gated, so the order here is the scenario.
     invite = await guild_service.create_guild_invite(
         session, guild_id=guild.id, created_by=creator.id, max_uses=5
+    )
+    await guild_service.ensure_membership(
+        session, guild_id=guild.id, user_id=seat_holder.id, role=GuildRole.member
     )
 
     with pytest.raises(guild_service.GuildCapacityError):

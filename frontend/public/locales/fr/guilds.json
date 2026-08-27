@@ -23,6 +23,7 @@
   "viewInitiatives": "Voir les initiatives",
   "viewMembers": "Voir les membres",
   "inviteMembers": "Inviter des membres",
+  "inviteMembersGuildFull": "Inviter des membres (groupe complet)",
   "creatingInvite": "Création de l'invitation...",
   "createInitiative": "Créer une initiative",
   "copyGuildId": "Copier l'ID du groupe",
@@ -136,6 +137,7 @@
     "noActiveInvites": "Aucune invitation active.",
     "unableToLoadInvites": "Impossible de charger les invitations.",
     "unableToCreateInvite": "Impossible de créer l'invitation.",
+    "inviteSeatsFull": "Les {{max}} places sont occupées. Retirez un membre ou demandez à un administrateur de la plateforme d'augmenter la limite avant de créer une autre invitation.",
     "unableToDeleteInvite": "Impossible de supprimer l'invitation.",
     "inviteLinkCopied": "Lien d'invitation copié dans le presse-papier.",
     "copyInviteLink": "Copier le lien d'invitation",
@@ -256,6 +258,9 @@
   },
   "readOnlyBanner": {
     "message": "{{guild}} est actuellement en lecture seule. Vous pouvez tout consulter, mais les modifications sont désactivées."
+  },
+  "billingSetup": {
+    "opening": "Ouverture de la facturation pour choisir un forfait pour {{guild}}."
   },
   "usagePanel": {
     "title": "Utilisation",

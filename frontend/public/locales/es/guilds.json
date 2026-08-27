@@ -23,6 +23,7 @@
   "viewInitiatives": "Ver iniciativas",
   "viewMembers": "Ver miembros",
   "inviteMembers": "Invitar miembros",
+  "inviteMembersGuildFull": "Invitar miembros (gremio lleno)",
   "creatingInvite": "Creando invitación...",
   "createInitiative": "Crear iniciativa",
   "copyGuildId": "Copiar ID del gremio",
@@ -136,6 +137,7 @@
     "noActiveInvites": "No hay invitaciones activas.",
     "unableToLoadInvites": "No se pudieron cargar las invitaciones.",
     "unableToCreateInvite": "No se pudo crear la invitación.",
+    "inviteSeatsFull": "Las {{max}} plazas están ocupadas. Elimina a un miembro o pide a un administrador de la plataforma que aumente el límite antes de crear otra invitación.",
     "unableToDeleteInvite": "No se pudo eliminar la invitación.",
     "inviteLinkCopied": "Enlace de invitación copiado al portapapeles.",
     "copyInviteLink": "Copiar enlace de invitación",
@@ -256,6 +258,9 @@
   },
   "readOnlyBanner": {
     "message": "{{guild}} está actualmente en modo de solo lectura. Puedes consultar todo, pero los cambios están desactivados."
+  },
+  "billingSetup": {
+    "opening": "Abriendo la facturación para que elijas un plan para {{guild}}."
   },
   "usagePanel": {
     "title": "Uso",

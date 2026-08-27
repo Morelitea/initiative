@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/context-menu";
 import { useGuilds } from "@/hooks/useGuilds";
 import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 
 import { LeaveGuildDialog } from "./LeaveGuildDialog";
 
@@ -46,9 +47,13 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
 
   const isAdmin = guild.role === "admin";
   const [creatingInvite, setCreatingInvite] = useState(false);
+  // A guild at its operator-set seat cap mints no invite (the server refuses),
+  // so the item says so rather than handing back an error toast. Both fields
+  // are admin-only on the payload, and null max_users means uncapped.
+  const atUserLimit = guild.max_users != null && guild.member_count >= guild.max_users;
 
   const handleInviteMembers = async () => {
-    if (creatingInvite) return;
+    if (creatingInvite || atUserLimit) return;
     setCreatingInvite(true);
     try {
       const data = (await createGuildInviteApiV1GuildsGuildIdInvitesPost(
@@ -60,7 +65,7 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
       toast.success(t("inviteLinkCopied"));
     } catch (err) {
       console.error("Failed to create invite", err);
-      toast.error(t("failedToCreateInvite"));
+      toast.error(getErrorMessage(err, "guilds:failedToCreateInvite"));
     } finally {
       setCreatingInvite(false);
     }
@@ -123,9 +128,16 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
                 {t("viewMembers")}
               </ContextMenuItem>
               <ContextMenuSeparator />
-              <ContextMenuItem onClick={handleInviteMembers} disabled={creatingInvite}>
+              <ContextMenuItem
+                onClick={handleInviteMembers}
+                disabled={creatingInvite || atUserLimit}
+              >
                 <UserPlus className="mr-2 h-4 w-4" />
-                {creatingInvite ? t("creatingInvite") : t("inviteMembers")}
+                {creatingInvite
+                  ? t("creatingInvite")
+                  : atUserLimit
+                    ? t("inviteMembersGuildFull")
+                    : t("inviteMembers")}
               </ContextMenuItem>
               <ContextMenuItem onClick={handleCreateInitiative}>
                 <Plus className="mr-2 h-4 w-4" />
