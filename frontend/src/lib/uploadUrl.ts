@@ -4,22 +4,28 @@ import { apiClient } from "@/api/client";
 import { getUploadToken } from "@/lib/uploadToken";
 
 /**
- * The API server's origin, or "" when it can't be determined.
+ * The root the API server is addressed at: its origin plus whatever path the
+ * deployment is served under — "https://example.com/initiative" for a base URL
+ * of "https://example.com/initiative/api/v1". "" when it can't be determined.
  *
  * Only meaningful on native: there the web bundle is served from its own local
  * origin, so a same-origin path resolves inside the bundle rather than at the
- * server that returned it.
+ * server that returned it. The path prefix is kept because a server reached at
+ * one is reached there for everything — `normalizeServerUrl` preserves it when
+ * the address is entered, so dropping it here would address a different root.
  */
-function apiOrigin(): string {
+function apiServerBase(): string {
   const baseUrl = apiClient.defaults.baseURL;
   if (!baseUrl) {
     return "";
   }
+  const withoutApiPath = baseUrl.replace(/\/api\/v1\/?$/, "");
   try {
-    return new URL(baseUrl).origin;
+    const url = new URL(withoutApiPath);
+    return `${url.origin}${url.pathname.replace(/\/$/, "")}`;
   } catch {
-    // A base URL that isn't parseable as absolute: strip the API suffix instead.
-    return baseUrl.replace(/\/api\/v1\/?$/, "");
+    // Not parseable as absolute (a same-origin base URL): nothing to prepend.
+    return withoutApiPath.replace(/\/$/, "");
   }
 }
 
@@ -38,7 +44,7 @@ export function resolveHeaderlessApiUrl(apiPath: string): string {
     return apiPath;
   }
 
-  const origin = apiOrigin();
+  const origin = apiServerBase();
   const resolved = origin ? `${origin}${apiPath}` : apiPath;
   const token = getUploadToken();
   if (token) {
@@ -112,7 +118,7 @@ export function resolveUploadUrl(path: string | null | undefined): string | null
   // On native platforms, prepend the API server origin (no Vite proxy)
   if (Capacitor.isNativePlatform()) {
     // e.g. "http://10.0.2.2:8000/api/v1" -> "http://10.0.2.2:8000/uploads/..."
-    const origin = apiOrigin();
+    const origin = apiServerBase();
     resolved = origin ? `${origin}${normalizedPath}` : normalizedPath;
   } else {
     // On web, return path as-is - Vite proxies /uploads in dev, same-origin in prod
@@ -161,6 +167,6 @@ export function resolveArtworkUrl(path: string | null | undefined): string | nul
     return normalizedPath;
   }
 
-  const origin = apiOrigin();
+  const origin = apiServerBase();
   return origin ? `${origin}${normalizedPath}` : normalizedPath;
 }
